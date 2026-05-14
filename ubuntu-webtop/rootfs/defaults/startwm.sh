@@ -17,8 +17,8 @@ xfdesktop &
 # Panel (taskbar)
 xfce4-panel &
 
+# Thunar-Daemon für Datei-Assoziation und Desktop-Integration
+thunar --daemon &
+
 # Vordergrundprozess – hält den s6-Service am Leben
-# Hinweis: thunar --daemon wird NICHT gestartet, da der Thumbnailer-Dienst
-# (org.freedesktop.thumbnails.Thumbnailer1) in HA-Containern nicht verfügbar ist
-# und ständige D-Bus-Fehlermeldungen + CPU-Last verursacht.
 exec sleep infinity
