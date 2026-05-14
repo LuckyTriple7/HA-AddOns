@@ -2,7 +2,7 @@
 #  Ubuntu Webtop XFCE – HA Addon #
 ##################################
 
-ARG BUILD_FROM=lscr.io/linuxserver/webtop:debian-xfce-7947b9cc-ls194
+ARG BUILD_FROM=ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm
 ARG BUILD_VERSION
 
 FROM ${BUILD_FROM}
@@ -21,14 +21,30 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \
     fi
 
-# Firefox über Mozillas offizielles Debian-Repo installieren
-# (Debian liefert nur Firefox-ESR; das Mozilla-Repo enthält das aktuelle Firefox)
+# XFCE Desktop-Umgebung + Abhängigkeiten installieren
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        xfwm4 \
+        xfdesktop4 \
+        xfce4-panel \
+        xfce4-settings \
+        xfce4-terminal \
+        xfce4-notifyd \
+        xfce4-taskmanager \
+        thunar \
+        thunar-volman \
         jq \
         curl \
         gnupg \
         ca-certificates \
+        dbus-x11 \
+        locales \
+        desktop-base \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Firefox über Mozillas offizielles Debian-Repo installieren
+RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \
     && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
         -o /etc/apt/keyrings/packages.mozilla.org.asc \
@@ -40,14 +56,13 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         firefox \
         firefox-l10n-de \
-        locales \
-        desktop-base \
-        dbus-x11 \
-    && sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
-    && locale-gen \
-    && update-locale LANG=de_DE.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Deutsche Locale generieren
+RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && update-locale LANG=de_DE.UTF-8
 
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
