@@ -52,6 +52,8 @@ RUN apt-get update \
         dbus-x11 \
         locales \
         desktop-base \
+        gnome-keyring \
+        libsecret-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -10,6 +10,10 @@ export DISPLAY="${DISPLAY:-:1}"
 eval "$(dbus-launch --sh-syntax)"
 export DBUS_SESSION_BUS_ADDRESS
 
+# GNOME Keyring starten – speichert SMB-Passwörter für Thunar/gvfs
+eval "$(gnome-keyring-daemon --start --components=secrets)"
+export GNOME_KEYRING_CONTROL GNOME_KEYRING_PID SSH_AUTH_SOCK
+
 # Fenstermanager ohne Compositor (verhindert schwarzen Bildschirm in virtuellen Umgebungen)
 xfwm4 --compositor=off &
 
