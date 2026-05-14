@@ -42,13 +42,13 @@ for SHARE in "${SHARES[@]}"; do
     for VERS in "" ",vers=3.0" ",vers=2.1" ",vers=2.0" ",vers=1.0"; do
         for SEC in "" ",sec=ntlmssp" ",sec=ntlmv2"; do
             OPTS="${BASE_OPTS}${VERS}${SEC}"
-            # mount.cifs gibt manchmal Fehlercode trotz erfolgreichem Mount (capset-Bug)
-            # daher prüfen wir /proc/mounts statt den Exit-Code
-            mount -t cifs "${SHARE}" "${MOUNTPOINT}" -o "${OPTS}" 2>/dev/null || true
+            ERR=$(mount -t cifs "${SHARE}" "${MOUNTPOINT}" -o "${OPTS}" 2>&1) || true
             if is_mounted "${MOUNTPOINT}"; then
                 echo "[ubuntu-webtop] SMB erfolgreich gemountet: ${SHARE} → ${MOUNTPOINT}${VERS}${SEC}"
                 MOUNTED=true
                 break 2
+            else
+                echo "[ubuntu-webtop]   Fehler${VERS}${SEC}: ${ERR}"
             fi
         done
     done
