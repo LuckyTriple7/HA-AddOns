@@ -37,6 +37,7 @@ RUN apt-get update \
         gvfs-backends \
         gvfs-fuse \
         cifs-utils \
+        smbclient \
         geany \
         nmap \
         ristretto \

@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.2.6"
+version: "1.2.7"
 slug: ubuntu_webtop
 init: false
 
@@ -53,6 +53,10 @@ options:
   PGID: 1000
   TZ: "Europe/Berlin"
   PASSWORD: ""
+  networkdisks: ""
+  cifsusername: ""
+  cifspassword: ""
+  cifsdomain: ""
 
 schema:
   PUID: int
@@ -61,6 +65,10 @@ schema:
   PASSWORD: str?
   KEYBOARD: list(da-dk-qwerty|de-de-qwertz|en-gb-qwerty|en-us-qwerty|es-es-qwerty|fr-ch-qwertz|fr-fr-azerty|it-it-qwerty|ja-jp-qwerty|pt-br-qwerty|sv-se-qwerty|tr-tr-qwerty)?
   DRINODE: list(/dev/dri/card0|/dev/dri/card1|/dev/dri/renderD128|/dev/dri/renderD129)?
+  networkdisks: str?
+  cifsusername: str?
+  cifspassword: str?
+  cifsdomain: str?
 
 panel_icon: mdi:monitor
 panel_admin: false
