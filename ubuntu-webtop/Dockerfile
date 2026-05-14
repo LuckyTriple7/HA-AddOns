@@ -38,6 +38,12 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# glycin-svg nutzt bwrap (bubblewrap) mit --unshare-all für Sandboxing.
+# Das benötigt User-Namespaces, die in HA-Containern nicht verfügbar sind.
+# Ohne glycin-svg fällt GTK auf den librsvg-gdk-pixbuf-Loader zurück (kein bwrap).
+RUN find /usr/libexec/glycin-loaders -name "glycin-svg" -delete 2>/dev/null || true \
+    && gdk-pixbuf-query-loaders --update-cache 2>/dev/null || true
+
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
 RUN find /etc/cont-init.d -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
