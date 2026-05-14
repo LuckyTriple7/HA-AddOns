@@ -5,6 +5,11 @@
 
 export DISPLAY="${DISPLAY:-:1}"
 
+# D-Bus Session-Bus starten – von xfce4-session normalerweise gestartet.
+# xfconf, xfce4-panel und xfdesktop brauchen ihn zwingend (dbus-x11 Paket).
+eval "$(dbus-launch --sh-syntax)"
+export DBUS_SESSION_BUS_ADDRESS
+
 # Fenstermanager ohne Compositor (verhindert schwarzen Bildschirm in virtuellen Umgebungen)
 xfwm4 --compositor=off &
 

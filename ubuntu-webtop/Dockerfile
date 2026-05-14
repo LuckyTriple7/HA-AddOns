@@ -42,6 +42,7 @@ RUN apt-get update \
         firefox-l10n-de \
         locales \
         desktop-base \
+        dbus-x11 \
     && sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen \
     && update-locale LANG=de_DE.UTF-8 \
