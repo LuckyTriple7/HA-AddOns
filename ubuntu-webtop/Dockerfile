@@ -38,6 +38,12 @@ RUN apt-get update \
         gvfs-fuse \
         cifs-utils \
         geany \
+        nmap \
+        ristretto \
+        atril \
+        vlc \
+        galculator \
+        xarchiver \
         jq \
         curl \
         gnupg \
