@@ -40,7 +40,6 @@ RUN apt-get update \
         smbclient \
         geany \
         nmap \
-        nmapsi4 \
         ristretto \
         atril \
         vlc \
@@ -54,8 +53,9 @@ RUN apt-get update \
         locales \
         desktop-base \
         gcc \
-    && printf 'int capset(void *h, const void *d) { return 0; }\n' \
-        | gcc -shared -fPIC -nostartfiles -x c - -o /usr/local/lib/libfakecap.so \
+    && echo 'int capset(void *h, const void *d) { return 0; }' > /tmp/fakecap.c \
+    && gcc -shared -fPIC -o /usr/local/lib/libfakecap.so /tmp/fakecap.c \
+    && rm /tmp/fakecap.c \
     && apt-get remove -y --purge gcc \
     && apt-get autoremove -y \
     && apt-get clean \
