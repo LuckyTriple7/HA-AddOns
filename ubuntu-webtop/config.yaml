@@ -1,0 +1,69 @@
+name: Ubuntu Webtop XFCE
+description: Ubuntu XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
+version: "1.0.0"
+slug: ubuntu_webtop
+init: false
+
+arch:
+  - aarch64
+  - amd64
+
+# Hardware-Zugriff
+audio: true
+video: true
+udev: true
+tmpfs: true
+
+privileged:
+  - SYS_ADMIN
+  - DAC_READ_SEARCH
+
+devices:
+  - /dev/dri
+  - /dev/dri/card0
+  - /dev/dri/card1
+  - /dev/dri/renderD128
+  - /dev/fuse
+
+# Ports
+ports:
+  3000/tcp: null
+  3001/tcp: null
+
+ports_description:
+  3000/tcp: Web Interface (HTTP)
+  3001/tcp: Web Interface (HTTPS)
+
+# Speicher-Mounts — addon_config ist persistent über Updates hinweg
+map:
+  - addon_config:rw
+  - share:rw
+  - media:rw
+  - ssl
+
+# Standardwerte für Umgebungsvariablen
+environment:
+  HOME: /config/data
+  TITLE: Ubuntu Webtop
+  START_DOCKER: "false"
+  FM_HOME: /config/data
+
+# Benutzer-Optionen (Einstellungen bleiben nach Updates erhalten, da in addon_config gespeichert)
+options:
+  PUID: 1000
+  PGID: 1000
+  TZ: "Europe/Berlin"
+  PASSWORD: ""
+
+schema:
+  PUID: int
+  PGID: int
+  TZ: match([A-Z][a-z]*/[A-Za-z0-9_]*)?
+  PASSWORD: str?
+  KEYBOARD: list(da-dk-qwerty|de-de-qwertz|en-gb-qwerty|en-us-qwerty|es-es-qwerty|fr-ch-qwertz|fr-fr-azerty|it-it-qwerty|ja-jp-qwerty|pt-br-qwerty|sv-se-qwerty|tr-tr-qwerty)?
+  DRINODE: list(/dev/dri/card0|/dev/dri/card1|/dev/dri/renderD128|/dev/dri/renderD129)?
+
+panel_icon: mdi:monitor
+panel_admin: false
+
+url: https://github.com/LuckyTriple7/HA-AddOns

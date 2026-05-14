@@ -1,0 +1,11 @@
+{
+  "build_from": {
+    "aarch64": "lscr.io/linuxserver/webtop:ubuntu-xfce",
+    "amd64": "lscr.io/linuxserver/webtop:ubuntu-xfce"
+  },
+  "labels": {
+    "io.hass.name": "Ubuntu Webtop XFCE",
+    "io.hass.description": "Ubuntu XFCE Desktop mit Firefox, zugänglich über den Webbrowser",
+    "io.hass.type": "addon"
+  }
+}
