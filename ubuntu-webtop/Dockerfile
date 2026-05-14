@@ -74,6 +74,18 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# libfakecap.so: Fängt capset() ab damit mount.cifs im Container funktioniert.
+# mount.cifs versucht nach dem Mount Capabilities zu droppen (capset) –
+# dieser Syscall schlägt in HA-Containern fehl. Wir fälschen den Rückgabewert.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc \
+    && printf 'int capset(void *h, const void *d) { return 0; }\n' \
+        | gcc -shared -fPIC -nostartfiles -x c - -o /usr/local/lib/libfakecap.so \
+    && apt-get remove -y --purge gcc \
+    && apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Deutsche Locale generieren
 RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen \

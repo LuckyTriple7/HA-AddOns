@@ -42,7 +42,7 @@ for SHARE in "${SHARES[@]}"; do
     for VERS in "" ",vers=3.0" ",vers=2.1" ",vers=2.0" ",vers=1.0"; do
         for SEC in "" ",sec=ntlmssp" ",sec=ntlmv2"; do
             OPTS="${BASE_OPTS}${VERS}${SEC}"
-            ERR=$(mount -t cifs "${SHARE}" "${MOUNTPOINT}" -o "${OPTS}" 2>&1) || true
+            ERR=$(LD_PRELOAD=/usr/local/lib/libfakecap.so mount -t cifs "${SHARE}" "${MOUNTPOINT}" -o "${OPTS}" 2>&1) || true
             if is_mounted "${MOUNTPOINT}"; then
                 echo "[ubuntu-webtop] SMB erfolgreich gemountet: ${SHARE} → ${MOUNTPOINT}${VERS}${SEC}"
                 MOUNTED=true
