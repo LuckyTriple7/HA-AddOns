@@ -74,6 +74,10 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# mount.cifs SUID-Bit entfernen – im Container laufen wir als root,
+# das SUID-Bit führt sonst zu einem capset()-Fehler beim Privilege-Drop
+RUN chmod -s /sbin/mount.cifs
+
 # Deutsche Locale generieren
 RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen \
