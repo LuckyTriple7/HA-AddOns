@@ -1,6 +1,6 @@
 name: Ubuntu Webtop XFCE
 description: Ubuntu XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.0.8"
+version: "1.0.9"
 slug: ubuntu_webtop
 init: false
 

@@ -40,5 +40,14 @@ export XDG_RUNTIME_DIR
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
+# glycin (GTK4 SVG-Loader) verwendet bwrap (bubblewrap) für Sandboxing.
+# bwrap --unshare-all benötigt User-Namespaces, die in HA-Containern nicht verfügbar sind.
+# Ohne diesen Fix stürzen xfdesktop, xfce4-panel und andere GTK-Apps beim Laden von
+# SVG-Icons (z.B. Adwaita) sofort mit einer GTK-Assertion ab → schwarzer Bildschirm.
+export GLYCIN_DISABLE_SANDBOX=1
+
+# Unterdrückt AT-SPI/Accessibility-Warnungen (org.a11y.Bus nicht verfügbar in Containern).
+export NO_AT_BRIDGE=1
+
 # An LinuxServer's s6-overlay übergeben (PID-Übergabe mit exec)
 exec /init
