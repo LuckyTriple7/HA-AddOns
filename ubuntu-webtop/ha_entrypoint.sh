@@ -27,6 +27,14 @@ else
     echo "[ubuntu-webtop] Warnung: ${OPTIONS_FILE} nicht gefunden, benutze Standardwerte."
 fi
 
+# XDG_RUNTIME_DIR wird normalerweise von logind beim Login erstellt.
+# Ohne dieses Verzeichnis bricht xfce4-session sofort mit SIGABRT ab.
+XDG_RUNTIME_DIR="/run/user/${PUID}"
+mkdir -p "${XDG_RUNTIME_DIR}"
+chown "${PUID}:${PGID}" "${XDG_RUNTIME_DIR}"
+chmod 700 "${XDG_RUNTIME_DIR}"
+export XDG_RUNTIME_DIR
+
 # /tmp/.X11-unix vorab als root erstellen damit X11-Clients (die als abc/uid 1000 laufen)
 # nicht selbst versuchen das Verzeichnis anzulegen (schlägt fehl wegen euid!=0).
 mkdir -p /tmp/.X11-unix

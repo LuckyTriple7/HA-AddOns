@@ -1,6 +1,6 @@
 name: Ubuntu Webtop XFCE
 description: Ubuntu XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.0.3"
+version: "1.0.4"
 slug: ubuntu_webtop
 init: false
 
@@ -28,8 +28,8 @@ devices:
 
 # Ports
 ports:
-  3000/tcp: null
-  3001/tcp: null
+  3000/tcp: 3000
+  3001/tcp: 3001
 
 ports_description:
   3000/tcp: Web Interface (HTTP)

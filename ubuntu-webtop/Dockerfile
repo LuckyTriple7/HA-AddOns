@@ -2,7 +2,7 @@
 #  Ubuntu Webtop XFCE – HA Addon #
 ##################################
 
-ARG BUILD_FROM
+ARG BUILD_FROM=lscr.io/linuxserver/webtop:ubuntu-xfce
 ARG BUILD_VERSION
 
 FROM ${BUILD_FROM}

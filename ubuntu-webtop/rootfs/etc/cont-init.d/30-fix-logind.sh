@@ -6,11 +6,5 @@
 LOGIND_ACTIVATION="/usr/share/dbus-1/system-services/org.freedesktop.login1.service"
 if [ -f "${LOGIND_ACTIVATION}" ]; then
     rm -f "${LOGIND_ACTIVATION}"
-    echo "[ubuntu-webtop] logind dbus-Aktivierung deaktiviert (nicht benötigt in HA)"
-fi
-
-# Polkit-Aktionen die logind benötigen ebenfalls deaktivieren
-POLKIT_LOGIND="/usr/share/polkit-1/actions/org.freedesktop.login1.policy"
-if [ -f "${POLKIT_LOGIND}" ]; then
-    rm -f "${POLKIT_LOGIND}"
+    echo "[ubuntu-webtop] logind dbus-Aktivierung deaktiviert (systemd nicht verfügbar in HA)"
 fi
