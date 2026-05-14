@@ -33,6 +33,10 @@ RUN apt-get update \
         xfce4-taskmanager \
         thunar \
         thunar-volman \
+        gvfs \
+        gvfs-backends \
+        gvfs-fuse \
+        cifs-utils \
         jq \
         curl \
         gnupg \
