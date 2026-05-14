@@ -40,6 +40,7 @@ RUN apt-get update \
         smbclient \
         geany \
         nmap \
+        nmapsi4 \
         ristretto \
         atril \
         vlc \
@@ -68,6 +69,8 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         firefox \
         firefox-l10n-de \
+        thunderbird \
+        thunderbird-l10n-de \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
