@@ -1,7 +1,14 @@
 #!/usr/bin/with-contenv bash
-# LinuxServer nutzt /config als Home-Verzeichnis für den abc-User.
-# /config ist der addon_config-Mount von Home Assistant (persistent über Updates).
-# Sicherstellen, dass /config für abc beschreibbar ist.
+PUID="${PUID:-1000}"
+PGID="${PGID:-1000}"
 
 chmod 755 /config 2>/dev/null || true
-echo "[ubuntu-webtop] /config bereit (addon_config-Mount)"
+chown "${PUID}:${PGID}" /config 2>/dev/null || true
+
+# Besitzer von .config rekursiv korrigieren – wird von cont-init.d als root erstellt
+# und muss für den abc-User (PUID) beschreibbar sein
+if [ -d /config/.config ]; then
+    chown -R "${PUID}:${PGID}" /config/.config 2>/dev/null || true
+fi
+
+echo "[ubuntu-webtop] /config bereit (addon_config-Mount, Besitzer: ${PUID}:${PGID})"

@@ -2,7 +2,10 @@
 # Setzt Firefox als Standard-Browser und deutsche Locale für den XFCE-Desktop.
 
 CONFIG_DIR="/config/.config"
-mkdir -p "${CONFIG_DIR}/xfce4" "${CONFIG_DIR}"
+PUID="${PUID:-1000}"
+PGID="${PGID:-1000}"
+mkdir -p "${CONFIG_DIR}/xfce4"
+chown -R "${PUID}:${PGID}" "${CONFIG_DIR}" 2>/dev/null || true
 
 # Firefox als Standard-Browser (XFCE preferred-applications)
 HELPERS_RC="${CONFIG_DIR}/xfce4/helpers.rc"
