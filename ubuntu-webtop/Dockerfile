@@ -2,7 +2,7 @@
 #  Ubuntu Webtop XFCE – HA Addon #
 ##################################
 
-ARG BUILD_FROM=lscr.io/linuxserver/webtop:ubuntu-xfce
+ARG BUILD_FROM=lscr.io/linuxserver/webtop:debian-xfce
 ARG BUILD_VERSION
 
 FROM ${BUILD_FROM}
@@ -21,31 +21,26 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \
     fi
 
-# Firefox über Mozilla-PPA installieren (Ubuntu 22.04+ liefert Firefox nur als Snap aus,
-# das in Containern ohne systemd nicht funktioniert)
+# Firefox über Mozillas offizielles Debian-Repo installieren
+# (Debian liefert nur Firefox-ESR; das Mozilla-Repo enthält das aktuelle Firefox)
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        software-properties-common \
         jq \
         curl \
         gnupg \
-    && add-apt-repository -y ppa:mozillateam/ppa \
-    && printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001\n' \
-        > /etc/apt/preferences.d/mozilla-firefox \
+        ca-certificates \
+    && install -d -m 0755 /etc/apt/keyrings \
+    && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
+        -o /etc/apt/keyrings/packages.mozilla.org.asc \
+    && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" \
+        > /etc/apt/sources.list.d/mozilla.list \
+    && printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1001\n' \
+        > /etc/apt/preferences.d/mozilla \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         firefox \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# glycin nutzt bwrap (bubblewrap) mit --unshare-all für SVG-Sandboxing.
-# Das benötigt User-Namespaces, die in HA-Containern nicht verfügbar sind → Crash.
-# Lösung: Das gdk-pixbuf-Plugin (libpixbufloader-glycin.so) und alle Loader-Binaries
-# entfernen → gdk-pixbuf nutzt automatisch librsvg für SVG (kein bwrap nötig).
-RUN find /usr/lib -name "libpixbufloader-glycin.so" -delete 2>/dev/null; \
-    rm -rf /usr/libexec/glycin-loaders/ 2>/dev/null; \
-    gdk-pixbuf-query-loaders --update-cache 2>/dev/null; \
-    true
 
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
