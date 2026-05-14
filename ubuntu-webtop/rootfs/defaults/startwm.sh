@@ -10,11 +10,6 @@ export DISPLAY="${DISPLAY:-:1}"
 eval "$(dbus-launch --sh-syntax)"
 export DBUS_SESSION_BUS_ADDRESS
 
-# Xvfb-Auflösung auf 1280x720 begrenzen.
-# Pixelflux liest den Framebuffer bei jedem Capture-Zyklus komplett —
-# kleinere Auflösung = weniger Kernel-Syscalls = weniger sy-CPU.
-xrandr --fb 1280x720 2>/dev/null || true
-
 # Fenstermanager ohne Compositor (verhindert schwarzen Bildschirm in virtuellen Umgebungen)
 xfwm4 --compositor=off &
 
