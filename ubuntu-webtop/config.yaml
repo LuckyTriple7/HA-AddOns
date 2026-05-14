@@ -1,6 +1,6 @@
 name: Ubuntu Webtop XFCE
 description: Ubuntu XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.0.1"
+version: "1.0.2"
 slug: ubuntu_webtop
 init: false
 
@@ -45,10 +45,8 @@ map:
 
 # Standardwerte für Umgebungsvariablen
 environment:
-  HOME: /config/data
   TITLE: Ubuntu Webtop
   START_DOCKER: "false"
-  FM_HOME: /config/data
 
 # Benutzer-Optionen (Einstellungen bleiben nach Updates erhalten, da in addon_config gespeichert)
 options:

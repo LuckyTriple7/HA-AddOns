@@ -27,15 +27,8 @@ else
     echo "[ubuntu-webtop] Warnung: ${OPTIONS_FILE} nicht gefunden, benutze Standardwerte."
 fi
 
-# /config/data VOR dem Start von /init erstellen und mit korrekten Rechten versehen.
-# Wichtig: LinuxServer's Init-Skripte erwarten dieses Verzeichnis bereits beim Start.
-DATA_DIR="/config/data"
-mkdir -p "${DATA_DIR}"
-chown "${PUID}:${PGID}" "${DATA_DIR}"
-chmod 750 "${DATA_DIR}"
-
-# /tmp/.X11-unix vorab erstellen (als root), damit xfce4-session (läuft als abc/uid 1000)
-# keinen eigenen Erstellungsversuch unternimmt – der wegen euid!=0 scheitern würde.
+# /tmp/.X11-unix vorab als root erstellen damit X11-Clients (die als abc/uid 1000 laufen)
+# nicht selbst versuchen das Verzeichnis anzulegen (schlägt fehl wegen euid!=0).
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 

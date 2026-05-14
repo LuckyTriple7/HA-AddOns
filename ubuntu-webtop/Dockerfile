@@ -16,9 +16,6 @@ USER root
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Persistentes Home-Verzeichnis: /config ist der addon_config-Mount (bleibt über Updates erhalten)
-RUN usermod --home /config/data abc
-
 # s6-run-Skripte auf set +e patchen, damit einzelne Fehler den Start nicht abbrechen
 RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \

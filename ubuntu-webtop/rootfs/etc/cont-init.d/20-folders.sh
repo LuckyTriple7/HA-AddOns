@@ -1,12 +1,7 @@
 #!/usr/bin/with-contenv bash
-# Stellt sicher, dass das persistente Benutzerverzeichnis existiert.
-# /config ist der addon_config-Mount von Home Assistant und bleibt über Updates erhalten.
+# LinuxServer nutzt /config als Home-Verzeichnis für den abc-User.
+# /config ist der addon_config-Mount von Home Assistant (persistent über Updates).
+# Sicherstellen, dass /config für abc beschreibbar ist.
 
-set -e
-
-DATA_DIR="/config/data"
-
-mkdir -p "${DATA_DIR}"
-chown abc:abc "${DATA_DIR}"
-
-echo "[ubuntu-webtop] Benutzerverzeichnis bereit: ${DATA_DIR}"
+chmod 755 /config 2>/dev/null || true
+echo "[ubuntu-webtop] /config bereit (addon_config-Mount)"
