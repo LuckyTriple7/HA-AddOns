@@ -21,7 +21,7 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \
     fi
 
-# XFCE Desktop-Umgebung + Abhängigkeiten + libfakecap.so (capset-Workaround für mount.cifs)
+# XFCE Desktop-Umgebung + Anwendungen installieren
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         xfwm4 \
@@ -52,12 +52,6 @@ RUN apt-get update \
         dbus-x11 \
         locales \
         desktop-base \
-        gcc \
-    && echo 'int capset(void *h, const void *d) { return 0; }' > /tmp/fakecap.c \
-    && gcc -shared -fPIC -o /usr/local/lib/libfakecap.so /tmp/fakecap.c \
-    && rm /tmp/fakecap.c \
-    && apt-get remove -y --purge gcc \
-    && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
