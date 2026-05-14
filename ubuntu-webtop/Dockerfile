@@ -39,6 +39,11 @@ RUN apt-get update \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         firefox \
+        locales \
+        desktop-base \
+    && sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && update-locale LANG=de_DE.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

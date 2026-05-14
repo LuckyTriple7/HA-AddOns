@@ -40,6 +40,11 @@ export XDG_RUNTIME_DIR
 mkdir -p /tmp/.X11-unix
 chmod 1777 /tmp/.X11-unix
 
+# Deutsche Locale für GTK-Dialoge, Datumsformate und Firefox-UI
+export LANG=de_DE.UTF-8
+export LANGUAGE=de_DE:de
+export LC_ALL=de_DE.UTF-8
+
 # glycin (GTK4 SVG-Loader) verwendet bwrap (bubblewrap) für Sandboxing.
 # bwrap --unshare-all benötigt User-Namespaces, die in HA-Containern nicht verfügbar sind.
 # Ohne diesen Fix stürzen xfdesktop, xfce4-panel und andere GTK-Apps beim Laden von
