@@ -1,6 +1,5 @@
 #!/usr/bin/with-contenv bash
 # Setzt Firefox als Standard-Browser und deutsche Locale für den XFCE-Desktop.
-# Wird nur gesetzt wenn noch keine Benutzer-Konfiguration existiert (Erststart).
 
 CONFIG_DIR="/config/.config"
 mkdir -p "${CONFIG_DIR}/xfce4" "${CONFIG_DIR}"
@@ -30,8 +29,30 @@ EOF
     echo "[ubuntu-webtop] MIME-Zuordnung für Firefox gesetzt"
 fi
 
-# Locale für XFCE-Sitzung setzen (ergänzt die Umgebungsvariablen aus ha_entrypoint.sh)
+# Locale für XFCE-Sitzung setzen
 LOCALE_CONF="${CONFIG_DIR}/locale.conf"
 if [ ! -f "${LOCALE_CONF}" ]; then
     echo "LANG=de_DE.UTF-8" > "${LOCALE_CONF}"
+fi
+
+# Chromium-Panel-Launcher durch Firefox ersetzen (immer, nicht nur beim Erststart)
+# Die Panel-Konfig bleibt persistent in /config/.config/xfce4/panel/
+PANEL_DIR="${CONFIG_DIR}/xfce4/panel"
+if [ -d "${PANEL_DIR}" ]; then
+    while IFS= read -r -d '' desktop_file; do
+        if grep -qi "chromium" "${desktop_file}"; then
+            cat > "${desktop_file}" << 'DESKTOP'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Firefox
+Comment=Webbrowser
+TryExec=firefox
+Exec=firefox %u
+Icon=firefox
+Categories=Network;WebBrowser;
+DESKTOP
+            echo "[ubuntu-webtop] Panel-Launcher: Chromium → Firefox ersetzt in ${desktop_file}"
+        fi
+    done < <(find "${PANEL_DIR}" -name "*.desktop" -print0 2>/dev/null)
 fi
