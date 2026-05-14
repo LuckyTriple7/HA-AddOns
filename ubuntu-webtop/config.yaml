@@ -1,6 +1,6 @@
 name: Ubuntu Webtop XFCE
 description: Ubuntu XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.0.6"
+version: "1.0.8"
 slug: ubuntu_webtop
 init: false
 
@@ -32,8 +32,8 @@ ports:
   3001/tcp: 7777
 
 ports_description:
-  3000/tcp: Web Interface (HTTP) → Host-Port 7776
-  3001/tcp: Web Interface (HTTPS) → Host-Port 7777
+  3000/tcp: Web Interface HTTP (Host-Port 7776)
+  3001/tcp: Web Interface HTTPS (Host-Port 7777)
 
 # Speicher-Mounts — addon_config ist persistent über Updates hinweg
 map:
