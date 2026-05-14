@@ -14,20 +14,25 @@ CIFSDOMAIN=$(jq -r '.cifsdomain // ""' "${OPTIONS_FILE}")
 PUID=$(jq -r '.PUID // "1000"' "${OPTIONS_FILE}")
 PGID=$(jq -r '.PGID // "1000"' "${OPTIONS_FILE}")
 
-# Temporäre Credentials-Datei (wird nach dem Mounten gelöscht)
+# cifs-Kernelmodul laden (wird im HA-Container oft nicht automatisch geladen)
+modprobe cifs 2>/dev/null && echo "[ubuntu-webtop] cifs-Kernelmodul geladen" \
+    || echo "[ubuntu-webtop] cifs-Kernelmodul konnte nicht geladen werden (evtl. bereits aktiv)"
+
+# Temporäre Credentials-Datei
 CRED_FILE=$(mktemp /tmp/cifs-cred.XXXXXX)
 chmod 600 "${CRED_FILE}"
 printf 'username=%s\npassword=%s\n' "${CIFSUSER}" "${CIFSPASS}" > "${CRED_FILE}"
 [ -n "${CIFSDOMAIN}" ] && printf 'domain=%s\n' "${CIFSDOMAIN}" >> "${CRED_FILE}"
 
-mount_share() {
-    local share="$1"
-    local mountpoint="$2"
-    local extra_opts="${3:-}"
+BASE_OPTS="rw,file_mode=0775,dir_mode=0775,credentials=${CRED_FILE},nobrl,uid=${PUID},gid=${PGID},iocharset=utf8"
 
-    mount -t cifs "${share}" "${mountpoint}" \
-        -o "rw,file_mode=0775,dir_mode=0775,credentials=${CRED_FILE},nobrl,uid=${PUID},gid=${PGID},iocharset=utf8${extra_opts}" \
-        2>/dev/null
+try_mount() {
+    local share="$1" mountpoint="$2" opts="$3"
+    local err
+    err=$(mount -t cifs "${share}" "${mountpoint}" -o "${opts}" 2>&1)
+    local rc=$?
+    [ $rc -ne 0 ] && echo "[ubuntu-webtop]   Fehler (${opts##*,}): ${err}"
+    return $rc
 }
 
 IFS=',' read -ra SHARES <<< "${NETWORKDISKS}"
@@ -35,20 +40,27 @@ for SHARE in "${SHARES[@]}"; do
     SHARE="${SHARE// /}"
     [ -z "${SHARE}" ] && continue
 
-    # Mount-Punkt: letztes Pfadsegment des Share-Namens, nur alphanumerisch
     SHARENAME="${SHARE##*/}"
     SHARENAME="${SHARENAME//[^a-zA-Z0-9_-]/_}"
     MOUNTPOINT="/mnt/${SHARENAME}"
     mkdir -p "${MOUNTPOINT}"
 
-    if mount_share "${SHARE}" "${MOUNTPOINT}"; then
-        echo "[ubuntu-webtop] SMB gemountet: ${SHARE} → ${MOUNTPOINT}"
-    elif mount_share "${SHARE}" "${MOUNTPOINT}" ",vers=2.1"; then
-        echo "[ubuntu-webtop] SMB gemountet (vers=2.1): ${SHARE} → ${MOUNTPOINT}"
-    elif mount_share "${SHARE}" "${MOUNTPOINT}" ",vers=1.0"; then
-        echo "[ubuntu-webtop] SMB gemountet (vers=1.0): ${SHARE} → ${MOUNTPOINT}"
-    else
-        echo "[ubuntu-webtop] FEHLER: SMB-Share konnte nicht gemountet werden: ${SHARE}"
+    echo "[ubuntu-webtop] Versuche SMB-Mount: ${SHARE} → ${MOUNTPOINT}"
+
+    MOUNTED=false
+    for VERS in "" ",vers=3.0" ",vers=2.1" ",vers=2.0" ",vers=1.0"; do
+        for SEC in "" ",sec=ntlmssp" ",sec=ntlmv2"; do
+            OPTS="${BASE_OPTS}${VERS}${SEC}"
+            if try_mount "${SHARE}" "${MOUNTPOINT}" "${OPTS}"; then
+                echo "[ubuntu-webtop] SMB erfolgreich gemountet: ${SHARE} → ${MOUNTPOINT}${VERS}${SEC}"
+                MOUNTED=true
+                break 2
+            fi
+        done
+    done
+
+    if [ "${MOUNTED}" = false ]; then
+        echo "[ubuntu-webtop] FEHLER: Alle Mount-Versuche für ${SHARE} fehlgeschlagen"
         rmdir "${MOUNTPOINT}" 2>/dev/null || true
     fi
 done
