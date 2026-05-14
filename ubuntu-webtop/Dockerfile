@@ -21,7 +21,7 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \
     fi
 
-# XFCE Desktop-Umgebung + Abhängigkeiten installieren
+# XFCE Desktop-Umgebung + Abhängigkeiten + libfakecap.so (capset-Workaround für mount.cifs)
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         xfwm4 \
@@ -53,10 +53,15 @@ RUN apt-get update \
         dbus-x11 \
         locales \
         desktop-base \
+        gcc \
+    && printf 'int capset(void *h, const void *d) { return 0; }\n' \
+        | gcc -shared -fPIC -nostartfiles -x c - -o /usr/local/lib/libfakecap.so \
+    && apt-get remove -y --purge gcc \
+    && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Firefox über Mozillas offizielles Debian-Repo installieren
+# Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \
     && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg \
@@ -71,18 +76,6 @@ RUN apt-get update \
         firefox-l10n-de \
         thunderbird \
         thunderbird-l10n-de \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# libfakecap.so: Fängt capset() ab damit mount.cifs im Container funktioniert.
-# mount.cifs versucht nach dem Mount Capabilities zu droppen (capset) –
-# dieser Syscall schlägt in HA-Containern fehl. Wir fälschen den Rückgabewert.
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc \
-    && printf 'int capset(void *h, const void *d) { return 0; }\n' \
-        | gcc -shared -fPIC -nostartfiles -x c - -o /usr/local/lib/libfakecap.so \
-    && apt-get remove -y --purge gcc \
-    && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
