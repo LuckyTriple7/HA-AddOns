@@ -38,11 +38,14 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# glycin-svg nutzt bwrap (bubblewrap) mit --unshare-all für Sandboxing.
-# Das benötigt User-Namespaces, die in HA-Containern nicht verfügbar sind.
-# Ohne glycin-svg fällt GTK auf den librsvg-gdk-pixbuf-Loader zurück (kein bwrap).
-RUN find /usr/libexec/glycin-loaders -name "glycin-svg" -delete 2>/dev/null || true \
-    && gdk-pixbuf-query-loaders --update-cache 2>/dev/null || true
+# glycin nutzt bwrap (bubblewrap) mit --unshare-all für SVG-Sandboxing.
+# Das benötigt User-Namespaces, die in HA-Containern nicht verfügbar sind → Crash.
+# Lösung: Das gdk-pixbuf-Plugin (libpixbufloader-glycin.so) und alle Loader-Binaries
+# entfernen → gdk-pixbuf nutzt automatisch librsvg für SVG (kein bwrap nötig).
+RUN find /usr/lib -name "libpixbufloader-glycin.so" -delete 2>/dev/null; \
+    rm -rf /usr/libexec/glycin-loaders/ 2>/dev/null; \
+    gdk-pixbuf-query-loaders --update-cache 2>/dev/null; \
+    true
 
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
