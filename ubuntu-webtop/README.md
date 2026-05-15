@@ -71,6 +71,16 @@ Ist ein Passwort gesetzt, erscheint ein Login-Dialog:
 | `KEYBOARD` | leer | Tastaturlayout (z. B. `de-de-qwertz`) |
 | `DRINODE` | leer | GPU-Gerät für Hardwarebeschleunigung (z. B. `/dev/dri/renderD128`) |
 
+### Empfehlung für Intel-CPUs mit integrierter Grafik
+
+Für Intel NUC, Intel Core i3/i5/i7/i9 mit Intel Integrated Graphics empfiehlt sich:
+
+```
+DRINODE: /dev/dri/renderD128
+```
+
+KasmVNC nutzt dann **Intel Quick Sync** für hardware-beschleunigtes Video-Encoding, was die CPU-Last beim Streaming spürbar reduziert.
+
 ## Netzwerk-Shares (SMB/CIFS)
 
 SMB-Shares können direkt in Thunar geöffnet werden:
