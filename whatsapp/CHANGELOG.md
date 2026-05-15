@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-05-16
+
+### Behoben
+- ERR_CONNECTION_REFUSED nach "Session zurücksetzen" — doppelter Poll-Loop verhindert, `location.reload()` durch direktes `refresh()` ersetzt
+
 ## [1.1.0] - 2026-05-16
 
 ### Behoben
