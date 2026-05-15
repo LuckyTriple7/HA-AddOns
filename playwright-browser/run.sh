@@ -35,6 +35,9 @@ bashio::log.info "Starting ${CHROMIUM_BIN} on internal port ${INTERNAL_PORT}..."
     --disable-translate \
     --metrics-recording-only \
     --safebrowsing-disable-auto-update \
+    --disable-v8-idle-tasks \
+    --js-flags="--jitless" \
+    --enable-low-end-device-mode \
     --remote-debugging-port=${INTERNAL_PORT} \
     --remote-debugging-address=127.0.0.1 \
     --user-data-dir="${TMPDIR}" \
@@ -85,5 +88,5 @@ while true; do
         kill "${CHROMIUM_PID}" 2>/dev/null
         exit 1
     fi
-    sleep 5
+    sleep 30
 done
