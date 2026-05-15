@@ -2,6 +2,9 @@
 
 ## [1.0.4] - 2026-05-16
 
+### Behoben
+- Fehler "No LID for user" beim Senden — vollständige JID (`nummer@c.us`) wird jetzt übergeben
+
 ### Neu
 - WhatsApp Web-Oberfläche: Chat-Liste links, Konversation rechts (wie WhatsApp Web)
 - Nachrichten werden pro Chat gespeichert und angezeigt
