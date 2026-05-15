@@ -7,6 +7,6 @@
 labels:
   org.opencontainers.image.title: "Claude Code for Home Assistant"
   org.opencontainers.image.description: "Claude Code CLI with web terminal and HA integration"
-  org.opencontainers.image.source: "https://github.com/apbb2/robsonfelix-hass-addons"
+  org.opencontainers.image.source: "https://github.com/LuckyTriple7/HA-AddOns"
   org.opencontainers.image.licenses: "MIT"
 
