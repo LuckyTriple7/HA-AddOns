@@ -17,10 +17,14 @@ export GNOME_KEYRING_CONTROL GNOME_KEYRING_PID SSH_AUTH_SOCK
 # GVFS-Daemon + FUSE-Bridge:
 # gvfsd-fuse legt SMB-Shares als echte Pfade unter /run/user/UID/gvfs/ ab,
 # damit normale Apps wie Geany Dateien aus Netzwerk-Shares direkt öffnen können.
+# Pfad ist Multiarch-abhängig (Debian Bookworm: /usr/lib/<arch>/gvfs/).
+GVFSD_FUSE=$(ls /usr/lib/*/gvfs/gvfsd-fuse /usr/lib/gvfs/gvfsd-fuse 2>/dev/null | head -1)
 /usr/lib/gvfs/gvfsd &
 sleep 1
-mkdir -p /run/user/$(id -u)/gvfs
-/usr/lib/gvfs/gvfsd-fuse /run/user/$(id -u)/gvfs &
+if [ -n "$GVFSD_FUSE" ]; then
+    mkdir -p /run/user/$(id -u)/gvfs
+    "$GVFSD_FUSE" /run/user/$(id -u)/gvfs &
+fi
 
 # Fenstermanager ohne Compositor (verhindert schwarzen Bildschirm in virtuellen Umgebungen)
 xfwm4 --compositor=off &

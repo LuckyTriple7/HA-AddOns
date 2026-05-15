@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.6] - 2026-05-15
+### Behoben
+- gvfsd-fuse: Multiarch-Pfad korrekt ermittelt (Debian Bookworm amd64/arm64)
+- YAML-Dateien aus SMB-Share öffnen jetzt Geany statt LibreOffice Writer
+- MIME-Zuordnungen werden immer gesetzt (nicht nur beim Erststart)
+
 ## [1.4.5] - 2026-05-15
 ### Behoben
 - Geany öffnet jetzt Dateien direkt aus SMB-Shares (gvfsd + gvfsd-fuse beim Start hinzugefügt)

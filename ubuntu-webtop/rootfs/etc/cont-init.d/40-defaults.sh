@@ -19,18 +19,25 @@ EOF
     echo "[ubuntu-webtop] Firefox als Standard-Browser gesetzt"
 fi
 
-# MIME-Zuordnung für HTTP/HTTPS → Firefox
+# MIME-Zuordnung: Firefox für Browser, Geany für Code/Text
+# Wird immer neu geschrieben, damit LibreOffice-Defaults nicht übernehmen.
 MIMEAPPS="${CONFIG_DIR}/mimeapps.list"
-if [ ! -f "${MIMEAPPS}" ]; then
-    cat > "${MIMEAPPS}" << 'EOF'
+cat > "${MIMEAPPS}" << 'EOF'
 [Default Applications]
 x-scheme-handler/http=firefox.desktop
 x-scheme-handler/https=firefox.desktop
 text/html=firefox.desktop
 application/xhtml+xml=firefox.desktop
+text/x-yaml=geany.desktop
+application/x-yaml=geany.desktop
+application/yaml=geany.desktop
+text/x-shellscript=geany.desktop
+text/x-python=geany.desktop
+text/x-csrc=geany.desktop
+text/x-chdr=geany.desktop
+text/plain=geany.desktop
 EOF
-    echo "[ubuntu-webtop] MIME-Zuordnung für Firefox gesetzt"
-fi
+echo "[ubuntu-webtop] MIME-Zuordnungen gesetzt (Firefox + Geany)"
 
 # Locale für XFCE-Sitzung setzen
 LOCALE_CONF="${CONFIG_DIR}/locale.conf"
