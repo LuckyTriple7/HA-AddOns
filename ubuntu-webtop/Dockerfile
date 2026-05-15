@@ -68,15 +68,15 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Angry IP Scanner installieren (GUI-Frontend für Netzwerk-Scans)
+# Angry IP Scanner installieren (GUI-Frontend für Netzwerk-Scans).
+# _all.deb ist architekturunabhängig (amd64 + arm64).
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         default-jre-headless \
-    && ARCH=$(dpkg --print-architecture) \
     && curl -fsSL \
-        "https://github.com/angryip/ipscan/releases/download/3.9.1/ipscan_3.9.1_${ARCH}.deb" \
+        "https://github.com/angryip/ipscan/releases/download/3.9.3/ipscan_3.9.3_all.deb" \
         -o /tmp/ipscan.deb \
-    && dpkg -i /tmp/ipscan.deb \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/ipscan.deb \
     && rm -f /tmp/ipscan.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

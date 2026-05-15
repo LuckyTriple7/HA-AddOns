@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.6] - 2026-05-15
+### Behoben
+- Angry IP Scanner: _all.deb (3.9.3) statt arch-spezifischem .deb – funktioniert auf amd64 und arm64
+
 ## [1.5.5] - 2026-05-15
 ### Geändert
 - Zenmap durch Angry IP Scanner ersetzt (einfachere Installation via .deb, kein Tarball-Aufwand)
