@@ -288,25 +288,38 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+async function reinitClient() {
+  status = 'initializing';
+  qrCodeDataUrl = null;
+  connectedPhone = null;
+  try { await client.destroy(); } catch(e) {}
+  // Remove Chromium lock files before reinit
+  ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].forEach(f => {
+    try { rmSync(path.join(SESSION_CHROMIUM_DIR, f), { force: true }); } catch(e) {}
+  });
+  setTimeout(() => {
+    client.initialize().catch(err => {
+      lastError = String(err?.message || err);
+      status = 'error';
+      console.error('[ERROR] Reinit failed:', lastError);
+    });
+  }, 1500);
+}
+
 app.post('/api/logout', async (req, res) => {
-  try {
-    await client.logout();
-  } catch (err) {
-    // ignore — browser may already be gone
-  }
   res.json({ success: true });
-  setTimeout(() => process.exit(1), 500);
+  try { await client.logout(); } catch(e) {}
+  // Clear session so QR is shown on next init (not auto-reconnect)
+  try { rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true }); } catch(e) {}
+  console.log('[INFO] Logged out — reinitializing…');
+  await reinitClient();
 });
 
-app.post('/api/reset', (req, res) => {
-  try {
-    rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true });
-    console.log('[INFO] Session deleted, restarting…');
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-  setTimeout(() => process.exit(1), 500);
+app.post('/api/reset', async (req, res) => {
+  res.json({ success: true });
+  try { rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true }); } catch(e) {}
+  console.log('[INFO] Session reset — reinitializing…');
+  await reinitClient();
 });
 
 // ── Web UI ────────────────────────────────────────────────────────────────────
@@ -725,40 +738,28 @@ app.get('/', (req, res) => {
       } catch(e) { alert('Netzwerkfehler'); }
     }
 
-    let restartPolling = false;
-
-    function waitForRestart(msg) {
-      if (restartPolling) return;
-      restartPolling = true;
+    function showSpinner(msg) {
       document.getElementById('spinner-overlay').style.display = 'flex';
       document.getElementById('spinner-text').textContent = msg || 'Starte neu…';
       document.getElementById('topbar').style.display = 'none';
       document.getElementById('main').style.display = 'none';
       document.getElementById('qr-overlay').style.display = 'none';
-      currentStatus = '';
-      // Wait 5s, then poll every 2s until server responds, then resume normal refresh
-      setTimeout(function poll() {
-        fetch('api/status')
-          .then(r => r.json())
-          .then(() => { restartPolling = false; refresh(); })
-          .catch(() => setTimeout(poll, 2000));
-      }, 8000);
+      currentStatus = ''; // force refresh() to pick up new status
     }
 
     async function logout() {
       if (!confirm('Wirklich abmelden?')) return;
+      showSpinner('Abgemeldet — lade QR-Code…');
       await fetch('api/logout', { method: 'POST' }).catch(() => {});
-      waitForRestart('Abgemeldet — starte neu…');
     }
 
     async function resetSession() {
       if (!confirm('Session löschen und neu starten? Du musst den QR-Code erneut scannen.')) return;
+      showSpinner('Session gelöscht — lade QR-Code…');
       await fetch('api/reset', { method: 'POST' }).catch(() => {});
-      waitForRestart('Session gelöscht — starte neu…');
     }
 
     async function refresh() {
-      if (restartPolling) return; // don't override the restart spinner
       try {
         const s = await fetch('api/status').then(r => r.json());
         document.getElementById('status-dot').className = 'status-dot ' + (

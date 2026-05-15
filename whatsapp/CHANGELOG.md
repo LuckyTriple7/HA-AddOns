@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.5] - 2026-05-16
+
+### Geändert
+- Abmelden/Reset startet den Prozess nicht mehr neu (`process.exit` entfernt) — der WhatsApp-Client wird stattdessen direkt im laufenden Prozess neu initialisiert; der Express-Server bleibt immer erreichbar, kein ERR_CONNECTION_REFUSED mehr möglich
+
 ## [1.1.4] - 2026-05-16
 
 ### Behoben
