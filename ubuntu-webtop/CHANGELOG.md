@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.9] - 2026-05-15
+### Behoben
+- geany-gio: gio copy -o → -T (--no-target-directory), ungültiges Flag entfernt
+- Rück-Sync auf SMB-Share beim Speichern funktioniert jetzt korrekt
+
 ## [1.4.8] - 2026-05-15
 ### Geändert
 - FUSE-Ansatz aufgegeben: FUSE-Kernel-Modul im HA-Container nicht verfügbar

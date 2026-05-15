@@ -20,8 +20,8 @@ for arg in "$@"; do
                 REMOTE="$arg"
                 # Bei jedem Speichern (Ctrl+S) zurückkopieren
                 (
-                    while inotifywait -q -e close_write "$TMPFILE" 2>/dev/null; do
-                        gio copy -o "$TMPFILE" "$REMOTE" 2>/dev/null
+                    while inotifywait -q -e close_write "$TMPFILE" >/dev/null 2>&1; do
+                        gio copy -T "$TMPFILE" "$REMOTE" 2>/dev/null
                     done
                     rm -f "$TMPFILE"
                 ) &
