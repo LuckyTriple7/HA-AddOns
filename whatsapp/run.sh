@@ -10,6 +10,12 @@ export PORT=3000
 
 mkdir -p "$SESSION_DIR"
 
+# Remove Chromium lock files left over from unclean shutdown (process.exit kills
+# Node before Chromium can clean up, leaving SingletonLock which blocks next start)
+rm -f "$SESSION_DIR/chromium/SingletonLock"
+rm -f "$SESSION_DIR/chromium/SingletonCookie"
+rm -f "$SESSION_DIR/chromium/SingletonSocket"
+
 echo "[INFO] Starting WhatsApp add-on..."
 cd /app
 exec node server.js

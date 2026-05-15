@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2026-05-16
+
+### Behoben
+- Add-on startet nach Abmelden nicht neu — Chromium hinterlässt `SingletonLock` beim erzwungenen Exit; wird jetzt beim Start in `run.sh` gelöscht
+
 ## [1.1.2] - 2026-05-16
 
 ### Behoben
