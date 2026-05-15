@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.4] - 2026-05-16
+
+### Behoben
+- Nach Abmelden blieb die verbundene Ansicht — `setInterval(refresh)` feuerte noch während der 500ms vor dem Server-Exit und überschrieb den Spinner; `refresh()` wird jetzt während des Neustarts blockiert (`restartPolling`-Flag)
+
 ## [1.1.3] - 2026-05-16
 
 ### Behoben

@@ -758,6 +758,7 @@ app.get('/', (req, res) => {
     }
 
     async function refresh() {
+      if (restartPolling) return; // don't override the restart spinner
       try {
         const s = await fetch('api/status').then(r => r.json());
         document.getElementById('status-dot').className = 'status-dot ' + (
