@@ -28,7 +28,7 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-export PORT=3001
+export PORT=3002
 echo "[INFO] Starting Signal UI on port $PORT..."
 cd /ui
 exec node server.js

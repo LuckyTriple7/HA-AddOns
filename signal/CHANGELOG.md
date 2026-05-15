@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.3] - 2026-05-16
+
+### Geändert
+- Port von 3001 auf 3002 geändert (3001 auf manchen HA-Systemen bereits belegt)
+
 ## [1.0.2] - 2026-05-16
 
 ### Behoben
