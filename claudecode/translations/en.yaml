@@ -1,0 +1,55 @@
+﻿configuration:
+  enable_mcp:
+    name: Enable Home Assistant MCP
+    description: >-
+      Enable the Home Assistant MCP server for direct entity and service
+      interaction from Claude Code. Allows Claude to query states, call services,
+      and interact with your smart home.
+  enable_playwright_mcp:
+    name: Enable Playwright MCP
+    description: >-
+      Enable the Playwright MCP server for browser automation. Requires the
+      "Playwright Browser" add-on to be installed and running. Allows Claude to
+      navigate web pages, fill forms, click elements, and take screenshots.
+  playwright_cdp_host:
+    name: Playwright CDP Host
+    description: >-
+      Hostname of the Playwright Browser add-on for CDP connection. Leave empty
+      for default (playwright-browser). If connection fails, check the Playwright
+      Browser container hostname (e.g., 1016f397-playwright-browser).
+  terminal_font_size:
+    name: Terminal Font Size
+    description: >-
+      Font size for the web terminal in pixels (10-24).
+      Adjust for readability on your display.
+  terminal_theme:
+    name: Terminal Theme
+    description: >-
+      Color theme for the web terminal.
+      Choose 'dark' for dark backgrounds or 'light' for light backgrounds.
+  working_directory:
+    name: Working Directory
+    description: >-
+      The default working directory when Claude Code starts.
+      Use /homeassistant for direct access to HA configuration files.
+  session_persistence:
+    name: Session Persistence
+    description: >-
+      Enable tmux session persistence. When enabled, your terminal session
+      survives browser refreshes and disconnects. Recommended for long-running tasks.
+  auto_update_claude:
+    name: Auto-update Claude Code
+    description: >-
+      Automatically check for and install Claude Code updates on add-on startup.
+      Keeps Claude Code current without requiring add-on version bumps.
+  model:
+    name: Claude Model
+    description: >-
+      The Claude model to use. claude-sonnet-4-6 offers the best balance of speed
+      and capability. claude-opus-4-6 is the most powerful. claude-haiku-4-5-20251001
+      is the fastest. Auto-update Claude Code (above) ensures new models become
+      available without an add-on update.
+
+network:
+  7681/tcp: Web Terminal (ttyd)
+

@@ -1,0 +1,57 @@
+﻿configuration:
+  enable_mcp:
+    name: Habilitar MCP do Home Assistant
+    description: >-
+      Habilita o servidor MCP do Home Assistant para interação direta com
+      entidades e serviços pelo Claude Code. Permite que o Claude consulte
+      estados, chame serviços e interaja com sua casa inteligente.
+  enable_playwright_mcp:
+    name: Habilitar MCP Playwright
+    description: >-
+      Habilita o servidor MCP Playwright para automação de navegador. Requer o
+      add-on "Playwright Browser" instalado e em execução. Permite que o Claude
+      navegue em páginas web, preencha formulários, clique em elementos e tire
+      screenshots.
+  playwright_cdp_host:
+    name: Host CDP do Playwright
+    description: >-
+      Nome do host do add-on Playwright Browser para conexão CDP. Deixe vazio
+      para o padrão (playwright-browser). Se a conexão falhar, verifique o
+      nome do host do container Playwright Browser (ex: 1016f397-playwright-browser).
+  terminal_font_size:
+    name: Tamanho da Fonte do Terminal
+    description: >-
+      Tamanho da fonte do terminal web em pixels (10-24).
+      Ajuste para melhor legibilidade no seu monitor.
+  terminal_theme:
+    name: Tema do Terminal
+    description: >-
+      Tema de cores do terminal web.
+      Escolha 'dark' para fundo escuro ou 'light' para fundo claro.
+  working_directory:
+    name: Diretório de Trabalho
+    description: >-
+      O diretório padrão quando o Claude Code inicia.
+      Use /homeassistant para acesso direto aos arquivos de configuração do HA.
+  session_persistence:
+    name: Persistência de Sessão
+    description: >-
+      Habilita persistência de sessão via tmux. Quando habilitado, sua sessão
+      do terminal sobrevive a atualizações do navegador e desconexões.
+      Recomendado para tarefas de longa duração.
+  auto_update_claude:
+    name: Atualização Automática do Claude Code
+    description: >-
+      Verifica e instala automaticamente atualizações do Claude Code ao iniciar o add-on.
+      Mantém o Claude Code atualizado sem precisar atualizar a versão do add-on.
+  model:
+    name: Modelo Claude
+    description: >-
+      O modelo Claude a ser utilizado. claude-sonnet-4-6 oferece o melhor equilíbrio
+      entre velocidade e capacidade. claude-opus-4-6 é o mais poderoso. claude-haiku-4-5-20251001
+      é o mais rápido. A atualização automática do Claude Code (acima) garante que novos
+      modelos fiquem disponíveis sem precisar atualizar o add-on.
+
+network:
+  7681/tcp: Terminal Web (ttyd)
+
