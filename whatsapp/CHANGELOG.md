@@ -1,9 +1,9 @@
 # Changelog
 
-## [1.0.9] - 2026-05-16
+## [1.1.0] - 2026-05-16
 
 ### Behoben
-- Nach dem Abmelden blieb der Bildschirm schwarz — Add-on startet jetzt neu, Seite lädt nach 1,5s neu und zeigt den QR-Code
+- Nach dem Abmelden blieb der Bildschirm schwarz — Add-on startet jetzt neu, Spinner wartet aktiv bis Server wieder erreichbar ist (kein fixer Timeout)
 - Status `disconnected` zeigt jetzt den Spinner mit Text "Abgemeldet — starte neu…"
 
 ## [1.0.8] - 2026-05-16
