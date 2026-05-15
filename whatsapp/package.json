@@ -1,0 +1,11 @@
+{
+  "name": "whatsapp-ha-addon",
+  "version": "1.0.0",
+  "description": "WhatsApp Web add-on for Home Assistant",
+  "main": "server.js",
+  "dependencies": {
+    "whatsapp-web.js": "^1.26.0",
+    "express": "^4.18.2",
+    "qrcode": "^1.5.3"
+  }
+}
