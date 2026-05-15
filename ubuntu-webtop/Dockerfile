@@ -68,14 +68,18 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Zenmap installieren (nicht in Debian Bookworm Repos; aus nmap-Source-Tarball).
-# Version 7.94 hardcoded – Debian Bookworm hat 7.93, aber nmap.org hat keinen 7.93-Tarball.
-# Zenmap ist nur ein Python-Frontend und muss nicht exakt zur nmap-Binary-Version passen.
-RUN curl -fsSL "https://nmap.org/dist/nmap-7.94.tar.bz2" -o /tmp/nmap.tar.bz2 \
-    && tar -xjf /tmp/nmap.tar.bz2 -C /tmp \
-    && cd /tmp/nmap-7.94/zenmap \
-    && python3 setup.py install --prefix=/usr/local \
-    && rm -rf /tmp/nmap*
+# Angry IP Scanner installieren (GUI-Frontend für Netzwerk-Scans)
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        default-jre-headless \
+    && ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL \
+        "https://github.com/angryip/ipscan/releases/download/3.9.1/ipscan_3.9.1_${ARCH}.deb" \
+        -o /tmp/ipscan.deb \
+    && dpkg -i /tmp/ipscan.deb \
+    && rm -f /tmp/ipscan.deb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \

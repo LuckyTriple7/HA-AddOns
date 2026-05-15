@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.5] - 2026-05-15
+### Geändert
+- Zenmap durch Angry IP Scanner ersetzt (einfachere Installation via .deb, kein Tarball-Aufwand)
+- Angry IP Scanner 3.9.1 mit default-jre-headless
+
 ## [1.5.4] - 2026-05-15
 ### Behoben
 - Zenmap Build-Fehler: nmap-Version hardcoded auf 7.94 (Debian hat 7.93, nmap.org hat keinen 7.93-Tarball)
