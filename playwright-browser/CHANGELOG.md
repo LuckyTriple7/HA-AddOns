@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 - 2026-05-15
+
+### Behoben
+
+- `nginx` durch `nginx-full` ersetzt — Standard-`nginx`-Paket auf Debian enthält kein `sub_filter`-Modul, nginx startete dadurch nicht
+- `sub_filter_types *` statt `sub_filter_types application/json` — Chromium gibt `application/json; charset=UTF-8` zurück, was vorher nicht gematcht hat
+- WebSocket-Pfade (`/devtools/*`) in eigenen nginx-`location`-Block ohne `sub_filter` und ohne Buffering
+- nginx-Konfigurationstest vor dem Start, damit Fehler sofort sichtbar sind
+- Startup-Verifikation: prüft nach nginx-Start ob Port wirklich antwortet
+
 ## 1.0.0 - 2026-05-15
 
 ### Erstveröffentlichung
