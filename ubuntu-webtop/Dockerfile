@@ -33,6 +33,7 @@ RUN apt-get update \
         xfce4-taskmanager \
         thunar \
         thunar-volman \
+        tumbler \
         gvfs \
         gvfs-backends \
         gvfs-fuse \

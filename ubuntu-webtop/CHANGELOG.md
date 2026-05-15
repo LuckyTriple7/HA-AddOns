@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.5] - 2026-05-15
+### Behoben
+- Geany öffnet jetzt Dateien direkt aus SMB-Shares (gvfsd + gvfsd-fuse beim Start hinzugefügt)
+- Thunar-Vorschaubilder funktionieren jetzt (Tumbler hinzugefügt)
+
 ## [1.4.4] - 2026-05-15
 ### Hinzugefügt
 - PuTTY SSH-Client (GUI)

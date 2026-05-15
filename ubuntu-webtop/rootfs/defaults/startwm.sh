@@ -14,6 +14,14 @@ export DBUS_SESSION_BUS_ADDRESS
 eval "$(gnome-keyring-daemon --start --components=secrets)"
 export GNOME_KEYRING_CONTROL GNOME_KEYRING_PID SSH_AUTH_SOCK
 
+# GVFS-Daemon + FUSE-Bridge:
+# gvfsd-fuse legt SMB-Shares als echte Pfade unter /run/user/UID/gvfs/ ab,
+# damit normale Apps wie Geany Dateien aus Netzwerk-Shares direkt öffnen können.
+/usr/lib/gvfs/gvfsd &
+sleep 1
+mkdir -p /run/user/$(id -u)/gvfs
+/usr/lib/gvfs/gvfsd-fuse /run/user/$(id -u)/gvfs &
+
 # Fenstermanager ohne Compositor (verhindert schwarzen Bildschirm in virtuellen Umgebungen)
 xfwm4 --compositor=off &
 
