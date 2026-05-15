@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.8] - 2026-05-15
+### Behoben
+- Java (default-jre-headless) in eigenem Layer mit /usr/share/man/man1 Workaround
+
 ## [1.5.7] - 2026-05-15
 ### Behoben
 - Angry IP Scanner: dpkg-deb -x statt apt-get install – umgeht fehlende Bookworm-Abhängigkeiten

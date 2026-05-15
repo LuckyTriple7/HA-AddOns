@@ -65,6 +65,14 @@ RUN apt-get update \
         python3-gi-cairo \
         gir1.2-gtk-3.0 \
         xdg-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Java separat installieren: /usr/share/man/man1 muss vorher existieren,
+# sonst schlägt das ca-certificates-java Postinst-Skript im Docker-Build fehl.
+RUN mkdir -p /usr/share/man/man1 \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         default-jre-headless \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
