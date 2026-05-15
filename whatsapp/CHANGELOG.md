@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.4] - 2026-05-16
+
+### Neu
+- WhatsApp Web-Oberfläche: Chat-Liste links, Konversation rechts (wie WhatsApp Web)
+- Nachrichten werden pro Chat gespeichert und angezeigt
+- Avatar mit Initialen und Farbe pro Kontakt
+- Chat auswählen → Nachrichten dieser Konversation sehen + antworten
+- Suchfeld zum Filtern der Chat-Liste
+- Neuer API-Endpoint: `GET /api/chats`
+
 ## [1.0.3] - 2026-05-15
 
 ### Behoben

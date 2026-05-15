@@ -37,19 +37,39 @@ let status = 'initializing';
 let connectedPhone = null;
 let lastError = null;
 
-const MAX_MESSAGES = 500;
-const messages = []; // { id, from, to, body, timestamp, fromMe, contact }
+const MAX_MSGS_PER_CHAT = 200;
+const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }
+const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();
 
-function addMessage(msg) {
-  if (seenIds.has(msg.id)) return;
-  seenIds.add(msg.id);
-  messages.push(msg);
-  messages.sort((a, b) => a.timestamp - b.timestamp);
-  if (messages.length > MAX_MESSAGES) {
-    const removed = messages.splice(0, messages.length - MAX_MESSAGES);
-    removed.forEach(m => seenIds.delete(m.id));
+function getChatMsgs(chatId) {
+  if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
+  return messagesByChatId.get(chatId);
+}
+
+function upsertChat(chatId, { name, phone, isGroup }) {
+  if (!chatMap.has(chatId)) {
+    chatMap.set(chatId, { id: chatId, name: name || chatId, phone: phone || '', isGroup: !!isGroup, lastMsg: '', lastTime: 0 });
+  } else {
+    const c = chatMap.get(chatId);
+    if (name) c.name = name;
+    if (phone && !c.phone) c.phone = phone;
   }
+}
+
+function addMsg(chatId, msg) {
+  if (seenIds.has(msg.id)) return false;
+  seenIds.add(msg.id);
+  const msgs = getChatMsgs(chatId);
+  msgs.push(msg);
+  msgs.sort((a, b) => a.timestamp - b.timestamp);
+  if (msgs.length > MAX_MSGS_PER_CHAT) msgs.splice(0, msgs.length - MAX_MSGS_PER_CHAT);
+  const chat = chatMap.get(chatId);
+  if (chat && msg.timestamp >= (chat.lastTime || 0)) {
+    chat.lastMsg = msg.body.length > 60 ? msg.body.slice(0, 60) + '…' : msg.body;
+    chat.lastTime = msg.timestamp;
+  }
+  return true;
 }
 
 // ── WhatsApp Client ───────────────────────────────────────────────────────────
@@ -76,7 +96,6 @@ client.on('qr', async (qr) => {
 });
 
 client.on('authenticated', () => {
-  console.log('[INFO] Authenticated');
   status = 'authenticated';
   qrCodeDataUrl = null;
 });
@@ -87,28 +106,33 @@ client.on('ready', async () => {
   lastError = null;
   console.log(`[INFO] WhatsApp ready — phone: ${connectedPhone}`);
 
-  // Load recent messages from last 30 chats
   try {
     const chats = await client.getChats();
     const recent = chats.slice(0, 30);
     for (const chat of recent) {
+      const chatId = chat.id._serialized;
+      upsertChat(chatId, { name: chat.name || chat.id.user, phone: chat.id.user, isGroup: chat.isGroup });
+
       const msgs = await chat.fetchMessages({ limit: 20 }).catch(() => []);
       for (const msg of msgs) {
         if (msg.type !== 'chat' && msg.type !== 'text') continue;
         if (!msg.body) continue;
-        const contact = msg.fromMe ? null : await msg.getContact().catch(() => null);
-        addMessage({
+        let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
+        if (!msg.fromMe && chat.isGroup) {
+          const c = await msg.getContact().catch(() => null);
+          contactName = c?.pushname || c?.name || msg.author?.replace('@c.us', '') || contactName;
+        }
+        addMsg(chatId, {
           id: msg.id._serialized,
-          from: msg.fromMe ? connectedPhone : chat.id.user,
-          to: msg.fromMe ? chat.id.user : connectedPhone,
           body: msg.body,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
-          contact: msg.fromMe ? 'Ich' : (contact?.pushname || contact?.name || chat.id.user),
+          contact: contactName,
         });
       }
     }
-    console.log(`[INFO] Loaded ${messages.length} recent messages from ${recent.length} chats`);
+    const total = [...messagesByChatId.values()].reduce((s, a) => s + a.length, 0);
+    console.log(`[INFO] Loaded ${total} messages from ${recent.length} chats`);
   } catch (err) {
     console.warn('[WARN] Could not load recent messages:', err.message);
   }
@@ -127,34 +151,37 @@ client.on('auth_failure', (msg) => {
   console.error(`[ERROR] Auth failed: ${msg}`);
 });
 
-// Incoming messages
 client.on('message', async (msg) => {
   if (msg.type !== 'chat' && msg.type !== 'text') return;
+  if (!msg.body) return;
+  const chat = await msg.getChat().catch(() => null);
+  if (!chat) return;
+  const chatId = chat.id._serialized;
   const contact = await msg.getContact().catch(() => null);
-  addMessage({
+  const contactName = contact?.pushname || contact?.name || msg.from.replace('@c.us', '');
+  upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
+  addMsg(chatId, {
     id: msg.id._serialized,
-    from: msg.from.replace('@c.us', '').replace('@g.us', ''),
-    to: connectedPhone,
     body: msg.body,
     timestamp: msg.timestamp * 1000,
     fromMe: false,
-    contact: contact?.pushname || contact?.name || msg.from.replace('@c.us', ''),
+    contact: contactName,
   });
-
-  const url = process.env.WEBHOOK_INCOMING;
-  if (url) postWebhook(url, { from: msg.from, body: msg.body, type: msg.type, timestamp: msg.timestamp });
+  if (process.env.WEBHOOK_INCOMING) {
+    postWebhook(process.env.WEBHOOK_INCOMING, { from: msg.from, body: msg.body, type: msg.type, timestamp: msg.timestamp });
+  }
 });
 
-// Messages sent from phone (not via API)
 client.on('message_create', async (msg) => {
   if (!msg.fromMe) return;
   if (msg.type !== 'chat' && msg.type !== 'text') return;
-  // Avoid duplicates from /api/send (those have __logged flag)
   if (msg.__logged) return;
-  addMessage({
+  const chat = await msg.getChat().catch(() => null);
+  if (!chat) return;
+  const chatId = chat.id._serialized;
+  upsertChat(chatId, { name: chat.name || msg.to.replace('@c.us', ''), phone: chat.id.user, isGroup: chat.isGroup });
+  addMsg(chatId, {
     id: msg.id._serialized,
-    from: connectedPhone,
-    to: msg.to.replace('@c.us', '').replace('@g.us', ''),
     body: msg.body,
     timestamp: msg.timestamp * 1000,
     fromMe: true,
@@ -203,29 +230,38 @@ app.get('/api/qr', (req, res) => {
   res.json({ qr: qrCodeDataUrl });
 });
 
+app.get('/api/chats', (req, res) => {
+  const list = [...chatMap.values()].sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+  res.json(list);
+});
+
 app.get('/api/messages', (req, res) => {
-  const since = parseInt(req.query.since || '0', 10);
-  res.json(messages.filter(m => m.timestamp > since));
+  const { chat: chatId, since } = req.query;
+  if (!chatId) return res.json([]);
+  const msgs = getChatMsgs(chatId);
+  const since_ts = parseInt(since || '0', 10);
+  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts) : msgs);
 });
 
 app.post('/api/send', async (req, res) => {
-  const { to, message } = req.body;
+  const { to, message, chatId } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to and message required' });
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
   try {
     const result = await client.sendMessage(formatNumber(to), message);
-    const entry = {
+    result.__logged = true;
+    const targetChatId = chatId || formatNumber(to);
+    if (!chatMap.has(targetChatId)) {
+      upsertChat(targetChatId, { name: to.replace(/[^0-9]/g, ''), phone: to.replace(/[^0-9]/g, '') });
+    }
+    addMsg(targetChatId, {
       id: result.id._serialized,
-      from: connectedPhone,
-      to: to.replace(/[^0-9]/g, ''),
       body: message,
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
-    };
-    result.__logged = true;
-    addMessage(entry);
-    res.json({ success: true, id: entry.id });
+    });
+    res.json({ success: true, id: result.id._serialized });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -252,240 +288,395 @@ app.get('/', (req, res) => {
   <title>WhatsApp</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-           background: #111b21; color: #e9edef; height: 100vh;
-           display: flex; flex-direction: column; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #111b21; color: #e9edef;
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    }
 
-    /* ── Header ── */
-    .header { background: #202c33; padding: 12px 16px;
-              display: flex; align-items: center; gap: 12px;
-              border-bottom: 1px solid #2a3942; flex-shrink: 0; }
-    .header .logo { font-size: 28px; }
-    .header h1 { font-size: 17px; font-weight: 600; }
-    .header .phone { font-size: 12px; color: #8696a0; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-left: auto; flex-shrink: 0; }
+    /* Top bar */
+    .topbar {
+      background: #202c33; padding: 10px 16px;
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid #2a3942; flex-shrink: 0; height: 56px;
+    }
+    .topbar .logo { font-size: 24px; }
+    .topbar h1 { font-size: 16px; font-weight: 600; flex: 1; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .status-dot.connected { background: #25d366; }
-    .status-dot.waiting { background: #f0a500; }
+    .status-dot.waiting   { background: #f0a500; }
     .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
     .status-dot.initializing { background: #8696a0; }
     .status-label { font-size: 12px; color: #8696a0; }
+    .logout-btn {
+      background: none; border: none; color: #8696a0;
+      font-size: 20px; cursor: pointer; padding: 4px; line-height: 1;
+    }
+    .logout-btn:hover { color: #f15c5c; }
 
-    /* ── Center (QR or Chat) ── */
-    #center { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    /* Main two-panel layout */
+    #main { flex: 1; display: flex; overflow: hidden; }
 
-    /* QR view */
-    #qr-view { flex: 1; display: flex; flex-direction: column;
-                align-items: center; justify-content: center; gap: 16px; padding: 24px; }
-    #qr-view img { background: white; padding: 12px; border-radius: 8px; max-width: 260px; }
-    #qr-view p { color: #8696a0; font-size: 14px; text-align: center; line-height: 1.6; }
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 340px; min-width: 260px;
+      display: flex; flex-direction: column;
+      border-right: 1px solid #2a3942; flex-shrink: 0;
+    }
+    #sidebar-header {
+      padding: 8px 12px; background: #202c33;
+      border-bottom: 1px solid #2a3942; flex-shrink: 0;
+    }
+    #search {
+      width: 100%; background: #2a3942; border: none; border-radius: 8px;
+      padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none;
+    }
+    #search::placeholder { color: #8696a0; }
+    #chat-list { flex: 1; overflow-y: auto; }
+    #chat-list::-webkit-scrollbar { width: 5px; }
+    #chat-list::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
+    .chat-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; cursor: pointer;
+      border-bottom: 1px solid #1e2b32; transition: background 0.12s;
+    }
+    .chat-item:hover { background: #202c33; }
+    .chat-item.active { background: #2a3942; }
+    .avatar {
+      width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 700; color: #fff; user-select: none;
+    }
+    .chat-info { flex: 1; min-width: 0; }
+    .chat-name {
+      font-size: 15px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chat-preview {
+      font-size: 13px; color: #8696a0; margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .chat-time { font-size: 11px; color: #8696a0; white-space: nowrap; flex-shrink: 0; align-self: flex-start; margin-top: 3px; }
+    .no-chats { color: #8696a0; text-align: center; padding: 32px 16px; font-size: 14px; }
 
-    /* Chat view */
-    #chat-view { flex: 1; display: none; flex-direction: column; }
-    #messages { flex: 1; overflow-y: auto; padding: 12px 16px;
-                display: flex; flex-direction: column; gap: 4px; }
-    #messages::-webkit-scrollbar { width: 6px; }
+    /* ── Right panel ── */
+    #chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0b141a; }
+
+    #chat-header {
+      background: #202c33; padding: 10px 16px;
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid #2a3942; flex-shrink: 0; min-height: 60px;
+    }
+    #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
+    #ch-name { font-size: 15px; font-weight: 600; }
+    #ch-phone { font-size: 12px; color: #8696a0; }
+
+    #messages {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    #messages::-webkit-scrollbar { width: 5px; }
     #messages::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
 
-    .bubble-wrap { display: flex; flex-direction: column; margin: 2px 0; }
+    .bubble-wrap { display: flex; flex-direction: column; margin: 1px 0; }
     .bubble-wrap.out { align-items: flex-end; }
     .bubble-wrap.in  { align-items: flex-start; }
     .contact-name { font-size: 11px; color: #8696a0; margin-bottom: 2px; padding: 0 4px; }
-    .bubble { max-width: 72%; padding: 7px 12px; border-radius: 8px;
-              font-size: 14px; line-height: 1.45; word-break: break-word;
-              position: relative; }
-    .bubble-wrap.out .bubble { background: #005c4b; border-bottom-right-radius: 2px; }
-    .bubble-wrap.in  .bubble { background: #202c33; border-bottom-left-radius: 2px; }
-    .bubble .time { font-size: 10px; color: #8696a0; float: right;
-                    margin-left: 10px; margin-top: 3px; }
-    .no-messages { color: #8696a0; font-size: 14px; text-align: center;
-                   margin: auto; padding: 32px; }
+    .bubble {
+      max-width: 65%; padding: 6px 10px 8px; border-radius: 7.5px;
+      font-size: 14px; line-height: 1.45; word-break: break-word;
+    }
+    .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
+    .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
+    .bubble .time {
+      font-size: 10px; color: rgba(134,150,160,0.85);
+      float: right; margin-left: 8px; margin-top: 2px;
+    }
+    .date-sep {
+      align-self: center; font-size: 12px; color: #8696a0;
+      background: rgba(17,27,33,0.9); border-radius: 8px;
+      padding: 4px 12px; margin: 8px 0;
+    }
+    .empty-msg { color: #8696a0; text-align: center; margin: auto; font-size: 14px; }
+
+    /* Welcome screen */
+    #welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px; color: #8696a0;
+    }
+    #welcome .icon { font-size: 64px; }
+    #welcome p { font-size: 15px; }
 
     /* Send bar */
-    #send-bar { background: #202c33; padding: 10px 12px;
-                display: none; gap: 8px; align-items: flex-end;
-                border-top: 1px solid #2a3942; flex-shrink: 0; }
-    #send-bar input[type=tel] { background: #2a3942; border: none; border-radius: 8px;
-                                 padding: 8px 12px; color: #e9edef; font-size: 13px;
-                                 width: 140px; flex-shrink: 0; outline: none; }
-    #send-bar textarea { flex: 1; background: #2a3942; border: none; border-radius: 8px;
-                          padding: 8px 12px; color: #e9edef; font-size: 14px;
-                          resize: none; outline: none; max-height: 100px; min-height: 38px; }
-    #send-bar button { background: #25d366; border: none; border-radius: 50%;
-                        width: 40px; height: 40px; flex-shrink: 0; cursor: pointer;
-                        font-size: 18px; display: flex; align-items: center;
-                        justify-content: center; transition: background 0.2s; }
+    #send-bar {
+      background: #202c33; padding: 10px 12px;
+      display: flex; gap: 8px; align-items: flex-end;
+      border-top: 1px solid #2a3942; flex-shrink: 0;
+    }
+    #msg-input {
+      flex: 1; background: #2a3942; border: none; border-radius: 8px;
+      padding: 9px 12px; color: #e9edef; font-size: 14px; font-family: inherit;
+      resize: none; outline: none; max-height: 120px; min-height: 42px; line-height: 1.4;
+    }
+    #send-bar button {
+      background: #25d366; border: none; border-radius: 50%;
+      width: 42px; height: 42px; flex-shrink: 0; cursor: pointer;
+      font-size: 18px; display: flex; align-items: center; justify-content: center;
+    }
     #send-bar button:hover { background: #1da851; }
 
-    /* Logout */
-    .logout-btn { background: none; border: none; color: #8696a0; font-size: 18px;
-                  cursor: pointer; padding: 4px; transition: color 0.2s; }
-    .logout-btn:hover { color: #f15c5c; }
-
-    /* Spinner */
-    #spinner { flex: 1; display: flex; align-items: center; justify-content: center;
-               color: #8696a0; font-size: 14px; }
+    /* Overlays */
+    .overlay {
+      position: fixed; inset: 0; background: #111b21; z-index: 100;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    }
+    .overlay p { color: #8696a0; font-size: 14px; text-align: center; line-height: 1.7; }
+    .overlay h2 { font-size: 20px; }
+    #qr-overlay img { background: #fff; padding: 16px; border-radius: 12px; max-width: 280px; }
   </style>
 </head>
 <body>
-  <div class="header">
+
+  <div id="spinner-overlay" class="overlay">
+    <div style="font-size:48px;">💬</div>
+    <p>Verbinde mit WhatsApp…</p>
+  </div>
+
+  <div id="qr-overlay" class="overlay" style="display:none;">
+    <div style="font-size:48px;">💬</div>
+    <h2>WhatsApp Web</h2>
+    <div id="qr-img"></div>
+    <p>Öffne WhatsApp auf deinem Handy<br>
+       <strong>Verknüpfte Geräte → Gerät hinzufügen</strong><br>
+       und scanne den QR-Code</p>
+  </div>
+
+  <div class="topbar" id="topbar" style="display:none;">
     <div class="logo">💬</div>
-    <div>
-      <h1>WhatsApp</h1>
-      <div class="phone" id="header-phone">Home Assistant Add-on</div>
-    </div>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-      <span class="status-label" id="status-label">Starte...</span>
-      <div class="status-dot initializing" id="status-dot"></div>
-      <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
-    </div>
+    <h1>WhatsApp</h1>
+    <span class="status-label" id="status-label">Verbunden</span>
+    <div class="status-dot connected" id="status-dot"></div>
+    <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
   </div>
 
-  <div id="center">
-    <div id="spinner">Verbinde mit WhatsApp...</div>
-    <div id="qr-view" style="display:none;">
-      <div id="qr-img"></div>
-      <p>Öffne WhatsApp auf deinem Handy<br>
-         <strong>Verknüpfte Geräte → Gerät hinzufügen</strong><br>
-         und scanne den QR-Code</p>
-    </div>
-    <div id="chat-view">
-      <div id="messages"><p class="no-messages">Keine Nachrichten — sende eine!</p></div>
-    </div>
-  </div>
+  <div id="main" style="display:none;">
 
-  <div id="send-bar">
-    <input type="tel" id="to" placeholder="4915123456789" title="Nummer mit Ländervorwahl">
-    <textarea id="msg" rows="1" placeholder="Nachricht…"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
-    <button onclick="sendMsg()" title="Senden">➤</button>
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <input type="text" id="search" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()">
+      </div>
+      <div id="chat-list"><div class="no-chats">Lade Chats…</div></div>
+    </div>
+
+    <div id="chat-panel">
+      <div id="welcome">
+        <div class="icon">💬</div>
+        <p>Wähle einen Chat aus der Liste</p>
+      </div>
+      <div id="chat-header" style="display:none;">
+        <div class="avatar" id="ch-avatar"></div>
+        <div>
+          <div id="ch-name"></div>
+          <div id="ch-phone"></div>
+        </div>
+      </div>
+      <div id="messages" style="display:none;"></div>
+      <div id="send-bar" style="display:none;">
+        <textarea id="msg-input" rows="1" placeholder="Nachricht…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
+          oninput="autoResize(this)"></textarea>
+        <button onclick="sendMsg()" title="Senden">➤</button>
+      </div>
+    </div>
+
   </div>
 
   <script>
     let currentStatus = '';
-    let lastMsgTime = 0;
+    let selectedChatId = null;
+    let selectedChatPhone = null;
+    let lastMsgTime = {};
+    let allChats = [];
     let atBottom = true;
 
     const msgList = document.getElementById('messages');
     msgList.addEventListener('scroll', () => {
-      atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 20;
+      atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 30;
     });
 
-    function scrollDown() {
-      if (atBottom) msgList.scrollTop = msgList.scrollHeight;
+    const COLORS = ['#128c7e','#075e54','#25d366','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
+    function avatarColor(name) {
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+      return COLORS[Math.abs(h) % COLORS.length];
+    }
+    function avatarInitials(name) {
+      const p = name.trim().split(/\\s+/);
+      return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
     }
 
     function fmtTime(ts) {
-      return new Date(ts).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+      return new Date(ts).toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
     }
-
     function fmtDate(ts) {
-      const d = new Date(ts);
-      const today = new Date();
-      if (d.toDateString() === today.toDateString()) return 'Heute';
-      const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-      if (d.toDateString() === yesterday.toDateString()) return 'Gestern';
+      const d = new Date(ts), t = new Date();
+      if (d.toDateString() === t.toDateString()) return 'Heute';
+      const y = new Date(t); y.setDate(t.getDate()-1);
+      if (d.toDateString() === y.toDateString()) return 'Gestern';
       return d.toLocaleDateString('de-DE');
     }
+    function fmtChatTime(ts) {
+      const d = new Date(ts), t = new Date();
+      if (d.toDateString() === t.toDateString())
+        return d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+      const y = new Date(t); y.setDate(t.getDate()-1);
+      if (d.toDateString() === y.toDateString()) return 'Gestern';
+      return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+    }
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                      .replace(/\\n/g,'<br>');
+    }
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
 
-    function renderMessages(msgs) {
+    function renderChatList(chats) {
+      const list = document.getElementById('chat-list');
+      const q = document.getElementById('search').value.toLowerCase();
+      const filtered = q ? chats.filter(c => c.name.toLowerCase().includes(q)) : chats;
+      if (!filtered.length) {
+        list.innerHTML = '<div class="no-chats">Keine Chats</div>';
+        return;
+      }
+      list.innerHTML = '';
+      for (const chat of filtered) {
+        const item = document.createElement('div');
+        item.className = 'chat-item' + (chat.id === selectedChatId ? ' active' : '');
+        item.dataset.id = chat.id;
+        item.onclick = () => openChat(chat);
+
+        const av = document.createElement('div');
+        av.className = 'avatar';
+        av.style.background = avatarColor(chat.name);
+        av.textContent = avatarInitials(chat.name);
+
+        const info = document.createElement('div');
+        info.className = 'chat-info';
+        info.innerHTML =
+          '<div class="chat-name">' + esc(chat.name) + '</div>' +
+          '<div class="chat-preview">' + esc(chat.lastMsg || '') + '</div>';
+
+        const time = document.createElement('div');
+        time.className = 'chat-time';
+        time.textContent = chat.lastTime ? fmtChatTime(chat.lastTime) : '';
+
+        item.appendChild(av); item.appendChild(info); item.appendChild(time);
+        list.appendChild(item);
+      }
+    }
+
+    function filterChats() { renderChatList(allChats); }
+
+    async function openChat(chat) {
+      selectedChatId = chat.id;
+      selectedChatPhone = chat.phone;
+      document.querySelectorAll('.chat-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.id === chat.id);
+      });
+      document.getElementById('welcome').style.display = 'none';
+      document.getElementById('chat-header').style.display = 'flex';
+      document.getElementById('messages').style.display = 'flex';
+      document.getElementById('send-bar').style.display = 'flex';
+
+      const av = document.getElementById('ch-avatar');
+      av.style.background = avatarColor(chat.name);
+      av.textContent = avatarInitials(chat.name);
+      document.getElementById('ch-name').textContent = chat.name;
+      document.getElementById('ch-phone').textContent = chat.phone ? '+' + chat.phone : '';
+
+      msgList.innerHTML = '';
+      lastMsgTime[chat.id] = 0;
+      atBottom = true;
+      await loadMessages(chat.id);
+    }
+
+    async function loadMessages(chatId) {
+      if (!chatId) return;
+      const since = lastMsgTime[chatId] || 0;
+      try {
+        const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&since=' + since)
+          .then(r => r.json());
+        if (msgs.length) renderMessages(msgs, chatId);
+      } catch(e) {}
+    }
+
+    function renderMessages(msgs, chatId) {
+      if (chatId !== selectedChatId) return;
       if (!msgs.length) return;
-      const noMsg = msgList.querySelector('.no-messages');
+      const noMsg = msgList.querySelector('.empty-msg');
       if (noMsg) noMsg.remove();
 
-      let lastDate = null;
+      let lastDate = msgList.querySelector('.date-sep:last-of-type')?.textContent || null;
+
       msgs.forEach(m => {
         const date = fmtDate(m.timestamp);
         if (date !== lastDate) {
           lastDate = date;
           const sep = document.createElement('div');
-          sep.style.cssText = 'text-align:center;font-size:11px;color:#8696a0;margin:8px 0;';
+          sep.className = 'date-sep';
           sep.textContent = date;
           msgList.appendChild(sep);
         }
         const wrap = document.createElement('div');
         wrap.className = 'bubble-wrap ' + (m.fromMe ? 'out' : 'in');
-        const name = document.createElement('div');
-        name.className = 'contact-name';
-        name.textContent = m.fromMe ? '' : (m.contact || m.from);
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        bubble.innerHTML = escHtml(m.body) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
-        if (!m.fromMe && m.contact) wrap.appendChild(name);
-        wrap.appendChild(bubble);
+        if (!m.fromMe && m.contact) {
+          const n = document.createElement('div');
+          n.className = 'contact-name';
+          n.textContent = m.contact;
+          wrap.appendChild(n);
+        }
+        const bub = document.createElement('div');
+        bub.className = 'bubble';
+        bub.innerHTML = esc(m.body) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+        wrap.appendChild(bub);
         msgList.appendChild(wrap);
-        if (m.timestamp > lastMsgTime) lastMsgTime = m.timestamp;
+        if (m.timestamp > (lastMsgTime[selectedChatId] || 0)) {
+          lastMsgTime[selectedChatId] = m.timestamp;
+        }
       });
-      scrollDown();
-    }
-
-    function escHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-               .replace(/\\n/g,'<br>');
+      if (atBottom) msgList.scrollTop = msgList.scrollHeight;
     }
 
     async function pollMessages() {
-      if (currentStatus !== 'connected') return;
-      try {
-        const msgs = await fetch('api/messages?since=' + lastMsgTime).then(r => r.json());
-        if (msgs.length) renderMessages(msgs);
-      } catch(e) {}
+      if (currentStatus !== 'connected' || !selectedChatId) return;
+      await loadMessages(selectedChatId);
     }
 
-    async function refresh() {
+    async function pollChats() {
+      if (currentStatus !== 'connected') return;
       try {
-        const s = await fetch('api/status').then(r => r.json());
-        const dot = document.getElementById('status-dot');
-        const label = document.getElementById('status-label');
-
-        dot.className = 'status-dot ' + (
-          s.status === 'connected' ? 'connected' :
-          s.status === 'waiting_for_scan' || s.status === 'authenticated' ? 'waiting' :
-          s.status === 'initializing' ? 'initializing' : 'error');
-
-        label.textContent = {
-          connected: 'Verbunden', waiting_for_scan: 'QR scannen',
-          authenticated: 'Authentifiziert…', initializing: 'Starte…',
-          disconnected: 'Getrennt', auth_failed: 'Auth-Fehler', error: 'Fehler',
-        }[s.status] || s.status;
-
-        if (s.phone) document.getElementById('header-phone').textContent = '+' + s.phone;
-
-        if (s.status !== currentStatus) {
-          currentStatus = s.status;
-          document.getElementById('spinner').style.display = 'none';
-          document.getElementById('qr-view').style.display = 'none';
-          document.getElementById('chat-view').style.display = 'none';
-          document.getElementById('send-bar').style.display = 'none';
-
-          if (s.status === 'waiting_for_scan') {
-            document.getElementById('qr-view').style.display = 'flex';
-            const qr = await fetch('api/qr').then(r => r.json()).catch(() => null);
-            if (qr?.qr) document.getElementById('qr-img').innerHTML = '<img src="'+qr.qr+'">';
-          } else if (s.status === 'connected') {
-            document.getElementById('chat-view').style.display = 'flex';
-            document.getElementById('send-bar').style.display = 'flex';
-            // Load all messages on connect
-            const all = await fetch('api/messages').then(r => r.json()).catch(() => []);
-            renderMessages(all);
-          } else {
-            document.getElementById('spinner').style.display = 'flex';
-          }
-        }
+        const chats = await fetch('api/chats').then(r => r.json());
+        allChats = chats;
+        renderChatList(chats);
       } catch(e) {}
     }
 
     async function sendMsg() {
-      const to = document.getElementById('to').value.trim();
-      const msg = document.getElementById('msg').value.trim();
-      if (!to || !msg) return;
+      if (!selectedChatId || !selectedChatPhone) return;
+      const txt = document.getElementById('msg-input').value.trim();
+      if (!txt) return;
       try {
         const r = await fetch('api/send', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({to, message: msg})
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: selectedChatPhone, message: txt, chatId: selectedChatId })
         }).then(r => r.json());
         if (r.success) {
-          document.getElementById('msg').value = '';
+          document.getElementById('msg-input').value = '';
+          document.getElementById('msg-input').style.height = 'auto';
+          atBottom = true;
           await pollMessages();
         } else {
           alert('Fehler: ' + r.error);
@@ -495,12 +686,45 @@ app.get('/', (req, res) => {
 
     async function logout() {
       if (!confirm('Wirklich abmelden?')) return;
-      await fetch('api/logout', {method:'POST'});
+      await fetch('api/logout', { method: 'POST' });
+    }
+
+    async function refresh() {
+      try {
+        const s = await fetch('api/status').then(r => r.json());
+        document.getElementById('status-dot').className = 'status-dot ' + (
+          s.status === 'connected' ? 'connected' :
+          s.status === 'waiting_for_scan' || s.status === 'authenticated' ? 'waiting' :
+          s.status === 'initializing' ? 'initializing' : 'error'
+        );
+        document.getElementById('status-label').textContent = ({
+          connected: 'Verbunden', waiting_for_scan: 'QR scannen',
+          authenticated: 'Authentifiziert…', initializing: 'Starte…',
+          disconnected: 'Getrennt', auth_failed: 'Auth-Fehler', error: 'Fehler',
+        })[s.status] || s.status;
+
+        if (s.status !== currentStatus) {
+          currentStatus = s.status;
+          const connecting = s.status === 'initializing' || s.status === 'authenticated';
+          const qr = s.status === 'waiting_for_scan';
+          const connected = s.status === 'connected';
+          document.getElementById('spinner-overlay').style.display = connecting ? 'flex' : 'none';
+          document.getElementById('qr-overlay').style.display = qr ? 'flex' : 'none';
+          document.getElementById('topbar').style.display = connected ? 'flex' : 'none';
+          document.getElementById('main').style.display = connected ? 'flex' : 'none';
+          if (qr) {
+            const d = await fetch('api/qr').then(r => r.json()).catch(() => null);
+            if (d?.qr) document.getElementById('qr-img').innerHTML = '<img src="' + d.qr + '">';
+          }
+          if (connected) await pollChats();
+        }
+      } catch(e) {}
     }
 
     refresh();
     setInterval(refresh, 5000);
-    setInterval(pollMessages, 3000);
+    setInterval(pollMessages, 2000);
+    setInterval(pollChats, 10000);
   </script>
 </body>
 </html>`);
