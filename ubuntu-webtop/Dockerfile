@@ -98,6 +98,24 @@ RUN ARCH=$(dpkg --print-architecture) \
     && chmod +x /usr/bin/ipscan \
     && rm -rf /tmp/ipscan*
 
+# Bitwarden Desktop: neueste stabile Version via GitHub API
+# --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
+RUN ARCH=$(dpkg --print-architecture) \
+    && BW_VERSION=$(curl -fsSL "https://api.github.com/repos/bitwarden/clients/releases" \
+        | jq -r '[.[] | select(.tag_name | startswith("desktop-v")) | select(.prerelease==false)][0].tag_name' \
+        | sed 's/desktop-v//') \
+    && curl -fsSL \
+        "https://github.com/bitwarden/clients/releases/download/desktop-v${BW_VERSION}/Bitwarden-${BW_VERSION}-${ARCH}.deb" \
+        -o /tmp/bitwarden.deb \
+    && apt-get update \
+    && apt-get install -y /tmp/bitwarden.deb \
+    && rm -f /tmp/bitwarden.deb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && printf '#!/bin/sh\nexec /opt/Bitwarden/bitwarden --no-sandbox "$@"\n' \
+        > /usr/bin/bitwarden \
+    && chmod +x /usr/bin/bitwarden
+
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \

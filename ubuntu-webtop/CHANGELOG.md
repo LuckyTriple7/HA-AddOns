@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.12] - 2026-05-15
+### Hinzugefügt
+- Bitwarden Desktop (neueste stabile Version, --no-sandbox Wrapper für Container-Kompatibilität)
+
 ## [1.5.11] - 2026-05-15
 ### Hinzugefügt
 - iputils-ping (ping), iputils-tracepath (tracepath), traceroute
