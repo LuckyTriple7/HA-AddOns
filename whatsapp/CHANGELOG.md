@@ -1,10 +1,15 @@
 # Changelog
 
+## [1.0.8] - 2026-05-16
+
+### Behoben
+- Session überlebt Neustart nicht — `addon_config`-Mount war auf dieser HA-Installation nicht zuverlässig; Session-Verzeichnis auf `/data/session` (immer persistenter Add-on-Datenpfad) umgestellt
+- `addon_config:rw` aus `map` entfernt (nicht mehr benötigt)
+
 ## [1.0.7] - 2026-05-16
 
 ### Behoben
-- Session wird nach Neustart nicht wiederhergestellt — `LocalAuth` (kopiert in Temp-Dir) ersetzt durch `NoAuth` + direktes `puppeteer.userDataDir` auf den persistenten `addon_config`-Ordner
-- Chromium-Profil landet jetzt dauerhaft in `addon_config/session/chromium/`
+- Session wird nach Neustart nicht wiederhergestellt — `LocalAuth` ersetzt durch `NoAuth` + direktes `puppeteer.userDataDir`
 
 ## [1.0.6] - 2026-05-16
 

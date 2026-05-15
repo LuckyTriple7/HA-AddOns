@@ -80,7 +80,7 @@ function addMsg(chatId, msg) {
 // Store Chromium profile directly in the persistent addon_config volume.
 // Using NoAuth + userDataDir is more reliable than LocalAuth's copy mechanism
 // which can fail silently on slow hardware and leave the session folder empty.
-const SESSION_CHROMIUM_DIR = path.join(process.env.SESSION_DIR || '/addon_config/session', 'chromium');
+const SESSION_CHROMIUM_DIR = path.join(process.env.SESSION_DIR || '/data/session', 'chromium');
 
 const client = new Client({
   authStrategy: new NoAuth(),
