@@ -15,6 +15,8 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 |--------|----------|--------------|
 | `webhook_url` | — | URL für Bestätigung gesendeter Nachrichten |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
+| `initial_chats` | 30 | Anzahl Chats die beim Start geladen werden |
+| `initial_messages` | 20 | Nachrichten pro Chat die beim Start geladen werden |
 
 ## REST-API
 

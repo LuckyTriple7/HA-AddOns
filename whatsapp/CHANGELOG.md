@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.5] - 2026-05-16
+
+### Neu
+- Anzahl geladener Chats konfigurierbar (`initial_chats`, Standard: 30)
+- Anzahl Nachrichten pro Chat beim Start konfigurierbar (`initial_messages`, Standard: 20)
+
 ## [1.0.4] - 2026-05-16
 
 ### Behoben

@@ -38,6 +38,8 @@ let connectedPhone = null;
 let lastError = null;
 
 const MAX_MSGS_PER_CHAT = 200;
+const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
+const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
 const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }
 const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();
@@ -108,12 +110,13 @@ client.on('ready', async () => {
 
   try {
     const chats = await client.getChats();
-    const recent = chats.slice(0, 30);
+    const recent = chats.slice(0, INITIAL_CHATS);
+    console.log(`[INFO] Loading ${INITIAL_MESSAGES} messages from ${INITIAL_CHATS} chats`);
     for (const chat of recent) {
       const chatId = chat.id._serialized;
       upsertChat(chatId, { name: chat.name || chat.id.user, phone: chat.id.user, isGroup: chat.isGroup });
 
-      const msgs = await chat.fetchMessages({ limit: 20 }).catch(() => []);
+      const msgs = await chat.fetchMessages({ limit: INITIAL_MESSAGES }).catch(() => []);
       for (const msg of msgs) {
         if (msg.type !== 'chat' && msg.type !== 'text') continue;
         if (!msg.body) continue;
