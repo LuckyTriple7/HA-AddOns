@@ -59,6 +59,7 @@ RUN apt-get update \
         gnome-keyring \
         libsecret-tools \
         putty \
+        avahi-daemon \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

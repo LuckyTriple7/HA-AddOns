@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.7] - 2026-05-15
+### Behoben
+- XDG_RUNTIME_DIR explizit gesetzt (fehlte wegen logind-Deaktivierung) – GIO findet GVFS-FUSE-Mount jetzt korrekt
+- Geany öffnet Dateien aus SMB-Shares (Kernursache behoben)
+- avahi-daemon installiert und gestartet – entfernt GVFS DNS-SD-Warnungen im Log
+
 ## [1.4.6] - 2026-05-15
 ### Behoben
 - gvfsd-fuse: Multiarch-Pfad korrekt ermittelt (Debian Bookworm amd64/arm64)
