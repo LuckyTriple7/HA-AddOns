@@ -77,11 +77,12 @@ RUN mkdir -p /usr/share/man/man1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Angry IP Scanner: .deb nur extrahieren, nicht installieren.
-# Der _all.deb hat Abhängigkeiten die in Debian Bookworm nicht mehr existieren.
-# dpkg-deb -x umgeht die Dependency-Prüfung und kopiert einfach alle Dateien.
-RUN curl -fsSL \
-        "https://github.com/angryip/ipscan/releases/download/3.9.3/ipscan_3.9.3_all.deb" \
+# Angry IP Scanner: arch-spezifisches .deb extrahieren (enthält SWT-JAR für die GUI).
+# Der _all.deb enthält kein SWT → NoClassDefFoundError bei Start.
+# dpkg-deb -x umgeht die Dependency-Prüfung (Bookworm-inkompatible Deps).
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL \
+        "https://github.com/angryip/ipscan/releases/download/3.9.3/ipscan_3.9.3_${ARCH}.deb" \
         -o /tmp/ipscan.deb \
     && dpkg-deb -x /tmp/ipscan.deb /tmp/ipscan \
     && find /tmp/ipscan -name "*.jar" -exec install -Dm644 {} /usr/share/ipscan/ipscan.jar \; \
