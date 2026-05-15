@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.5] - 2026-05-16
+## [1.0.6] - 2026-05-16
 
 ### Behoben
 - Crash "No data found for resource" (Puppeteer ProtocolError) — wird jetzt abgefangen, Add-on bleibt stabil
