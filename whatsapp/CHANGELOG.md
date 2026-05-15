@@ -5,6 +5,7 @@
 ### Behoben
 - Crash "No data found for resource" (Puppeteer ProtocolError) — wird jetzt abgefangen, Add-on bleibt stabil
 - "auth timeout" auf langsamer Hardware (z.B. Raspberry Pi) — Auth-Timeout deaktiviert (`authTimeoutMs: 0`)
+- Kein Abmelden-Button bei hängendem Start — neuer "Session zurücksetzen"-Button im Ladescreen (löscht Session-Dateien und startet neu)
 
 ### Neu
 - Anzahl geladener Chats konfigurierbar (`initial_chats`, Standard: 30)

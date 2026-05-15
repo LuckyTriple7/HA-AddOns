@@ -6,7 +6,7 @@ const qrcode = require('qrcode');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
-const { existsSync } = require('fs');
+const { existsSync, rmSync } = require('fs');
 
 // ── Chromium detection ────────────────────────────────────────────────────────
 
@@ -290,6 +290,18 @@ app.post('/api/logout', async (req, res) => {
   }
 });
 
+app.post('/api/reset', (req, res) => {
+  const sessionDir = process.env.SESSION_DIR || '/addon_config/session';
+  try {
+    rmSync(sessionDir, { recursive: true, force: true });
+    console.log('[INFO] Session deleted, restarting…');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+  setTimeout(() => process.exit(0), 500);
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
@@ -454,6 +466,12 @@ app.get('/', (req, res) => {
   <div id="spinner-overlay" class="overlay">
     <div style="font-size:48px;">💬</div>
     <p>Verbinde mit WhatsApp…</p>
+    <button onclick="resetSession()" style="
+      margin-top:16px; background:none; border:1px solid #3d5259;
+      color:#8696a0; border-radius:8px; padding:8px 16px;
+      font-size:13px; cursor:pointer;">
+      Session zurücksetzen
+    </button>
   </div>
 
   <div id="qr-overlay" class="overlay" style="display:none;">
@@ -703,6 +721,12 @@ app.get('/', (req, res) => {
     async function logout() {
       if (!confirm('Wirklich abmelden?')) return;
       await fetch('api/logout', { method: 'POST' });
+    }
+
+    async function resetSession() {
+      if (!confirm('Session löschen und neu starten? Du musst den QR-Code erneut scannen.')) return;
+      await fetch('api/reset', { method: 'POST' });
+      setTimeout(() => location.reload(), 2000);
     }
 
     async function refresh() {
