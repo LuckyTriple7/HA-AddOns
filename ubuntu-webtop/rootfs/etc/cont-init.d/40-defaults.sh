@@ -19,10 +19,12 @@ EOF
     echo "[ubuntu-webtop] Firefox als Standard-Browser gesetzt"
 fi
 
-# MIME-Zuordnung: Firefox für Browser, Geany für Code/Text
-# Wird immer neu geschrieben, damit LibreOffice-Defaults nicht übernehmen.
+# MIME-Zuordnung: nur beim Erststart anlegen, danach nicht mehr überschreiben.
+# Enthält alle wichtigen Defaults (Firefox, Geany für Code/Text).
+# Benutzerdefinierte Änderungen bleiben so über Neustarts erhalten.
 MIMEAPPS="${CONFIG_DIR}/mimeapps.list"
-cat > "${MIMEAPPS}" << 'EOF'
+if [ ! -f "${MIMEAPPS}" ]; then
+    cat > "${MIMEAPPS}" << 'EOF'
 [Default Applications]
 x-scheme-handler/http=firefox.desktop
 x-scheme-handler/https=firefox.desktop
@@ -37,7 +39,8 @@ text/x-csrc=geany.desktop
 text/x-chdr=geany.desktop
 text/plain=geany.desktop
 EOF
-echo "[ubuntu-webtop] MIME-Zuordnungen gesetzt (Firefox + Geany)"
+    echo "[ubuntu-webtop] MIME-Zuordnungen initialisiert (Erststart)"
+fi
 
 # Geany: Benutzer-Override damit Dateien aus SMB-Shares über geany-gio geöffnet werden.
 # geany-gio kopiert die Datei lokal (gio copy, kein FUSE nötig) und synct beim Speichern zurück.

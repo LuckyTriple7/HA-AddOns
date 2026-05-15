@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.0] - 2026-05-15
+### Behoben
+- Standardprogramme werden nach Neustart nicht mehr zurückgesetzt
+- mimeapps.list wird nur noch beim Erststart angelegt, danach nicht mehr überschrieben
+
 ## [1.4.9] - 2026-05-15
 ### Behoben
 - geany-gio: gio copy -o → -T (--no-target-directory), ungültiges Flag entfernt
