@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.11] - 2026-05-15
+### Hinzugefügt
+- iputils-ping (ping), iputils-tracepath (tracepath), traceroute
+
 ## [1.5.10] - 2026-05-15
 ### Behoben
 - Angry IP Scanner: arch-spezifisches .deb (amd64/arm64) statt _all.deb – _all.deb enthält kein SWT (NoClassDefFoundError)
