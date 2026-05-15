@@ -2,6 +2,22 @@
 
 Vollständiger XFCE-Desktop, zugänglich über jeden modernen Webbrowser – direkt in Home Assistant integriert. Basiert auf dem KasmVNC-Streaming-Stack von [LinuxServer.io](https://www.linuxserver.io).
 
+## Basis-Image
+
+Dieses Add-on basiert auf:
+
+**`ghcr.io/linuxserver/baseimage-kasmvnc:debianbookworm`**
+
+| | |
+|---|---|
+| **Anbieter** | [LinuxServer.io](https://www.linuxserver.io) |
+| **Betriebssystem** | Debian 12 (Bookworm) |
+| **Streaming** | KasmVNC 1.3.x – delta-basiert, CPU-effizient |
+| **Init-System** | s6-overlay v3 |
+| **Desktop-User** | `abc` (UID 1000) |
+
+Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und Thunderbird werden direkt aus Mozillas offiziellem Debian-Repository installiert und sind daher immer aktuell (Stand: letzter Rebuild).
+
 ## Features
 
 - **XFCE Desktop** im Browser – kein VNC-Client oder RDP nötig
