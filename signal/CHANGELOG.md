@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.4] - 2026-05-16
+
+### Behoben
+- QR-Code zu klein und zu dicht zum Scannen — Fehlerkorrektur auf Stufe L gesenkt, Ausgabegröße auf 512px erhöht, Darstellung auf 280px vergrößert
+
 ## [1.0.3] - 2026-05-16
 
 ### Geändert
