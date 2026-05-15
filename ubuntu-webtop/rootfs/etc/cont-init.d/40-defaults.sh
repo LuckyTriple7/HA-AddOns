@@ -56,16 +56,28 @@ fi
 chown -R "${PUID}:${PGID}" /config/.local 2>/dev/null || true
 
 # Desktop-Kontextmenü "Neue Datei erstellen": Templates-Verzeichnis befüllen.
-# xfdesktop zeigt den Eintrag automatisch wenn ~/Templates Dateien enthält.
+# Das Basisimage erstellt ~/Templates bereits leer → Dateien immer sicherstellen.
+# user-dirs.dirs explizit setzen damit xfdesktop den Pfad sicher findet.
 TEMPLATES_DIR="/config/Templates"
-if [ ! -d "$TEMPLATES_DIR" ]; then
-    mkdir -p "$TEMPLATES_DIR"
-    touch "$TEMPLATES_DIR/Leere Datei"
-    touch "$TEMPLATES_DIR/Textdatei.txt"
-    touch "$TEMPLATES_DIR/Konfiguration.yaml"
-    touch "$TEMPLATES_DIR/Shell Script.sh"
-    chown -R "${PUID}:${PGID}" "$TEMPLATES_DIR"
-    echo "[ubuntu-webtop] Templates-Verzeichnis erstellt"
+mkdir -p "$TEMPLATES_DIR"
+for tmpl in "Leere Datei" "Textdatei.txt" "Konfiguration.yaml" "Shell Script.sh"; do
+    [ ! -f "$TEMPLATES_DIR/$tmpl" ] && touch "$TEMPLATES_DIR/$tmpl"
+done
+chown -R "${PUID}:${PGID}" "$TEMPLATES_DIR"
+
+USER_DIRS_FILE="${CONFIG_DIR}/user-dirs.dirs"
+if [ ! -f "$USER_DIRS_FILE" ]; then
+    cat > "$USER_DIRS_FILE" << 'EOF'
+XDG_DESKTOP_DIR="$HOME/Desktop"
+XDG_DOWNLOAD_DIR="$HOME/Downloads"
+XDG_TEMPLATES_DIR="$HOME/Templates"
+XDG_DOCUMENTS_DIR="$HOME/Documents"
+XDG_PICTURES_DIR="$HOME/Pictures"
+XDG_VIDEOS_DIR="$HOME/Videos"
+XDG_MUSIC_DIR="$HOME/Music"
+EOF
+    chown "${PUID}:${PGID}" "$USER_DIRS_FILE"
+    echo "[ubuntu-webtop] user-dirs.dirs und Templates gesetzt"
 fi
 
 # Locale für XFCE-Sitzung setzen

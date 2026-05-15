@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.2] - 2026-05-15
+### Behoben
+- Templates werden jetzt korrekt angelegt (Basisimage erstellt ~/Templates bereits leer)
+- user-dirs.dirs gesetzt damit xfdesktop XDG_TEMPLATES_DIR sicher findet
+
 ## [1.5.1] - 2026-05-15
 ### Verbessert
 - geany-gio: Fehlerbenachrichtigung via notify-send wenn Rück-Sync auf SMB fehlschlägt
