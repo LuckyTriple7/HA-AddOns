@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.2] - 2026-05-15
+
+### Neu
+- Chat-Ansicht: gesendete und empfangene Nachrichten als Sprechblasen (WhatsApp-Stil)
+- Eigene Nachrichten (gesendet vom Handy) werden ebenfalls angezeigt
+- Datums-Trennlinie zwischen Tagen
+- Nachrichten-Feed scrollt automatisch nach unten
+- `/api/messages` Endpoint für Nachrichtenhistorie
+
 ## [1.0.1] - 2026-05-15
 
 ### Behoben

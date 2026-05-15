@@ -8,6 +8,8 @@ const http = require('http');
 const { URL } = require('url');
 const { existsSync } = require('fs');
 
+// ── Chromium detection ────────────────────────────────────────────────────────
+
 function findChromium() {
   const candidates = [
     process.env.CHROMIUM_PATH,
@@ -25,6 +27,8 @@ function findChromium() {
 const CHROMIUM = findChromium();
 console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 
+// ── State ─────────────────────────────────────────────────────────────────────
+
 const app = express();
 app.use(express.json());
 
@@ -33,7 +37,15 @@ let status = 'initializing';
 let connectedPhone = null;
 let lastError = null;
 
-// ── WhatsApp Client ──────────────────────────────────────────────────────────
+const MAX_MESSAGES = 200;
+const messages = []; // { id, from, to, body, timestamp, fromMe, contact }
+
+function addMessage(msg) {
+  messages.push(msg);
+  if (messages.length > MAX_MESSAGES) messages.shift();
+}
+
+// ── WhatsApp Client ───────────────────────────────────────────────────────────
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: process.env.SESSION_DIR || '/addon_config/session' }),
@@ -63,8 +75,7 @@ client.on('authenticated', () => {
 });
 
 client.on('ready', () => {
-  const info = client.info;
-  connectedPhone = info?.wid?.user || null;
+  connectedPhone = client.info?.wid?.user || null;
   status = 'connected';
   lastError = null;
   console.log(`[INFO] WhatsApp ready — phone: ${connectedPhone}`);
@@ -83,15 +94,38 @@ client.on('auth_failure', (msg) => {
   console.error(`[ERROR] Auth failed: ${msg}`);
 });
 
+// Incoming messages
 client.on('message', async (msg) => {
-  const url = process.env.WEBHOOK_INCOMING;
-  if (!url) return;
-  postWebhook(url, {
-    from: msg.from,
+  if (msg.type !== 'chat' && msg.type !== 'text') return;
+  const contact = await msg.getContact().catch(() => null);
+  addMessage({
+    id: msg.id._serialized,
+    from: msg.from.replace('@c.us', '').replace('@g.us', ''),
+    to: connectedPhone,
     body: msg.body,
-    type: msg.type,
-    timestamp: msg.timestamp,
-    isGroup: msg.from.endsWith('@g.us'),
+    timestamp: msg.timestamp * 1000,
+    fromMe: false,
+    contact: contact?.pushname || contact?.name || msg.from.replace('@c.us', ''),
+  });
+
+  const url = process.env.WEBHOOK_INCOMING;
+  if (url) postWebhook(url, { from: msg.from, body: msg.body, type: msg.type, timestamp: msg.timestamp });
+});
+
+// Messages sent from phone (not via API)
+client.on('message_create', async (msg) => {
+  if (!msg.fromMe) return;
+  if (msg.type !== 'chat' && msg.type !== 'text') return;
+  // Avoid duplicates from /api/send (those have __logged flag)
+  if (msg.__logged) return;
+  addMessage({
+    id: msg.id._serialized,
+    from: connectedPhone,
+    to: msg.to.replace('@c.us', '').replace('@g.us', ''),
+    body: msg.body,
+    timestamp: msg.timestamp * 1000,
+    fromMe: true,
+    contact: 'Ich',
   });
 });
 
@@ -101,7 +135,7 @@ client.initialize().catch((err) => {
   console.error('[ERROR] Init failed:', lastError);
 });
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function postWebhook(url, data) {
   try {
@@ -121,7 +155,6 @@ function postWebhook(url, data) {
 }
 
 function formatNumber(to) {
-  // Ensure format: 491234567890@c.us
   if (to.includes('@')) return to;
   return `${to.replace(/[^0-9]/g, '')}@c.us`;
 }
@@ -137,13 +170,29 @@ app.get('/api/qr', (req, res) => {
   res.json({ qr: qrCodeDataUrl });
 });
 
+app.get('/api/messages', (req, res) => {
+  const since = parseInt(req.query.since || '0', 10);
+  res.json(messages.filter(m => m.timestamp > since));
+});
+
 app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to and message required' });
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
   try {
     const result = await client.sendMessage(formatNumber(to), message);
-    res.json({ success: true, id: result.id._serialized });
+    const entry = {
+      id: result.id._serialized,
+      from: connectedPhone,
+      to: to.replace(/[^0-9]/g, ''),
+      body: message,
+      timestamp: Date.now(),
+      fromMe: true,
+      contact: 'Ich',
+    };
+    result.__logged = true;
+    addMessage(entry);
+    res.json({ success: true, id: entry.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -171,116 +220,222 @@ app.get('/', (req, res) => {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-           background: #111b21; color: #e9edef; min-height: 100vh;
-           display: flex; flex-direction: column; align-items: center;
-           justify-content: center; padding: 20px; }
-    .card { background: #202c33; border-radius: 12px; padding: 32px;
-            max-width: 420px; width: 100%; text-align: center; }
-    .logo { font-size: 48px; margin-bottom: 8px; }
-    h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-    .subtitle { color: #8696a0; font-size: 14px; margin-bottom: 24px; }
-    .status-badge { display: inline-flex; align-items: center; gap: 8px;
-                    padding: 6px 14px; border-radius: 20px; font-size: 13px;
-                    font-weight: 500; margin-bottom: 24px; }
-    .status-badge.connected { background: #1f3a2a; color: #25d366; }
-    .status-badge.waiting { background: #3a2a1f; color: #f0a500; }
-    .status-badge.disconnected, .status-badge.error { background: #3a1f1f; color: #f15c5c; }
-    .status-badge.initializing { background: #1f2a3a; color: #8696a0; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-    #qr-container img { border-radius: 8px; background: white; padding: 12px; max-width: 280px; }
-    #qr-hint { color: #8696a0; font-size: 13px; margin-top: 12px; line-height: 1.5; }
-    .send-form { margin-top: 8px; text-align: left; }
-    .send-form label { display: block; font-size: 12px; color: #8696a0;
-                       margin-bottom: 4px; margin-top: 14px; }
-    .send-form input, .send-form textarea {
-      width: 100%; background: #2a3942; border: 1px solid #2a3942;
-      border-radius: 8px; padding: 10px 14px; color: #e9edef;
-      font-size: 14px; outline: none; resize: vertical; }
-    .send-form input:focus, .send-form textarea:focus { border-color: #25d366; }
-    .btn { width: 100%; margin-top: 16px; padding: 12px;
-           background: #25d366; color: #111b21; border: none;
-           border-radius: 8px; font-size: 15px; font-weight: 600;
-           cursor: pointer; transition: background 0.2s; }
-    .btn:hover { background: #1da851; }
-    .btn:disabled { background: #2a3942; color: #8696a0; cursor: not-allowed; }
-    .result { margin-top: 12px; font-size: 13px; padding: 8px 12px;
-              border-radius: 6px; display: none; }
-    .result.ok { background: #1f3a2a; color: #25d366; }
-    .result.err { background: #3a1f1f; color: #f15c5c; }
-    .phone-info { font-size: 13px; color: #8696a0; margin-bottom: 16px; }
-    .logout-btn { background: none; border: 1px solid #2a3942; color: #8696a0;
-                  border-radius: 8px; padding: 8px 16px; font-size: 13px;
-                  cursor: pointer; margin-top: 16px; transition: all 0.2s; }
-    .logout-btn:hover { border-color: #f15c5c; color: #f15c5c; }
+           background: #111b21; color: #e9edef; height: 100vh;
+           display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    .header { background: #202c33; padding: 12px 16px;
+              display: flex; align-items: center; gap: 12px;
+              border-bottom: 1px solid #2a3942; flex-shrink: 0; }
+    .header .logo { font-size: 28px; }
+    .header h1 { font-size: 17px; font-weight: 600; }
+    .header .phone { font-size: 12px; color: #8696a0; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-left: auto; flex-shrink: 0; }
+    .status-dot.connected { background: #25d366; }
+    .status-dot.waiting { background: #f0a500; }
+    .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
+    .status-dot.initializing { background: #8696a0; }
+    .status-label { font-size: 12px; color: #8696a0; }
+
+    /* ── Center (QR or Chat) ── */
+    #center { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* QR view */
+    #qr-view { flex: 1; display: flex; flex-direction: column;
+                align-items: center; justify-content: center; gap: 16px; padding: 24px; }
+    #qr-view img { background: white; padding: 12px; border-radius: 8px; max-width: 260px; }
+    #qr-view p { color: #8696a0; font-size: 14px; text-align: center; line-height: 1.6; }
+
+    /* Chat view */
+    #chat-view { flex: 1; display: none; flex-direction: column; }
+    #messages { flex: 1; overflow-y: auto; padding: 12px 16px;
+                display: flex; flex-direction: column; gap: 4px; }
+    #messages::-webkit-scrollbar { width: 6px; }
+    #messages::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
+
+    .bubble-wrap { display: flex; flex-direction: column; margin: 2px 0; }
+    .bubble-wrap.out { align-items: flex-end; }
+    .bubble-wrap.in  { align-items: flex-start; }
+    .contact-name { font-size: 11px; color: #8696a0; margin-bottom: 2px; padding: 0 4px; }
+    .bubble { max-width: 72%; padding: 7px 12px; border-radius: 8px;
+              font-size: 14px; line-height: 1.45; word-break: break-word;
+              position: relative; }
+    .bubble-wrap.out .bubble { background: #005c4b; border-bottom-right-radius: 2px; }
+    .bubble-wrap.in  .bubble { background: #202c33; border-bottom-left-radius: 2px; }
+    .bubble .time { font-size: 10px; color: #8696a0; float: right;
+                    margin-left: 10px; margin-top: 3px; }
+    .no-messages { color: #8696a0; font-size: 14px; text-align: center;
+                   margin: auto; padding: 32px; }
+
+    /* Send bar */
+    #send-bar { background: #202c33; padding: 10px 12px;
+                display: none; gap: 8px; align-items: flex-end;
+                border-top: 1px solid #2a3942; flex-shrink: 0; }
+    #send-bar input[type=tel] { background: #2a3942; border: none; border-radius: 8px;
+                                 padding: 8px 12px; color: #e9edef; font-size: 13px;
+                                 width: 140px; flex-shrink: 0; outline: none; }
+    #send-bar textarea { flex: 1; background: #2a3942; border: none; border-radius: 8px;
+                          padding: 8px 12px; color: #e9edef; font-size: 14px;
+                          resize: none; outline: none; max-height: 100px; min-height: 38px; }
+    #send-bar button { background: #25d366; border: none; border-radius: 50%;
+                        width: 40px; height: 40px; flex-shrink: 0; cursor: pointer;
+                        font-size: 18px; display: flex; align-items: center;
+                        justify-content: center; transition: background 0.2s; }
+    #send-bar button:hover { background: #1da851; }
+
+    /* Logout */
+    .logout-btn { background: none; border: none; color: #8696a0; font-size: 18px;
+                  cursor: pointer; padding: 4px; transition: color 0.2s; }
+    .logout-btn:hover { color: #f15c5c; }
+
+    /* Spinner */
+    #spinner { flex: 1; display: flex; align-items: center; justify-content: center;
+               color: #8696a0; font-size: 14px; }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="header">
     <div class="logo">💬</div>
-    <h1>WhatsApp</h1>
-    <p class="subtitle">Home Assistant Add-on</p>
-    <div id="status-badge" class="status-badge initializing">
-      <div class="dot"></div>
-      <span id="status-text">Verbinde...</span>
+    <div>
+      <h1>WhatsApp</h1>
+      <div class="phone" id="header-phone">Home Assistant Add-on</div>
     </div>
-    <div id="qr-container" style="display:none;"></div>
-    <p id="qr-hint" style="display:none;">
-      Öffne WhatsApp auf deinem Handy →<br>
-      Verknüpfte Geräte → Gerät hinzufügen
-    </p>
-    <div id="connected-ui" style="display:none;">
-      <p class="phone-info" id="phone-info"></p>
-      <div class="send-form">
-        <label>Telefonnummer (mit Ländervorwahl, ohne +)</label>
-        <input id="to" type="tel" placeholder="4915123456789">
-        <label>Nachricht</label>
-        <textarea id="msg" rows="3" placeholder="Hallo!"></textarea>
-        <button class="btn" onclick="sendMsg()">Senden</button>
-        <div id="result" class="result"></div>
-      </div>
-      <button class="logout-btn" onclick="logout()">Abmelden</button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+      <span class="status-label" id="status-label">Starte...</span>
+      <div class="status-dot initializing" id="status-dot"></div>
+      <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
     </div>
+  </div>
+
+  <div id="center">
+    <div id="spinner">Verbinde mit WhatsApp...</div>
+    <div id="qr-view" style="display:none;">
+      <div id="qr-img"></div>
+      <p>Öffne WhatsApp auf deinem Handy<br>
+         <strong>Verknüpfte Geräte → Gerät hinzufügen</strong><br>
+         und scanne den QR-Code</p>
+    </div>
+    <div id="chat-view">
+      <div id="messages"><p class="no-messages">Keine Nachrichten — sende eine!</p></div>
+    </div>
+  </div>
+
+  <div id="send-bar">
+    <input type="tel" id="to" placeholder="4915123456789" title="Nummer mit Ländervorwahl">
+    <textarea id="msg" rows="1" placeholder="Nachricht…"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
+    <button onclick="sendMsg()" title="Senden">➤</button>
   </div>
 
   <script>
     let currentStatus = '';
+    let lastMsgTime = 0;
+    let atBottom = true;
+
+    const msgList = document.getElementById('messages');
+    msgList.addEventListener('scroll', () => {
+      atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 20;
+    });
+
+    function scrollDown() {
+      if (atBottom) msgList.scrollTop = msgList.scrollHeight;
+    }
+
+    function fmtTime(ts) {
+      return new Date(ts).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    }
+
+    function fmtDate(ts) {
+      const d = new Date(ts);
+      const today = new Date();
+      if (d.toDateString() === today.toDateString()) return 'Heute';
+      const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+      if (d.toDateString() === yesterday.toDateString()) return 'Gestern';
+      return d.toLocaleDateString('de-DE');
+    }
+
+    function renderMessages(msgs) {
+      if (!msgs.length) return;
+      const noMsg = msgList.querySelector('.no-messages');
+      if (noMsg) noMsg.remove();
+
+      let lastDate = null;
+      msgs.forEach(m => {
+        const date = fmtDate(m.timestamp);
+        if (date !== lastDate) {
+          lastDate = date;
+          const sep = document.createElement('div');
+          sep.style.cssText = 'text-align:center;font-size:11px;color:#8696a0;margin:8px 0;';
+          sep.textContent = date;
+          msgList.appendChild(sep);
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'bubble-wrap ' + (m.fromMe ? 'out' : 'in');
+        const name = document.createElement('div');
+        name.className = 'contact-name';
+        name.textContent = m.fromMe ? '' : (m.contact || m.from);
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.innerHTML = escHtml(m.body) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+        if (!m.fromMe && m.contact) wrap.appendChild(name);
+        wrap.appendChild(bubble);
+        msgList.appendChild(wrap);
+        if (m.timestamp > lastMsgTime) lastMsgTime = m.timestamp;
+      });
+      scrollDown();
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+               .replace(/\\n/g,'<br>');
+    }
+
+    async function pollMessages() {
+      if (currentStatus !== 'connected') return;
+      try {
+        const msgs = await fetch('api/messages?since=' + lastMsgTime).then(r => r.json());
+        if (msgs.length) renderMessages(msgs);
+      } catch(e) {}
+    }
 
     async function refresh() {
       try {
         const s = await fetch('api/status').then(r => r.json());
-        const badge = document.getElementById('status-badge');
-        const text = document.getElementById('status-text');
+        const dot = document.getElementById('status-dot');
+        const label = document.getElementById('status-label');
+
+        dot.className = 'status-dot ' + (
+          s.status === 'connected' ? 'connected' :
+          s.status === 'waiting_for_scan' || s.status === 'authenticated' ? 'waiting' :
+          s.status === 'initializing' ? 'initializing' : 'error');
+
+        label.textContent = {
+          connected: 'Verbunden', waiting_for_scan: 'QR scannen',
+          authenticated: 'Authentifiziert…', initializing: 'Starte…',
+          disconnected: 'Getrennt', auth_failed: 'Auth-Fehler', error: 'Fehler',
+        }[s.status] || s.status;
+
+        if (s.phone) document.getElementById('header-phone').textContent = '+' + s.phone;
 
         if (s.status !== currentStatus) {
           currentStatus = s.status;
-          badge.className = 'status-badge ' + (
-            s.status === 'connected' ? 'connected' :
-            s.status === 'waiting_for_scan' || s.status === 'authenticated' ? 'waiting' :
-            s.status === 'initializing' ? 'initializing' : 'disconnected');
-          text.textContent = {
-            connected: 'Verbunden',
-            waiting_for_scan: 'QR-Code scannen',
-            authenticated: 'Authentifiziert...',
-            initializing: 'Starte...',
-            disconnected: 'Getrennt',
-            auth_failed: 'Auth fehlgeschlagen',
-            error: 'Fehler',
-          }[s.status] || s.status;
-
-          document.getElementById('qr-container').style.display = 'none';
-          document.getElementById('qr-hint').style.display = 'none';
-          document.getElementById('connected-ui').style.display = 'none';
+          document.getElementById('spinner').style.display = 'none';
+          document.getElementById('qr-view').style.display = 'none';
+          document.getElementById('chat-view').style.display = 'none';
+          document.getElementById('send-bar').style.display = 'none';
 
           if (s.status === 'waiting_for_scan') {
+            document.getElementById('qr-view').style.display = 'flex';
             const qr = await fetch('api/qr').then(r => r.json()).catch(() => null);
-            if (qr?.qr) {
-              document.getElementById('qr-container').innerHTML = '<img src="' + qr.qr + '">';
-              document.getElementById('qr-container').style.display = 'block';
-              document.getElementById('qr-hint').style.display = 'block';
-            }
+            if (qr?.qr) document.getElementById('qr-img').innerHTML = '<img src="'+qr.qr+'">';
           } else if (s.status === 'connected') {
-            document.getElementById('phone-info').textContent = s.phone ? '📱 +' + s.phone : '';
-            document.getElementById('connected-ui').style.display = 'block';
+            document.getElementById('chat-view').style.display = 'flex';
+            document.getElementById('send-bar').style.display = 'flex';
+            // Load all messages on connect
+            const all = await fetch('api/messages').then(r => r.json()).catch(() => []);
+            renderMessages(all);
+          } else {
+            document.getElementById('spinner').style.display = 'flex';
           }
         }
       } catch(e) {}
@@ -289,33 +444,30 @@ app.get('/', (req, res) => {
     async function sendMsg() {
       const to = document.getElementById('to').value.trim();
       const msg = document.getElementById('msg').value.trim();
-      const result = document.getElementById('result');
       if (!to || !msg) return;
       try {
         const r = await fetch('api/send', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {'Content-Type':'application/json'},
           body: JSON.stringify({to, message: msg})
         }).then(r => r.json());
-        result.className = 'result ' + (r.success ? 'ok' : 'err');
-        result.textContent = r.success ? '✓ Gesendet' : '✗ ' + r.error;
-        result.style.display = 'block';
-        if (r.success) document.getElementById('msg').value = '';
-        setTimeout(() => result.style.display = 'none', 4000);
-      } catch(e) {
-        result.className = 'result err';
-        result.textContent = '✗ Netzwerkfehler';
-        result.style.display = 'block';
-      }
+        if (r.success) {
+          document.getElementById('msg').value = '';
+          await pollMessages();
+        } else {
+          alert('Fehler: ' + r.error);
+        }
+      } catch(e) { alert('Netzwerkfehler'); }
     }
 
     async function logout() {
       if (!confirm('Wirklich abmelden?')) return;
-      await fetch('api/logout', {method: 'POST'});
+      await fetch('api/logout', {method:'POST'});
     }
 
     refresh();
     setInterval(refresh, 5000);
+    setInterval(pollMessages, 3000);
   </script>
 </body>
 </html>`);
