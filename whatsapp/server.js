@@ -471,6 +471,23 @@ app.get('/', (req, res) => {
     }
     #send-bar button:hover { background: #1da851; }
 
+    /* Back button (mobile only) */
+    #back-btn {
+      display: none; background: none; border: none;
+      color: #e9edef; font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0;
+      line-height: 1; flex-shrink: 0;
+    }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 768px) {
+      #sidebar { width: 100%; max-width: 100%; border-right: none; }
+      #chat-panel { display: none; }
+      #back-btn { display: block; }
+      /* When a chat is open: hide sidebar, show chat panel */
+      body.chat-open #sidebar { display: none; }
+      body.chat-open #chat-panel { display: flex; }
+    }
+
     /* Overlays */
     .overlay {
       position: fixed; inset: 0; background: #111b21; z-index: 100;
@@ -526,6 +543,7 @@ app.get('/', (req, res) => {
         <p>Wähle einen Chat aus der Liste</p>
       </div>
       <div id="chat-header" style="display:none;">
+        <button id="back-btn" onclick="closeChat()" title="Zurück">&#8592;</button>
         <div class="avatar" id="ch-avatar"></div>
         <div>
           <div id="ch-name"></div>
@@ -641,12 +659,12 @@ app.get('/', (req, res) => {
       document.getElementById('chat-header').style.display = 'flex';
       document.getElementById('messages').style.display = 'flex';
       document.getElementById('send-bar').style.display = 'flex';
+      document.body.classList.add('chat-open'); // mobile: show chat panel
 
       const av = document.getElementById('ch-avatar');
       av.style.background = avatarColor(chat.name);
       av.textContent = avatarInitials(chat.name);
       document.getElementById('ch-name').textContent = chat.name;
-      // Only show phone if it looks like a real number (7-15 digits, not a WhatsApp LID)
       const ph = chat.phone || '';
       document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
 
@@ -654,6 +672,13 @@ app.get('/', (req, res) => {
       lastMsgTime[chat.id] = 0;
       atBottom = true;
       await loadMessages(chat.id);
+    }
+
+    function closeChat() {
+      document.body.classList.remove('chat-open'); // mobile: back to chat list
+      selectedChatId = null;
+      selectedChatPhone = null;
+      document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
     }
 
     async function loadMessages(chatId) {

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.6] - 2026-05-16
+
+### Neu
+- Mobiles Layout: auf schmalen Bildschirmen wechselt die Ansicht zwischen Chat-Liste und Konversation (wie WhatsApp auf dem Handy), mit Zurück-Button im Chat-Header
+
 ## [1.1.5] - 2026-05-16
 
 ### Geändert
