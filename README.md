@@ -1,19 +1,42 @@
-# LuckyTriple7 HA Add-ons
+# HA-AddOns
 
-Custom Home Assistant add-on repository.
+Eigene Home Assistant Add-ons von [LuckyTriple7](https://github.com/LuckyTriple7).
 
 ## Installation
 
-1. Gehe in Home Assistant zu **Einstellungen → Add-ons → Add-on Store**
-2. Klicke auf das Drei-Punkte-Menü oben rechts → **Repositories**
-3. Füge diese URL hinzu: `https://github.com/LuckyTriple7/HA-AddOns`
-4. Das Add-on erscheint anschließend im Store
+Repository in Home Assistant hinzufügen:
+
+**Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories**
+
+```
+https://github.com/LuckyTriple7/HA-AddOns
+```
 
 ## Add-ons
 
-### Playwright Browser
+### [Webtop XFCE](ubuntu-webtop/)
 
-Stellt einen Headless-Chromium-Browser mit CDP-Endpoint (Chrome DevTools Protocol) bereit. Wird vom **Claude Code Add-on** verwendet, um Websites aufzurufen und zu steuern.
+Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
 
-- **Port:** 9222 (CDP)
-- **Architektur:** amd64, aarch64
+- KasmVNC-Streaming (CPU-effizient, delta-basiert)
+- Systemsprache Deutsch (de_DE.UTF-8)
+- Firefox, Thunderbird, Geany, VLC, Thunar mit SMB-Netzwerkzugriff und mehr
+- Persistente Konfiguration über Updates hinweg
+
+| | |
+|---|---|
+| **Zugriff HTTP** | `http://<HA-IP>:7776` |
+| **Zugriff HTTPS** | `https://<HA-IP>:7777` |
+| **Benutzername** | `abc` |
+
+→ [Dokumentation & Changelog](ubuntu-webtop/README.md)
+
+### [Playwright Browser](playwright-browser/)
+
+Headless-Chromium-Browser mit CDP-Endpoint für Browser-Automatisierung. Wird vom **Claude Code Add-on** verwendet, um Websites aufzurufen und zu steuern.
+
+- Chrome DevTools Protocol (CDP) auf Port 9222
+- Automatisch erkannt vom Claude Code Add-on
+- Unterstützung für amd64 und aarch64
+
+→ [Dokumentation & Changelog](playwright-browser/README.md)

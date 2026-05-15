@@ -1,0 +1,53 @@
+#!/bin/bash
+# Öffnet lokale Dateien UND GVFS/SMB-Dateien in Geany.
+# Für SMB-Dateien: gio copy → lokale Temp-Datei → Geany,
+# danach automatischer Rück-Sync bei jedem Speichern (inotifywait).
+# Hintergrund: FUSE ist im HA-Container nicht verfügbar, daher kein gvfsd-fuse.
+
+GEANY="/usr/bin/geany"
+TMPDIR="${XDG_RUNTIME_DIR:-/tmp}/geany-remote"
+mkdir -p "$TMPDIR"
+
+LOCAL_ARGS=()
+
+for arg in "$@"; do
+    case "$arg" in
+        smb://*|ftp://*|sftp://*|nfs://*)
+            FILENAME=$(basename "$arg")
+            # Deterministischer Name via URI-Hash verhindert doppelte Downloads
+            URISUM=$(printf '%s' "$arg" | md5sum | cut -c1-8)
+            TMPFILE="$TMPDIR/${URISUM}-${FILENAME}"
+            PIDFILE="${TMPFILE}.pid"
+
+            # Datei bereits offen und Watcher noch aktiv → nur in Geany öffnen
+            if [ -f "$TMPFILE" ] && [ -f "$PIDFILE" ] \
+               && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+                LOCAL_ARGS+=("$TMPFILE")
+            else
+                # Frische Kopie vom Share laden
+                if gio copy "$arg" "$TMPFILE" 2>/dev/null; then
+                    LOCAL_ARGS+=("$TMPFILE")
+                    REMOTE="$arg"
+                    (
+                        printf '%d' "$BASHPID" > "$PIDFILE"
+                        while inotifywait -q -e close_write "$TMPFILE" >/dev/null 2>&1; do
+                            if ! gio copy -T "$TMPFILE" "$REMOTE" 2>/dev/null; then
+                                notify-send -u critical "Geany – Sync fehlgeschlagen" \
+                                    "Datei konnte nicht gespeichert werden:\n$FILENAME" \
+                                    2>/dev/null || true
+                            fi
+                        done
+                        rm -f "$TMPFILE" "$PIDFILE"
+                    ) &
+                else
+                    notify-send "Geany" "Konnte nicht öffnen: $FILENAME" 2>/dev/null || true
+                fi
+            fi
+            ;;
+        *)
+            LOCAL_ARGS+=("$arg")
+            ;;
+    esac
+done
+
+exec "$GEANY" "${LOCAL_ARGS[@]}"

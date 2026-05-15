@@ -1,0 +1,68 @@
+name: Webtop XFCE
+description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
+version: "1.5.14"
+slug: ubuntu_webtop
+init: false
+
+arch:
+  - aarch64
+  - amd64
+
+# Hardware-Zugriff
+audio: true
+video: true
+udev: true
+tmpfs: true
+
+privileged:
+  - SYS_ADMIN
+  - DAC_READ_SEARCH
+  - SYS_PTRACE
+
+devices:
+  - /dev/dri
+  - /dev/dri/card0
+  - /dev/dri/card1
+  - /dev/dri/renderD128
+  - /dev/fuse
+
+# Ports
+ports:
+  3000/tcp: 7776
+  3001/tcp: 7777
+
+ports_description:
+  3000/tcp: Web Interface HTTP (Host-Port 7776)
+  3001/tcp: Web Interface HTTPS (Host-Port 7777)
+
+# Speicher-Mounts — addon_config ist persistent über Updates hinweg
+map:
+  - addon_config:rw
+  - share:rw
+  - media:rw
+  - ssl
+
+# Standardwerte für Umgebungsvariablen
+environment:
+  TITLE: Ubuntu Webtop
+  START_DOCKER: "false"
+
+# Benutzer-Optionen
+options:
+  PUID: 1000
+  PGID: 1000
+  TZ: "Europe/Berlin"
+  PASSWORD: ""
+
+schema:
+  PUID: int
+  PGID: int
+  TZ: match([A-Z][a-z]*/[A-Za-z0-9_]*)?
+  PASSWORD: str?
+  KEYBOARD: list(da-dk-qwerty|de-de-qwertz|en-gb-qwerty|en-us-qwerty|es-es-qwerty|fr-ch-qwertz|fr-fr-azerty|it-it-qwerty|ja-jp-qwerty|pt-br-qwerty|sv-se-qwerty|tr-tr-qwerty)?
+  DRINODE: list(/dev/dri/card0|/dev/dri/card1|/dev/dri/renderD128|/dev/dri/renderD129)?
+
+panel_icon: mdi:monitor
+panel_admin: false
+
+url: https://github.com/LuckyTriple7/HA-AddOns

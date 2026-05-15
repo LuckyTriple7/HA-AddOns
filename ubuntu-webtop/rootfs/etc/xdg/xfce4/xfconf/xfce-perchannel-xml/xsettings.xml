@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <!-- Tango: PNG-basiertes Icon-Theme, kein SVG → kein glycin/bwrap-Problem -->
+    <property name="IconThemeName" type="string" value="Tango"/>
+    <property name="ThemeName" type="string" value="Greybird"/>
+  </property>
+  <property name="Gtk" type="empty">
+    <property name="CursorThemeName" type="string" value="default"/>
+  </property>
+</channel>
