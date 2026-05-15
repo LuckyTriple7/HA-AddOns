@@ -725,16 +725,28 @@ app.get('/', (req, res) => {
       } catch(e) { alert('Netzwerkfehler'); }
     }
 
+    function waitForRestart() {
+      document.getElementById('spinner-overlay').style.display = 'flex';
+      document.getElementById('spinner-text').textContent = 'Abgemeldet — starte neu…';
+      document.getElementById('topbar').style.display = 'none';
+      document.getElementById('main').style.display = 'none';
+      document.getElementById('qr-overlay').style.display = 'none';
+      // Wait 4s, then poll every 2s until server responds
+      setTimeout(function poll() {
+        fetch('api/status').then(() => location.reload()).catch(() => setTimeout(poll, 2000));
+      }, 4000);
+    }
+
     async function logout() {
       if (!confirm('Wirklich abmelden?')) return;
-      await fetch('api/logout', { method: 'POST' });
-      setTimeout(() => location.reload(), 1500);
+      await fetch('api/logout', { method: 'POST' }).catch(() => {});
+      waitForRestart();
     }
 
     async function resetSession() {
       if (!confirm('Session löschen und neu starten? Du musst den QR-Code erneut scannen.')) return;
-      await fetch('api/reset', { method: 'POST' });
-      setTimeout(() => location.reload(), 2000);
+      await fetch('api/reset', { method: 'POST' }).catch(() => {});
+      waitForRestart();
     }
 
     async function refresh() {
