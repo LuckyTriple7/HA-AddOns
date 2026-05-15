@@ -198,6 +198,15 @@ client.initialize().catch((err) => {
   console.error('[ERROR] Init failed:', lastError);
 });
 
+// Puppeteer sometimes throws "No data found for resource" when WhatsApp
+// intercepts network responses that are already gone — harmless, but would
+// crash Node.js if unhandled.
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || String(reason);
+  if (msg.includes('No data found for resource')) return;
+  console.error('[ERROR] Unhandled rejection:', msg);
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function postWebhook(url, data) {

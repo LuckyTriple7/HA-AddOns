@@ -2,6 +2,9 @@
 
 ## [1.0.5] - 2026-05-16
 
+### Behoben
+- Crash "No data found for resource" (Puppeteer ProtocolError) — wird jetzt abgefangen, Add-on bleibt stabil
+
 ### Neu
 - Anzahl geladener Chats konfigurierbar (`initial_chats`, Standard: 30)
 - Anzahl Nachrichten pro Chat beim Start konfigurierbar (`initial_messages`, Standard: 20)
