@@ -1,0 +1,72 @@
+name: Check Claude Code Update
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # täglich um 8:00 UTC
+  workflow_dispatch:       # manuell auslösbar
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest Claude Code npm version
+        id: claude
+        run: echo "version=$(npm show @anthropic-ai/claude-code version)" >> $GITHUB_OUTPUT
+
+      - name: Get currently tracked version
+        id: tracked
+        run: |
+          if [ -f .claude-code-version ]; then
+            echo "version=$(cat .claude-code-version)" >> $GITHUB_OUTPUT
+          else
+            echo "version=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if already up to date
+        if: steps.claude.outputs.version == steps.tracked.outputs.version
+        run: echo "Claude Code ${{ steps.claude.outputs.version }} already tracked — nothing to do."
+
+      - name: Create PR with version bump
+        if: steps.claude.outputs.version != steps.tracked.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLAUDE_VER: ${{ steps.claude.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="update/claude-code-${CLAUDE_VER}"
+          git checkout -b "$BRANCH"
+
+          # Bump add-on patch version
+          ADDON_VER=$(grep '^version:' claudecode/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo $ADDON_VER | cut -d. -f1)
+          MINOR=$(echo $ADDON_VER | cut -d. -f2)
+          PATCH=$(echo $ADDON_VER | cut -d. -f3)
+          NEW_ADDON_VER="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          DATE=$(date +%Y-%m-%d)
+
+          sed -i "s/version: \"${ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" claudecode/config.yaml
+
+          # Update tracked version
+          echo "$CLAUDE_VER" > .claude-code-version
+
+          # Prepend CHANGELOG entry
+          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Changed\n- Rebuild für Claude Code ${CLAUDE_VER}\n"
+          sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" claudecode/CHANGELOG.md
+          sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" claudecode/CHANGELOG.md
+
+          git add claudecode/config.yaml claudecode/CHANGELOG.md .claude-code-version
+          git commit -m "Bump add-on to v${NEW_ADDON_VER} — Claude Code ${CLAUDE_VER}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "Update Claude Code ${CLAUDE_VER} (Add-on v${NEW_ADDON_VER})" \
+            --body "$(printf '## Claude Code Update\n\nNeue Version **%s** von [@anthropic-ai/claude-code](https://www.npmjs.com/package/@anthropic-ai/claude-code) verfügbar.\n\n### Änderungen\n- Add-on Version: `%s` → `%s`\n- Claude Code Version: `%s`\n\n---\n_Automatisch erstellt von GitHub Actions. Bitte prüfen und mergen._' "$CLAUDE_VER" "$ADDON_VER" "$NEW_ADDON_VER" "$CLAUDE_VER")" \
+            --base main
