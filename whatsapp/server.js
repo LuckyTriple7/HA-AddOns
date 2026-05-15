@@ -291,10 +291,11 @@ app.post('/api/send', async (req, res) => {
 app.post('/api/logout', async (req, res) => {
   try {
     await client.logout();
-    res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // ignore — browser may already be gone
   }
+  res.json({ success: true });
+  setTimeout(() => process.exit(0), 500);
 });
 
 app.post('/api/reset', (req, res) => {
@@ -471,7 +472,7 @@ app.get('/', (req, res) => {
 
   <div id="spinner-overlay" class="overlay">
     <div style="font-size:48px;">💬</div>
-    <p>Verbinde mit WhatsApp…</p>
+    <p id="spinner-text">Verbinde mit WhatsApp…</p>
     <button onclick="resetSession()" style="
       margin-top:16px; background:none; border:1px solid #3d5259;
       color:#8696a0; border-radius:8px; padding:8px 16px;
@@ -727,6 +728,7 @@ app.get('/', (req, res) => {
     async function logout() {
       if (!confirm('Wirklich abmelden?')) return;
       await fetch('api/logout', { method: 'POST' });
+      setTimeout(() => location.reload(), 1500);
     }
 
     async function resetSession() {
@@ -751,7 +753,9 @@ app.get('/', (req, res) => {
 
         if (s.status !== currentStatus) {
           currentStatus = s.status;
-          const connecting = s.status === 'initializing' || s.status === 'authenticated';
+          const connecting = s.status === 'initializing' || s.status === 'authenticated' || s.status === 'disconnected';
+          document.getElementById('spinner-text').textContent =
+            s.status === 'disconnected' ? 'Abgemeldet — starte neu…' : 'Verbinde mit WhatsApp…';
           const qr = s.status === 'waiting_for_scan';
           const connected = s.status === 'connected';
           document.getElementById('spinner-overlay').style.display = connecting ? 'flex' : 'none';
