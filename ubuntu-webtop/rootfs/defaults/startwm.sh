@@ -5,6 +5,13 @@
 
 export DISPLAY="${DISPLAY:-:1}"
 
+# XDG_RUNTIME_DIR setzen – von systemd-logind normalerweise gesetzt, fehlt in HA.
+# Muss als erstes gesetzt werden, damit D-Bus, Keyring und GVFS ihre
+# Sockets/Mounts unter dem richtigen Pfad ablegen.
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 0700 "$XDG_RUNTIME_DIR"
+
 # D-Bus Session-Bus starten – von xfce4-session normalerweise gestartet.
 # xfconf, xfce4-panel und xfdesktop brauchen ihn zwingend (dbus-x11 Paket).
 eval "$(dbus-launch --sh-syntax)"
@@ -14,26 +21,14 @@ export DBUS_SESSION_BUS_ADDRESS
 eval "$(gnome-keyring-daemon --start --components=secrets)"
 export GNOME_KEYRING_CONTROL GNOME_KEYRING_PID SSH_AUTH_SOCK
 
-# XDG_RUNTIME_DIR setzen – normalerweise von systemd-logind erledigt, fehlt in HA-Containern.
-# Ohne diese Variable findet GIO den GVFS-FUSE-Mount nicht → g_file_get_path() gibt NULL
-# zurück → Thunar übergibt keinen Dateipfad an externe Apps wie Geany.
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-mkdir -p "$XDG_RUNTIME_DIR"
-chmod 0700 "$XDG_RUNTIME_DIR"
-
-# GVFS-Daemon + FUSE-Bridge:
-# gvfsd-fuse hängt den GVFS-Namespace (SMB …) als echtes Dateisystem unter
-# $XDG_RUNTIME_DIR/gvfs ein, damit Apps wie Geany normale open()-Aufrufe nutzen können.
-# Pfad ist Multiarch-abhängig (Debian Bookworm: /usr/lib/<arch>/gvfs/).
-GVFSD_FUSE=$(ls /usr/lib/*/gvfs/gvfsd-fuse /usr/lib/gvfs/gvfsd-fuse 2>/dev/null | head -1)
+# GVFS-Daemon starten (für Thunar SMB-Zugriff über GIO).
+# Hinweis: gvfsd-fuse wurde entfernt – das FUSE-Kernel-Modul ist im
+# HA-Container nicht verfügbar. SMB-Dateien werden stattdessen vom
+# geany-gio Wrapper via gio copy lokal kopiert.
 /usr/lib/gvfs/gvfsd &
 sleep 1
-if [ -n "$GVFSD_FUSE" ]; then
-    mkdir -p "$XDG_RUNTIME_DIR/gvfs"
-    "$GVFSD_FUSE" "$XDG_RUNTIME_DIR/gvfs" &
-fi
 
-# Avahi-Daemon starten – verhindert GVFS-Warnungen beim DNS-SD-Backend
+# Avahi-Daemon (mDNS/DNS-SD) – unterdrückt GVFS dns-sd-Warnungen im Log
 avahi-daemon --no-rlimits -D 2>/dev/null || true
 
 # Fenstermanager ohne Compositor (verhindert schwarzen Bildschirm in virtuellen Umgebungen)

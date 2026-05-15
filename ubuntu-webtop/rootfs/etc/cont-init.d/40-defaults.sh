@@ -39,6 +39,19 @@ text/plain=geany.desktop
 EOF
 echo "[ubuntu-webtop] MIME-Zuordnungen gesetzt (Firefox + Geany)"
 
+# Geany: Benutzer-Override damit Dateien aus SMB-Shares über geany-gio geöffnet werden.
+# geany-gio kopiert die Datei lokal (gio copy, kein FUSE nötig) und synct beim Speichern zurück.
+# Überschreibt das System-geany.desktop (%F, nur lokale Pfade) mit %U (URIs).
+LOCAL_APPS="/config/.local/share/applications"
+mkdir -p "$LOCAL_APPS"
+if [ -f /usr/share/applications/geany.desktop ]; then
+    sed 's|^Exec=geany.*|Exec=geany-gio %U|' /usr/share/applications/geany.desktop \
+        > "$LOCAL_APPS/geany.desktop"
+    chown "${PUID}:${PGID}" "$LOCAL_APPS/geany.desktop"
+    echo "[ubuntu-webtop] geany.desktop Override gesetzt (geany-gio)"
+fi
+chown -R "${PUID}:${PGID}" /config/.local 2>/dev/null || true
+
 # Locale für XFCE-Sitzung setzen
 LOCALE_CONF="${CONFIG_DIR}/locale.conf"
 if [ ! -f "${LOCALE_CONF}" ]; then

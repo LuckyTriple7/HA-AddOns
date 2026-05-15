@@ -60,6 +60,7 @@ RUN apt-get update \
         libsecret-tools \
         putty \
         avahi-daemon \
+        inotify-tools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -88,7 +89,8 @@ RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
 
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
-RUN find /etc/cont-init.d -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+RUN find /etc/cont-init.d -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true \
+    && chmod +x /usr/local/bin/geany-gio
 
 # Entrypoint installieren
 COPY ha_entrypoint.sh /ha_entrypoint.sh

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.8] - 2026-05-15
+### Geändert
+- FUSE-Ansatz aufgegeben: FUSE-Kernel-Modul im HA-Container nicht verfügbar
+- geany-gio Wrapper: öffnet SMB-Dateien via gio copy (kein FUSE nötig), synct bei Speichern zurück
+- inotify-tools installiert (für Rück-Sync beim Speichern)
+- XDG_RUNTIME_DIR wird jetzt vor D-Bus und GNOME Keyring gesetzt
+- geany.desktop Override: Exec=geany-gio %U statt geany %F
+
 ## [1.4.7] - 2026-05-15
 ### Behoben
 - XDG_RUNTIME_DIR explizit gesetzt (fehlte wegen logind-Deaktivierung) – GIO findet GVFS-FUSE-Mount jetzt korrekt
