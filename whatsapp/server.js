@@ -595,7 +595,9 @@ app.get('/', (req, res) => {
       av.style.background = avatarColor(chat.name);
       av.textContent = avatarInitials(chat.name);
       document.getElementById('ch-name').textContent = chat.name;
-      document.getElementById('ch-phone').textContent = chat.phone ? '+' + chat.phone : '';
+      // Only show phone if it looks like a real number (7-15 digits, not a WhatsApp LID)
+      const ph = chat.phone || '';
+      document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
 
       msgList.innerHTML = '';
       lastMsgTime[chat.id] = 0;
