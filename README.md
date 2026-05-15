@@ -54,6 +54,19 @@ Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
 
 → [Dokumentation & Changelog](ubuntu-webtop/README.md)
 
+### [WhatsApp](whatsapp/)
+
+WhatsApp Web als persistente Session direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support.
+
+- QR-Code einmalig scannen, Session bleibt über Neustarts erhalten
+- Chat-Liste mit Kontaktnamen und Nachrichtenvorschau (wie WhatsApp Web)
+- Nachrichten senden und empfangen direkt in der HA-Sidebar
+- REST-API für Automatisierungen (`POST /api/send`)
+- Webhook für eingehende Nachrichten (HA-Webhook-Trigger)
+- Responsives Design für Desktop und Handy
+
+→ [Dokumentation & Changelog](whatsapp/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -111,3 +124,16 @@ Full XFCE desktop in the browser, directly integrated into Home Assistant.
 | **Username** | `abc` |
 
 → [Documentation & Changelog](ubuntu-webtop/README.md)
+
+### [WhatsApp](whatsapp/)
+
+WhatsApp Web as a persistent session directly in Home Assistant — with chat UI, REST API and webhook support.
+
+- Scan QR code once, session persists across restarts
+- Chat list with contact names and message preview (like WhatsApp Web)
+- Send and receive messages directly in the HA sidebar
+- REST API for automations (`POST /api/send`)
+- Webhook for incoming messages (HA webhook trigger)
+- Responsive design for desktop and mobile
+
+→ [Documentation & Changelog](whatsapp/README.md)
