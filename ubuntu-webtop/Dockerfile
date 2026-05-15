@@ -114,7 +114,8 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm -rf /var/lib/apt/lists/* \
     && printf '#!/bin/sh\nexec /opt/Bitwarden/bitwarden --no-sandbox "$@"\n' \
         > /usr/bin/bitwarden \
-    && chmod +x /usr/bin/bitwarden
+    && chmod +x /usr/bin/bitwarden \
+    && sed -i '/^Exec=/ s|$| --no-sandbox|' /usr/share/applications/bitwarden.desktop
 
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \

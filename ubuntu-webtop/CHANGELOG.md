@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.13] - 2026-05-15
+### Behoben
+- Bitwarden: --no-sandbox in bitwarden.desktop eingetragen (Startmenü-Klick öffnet jetzt Bitwarden)
+
 ## [1.5.12] - 2026-05-15
 ### Hinzugefügt
 - Bitwarden Desktop (neueste stabile Version, --no-sandbox Wrapper für Container-Kompatibilität)
