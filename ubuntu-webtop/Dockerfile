@@ -112,10 +112,10 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm -f /tmp/bitwarden.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && printf '#!/bin/sh\nexec /opt/Bitwarden/bitwarden --no-sandbox "$@"\n' \
+    && printf '#!/bin/sh\nexec /opt/Bitwarden/bitwarden-app --no-sandbox "$@"\n' \
         > /usr/bin/bitwarden \
     && chmod +x /usr/bin/bitwarden \
-    && sed -i '/^Exec=/ s|$| --no-sandbox|' /usr/share/applications/bitwarden.desktop
+    && sed -i 's|^Exec=.*|Exec=/opt/Bitwarden/bitwarden-app --no-sandbox %U|' /usr/share/applications/bitwarden.desktop
 
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \

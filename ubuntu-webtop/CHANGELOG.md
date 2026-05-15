@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.14] - 2026-05-15
+### Behoben
+- Bitwarden: bitwarden-app (Electron-Binary) statt bitwarden-Script als Exec-Ziel
+
 ## [1.5.13] - 2026-05-15
 ### Behoben
 - Bitwarden: --no-sandbox in bitwarden.desktop eingetragen (Startmenü-Klick öffnet jetzt Bitwarden)
