@@ -15,6 +15,9 @@ profile claudecode flags=(attach_disconnected,mediate_deleted) {
   # Network access for Claude API and hass-mcp
   network,
 
+  # Allow ptrace for JavaScriptCore GC thread suspension (Bun runtime)
+  ptrace,
+
   # PTY/TTY access for terminal
   /dev/ptmx rw,
   /dev/pts/* rw,
