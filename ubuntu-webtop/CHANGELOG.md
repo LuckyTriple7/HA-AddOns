@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.3] - 2026-05-15
+### Hinzugefügt
+- Zenmap (nmap GUI) – aus nmap-Source installiert, da nicht in Debian Bookworm Repos
+
 ## [1.5.2] - 2026-05-15
 ### Behoben
 - Templates werden jetzt korrekt angelegt (Basisimage erstellt ~/Templates bereits leer)

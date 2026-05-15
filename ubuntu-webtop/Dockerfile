@@ -61,8 +61,20 @@ RUN apt-get update \
         putty \
         avahi-daemon \
         inotify-tools \
+        python3-gi \
+        python3-gi-cairo \
+        gir1.2-gtk-3.0 \
+        xdg-utils \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Zenmap installieren (nicht in Debian Bookworm Repos; aus nmap-Source-Tarball)
+RUN NMAP_VER=$(nmap --version | awk '/Nmap version/{print $3}') \
+    && curl -fsSL "https://nmap.org/dist/nmap-${NMAP_VER}.tar.bz2" -o /tmp/nmap.tar.bz2 \
+    && tar -xjf /tmp/nmap.tar.bz2 -C /tmp \
+    && cd "/tmp/nmap-${NMAP_VER}/zenmap" \
+    && python3 setup.py install --prefix=/usr/local \
+    && rm -rf /tmp/nmap*
 
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
