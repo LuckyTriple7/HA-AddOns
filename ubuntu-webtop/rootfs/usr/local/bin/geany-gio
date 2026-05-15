@@ -14,19 +14,34 @@ for arg in "$@"; do
     case "$arg" in
         smb://*|ftp://*|sftp://*|nfs://*)
             FILENAME=$(basename "$arg")
-            TMPFILE="$TMPDIR/$$-$FILENAME"
-            if gio copy "$arg" "$TMPFILE" 2>/dev/null; then
+            # Deterministischer Name via URI-Hash verhindert doppelte Downloads
+            URISUM=$(printf '%s' "$arg" | md5sum | cut -c1-8)
+            TMPFILE="$TMPDIR/${URISUM}-${FILENAME}"
+            PIDFILE="${TMPFILE}.pid"
+
+            # Datei bereits offen und Watcher noch aktiv → nur in Geany öffnen
+            if [ -f "$TMPFILE" ] && [ -f "$PIDFILE" ] \
+               && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
                 LOCAL_ARGS+=("$TMPFILE")
-                REMOTE="$arg"
-                # Bei jedem Speichern (Ctrl+S) zurückkopieren
-                (
-                    while inotifywait -q -e close_write "$TMPFILE" >/dev/null 2>&1; do
-                        gio copy -T "$TMPFILE" "$REMOTE" 2>/dev/null
-                    done
-                    rm -f "$TMPFILE"
-                ) &
             else
-                notify-send "Geany" "Konnte nicht öffnen: $FILENAME" 2>/dev/null || true
+                # Frische Kopie vom Share laden
+                if gio copy "$arg" "$TMPFILE" 2>/dev/null; then
+                    LOCAL_ARGS+=("$TMPFILE")
+                    REMOTE="$arg"
+                    (
+                        printf '%d' "$BASHPID" > "$PIDFILE"
+                        while inotifywait -q -e close_write "$TMPFILE" >/dev/null 2>&1; do
+                            if ! gio copy -T "$TMPFILE" "$REMOTE" 2>/dev/null; then
+                                notify-send -u critical "Geany – Sync fehlgeschlagen" \
+                                    "Datei konnte nicht gespeichert werden:\n$FILENAME" \
+                                    2>/dev/null || true
+                            fi
+                        done
+                        rm -f "$TMPFILE" "$PIDFILE"
+                    ) &
+                else
+                    notify-send "Geany" "Konnte nicht öffnen: $FILENAME" 2>/dev/null || true
+                fi
             fi
             ;;
         *)

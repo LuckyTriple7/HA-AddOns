@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1] - 2026-05-15
+### Verbessert
+- geany-gio: Fehlerbenachrichtigung via notify-send wenn Rück-Sync auf SMB fehlschlägt
+- geany-gio: Deduplizierung – gleiche Datei wird nicht zweimal heruntergeladen (URI-Hash + PID-Check)
+- geany-gio: Automatischer Cleanup von Temp-Dateien wenn Watcher endet
+- gvfsd Watchdog: startet GVFS-Daemon automatisch neu bei Absturz
+- Desktop-Kontextmenü "Neue Datei erstellen" aktiviert (Templates-Verzeichnis mit Vorlagen)
+
 ## [1.5.0] - 2026-05-15
 ### Behoben
 - Standardprogramme werden nach Neustart nicht mehr zurückgesetzt

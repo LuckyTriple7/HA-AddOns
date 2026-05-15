@@ -55,6 +55,19 @@ if [ -f /usr/share/applications/geany.desktop ]; then
 fi
 chown -R "${PUID}:${PGID}" /config/.local 2>/dev/null || true
 
+# Desktop-Kontextmenü "Neue Datei erstellen": Templates-Verzeichnis befüllen.
+# xfdesktop zeigt den Eintrag automatisch wenn ~/Templates Dateien enthält.
+TEMPLATES_DIR="/config/Templates"
+if [ ! -d "$TEMPLATES_DIR" ]; then
+    mkdir -p "$TEMPLATES_DIR"
+    touch "$TEMPLATES_DIR/Leere Datei"
+    touch "$TEMPLATES_DIR/Textdatei.txt"
+    touch "$TEMPLATES_DIR/Konfiguration.yaml"
+    touch "$TEMPLATES_DIR/Shell Script.sh"
+    chown -R "${PUID}:${PGID}" "$TEMPLATES_DIR"
+    echo "[ubuntu-webtop] Templates-Verzeichnis erstellt"
+fi
+
 # Locale für XFCE-Sitzung setzen
 LOCALE_CONF="${CONFIG_DIR}/locale.conf"
 if [ ! -f "${LOCALE_CONF}" ]; then

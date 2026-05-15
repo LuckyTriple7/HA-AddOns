@@ -28,6 +28,14 @@ export GNOME_KEYRING_CONTROL GNOME_KEYRING_PID SSH_AUTH_SOCK
 /usr/lib/gvfs/gvfsd &
 sleep 1
 
+# gvfsd Watchdog: startet den Daemon neu falls er abstürzt (alle 10 Sekunden prüfen)
+(
+    while true; do
+        sleep 10
+        pgrep -x gvfsd >/dev/null 2>&1 || /usr/lib/gvfs/gvfsd &
+    done
+) &
+
 # Avahi-Daemon (mDNS/DNS-SD) – unterdrückt GVFS dns-sd-Warnungen im Log
 avahi-daemon --no-rlimits -D 2>/dev/null || true
 
