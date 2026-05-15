@@ -15,9 +15,9 @@ Das Add-on wird vom **Claude Code Add-on** automatisch erkannt und als Browser-B
 ## Funktionsweise
 
 1. Chromium startet im Headless-Modus auf einem internen Port
-2. nginx proxiert den konfigurierten CDP-Port auf den internen Port
-3. nginx rewritet `localhost`-Adressen in den Antworten, damit WebSocket-Verbindungen von außerhalb des Containers funktionieren
-4. Der Claude Code Add-on findet dieses Add-on automatisch über die Supervisor API und registriert `@playwright/mcp` als MCP-Server
+2. Ein Python-CDP-Proxy leitet den konfigurierten CDP-Port auf den internen Port weiter
+3. Der Proxy rewritet `localhost`-Adressen in den HTTP-Antworten, damit WebSocket-Verbindungen von außerhalb des Containers funktionieren
+4. Das Claude Code Add-on findet dieses Add-on automatisch über die Supervisor API und registriert `@playwright/mcp` als MCP-Server
 
 ## Voraussetzungen
 
