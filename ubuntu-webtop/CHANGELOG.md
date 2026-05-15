@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.9] - 2026-05-15
+### Behoben
+- Angry IP Scanner: Launcher nach /usr/bin/ipscan verschoben (erwartet vom .desktop aus dem .deb)
+
 ## [1.5.8] - 2026-05-15
 ### Behoben
 - Java (default-jre-headless) in eigenem Layer mit /usr/share/man/man1 Workaround

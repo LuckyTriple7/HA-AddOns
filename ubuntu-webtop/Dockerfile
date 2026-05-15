@@ -90,8 +90,8 @@ RUN curl -fsSL \
     && find /tmp/ipscan/usr/share/pixmaps -name "ipscan*" \
         -exec cp {} /usr/share/pixmaps/ \; 2>/dev/null || true \
     && printf '#!/bin/sh\nexec java -jar /usr/share/ipscan/ipscan.jar "$@"\n' \
-        > /usr/local/bin/ipscan \
-    && chmod +x /usr/local/bin/ipscan \
+        > /usr/bin/ipscan \
+    && chmod +x /usr/bin/ipscan \
     && rm -rf /tmp/ipscan*
 
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
