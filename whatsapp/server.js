@@ -1,11 +1,29 @@
 'use strict';
 
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const qrcode = require('qrcode');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
+const { existsSync } = require('fs');
+
+function findChromium() {
+  const candidates = [
+    process.env.CHROMIUM_PATH,
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+  ];
+  for (const p of candidates) {
+    if (p && existsSync(p)) return p;
+  }
+  return '/usr/bin/chromium-browser';
+}
+
+const CHROMIUM = findChromium();
+console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 
 const app = express();
 app.use(express.json());
@@ -20,15 +38,14 @@ let lastError = null;
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: process.env.SESSION_DIR || '/addon_config/session' }),
   puppeteer: {
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser',
+    executablePath: CHROMIUM,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--headless',
       '--disable-gpu',
       '--disable-dev-shm-usage',
-      '--disable-background-networking',
-      '--single-process',
+      '--disable-extensions',
     ],
   },
 });
@@ -79,9 +96,9 @@ client.on('message', async (msg) => {
 });
 
 client.initialize().catch((err) => {
-  lastError = err.message;
+  lastError = String(err?.message || err);
   status = 'error';
-  console.error('[ERROR] Init failed:', err.message);
+  console.error('[ERROR] Init failed:', lastError);
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -306,4 +323,5 @@ app.get('/', (req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-app.listen(3000, () => console.log('[INFO] Web UI running on port 3000'));
+const PORT = parseInt(process.env.PORT || '3000', 10);
+app.listen(PORT, () => console.log(`[INFO] Web UI running on port ${PORT}`));
