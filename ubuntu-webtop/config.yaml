@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.4.3"
+version: "1.4.4"
 slug: ubuntu_webtop
 init: false
 

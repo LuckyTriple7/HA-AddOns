@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.4] - 2026-05-15
+### Hinzugefügt
+- PuTTY SSH-Client (GUI)
+
 ## [1.4.3] - 2026-05-15
 ### Hinzugefügt
 - LibreOffice (Writer, Calc, Impress) mit deutscher Sprachunterstützung und Hilfe

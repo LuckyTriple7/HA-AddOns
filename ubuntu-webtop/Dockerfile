@@ -57,6 +57,7 @@ RUN apt-get update \
         libreoffice-help-de \
         gnome-keyring \
         libsecret-tools \
+        putty \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
