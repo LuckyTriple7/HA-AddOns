@@ -122,7 +122,13 @@ client.on('ready', async () => {
     console.log(`[INFO] Loading ${INITIAL_MESSAGES} messages from ${INITIAL_CHATS} chats`);
     for (const chat of recent) {
       const chatId = chat.id._serialized;
-      upsertChat(chatId, { name: chat.name || chat.id.user, phone: chat.id.user, isGroup: chat.isGroup });
+      // For 1:1 chats, prefer pushname over bare phone number
+      let chatName = chat.name || chat.id.user;
+      if (!chat.isGroup) {
+        const ct = await client.getContactById(chatId).catch(() => null);
+        chatName = ct?.name || ct?.pushname || chatName;
+      }
+      upsertChat(chatId, { name: chatName, phone: chat.id.user, isGroup: chat.isGroup });
 
       const msgs = await chat.fetchMessages({ limit: INITIAL_MESSAGES }).catch(() => []);
       for (const msg of msgs) {

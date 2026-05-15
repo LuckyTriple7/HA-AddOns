@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.7] - 2026-05-16
+
+### Behoben
+- Kontakte ohne Telefonbucheintrag zeigten nur die Nummer — WhatsApp-Profilname (`pushname`) wird jetzt beim Start über `getContactById()` abgefragt
+
 ## [1.1.6] - 2026-05-16
 
 ### Neu
