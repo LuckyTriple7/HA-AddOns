@@ -1,0 +1,11 @@
+{
+  "name": "signal-ha-addon",
+  "version": "1.0.0",
+  "description": "Signal Messenger UI for Home Assistant",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "qrcode": "^1.5.3"
+  }
+}

@@ -1,0 +1,539 @@
+'use strict';
+const express = require('express');
+const fetch = require('node-fetch');
+const QRCode = require('qrcode');
+
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+const SIGNAL_API = process.env.SIGNAL_API_URL || 'http://localhost:8080';
+const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
+let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
+
+let status = 'starting'; // starting | not-linked | linked | error
+let lastError = '';
+let qrCodeDataUrl = null;
+let qrFetching = false;
+
+const chatMap = new Map();           // chatId -> { id, name, phone, lastMsg, lastTime }
+const messagesByChatId = new Map();  // chatId -> Message[]
+const seenMsgIds = new Set();
+
+async function checkStatus() {
+  try {
+    const aboutRes = await fetch(`${SIGNAL_API}/v1/about`, { timeout: 5000 });
+    if (!aboutRes.ok) throw new Error('API not responding');
+
+    const accountsRes = await fetch(`${SIGNAL_API}/v1/accounts`, { timeout: 5000 });
+    if (!accountsRes.ok) { status = 'not-linked'; return; }
+
+    const accounts = await accountsRes.json();
+    const list = Array.isArray(accounts)
+      ? accounts.map(a => (typeof a === 'string' ? a : a.number)).filter(Boolean)
+      : [];
+
+    if (list.length === 0) { status = 'not-linked'; return; }
+
+    if (!PHONE_NUMBER) PHONE_NUMBER = list[0];
+
+    if (status !== 'linked') {
+      status = 'linked';
+      qrCodeDataUrl = null;
+      console.log(`[INFO] Linked as ${PHONE_NUMBER}`);
+    }
+  } catch (e) {
+    if (status === 'starting') status = 'error';
+    lastError = String(e.message || e);
+  }
+}
+
+async function fetchQR() {
+  if (qrFetching) return;
+  qrFetching = true;
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 30000 });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const uri = (await r.text()).trim();
+    qrCodeDataUrl = await QRCode.toDataURL(uri);
+    console.log('[INFO] QR code ready for linking');
+  } catch (e) {
+    console.error('[ERROR] QR fetch failed:', e.message);
+    lastError = String(e.message || e);
+  }
+  qrFetching = false;
+}
+
+function processEnvelope(envelope) {
+  const env = envelope.envelope || envelope;
+  const dm = env.dataMessage;
+  const source = env.sourceNumber || env.source;
+  if (!dm || !source || !dm.message) return;
+
+  const msgId = `${source}_${dm.timestamp}`;
+  if (seenMsgIds.has(msgId)) return;
+  seenMsgIds.add(msgId);
+
+  const isOwn = source === PHONE_NUMBER;
+  const chatId = source;
+  const senderName = env.sourceName || source;
+
+  const msg = { id: msgId, from: source, body: dm.message, timestamp: dm.timestamp, fromMe: isOwn };
+
+  if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
+  messagesByChatId.get(chatId).push(msg);
+
+  if (!chatMap.has(chatId)) {
+    chatMap.set(chatId, { id: chatId, name: senderName, phone: source, lastMsg: dm.message, lastTime: dm.timestamp });
+  } else {
+    const chat = chatMap.get(chatId);
+    chat.lastMsg = dm.message;
+    chat.lastTime = dm.timestamp;
+    if (senderName && senderName !== source) chat.name = senderName;
+  }
+
+  if (WEBHOOK_INCOMING && !isOwn) {
+    fetch(WEBHOOK_INCOMING, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: source, name: senderName, message: dm.message, timestamp: dm.timestamp }),
+    }).catch(() => {});
+  }
+}
+
+async function pollMessages() {
+  if (status !== 'linked' || !PHONE_NUMBER) return;
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/receive/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 5000 });
+    if (!r.ok) return;
+    const messages = await r.json();
+    if (Array.isArray(messages)) messages.forEach(processEnvelope);
+  } catch (e) {}
+}
+
+// --- API ---
+
+app.get('/api/status', (req, res) => {
+  res.json({ status, phone: PHONE_NUMBER, error: lastError });
+});
+
+app.get('/api/qr', async (req, res) => {
+  if (status === 'linked') return res.json({ status: 'linked' });
+  if (!qrCodeDataUrl && !qrFetching) fetchQR();
+  res.json({ qr: qrCodeDataUrl, status });
+});
+
+app.get('/api/chats', (req, res) => {
+  const chats = Array.from(chatMap.values()).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+  res.json(chats);
+});
+
+app.get('/api/messages/:chatId', (req, res) => {
+  res.json(messagesByChatId.get(req.params.chatId) || []);
+});
+
+app.post('/api/send', async (req, res) => {
+  const { to, message } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
+  try {
+    const r = await fetch(`${SIGNAL_API}/v2/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to] }),
+      timeout: 10000,
+    });
+    const result = await r.json();
+    if (!r.ok) return res.status(500).json({ error: result });
+
+    const msgId = `${PHONE_NUMBER}_${Date.now()}`;
+    if (!seenMsgIds.has(msgId)) {
+      seenMsgIds.add(msgId);
+      const msg = { id: msgId, from: PHONE_NUMBER, body: message, timestamp: Date.now(), fromMe: true };
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push(msg);
+      if (!chatMap.has(to)) {
+        chatMap.set(to, { id: to, name: to, phone: to, lastMsg: message, lastTime: Date.now() });
+      } else {
+        const chat = chatMap.get(to);
+        chat.lastMsg = message;
+        chat.lastTime = Date.now();
+      }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+app.post('/api/logout', async (req, res) => {
+  res.json({ success: true });
+  try {
+    await fetch(`${SIGNAL_API}/v1/unregister/${encodeURIComponent(PHONE_NUMBER)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delete_account: false }),
+    });
+  } catch (e) {}
+  PHONE_NUMBER = process.env.PHONE_NUMBER || '';
+  status = 'not-linked';
+  qrCodeDataUrl = null;
+  chatMap.clear();
+  messagesByChatId.clear();
+  fetchQR();
+});
+
+// --- UI ---
+
+app.get('*', (req, res) => {
+  if (req.path !== '/' && !req.path.startsWith('/api')) {
+    return res.redirect(req.baseUrl + '/');
+  }
+  res.send(getHtml());
+});
+
+function getHtml() {
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; color: #111; }
+
+#spinner-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; position: fixed; inset: 0; background: #1b1c22; z-index: 100; gap: 20px; }
+#spinner-overlay .spinner { width: 48px; height: 48px; border: 4px solid #3a76f8; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#spinner-text { color: #fff; font-size: 16px; text-align: center; padding: 0 24px; }
+
+#qr-overlay { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; inset: 0; background: #1b1c22; z-index: 99; gap: 16px; padding: 24px; }
+#qr-overlay h2 { color: #fff; font-size: 20px; }
+#qr-overlay p { color: #aaa; text-align: center; font-size: 14px; max-width: 320px; line-height: 1.5; }
+#qr-img { background: white; padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center; min-width: 220px; min-height: 220px; font-size: 14px; color: #666; }
+
+#topbar { display: none; align-items: center; background: #1b1b21; color: #fff; padding: 0 16px; height: 56px; gap: 12px; flex-shrink: 0; }
+#topbar h1 { font-size: 18px; flex: 1; }
+#topbar .phone { font-size: 13px; color: #aaa; }
+#logout-btn { background: transparent; border: 1px solid #555; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+#logout-btn:hover { background: rgba(255,255,255,0.1); }
+
+#main { display: none; flex: 1; overflow: hidden; }
+
+#sidebar { width: 360px; min-width: 280px; background: #fff; display: flex; flex-direction: column; border-right: 1px solid #e0e0e0; }
+#search-wrap { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; }
+#search-input { width: 100%; padding: 8px 12px; border-radius: 20px; border: none; background: #f0f2f5; font-size: 14px; outline: none; }
+#chat-list { flex: 1; overflow-y: auto; }
+.chat-item { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; gap: 12px; border-bottom: 1px solid #f5f5f5; }
+.chat-item:hover { background: #f5f5f5; }
+.chat-item.active { background: #e9edf5; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; color: white; flex-shrink: 0; }
+.chat-info { flex: 1; overflow: hidden; }
+.chat-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-preview { font-size: 13px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.chat-time { font-size: 12px; color: #999; white-space: nowrap; }
+
+#chat-panel { flex: 1; display: flex; flex-direction: column; background: #e5ddd5; }
+#chat-header { background: #1b1b21; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+#back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 0 8px 0 0; line-height: 1; }
+#ch-name { font-weight: 600; font-size: 16px; flex: 1; }
+#ch-phone { font-size: 12px; color: #aaa; }
+#messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+#no-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 15px; }
+.bubble { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-break: break-word; }
+.bubble.in { background: #fff; align-self: flex-start; border-bottom-left-radius: 2px; }
+.bubble.out { background: #dcf8c6; align-self: flex-end; border-bottom-right-radius: 2px; }
+.bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
+.day-sep { text-align: center; margin: 8px 0; }
+.day-sep span { background: rgba(255,255,255,0.8); padding: 4px 12px; border-radius: 12px; font-size: 12px; color: #666; }
+
+#input-bar { background: #f0f2f5; padding: 8px 16px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+#msg-input { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; background: #fff; font-size: 14px; outline: none; resize: none; max-height: 120px; overflow-y: auto; font-family: inherit; }
+#send-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: #3a76f8; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#send-btn:hover { background: #2960d6; }
+
+@media (max-width: 768px) {
+  #sidebar { width: 100%; max-width: 100%; border-right: none; }
+  #chat-panel { display: none; }
+  #back-btn { display: block; }
+  body.chat-open #sidebar { display: none; }
+  body.chat-open #chat-panel { display: flex; }
+}
+</style>
+</head>
+<body>
+
+<div id="spinner-overlay">
+  <div class="spinner"></div>
+  <div id="spinner-text">Starte Signal…</div>
+</div>
+
+<div id="qr-overlay">
+  <h2>Signal verknüpfen</h2>
+  <p>Öffne Signal auf deinem Handy → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen</p>
+  <div id="qr-img">Lade QR-Code…</div>
+  <p style="font-size:12px;color:#666;">QR-Code aktualisiert sich automatisch</p>
+</div>
+
+<div id="topbar">
+  <h1>Signal</h1>
+  <span class="phone" id="my-phone"></span>
+  <button id="logout-btn" onclick="logout()">Abmelden</button>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="search-wrap">
+      <input id="search-input" type="text" placeholder="Suchen…" oninput="filterChats(this.value)">
+    </div>
+    <div id="chat-list"></div>
+  </div>
+  <div id="chat-panel">
+    <div id="chat-header">
+      <button id="back-btn" onclick="closeChat()">&#8592;</button>
+      <div class="avatar" id="ch-avatar" style="width:36px;height:36px;font-size:14px;background:#3a76f8">?</div>
+      <div style="flex:1;overflow:hidden">
+        <div id="ch-name">Kein Chat ausgewählt</div>
+        <div id="ch-phone"></div>
+      </div>
+    </div>
+    <div id="messages"><div id="no-chat">Wähle einen Chat aus der Liste</div></div>
+    <div id="input-bar">
+      <textarea id="msg-input" rows="1" placeholder="Nachricht…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="send-btn" onclick="sendMsg()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = location.pathname.replace(/\\/$/, '');
+let currentStatus = '';
+let selectedChatId = null;
+let allChats = [];
+
+function api(path) { return BASE + path; }
+
+function showSpinner(msg) {
+  document.getElementById('spinner-overlay').style.display = 'flex';
+  document.getElementById('spinner-text').textContent = msg || 'Verbinde…';
+  document.getElementById('topbar').style.display = 'none';
+  document.getElementById('main').style.display = 'none';
+  document.getElementById('qr-overlay').style.display = 'none';
+  currentStatus = '';
+}
+
+function showQR() {
+  document.getElementById('spinner-overlay').style.display = 'none';
+  document.getElementById('qr-overlay').style.display = 'flex';
+  document.getElementById('topbar').style.display = 'none';
+  document.getElementById('main').style.display = 'none';
+  loadQR();
+}
+
+function showMain(phone) {
+  document.getElementById('spinner-overlay').style.display = 'none';
+  document.getElementById('qr-overlay').style.display = 'none';
+  document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('main').style.display = 'flex';
+  document.getElementById('my-phone').textContent = phone || '';
+}
+
+let qrInterval = null;
+
+function loadQR() {
+  fetch(api('/api/qr'))
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'linked') { refresh(); return; }
+      const el = document.getElementById('qr-img');
+      if (d.qr) {
+        el.innerHTML = '<img src="' + d.qr + '" style="width:196px;height:196px;">';
+      } else {
+        el.textContent = 'Lade QR-Code…';
+      }
+    }).catch(() => {});
+  if (!qrInterval) qrInterval = setInterval(loadQR, 5000);
+}
+
+async function refresh() {
+  try {
+    const d = await fetch(api('/api/status')).then(r => r.json());
+    if (d.status === currentStatus) return;
+    currentStatus = d.status;
+
+    if (d.status === 'starting') {
+      showSpinner('Starte Signal…');
+    } else if (d.status === 'not-linked') {
+      if (qrInterval) { clearInterval(qrInterval); qrInterval = null; }
+      showQR();
+    } else if (d.status === 'linked') {
+      if (qrInterval) { clearInterval(qrInterval); qrInterval = null; }
+      showMain(d.phone);
+      loadChats();
+    } else if (d.status === 'error') {
+      showSpinner('Fehler: ' + d.error);
+    }
+  } catch (e) {}
+}
+
+setInterval(refresh, 3000);
+refresh();
+
+// Chat list
+const COLORS = ['#e53935','#8e24aa','#1e88e5','#00897b','#43a047','#fb8c00','#d81b60','#6d4c41'];
+function avatarColor(s) {
+  let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+  return COLORS[h % COLORS.length];
+}
+function avatarInitial(s) { return (String(s || '?')).charAt(0).toUpperCase(); }
+
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadChats() {
+  try {
+    const chats = await fetch(api('/api/chats')).then(r => r.json());
+    allChats = chats;
+    renderChats(chats);
+    if (selectedChatId) loadMessages(selectedChatId);
+  } catch (e) {}
+}
+setInterval(loadChats, 5000);
+
+function renderChats(chats) {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filtered = q ? chats.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : chats;
+  const el = document.getElementById('chat-list');
+  el.innerHTML = filtered.map(c => \`
+    <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
+      <div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}</div>
+      <div class="chat-info">
+        <div class="chat-name">\${escHtml(c.name || c.id)}</div>
+        <div class="chat-preview">\${escHtml(c.lastMsg || '')}</div>
+      </div>
+      <div class="chat-time">\${formatTime(c.lastTime)}</div>
+    </div>
+  \`).join('');
+}
+
+function filterChats() {
+  renderChats(allChats);
+}
+
+function openChatById(chatId) {
+  const chat = allChats.find(c => c.id === chatId);
+  if (chat) openChat(chat);
+}
+
+function openChat(chat) {
+  selectedChatId = chat.id;
+  document.body.classList.add('chat-open');
+  document.getElementById('ch-name').textContent = chat.name || chat.id;
+  const ph = chat.phone || '';
+  document.getElementById('ch-phone').textContent = /^\\+?\\d{7,15}$/.test(ph) ? ph : '';
+  const av = document.getElementById('ch-avatar');
+  av.textContent = avatarInitial(chat.name || chat.id);
+  av.style.background = avatarColor(chat.name || chat.id);
+  renderChats(allChats);
+  loadMessages(chat.id);
+}
+
+function closeChat() {
+  document.body.classList.remove('chat-open');
+  selectedChatId = null;
+}
+
+async function loadMessages(chatId) {
+  if (!chatId) return;
+  try {
+    const msgs = await fetch(api('/api/messages/' + encodeURIComponent(chatId))).then(r => r.json());
+    renderMessages(msgs);
+  } catch (e) {}
+}
+
+function renderMessages(msgs) {
+  const el = document.getElementById('messages');
+  if (!msgs.length) { el.innerHTML = '<div id="no-chat">Noch keine Nachrichten</div>'; return; }
+  let lastDate = '';
+  el.innerHTML = msgs.map(m => {
+    const d = new Date(m.timestamp > 1e12 ? m.timestamp : m.timestamp * 1000);
+    const dateStr = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    let sep = '';
+    if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
+    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return sep + \`<div class="bubble \${m.fromMe ? 'out' : 'in'}">\${escHtml(m.body)}<div class="bubble-time">\${time}</div></div>\`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendMsg() {
+  if (!selectedChatId) return;
+  const inp = document.getElementById('msg-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  inp.style.height = '';
+  try {
+    await fetch(api('/api/send'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: selectedChatId, message: text }),
+    });
+    await loadMessages(selectedChatId);
+    await loadChats();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function logout() {
+  if (!confirm('Signal-Verknüpfung aufheben?')) return;
+  showSpinner('Abmelden…');
+  await fetch(api('/api/logout'), { method: 'POST' }).catch(() => {});
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+</script>
+</body>
+</html>`;
+}
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[ERROR] Unhandled rejection:', reason?.message || reason);
+});
+
+async function init() {
+  console.log('[INFO] Signal UI starting...');
+  let retries = 30;
+  while (retries-- > 0) {
+    try {
+      const r = await fetch(`${SIGNAL_API}/v1/about`, { timeout: 3000 });
+      if (r.ok) break;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  await checkStatus();
+  if (status === 'not-linked') fetchQR();
+  setInterval(checkStatus, 5000);
+  setInterval(pollMessages, 3000);
+}
+
+app.listen(PORT, () => {
+  console.log(`[INFO] Signal UI listening on port ${PORT}`);
+  init();
+});

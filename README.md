@@ -67,6 +67,19 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Chat-UI, R
 
 → [Dokumentation & Changelog](whatsapp/README.md)
 
+### [Signal](signal/)
+
+Signal Messenger als verknüpftes Gerät direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support.
+
+- Bestehendes Signal-Konto via QR-Code verknüpfen, Session bleibt erhalten
+- Chat-Liste mit Konversationen und Nachrichtenvorschau
+- Nachrichten senden und empfangen direkt in der HA-Sidebar
+- REST-API für Automatisierungen (`POST /api/send`)
+- Webhook für eingehende Nachrichten (HA-Webhook-Trigger)
+- Responsives Design für Desktop und Handy
+
+→ [Dokumentation & Changelog](signal/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -137,3 +150,16 @@ WhatsApp Web as a persistent session directly in Home Assistant — with chat UI
 - Responsive design for desktop and mobile
 
 → [Documentation & Changelog](whatsapp/README.md)
+
+### [Signal](signal/)
+
+Signal Messenger as a linked device directly in Home Assistant — with chat UI, REST API and webhook support.
+
+- Link your existing Signal account via QR code, session persists across restarts
+- Chat list with conversations and message preview
+- Send and receive messages directly in the HA sidebar
+- REST API for automations (`POST /api/send`)
+- Webhook for incoming messages (HA webhook trigger)
+- Responsive design for desktop and mobile
+
+→ [Documentation & Changelog](signal/README.md)
