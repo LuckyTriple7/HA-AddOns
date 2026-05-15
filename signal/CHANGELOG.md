@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.5] - 2026-05-16
+
+### Behoben
+- QR-Code immer noch unlesbar — PNG durch SVG ersetzt (vektorbasiert, immer scharf), Darstellungsgröße auf 320px erhöht
+
 ## [1.0.4] - 2026-05-16
 
 ### Behoben

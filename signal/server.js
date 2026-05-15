@@ -55,11 +55,12 @@ async function fetchQR() {
     const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 30000 });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const uri = (await r.text()).trim();
-    qrCodeDataUrl = await QRCode.toDataURL(uri, {
+    const svgString = await QRCode.toString(uri, {
+      type: 'svg',
       errorCorrectionLevel: 'L',
-      width: 512,
-      margin: 2,
+      margin: 3,
     });
+    qrCodeDataUrl = 'data:image/svg+xml;base64,' + Buffer.from(svgString).toString('base64');
     console.log('[INFO] QR code ready for linking');
   } catch (e) {
     console.error('[ERROR] QR fetch failed:', e.message);
@@ -214,7 +215,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #qr-overlay { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; inset: 0; background: #1b1c22; z-index: 99; gap: 16px; padding: 24px; }
 #qr-overlay h2 { color: #fff; font-size: 20px; }
 #qr-overlay p { color: #aaa; text-align: center; font-size: 14px; max-width: 320px; line-height: 1.5; }
-#qr-img { background: white; padding: 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center; min-width: 312px; min-height: 312px; font-size: 14px; color: #666; }
+#qr-img { background: white; padding: 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center; min-width: 352px; min-height: 352px; font-size: 14px; color: #666; }
 
 #topbar { display: none; align-items: center; background: #1b1b21; color: #fff; padding: 0 16px; height: 56px; gap: 12px; flex-shrink: 0; }
 #topbar h1 { font-size: 18px; flex: 1; }
@@ -353,7 +354,7 @@ function loadQR() {
       if (d.status === 'linked') { refresh(); return; }
       const el = document.getElementById('qr-img');
       if (d.qr) {
-        el.innerHTML = '<img src="' + d.qr + '" style="width:280px;height:280px;">';
+        el.innerHTML = '<img src="' + d.qr + '" style="width:320px;height:320px;">';
       } else {
         el.textContent = 'Lade QR-Code…';
       }
