@@ -68,11 +68,12 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Zenmap installieren (nicht in Debian Bookworm Repos; aus nmap-Source-Tarball)
-RUN NMAP_VER=$(nmap --version | awk '/Nmap version/{print $3}') \
-    && curl -fsSL "https://nmap.org/dist/nmap-${NMAP_VER}.tar.bz2" -o /tmp/nmap.tar.bz2 \
+# Zenmap installieren (nicht in Debian Bookworm Repos; aus nmap-Source-Tarball).
+# Version 7.94 hardcoded – Debian Bookworm hat 7.93, aber nmap.org hat keinen 7.93-Tarball.
+# Zenmap ist nur ein Python-Frontend und muss nicht exakt zur nmap-Binary-Version passen.
+RUN curl -fsSL "https://nmap.org/dist/nmap-7.94.tar.bz2" -o /tmp/nmap.tar.bz2 \
     && tar -xjf /tmp/nmap.tar.bz2 -C /tmp \
-    && cd "/tmp/nmap-${NMAP_VER}/zenmap" \
+    && cd /tmp/nmap-7.94/zenmap \
     && python3 setup.py install --prefix=/usr/local \
     && rm -rf /tmp/nmap*
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.4] - 2026-05-15
+### Behoben
+- Zenmap Build-Fehler: nmap-Version hardcoded auf 7.94 (Debian hat 7.93, nmap.org hat keinen 7.93-Tarball)
+
 ## [1.5.3] - 2026-05-15
 ### Hinzugefügt
 - Zenmap (nmap GUI) – aus nmap-Source installiert, da nicht in Debian Bookworm Repos
