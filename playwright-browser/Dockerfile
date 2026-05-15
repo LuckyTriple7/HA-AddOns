@@ -2,19 +2,19 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 LABEL \
-    io.hass.version="1.0.1" \
+    io.hass.version="1.0.2" \
     io.hass.type="addon" \
     io.hass.arch="amd64|aarch64"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         chromium \
-        nginx-full \
         curl \
         jq \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run.sh /run.sh
+COPY cdp_proxy.py /cdp_proxy.py
 RUN chmod +x /run.sh
 
 EXPOSE 9222

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2 - 2026-05-15
+
+### Geändert
+
+- nginx komplett durch einen Python-CDP-Proxy ersetzt (`cdp_proxy.py`)
+- Der Python-Proxy schreibt `localhost:INTERNAL_PORT` → `container-hostname:CDP_PORT` direkt in der HTTP-Response um — zuverlässiger als nginx `sub_filter`
+- WebSocket-Verbindungen (`/devtools/*`) werden transparent als Raw-Bytes weitergeleitet
+- Keine nginx-Abhängigkeit mehr — funktioniert mit Standard-Python 3 aus dem HA-Basis-Image
+
 ## 1.0.1 - 2026-05-15
 
 ### Behoben
