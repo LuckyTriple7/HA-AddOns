@@ -78,6 +78,7 @@ function addMsg(chatId, msg) {
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: process.env.SESSION_DIR || '/addon_config/session' }),
+  authTimeoutMs: 0,  // no timeout — slow hardware (e.g. Raspberry Pi) needs more time
   puppeteer: {
     executablePath: CHROMIUM,
     args: [
