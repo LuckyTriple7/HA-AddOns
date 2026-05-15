@@ -244,15 +244,16 @@ app.get('/api/messages', (req, res) => {
 });
 
 app.post('/api/send', async (req, res) => {
-  const { to, message, chatId } = req.body;
+  const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to and message required' });
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
   try {
-    const result = await client.sendMessage(formatNumber(to), message);
+    const jid = formatNumber(to);
+    const result = await client.sendMessage(jid, message);
     result.__logged = true;
-    const targetChatId = chatId || formatNumber(to);
+    const targetChatId = jid;
     if (!chatMap.has(targetChatId)) {
-      upsertChat(targetChatId, { name: to.replace(/[^0-9]/g, ''), phone: to.replace(/[^0-9]/g, '') });
+      upsertChat(targetChatId, { name: to.replace('@c.us', '').replace('@g.us', ''), phone: to.replace('@c.us', '').replace('@g.us', '') });
     }
     addMsg(targetChatId, {
       id: result.id._serialized,
@@ -664,14 +665,14 @@ app.get('/', (req, res) => {
     }
 
     async function sendMsg() {
-      if (!selectedChatId || !selectedChatPhone) return;
+      if (!selectedChatId) return;
       const txt = document.getElementById('msg-input').value.trim();
       if (!txt) return;
       try {
         const r = await fetch('api/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: selectedChatPhone, message: txt, chatId: selectedChatId })
+          body: JSON.stringify({ to: selectedChatId, message: txt })
         }).then(r => r.json());
         if (r.success) {
           document.getElementById('msg-input').value = '';
