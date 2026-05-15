@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-05-16
+
+### Behoben
+- signal-cli-rest-api band auf Port 3001 statt 8080 — `PORT` wird jetzt erst nach dem Start von `/entrypoint.sh` gesetzt
+- Readiness-Check schlug bei HTTP 404 fehl — `curl -f` durch `curl -s` ersetzt
+
 ## [1.0.1] - 2026-05-16
 
 ### Geändert
