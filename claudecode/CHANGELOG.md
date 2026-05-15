@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1] - 2026-05-15
+
+### Fixed
+- Deprecated `build.yaml` entfernt — Build-Parameter direkt ins Dockerfile verschoben
+- Deutsche Übersetzung hinzugefügt
+
 ## [1.0.0] - 2026-05-15
 
 Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix-hass-addons).
