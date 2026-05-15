@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.7] - 2026-05-15
+### Behoben
+- Angry IP Scanner: dpkg-deb -x statt apt-get install – umgeht fehlende Bookworm-Abhängigkeiten
+
 ## [1.5.6] - 2026-05-15
 ### Behoben
 - Angry IP Scanner: _all.deb (3.9.3) statt arch-spezifischem .deb – funktioniert auf amd64 und arm64

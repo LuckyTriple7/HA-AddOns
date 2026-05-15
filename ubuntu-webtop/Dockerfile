@@ -65,21 +65,26 @@ RUN apt-get update \
         python3-gi-cairo \
         gir1.2-gtk-3.0 \
         xdg-utils \
+        default-jre-headless \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Angry IP Scanner installieren (GUI-Frontend für Netzwerk-Scans).
-# _all.deb ist architekturunabhängig (amd64 + arm64).
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        default-jre-headless \
-    && curl -fsSL \
+# Angry IP Scanner: .deb nur extrahieren, nicht installieren.
+# Der _all.deb hat Abhängigkeiten die in Debian Bookworm nicht mehr existieren.
+# dpkg-deb -x umgeht die Dependency-Prüfung und kopiert einfach alle Dateien.
+RUN curl -fsSL \
         "https://github.com/angryip/ipscan/releases/download/3.9.3/ipscan_3.9.3_all.deb" \
         -o /tmp/ipscan.deb \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/ipscan.deb \
-    && rm -f /tmp/ipscan.deb \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && dpkg-deb -x /tmp/ipscan.deb /tmp/ipscan \
+    && find /tmp/ipscan -name "*.jar" -exec install -Dm644 {} /usr/share/ipscan/ipscan.jar \; \
+    && find /tmp/ipscan/usr/share/applications -name "*.desktop" \
+        -exec cp {} /usr/share/applications/ \; 2>/dev/null || true \
+    && find /tmp/ipscan/usr/share/pixmaps -name "ipscan*" \
+        -exec cp {} /usr/share/pixmaps/ \; 2>/dev/null || true \
+    && printf '#!/bin/sh\nexec java -jar /usr/share/ipscan/ipscan.jar "$@"\n' \
+        > /usr/local/bin/ipscan \
+    && chmod +x /usr/local/bin/ipscan \
+    && rm -rf /tmp/ipscan*
 
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
