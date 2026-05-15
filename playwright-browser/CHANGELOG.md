@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4 - 2026-05-15
+
+### Geändert
+
+- Chromium-Flags `--disable-v8-idle-tasks`, `--jitless` und `--enable-low-end-device-mode` hinzugefügt — reduziert CPU-Verbrauch im Leerlauf deutlich
+- Healthcheck-Intervall von 30s auf 60s erhöht
+- Monitor-Loop-Intervall von 5s auf 30s erhöht
+
 ## 1.0.3 - 2026-05-15
 
 ### Behoben
