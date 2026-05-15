@@ -42,6 +42,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           BRANCH="update/claude-code-${CLAUDE_VER}"
+
+          # Skip if PR already exists for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists for ${BRANCH} — skipping."
+            exit 0
+          fi
+
           git checkout -b "$BRANCH"
 
           # Bump add-on patch version
@@ -64,7 +72,7 @@ jobs:
 
           git add claudecode/config.yaml claudecode/CHANGELOG.md .claude-code-version
           git commit -m "Bump add-on to v${NEW_ADDON_VER} — Claude Code ${CLAUDE_VER}"
-          git push origin "$BRANCH"
+          git push --force origin "$BRANCH"
 
           gh pr create \
             --title "Update Claude Code ${CLAUDE_VER} (Add-on v${NEW_ADDON_VER})" \
