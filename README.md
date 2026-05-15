@@ -53,3 +53,61 @@ Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
 | **Benutzername** | `abc` |
 
 → [Dokumentation & Changelog](ubuntu-webtop/README.md)
+
+---
+
+# HA-AddOns (English)
+
+Custom Home Assistant add-ons by [LuckyTriple7](https://github.com/LuckyTriple7).
+
+> I'm not a traditional programmer — but with Claude Code as my AI assistant I develop and maintain these add-ons myself. Feedback and questions welcome as a [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
+
+## Installation
+
+Add the repository in Home Assistant:
+
+**Settings → Add-ons → Add-on Store → ⋮ → Repositories**
+
+```
+https://github.com/LuckyTriple7/HA-AddOns
+```
+
+## Add-ons
+
+### [Claude Code](claudecode/)
+
+AI assistant directly in Home Assistant — for creating automations, debugging and managing your configuration. Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix-hass-addons/tree/main/claudecode) with a Playwright fix.
+
+- Web terminal directly in the HA sidebar
+- Full Home Assistant integration (MCP server)
+- Playwright browser automation via CDP
+- Automatic Claude Code updates on startup
+
+→ [Documentation & Changelog](claudecode/README.md)
+
+### [Playwright Browser](playwright-browser/)
+
+Headless Chromium browser with CDP endpoint for browser automation. Used by the **Claude Code add-on** to browse and control websites.
+
+- Chrome DevTools Protocol (CDP) on port 9222
+- Automatically detected by the Claude Code add-on
+- Supports amd64 and aarch64
+
+→ [Documentation & Changelog](playwright-browser/README.md)
+
+### [Webtop XFCE](ubuntu-webtop/)
+
+Full XFCE desktop in the browser, directly integrated into Home Assistant.
+
+- KasmVNC streaming (CPU-efficient, delta-based)
+- System language German (de_DE.UTF-8)
+- Firefox, Thunderbird, Geany, VLC, Thunar with SMB network access and more
+- Persistent configuration across updates
+
+| | |
+|---|---|
+| **HTTP access** | `http://<HA-IP>:7776` |
+| **HTTPS access** | `https://<HA-IP>:7777` |
+| **Username** | `abc` |
+
+→ [Documentation & Changelog](ubuntu-webtop/README.md)
