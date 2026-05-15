@@ -1,6 +1,7 @@
 'use strict';
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, NoAuth } = require('whatsapp-web.js');
+const path = require('path');
 const express = require('express');
 const qrcode = require('qrcode');
 const https = require('https');
@@ -76,11 +77,17 @@ function addMsg(chatId, msg) {
 
 // ── WhatsApp Client ───────────────────────────────────────────────────────────
 
+// Store Chromium profile directly in the persistent addon_config volume.
+// Using NoAuth + userDataDir is more reliable than LocalAuth's copy mechanism
+// which can fail silently on slow hardware and leave the session folder empty.
+const SESSION_CHROMIUM_DIR = path.join(process.env.SESSION_DIR || '/addon_config/session', 'chromium');
+
 const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: process.env.SESSION_DIR || '/addon_config/session' }),
-  authTimeoutMs: 0,  // no timeout — slow hardware (e.g. Raspberry Pi) needs more time
+  authStrategy: new NoAuth(),
+  authTimeoutMs: 0,
   puppeteer: {
     executablePath: CHROMIUM,
+    userDataDir: SESSION_CHROMIUM_DIR,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -291,9 +298,8 @@ app.post('/api/logout', async (req, res) => {
 });
 
 app.post('/api/reset', (req, res) => {
-  const sessionDir = process.env.SESSION_DIR || '/addon_config/session';
   try {
-    rmSync(sessionDir, { recursive: true, force: true });
+    rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true });
     console.log('[INFO] Session deleted, restarting…');
     res.json({ success: true });
   } catch (err) {

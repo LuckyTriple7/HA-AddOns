@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.7] - 2026-05-16
+
+### Behoben
+- Session wird nach Neustart nicht wiederhergestellt — `LocalAuth` (kopiert in Temp-Dir) ersetzt durch `NoAuth` + direktes `puppeteer.userDataDir` auf den persistenten `addon_config`-Ordner
+- Chromium-Profil landet jetzt dauerhaft in `addon_config/session/chromium/`
+
 ## [1.0.6] - 2026-05-16
 
 ### Behoben
