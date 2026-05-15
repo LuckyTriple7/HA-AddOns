@@ -37,12 +37,19 @@ let status = 'initializing';
 let connectedPhone = null;
 let lastError = null;
 
-const MAX_MESSAGES = 200;
+const MAX_MESSAGES = 500;
 const messages = []; // { id, from, to, body, timestamp, fromMe, contact }
+const seenIds = new Set();
 
 function addMessage(msg) {
+  if (seenIds.has(msg.id)) return;
+  seenIds.add(msg.id);
   messages.push(msg);
-  if (messages.length > MAX_MESSAGES) messages.shift();
+  messages.sort((a, b) => a.timestamp - b.timestamp);
+  if (messages.length > MAX_MESSAGES) {
+    const removed = messages.splice(0, messages.length - MAX_MESSAGES);
+    removed.forEach(m => seenIds.delete(m.id));
+  }
 }
 
 // ── WhatsApp Client ───────────────────────────────────────────────────────────
@@ -74,11 +81,37 @@ client.on('authenticated', () => {
   qrCodeDataUrl = null;
 });
 
-client.on('ready', () => {
+client.on('ready', async () => {
   connectedPhone = client.info?.wid?.user || null;
   status = 'connected';
   lastError = null;
   console.log(`[INFO] WhatsApp ready — phone: ${connectedPhone}`);
+
+  // Load recent messages from last 30 chats
+  try {
+    const chats = await client.getChats();
+    const recent = chats.slice(0, 30);
+    for (const chat of recent) {
+      const msgs = await chat.fetchMessages({ limit: 20 }).catch(() => []);
+      for (const msg of msgs) {
+        if (msg.type !== 'chat' && msg.type !== 'text') continue;
+        if (!msg.body) continue;
+        const contact = msg.fromMe ? null : await msg.getContact().catch(() => null);
+        addMessage({
+          id: msg.id._serialized,
+          from: msg.fromMe ? connectedPhone : chat.id.user,
+          to: msg.fromMe ? chat.id.user : connectedPhone,
+          body: msg.body,
+          timestamp: msg.timestamp * 1000,
+          fromMe: msg.fromMe,
+          contact: msg.fromMe ? 'Ich' : (contact?.pushname || contact?.name || chat.id.user),
+        });
+      }
+    }
+    console.log(`[INFO] Loaded ${messages.length} recent messages from ${recent.length} chats`);
+  } catch (err) {
+    console.warn('[WARN] Could not load recent messages:', err.message);
+  }
 });
 
 client.on('disconnected', (reason) => {

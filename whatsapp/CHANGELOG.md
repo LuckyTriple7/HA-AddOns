@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-05-15
+
+### Behoben
+- Nachrichten wurden beim Start nicht angezeigt — beim Verbinden werden jetzt die letzten 20 Nachrichten aus den 30 zuletzt aktiven Chats geladen
+- Duplikat-Schutz für Nachrichten (Set mit gesehenen IDs)
+
 ## [1.0.2] - 2026-05-15
 
 ### Neu
