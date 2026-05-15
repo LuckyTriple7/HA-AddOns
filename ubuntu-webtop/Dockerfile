@@ -52,6 +52,9 @@ RUN apt-get update \
         dbus-x11 \
         locales \
         desktop-base \
+        libreoffice \
+        libreoffice-l10n-de \
+        libreoffice-help-de \
         gnome-keyring \
         libsecret-tools \
     && apt-get clean \
