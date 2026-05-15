@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5 - 2026-05-15
+
+### Geändert
+
+- `--headless=new` → `--headless` (alter Headless-Modus): der neue Modus startet einen vollständigen Renderer mit requestAnimationFrame-Loop (~60fps) was die konstanten ~4% CPU-Last im Leerlauf verursachte
+- Unnötige Flags aus v1.0.4 wieder entfernt (`--jitless`, `--disable-v8-idle-tasks`, `--enable-low-end-device-mode`)
+
 ## 1.0.4 - 2026-05-15
 
 ### Geändert
