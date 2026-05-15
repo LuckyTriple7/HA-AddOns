@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3 - 2026-05-15
+
+### Behoben
+
+- `python3` zum Dockerfile hinzugefügt — war nicht im HA Basis-Image enthalten
+
 ## 1.0.2 - 2026-05-15
 
 ### Geändert

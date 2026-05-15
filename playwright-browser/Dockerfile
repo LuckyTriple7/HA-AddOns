@@ -2,13 +2,14 @@ ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 LABEL \
-    io.hass.version="1.0.2" \
+    io.hass.version="1.0.3" \
     io.hass.type="addon" \
     io.hass.arch="amd64|aarch64"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         chromium \
+        python3 \
         curl \
         jq \
     && rm -rf /var/lib/apt/lists/*
