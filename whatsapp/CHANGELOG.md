@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2] - 2026-05-16
+
+### Behoben
+- Add-on startet nach Abmelden/Reset nicht neu — `process.exit(0)` durch `process.exit(1)` ersetzt damit s6 den Prozess als Absturz wertet und neu startet
+- Poll-Wartezeit auf 8 Sekunden erhöht
+
 ## [1.1.1] - 2026-05-16
 
 ### Behoben

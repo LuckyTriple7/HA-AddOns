@@ -295,7 +295,7 @@ app.post('/api/logout', async (req, res) => {
     // ignore — browser may already be gone
   }
   res.json({ success: true });
-  setTimeout(() => process.exit(0), 500);
+  setTimeout(() => process.exit(1), 500);
 });
 
 app.post('/api/reset', (req, res) => {
@@ -306,7 +306,7 @@ app.post('/api/reset', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-  setTimeout(() => process.exit(0), 500);
+  setTimeout(() => process.exit(1), 500);
 });
 
 // ── Web UI ────────────────────────────────────────────────────────────────────
@@ -742,7 +742,7 @@ app.get('/', (req, res) => {
           .then(r => r.json())
           .then(() => { restartPolling = false; refresh(); })
           .catch(() => setTimeout(poll, 2000));
-      }, 5000);
+      }, 8000);
     }
 
     async function logout() {
