@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.3] - 2026-05-15
+### Hinzugefügt
+- LibreOffice (Writer, Calc, Impress) mit deutscher Sprachunterstützung und Hilfe
+
+## [1.4.2] - 2026-05-15
+### Behoben
+- gnome-keyring-daemon: `--unlock` Flag entfernt (inkompatibel mit `--start`)
+
+## [1.4.1] - 2026-05-15
+### Geändert
+- GNOME Keyring startet ohne Passwort-Prompt (leeres Passwort beim ersten Start genügt)
+
+## [1.4.0] - 2026-05-15
+### Hinzugefügt
+- README mit vollständiger Dokumentation
+- CHANGELOG
+
 ## [1.3.9] - 2026-05-15
 ### Hinzugefügt
 - GNOME Keyring: Passwörter für SMB-Netzwerk-Shares werden jetzt dauerhaft in Thunar gespeichert
