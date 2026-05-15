@@ -3,7 +3,7 @@ set -e
 
 export PHONE_NUMBER=$(jq -r '.phone_number // ""' /data/options.json)
 export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
-export PORT=3000
+export PORT=3001
 export SIGNAL_API_URL=http://localhost:8080
 
 # Persist signal-cli data to /data (always mounted in HA)

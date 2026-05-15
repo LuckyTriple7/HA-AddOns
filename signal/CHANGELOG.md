@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.1] - 2026-05-16
+
+### Geändert
+- Port von 3000 auf 3001 geändert (Konflikt mit WhatsApp Add-on)
+
 ## [1.0.0] - 2026-05-16
 
 ### Erstveröffentlichung
