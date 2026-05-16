@@ -864,9 +864,14 @@ app.get('/', (req, res) => {
         const bub = document.createElement('div');
         bub.className = 'bubble';
         if (m.type === 'photo' && m.mediaFile) {
-          bub.innerHTML = '<img src="api/media/' + encodeURIComponent(m.mediaFile) + '" style="max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer" loading="lazy" onclick="this.style.maxWidth=this.style.maxWidth===\'none\'?\'240px\':\'none\'">' +
-            (m.body ? '<div style="margin-top:4px">' + esc(m.body) + '</div>' : '') +
-            '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+          const img = document.createElement('img');
+          img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+          img.style.cssText = 'max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer';
+          img.loading = 'lazy';
+          img.addEventListener('click', function() { this.style.maxWidth = this.style.maxWidth === 'none' ? '240px' : 'none'; });
+          bub.appendChild(img);
+          if (m.body) { const cap = document.createElement('div'); cap.style.marginTop = '4px'; cap.textContent = m.body; bub.appendChild(cap); }
+          const t = document.createElement('span'); t.className = 'time'; t.textContent = fmtTime(m.timestamp); bub.appendChild(t);
         } else {
           bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
         }

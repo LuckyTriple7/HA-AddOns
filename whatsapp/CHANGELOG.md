@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.15] - 2026-05-16
+
+### Behoben
+- JavaScript-Syntax-Fehler durch unescapte Anführungszeichen im Foto-Rendering — `\'` in Template-Literal wurde zu `'` aufgelöst und zerstörte den Single-Quote-String im Browser; ganzes `<script>`-Tag lud nicht → QR-Code und Status-Polling funktionierten nicht
+
 ## [1.1.14] - 2026-05-16
 
 ### Behoben
