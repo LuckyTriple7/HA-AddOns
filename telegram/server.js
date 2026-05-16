@@ -310,7 +310,7 @@ app.get('/api/chats', (req, res) => {
 app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
   const existing = messagesByChatId.get(chatId) || [];
-  if (existing.length === 0 && status === 'connected') {
+  if (existing.length < FETCH_LIMIT && status === 'connected') {
     await fetchMessages(chatId);
     return res.json(messagesByChatId.get(chatId) || []);
   }

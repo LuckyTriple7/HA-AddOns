@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.10] - 2026-05-16
+
+### Behoben
+- `fetch_messages_limit` hatte keinen Effekt wenn bereits Nachrichten aus dem Disk-Cache geladen waren — Nachrichten werden jetzt von Telegram nachgeladen sobald weniger als das konfigurierte Limit vorhanden sind
+
 ## [1.0.9] - 2026-05-16
 
 ### Neu
