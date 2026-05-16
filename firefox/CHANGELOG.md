@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.2] - 2026-05-16
+
+### Behoben
+- WebSocket-Verbindung schlug fehl ("Failed to connect to server") — noVNC baute die WebSocket-URL ohne den HA-Ingress-Pfad-Prefix (`/api/hassio_ingress/TOKEN/`) und landete so bei HA statt beim Add-on; der Pfad wird jetzt dynamisch aus der aktuellen URL berechnet und via `path=`-Parameter an noVNC übergeben
+
 ## [1.0.1] - 2026-05-16
 
 ### Behoben

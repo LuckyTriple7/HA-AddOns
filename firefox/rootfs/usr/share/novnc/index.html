@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <script>
-  window.location.replace('vnc.html?autoconnect=true&resize=scale&reconnect=true&reconnect_delay=2000');
+  // WebSocket-Pfad aus der aktuellen URL berechnen — nötig für HA Ingress,
+  // das einen Pfad-Prefix (/api/hassio_ingress/TOKEN/) vor alle Anfragen setzt.
+  // noVNC würde sonst den WebSocket direkt an HA schicken (404).
+  var base = window.location.pathname.replace(/[^\/]*$/, '').replace(/^\//, '');
+  window.location.replace(
+    'vnc.html?autoconnect=true&resize=scale&reconnect=true&reconnect_delay=2000&path=' + base
+  );
 </script>
 </head>
 </html>
