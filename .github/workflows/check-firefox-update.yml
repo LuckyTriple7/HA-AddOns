@@ -3,7 +3,7 @@ name: Check Firefox Update
 on:
   schedule:
     - cron: '0 9 * * *'  # täglich um 9:00 UTC
-  workflow_dispatch:       # manuell auslösbar
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -38,10 +38,6 @@ jobs:
         if: steps.upstream.outputs.version == steps.tracked.outputs.version
         run: echo "Firefox ESR ${{ steps.upstream.outputs.version }} wird bereits gebaut — nichts zu tun."
 
-      - name: Set up QEMU
-        if: steps.upstream.outputs.version != steps.tracked.outputs.version
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         if: steps.upstream.outputs.version != steps.tracked.outputs.version
         uses: docker/setup-buildx-action@v3
@@ -66,14 +62,16 @@ jobs:
           echo "old=${ADDON_VER}" >> $GITHUB_OUTPUT
           echo "new=${NEW_ADDON_VER}" >> $GITHUB_OUTPUT
 
-      - name: Build and push multi-arch image
+      - name: Build and push image
         if: steps.upstream.outputs.version != steps.tracked.outputs.version
         uses: docker/build-push-action@v6
         with:
           context: firefox
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           no-cache: true
+          build-args: |
+            FIREFOX_VERSION=${{ steps.upstream.outputs.version }}
           tags: |
             ghcr.io/luckytriple7/firefox:${{ steps.versions.outputs.new }}
             ghcr.io/luckytriple7/firefox:latest
@@ -101,14 +99,10 @@ jobs:
 
           DATE=$(date +%Y-%m-%d)
 
-          # config.yaml Version bumpen
           sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" firefox/config.yaml
-
-          # Firefox ESR Version tracken
           echo "$FF_VER" > .firefox-version
 
-          # CHANGELOG-Eintrag voranstellen
-          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Changed\n- Rebuild für Firefox ESR ${FF_VER}\n"
+          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Geändert\n- Rebuild für Firefox ESR ${FF_VER}\n"
           sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" firefox/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" firefox/CHANGELOG.md
 
@@ -118,5 +112,5 @@ jobs:
 
           gh pr create \
             --title "Update Firefox ESR ${FF_VER} (Add-on v${NEW_ADDON_VER})" \
-            --body "$(printf '## Firefox Update\n\nNeue Firefox ESR Version **%s** verfügbar.\n\n### Änderungen\n- Add-on Version: `%s` → `%s`\n- Firefox ESR: `%s`\n- Neues Image: `ghcr.io/luckytriple7/firefox:%s`\n\n---\n_Automatisch erstellt von GitHub Actions._' "$FF_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FF_VER" "$NEW_ADDON_VER")" \
+            --body "$(printf '## Firefox Update\n\nNeue Firefox ESR Version **%s** verfügbar.\n\n- Add-on Version: `%s` → `%s`\n- Firefox ESR: `%s`\n- Image: `ghcr.io/luckytriple7/firefox:%s`\n\n_Automatisch erstellt von GitHub Actions._' "$FF_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FF_VER" "$NEW_ADDON_VER")" \
             --base main
