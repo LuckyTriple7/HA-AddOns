@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.12] - 2026-05-16
+
+### Behoben
+- `MODE=native` gibt 400/500 zurück weil es kein Konto-Linking unterstützt — zurück auf Standard-Modus; reduzierte Polling-Intervalle bleiben zur CPU-Entlastung
+
 ## [1.0.11] - 2026-05-16
 
 ### Behoben

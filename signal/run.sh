@@ -4,7 +4,6 @@ set -e
 export PHONE_NUMBER=$(jq -r '.phone_number // ""' /data/options.json)
 export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
 export SIGNAL_API_URL=http://localhost:8080
-export MODE=native  # signal-cli runs as daemon — much lower CPU than default mode
 
 # Persist signal-cli data to /data (always mounted in HA)
 # signal-cli-rest-api runs as user signal-api with HOME=/home → uses /home/.local/share/signal-cli
@@ -17,7 +16,7 @@ fi
 
 # Start signal-cli-rest-api BEFORE setting PORT
 # (entrypoint.sh reads PORT and would bind to our UI port otherwise)
-echo "[INFO] Starting signal-cli-rest-api (MODE=native)..."
+echo "[INFO] Starting signal-cli-rest-api..."
 /entrypoint.sh &
 
 # Wait for signal-cli-rest-api to respond on :8080 (up to 120 seconds)
