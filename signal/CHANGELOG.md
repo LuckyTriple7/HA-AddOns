@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.25] - 2026-05-16
+
+### Geändert
+- Sidebar-Icon auf `phu:signal` geändert
+
 ## [1.0.24] - 2026-05-16
 
 ### Geändert
