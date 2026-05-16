@@ -5,6 +5,9 @@
 ### Behoben
 - Internes `MAX_MSGS`-Limit von 200 auf 300 erhöht — passt jetzt zum erhöhten `fetch_messages_limit`-Maximum
 
+### Geändert
+- README aktualisiert — alle aktuellen Konfigurationsoptionen, REST-API-Endpunkte und Funktionen dokumentiert
+
 ## [1.0.19] - 2026-05-16
 
 ### Geändert

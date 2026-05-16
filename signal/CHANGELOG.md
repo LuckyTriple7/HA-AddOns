@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.35] - 2026-05-16
+
+### Geändert
+- README aktualisiert — alle aktuellen Konfigurationsoptionen, REST-API-Endpunkte und Funktionen dokumentiert
+
 ## [1.0.34] - 2026-05-16
 
 ### Neu
