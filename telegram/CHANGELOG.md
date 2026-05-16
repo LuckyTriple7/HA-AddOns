@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.25] - 2026-05-16
+
+### Neu
+- Option `ha_notifications_privacy` (Standard: aus) — Benachrichtigung zeigt nur „Telegram / Neue Nachricht" ohne Absender und Inhalt; alle Nachrichten überschreiben denselben Eintrag (`telegram_new_message`)
+
 ## [1.0.24] - 2026-05-16
 
 ### Neu

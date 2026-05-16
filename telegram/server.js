@@ -19,6 +19,7 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
+const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 const SESSION_FILE = '/data/session.txt';
@@ -147,12 +148,16 @@ function sendHANotification(chatId, senderName, body) {
     : 'http://homeassistant:8123/api/services/persistent_notification/create';
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
-  const payload = JSON.stringify({
+  const payload = JSON.stringify(HA_PRIVACY ? {
+    title: 'Telegram',
+    message: 'Neue Nachricht',
+    notification_id: 'telegram_new_message',
+  } : {
     title: `Telegram: ${senderName}`,
     message: preview || '📷 Foto',
     notification_id: `telegram_${safeId}`,
   });
-  console.log(`[INFO] HA notification: Telegram: ${senderName} (via ${supervisorToken ? 'supervisor' : 'ha_token'})`);
+  console.log(`[INFO] HA notification: Telegram${HA_PRIVACY ? '' : `: ${senderName}`} (via ${supervisorToken ? 'supervisor' : 'ha_token'})`);
   const req = http.request(url, {
     method: 'POST',
     headers: {

@@ -43,6 +43,7 @@ const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
+const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/data/media';
@@ -292,12 +293,16 @@ function sendHANotification(chatId, senderName, body) {
     : 'http://homeassistant:8123/api/services/persistent_notification/create';
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
-  const payload = JSON.stringify({
+  const payload = JSON.stringify(HA_PRIVACY ? {
+    title: 'WhatsApp',
+    message: 'Neue Nachricht',
+    notification_id: 'whatsapp_new_message',
+  } : {
     title: `WhatsApp: ${senderName}`,
     message: preview || '📷 Foto',
     notification_id: `whatsapp_${safeId}`,
   });
-  console.log(`[INFO] HA notification: WhatsApp: ${senderName} (via ${supervisorToken ? 'supervisor' : 'ha_token'})`);
+  console.log(`[INFO] HA notification: WhatsApp${HA_PRIVACY ? '' : `: ${senderName}`} (via ${supervisorToken ? 'supervisor' : 'ha_token'})`);
   const req = http.request(url, {
     method: 'POST',
     headers: {

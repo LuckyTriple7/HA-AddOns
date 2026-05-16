@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.31] - 2026-05-16
+
+### Neu
+- Option `ha_notifications_privacy` (Standard: aus) — Benachrichtigung zeigt nur „WhatsApp / Neue Nachricht" ohne Absender und Inhalt; alle Nachrichten überschreiben denselben Eintrag (`whatsapp_new_message`)
+
 ## [1.1.30] - 2026-05-16
 
 ### Behoben

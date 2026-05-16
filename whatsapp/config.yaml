@@ -1,6 +1,6 @@
 name: WhatsApp
 description: WhatsApp Web als persistente Session mit REST-API und Webhook für Home Assistant
-version: "1.1.30"
+version: "1.1.31"
 slug: whatsapp
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -34,6 +34,7 @@ options:
   initial_messages: 20
   debug_mode: false
   ha_notifications: false
+  ha_notifications_privacy: false
   ha_token: ""
 
 schema:
@@ -45,4 +46,5 @@ schema:
   initial_messages: int?
   debug_mode: bool
   ha_notifications: bool
+  ha_notifications_privacy: bool
   ha_token: str?
