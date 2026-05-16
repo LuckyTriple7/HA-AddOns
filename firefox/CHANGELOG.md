@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.6] - 2026-05-16
+
+### Behoben
+- Fenster-Schließen-Button weiterhin sichtbar — Openbox traf Firefox ESR nicht (WM_CLASS ist `Navigator`, nicht `Firefox*`); ersetzt durch `matchbox-window-manager` der speziell für Kiosk-Betrieb gebaut ist und Fenster automatisch vollbild ohne Titelleiste öffnet
+- Clipboard-Sync: `autocutsel -fork` korrekt als Daemon gestartet (ohne `-fork` lief er im Vordergrund und blockierte)
+
 ## [1.0.5] - 2026-05-16
 
 ### Neu

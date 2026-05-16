@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tigervnc-standalone-server \
     novnc \
     websockify \
-    openbox \
+    matchbox-window-manager \
     autocutsel \
     locales \
     dbus-x11 \

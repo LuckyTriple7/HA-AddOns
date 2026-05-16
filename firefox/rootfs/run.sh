@@ -37,23 +37,8 @@ user_pref("media.memory_cache_max_size", ${MEM_CACHE_KB});
 EOF
 fi
 
-# Openbox-Konfiguration: Firefox ohne Fensterrahmen und maximiert
-# (verhindert dass der Schließen-Button im VNC-Fenster sichtbar ist)
-mkdir -p /root/.config/openbox
-cat > /root/.config/openbox/rc.xml << 'OBCONF'
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_config xmlns="http://openbox.org/3.4/rc">
-  <applications>
-    <application class="Firefox*">
-      <decor>no</decor>
-      <maximized>yes</maximized>
-    </application>
-  </applications>
-</openbox_config>
-OBCONF
-
 cleanup() {
-    kill "$XVNC_PID" "$NOVNC_PID" "$AC1_PID" "$AC2_PID" 2>/dev/null || true
+    kill "$XVNC_PID" "$NOVNC_PID" 2>/dev/null || true
     [ -n "${DBUS_SESSION_BUS_PID:-}" ] && kill "$DBUS_SESSION_BUS_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -66,16 +51,15 @@ sleep 1
 # DBus starten
 eval "$(dbus-launch --sh-syntax 2>/dev/null)" || true
 
-# Openbox Window Manager starten (mit Konfiguration oben)
-DISPLAY=:1 openbox &
-sleep 0.5
+# Matchbox Window Manager starten — Kiosk-Modus:
+# Fenster laufen automatisch fullscreen, kein Titelleiste, kein Schließen-Button
+DISPLAY=:1 matchbox-window-manager -use_titlebar no &
+sleep 1
 
-# Zwischenablage synchronisieren: CLIPBOARD ↔ PRIMARY ↔ VNC
-# Ermöglicht Copy/Paste zwischen Host-Browser und Firefox im VNC
-DISPLAY=:1 autocutsel &
-AC1_PID=$!
-DISPLAY=:1 autocutsel -selection PRIMARY &
-AC2_PID=$!
+# Zwischenablage synchronisieren: CLIPBOARD ↔ PRIMARY
+# Ermöglicht Copy/Paste zwischen Firefox und anderen X11-Anwendungen
+DISPLAY=:1 autocutsel -fork
+DISPLAY=:1 autocutsel -selection PRIMARY -fork
 
 # noVNC / WebSocket-Proxy starten
 websockify --web /usr/share/novnc/ 5800 localhost:5900 &
