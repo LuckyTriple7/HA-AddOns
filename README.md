@@ -67,6 +67,19 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Chat-UI, R
 
 → [Dokumentation & Changelog](whatsapp/README.md)
 
+### [Telegram](telegram/)
+
+Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support.
+
+- Anmelden mit bestehendem Telegram-Konto (Telefonnummer + Code, kein QR)
+- Zugriff auf alle persönlichen Chats, Gruppen und Kanäle
+- Nachrichten senden und empfangen direkt in der HA-Sidebar
+- REST-API für Automatisierungen (`POST /api/send`)
+- Webhook für eingehende Nachrichten (HA-Webhook-Trigger)
+- Session bleibt nach Neustart erhalten
+
+→ [Dokumentation & Changelog](telegram/README.md)
+
 ### [Signal](signal/)
 
 Signal Messenger als verknüpftes Gerät direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support.
@@ -150,6 +163,19 @@ WhatsApp Web as a persistent session directly in Home Assistant — with chat UI
 - Responsive design for desktop and mobile
 
 → [Documentation & Changelog](whatsapp/README.md)
+
+### [Telegram](telegram/)
+
+Telegram as a full client directly in Home Assistant — with chat UI, REST API and webhook support.
+
+- Log in with your existing Telegram account (phone number + code, no QR)
+- Access all personal chats, groups and channels
+- Send and receive messages directly in the HA sidebar
+- REST API for automations (`POST /api/send`)
+- Webhook for incoming messages (HA webhook trigger)
+- Session persists across restarts
+
+→ [Documentation & Changelog](telegram/README.md)
 
 ### [Signal](signal/)
 
