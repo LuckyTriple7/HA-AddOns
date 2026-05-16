@@ -3,13 +3,18 @@ set -e
 
 export PHONE_NUMBER=$(jq -r '.phone_number // ""' /data/options.json)
 export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
+export NATIVE_MODE=$(jq -r '.native_mode // true' /data/options.json)
 export SIGNAL_API_URL=http://localhost:8080
 
-# Tell signal-cli-rest-api to store data directly in /data/signal-cli (HA persistent storage)
-# This overrides the default /home/.local/share/signal-cli without needing a symlink
 export SIGNAL_CLI_CONFIG_DIR=/data/signal-cli
-export MODE=native
 mkdir -p /data/signal-cli
+
+if [ "$NATIVE_MODE" = "true" ]; then
+  export MODE=native
+  echo "[INFO] Mode: native (niedrige CPU-Last)"
+else
+  echo "[INFO] Mode: default (Java pro API-Aufruf)"
+fi
 
 start_signal_api() {
   /entrypoint.sh &
@@ -23,7 +28,7 @@ start_signal_api() {
   done
 }
 
-echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG)..."
+echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG_DIR)..."
 start_signal_api
 
 

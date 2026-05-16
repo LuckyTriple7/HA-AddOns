@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.18] - 2026-05-16
+
+### Neu
+- Option `native_mode` (Standard: ein) in den Add-on-Einstellungen — ausschalten für den Java-Modus falls native Probleme macht
+- Chat-Liste und Nachrichtenverlauf werden in `/data/chats.json` und `/data/messages.json` gespeichert und nach Neustart wiederhergestellt
+
+### Behoben
+- Chats nach Neustart leer — `chatMap` und `messagesByChatId` waren nur im Arbeitsspeicher; jetzt persistent auf der Disk
+
 ## [1.0.17] - 2026-05-16
 
 ### Behoben

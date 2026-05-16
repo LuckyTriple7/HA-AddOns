@@ -2,6 +2,7 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
+const fs = require('fs');
 
 const app = express();
 app.use(express.json());
@@ -21,6 +22,40 @@ let qrFetching = false;
 const chatMap = new Map();           // chatId -> { id, name, phone, lastMsg, lastTime }
 const messagesByChatId = new Map();  // chatId -> Message[]
 const seenMsgIds = new Set();
+
+const CHATS_FILE = '/data/chats.json';
+const MESSAGES_FILE = '/data/messages.json';
+
+function loadFromDisk() {
+  try {
+    if (fs.existsSync(CHATS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CHATS_FILE, 'utf8'));
+      for (const [k, v] of Object.entries(data)) chatMap.set(k, v);
+      console.log(`[INFO] Loaded ${chatMap.size} chats from disk`);
+    }
+  } catch (e) { console.error('[ERROR] loadChats from disk:', e.message); }
+  try {
+    if (fs.existsSync(MESSAGES_FILE)) {
+      const data = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8'));
+      for (const [k, v] of Object.entries(data)) {
+        messagesByChatId.set(k, v);
+        v.forEach(m => seenMsgIds.add(m.id));
+      }
+      console.log(`[INFO] Loaded messages for ${messagesByChatId.size} chats from disk`);
+    }
+  } catch (e) { console.error('[ERROR] loadMessages from disk:', e.message); }
+}
+
+let saveTimer = null;
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(CHATS_FILE, JSON.stringify(Object.fromEntries(chatMap)));
+      fs.writeFileSync(MESSAGES_FILE, JSON.stringify(Object.fromEntries(messagesByChatId)));
+    } catch (e) { console.error('[ERROR] saveToDisk:', e.message); }
+  }, 5000);
+}
 
 async function checkStatus() {
   try {
@@ -107,6 +142,7 @@ async function loadContacts() {
         chatMap.get(num).name = c.name;
       }
     }
+    scheduleSave();
     console.log(`[INFO] Loaded ${contacts.length} contacts`);
   } catch (e) {
     console.error('[ERROR] loadContacts:', e.message);
@@ -127,6 +163,7 @@ async function loadGroups() {
         chatMap.set(id, { id, name: g.name || 'Gruppe', phone: '', lastMsg: '', lastTime: 0, isGroup: true });
       }
     }
+    scheduleSave();
     console.log(`[INFO] Loaded ${groups.length} groups`);
   } catch (e) {
     console.error('[ERROR] loadGroups:', e.message);
@@ -160,6 +197,8 @@ function processEnvelope(envelope) {
     chat.lastTime = dm.timestamp;
     if (senderName && senderName !== source) chat.name = senderName;
   }
+
+  scheduleSave();
 
   if (WEBHOOK_INCOMING && !isOwn) {
     fetch(WEBHOOK_INCOMING, {
@@ -227,6 +266,7 @@ app.post('/api/send', async (req, res) => {
         chat.lastMsg = message;
         chat.lastTime = Date.now();
       }
+      scheduleSave();
     }
     res.json({ success: true });
   } catch (e) {
@@ -258,6 +298,9 @@ app.post('/api/logout', async (req, res) => {
   qrDataUrl = null;
   chatMap.clear();
   messagesByChatId.clear();
+  seenMsgIds.clear();
+  try { fs.unlinkSync(CHATS_FILE); } catch (e) {}
+  try { fs.unlinkSync(MESSAGES_FILE); } catch (e) {}
   fetchQR();
 });
 
@@ -622,6 +665,7 @@ process.on('unhandledRejection', (reason) => {
 
 async function init() {
   console.log('[INFO] Signal UI starting...');
+  loadFromDisk();
   let retries = 30;
   while (retries-- > 0) {
     try {
