@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-05-16
+
+### Neu
+- Bilder (Fotos) werden in der Chat-Ansicht angezeigt — werden beim Empfang heruntergeladen und in `/data/media/` gespeichert; Klick vergrößert das Bild
+- Nachrichten die nur ein Bild enthalten (kein Text) wurden bisher ignoriert — jetzt korrekt dargestellt
+
 ## [1.0.2] - 2026-05-16
 
 ### Geändert

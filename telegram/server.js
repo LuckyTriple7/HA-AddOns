@@ -18,6 +18,7 @@ const DARK_MODE = process.env.DARK_MODE !== 'false';
 const SESSION_FILE = '/data/session.txt';
 const CHATS_FILE = '/data/chats.json';
 const MESSAGES_FILE = '/data/messages.json';
+const MEDIA_DIR = '/data/media';
 const MAX_MSGS = 200;
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -100,20 +101,64 @@ function addMsg(chatId, msg) {
   return true;
 }
 
-function processMessage(rawMsg, chatId, chatName) {
-  if (!rawMsg.message) return;
+async function downloadMedia(rawMsg, msgId) {
+  try {
+    const mediaClass = rawMsg.media?.className;
+    if (!mediaClass || mediaClass === 'MessageMediaEmpty') return null;
+    const safeId = msgId.replace(/-/g, 'm');
+    let ext = 'jpg';
+    if (mediaClass === 'MessageMediaDocument') {
+      const mime = rawMsg.media.document?.mimeType || '';
+      if (!mime.startsWith('image/')) return null;
+      ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
+    } else if (mediaClass !== 'MessageMediaPhoto') {
+      return null;
+    }
+    const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+    if (!fs.existsSync(filePath)) {
+      const buf = await client.downloadMedia(rawMsg, {});
+      if (buf) fs.writeFileSync(filePath, buf);
+    }
+    return fs.existsSync(filePath) ? `${safeId}.${ext}` : null;
+  } catch (e) {
+    console.error('[ERROR] downloadMedia:', e.message);
+    return null;
+  }
+}
+
+async function processMessage(rawMsg, chatId, chatName) {
+  const hasText = !!(rawMsg.message);
+  const hasMedia = rawMsg.media && rawMsg.media.className && rawMsg.media.className !== 'MessageMediaEmpty';
+  if (!hasText && !hasMedia) return;
+
   const fromMe = rawMsg.out || false;
   const ts = (rawMsg.date || 0) * 1000;
   const msgId = `${chatId}_${rawMsg.id}`;
 
-  const added = addMsg(chatId, { id: msgId, from: fromMe ? myId : chatId, body: rawMsg.message, timestamp: ts, fromMe });
-  if (!added) return;
+  if (seenMsgIds.has(msgId)) return;
+  seenMsgIds.add(msgId);
+
+  let type = 'text';
+  let mediaFile = null;
+  if (hasMedia) {
+    mediaFile = await downloadMedia(rawMsg, msgId);
+    if (mediaFile) type = 'photo';
+  }
+
+  const body = rawMsg.message || '';
+  const preview = body || (type === 'photo' ? '📷 Foto' : '[Medien]');
+
+  if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
+  const msgs = messagesByChatId.get(chatId);
+  msgs.push({ id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe });
+  msgs.sort((a, b) => a.timestamp - b.timestamp);
+  if (msgs.length > MAX_MSGS) msgs.splice(0, msgs.length - MAX_MSGS);
 
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: chatName, phone: '', lastMsg: rawMsg.message, lastTime: ts });
+    chatMap.set(chatId, { id: chatId, name: chatName, phone: '', lastMsg: preview, lastTime: ts });
   } else {
     const chat = chatMap.get(chatId);
-    if (ts >= (chat.lastTime || 0)) { chat.lastMsg = rawMsg.message; chat.lastTime = ts; }
+    if (ts >= (chat.lastTime || 0)) { chat.lastMsg = preview; chat.lastTime = ts; }
   }
   scheduleSave();
 
@@ -121,7 +166,7 @@ function processMessage(rawMsg, chatId, chatName) {
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: chatId, name: chatName, message: rawMsg.message, timestamp: ts }),
+      body: JSON.stringify({ from: chatId, name: chatName, message: body || '[Foto]', timestamp: ts }),
     }).catch(() => {});
   }
 }
@@ -197,12 +242,12 @@ async function startClient() {
     client.addEventHandler(async (event) => {
       try {
         const msg = event.message;
-        if (!msg?.message) return;
+        if (!msg) return;
         const chat = await msg.getChat();
         const chatId = getEntityId(chat);
         const chatName = getEntityName(chat);
         if (!peerMap.has(chatId)) peerMap.set(chatId, chat);
-        processMessage(msg, chatId, chatName);
+        await processMessage(msg, chatId, chatName);
       } catch (e) {}
     }, new NewMessage({}));
 
@@ -301,6 +346,18 @@ app.post('/api/logout', async (req, res) => {
 });
 
 setInterval(loadDialogs, 60000);
+
+app.get('/api/media/:filename', (req, res) => {
+  const { filename } = req.params;
+  if (!/^[\w.-]+$/.test(filename)) return res.status(400).end();
+  const filePath = `${MEDIA_DIR}/${filename}`;
+  if (!fs.existsSync(filePath)) return res.status(404).end();
+  const ext = filename.split('.').pop();
+  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Cache-Control', 'max-age=86400');
+  res.sendFile(filePath);
+});
 
 // ── UI ────────────────────────────────────────────────────────────────────────
 
@@ -692,7 +749,14 @@ function renderMessages(msgs) {
     let sep='';
     if(dateStr!==lastDate){sep=\`<div class="day-sep">\${dateStr}</div>\`;lastDate=dateStr;}
     const time=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
-    return sep+\`<div class="bubble \${m.fromMe?'out':'in'}">\${escHtml(m.body)}<span class="bubble-time">\${time}</span></div>\`;
+    let content='';
+    if(m.type==='photo'&&m.mediaFile){
+      content=\`<img src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer" loading="lazy" onclick="this.style.maxWidth=this.style.maxWidth==='none'?'240px':'none'">\`;
+      if(m.body) content+=\`<div style="margin-top:4px">\${escHtml(m.body)}</div>\`;
+    } else {
+      content=escHtml(m.body);
+    }
+    return sep+\`<div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}</span></div>\`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -741,6 +805,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[ERROR] Unhandled:', reason?.message || reason);
 });
 
+fs.mkdirSync(MEDIA_DIR, { recursive: true });
 loadFromDisk();
 app.listen(PORT, () => {
   console.log(`[INFO] Telegram UI on port ${PORT}`);
