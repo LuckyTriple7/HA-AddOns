@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.21] - 2026-05-16
+
+### Neu
+- Option `debug_mode` (Standard: aus) — einschalten für ausführliches Logging: eingehende Nachrichten mit Typ/Absender/Vorschau, Media-Downloads, Webhook-Aufrufe, gesendete und gelöschte Nachrichten
+
 ## [1.1.20] - 2026-05-16
 
 ### Neu

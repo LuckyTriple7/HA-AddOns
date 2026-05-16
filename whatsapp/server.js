@@ -28,6 +28,7 @@ function findChromium() {
 
 const CHROMIUM = findChromium();
 console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
+if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,8 @@ let lastError = null;
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const DEBUG = process.env.DEBUG_MODE === 'true';
+function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 const MEDIA_DIR = '/data/media';
 const MAX_MSGS_PER_CHAT = 200;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
@@ -86,8 +89,11 @@ async function downloadWAMedia(msg, msgId) {
     const ext = msg.type === 'sticker' ? 'webp' : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
+      dbg(`Downloading media: ${safeId}.${ext}`);
       const media = await msg.downloadMedia();
       if (media?.data) fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+    } else {
+      dbg(`Media already cached: ${safeId}.${ext}`);
     }
     return existsSync(filePath) ? `${safeId}.${ext}` : null;
   } catch (e) {
@@ -194,9 +200,10 @@ client.on('auth_failure', (msg) => {
 });
 
 client.on('message', async (msg) => {
+  dbg(`Incoming message: type=${msg.type} from=${msg.from} body="${(msg.body||'').slice(0,60)}"`);
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
-  if (!isText && !isImage) return;
+  if (!isText && !isImage) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
   if (!msg.body && !isImage) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
@@ -218,6 +225,7 @@ client.on('message', async (msg) => {
     contact: contactName,
   });
   if (process.env.WEBHOOK_INCOMING) {
+    dbg(`Firing incoming webhook: ${process.env.WEBHOOK_INCOMING}`);
     postWebhook(process.env.WEBHOOK_INCOMING, { from: msg.from, body: msg.body, type: msg.type, timestamp: msg.timestamp });
   }
 });
@@ -316,6 +324,7 @@ app.post('/api/send', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
   try {
     const jid = formatNumber(to);
+    dbg(`Sending message to ${jid}: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const result = await client.sendMessage(jid, message);
     result.__logged = true;
     const targetChatId = jid;
@@ -385,6 +394,7 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   try {
+    dbg(`Deleting message ${msgId} in chat ${chatId}`);
     const msg = await client.getMessageById(msgId);
     await msg.delete(true);
     const msgs = messagesByChatId.get(chatId);
