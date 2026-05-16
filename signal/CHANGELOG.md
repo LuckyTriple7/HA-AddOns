@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.33] - 2026-05-16
+
+### Behoben
+- GIN-Access-Logs vollständig unterdrückt — Output von signal-cli-rest-api wird durch grep gefiltert; `[GIN]`-Zeilen und `level=info`-Meldungen erscheinen nicht mehr im Log; Warnungen und Fehler bleiben sichtbar
+
 ## [1.0.32] - 2026-05-16
 
 ### Behoben

@@ -19,7 +19,8 @@ else
 fi
 
 start_signal_api() {
-  /entrypoint.sh &
+  # Filter GIN access logs and signal-cli info messages; keep warnings/errors
+  /entrypoint.sh 2>&1 | grep -Ev '^\[GIN\] |level=info' &
   echo "[INFO] Waiting for signal-cli-rest-api on :8080..."
   for i in $(seq 1 60); do
     if curl -s --max-time 2 -o /dev/null http://localhost:8080/v1/about; then
