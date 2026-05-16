@@ -7,11 +7,12 @@ export SIGNAL_API_URL=http://localhost:8080
 export MODE=native  # signal-cli runs as daemon — much lower CPU than default mode
 
 # Persist signal-cli data to /data (always mounted in HA)
+# signal-cli-rest-api runs as user signal-api with HOME=/home → uses /home/.local/share/signal-cli
 mkdir -p /data/signal-cli
-mkdir -p /root/.local/share
-if [ ! -L /root/.local/share/signal-cli ]; then
-  rm -rf /root/.local/share/signal-cli
-  ln -sf /data/signal-cli /root/.local/share/signal-cli
+mkdir -p /home/.local/share
+if [ ! -L /home/.local/share/signal-cli ]; then
+  rm -rf /home/.local/share/signal-cli
+  ln -sf /data/signal-cli /home/.local/share/signal-cli
 fi
 
 # Start signal-cli-rest-api BEFORE setting PORT

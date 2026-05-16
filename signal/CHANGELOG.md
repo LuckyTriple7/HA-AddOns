@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.10] - 2026-05-16
+
+### Behoben
+- Session überlebt Neustart nicht — Symlink zeigte auf `/root/.local/share/signal-cli`, signal-cli schreibt aber als User `signal-api` nach `/home/.local/share/signal-cli`; Symlink korrigiert
+
 ## [1.0.9] - 2026-05-16
 
 ### Behoben
