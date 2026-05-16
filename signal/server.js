@@ -13,7 +13,8 @@ let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';
-let qrCodeDataUrl = null;
+let qrSvg = null;      // inline SVG string for DOM injection
+let qrUri = null;      // raw sgnl:// URI
 let qrFetching = false;
 
 const chatMap = new Map();           // chatId -> { id, name, phone, lastMsg, lastTime }
@@ -39,7 +40,8 @@ async function checkStatus() {
 
     if (status !== 'linked') {
       status = 'linked';
-      qrCodeDataUrl = null;
+      qrSvg = null;
+      qrUri = null;
       console.log(`[INFO] Linked as ${PHONE_NUMBER}`);
     }
   } catch (e) {
@@ -54,14 +56,13 @@ async function fetchQR() {
   try {
     const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 30000 });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const uri = (await r.text()).trim();
-    const svgString = await QRCode.toString(uri, {
+    qrUri = (await r.text()).trim();
+    qrSvg = await QRCode.toString(qrUri, {
       type: 'svg',
       errorCorrectionLevel: 'L',
-      margin: 3,
+      margin: 2,
     });
-    qrCodeDataUrl = 'data:image/svg+xml;base64,' + Buffer.from(svgString).toString('base64');
-    console.log('[INFO] QR code ready for linking');
+    console.log('[INFO] QR code ready for linking:', qrUri.substring(0, 60) + '...');
   } catch (e) {
     console.error('[ERROR] QR fetch failed:', e.message);
     lastError = String(e.message || e);
@@ -124,8 +125,8 @@ app.get('/api/status', (req, res) => {
 
 app.get('/api/qr', async (req, res) => {
   if (status === 'linked') return res.json({ status: 'linked' });
-  if (!qrCodeDataUrl && !qrFetching) fetchQR();
-  res.json({ qr: qrCodeDataUrl, status });
+  if (!qrSvg && !qrFetching) fetchQR();
+  res.json({ svg: qrSvg, uri: qrUri, status });
 });
 
 app.get('/api/chats', (req, res) => {
@@ -170,6 +171,13 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+app.post('/api/qr/refresh', (req, res) => {
+  qrSvg = null;
+  qrUri = null;
+  fetchQR();
+  res.json({ ok: true });
+});
+
 app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
   try {
@@ -181,7 +189,8 @@ app.post('/api/logout', async (req, res) => {
   } catch (e) {}
   PHONE_NUMBER = process.env.PHONE_NUMBER || '';
   status = 'not-linked';
-  qrCodeDataUrl = null;
+  qrSvg = null;
+  qrUri = null;
   chatMap.clear();
   messagesByChatId.clear();
   fetchQR();
@@ -212,10 +221,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 @keyframes spin { to { transform: rotate(360deg); } }
 #spinner-text { color: #fff; font-size: 16px; text-align: center; padding: 0 24px; }
 
-#qr-overlay { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; inset: 0; background: #1b1c22; z-index: 99; gap: 16px; padding: 24px; }
+#qr-overlay { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; inset: 0; background: #1b1c22; z-index: 99; gap: 14px; padding: 24px; overflow-y: auto; }
 #qr-overlay h2 { color: #fff; font-size: 20px; }
-#qr-overlay p { color: #aaa; text-align: center; font-size: 14px; max-width: 320px; line-height: 1.5; }
-#qr-img { background: white; padding: 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center; min-width: 352px; min-height: 352px; font-size: 14px; color: #666; }
+#qr-overlay p { color: #aaa; text-align: center; font-size: 14px; max-width: 360px; line-height: 1.5; }
+#qr-img { background: white; padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #666; }
+#qr-img svg { width: 300px; height: 300px; display: block; }
+#qr-uri { font-size: 10px; color: #555; word-break: break-all; max-width: 360px; text-align: center; }
+#qr-refresh-btn { background: #3a76f8; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+#qr-refresh-btn:hover { background: #2960d6; }
 
 #topbar { display: none; align-items: center; background: #1b1b21; color: #fff; padding: 0 16px; height: 56px; gap: 12px; flex-shrink: 0; }
 #topbar h1 { font-size: 18px; flex: 1; }
@@ -275,9 +288,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 
 <div id="qr-overlay">
   <h2>Signal verknüpfen</h2>
-  <p>Öffne Signal auf deinem Handy → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen</p>
+  <p>Signal öffnen → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen</p>
   <div id="qr-img">Lade QR-Code…</div>
-  <p style="font-size:12px;color:#666;">QR-Code aktualisiert sich automatisch</p>
+  <button id="qr-refresh-btn" onclick="refreshQR()">QR-Code neu laden</button>
+  <p id="qr-uri"></p>
 </div>
 
 <div id="topbar">
@@ -353,13 +367,26 @@ function loadQR() {
     .then(d => {
       if (d.status === 'linked') { refresh(); return; }
       const el = document.getElementById('qr-img');
-      if (d.qr) {
-        el.innerHTML = '<img src="' + d.qr + '" style="width:320px;height:320px;">';
+      const uriEl = document.getElementById('qr-uri');
+      if (d.svg) {
+        el.innerHTML = d.svg; // direct SVG DOM injection — no scaling artifacts
+        const svg = el.querySelector('svg');
+        if (svg) { svg.style.width = '300px'; svg.style.height = '300px'; }
       } else {
         el.textContent = 'Lade QR-Code…';
       }
+      if (uriEl) uriEl.textContent = d.uri || '';
     }).catch(() => {});
   if (!qrInterval) qrInterval = setInterval(loadQR, 5000);
+}
+
+function refreshQR() {
+  const el = document.getElementById('qr-img');
+  el.textContent = 'Lade QR-Code…';
+  document.getElementById('qr-uri').textContent = '';
+  // Tell server to fetch a fresh QR code
+  fetch(api('/api/qr/refresh'), { method: 'POST' }).catch(() => {});
+  setTimeout(loadQR, 1000);
 }
 
 async function refresh() {

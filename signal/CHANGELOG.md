@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6] - 2026-05-16
+
+### Behoben
+- QR-Code: SVG wird jetzt direkt ins DOM injiziert statt als Base64-Data-URL — kein Skalierungsartefakt mehr
+- QR-Code zeigt jetzt die rohe `sgnl://`-URI als Text (zur Kontrolle)
+- Neuer "QR-Code neu laden"-Button zum Erzwingen eines frischen Codes
+
 ## [1.0.5] - 2026-05-16
 
 ### Behoben
