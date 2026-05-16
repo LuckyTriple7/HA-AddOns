@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.1] - 2026-05-16
+
+### Behoben
+- `curl`, `jq`, `xz-utils`, `ca-certificates` wieder via apt-get installiert — diese sind NICHT vorinstalliert; nur GUI-Pakete scheitern in jlesage's Repos, nicht kleine Utilities
+
 ## [2.1.0] - 2026-05-16
 
 ### Geändert

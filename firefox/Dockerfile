@@ -25,7 +25,14 @@ ENV APP_NAME="Firefox" \
 COPY --from=deps /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 RUN ldconfig
 
-# curl/jq/xz-utils sind im jlesage-Image bereits vorhanden
+# Kleine Utilities: diese Pakete sind in jlesage's konfigurierten Repos vorhanden
+# (nur GUI-Pakete wie libgtk-3-0 fehlen dort).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    jq \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/*
 ARG FIREFOX_VERSION=140.10.2esr
 RUN curl -sL --fail \
     "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.xz" \
