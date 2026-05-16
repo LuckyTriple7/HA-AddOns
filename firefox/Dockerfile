@@ -44,6 +44,12 @@ RUN curl -sL --fail \
     && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
     && rm /tmp/firefox.tar.xz
 
+# Patch: jlesage's noVNC-ui.js importiert isAndroid aus browser.js,
+# aber neuere noVNC-Versionen haben es entfernt — Shim anhängen.
+RUN echo '' >> /opt/noVNC/core/util/browser.js && \
+    echo 'export function isAndroid() { return /Android/i.test(navigator.userAgent); }' \
+    >> /opt/noVNC/core/util/browser.js
+
 COPY rootfs/ /
 RUN chmod +x /startapp.sh \
     /etc/cont-init.d/08-clear-tmp-dir.sh \

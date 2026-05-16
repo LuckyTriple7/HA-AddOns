@@ -22,6 +22,8 @@ user_pref("browser.search.region", "DE");
 user_pref("browser.search.isUS", false);
 user_pref("layers.acceleration.disabled", true);
 user_pref("gfx.webrender.all", false);
+user_pref("gfx.webrender.software", true);
+user_pref("media.ffmpeg.vaapi.enabled", false);
 user_pref("browser.download.folderList", 2);
 user_pref("browser.download.dir", "/share/firefox");
 USERJS
@@ -43,6 +45,9 @@ FF_ARGS="--profile $PROFILE_DIR --no-remote"
 [ "${FF_KIOSK:-0}" = "1" ] && FF_ARGS="$FF_ARGS --kiosk"
 [ -n "$FF_CUSTOM_ARGS" ] && FF_ARGS="$FF_ARGS $FF_CUSTOM_ARGS"
 [ -n "$FF_OPEN_URL" ] && FF_ARGS="$FF_ARGS $FF_OPEN_URL"
+
+export LIBGL_ALWAYS_SOFTWARE=1
+export MOZ_DISABLE_RDD_SANDBOX=1
 
 # shellcheck disable=SC2086
 exec /usr/local/bin/firefox $FF_ARGS

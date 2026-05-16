@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.5] - 2026-05-16
+
+### Behoben
+- noVNC `isAndroid`-SyntaxError: Shim direkt in `/opt/noVNC/core/util/browser.js` eingefügt — v4.12.1 hat denselben Bug; Patch ist die einzige zuverlässige Lösung
+- Software-Rendering explizit aktiviert: `gfx.webrender.software=true`, `LIBGL_ALWAYS_SOFTWARE=1`, `MOZ_DISABLE_RDD_SANDBOX=1` — verhindert Firefox-Crash bei fehlendem GPU
+
 ## [2.1.4] - 2026-05-16
 
 ### Behoben
