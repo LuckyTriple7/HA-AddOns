@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.38] - 2026-05-16
+
+### Behoben
+- WhatsApp-Channels aus dem "Aktuelles"-Tab (`@newsletter` JIDs) erschienen als Chats — `isFilteredChat()` filtert jetzt `@broadcast` und `@newsletter` an allen vier Stellen (Startup-Loop, `message`-Event, `message_create`-Event)
+
 ## [1.1.37] - 2026-05-16
 
 ### Neu
