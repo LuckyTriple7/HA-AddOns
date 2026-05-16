@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.15] - 2026-05-16
+
+### Geändert
+- `MODE=native` wieder aktiviert für niedrige CPU-Auslastung; funktioniert jetzt korrekt da `SIGNAL_CLI_CONFIG` den richtigen Datenpfad setzt
+
 ## [1.0.14] - 2026-05-16
 
 ### Behoben
