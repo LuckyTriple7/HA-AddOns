@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.23] - 2026-05-16
+
+### Behoben
+- Debug-Logs für eingehende Nachrichten fehlten — `message_create`-Event und `addMsg()` werden jetzt ebenfalls geloggt; deckt alle Nachrichtenpfade ab
+
 ## [1.1.22] - 2026-05-16
 
 ### Behoben

@@ -68,8 +68,9 @@ function upsertChat(chatId, { name, phone, isGroup }) {
 }
 
 function addMsg(chatId, msg) {
-  if (seenIds.has(msg.id)) return false;
+  if (seenIds.has(msg.id)) { dbg(`addMsg: duplicate skipped ${msg.id}`); return false; }
   seenIds.add(msg.id);
+  dbg(`addMsg: chatId=${chatId} fromMe=${msg.fromMe} type=${msg.type} body="${(msg.body||'').slice(0,60)}"`);
   const msgs = getChatMsgs(chatId);
   msgs.push(msg);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
@@ -231,10 +232,11 @@ client.on('message', async (msg) => {
 });
 
 client.on('message_create', async (msg) => {
+  dbg(`message_create: type=${msg.type} fromMe=${msg.fromMe} from=${msg.from} body="${(msg.body||'').slice(0,60)}"`);
   if (!msg.fromMe) return;
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
-  if (!isText && !isImage) return;
+  if (!isText && !isImage) { dbg(`message_create: skipping type=${msg.type}`); return; }
   if (msg.__logged) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
