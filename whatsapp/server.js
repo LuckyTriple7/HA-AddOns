@@ -530,6 +530,15 @@ app.get('/', (req, res) => {
       font-size: 20px; cursor: pointer; padding: 4px; line-height: 1;
     }
     .logout-btn:hover { color: #f15c5c; }
+    .photo-toggle-btn {
+      background: none; border: 1px solid #8696a0; color: #e9edef;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; opacity: 0.55;
+    }
+    .photo-toggle-btn:hover { opacity: 0.8; }
+    .photo-toggle-btn.active { opacity: 1; background: rgba(37,211,102,0.15); border-color: #25d366; color: #25d366; }
+    .photo-placeholder { display: none; }
+    body.hide-photos .msg-img { display: none !important; }
+    body.hide-photos .photo-placeholder { display: inline; }
 
     /* Main two-panel layout */
     #main { flex: 1; display: flex; overflow: hidden; }
@@ -749,6 +758,7 @@ app.get('/', (req, res) => {
     <h1>WhatsApp</h1>
     <span class="status-label" id="status-label">Verbunden</span>
     <div class="status-dot connected" id="status-dot"></div>
+    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()">Fotos AN</button>' : ''}
     <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
   </div>
 
@@ -834,6 +844,19 @@ app.get('/', (req, res) => {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
     }
+    function togglePhotos() {
+      const hiding = !document.body.classList.contains('hide-photos');
+      document.body.classList.toggle('hide-photos', hiding);
+      const btn = document.getElementById('photo-toggle');
+      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? 'Fotos AUS' : 'Fotos AN'; }
+      localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
+    }
+    if (localStorage.getItem('wa-hide-photos')) {
+      document.body.classList.add('hide-photos');
+      const btn = document.getElementById('photo-toggle');
+      if (btn) { btn.classList.remove('active'); btn.textContent = 'Fotos AUS'; }
+    }
+
     function ackMark(ack) {
       if (ack >= 3) return '<span class="msg-ack ack-3">✓✓</span>';
       if (ack === 2) return '<span class="msg-ack ack-2">✓✓</span>';
@@ -1007,7 +1030,11 @@ app.get('/', (req, res) => {
         bub.className = 'bubble';
         const ack = m.fromMe ? ackMark(m.ack || 0) : '';
         if (m.type === 'photo' && m.mediaFile) {
+          const ph = document.createElement('span');
+          ph.className = 'photo-placeholder'; ph.textContent = '📷 Foto';
+          bub.appendChild(ph);
           const img = document.createElement('img');
+          img.className = 'msg-img';
           img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
           img.style.cssText = 'max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer';
           img.loading = 'lazy';

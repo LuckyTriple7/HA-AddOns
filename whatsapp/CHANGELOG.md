@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.37] - 2026-05-16
+
+### Neu
+- „Fotos AN/AUS"-Schalter im Topbar neben dem WhatsApp-Logo — blendet Fotos aus und zeigt `📷 Foto` als Text; nur sichtbar wenn `download_media` aktiv; Zustand wird in localStorage gespeichert
+
 ## [1.1.36] - 2026-05-16
 
 ### Behoben
