@@ -11,7 +11,7 @@ fi
 PROFILE_DIR=/data/profile
 mkdir -p "$PROFILE_DIR"
 
-# user.js: Sprache + Software-Rendering (kein GPU in Xvfb)
+# user.js: Sprache + Software-Rendering (kein GPU in virtueller Anzeige)
 {
     echo 'user_pref("intl.locale.requested", "de");'
     echo 'user_pref("browser.search.region", "DE");'
@@ -33,23 +33,19 @@ EOF
 fi
 
 cleanup() {
-    kill "$XVFB_PID" "$VNC_PID" "$NOVNC_PID" 2>/dev/null || true
+    kill "$XVNC_PID" "$NOVNC_PID" 2>/dev/null || true
     [ -n "${DBUS_SESSION_BUS_PID:-}" ] && kill "$DBUS_SESSION_BUS_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-# Virtuelles Display starten
-Xvfb :1 -screen 0 1280x768x24 -nolisten tcp &
-XVFB_PID=$!
+# TigerVNC starten — virtuelles Display + VNC-Server in einem
+# Unterstützt resize=remote: passt die Auflösung dynamisch an den Browser an
+Xvnc :1 -geometry 1280x800 -depth 24 -rfbport 5900 -SecurityTypes None &
+XVNC_PID=$!
 sleep 1
 
-# DBus starten (Firefox benötigt dbus-launch)
+# DBus starten
 eval "$(dbus-launch --sh-syntax 2>/dev/null)" || true
-
-# VNC-Server starten (nur localhost, kein Passwort)
-x11vnc -display :1 -forever -shared -nopw -localhost -quiet &
-VNC_PID=$!
-sleep 1
 
 # noVNC / WebSocket-Proxy starten
 websockify --web /usr/share/novnc/ 5800 localhost:5900 &

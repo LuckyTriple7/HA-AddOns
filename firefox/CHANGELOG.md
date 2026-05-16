@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-05-16
+
+### Geändert
+- Xvfb + x11vnc durch TigerVNC (`Xvnc`) ersetzt — virtuelles Display und VNC-Server in einem; unterstützt `resize=remote` für dynamische Auflösungsanpassung an das Browser-Fenster
+- noVNC-Parameter von `resize=scale` auf `resize=remote` geändert — Firefox füllt jetzt das Fenster ohne schwarze Ränder
+
 ## [1.0.2] - 2026-05-16
 
 ### Behoben

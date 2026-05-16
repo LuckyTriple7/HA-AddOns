@@ -8,8 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     firefox-esr \
     firefox-esr-l10n-de \
-    xvfb \
-    x11vnc \
+    tigervnc-standalone-server \
     novnc \
     websockify \
     locales \
