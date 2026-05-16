@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.19] - 2026-05-16
+
+### Geändert
+- `fetch_messages_limit` Maximum von 150 auf 300 erhöht
+
 ## [1.0.18] - 2026-05-16
 
 ### Neu

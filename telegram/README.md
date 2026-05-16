@@ -38,7 +38,7 @@ Bei aktivierter 2-Faktor-Authentifizierung wird danach das Cloud-Passwort abgefr
 | `phone_number` | — | Telefonnummer mit Ländervorwahl, z.B. `+4917612345678` |
 | `dark_mode` | `true` | `true` = dunkles Theme, `false` = helles Theme |
 | `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen |
-| `fetch_messages_limit` | `50` | Nachrichten die beim ersten Öffnen eines Chats geladen werden (max. 150) |
+| `fetch_messages_limit` | `50` | Nachrichten die beim ersten Öffnen eines Chats geladen werden (max. 300) |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
 
