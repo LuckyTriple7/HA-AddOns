@@ -2,7 +2,7 @@
 FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
 
 # Labels
-LABEL maintainer="Robson Felix"
+LABEL maintainer="LuckyTriple7"
 LABEL org.opencontainers.image.title="Claude Code for Home Assistant"
 LABEL org.opencontainers.image.description="Claude Code CLI with web terminal and HA integration"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
