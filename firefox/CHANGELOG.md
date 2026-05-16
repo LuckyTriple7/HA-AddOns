@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.0] - 2026-05-16
+
+### Geändert
+- Multi-Stage-Build: GTK3-Libs (`libgtk-3-0`, `libdbus-glib-1-2`, `libxt6`, `libpci3`) aus `debian:bookworm-slim` holen — jlesage's Debian-Base hat keine GUI-Pakete in seinen Repos; `COPY --from=deps` kopiert die Libs ohne jlesage-eigene Dateien zu überschreiben
+
 ## [2.0.9] - 2026-05-16
 
 ### Behoben

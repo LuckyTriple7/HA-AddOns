@@ -1,3 +1,15 @@
+# Stage 1: Firefox-Laufzeit-Abhängigkeiten aus sauberem Debian holen.
+# jlesage's Debian-Base hat keine GUI-Pakete in seinen Repos — deswegen
+# schlägt apt-get install libgtk-3-0 etc. dort fehl.
+FROM debian:bookworm-slim AS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgtk-3-0 \
+    libdbus-glib-1-2 \
+    libxt6 \
+    libpci3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Stage 2: Hauptimage auf jlesage-Basis
 FROM jlesage/baseimage-gui:debian-12-v4
 
 ENV APP_NAME="Firefox" \
@@ -8,21 +20,12 @@ ENV APP_NAME="Firefox" \
     USER_ID=0 \
     GROUP_ID=0
 
-# jlesage's Debian-Image hat nur minimale Repos — Debian bookworm main explizit hinzufügen,
-# damit firefox-esr (→ alle GTK3/DBus-Abhängigkeiten) installierbar ist.
-# firefox-esr Binary danach entfernen; Libraries bleiben — Mozilla's Build nutzt sie.
-RUN echo "deb http://deb.debian.org/debian bookworm main contrib" \
-        > /etc/apt/sources.list.d/bookworm-main.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        jq \
-        xz-utils \
-        firefox-esr \
-    && apt-get remove -y --purge firefox-esr \
-    && rm -rf /var/lib/apt/lists/*
+# GTK3 und alle transitiven Abhängigkeiten aus Stage 1 übernehmen.
+# COPY überschreibt nicht — jlesage-eigene Libs bleiben erhalten.
+COPY --from=deps /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+RUN ldconfig
 
+# curl/jq/xz-utils sind im jlesage-Image bereits vorhanden
 ARG FIREFOX_VERSION=140.10.2esr
 RUN curl -sL --fail \
     "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.xz" \
