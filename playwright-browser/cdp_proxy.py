@@ -155,7 +155,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._proxy_http()
 
     def _proxy_http(self):
-        if not ensure_chromium(f'HTTP {self.client_address[0]} {self.path}'):
+        client_ip = self.client_address[0]
+        with _lock:
+            running = _chromium_proc is not None and _chromium_proc.poll() is None
+        # Loopback requests (HA supervisor health checks) never start Chromium
+        if not running and client_ip in ('127.0.0.1', '::1'):
+            try:
+                self.send_error(503, 'Chromium not running')
+            except Exception:
+                pass
+            return
+        if not ensure_chromium(f'HTTP {client_ip} {self.path}'):
             try:
                 self.send_error(503, 'Chromium unavailable')
             except Exception:

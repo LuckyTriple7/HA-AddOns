@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.10 - 2026-05-16
+
+### Behoben
+- HA-Supervisor-Health-Check (`127.0.0.1 /json/version`) hat Chromium immer wieder neugestartet — HTTP-Requests von Loopback starten Chromium nicht mehr; externe Clients (Playwright) funktionieren weiterhin normal
+
 ## 1.0.9 - 2026-05-16
 
 ### Geändert
