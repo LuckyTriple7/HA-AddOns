@@ -622,9 +622,17 @@ async function init() {
   await checkStatus();
   if (status === 'not-linked') fetchQR();
   if (status === 'linked') { loadContacts(); loadGroups(); }
-  setInterval(checkStatus, 5000);
-  setInterval(pollMessages, 3000);
-  setInterval(() => { if (status === 'linked') { loadContacts(); loadGroups(); } }, 60000);
+
+  // Fast poll only when not yet linked, slow otherwise (accounts call blocks 1-2s in signal-cli)
+  setInterval(() => {
+    if (status !== 'linked') checkStatus();
+  }, 5000);
+  setInterval(() => {
+    if (status === 'linked') checkStatus(); // detect unexpected unlink
+  }, 60000);
+
+  setInterval(pollMessages, 10000);  // receive is also signal-cli work — 10s is enough
+  setInterval(() => { if (status === 'linked') { loadContacts(); loadGroups(); } }, 120000);
 }
 
 app.listen(PORT, () => {

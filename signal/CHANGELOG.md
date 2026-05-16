@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.9] - 2026-05-16
+
+### Behoben
+- Hohe CPU-Auslastung (~37%) — signal-cli läuft jetzt im `native`-Modus als Daemon (einmalig starten statt bei jedem API-Aufruf neu); Polling-Intervalle reduziert (checkStatus 60s wenn gelinkt, pollMessages 10s)
+
 ## [1.0.8] - 2026-05-16
 
 ### Neu
