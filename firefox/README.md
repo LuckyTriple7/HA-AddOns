@@ -1,4 +1,4 @@
-# Firefox
+# Firefox DE
 
 Firefox-Browser direkt als Home Assistant Add-on — in der HA-Seitenleiste via noVNC, deutschsprachig, mit persistentem Profil.
 

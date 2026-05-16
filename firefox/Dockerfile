@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Stage 2: Hauptimage auf jlesage-Basis (v4.12.1 behebt noVNC isAndroid-Bug)
 FROM jlesage/baseimage-gui:debian-12-v4.12.1
 
-ENV APP_NAME="Firefox" \
+ENV APP_NAME="Firefox DE" \
     LANG=C.UTF-8 \
     KEEP_APP_RUNNING=1 \
     DISPLAY_WIDTH=1280 \

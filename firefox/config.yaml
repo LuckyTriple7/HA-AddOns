@@ -1,4 +1,4 @@
-name: Firefox
+name: Firefox DE
 description: Firefox-Browser direkt in Home Assistant — persistentes Profil, deutsche Sprache, optionale RAM-Begrenzung
 version: "1.0.0"
 slug: firefox
@@ -17,7 +17,7 @@ image: "ghcr.io/luckytriple7/firefox"
 ingress: true
 ingress_port: 5800
 panel_icon: mdi:firefox
-panel_title: Firefox
+panel_title: Firefox DE
 
 ports:
   5800/tcp: 5800
