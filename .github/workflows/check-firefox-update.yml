@@ -114,7 +114,7 @@ jobs:
 
           git add firefox/config.yaml firefox/CHANGELOG.md .firefox-version
           git commit -m "Bump Firefox Add-on zu v${NEW_ADDON_VER} — Firefox ESR ${FF_VER}"
-          git push --force origin "$BRANCH"
+          git push origin "$BRANCH"
 
           gh pr create \
             --title "Update Firefox ESR ${FF_VER} (Add-on v${NEW_ADDON_VER})" \
