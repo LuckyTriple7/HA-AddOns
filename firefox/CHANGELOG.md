@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.2.1] - 2026-05-16
+
+### Behoben
+- Schriften fehlen (Text als Kästchen dargestellt): `/usr/share/fonts` und `/usr/share/fontconfig` aus der deps-Stage kopiert; `fc-cache -f` nach dem Kopieren ausgeführt — jlesage's Base-Image hat keine Desktop-Fonts
+
 ## [2.2.0] - 2026-05-16
 
 ### Geändert

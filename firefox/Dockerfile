@@ -21,12 +21,14 @@ ENV APP_NAME="Firefox" \
     USER_ID=0 \
     GROUP_ID=0
 
-# Firefox-Laufzeit-Libs und Fontconfig-Config aus Stage 1 übernehmen
+# Firefox-Laufzeit-Libs, Fonts und Fontconfig-Config aus Stage 1 übernehmen
 COPY --from=deps /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=deps /etc/fonts /etc/fonts
+COPY --from=deps /usr/share/fonts /usr/share/fonts
+COPY --from=deps /usr/share/fontconfig /usr/share/fontconfig
 COPY --from=deps /usr/lib/locale /usr/lib/locale
 COPY --from=deps /usr/share/locale /usr/share/locale
-RUN ldconfig
+RUN ldconfig && fc-cache -f
 
 # Kleine Utilities aus jlesage's konfigurierten Repos
 RUN apt-get update && apt-get install -y --no-install-recommends \
