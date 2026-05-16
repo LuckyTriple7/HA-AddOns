@@ -297,16 +297,11 @@ process.on('unhandledRejection', (reason) => {
 
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
-  const supervisorToken = process.env.SUPERVISOR_TOKEN;
-  const userToken = process.env.HA_TOKEN;
-  const token = supervisorToken || userToken;
+  const token = process.env.HA_TOKEN;
   if (!token) {
-    console.warn('[WARN] HA_NOTIFICATIONS: kein Token — ha_token in der Add-on-Konfiguration setzen');
+    console.warn('[WARN] HA_NOTIFICATIONS: ha_token in der Add-on-Konfiguration setzen');
     return;
   }
-  const url = supervisorToken
-    ? 'http://supervisor/core/api/services/persistent_notification/create'
-    : 'http://homeassistant:8123/api/services/persistent_notification/create';
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify(HA_PRIVACY ? {
@@ -318,8 +313,8 @@ function sendHANotification(chatId, senderName, body) {
     message: preview || '📷 Foto',
     notification_id: `whatsapp_${safeId}`,
   });
-  console.log(`[INFO] HA notification: WhatsApp${HA_PRIVACY ? '' : `: ${senderName}`} (via ${supervisorToken ? 'supervisor' : 'ha_token'})`);
-  const req = http.request(url, {
+  console.log(`[INFO] HA notification: WhatsApp${HA_PRIVACY ? '' : `: ${senderName}`}`);
+  const req = http.request('http://homeassistant:8123/api/services/persistent_notification/create', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,

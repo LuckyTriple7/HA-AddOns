@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.26] - 2026-05-16
+
+### Geändert
+- `SUPERVISOR_TOKEN`-Logik vollständig entfernt — Benachrichtigungen laufen ausschließlich über `ha_token` aus der Konfiguration; `hassio_api`/`homeassistant_api` aus config.yaml entfernt
+
 ## [1.0.25] - 2026-05-16
 
 ### Neu

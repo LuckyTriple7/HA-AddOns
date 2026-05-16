@@ -22,13 +22,6 @@ rm -f "$SESSION_DIR/chromium/SingletonLock"
 rm -f "$SESSION_DIR/chromium/SingletonCookie"
 rm -f "$SESSION_DIR/chromium/SingletonSocket"
 
-if [ -n "$SUPERVISOR_TOKEN" ]; then
-  echo "[INFO] SUPERVISOR_TOKEN verfügbar (${#SUPERVISOR_TOKEN} Zeichen)"
-else
-  echo "[WARN] SUPERVISOR_TOKEN NICHT gesetzt — in HA die Add-on Berechtigungen bestätigen und neu starten"
-fi
-export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
-
 echo "[INFO] Starting WhatsApp add-on..."
 cd /app
 exec node server.js
