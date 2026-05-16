@@ -7,7 +7,7 @@ export SIGNAL_API_URL=http://localhost:8080
 
 # Tell signal-cli-rest-api to store data directly in /data/signal-cli (HA persistent storage)
 # This overrides the default /home/.local/share/signal-cli without needing a symlink
-export SIGNAL_CLI_CONFIG=/data/signal-cli
+export SIGNAL_CLI_CONFIG_DIR=/data/signal-cli
 export MODE=native
 mkdir -p /data/signal-cli
 

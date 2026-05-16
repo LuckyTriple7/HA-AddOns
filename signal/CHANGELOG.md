@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.17] - 2026-05-16
+
+### Behoben
+- Session nicht persistent — falsche Umgebungsvariable `SIGNAL_CLI_CONFIG` statt `SIGNAL_CLI_CONFIG_DIR`; entrypoint.sh ignorierte den Pfad und schrieb immer nach `/home/.local/share/signal-cli`
+
 ## [1.0.16] - 2026-05-16
 
 ### Behoben
