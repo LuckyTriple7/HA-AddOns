@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.23] - 2026-05-16
+
+### Behoben
+- `homeassistant_api: true` in config.yaml ergänzt (für den Supervisor-Proxy zu `/core/api/`)
+- Diagnose-Logging in run.sh: zeigt beim Start ob `SUPERVISOR_TOKEN` verfügbar ist oder nicht
+
 ## [1.0.22] - 2026-05-16
 
 ### Behoben
