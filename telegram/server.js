@@ -538,6 +538,12 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #topbar .uname { font-size: 13px; opacity: 0.7; }
 #logout-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 #logout-btn:hover { background: rgba(255,255,255,0.1); }
+#photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; opacity: 0.5; }
+#photo-toggle:hover { background: rgba(255,255,255,0.1); }
+#photo-toggle.active { opacity: 1; border-color: rgba(255,255,255,0.7); }
+.photo-placeholder { display: none; }
+body.hide-photos .msg-img { display: none !important; }
+body.hide-photos .photo-placeholder { display: inline; }
 
 /* ── Main layout ── */
 #main { display: none; flex: 1; overflow: hidden; }
@@ -689,6 +695,7 @@ html.light #emoji-toggle { color: #888; }
 <div id="topbar">
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" onclick="togglePhotos()" title="Fotos ein-/ausblenden">📷 Fotos</button>' : ''}
   <button id="logout-btn" onclick="logout()">Abmelden</button>
 </div>
 
@@ -741,6 +748,20 @@ function formatTime(ts) {
   return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function togglePhotos() {
+  const hide = !document.body.classList.contains('hide-photos');
+  document.body.classList.toggle('hide-photos', hide);
+  const btn = document.getElementById('photo-toggle');
+  if (btn) btn.classList.toggle('active', hide);
+  localStorage.setItem('tg-hide-photos', hide ? '1' : '');
+}
+if (localStorage.getItem('tg-hide-photos')) {
+  document.body.classList.add('hide-photos');
+  const btn = document.getElementById('photo-toggle');
+  if (btn) btn.classList.add('active');
+}
+
 function ackMark(ack) {
   if (!ack) return '';
   const cls = ack >= 3 ? 'ack-3' : 'ack-1';
@@ -907,7 +928,7 @@ function renderMessages(msgs) {
     const time=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
     let content='';
     if(m.type==='photo'&&m.mediaFile){
-      content=\`<img src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer" loading="lazy" onclick="this.style.maxWidth=this.style.maxWidth==='none'?'240px':'none'">\`;
+      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer" loading="lazy" onclick="this.style.maxWidth=this.style.maxWidth==='none'?'240px':'none'">\`;
       if(m.body) content+=\`<div style="margin-top:4px">\${escHtml(m.body)}</div>\`;
     } else {
       content=escHtml(m.body);

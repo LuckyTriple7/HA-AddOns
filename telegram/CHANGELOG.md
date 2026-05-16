@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.31] - 2026-05-16
+
+### Neu
+- „📷 Fotos"-Schalter im Topbar neben dem Telegram-Schriftzug — blendet alle Fotos aus und zeigt stattdessen `📷 Foto` als Text; Zustand wird im Browser gespeichert (localStorage); erscheint nur wenn `download_media` aktiviert ist
+
 ## [1.0.30] - 2026-05-16
 
 ### Behoben
