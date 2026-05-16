@@ -11,6 +11,7 @@ export FETCH_LIMIT=$(jq -r '.fetch_messages_limit // 50' /data/options.json)
 export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
+export HA_NOTIFY_SKIP_BOTS=$(jq -r 'if .ha_notifications_skip_bots == true then "true" else "false" end' /data/options.json)
 export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
 export PORT=17778
 

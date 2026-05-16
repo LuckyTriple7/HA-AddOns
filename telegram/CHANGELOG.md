@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.27] - 2026-05-16
+
+### Neu
+- Haken für gesendete Nachrichten: ✓ gesendet (grau), ✓✓ gelesen (blau) — Status aktualisiert sich in Echtzeit über `UpdateReadHistoryOutbox`
+- Option `ha_notifications_skip_bots` (Standard: aus) — keine HA-Benachrichtigung wenn der Chat ein Bot ist
+
 ## [1.0.26] - 2026-05-16
 
 ### Geändert

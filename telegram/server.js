@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
-const { NewMessage } = require('telegram/events');
+const { NewMessage, Raw } = require('telegram/events');
 const fs = require('fs');
 
 const app = express();
@@ -20,6 +20,7 @@ const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
+const HA_NOTIFY_SKIP_BOTS = process.env.HA_NOTIFY_SKIP_BOTS === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 const SESSION_FILE = '/data/session.txt';
@@ -203,7 +204,7 @@ async function processMessage(rawMsg, chatId, chatName) {
 
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   const msgs = messagesByChatId.get(chatId);
-  msgs.push({ id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe });
+  msgs.push({ id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0 });
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   if (msgs.length > MAX_MSGS) msgs.splice(0, msgs.length - MAX_MSGS);
 
@@ -216,7 +217,9 @@ async function processMessage(rawMsg, chatId, chatName) {
   scheduleSave();
 
   if (!fromMe) {
-    sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
+    if (!(HA_NOTIFY_SKIP_BOTS && chatMap.get(chatId)?.isBot)) {
+      sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
+    }
   }
   if (WEBHOOK_INCOMING && !fromMe) {
     dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
@@ -238,12 +241,16 @@ async function loadDialogs() {
       const chatId = getEntityId(entity);
       const name = getEntityName(entity);
       peerMap.set(chatId, entity);
+      const isBot = entity.bot === true;
       if (!chatMap.has(chatId) || !chatMap.get(chatId).lastTime) {
         chatMap.set(chatId, {
           id: chatId, name, phone: '',
           lastMsg: dialog.message?.message || '',
           lastTime: (dialog.message?.date || 0) * 1000,
+          isBot,
         });
+      } else {
+        chatMap.get(chatId).isBot = isBot;
       }
     }
     scheduleSave();
@@ -304,9 +311,27 @@ async function startClient() {
         const chatId = getEntityId(chat);
         const chatName = getEntityName(chat);
         if (!peerMap.has(chatId)) peerMap.set(chatId, chat);
+        if (chatMap.has(chatId)) chatMap.get(chatId).isBot = chat.bot === true;
         await processMessage(msg, chatId, chatName);
       } catch (e) { dbg(`NewMessage handler error: ${e.message}`); }
     }, new NewMessage({}));
+
+    client.addEventHandler((update) => {
+      if (update.className !== 'UpdateReadHistoryOutbox') return;
+      const peer = update.peer;
+      const chatId = String(peer.userId || peer.chatId || peer.channelId || '');
+      if (!chatId) return;
+      const maxId = update.maxId;
+      const msgs = messagesByChatId.get(chatId);
+      if (!msgs) return;
+      let changed = false;
+      msgs.forEach(m => {
+        if (!m.fromMe || m.ack >= 3) return;
+        const rawId = parseInt(m.id.split('_').pop(), 10);
+        if (rawId <= maxId) { m.ack = 3; changed = true; }
+      });
+      if (changed) dbg(`UpdateReadHistoryOutbox: chatId=${chatId} maxId=${maxId}`);
+    }, new Raw({}));
 
     await loadDialogs();
     console.log(`[INFO] ${chatMap.size} dialogs loaded`);
@@ -385,7 +410,7 @@ app.post('/api/send', async (req, res) => {
       seenMsgIds.add(msgId);
       const ts = Date.now();
       if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
-      messagesByChatId.get(to).push({ id: msgId, from: myId, body: message, timestamp: ts, fromMe: true });
+      messagesByChatId.get(to).push({ id: msgId, from: myId, body: message, timestamp: ts, fromMe: true, ack: 1 });
       if (chatMap.has(to)) { chatMap.get(to).lastMsg = message; chatMap.get(to).lastTime = ts; }
       scheduleSave();
     }
@@ -561,9 +586,14 @@ html.dark .bubble.in { background: #182533; color: #C1C9D4; }
 html.dark .bubble.out { background: #2B5278; color: #fff; }
 html.light .bubble.in { background: #fff; color: #222; }
 html.light .bubble.out { background: #EEFFDE; color: #222; }
-.bubble-time { font-size: 11px; float: right; margin-left: 8px; margin-top: 2px; }
+.bubble-time { font-size: 11px; float: right; margin-left: 8px; margin-top: 2px; white-space: nowrap; }
 html.dark .bubble-time { color: rgba(193,201,212,0.6); }
 html.light .bubble-time { color: rgba(0,0,0,0.35); }
+.msg-ack { font-size: 11px; margin-left: 2px; }
+.ack-1 { color: rgba(193,201,212,0.6); }
+.ack-3 { color: #2AABEE; }
+html.light .ack-1 { color: rgba(0,0,0,0.35); }
+html.light .ack-3 { color: #0284C7; }
 .day-sep { align-self: center; font-size: 12px; padding: 4px 12px; border-radius: 12px; margin: 6px 0; }
 html.dark .day-sep { background: rgba(14,22,33,0.9); color: #6B7B8D; }
 html.light .day-sep { background: rgba(255,255,255,0.8); color: #666; }
@@ -693,6 +723,11 @@ function formatTime(ts) {
   return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function ackMark(ack) {
+  if (!ack) return '';
+  const cls = ack >= 3 ? 'ack-3' : 'ack-1';
+  return \`<span class="msg-ack \${cls}">\${ack >= 3 ? '✓✓' : '✓'}</span>\`;
+}
 
 // ── Status polling ─────────────────────────────────────────────────────────────
 async function refresh() {
@@ -855,7 +890,8 @@ function renderMessages(msgs) {
     } else {
       content=escHtml(m.body);
     }
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}</span></div><button class="del-btn" title="Löschen">✕</button></div>\`;
+    const ack = m.fromMe ? ackMark(m.ack || 0) : '';
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }

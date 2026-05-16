@@ -8,6 +8,7 @@ Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-
 - **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
 - **Fotos**: Empfangene Bilder anzeigen (optional, siehe `download_media`)
 - **Nachrichten löschen**: Nachricht für alle entfernen (Hover → ✕)
+- **Lesebestätigungen**: ✓ gesendet (grau), ✓✓ gelesen (blau) bei eigenen Nachrichten
 - **Ungelesene-Badge**: Blauer Punkt in der Sidebar bei neuen Nachrichten
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
 - **Persistente Session**: Kein erneutes Anmelden nach Neustart
@@ -43,6 +44,7 @@ Bei aktivierter 2-Faktor-Authentifizierung wird danach das Cloud-Passwort abgefr
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 | `ha_notifications_privacy` | `false` | Nur „Telegram / Neue Nachricht" anzeigen — kein Absender, kein Inhalt |
+| `ha_notifications_skip_bots` | `false` | Keine HA-Benachrichtigung für Nachrichten von Bots |
 | `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen (siehe unten) |
 
 ### HA-Benachrichtigungen einrichten
@@ -127,6 +129,7 @@ Telegram as a full client directly in Home Assistant — with chat UI, REST API 
 - **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
 - **Photos**: Display received images (optional, see `download_media`)
 - **Delete messages**: Remove a message for everyone (hover → ✕)
+- **Read receipts**: ✓ sent (grey), ✓✓ read (blue) on outgoing messages
 - **Unread badge**: Blue dot in the sidebar for new messages
 - **Emoji keyboard**: 😊 button in the input field
 - **Persistent session**: No re-login after restart
@@ -162,6 +165,7 @@ If two-factor authentication is enabled, the cloud password will be requested af
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 | `ha_notifications_privacy` | `false` | Show only "Telegram / New message" — no sender name, no content |
+| `ha_notifications_skip_bots` | `false` | Skip HA notifications for messages from bots |
 | `ha_token` | — | Long-lived access token for HA notifications (see below) |
 
 ### Setting up HA notifications
