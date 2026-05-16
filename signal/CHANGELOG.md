@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.7] - 2026-05-16
+
+### Behoben
+- `/v1/qrcodelink` gibt ein PNG-Bild zurück, kein Text-URI — Bild wird jetzt direkt als Data-URL angezeigt statt als QR-Code neu generiert zu werden
+
 ## [1.0.6] - 2026-05-16
 
 ### Behoben

@@ -13,8 +13,9 @@ let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';
-let qrSvg = null;      // inline SVG string for DOM injection
-let qrUri = null;      // raw sgnl:// URI
+let qrSvg = null;      // inline SVG if API returns text URI
+let qrUri = null;      // raw sgnl:// URI (if API returns text)
+let qrDataUrl = null;  // data URL if API returns image directly
 let qrFetching = false;
 
 const chatMap = new Map();           // chatId -> { id, name, phone, lastMsg, lastTime }
@@ -42,6 +43,7 @@ async function checkStatus() {
       status = 'linked';
       qrSvg = null;
       qrUri = null;
+      qrDataUrl = null;
       console.log(`[INFO] Linked as ${PHONE_NUMBER}`);
     }
   } catch (e) {
@@ -56,13 +58,21 @@ async function fetchQR() {
   try {
     const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 30000 });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    qrUri = (await r.text()).trim();
-    qrSvg = await QRCode.toString(qrUri, {
-      type: 'svg',
-      errorCorrectionLevel: 'L',
-      margin: 2,
-    });
-    console.log('[INFO] QR code ready for linking:', qrUri.substring(0, 60) + '...');
+    const contentType = r.headers.get('content-type') || '';
+    if (contentType.includes('image/')) {
+      // API returns a ready-made QR image — use it directly
+      const buf = await r.buffer();
+      qrDataUrl = `data:${contentType.split(';')[0]};base64,` + buf.toString('base64');
+      qrSvg = null;
+      qrUri = null;
+      console.log('[INFO] QR image received from API (' + contentType + ')');
+    } else {
+      // API returns sgnl:// URI as text — generate QR ourselves
+      qrUri = (await r.text()).trim();
+      qrSvg = await QRCode.toString(qrUri, { type: 'svg', errorCorrectionLevel: 'L', margin: 2 });
+      qrDataUrl = null;
+      console.log('[INFO] QR URI received:', qrUri.substring(0, 60) + '...');
+    }
   } catch (e) {
     console.error('[ERROR] QR fetch failed:', e.message);
     lastError = String(e.message || e);
@@ -125,8 +135,8 @@ app.get('/api/status', (req, res) => {
 
 app.get('/api/qr', async (req, res) => {
   if (status === 'linked') return res.json({ status: 'linked' });
-  if (!qrSvg && !qrFetching) fetchQR();
-  res.json({ svg: qrSvg, uri: qrUri, status });
+  if (!qrSvg && !qrDataUrl && !qrFetching) fetchQR();
+  res.json({ svg: qrSvg, dataUrl: qrDataUrl, uri: qrUri, status });
 });
 
 app.get('/api/chats', (req, res) => {
@@ -174,6 +184,7 @@ app.post('/api/send', async (req, res) => {
 app.post('/api/qr/refresh', (req, res) => {
   qrSvg = null;
   qrUri = null;
+  qrDataUrl = null;
   fetchQR();
   res.json({ ok: true });
 });
@@ -191,6 +202,7 @@ app.post('/api/logout', async (req, res) => {
   status = 'not-linked';
   qrSvg = null;
   qrUri = null;
+  qrDataUrl = null;
   chatMap.clear();
   messagesByChatId.clear();
   fetchQR();
@@ -368,14 +380,18 @@ function loadQR() {
       if (d.status === 'linked') { refresh(); return; }
       const el = document.getElementById('qr-img');
       const uriEl = document.getElementById('qr-uri');
-      if (d.svg) {
-        el.innerHTML = d.svg; // direct SVG DOM injection — no scaling artifacts
+      if (d.dataUrl) {
+        // API returned PNG image directly — display as-is
+        el.innerHTML = '<img src="' + d.dataUrl + '" style="width:300px;height:300px;image-rendering:pixelated;">';
+      } else if (d.svg) {
+        // API returned text URI — our generated SVG
+        el.innerHTML = d.svg;
         const svg = el.querySelector('svg');
         if (svg) { svg.style.width = '300px'; svg.style.height = '300px'; }
       } else {
         el.textContent = 'Lade QR-Code…';
       }
-      if (uriEl) uriEl.textContent = d.uri || '';
+      if (uriEl) uriEl.textContent = d.uri ? 'URI: ' + d.uri.substring(0, 40) + '…' : '';
     }).catch(() => {});
   if (!qrInterval) qrInterval = setInterval(loadQR, 5000);
 }
