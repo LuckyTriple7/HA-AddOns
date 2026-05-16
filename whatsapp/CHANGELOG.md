@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.30] - 2026-05-16
+
+### Behoben
+- Uhrzeit in Sprechblasen wurde umgebrochen (`12:54` → `12:5` / `4`) — `white-space: nowrap` verhindert den Zeilenumbruch
+
 ## [1.1.29] - 2026-05-16
 
 ### Neu

@@ -576,7 +576,7 @@ app.get('/', (req, res) => {
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
     .bubble .time {
       font-size: 10px; color: rgba(134,150,160,0.85);
-      float: right; margin-left: 8px; margin-top: 2px;
+      float: right; margin-left: 8px; margin-top: 2px; white-space: nowrap;
     }
     .date-sep {
       align-self: center; font-size: 12px; color: #8696a0;
