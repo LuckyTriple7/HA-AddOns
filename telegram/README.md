@@ -41,6 +41,7 @@ Bei aktivierter 2-Faktor-Authentifizierung wird danach das Cloud-Passwort abgefr
 | `fetch_messages_limit` | `50` | Nachrichten die beim ersten Öffnen eines Chats geladen werden (max. 300) |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
+| `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 
 ## REST-API
 
@@ -151,6 +152,7 @@ If two-factor authentication is enabled, the cloud password will be requested af
 | `fetch_messages_limit` | `50` | Messages loaded when a chat is first opened (max. 300) |
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
+| `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 
 ## REST API
 

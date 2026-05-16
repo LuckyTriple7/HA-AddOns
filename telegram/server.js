@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const http = require('http');
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { NewMessage } = require('telegram/events');
@@ -17,6 +18,7 @@ const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
+const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 const SESSION_FILE = '/data/session.txt';
@@ -131,6 +133,38 @@ async function downloadMedia(rawMsg, msgId) {
   }
 }
 
+function sendHANotification(chatId, senderName, body) {
+  if (!HA_NOTIFY) return;
+  const token = process.env.SUPERVISOR_TOKEN;
+  if (!token) { console.warn('[WARN] HA_NOTIFICATIONS enabled but SUPERVISOR_TOKEN not available'); return; }
+  const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
+  const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
+  const payload = JSON.stringify({
+    title: `Telegram: ${senderName}`,
+    message: preview || '📷 Foto',
+    notification_id: `telegram_${safeId}`,
+  });
+  console.log(`[INFO] Sending HA notification: Telegram: ${senderName}`);
+  const req = http.request('http://supervisor/core/api/services/persistent_notification/create', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  }, (res) => {
+    res.resume();
+    if (res.statusCode !== 200) {
+      console.warn(`[WARN] HA notification returned HTTP ${res.statusCode}`);
+    } else {
+      dbg(`HA notification OK (HTTP 200)`);
+    }
+  });
+  req.on('error', e => console.warn('[WARN] HA notification request error:', e.message));
+  req.write(payload);
+  req.end();
+}
+
 async function processMessage(rawMsg, chatId, chatName) {
   const hasText = !!(rawMsg.message);
   const hasMedia = rawMsg.media && rawMsg.media.className && rawMsg.media.className !== 'MessageMediaEmpty';
@@ -173,6 +207,9 @@ async function processMessage(rawMsg, chatId, chatName) {
   }
   scheduleSave();
 
+  if (!fromMe) {
+    sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
+  }
   if (WEBHOOK_INCOMING && !fromMe) {
     dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
     fetch(WEBHOOK_INCOMING, {

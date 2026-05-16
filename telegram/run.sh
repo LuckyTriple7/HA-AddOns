@@ -9,6 +9,7 @@ export DARK_MODE=$(jq -r 'if .dark_mode == false then "false" else "true" end' /
 export DOWNLOAD_MEDIA=$(jq -r 'if .download_media == true then "true" else "false" end' /data/options.json)
 export FETCH_LIMIT=$(jq -r '.fetch_messages_limit // 50' /data/options.json)
 export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' /data/options.json)
+export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export PORT=17778
 
 mkdir -p /data

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.21] - 2026-05-16
+
+### Neu
+- Option `ha_notifications` (Standard: aus) — bei neuen eingehenden Nachrichten wird eine persistente Benachrichtigung in Home Assistant erstellt; pro Chat wird immer nur eine Benachrichtigung angezeigt (Tag `telegram_<chatId>`), neuere Nachrichten überschreiben ältere
+
 ## [1.0.20] - 2026-05-16
 
 ### Behoben
