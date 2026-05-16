@@ -2,6 +2,17 @@
 
 Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpfen, Nachrichten senden und empfangen, Webhook für Automatisierungen.
 
+## Funktionen
+
+- **QR-Login**: Einmalig QR-Code scannen, Session bleibt dauerhaft erhalten
+- **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
+- **Nachrichten löschen**: Lokal sofort entfernt; platform-seitiges "Für alle löschen" wird im Hintergrund versucht (erfordert aktuelle signal-cli-rest-api)
+- **Ungelesene-Badge**: Grüner Punkt in der Sidebar bei neuen Nachrichten
+- **Emoji-Tastatur**: 😊-Button in der Eingabe
+- **Persistente Session**: Kein erneutes Verknüpfen nach Neustart
+- **REST-API**: Nachrichten aus Automatisierungen heraus senden
+- **Webhook**: Eingehende Nachrichten an eine URL weiterleiten
+
 ## Voraussetzungen
 
 - Ein aktives Signal-Konto auf deinem Handy
@@ -16,55 +27,65 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 
 ## Konfiguration
 
-| Option | Beschreibung |
-|---|---|
-| `phone_number` | Deine Signal-Nummer (optional, wird automatisch erkannt) |
-| `webhook_incoming` | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
+| Option | Standard | Beschreibung |
+|--------|----------|--------------|
+| `phone_number` | — | Deine Signal-Nummer (optional, wird automatisch erkannt) |
+| `dark_mode` | `false` | `true` = dunkles Theme, `false` = helles Theme |
+| `native_mode` | `true` | `true` = nativer Modus (niedrige CPU-Last), `false` = Java-Modus |
+| `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
+| `debug_mode` | `false` | Ausführliches Logging inkl. GIN-Access-Logs für die Fehlersuche |
 
 ## REST-API
 
-| Endpoint | Methode | Beschreibung |
-|---|---|---|
-| `/api/status` | GET | Status und verknüpfte Nummer |
-| `/api/chats` | GET | Liste der Chats |
-| `/api/messages/:id` | GET | Nachrichten eines Chats |
-| `/api/send` | POST | Nachricht senden |
+```
+GET  /api/status                     → { status, phone }
+GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
+GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
+POST /api/send                       → { to, message }
+DELETE /api/messages/:chatId/:msgId  → Nachricht lokal löschen (+ Versuch "Für alle")
+POST /api/logout                     → Abmelden
+```
 
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:3000/api/send \
+curl -X POST http://<HA-IP>:17777/api/send \
   -H "Content-Type: application/json" \
-  -d '{"to": "+49123456789", "message": "Hallo!"}'
+  -d '{"to": "+4915123456789", "message": "Hallo aus HA!"}'
 ```
 
-### Webhook-Format
+`to` ist die Telefonnummer im Format `+49...`.
+
+### Webhook-Format (eingehende Nachrichten)
 
 ```json
 {
-  "from": "+49123456789",
+  "from": "+4915123456789",
   "name": "Max Mustermann",
   "message": "Hallo!",
   "timestamp": 1716123456789
 }
 ```
 
-## HA-Automatisierung (Nachricht senden)
+## HA-Automatisierung (Beispiel)
 
-```yaml
-service: rest_command.signal_send
-data:
-  message: "Bewegung erkannt!"
-  to: "+49123456789"
-```
-
+`configuration.yaml`:
 ```yaml
 rest_command:
   signal_send:
-    url: "http://localhost:3000/api/send"
+    url: http://localhost:17777/api/send
     method: POST
-    content_type: "application/json"
+    content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+Automatisierung:
+```yaml
+action:
+  - service: rest_command.signal_send
+    data:
+      to: "+4915123456789"
+      message: "Bewegung erkannt!"
 ```
 
 ## Hinweise
@@ -72,39 +93,6 @@ rest_command:
 - Basiert auf [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
 - Das Konto wird als verknüpftes Gerät hinzugefügt, nicht als Primärgerät registriert
 - Zum Abmelden: Button "Abmelden" in der UI, danach auch in Signal unter Verknüpfte Geräte entfernen
-
----
-
-# Signal Messenger Add-on (English)
-
-Signal Messenger directly in Home Assistant — link your existing Signal account, send and receive messages, webhook for automations.
-
-## Requirements
-
-- An active Signal account on your phone
-- amd64 or aarch64 hardware
-
-## Setup
-
-1. Install and start the add-on
-2. Open "Signal" in the HA sidebar
-3. Scan the QR code with the Signal app: **Settings → Linked Devices → Link a Device**
-4. Done — the session persists across restarts
-
-## Configuration
-
-| Option | Description |
-|---|---|
-| `phone_number` | Your Signal number (optional, auto-detected) |
-| `webhook_incoming` | URL for incoming messages (HA webhook trigger) |
-
-## REST API
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/status` | GET | Status and linked number |
-| `/api/chats` | GET | List of chats |
-| `/api/messages/:id` | GET | Messages of a chat |
-| `/api/send` | POST | Send a message |
+- "Für alle löschen" erfordert eine aktuelle Version von signal-cli-rest-api; ältere Versionen löschen nur lokal
 
 → [Changelog](CHANGELOG.md)
