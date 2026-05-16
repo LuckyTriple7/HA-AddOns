@@ -478,7 +478,9 @@ app.get('/', (req, res) => {
       font-size: 13px; color: #8696a0; margin-top: 2px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .chat-time { font-size: 11px; color: #8696a0; white-space: nowrap; flex-shrink: 0; align-self: flex-start; margin-top: 3px; }
+    .chat-time { font-size: 11px; color: #8696a0; white-space: nowrap; }
+    .unread-dot { width: 10px; height: 10px; background: #25d366; border-radius: 50%; }
+    html.light .unread-dot { background: #128c7e; }
     .no-chats { color: #8696a0; text-align: center; padding: 32px 16px; font-size: 14px; }
 
     /* ── Right panel ── */
@@ -691,6 +693,7 @@ app.get('/', (req, res) => {
     let selectedChatPhone = null;
     let lastMsgTime = {};
     let allChats = [];
+    let lastSeenTime = {};
     let atBottom = true;
 
     const msgList = document.getElementById('messages');
@@ -806,11 +809,19 @@ app.get('/', (req, res) => {
           '<div class="chat-name">' + esc(chat.name) + '</div>' +
           '<div class="chat-preview">' + esc(chat.lastMsg || '') + '</div>';
 
+        const meta = document.createElement('div');
+        meta.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;';
         const time = document.createElement('div');
         time.className = 'chat-time';
         time.textContent = chat.lastTime ? fmtChatTime(chat.lastTime) : '';
+        meta.appendChild(time);
+        if (chat.id !== selectedChatId && chat.lastTime > (lastSeenTime[chat.id] || 0)) {
+          const dot = document.createElement('div');
+          dot.className = 'unread-dot';
+          meta.appendChild(dot);
+        }
 
-        item.appendChild(av); item.appendChild(info); item.appendChild(time);
+        item.appendChild(av); item.appendChild(info); item.appendChild(meta);
         list.appendChild(item);
       }
     }
@@ -836,6 +847,8 @@ app.get('/', (req, res) => {
       const ph = chat.phone || '';
       document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
 
+      lastSeenTime[chat.id] = chat.lastTime || Date.now();
+      renderChatList(allChats);
       msgList.innerHTML = '';
       lastMsgTime[chat.id] = 0;
       atBottom = true;
@@ -925,6 +938,10 @@ app.get('/', (req, res) => {
       if (currentStatus !== 'connected') return;
       try {
         const chats = await fetch('api/chats').then(r => r.json());
+        chats.forEach(c => {
+          if (!(c.id in lastSeenTime)) lastSeenTime[c.id] = c.lastTime || 0;
+          else if (c.id === selectedChatId) lastSeenTime[c.id] = c.lastTime || lastSeenTime[c.id];
+        });
         allChats = chats;
         renderChatList(chats);
       } catch(e) {}

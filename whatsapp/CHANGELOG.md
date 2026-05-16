@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.20] - 2026-05-16
+
+### Neu
+- Ungelesene-Nachricht-Badge in der Sidebar — kleiner grüner Kreis erscheint unter dem Zeitstempel wenn eine neue Nachricht eintrifft; verschwindet sobald der Chat geöffnet wird
+
 ## [1.1.19] - 2026-05-16
 
 ### Behoben
