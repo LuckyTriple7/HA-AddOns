@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.22] - 2026-05-16
+
+### Behoben
+- `SUPERVISOR_TOKEN` war nicht verfügbar — `hassio_api: true` in config.yaml fehlte; der Supervisor injiziert das Token nur wenn diese Option gesetzt ist
+
 ## [1.0.21] - 2026-05-16
 
 ### Neu
