@@ -3,11 +3,12 @@ FROM jlesage/baseimage-gui:debian-12-v4
 ENV APP_NAME="Firefox" \
     LANG=de_DE.UTF-8
 
-# curl/ca-certificates für Firefox-Download, jq für Optionen-Parsing
+# curl/ca-certificates für Firefox-Download, xz-utils für .tar.xz, jq für Optionen-Parsing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     jq \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 ARG FIREFOX_VERSION=140.10.2esr

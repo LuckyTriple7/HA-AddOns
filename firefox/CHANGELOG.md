@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.4] - 2026-05-16
+
+### Behoben
+- `xz-utils` installiert — `tar -xJ` benötigt xz-Support der im jlesage Base Image fehlt
+
 ## [2.0.3] - 2026-05-16
 
 ### Behoben
