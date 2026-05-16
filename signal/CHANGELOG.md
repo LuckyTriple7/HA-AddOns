@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.23] - 2026-05-16
+
+### Geändert
+- Sidebar-Icon auf `phu:signal` geändert (passend zum installierten Icon-Pack)
+
 ## [1.0.22] - 2026-05-16
 
 ### Behoben

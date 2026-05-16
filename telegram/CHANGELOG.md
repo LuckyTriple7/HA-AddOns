@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2] - 2026-05-16
+
+### Geändert
+- Sidebar-Icon auf `phu:telegram` geändert (passend zum installierten Icon-Pack)
+
+## [1.0.1] - 2026-05-16
+
+### Behoben
+- `node:20-alpine` Base-Image blockiert `/run.sh` durch eigenen ENTRYPOINT — auf `ghcr.io/home-assistant/${BUILD_ARCH}-base:latest` gewechselt
+
 ## [1.0.0] - 2026-05-16
 
 ### Erstveröffentlichung
