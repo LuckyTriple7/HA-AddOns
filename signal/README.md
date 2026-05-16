@@ -96,3 +96,102 @@ action:
 - "Für alle löschen" erfordert eine aktuelle Version von signal-cli-rest-api; ältere Versionen löschen nur lokal
 
 → [Changelog](CHANGELOG.md)
+
+---
+
+# Signal Messenger Add-on (English)
+
+Signal Messenger directly in Home Assistant — link your existing Signal account, send and receive messages, webhook for automations.
+
+## Features
+
+- **QR login**: Scan the QR code once, session persists permanently
+- **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
+- **Delete messages**: Removed locally immediately; platform-side "delete for everyone" is attempted in the background (requires a recent signal-cli-rest-api)
+- **Unread badge**: Green dot in the sidebar for new messages
+- **Emoji keyboard**: 😊 button in the input field
+- **Persistent session**: No re-linking after restart
+- **REST API**: Send messages from automations
+- **Webhook**: Forward incoming messages to a URL
+
+## Requirements
+
+- An active Signal account on your phone
+- amd64 or aarch64 hardware
+
+## Setup
+
+1. Install and start the add-on
+2. Open "Signal" in the HA sidebar
+3. Scan the QR code with the Signal app: **Settings → Linked devices → Add device**
+4. Done — the session persists across restarts
+
+## Configuration
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `phone_number` | — | Your Signal number (optional, detected automatically) |
+| `dark_mode` | `false` | `true` = dark theme, `false` = light theme |
+| `native_mode` | `true` | `true` = native mode (low CPU usage), `false` = Java mode |
+| `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
+| `debug_mode` | `false` | Verbose logging including GIN access logs for troubleshooting |
+
+## REST API
+
+```
+GET  /api/status                     → { status, phone }
+GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
+GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
+POST /api/send                       → { to, message }
+DELETE /api/messages/:chatId/:msgId  → Delete message locally (+ attempt "for everyone")
+POST /api/logout                     → Log out
+```
+
+### Send a message
+
+```bash
+curl -X POST http://<HA-IP>:17777/api/send \
+  -H "Content-Type: application/json" \
+  -d '{"to": "+4915123456789", "message": "Hello from HA!"}'
+```
+
+`to` is the phone number in the format `+49...`.
+
+### Webhook payload (incoming messages)
+
+```json
+{
+  "from": "+4915123456789",
+  "name": "John Doe",
+  "message": "Hello!",
+  "timestamp": 1716123456789
+}
+```
+
+## HA Automation (example)
+
+`configuration.yaml`:
+```yaml
+rest_command:
+  signal_send:
+    url: http://localhost:17777/api/send
+    method: POST
+    content_type: application/json
+    payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+Automation:
+```yaml
+action:
+  - service: rest_command.signal_send
+    data:
+      to: "+4915123456789"
+      message: "Motion detected!"
+```
+
+## Notes
+
+- Based on [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
+- The account is added as a linked device, not registered as a primary device
+- To log out: use the "Log out" button in the UI, then also remove the device in Signal under Linked Devices
+- "Delete for everyone" requires a recent version of signal-cli-rest-api; older versions only delete locally

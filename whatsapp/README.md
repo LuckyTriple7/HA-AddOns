@@ -87,3 +87,93 @@ action:
 - Medien werden in `/data/media/` gespeichert
 
 → [Changelog](CHANGELOG.md)
+
+---
+
+# WhatsApp (English)
+
+WhatsApp Web as a persistent session directly in Home Assistant — with Web UI, REST API and webhook support.
+
+## Features
+
+- **QR Login**: Scan the QR code once, session persists permanently
+- **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
+- **Photos**: Display received images (optional, see `download_media`)
+- **Delete messages**: Remove a message for everyone (hover → ✕)
+- **Unread badge**: Green dot in the sidebar for new messages
+- **Emoji keyboard**: 😊 button in the input field
+- **REST API**: Send messages from automations
+- **Webhook**: Forward incoming messages to a URL
+
+## Configuration
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `dark_mode` | `true` | `true` = dark theme, `false` = light theme |
+| `download_media` | `false` | Automatically download and display received photos (only works reliably for newly incoming messages, not for historical ones) |
+| `webhook_url` | — | URL for confirmation of sent messages |
+| `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
+| `initial_chats` | `30` | Number of chats loaded on startup |
+| `initial_messages` | `20` | Messages per chat loaded on startup |
+| `debug_mode` | `false` | Verbose logging for troubleshooting |
+
+## REST API
+
+```
+GET  /api/status                     → { status, phone }
+GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
+GET  /api/messages?chat=<id>         → [ { id, body, type, timestamp, fromMe } ]
+POST /api/send                       → { to, message }
+DELETE /api/messages/:chatId/:msgId  → Delete message for everyone
+POST /api/logout                     → Log out
+POST /api/reset                      → Reset session (new QR code)
+```
+
+### Send a message
+
+```bash
+curl -X POST http://<HA-IP>:3000/api/send \
+  -H "Content-Type: application/json" \
+  -d '{"to": "4915123456789", "message": "Hello from HA!"}'
+```
+
+`to` can be a phone number (digits only, without `+`) or a full chat ID (`4915123456789@c.us`).
+
+### Webhook payload (incoming messages)
+
+```json
+{
+  "from": "4915123456789@c.us",
+  "body": "Message text",
+  "type": "chat",
+  "timestamp": 1716123456
+}
+```
+
+## HA Automation (example)
+
+`configuration.yaml`:
+```yaml
+rest_command:
+  whatsapp_send:
+    url: http://localhost:3000/api/send
+    method: POST
+    content_type: application/json
+    payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+Automation:
+```yaml
+action:
+  - service: rest_command.whatsapp_send
+    data:
+      to: "4915123456789"
+      message: "Motion detected!"
+```
+
+## Notes
+
+- Requires a WhatsApp account on a smartphone
+- Based on [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) (unofficial, for personal use)
+- Session survives add-on updates and restarts
+- Media files are stored in `/data/media/`
