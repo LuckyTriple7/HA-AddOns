@@ -10,13 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-ARG FIREFOX_VERSION=128.10.0esr
+ARG FIREFOX_VERSION=140.10.2esr
 RUN curl -sL --fail \
-    "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.bz2" \
-    -o /tmp/firefox.tar.bz2 \
-    && tar -xj -C /opt -f /tmp/firefox.tar.bz2 \
+    "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.xz" \
+    -o /tmp/firefox.tar.xz \
+    && tar -xJ -C /opt -f /tmp/firefox.tar.xz \
     && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
-    && rm /tmp/firefox.tar.bz2
+    && rm /tmp/firefox.tar.xz
 
 COPY rootfs/ /
 RUN chmod +x /startapp.sh

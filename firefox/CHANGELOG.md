@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.3] - 2026-05-16
+
+### Behoben
+- Firefox-Download auf `.tar.xz` umgestellt — Mozilla liefert seit Firefox 100+ kein `.tar.bz2` mehr; `tar -xJ` statt `tar -xj`
+- Standard-Version auf `140.10.2esr` (aktuelle ESR) korrigiert
+
 ## [2.0.2] - 2026-05-16
 
 ### Behoben
