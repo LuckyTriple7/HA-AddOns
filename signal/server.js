@@ -58,16 +58,18 @@ async function fetchQR() {
   if (qrFetching) return;
   qrFetching = true;
   try {
-    const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 30000 });
+    console.log('[INFO] Requesting QR code from signal-cli-rest-api...');
+    const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 120000 });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const contentType = r.headers.get('content-type') || '';
+    console.log('[INFO] QR response content-type:', contentType);
     if (contentType.includes('image/')) {
       // API returns a ready-made QR image — use it directly
       const buf = await r.buffer();
       qrDataUrl = `data:${contentType.split(';')[0]};base64,` + buf.toString('base64');
       qrSvg = null;
       qrUri = null;
-      console.log('[INFO] QR image received from API (' + contentType + ')');
+      console.log('[INFO] QR image ready (' + buf.length + ' bytes)');
     } else {
       // API returns sgnl:// URI as text — generate QR ourselves
       qrUri = (await r.text()).trim();
@@ -77,9 +79,13 @@ async function fetchQR() {
     }
   } catch (e) {
     console.error('[ERROR] QR fetch failed:', e.message);
-    lastError = String(e.message || e);
+    lastError = 'QR-Code Fehler: ' + String(e.message || e);
   }
   qrFetching = false;
+  // Retry after 5s if still no QR
+  if (!qrSvg && !qrDataUrl && status === 'not-linked') {
+    setTimeout(fetchQR, 5000);
+  }
 }
 
 async function loadContacts() {
@@ -180,7 +186,7 @@ app.get('/api/status', (req, res) => {
 app.get('/api/qr', async (req, res) => {
   if (status === 'linked') return res.json({ status: 'linked' });
   if (!qrSvg && !qrDataUrl && !qrFetching) fetchQR();
-  res.json({ svg: qrSvg, dataUrl: qrDataUrl, uri: qrUri, status });
+  res.json({ svg: qrSvg, dataUrl: qrDataUrl, uri: qrUri, status, error: (!qrSvg && !qrDataUrl && !qrFetching) ? lastError : null });
 });
 
 app.get('/api/chats', (req, res) => {
@@ -432,8 +438,10 @@ function loadQR() {
         el.innerHTML = d.svg;
         const svg = el.querySelector('svg');
         if (svg) { svg.style.width = '300px'; svg.style.height = '300px'; }
+      } else if (d.error) {
+        el.textContent = 'Fehler: ' + d.error;
       } else {
-        el.textContent = 'Lade QR-Code…';
+        el.textContent = 'Lade QR-Code… (kann bis zu 60s dauern)';
       }
       if (uriEl) uriEl.textContent = d.uri ? 'URI: ' + d.uri.substring(0, 40) + '…' : '';
     }).catch(() => {});

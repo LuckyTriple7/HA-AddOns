@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.11] - 2026-05-16
+
+### Behoben
+- QR-Code erscheint nicht — Timeout von 30s auf 120s erhöht (native-Modus braucht länger); automatischer Retry nach 5s; Fehlermeldung wird angezeigt statt stummes Warten
+
 ## [1.0.10] - 2026-05-16
 
 ### Behoben
