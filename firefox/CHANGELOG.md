@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.6] - 2026-05-16
+
+### Behoben
+- `locales` direkt in der Hauptstage installiert und `locale-gen de_DE.UTF-8` + `update-locale` ausgeführt — behebt `Locale not supported by C library`-Warnung beim Firefox/GTK-Start
+- noVNC `isAndroid`-Patch: `find`-basierte Suche statt hardcodiertem Pfad — findet `browser.js` unabhängig vom genauen Installationsort in der jlesage-Base
+
 ## [2.1.5] - 2026-05-16
 
 ### Behoben

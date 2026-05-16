@@ -34,6 +34,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     jq \
     xz-utils \
+    locales \
+    && locale-gen de_DE.UTF-8 \
+    && update-locale LANG=de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
 ARG FIREFOX_VERSION=140.10.2esr
@@ -44,11 +47,11 @@ RUN curl -sL --fail \
     && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
     && rm /tmp/firefox.tar.xz
 
-# Patch: jlesage's noVNC-ui.js importiert isAndroid aus browser.js,
-# aber neuere noVNC-Versionen haben es entfernt — Shim anhängen.
-RUN echo '' >> /opt/noVNC/core/util/browser.js && \
-    echo 'export function isAndroid() { return /Android/i.test(navigator.userAgent); }' \
-    >> /opt/noVNC/core/util/browser.js
+# Patch: isAndroid fehlt in neueren noVNC-Versionen — browser.js mit find suchen und Shim anhängen.
+RUN find / -path "*/core/util/browser.js" 2>/dev/null | while IFS= read -r f; do \
+      printf '\nexport function isAndroid() { return /Android/i.test(navigator.userAgent); }\n' >> "$f"; \
+      echo "Patched: $f"; \
+    done; true
 
 COPY rootfs/ /
 RUN chmod +x /startapp.sh \
