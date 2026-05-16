@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.34] - 2026-05-16
+
+### Geändert
+- Log-Format einheitlich: alle Meldungen folgen `[LEVEL] [HH:MM:SS] Nachricht`
+
 ## [1.1.33] - 2026-05-16
 
 ### Geändert

@@ -1,4 +1,16 @@
 'use strict';
+(function () {
+  const _ts = () => new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  ['log','warn','error'].forEach(m => {
+    const orig = console[m].bind(console);
+    console[m] = (...a) => {
+      if (a.length && typeof a[0] === 'string' && /^\[(INFO|WARN|ERROR|DEBUG)\]/.test(a[0]))
+        orig(a[0], `[${_ts()}]`, ...a.slice(1));
+      else
+        orig(`[INFO] [${_ts()}]`, ...a);
+    };
+  });
+})();
 
 const { Client, NoAuth } = require('whatsapp-web.js');
 const path = require('path');
