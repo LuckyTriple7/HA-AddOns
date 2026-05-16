@@ -18,7 +18,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | Option | Standard | Beschreibung |
 |--------|----------|--------------|
 | `dark_mode` | `true` | `true` = dunkles Theme, `false` = helles Theme |
-| `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen |
+| `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen (funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten) |
 | `webhook_url` | — | URL für Bestätigung gesendeter Nachrichten |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `initial_chats` | `30` | Anzahl Chats die beim Start geladen werden |
