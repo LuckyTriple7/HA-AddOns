@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # noVNC direkt von GitHub — enthält Clipboard-Sync via navigator.clipboard Browser API
-ARG NOVNC_VERSION=1.4.0
+ARG NOVNC_VERSION=1.7.0
 RUN curl -sL --fail "https://github.com/novnc/noVNC/archive/refs/tags/v${NOVNC_VERSION}.tar.gz" \
        -o /tmp/novnc.tar.gz \
     && tar -xz -C /opt -f /tmp/novnc.tar.gz \
