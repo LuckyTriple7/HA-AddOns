@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.9] - 2026-05-16
+
+### Behoben
+- noVNC `isAndroid`-Patch korrigiert: jlesage's `browser.js` enthält `function isAndroid()` bereits (ohne Export) — statt einer Neudefinition wird jetzt `export { isAndroid };` angehängt; eventuell doppelt angehängte `export function isAndroid`-Zeilen werden vorher per `sed` bereinigt
+
 ## [2.1.8] - 2026-05-16
 
 ### Behoben
