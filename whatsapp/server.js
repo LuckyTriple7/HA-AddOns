@@ -162,15 +162,11 @@ client.on('ready', async () => {
           const c = await msg.getContact().catch(() => null);
           contactName = c?.pushname || c?.name || msg.author?.replace('@c.us', '') || contactName;
         }
-        let type = 'text', mediaFile = null;
-        if (isImage) {
-          type = 'photo';
-          if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
-        }
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
-          type, mediaFile,
+          type: isImage ? 'photo' : 'text',
+          mediaFile: null,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
           contact: contactName,

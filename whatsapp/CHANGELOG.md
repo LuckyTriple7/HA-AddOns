@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.13] - 2026-05-16
+
+### Behoben
+- Puppeteer-Frame-Fehler beim Start mit `download_media: true` — historische Nachrichten beim Startup-Laden werden nicht mehr heruntergeladen (Puppeteer kann das nicht parallel zu hunderten Nachrichten); Bilder werden nur noch für neu eingehende Nachrichten geladen
+
 ## [1.1.12] - 2026-05-16
 
 ### Neu
