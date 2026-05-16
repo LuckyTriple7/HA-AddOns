@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     novnc \
     websockify \
     openbox \
+    autocutsel \
     locales \
     dbus-x11 \
     libpci3 \

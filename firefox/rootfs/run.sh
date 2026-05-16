@@ -11,7 +11,7 @@ fi
 PROFILE_DIR=/data/profile
 mkdir -p "$PROFILE_DIR"
 
-# Downloads nach /share/firefox (HA shared directory, für alle Add-ons zugänglich)
+# Downloads nach /share/firefox (HA shared directory)
 mkdir -p /share/firefox
 
 # user.js: Sprache, Software-Rendering, Download-Ordner
@@ -37,14 +37,28 @@ user_pref("media.memory_cache_max_size", ${MEM_CACHE_KB});
 EOF
 fi
 
+# Openbox-Konfiguration: Firefox ohne Fensterrahmen und maximiert
+# (verhindert dass der Schließen-Button im VNC-Fenster sichtbar ist)
+mkdir -p /root/.config/openbox
+cat > /root/.config/openbox/rc.xml << 'OBCONF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <applications>
+    <application class="Firefox*">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+    </application>
+  </applications>
+</openbox_config>
+OBCONF
+
 cleanup() {
-    kill "$XVNC_PID" "$NOVNC_PID" 2>/dev/null || true
+    kill "$XVNC_PID" "$NOVNC_PID" "$AC1_PID" "$AC2_PID" 2>/dev/null || true
     [ -n "${DBUS_SESSION_BUS_PID:-}" ] && kill "$DBUS_SESSION_BUS_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
 
 # TigerVNC starten — virtuelles Display + VNC-Server in einem
-# Unterstützt resize=remote: passt die Auflösung dynamisch an den Browser an
 Xvnc :1 -geometry 1280x800 -depth 24 -rfbport 5900 -SecurityTypes None &
 XVNC_PID=$!
 sleep 1
@@ -52,8 +66,16 @@ sleep 1
 # DBus starten
 eval "$(dbus-launch --sh-syntax 2>/dev/null)" || true
 
-# Openbox Window Manager starten — nötig damit Firefox-Menüs/Popups korrekt funktionieren
+# Openbox Window Manager starten (mit Konfiguration oben)
 DISPLAY=:1 openbox &
+sleep 0.5
+
+# Zwischenablage synchronisieren: CLIPBOARD ↔ PRIMARY ↔ VNC
+# Ermöglicht Copy/Paste zwischen Host-Browser und Firefox im VNC
+DISPLAY=:1 autocutsel &
+AC1_PID=$!
+DISPLAY=:1 autocutsel -selection PRIMARY &
+AC2_PID=$!
 
 # noVNC / WebSocket-Proxy starten
 websockify --web /usr/share/novnc/ 5800 localhost:5900 &

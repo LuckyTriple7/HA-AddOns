@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.5] - 2026-05-16
+
+### Neu
+- Clipboard-Sync: `autocutsel` synchronisiert X11 CLIPBOARD ↔ PRIMARY ↔ VNC — Copy/Paste zwischen Host-Browser und Firefox funktioniert jetzt
+
+### Behoben
+- Firefox-Fenster hatte Schließen-Button sichtbar — Openbox-Konfiguration entfernt Fensterrahmen für Firefox-Fenster und maximiert es automatisch
+
 ## [1.0.4] - 2026-05-16
 
 ### Neu
