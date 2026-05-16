@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """
-CDP proxy for the Playwright Browser Home Assistant add-on.
+CDP proxy with lazy Chromium start for the Playwright Browser Home Assistant add-on.
 
-Problem: Chromium returns ws://localhost:INTERNAL_PORT/... in CDP responses.
-External clients (other containers) cannot resolve 'localhost' to this container.
-
-Solution: proxy all CDP traffic, rewrite localhost in JSON responses to the
-container hostname so WebSocket URLs are externally reachable.
-
-WebSocket connections (/devtools/*) are forwarded transparently as raw bytes.
+Chromium is started on the first incoming connection and stopped after
+IDLE_TIMEOUT_MINUTES of inactivity (no active WebSocket connections).
+HTTP-only requests (e.g. /json/version) also reset the idle timer.
 """
 import http.client
 import http.server
 import os
 import socket
+import subprocess
 import sys
 import threading
+import time
 
 INTERNAL_HOST = '127.0.0.1'
 INTERNAL_PORT = int(os.environ.get('INTERNAL_PORT', '9223'))
 EXTERNAL_PORT = int(os.environ.get('EXTERNAL_PORT', '9222'))
 EXTERNAL_HOST = socket.gethostname()
+CHROMIUM_BIN = os.environ.get('CHROMIUM_BIN', 'chromium')
+TMPDIR = os.environ.get('CHROMIUM_TMPDIR', '/tmp/chromium-profile')
+IDLE_TIMEOUT = int(os.environ.get('IDLE_TIMEOUT_MINUTES', '5')) * 60
 
 _SRCS = [
     f'localhost:{INTERNAL_PORT}'.encode(),
@@ -28,11 +29,112 @@ _SRCS = [
 ]
 _DST = f'{EXTERNAL_HOST}:{EXTERNAL_PORT}'.encode()
 
+# State (protected by _lock where noted)
+_lock = threading.Lock()
+_chromium_proc = None   # protected by _lock
+_active_ws = 0          # protected by _lock
+_last_activity = time.monotonic()  # protected by _lock
+
 
 def rewrite(body: bytes) -> bytes:
     for src in _SRCS:
         body = body.replace(src, _DST)
     return body
+
+
+def _chromium_cmd():
+    return [
+        CHROMIUM_BIN,
+        '--headless',
+        '--no-sandbox',
+        '--disable-gpu',
+        '--disable-gpu-compositing',
+        '--disable-dev-shm-usage',
+        '--disable-setuid-sandbox',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-client-side-phishing-detection',
+        '--disable-sync',
+        '--disable-translate',
+        '--metrics-recording-only',
+        '--safebrowsing-disable-auto-update',
+        '--disable-extensions',
+        '--disable-component-extensions-with-background-pages',
+        '--mute-audio',
+        '--no-pings',
+        '--disable-features=MediaRouter,TranslateUI',
+        f'--remote-debugging-port={INTERNAL_PORT}',
+        f'--remote-debugging-address={INTERNAL_HOST}',
+        f'--user-data-dir={TMPDIR}',
+    ]
+
+
+def _wait_ready(timeout=30):
+    for _ in range(timeout):
+        try:
+            conn = http.client.HTTPConnection(INTERNAL_HOST, INTERNAL_PORT, timeout=1)
+            conn.request('GET', '/json/version')
+            resp = conn.getresponse()
+            if resp.status == 200:
+                resp.read()
+                return True
+        except Exception:
+            pass
+        time.sleep(1)
+    return False
+
+
+def ensure_chromium():
+    """Start Chromium if not running. Blocks until ready. Returns True on success."""
+    global _chromium_proc, _last_activity
+    with _lock:
+        _last_activity = time.monotonic()
+        if _chromium_proc is not None and _chromium_proc.poll() is None:
+            return True
+        print('[INFO] Chromium starting...', flush=True)
+        os.makedirs(TMPDIR, exist_ok=True)
+        _chromium_proc = subprocess.Popen(
+            _chromium_cmd(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # _lock held during wait — serialises concurrent connection attempts
+        if not _wait_ready():
+            print('[ERROR] Chromium did not become ready in time!', flush=True)
+            try:
+                _chromium_proc.kill()
+            except Exception:
+                pass
+            _chromium_proc = None
+            return False
+        print('[INFO] Chromium ready.', flush=True)
+        return True
+
+
+def stop_chromium():
+    global _chromium_proc
+    with _lock:
+        if _chromium_proc is None or _chromium_proc.poll() is not None:
+            return
+        print('[INFO] Stopping Chromium (idle timeout).', flush=True)
+        _chromium_proc.terminate()
+        try:
+            _chromium_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _chromium_proc.kill()
+        _chromium_proc = None
+
+
+def _idle_watcher():
+    while True:
+        time.sleep(30)
+        with _lock:
+            running = _chromium_proc is not None and _chromium_proc.poll() is None
+            ws = _active_ws
+            idle = time.monotonic() - _last_activity
+        if running and ws == 0 and idle >= IDLE_TIMEOUT:
+            stop_chromium()
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -46,6 +148,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._proxy_http()
 
     def _proxy_http(self):
+        if not ensure_chromium():
+            try:
+                self.send_error(503, 'Chromium unavailable')
+            except Exception:
+                pass
+            return
         try:
             conn = http.client.HTTPConnection(INTERNAL_HOST, INTERNAL_PORT, timeout=30)
             headers = dict(self.headers)
@@ -53,7 +161,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             conn.request('GET', self.path, headers=headers)
             resp = conn.getresponse()
             body = rewrite(resp.read())
-
             self.send_response(resp.status)
             for name, value in resp.getheaders():
                 if name.lower() not in ('transfer-encoding', 'content-length', 'content-encoding'):
@@ -69,10 +176,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
 
     def _proxy_ws(self):
+        global _active_ws, _last_activity
+        if not ensure_chromium():
+            return
         backend = None
         try:
             backend = socket.create_connection((INTERNAL_HOST, INTERNAL_PORT), timeout=10)
-
             lines = [f'GET {self.path} HTTP/1.1']
             for k, v in self.headers.items():
                 lines.append('Host: localhost' if k.lower() == 'host' else f'{k}: {v}')
@@ -80,6 +189,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             backend.sendall('\r\n'.join(lines).encode())
 
             client = self.connection
+            with _lock:
+                _active_ws += 1
+                _last_activity = time.monotonic()
 
             def pipe(src, dst):
                 try:
@@ -104,6 +216,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sys.stderr.write(f'WS error: {e}\n')
             sys.stderr.flush()
         finally:
+            with _lock:
+                _active_ws = max(0, _active_ws - 1)
+                _last_activity = time.monotonic()
             if backend:
                 try:
                     backend.close()
@@ -112,6 +227,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    os.makedirs(TMPDIR, exist_ok=True)
+    threading.Thread(target=_idle_watcher, daemon=True).start()
     srv = http.server.ThreadingHTTPServer(('0.0.0.0', EXTERNAL_PORT), Handler)
-    print(f'CDP proxy :{EXTERNAL_PORT} -> {INTERNAL_HOST}:{INTERNAL_PORT} (hostname: {EXTERNAL_HOST})', flush=True)
+    print(
+        f'CDP proxy :{EXTERNAL_PORT} -> {INTERNAL_HOST}:{INTERNAL_PORT} '
+        f'(lazy start, idle={IDLE_TIMEOUT}s, hostname={EXTERNAL_HOST})',
+        flush=True,
+    )
     srv.serve_forever()

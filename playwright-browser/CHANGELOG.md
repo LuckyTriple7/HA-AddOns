@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.6 - 2026-05-16
+
+### Geändert
+- Lazy Start: Chromium startet erst beim ersten eingehenden CDP-Verbindungsversuch und wird nach Ablauf des Leerlauf-Timeouts automatisch beendet — 0% CPU wenn kein Client verbunden ist
+- Neue Option `idle_timeout` (Standard: 5 Minuten) — Chromium stoppt wenn so lange keine aktive WebSocket-Verbindung besteht
+- Weitere Chromium-Flags zum Reduzieren der Hintergrundaktivität: `--disable-extensions`, `--disable-gpu-compositing`, `--mute-audio`, `--no-pings`, `--disable-features=MediaRouter,TranslateUI`
+
 ## 1.0.5 - 2026-05-15
 
 ### Geändert
