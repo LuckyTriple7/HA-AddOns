@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.8] - 2026-05-16
+
+### Neu
+- Kontakte und Gruppen werden nach dem Verknüpfen automatisch geladen (`/v1/contacts`, `/v1/groups`) und in der Chat-Liste angezeigt
+- Kontakte/Gruppen werden alle 60 Sekunden aktualisiert
+
 ## [1.0.7] - 2026-05-16
 
 ### Behoben

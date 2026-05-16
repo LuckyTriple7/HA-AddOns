@@ -45,6 +45,8 @@ async function checkStatus() {
       qrUri = null;
       qrDataUrl = null;
       console.log(`[INFO] Linked as ${PHONE_NUMBER}`);
+      loadContacts();
+      loadGroups();
     }
   } catch (e) {
     if (status === 'starting') status = 'error';
@@ -78,6 +80,48 @@ async function fetchQR() {
     lastError = String(e.message || e);
   }
   qrFetching = false;
+}
+
+async function loadContacts() {
+  if (!PHONE_NUMBER) return;
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/contacts/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 10000 });
+    if (!r.ok) return;
+    const contacts = await r.json();
+    if (!Array.isArray(contacts)) return;
+    for (const c of contacts) {
+      const num = c.number || c.phone;
+      if (!num || num === PHONE_NUMBER) continue;
+      if (!chatMap.has(num)) {
+        chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0 });
+      } else if (c.name) {
+        chatMap.get(num).name = c.name;
+      }
+    }
+    console.log(`[INFO] Loaded ${contacts.length} contacts`);
+  } catch (e) {
+    console.error('[ERROR] loadContacts:', e.message);
+  }
+}
+
+async function loadGroups() {
+  if (!PHONE_NUMBER) return;
+  try {
+    const r = await fetch(`${SIGNAL_API}/v1/groups/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 10000 });
+    if (!r.ok) return;
+    const groups = await r.json();
+    if (!Array.isArray(groups)) return;
+    for (const g of groups) {
+      const id = g.id || g.internal_id;
+      if (!id) continue;
+      if (!chatMap.has(id)) {
+        chatMap.set(id, { id, name: g.name || 'Gruppe', phone: '', lastMsg: '', lastTime: 0, isGroup: true });
+      }
+    }
+    console.log(`[INFO] Loaded ${groups.length} groups`);
+  } catch (e) {
+    console.error('[ERROR] loadGroups:', e.message);
+  }
 }
 
 function processEnvelope(envelope) {
@@ -577,8 +621,10 @@ async function init() {
   }
   await checkStatus();
   if (status === 'not-linked') fetchQR();
+  if (status === 'linked') { loadContacts(); loadGroups(); }
   setInterval(checkStatus, 5000);
   setInterval(pollMessages, 3000);
+  setInterval(() => { if (status === 'linked') { loadContacts(); loadGroups(); } }, 60000);
 }
 
 app.listen(PORT, () => {
