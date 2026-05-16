@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tigervnc-standalone-server \
     novnc \
     websockify \
+    openbox \
     locales \
     dbus-x11 \
     libpci3 \

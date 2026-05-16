@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4] - 2026-05-16
+
+### Neu
+- Downloads werden in `/share/firefox` gespeichert — persistentes HA-Shared-Verzeichnis, für alle Add-ons zugänglich
+
+### Behoben
+- Firefox-Menüs und Popups verschwanden bei Mausbewegung — Openbox Window Manager hinzugefügt; ohne WM verlor Firefox den Fokus bei VNC-Maus-Events
+
 ## [1.0.3] - 2026-05-16
 
 ### Geändert

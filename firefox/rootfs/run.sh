@@ -11,13 +11,18 @@ fi
 PROFILE_DIR=/data/profile
 mkdir -p "$PROFILE_DIR"
 
-# user.js: Sprache + Software-Rendering (kein GPU in virtueller Anzeige)
+# Downloads nach /share/firefox (HA shared directory, für alle Add-ons zugänglich)
+mkdir -p /share/firefox
+
+# user.js: Sprache, Software-Rendering, Download-Ordner
 {
     echo 'user_pref("intl.locale.requested", "de");'
     echo 'user_pref("browser.search.region", "DE");'
     echo 'user_pref("browser.search.isUS", false);'
     echo 'user_pref("layers.acceleration.disabled", true);'
     echo 'user_pref("gfx.webrender.all", false);'
+    echo 'user_pref("browser.download.folderList", 2);'
+    echo 'user_pref("browser.download.dir", "/share/firefox");'
 } > "$PROFILE_DIR/user.js"
 
 if [ "${MEMORY_LIMIT_MB:-0}" -gt 0 ] 2>/dev/null; then
@@ -46,6 +51,9 @@ sleep 1
 
 # DBus starten
 eval "$(dbus-launch --sh-syntax 2>/dev/null)" || true
+
+# Openbox Window Manager starten — nötig damit Firefox-Menüs/Popups korrekt funktionieren
+DISPLAY=:1 openbox &
 
 # noVNC / WebSocket-Proxy starten
 websockify --web /usr/share/novnc/ 5800 localhost:5900 &
