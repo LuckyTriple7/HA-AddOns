@@ -476,6 +476,7 @@ html.light .chat-preview { color: #999; }
 .chat-time { font-size: 12px; white-space: nowrap; }
 html.dark .chat-time { color: #6B7B8D; }
 html.light .chat-time { color: #999; }
+.unread-dot { width: 10px; height: 10px; border-radius: 50%; background: #2AABEE; }
 
 /* ── Chat panel ── */
 #chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -623,6 +624,7 @@ const BASE = location.pathname.replace(/\\/+$/, '');
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
+let lastSeenTime = {};
 
 function api(p) { return BASE + p; }
 
@@ -716,6 +718,10 @@ async function logout() {
 async function loadChats() {
   try {
     const chats = await fetch(api('/api/chats')).then(r=>r.json());
+    chats.forEach(c => {
+      if (!(c.id in lastSeenTime)) lastSeenTime[c.id] = c.lastTime || 0;
+      else if (c.id === selectedChatId) lastSeenTime[c.id] = c.lastTime || lastSeenTime[c.id];
+    });
     allChats = chats;
     renderChats(chats);
     if (selectedChatId) loadMessages(selectedChatId);
@@ -733,7 +739,10 @@ function renderChats(chats) {
         <div class="chat-name">\${escHtml(c.name||c.id)}</div>
         <div class="chat-preview">\${escHtml(c.lastMsg||'')}</div>
       </div>
-      <div class="chat-time">\${formatTime(c.lastTime)}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+        <div class="chat-time">\${formatTime(c.lastTime)}</div>
+        \${c.id!==selectedChatId&&c.lastTime>(lastSeenTime[c.id]||0)?'<div class="unread-dot"></div>':''}
+      </div>
     </div>
   \`).join('');
 }
@@ -744,6 +753,7 @@ function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openCha
 
 function openChat(chat) {
   selectedChatId = chat.id;
+  lastSeenTime[chat.id] = chat.lastTime || Date.now();
   document.body.classList.add('chat-open');
   document.getElementById('no-chat-wrap').style.display = 'none';
   document.getElementById('chat-header').style.display = 'flex';

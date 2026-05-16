@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.16] - 2026-05-16
+
+### Neu
+- Ungelesene-Nachricht-Badge in der Sidebar — blauer Kreis erscheint unter dem Zeitstempel wenn eine neue Nachricht eintrifft; verschwindet sobald der Chat geöffnet wird
+
 ## [1.0.15] - 2026-05-16
 
 ### Behoben
