@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.9] - 2026-05-16
+
+### Neu
+- Option `dark_mode` (Standard: ein = dunkler Hintergrund) in den Add-on-Einstellungen — ausschalten für helles Theme
+
 ## [1.1.8] - 2026-05-16
 
 ### Neu

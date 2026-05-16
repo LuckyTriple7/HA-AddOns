@@ -38,6 +38,7 @@ let status = 'initializing';
 let connectedPhone = null;
 let lastError = null;
 
+const DARK_MODE = process.env.DARK_MODE !== 'false';
 const MAX_MSGS_PER_CHAT = 200;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
@@ -333,7 +334,7 @@ app.post('/api/reset', async (req, res) => {
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -509,6 +510,39 @@ app.get('/', (req, res) => {
     .overlay p { color: #8696a0; font-size: 14px; text-align: center; line-height: 1.7; }
     .overlay h2 { font-size: 20px; }
     #qr-overlay img { background: #fff; padding: 16px; border-radius: 12px; max-width: 280px; }
+
+    html.light body { background: #f0f2f5; color: #111; }
+    html.light .overlay { background: #f0f2f5; }
+    html.light .overlay p { color: #555; }
+    html.light .topbar { background: #075e54; }
+    html.light #sidebar { background: #fff; border-color: #e0e0e0; }
+    html.light #sidebar-header { background: #f0f2f5; border-color: #e0e0e0; }
+    html.light #search { background: #f5f5f5; color: #111; }
+    html.light #search::placeholder { color: #999; }
+    html.light .chat-item { border-color: #f5f5f5; }
+    html.light .chat-item:hover { background: #f5f5f5; }
+    html.light .chat-item.active { background: #e9edf5; }
+    html.light .chat-name { color: #111; }
+    html.light .chat-preview { color: #999; }
+    html.light .chat-time { color: #999; }
+    html.light .no-chats { color: #777; }
+    html.light #chat-panel { background: #e5ddd5; }
+    html.light #chat-header { background: #075e54; border-color: #075e54; }
+    html.light #ch-name { color: #fff; }
+    html.light #ch-phone { color: rgba(255,255,255,0.75); }
+    html.light #welcome { color: #555; }
+    html.light .bubble-wrap.in .bubble { background: #fff; color: #111; }
+    html.light .bubble-wrap.out .bubble { background: #dcf8c6; color: #111; }
+    html.light .bubble .time { color: rgba(0,0,0,0.4); }
+    html.light .date-sep { color: #666; background: rgba(225,245,254,0.92); }
+    html.light .contact-name { color: #666; }
+    html.light .empty-msg { color: #777; }
+    html.light #send-bar { background: #f0f2f5; border-color: #e0e0e0; }
+    html.light #msg-input { background: #fff; color: #111; }
+    html.light #msg-input::placeholder { color: #999; }
+    html.light #emoji-picker { background: #fff; border-color: #e0e0e0; }
+    html.light .emoji-btn:hover { background: #f0f2f5; }
+    html.light #emoji-toggle { color: #555; }
   </style>
 </head>
 <body>

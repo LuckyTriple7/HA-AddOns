@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 const SIGNAL_API = process.env.SIGNAL_API_URL || 'http://localhost:8080';
 const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
+const DARK_MODE = process.env.DARK_MODE === 'true';
 
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';
@@ -315,7 +316,7 @@ app.get('*', (req, res) => {
 
 function getHtml() {
   return `<!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -392,6 +393,28 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
   body.chat-open #sidebar { display: none; }
   body.chat-open #chat-panel { display: flex; }
 }
+
+html.dark body { background: #0b141a; color: #e9edef; }
+html.dark #sidebar { background: #111b21; border-color: #2a3942; }
+html.dark #search-wrap { border-color: #2a3942; }
+html.dark #search-input { background: #2a3942; color: #e9edef; }
+html.dark .chat-item { border-color: #1e2b32; }
+html.dark .chat-item:hover { background: #202c33; }
+html.dark .chat-item.active { background: #2a3942; }
+html.dark .chat-name { color: #e9edef; }
+html.dark .chat-preview { color: #8696a0; }
+html.dark .chat-time { color: #8696a0; }
+html.dark #chat-panel { background: #0b141a; }
+html.dark .bubble.in { background: #202c33; color: #e9edef; }
+html.dark .bubble.out { background: #005c4b; color: #e9edef; }
+html.dark .bubble-time { color: rgba(134,150,160,0.85); }
+html.dark .day-sep span { background: rgba(17,27,33,0.9); color: #8696a0; }
+html.dark #no-chat { color: #8696a0; }
+html.dark #input-bar { background: #202c33; }
+html.dark #msg-input { background: #2a3942; color: #e9edef; }
+html.dark #emoji-picker { background: #202c33; border-color: #2a3942; }
+html.dark .emoji-btn:hover { background: #2a3942; }
+html.dark #emoji-toggle { color: #8696a0; }
 </style>
 </head>
 <body>
