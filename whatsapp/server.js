@@ -179,6 +179,7 @@ client.on('ready', async () => {
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
           contact: contactName,
+          ack: msg.ack || 0,
         });
       }
     }
@@ -259,7 +260,22 @@ client.on('message_create', async (msg) => {
     timestamp: msg.timestamp * 1000,
     fromMe: true,
     contact: 'Ich',
+    ack: msg.ack || 1,
   });
+});
+
+client.on('message_ack', (msg, ack) => {
+  dbg(`message_ack: ${msg.id._serialized} ack=${ack}`);
+  const msgs = messagesByChatId.get(msg.to);
+  if (msgs) {
+    const stored = msgs.find(m => m.id === msg.id._serialized);
+    if (stored) { stored.ack = ack; return; }
+  }
+  // Fallback: Gruppen-Chats haben andere chatId-Struktur
+  for (const list of messagesByChatId.values()) {
+    const stored = list.find(m => m.id === msg.id._serialized);
+    if (stored) { stored.ack = ack; break; }
+  }
 });
 
 client.initialize().catch((err) => {
@@ -388,6 +404,7 @@ app.post('/api/send', async (req, res) => {
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
+      ack: 1,
     });
     res.json({ success: true, id: result.id._serialized });
   } catch (err) {
@@ -583,6 +600,11 @@ app.get('/', (req, res) => {
       font-size: 10px; color: rgba(134,150,160,0.85);
       float: right; margin-left: 8px; margin-top: 2px; white-space: nowrap;
     }
+    .msg-ack { font-size: 12px; margin-left: 2px; vertical-align: middle; }
+    .ack-1, .ack-2 { color: rgba(134,150,160,0.85); }
+    .ack-3 { color: #53bdeb; }
+    html.light .ack-1, html.light .ack-2 { color: rgba(0,0,0,0.4); }
+    html.light .ack-3 { color: #0a84ff; }
     .date-sep {
       align-self: center; font-size: 12px; color: #8696a0;
       background: rgba(17,27,33,0.9); border-radius: 8px;
@@ -795,6 +817,12 @@ app.get('/', (req, res) => {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
     }
+    function ackMark(ack) {
+      if (ack >= 3) return '<span class="msg-ack ack-3">✓✓</span>';
+      if (ack === 2) return '<span class="msg-ack ack-2">✓✓</span>';
+      if (ack === 1) return '<span class="msg-ack ack-1">✓</span>';
+      return '';
+    }
     function autoResize(el) {
       el.style.height = 'auto';
       el.style.height = Math.min(el.scrollHeight, 120) + 'px';
@@ -960,6 +988,7 @@ app.get('/', (req, res) => {
         }
         const bub = document.createElement('div');
         bub.className = 'bubble';
+        const ack = m.fromMe ? ackMark(m.ack || 0) : '';
         if (m.type === 'photo' && m.mediaFile) {
           const img = document.createElement('img');
           img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
@@ -968,9 +997,9 @@ app.get('/', (req, res) => {
           img.addEventListener('click', function() { this.style.maxWidth = this.style.maxWidth === 'none' ? '240px' : 'none'; });
           bub.appendChild(img);
           if (m.body) { const cap = document.createElement('div'); cap.style.marginTop = '4px'; cap.textContent = m.body; bub.appendChild(cap); }
-          const t = document.createElement('span'); t.className = 'time'; t.textContent = fmtTime(m.timestamp); bub.appendChild(t);
+          const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
         } else {
-          bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+          bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         }
         const bri = document.createElement('div');
         bri.className = 'bubble-row-inner';

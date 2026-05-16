@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.32] - 2026-05-16
+
+### Neu
+- Haken für gesendete Nachrichten: ✓ gesendet (grau), ✓✓ zugestellt (grau), ✓✓ gelesen (blau) — Status aktualisiert sich in Echtzeit über das `message_ack`-Event
+
 ## [1.1.31] - 2026-05-16
 
 ### Neu
