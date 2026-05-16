@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7 - 2026-05-16
+
+### Neu
+- Verbindungs-Logging: Client-IP und Anzahl aktiver WebSocket-Verbindungen werden beim Verbinden und Trennen geloggt
+- Chromium-Start durch HTTP-Request wird ebenfalls geloggt (z.B. wenn Playwright zuerst `/json/version` abfragt)
+
 ## 1.0.6 - 2026-05-16
 
 ### Geändert

@@ -148,12 +148,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._proxy_http()
 
     def _proxy_http(self):
+        was_running = _chromium_proc is not None and _chromium_proc.poll() is None
         if not ensure_chromium():
             try:
                 self.send_error(503, 'Chromium unavailable')
             except Exception:
                 pass
             return
+        if not was_running:
+            print(f'[INFO] HTTP request triggered Chromium start ({self.client_address[0]}: {self.path})', flush=True)
         try:
             conn = http.client.HTTPConnection(INTERNAL_HOST, INTERNAL_PORT, timeout=30)
             headers = dict(self.headers)
@@ -192,6 +195,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with _lock:
                 _active_ws += 1
                 _last_activity = time.monotonic()
+                ws_count = _active_ws
+            print(f'[INFO] Client connected: {self.client_address[0]} (active WebSocket connections: {ws_count})', flush=True)
 
             def pipe(src, dst):
                 try:
@@ -219,6 +224,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with _lock:
                 _active_ws = max(0, _active_ws - 1)
                 _last_activity = time.monotonic()
+                ws_count = _active_ws
+            print(f'[INFO] Client disconnected: {self.client_address[0]} (active WebSocket connections: {ws_count})', flush=True)
             if backend:
                 try:
                     backend.close()
