@@ -28,13 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && update-locale LANG=de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
-# noVNC direkt von GitHub (neueste Version) — enthält automatischen Clipboard-Sync
-# via Browser Clipboard API (navigator.clipboard); Debian-Paket ist zu alt dafür
-RUN NOVNC_TAG=$(curl -s https://api.github.com/repos/novnc/noVNC/releases/latest | grep '"tag_name"' | cut -d'"' -f4) \
-    && NOVNC_VERSION=$(echo "$NOVNC_TAG" | tr -d 'v') \
-    && echo "Installing noVNC ${NOVNC_TAG}" \
-    && curl -sL "https://github.com/novnc/noVNC/archive/refs/tags/${NOVNC_TAG}.tar.gz" \
-       | tar -xz -C /opt \
+# noVNC direkt von GitHub — enthält Clipboard-Sync via navigator.clipboard Browser API
+ARG NOVNC_VERSION=1.5.0
+RUN curl -sL --fail "https://github.com/novnc/noVNC/archive/refs/tags/v${NOVNC_VERSION}.tar.gz" \
+    | tar -xz -C /opt \
     && mv /opt/noVNC-${NOVNC_VERSION} /opt/novnc
 
 COPY rootfs/ /

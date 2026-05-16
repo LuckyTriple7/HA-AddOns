@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8] - 2026-05-16
+
+### Behoben
+- noVNC-Download im Docker-Build schlägt nicht mehr fehl — GitHub API Rate Limit im CI umgangen; Version jetzt hardcodiert (v1.5.0) statt dynamisch per API abgefragt
+
 ## [1.0.7] - 2026-05-16
 
 ### Geändert
