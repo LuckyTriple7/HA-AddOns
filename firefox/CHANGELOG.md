@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.9] - 2026-05-16
+
+### Behoben
+- noVNC-Version auf v1.4.0 korrigiert (v1.5.0 existiert nicht); curl-Fehler durch temporäre Datei statt Pipe sichtbar gemacht
+
 ## [1.0.8] - 2026-05-16
 
 ### Behoben
