@@ -44,11 +44,13 @@ RUN curl -sL --fail \
     && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
     && rm /tmp/firefox.tar.xz
 
-# Patch: isAndroid fehlt in neueren noVNC-Versionen — browser.js mit find suchen und Shim anhängen.
-RUN find / -path "*/core/util/browser.js" 2>/dev/null | while IFS= read -r f; do \
-      printf '\nexport function isAndroid() { return /Android/i.test(navigator.userAgent); }\n' >> "$f"; \
-      echo "Patched: $f"; \
-    done; true
+# Patch: isAndroid fehlt in noVNC 1.7.0 — direkt in bekanntem Pfad patchen, find als Fallback.
+RUN js=/opt/noVNC/core/util/browser.js; \
+    [ -f "$js" ] || js=$(find /opt -name "browser.js" 2>/dev/null | head -1); \
+    [ -f "$js" ] || { echo "ERROR: noVNC browser.js nicht gefunden" >&2; exit 1; }; \
+    grep -q "isAndroid" "$js" \
+      || printf '\nexport function isAndroid() { return /Android/i.test(navigator.userAgent); }\n' >> "$js"; \
+    echo "Patched: $js"
 
 COPY rootfs/ /
 RUN chmod +x /startapp.sh \

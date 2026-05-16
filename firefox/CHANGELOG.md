@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.8] - 2026-05-16
+
+### Behoben
+- noVNC `isAndroid`-Patch: direkt `/opt/noVNC/core/util/browser.js` patchen (bekannter Pfad in jlesage v4.x/noVNC 1.7.0), `find` nur als Fallback — Build schlägt explizit fehl wenn die Datei nicht gefunden wird, damit Pfad-Probleme sofort sichtbar sind
+
 ## [2.1.7] - 2026-05-16
 
 ### Behoben
