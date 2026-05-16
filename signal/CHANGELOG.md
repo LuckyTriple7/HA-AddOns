@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.28] - 2026-05-16
+
+### Behoben
+- Dieselbe Person erschien nach Neustart in einem zweiten Chat — Telefonnummer wurde mal mit, mal ohne `+` gespeichert; `normPhone()` normalisiert jetzt einheitlich auf `+Prefix` und mergt bestehende Duplikate beim Start
+
 ## [1.0.27] - 2026-05-16
 
 ### Geändert

@@ -27,6 +27,15 @@ const seenMsgIds = new Set();
 const CHATS_FILE = '/data/chats.json';
 const MESSAGES_FILE = '/data/messages.json';
 
+function normPhone(num) {
+  if (!num) return '';
+  const s = String(num).trim().replace(/[\s-]/g, '');
+  if (s.startsWith('+')) return s;
+  if (s.startsWith('00')) return '+' + s.slice(2);
+  if (/^\d{7,15}$/.test(s)) return '+' + s;
+  return s;
+}
+
 function loadFromDisk() {
   try {
     if (fs.existsSync(CHATS_FILE)) {
@@ -45,6 +54,16 @@ function loadFromDisk() {
       console.log(`[INFO] Loaded messages for ${messagesByChatId.size} chats from disk`);
     }
   } catch (e) { console.error('[ERROR] loadMessages from disk:', e.message); }
+
+  // Normalize phone-number keys to consistent +prefix (fixes duplicate chats after restarts)
+  for (const [k, v] of [...chatMap.entries()]) {
+    const nk = normPhone(k);
+    if (nk !== k && !chatMap.has(nk)) { chatMap.set(nk, { ...v, id: nk }); chatMap.delete(k); }
+  }
+  for (const [k, v] of [...messagesByChatId.entries()]) {
+    const nk = normPhone(k);
+    if (nk !== k && !messagesByChatId.has(nk)) { messagesByChatId.set(nk, v); messagesByChatId.delete(k); }
+  }
 }
 
 let saveTimer = null;
@@ -73,7 +92,7 @@ async function checkStatus() {
 
     if (list.length === 0) { status = 'not-linked'; return; }
 
-    if (!PHONE_NUMBER) PHONE_NUMBER = list[0];
+    if (!PHONE_NUMBER) PHONE_NUMBER = normPhone(list[0]);
 
     if (status !== 'linked') {
       status = 'linked';
@@ -135,7 +154,7 @@ async function loadContacts() {
     const contacts = await r.json();
     if (!Array.isArray(contacts)) return;
     for (const c of contacts) {
-      const num = c.number || c.phone;
+      const num = normPhone(c.number || c.phone);
       if (!num || num === PHONE_NUMBER) continue;
       if (!chatMap.has(num)) {
         chatMap.set(num, { id: num, name: c.name || num, phone: num, lastMsg: '', lastTime: 0 });
@@ -174,7 +193,7 @@ async function loadGroups() {
 function processEnvelope(envelope) {
   const env = envelope.envelope || envelope;
   const dm = env.dataMessage;
-  const source = env.sourceNumber || env.source;
+  const source = normPhone(env.sourceNumber || env.source);
   if (!dm || !source || !dm.message) return;
 
   const msgId = `${source}_${dm.timestamp}`;
@@ -289,16 +308,17 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   try {
     const rawTs = parseInt(msgId.split('_').pop(), 10);
     const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+    const body = JSON.stringify({ message: '', number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs });
+    console.log('[INFO] Signal delete request:', body);
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: '', number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs }),
+      body,
       timeout: 10000,
     });
-    if (!r.ok) {
-      const body = await r.text().catch(() => '');
-      return res.status(500).json({ error: body });
-    }
+    const respText = await r.text().catch(() => '');
+    console.log(`[INFO] Signal delete response: ${r.status} ${respText}`);
+    if (!r.ok) return res.status(500).json({ error: respText });
     const msgs = messagesByChatId.get(chatId);
     if (msgs) {
       const idx = msgs.findIndex(m => m.id === msgId);
@@ -306,6 +326,7 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
     }
     res.json({ success: true });
   } catch (e) {
+    console.error('[ERROR] Signal delete:', e.message);
     res.status(500).json({ error: String(e.message || e) });
   }
 });
