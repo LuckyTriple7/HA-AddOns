@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.11] - 2026-05-16
+
+### Behoben
+- Emoji-Picker: grüne Kreise um Emojis — WhatsApp's globaler `#send-bar button`-Stil überschrieb die Emoji-Buttons; spezifischere Selektoren verwenden
+
 ## [1.1.10] - 2026-05-16
 
 ### Behoben

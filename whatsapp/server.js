@@ -469,10 +469,10 @@ app.get('/', (req, res) => {
     #emoji-picker { display: none; position: absolute; bottom: 100%; left: 0; right: 0; background: #202c33; border-top: 1px solid #2a3942; padding: 8px 12px; max-height: 200px; overflow-y: auto; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.2); }
     #emoji-picker.open { display: block; }
     .emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; }
-    .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; line-height: 1; }
-    .emoji-btn:hover { background: #2a3942; }
-    #emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; color: #8696a0; }
-    #emoji-toggle:hover { background: rgba(255,255,255,0.08); }
+    #send-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; line-height: 1; width: auto; height: auto; }
+    #send-bar .emoji-btn:hover { background: #2a3942; }
+    #send-bar #emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; color: #8696a0; width: auto; height: auto; }
+    #send-bar #emoji-toggle:hover { background: rgba(255,255,255,0.08); }
     #msg-input {
       flex: 1; background: #2a3942; border: none; border-radius: 8px;
       padding: 9px 12px; color: #e9edef; font-size: 14px; font-family: inherit;
@@ -541,8 +541,8 @@ app.get('/', (req, res) => {
     html.light #msg-input { background: #fff; color: #111; }
     html.light #msg-input::placeholder { color: #999; }
     html.light #emoji-picker { background: #fff; border-color: #e0e0e0; }
-    html.light .emoji-btn:hover { background: #f0f2f5; }
-    html.light #emoji-toggle { color: #555; }
+    html.light #send-bar .emoji-btn:hover { background: #f0f2f5; }
+    html.light #send-bar #emoji-toggle { color: #555; }
   </style>
 </head>
 <body>
