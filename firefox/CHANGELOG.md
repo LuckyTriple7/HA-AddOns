@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.2.2] - 2026-05-16
+
+### Behoben
+- `fc-cache -f` entfernt — nicht in jlesage's Base vorhanden (exit 127); fontconfig findet Fonts auch ohne vorgebautem Cache automatisch
+
 ## [2.2.1] - 2026-05-16
 
 ### Behoben

@@ -28,7 +28,7 @@ COPY --from=deps /usr/share/fonts /usr/share/fonts
 COPY --from=deps /usr/share/fontconfig /usr/share/fontconfig
 COPY --from=deps /usr/lib/locale /usr/lib/locale
 COPY --from=deps /usr/share/locale /usr/share/locale
-RUN ldconfig && fc-cache -f
+RUN ldconfig
 
 # Kleine Utilities aus jlesage's konfigurierten Repos
 RUN apt-get update && apt-get install -y --no-install-recommends \
