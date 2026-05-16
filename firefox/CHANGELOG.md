@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.6] - 2026-05-16
+
+### Behoben
+- `USER_ID=0 GROUP_ID=0` gesetzt — jlesage startet App als UID 1000, kann aber nicht in `/data` schreiben (root-owned); wie im Original-Repo (mincka) als root ausführen
+
 ## [2.0.5] - 2026-05-16
 
 ### Neu

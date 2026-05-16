@@ -4,7 +4,9 @@ ENV APP_NAME="Firefox" \
     LANG=de_DE.UTF-8 \
     KEEP_APP_RUNNING=1 \
     DISPLAY_WIDTH=1280 \
-    DISPLAY_HEIGHT=720
+    DISPLAY_HEIGHT=720 \
+    USER_ID=0 \
+    GROUP_ID=0
 
 # curl/ca-certificates für Firefox-Download, xz-utils für .tar.xz, jq für Optionen-Parsing
 RUN apt-get update && apt-get install -y --no-install-recommends \
