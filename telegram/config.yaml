@@ -1,6 +1,6 @@
 name: Telegram
 description: Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support
-version: "1.0.17"
+version: "1.0.18"
 slug: telegram
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -31,6 +31,7 @@ options:
   download_media: false
   fetch_messages_limit: 50
   webhook_incoming: ""
+  debug_mode: false
 
 schema:
   api_id: int
@@ -40,3 +41,4 @@ schema:
   download_media: bool
   fetch_messages_limit: int
   webhook_incoming: str?
+  debug_mode: bool

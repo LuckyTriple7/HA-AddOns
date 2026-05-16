@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.18] - 2026-05-16
+
+### Neu
+- Option `debug_mode` (Standard: aus) — einschalten für ausführliches Logging: NewMessage-Events, processMessage mit Typ/Inhalt, addMsg mit Duplikat-Erkennung, Webhook-Aufrufe, gesendete und gelöschte Nachrichten
+
 ## [1.0.17] - 2026-05-16
 
 ### Behoben

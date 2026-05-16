@@ -16,6 +16,8 @@ const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 150);
+const DEBUG = process.env.DEBUG_MODE === 'true';
+function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 const SESSION_FILE = '/data/session.txt';
 const CHATS_FILE = '/data/chats.json';
@@ -93,8 +95,9 @@ function getEntityId(entity) {
 }
 
 function addMsg(chatId, msg) {
-  if (seenMsgIds.has(msg.id)) return false;
+  if (seenMsgIds.has(msg.id)) { dbg(`addMsg: duplicate skipped ${msg.id}`); return false; }
   seenMsgIds.add(msg.id);
+  dbg(`addMsg: chatId=${chatId} fromMe=${msg.fromMe} type=${msg.type||'text'} body="${(msg.body||'').slice(0,60)}"`);
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   const msgs = messagesByChatId.get(chatId);
   msgs.push(msg);
@@ -131,7 +134,8 @@ async function downloadMedia(rawMsg, msgId) {
 async function processMessage(rawMsg, chatId, chatName) {
   const hasText = !!(rawMsg.message);
   const hasMedia = rawMsg.media && rawMsg.media.className && rawMsg.media.className !== 'MessageMediaEmpty';
-  if (!hasText && !hasMedia) return;
+  dbg(`processMessage: chatId=${chatId} id=${rawMsg.id} fromMe=${rawMsg.out} hasText=${hasText} hasMedia=${hasMedia} body="${(rawMsg.message||'').slice(0,60)}"`);
+  if (!hasText && !hasMedia) { dbg(`processMessage: skipping — no text and no media`); return; }
 
   const fromMe = rawMsg.out || false;
   const ts = (rawMsg.date || 0) * 1000;
@@ -170,6 +174,7 @@ async function processMessage(rawMsg, chatId, chatName) {
   scheduleSave();
 
   if (WEBHOOK_INCOMING && !fromMe) {
+    dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -249,16 +254,18 @@ async function startClient() {
       try {
         const msg = event.message;
         if (!msg) return;
+        dbg(`NewMessage event: id=${msg.id} fromMe=${msg.out} body="${(msg.message||'').slice(0,60)}"`);
         const chat = await msg.getChat();
         const chatId = getEntityId(chat);
         const chatName = getEntityName(chat);
         if (!peerMap.has(chatId)) peerMap.set(chatId, chat);
         await processMessage(msg, chatId, chatName);
-      } catch (e) {}
+      } catch (e) { dbg(`NewMessage handler error: ${e.message}`); }
     }, new NewMessage({}));
 
     await loadDialogs();
     console.log(`[INFO] ${chatMap.size} dialogs loaded`);
+    if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
   } catch (e) {
     status = 'error';
     lastError = e.message;
@@ -326,6 +333,7 @@ app.post('/api/send', async (req, res) => {
     if (!entity) { await loadDialogs(); entity = peerMap.get(to); }
     if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
 
+    dbg(`Sending message to ${to}: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const result = await client.sendMessage(entity, { message });
     const msgId = `${to}_${result.id}`;
     if (!seenMsgIds.has(msgId)) {
@@ -350,6 +358,7 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
     if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
     if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
     const rawId = parseInt(msgId.split('_').pop(), 10);
+    dbg(`Deleting message ${msgId} (rawId=${rawId}) in chat ${chatId}`);
     await client.deleteMessages(entity, [rawId], { revoke: true });
     const msgs = messagesByChatId.get(chatId);
     if (msgs) {
