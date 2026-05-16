@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.7] - 2026-05-16
+
+### Geändert
+- Sidebar-Icon auf `mdi:message-text` geändert
+
 ## [1.0.6] - 2026-05-16
 
 ### Behoben
