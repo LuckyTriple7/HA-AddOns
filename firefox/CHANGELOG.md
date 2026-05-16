@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.7] - 2026-05-16
+
+### Behoben
+- `LANG=C.UTF-8` statt `de_DE.UTF-8` im Dockerfile-ENV — `locales`-Paket ist in jlesage's Repos nicht verfügbar (exit 255); `C.UTF-8` ist immer unterstützt und verhindert die GTK-Warnung `Locale not supported by C library`
+- Firefox-Sprache bleibt Deutsch über `intl.locale.requested=de` in `user.js` — System-Locale hat keinen Einfluss darauf
+
 ## [2.1.6] - 2026-05-16
 
 ### Behoben

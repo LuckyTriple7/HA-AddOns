@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM jlesage/baseimage-gui:debian-12-v4.12.1
 
 ENV APP_NAME="Firefox" \
-    LANG=de_DE.UTF-8 \
+    LANG=C.UTF-8 \
     KEEP_APP_RUNNING=1 \
     DISPLAY_WIDTH=1280 \
     DISPLAY_HEIGHT=720 \
@@ -34,9 +34,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     jq \
     xz-utils \
-    locales \
-    && locale-gen de_DE.UTF-8 \
-    && update-locale LANG=de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
 ARG FIREFOX_VERSION=140.10.2esr
