@@ -135,8 +135,16 @@ async function downloadMedia(rawMsg, msgId) {
 
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
-  const token = process.env.SUPERVISOR_TOKEN;
-  if (!token) { console.warn('[WARN] HA_NOTIFICATIONS enabled but SUPERVISOR_TOKEN not available'); return; }
+  const supervisorToken = process.env.SUPERVISOR_TOKEN;
+  const userToken = process.env.HA_TOKEN;
+  const token = supervisorToken || userToken;
+  if (!token) {
+    console.warn('[WARN] HA_NOTIFICATIONS: kein Token — ha_token in der Add-on-Konfiguration setzen');
+    return;
+  }
+  const url = supervisorToken
+    ? 'http://supervisor/core/api/services/persistent_notification/create'
+    : 'http://homeassistant:8123/api/services/persistent_notification/create';
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify({
@@ -144,8 +152,8 @@ function sendHANotification(chatId, senderName, body) {
     message: preview || '📷 Foto',
     notification_id: `telegram_${safeId}`,
   });
-  console.log(`[INFO] Sending HA notification: Telegram: ${senderName}`);
-  const req = http.request('http://supervisor/core/api/services/persistent_notification/create', {
+  console.log(`[INFO] HA notification: Telegram: ${senderName} (via ${supervisorToken ? 'supervisor' : 'ha_token'})`);
+  const req = http.request(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -154,10 +162,10 @@ function sendHANotification(chatId, senderName, body) {
     },
   }, (res) => {
     res.resume();
-    if (res.statusCode !== 200) {
-      console.warn(`[WARN] HA notification returned HTTP ${res.statusCode}`);
+    if (res.statusCode === 200) {
+      dbg('HA notification OK (HTTP 200)');
     } else {
-      dbg(`HA notification OK (HTTP 200)`);
+      console.warn(`[WARN] HA notification returned HTTP ${res.statusCode}`);
     }
   });
   req.on('error', e => console.warn('[WARN] HA notification request error:', e.message));

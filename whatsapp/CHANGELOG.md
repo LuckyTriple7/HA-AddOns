@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.29] - 2026-05-16
+
+### Neu
+- Option `ha_token` — Long-Lived Access Token aus dem HA-Benutzerprofil; wird als Fallback verwendet wenn `SUPERVISOR_TOKEN` nicht verfügbar ist; Benachrichtigungen gehen dann direkt an `http://homeassistant:8123`
+
 ## [1.1.28] - 2026-05-16
 
 ### Behoben
