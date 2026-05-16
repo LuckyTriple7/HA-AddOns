@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.30] - 2026-05-16
+
+### Geändert
+- Löschen funktioniert jetzt immer lokal (Nachricht verschwindet sofort aus der UI); plattformseitiges "Für alle löschen" wird im Hintergrund versucht — ältere signal-cli-rest-api-Versionen unterstützen das nicht, der lokale Delete läuft aber immer durch
+
 ## [1.0.29] - 2026-05-16
 
 ### Behoben

@@ -304,31 +304,32 @@ app.post('/api/qr/refresh', (req, res) => {
 
 app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
-  if (status !== 'linked') return res.status(503).json({ error: 'Nicht verbunden' });
-  try {
-    const rawTs = parseInt(msgId.split('_').pop(), 10);
-    const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
-    const body = JSON.stringify({ message: '', number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs });
-    console.log('[INFO] Signal delete request:', body);
-    const r = await fetch(`${SIGNAL_API}/v2/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      timeout: 10000,
-    });
-    const respText = await r.text().catch(() => '');
-    console.log(`[INFO] Signal delete response: ${r.status} ${respText}`);
-    if (!r.ok) return res.status(500).json({ error: respText });
-    const msgs = messagesByChatId.get(chatId);
-    if (msgs) {
-      const idx = msgs.findIndex(m => m.id === msgId);
-      if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
-    }
-    res.json({ success: true });
-  } catch (e) {
-    console.error('[ERROR] Signal delete:', e.message);
-    res.status(500).json({ error: String(e.message || e) });
+  // Always remove locally so the message disappears from the UI
+  const msgs = messagesByChatId.get(chatId);
+  if (msgs) {
+    const idx = msgs.findIndex(m => m.id === msgId);
+    if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
   }
+  // Try platform delete in background (requires signal-cli-rest-api with deleteForEveryone support)
+  if (status === 'linked') {
+    try {
+      const rawTs = parseInt(msgId.split('_').pop(), 10);
+      const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+      const r = await fetch(`${SIGNAL_API}/v2/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs }),
+        timeout: 10000,
+      });
+      if (!r.ok) {
+        const t = await r.text().catch(() => '');
+        console.warn(`[WARN] Signal delete-for-everyone not supported by this API version: ${t.trim()}`);
+      }
+    } catch (e) {
+      console.warn('[WARN] Signal delete-for-everyone:', e.message);
+    }
+  }
+  res.json({ success: true });
 });
 
 app.post('/api/logout', async (req, res) => {
