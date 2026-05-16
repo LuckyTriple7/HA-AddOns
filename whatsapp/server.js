@@ -513,7 +513,7 @@ app.get('/', (req, res) => {
     .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
     .bubble-row-inner:hover .del-btn { display: block; }
     html.light .del-btn { color: rgba(0,0,0,0.4); }
-    .del-btn:hover { color: #f15c5c; }
+    .del-btn:hover { color: #f15c5c !important; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
     .bubble .time {

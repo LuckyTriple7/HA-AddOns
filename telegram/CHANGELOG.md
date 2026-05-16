@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.15] - 2026-05-16
+
+### Behoben
+- Löschen-Button wurde beim Hovern nicht rot — CSS-Spezifität von `html.dark .del-btn` überschrieb `.del-btn:hover`; `!important` behebt den Vorrang
+
 ## [1.0.14] - 2026-05-16
 
 ### Behoben

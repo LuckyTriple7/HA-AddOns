@@ -427,7 +427,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 .bubble-row:hover .del-btn { display: block; }
 html.dark .del-btn { color: rgba(233,237,239,0.6); }
 html.light .del-btn { color: rgba(0,0,0,0.4); }
-.del-btn:hover { color: #e74c3c; }
+.del-btn:hover { color: #e74c3c !important; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
 .day-sep { text-align: center; margin: 8px 0; }
 .day-sep span { background: rgba(255,255,255,0.8); padding: 4px 12px; border-radius: 12px; font-size: 12px; color: #666; }

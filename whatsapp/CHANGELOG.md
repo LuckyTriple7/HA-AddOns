@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.19] - 2026-05-16
+
+### Behoben
+- Löschen-Button wurde im Light Mode beim Hovern nicht rot — CSS-Spezifität von `html.light .del-btn` überschrieb `.del-btn:hover`; `!important` behebt den Vorrang
+
 ## [1.1.18] - 2026-05-16
 
 ### Behoben

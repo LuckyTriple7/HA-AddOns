@@ -501,7 +501,7 @@ html.light #chat-header { background: #517DA2; }
 .bubble-row:hover .del-btn { display: block; }
 html.dark .del-btn { color: rgba(193,201,212,0.6); }
 html.light .del-btn { color: rgba(0,0,0,0.4); }
-.del-btn:hover { color: #e74c3c; }
+.del-btn:hover { color: #e74c3c !important; }
 html.dark .bubble.in { background: #182533; color: #C1C9D4; }
 html.dark .bubble.out { background: #2B5278; color: #fff; }
 html.light .bubble.in { background: #fff; color: #222; }
