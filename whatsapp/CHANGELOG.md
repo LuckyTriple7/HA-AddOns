@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.22] - 2026-05-16
+
+### Behoben
+- Add-on startete nicht mit `debug_mode: true` — `DEBUG`-Variable wurde vor ihrer Deklaration verwendet (temporal dead zone); Log-Zeile an die richtige Stelle verschoben
+
 ## [1.1.21] - 2026-05-16
 
 ### Neu

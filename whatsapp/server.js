@@ -28,7 +28,6 @@ function findChromium() {
 
 const CHROMIUM = findChromium();
 console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
-if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +43,7 @@ const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
+if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/data/media';
 const MAX_MSGS_PER_CHAT = 200;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
