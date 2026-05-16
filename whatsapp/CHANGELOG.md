@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.10] - 2026-05-16
+
+### Behoben
+- `dark_mode: false` hatte keinen Effekt — jq `//`-Operator behandelt `false` als leer und gab immer `true` zurück; explizites `if`-Statement verwendet
+
 ## [1.1.9] - 2026-05-16
 
 ### Neu

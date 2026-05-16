@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.22] - 2026-05-16
+
+### Behoben
+- `dark_mode`/`native_mode` false hatte keinen Effekt — jq `//`-Operator behandelt `false` als leer; explizites `if`-Statement verwendet
+
 ## [1.0.21] - 2026-05-16
 
 ### Neu

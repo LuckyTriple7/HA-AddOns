@@ -3,8 +3,8 @@ set -e
 
 export PHONE_NUMBER=$(jq -r '.phone_number // ""' /data/options.json)
 export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
-export NATIVE_MODE=$(jq -r '.native_mode // true' /data/options.json)
-export DARK_MODE=$(jq -r '.dark_mode // false' /data/options.json)
+export NATIVE_MODE=$(jq -r 'if .native_mode == false then "false" else "true" end' /data/options.json)
+export DARK_MODE=$(jq -r 'if .dark_mode == true then "true" else "false" end' /data/options.json)
 export SIGNAL_API_URL=http://localhost:8080
 
 export SIGNAL_CLI_CONFIG_DIR=/data/signal-cli

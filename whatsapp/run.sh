@@ -5,7 +5,7 @@ export WEBHOOK_URL=$(jq -r '.webhook_url // ""' /data/options.json)
 export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
 export INITIAL_CHATS=$(jq -r '.initial_chats // 30' /data/options.json)
 export INITIAL_MESSAGES=$(jq -r '.initial_messages // 20' /data/options.json)
-export DARK_MODE=$(jq -r '.dark_mode // true' /data/options.json)
+export DARK_MODE=$(jq -r 'if .dark_mode == false then "false" else "true" end' /data/options.json)
 export SESSION_DIR=/data/session
 export PORT=3000
 
