@@ -164,6 +164,7 @@ client.on('ready', async () => {
     console.log(`[INFO] Loading ${INITIAL_MESSAGES} messages from ${INITIAL_CHATS} chats`);
     for (const chat of recent) {
       const chatId = chat.id._serialized;
+      if (chatId.endsWith('@broadcast')) continue;
       // For 1:1 chats, prefer pushname over bare phone number
       let chatName = chat.name || chat.id.user;
       if (!chat.isGroup) {
@@ -217,6 +218,7 @@ client.on('auth_failure', (msg) => {
 
 client.on('message', async (msg) => {
   dbg(`Incoming message: type=${msg.type} from=${msg.from} body="${(msg.body||'').slice(0,60)}"`);
+  if (msg.isStatus || msg.from === 'status@broadcast') { dbg('Skipping status update'); return; }
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   if (!isText && !isImage) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
@@ -224,6 +226,7 @@ client.on('message', async (msg) => {
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
   const chatId = chat.id._serialized;
+  if (chatId.endsWith('@broadcast')) { dbg(`Skipping broadcast chat: ${chatId}`); return; }
   const contact = await msg.getContact().catch(() => null);
   const contactName = contact?.pushname || contact?.name || msg.from.replace('@c.us', '');
   upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
@@ -252,6 +255,7 @@ client.on('message', async (msg) => {
 client.on('message_create', async (msg) => {
   dbg(`message_create: type=${msg.type} fromMe=${msg.fromMe} from=${msg.from} body="${(msg.body||'').slice(0,60)}"`);
   if (!msg.fromMe) return;
+  if (msg.isStatus || msg.from === 'status@broadcast') return;
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   if (!isText && !isImage) { dbg(`message_create: skipping type=${msg.type}`); return; }
@@ -259,6 +263,7 @@ client.on('message_create', async (msg) => {
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
   const chatId = chat.id._serialized;
+  if (chatId.endsWith('@broadcast')) return;
   upsertChat(chatId, { name: chat.name || msg.to.replace('@c.us', ''), phone: chat.id.user, isGroup: chat.isGroup });
   let type = 'text', mediaFile = null;
   if (isImage) {

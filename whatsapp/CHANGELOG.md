@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.35] - 2026-05-16
+
+### Behoben
+- Status-Updates (Stories) und Nachrichten aus dem „Aktuelles"-Tab (`status@broadcast`, `@broadcast`) wurden als Chats angezeigt und lösten HA-Benachrichtigungen aus — werden jetzt vollständig ignoriert
+
 ## [1.1.34] - 2026-05-16
 
 ### Geändert
