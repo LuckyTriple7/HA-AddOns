@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.28] - 2026-05-16
+
+### Behoben
+- Scroll-Position wurde beim automatischen Nachrichten-Refresh zurückgesetzt — beim Hochscrollen bleibt die Position jetzt erhalten; automatisches Runterscrollen erfolgt nur wenn man bereits am Ende war oder neue Nachrichten eintreffen
+
 ## [1.0.27] - 2026-05-16
 
 ### Neu

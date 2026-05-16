@@ -709,6 +709,7 @@ let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
 let lastSeenTime = {};
+let lastMsgCount = {};
 
 function api(p) { return BASE + p; }
 
@@ -843,6 +844,7 @@ function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openCha
 function openChat(chat) {
   selectedChatId = chat.id;
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
+  lastMsgCount[chat.id] = 0;
   document.body.classList.add('chat-open');
   document.getElementById('no-chat-wrap').style.display = 'none';
   document.getElementById('chat-header').style.display = 'flex';
@@ -876,6 +878,9 @@ async function loadMessages(chatId) {
 function renderMessages(msgs) {
   const el = document.getElementById('messages');
   if (!msgs||!msgs.length) { el.innerHTML='<div style="text-align:center;padding:24px;opacity:0.5">Noch keine Nachrichten</div>'; return; }
+  const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  const prevCount = lastMsgCount[selectedChatId] || 0;
+  lastMsgCount[selectedChatId] = msgs.length;
   let lastDate='';
   el.innerHTML = msgs.map(m => {
     const d=new Date(m.timestamp);
@@ -893,7 +898,7 @@ function renderMessages(msgs) {
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');
-  el.scrollTop = el.scrollHeight;
+  if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
 
 async function sendMsg() {
