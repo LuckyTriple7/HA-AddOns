@@ -158,10 +158,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         client_ip = self.client_address[0]
         with _lock:
             running = _chromium_proc is not None and _chromium_proc.poll() is None
-        # Loopback requests (HA supervisor health checks) never start Chromium
+        # Loopback requests (HA supervisor / Watchdog) never start Chromium —
+        # but always respond 200 so the Watchdog does not restart the add-on
         if not running and client_ip in ('127.0.0.1', '::1'):
             try:
-                self.send_error(503, 'Chromium not running')
+                body = b'{"status":"idle","message":"Chromium not running"}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', len(body))
+                self.end_headers()
+                self.wfile.write(body)
             except Exception:
                 pass
             return

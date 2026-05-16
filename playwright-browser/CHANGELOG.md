@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11 - 2026-05-16
+
+### Behoben
+- Watchdog hat das Add-on neugestartet weil Loopback-Requests 503 bekamen — Loopback antwortet jetzt immer mit 200 (`{"status":"idle"}`) damit der Watchdog zufrieden ist, ohne Chromium zu starten
+
 ## 1.0.10 - 2026-05-16
 
 ### Behoben
