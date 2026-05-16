@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.5] - 2026-05-16
+
+### Neu
+- Beim Start mit `download_media: false` werden alle zuvor gecacheten Bilder aus `/data/media/` automatisch gelöscht — der Toggle räumt nun vollständig auf
+
 ## [1.0.4] - 2026-05-16
 
 ### Neu

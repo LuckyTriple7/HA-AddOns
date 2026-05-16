@@ -812,6 +812,13 @@ process.on('unhandledRejection', (reason) => {
 });
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
+if (!DOWNLOAD_MEDIA) {
+  try {
+    const files = fs.readdirSync(MEDIA_DIR);
+    files.forEach(f => { try { fs.unlinkSync(`${MEDIA_DIR}/${f}`); } catch (e) {} });
+    if (files.length) console.log(`[INFO] Deleted ${files.length} cached media files (download_media=off)`);
+  } catch (e) {}
+}
 loadFromDisk();
 app.listen(PORT, () => {
   console.log(`[INFO] Telegram UI on port ${PORT}`);
