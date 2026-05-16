@@ -32,7 +32,7 @@ echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG_DIR)..."
 start_signal_api
 
 
-export PORT=3002
+export PORT=17777
 echo "[INFO] Starting Signal UI on port $PORT..."
 cd /ui
 exec node server.js

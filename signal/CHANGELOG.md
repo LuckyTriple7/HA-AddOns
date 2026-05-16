@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.19] - 2026-05-16
+
+### Geändert
+- Port von 3002 auf 17777 geändert (3002 auf diesem System bereits belegt)
+
 ## [1.0.18] - 2026-05-16
 
 ### Neu

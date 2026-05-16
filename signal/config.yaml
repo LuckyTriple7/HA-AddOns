@@ -1,6 +1,6 @@
 name: Signal
 description: Signal Messenger mit persistenter Session, Web-UI, REST-API und Webhook für Home Assistant
-version: "1.0.18"
+version: "1.0.19"
 slug: signal
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -13,15 +13,15 @@ boot: manual
 init: false
 
 ingress: true
-ingress_port: 3002
+ingress_port: 17777
 panel_icon: mdi:signal
 panel_title: Signal
 
 ports:
-  3002/tcp: 3002
+  17777/tcp: 17777
 
 ports_description:
-  3002/tcp: Signal Web-UI und REST-API
+  17777/tcp: Signal Web-UI und REST-API
 
 options:
   native_mode: true
