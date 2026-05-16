@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.2.0] - 2026-05-16
+
+### Geändert
+- noVNC `isAndroid`-Patch vollständig entfernt — jlesage/baseimage-gui v4.12.1 enthält noVNC 1.7.0 mit korrekt exportiertem `isAndroid`; der ursprüngliche Fehler war ein veralteter Browser-Cache, kein echtes Problem im Image
+
 ## [2.1.9] - 2026-05-16
 
 ### Behoben

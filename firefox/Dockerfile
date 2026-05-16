@@ -44,21 +44,6 @@ RUN curl -sL --fail \
     && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
     && rm /tmp/firefox.tar.xz
 
-# Patch: isAndroid in noVNC 1.7.0 ist definiert aber nicht exportiert.
-# export function isAndroid() entfernen falls doppelt vorhanden (Rückstand aus alten Builds),
-# dann export { isAndroid } hinzufügen wenn noch kein Export vorhanden.
-RUN js=/opt/noVNC/core/util/browser.js; \
-    [ -f "$js" ] || { echo "ERROR: browser.js nicht gefunden" >&2; exit 1; }; \
-    sed -i '/^export function isAndroid/d' "$js"; \
-    if grep -q "export.*isAndroid\|isAndroid.*export" "$js"; then \
-      echo "isAndroid bereits exportiert: $js"; \
-    elif grep -q "isAndroid" "$js"; then \
-      printf '\nexport { isAndroid };\n' >> "$js"; \
-      echo "Re-export hinzugefuegt: $js"; \
-    else \
-      printf '\nexport function isAndroid() { return /Android/i.test(navigator.userAgent); }\n' >> "$js"; \
-      echo "Neue Funktion hinzugefuegt: $js"; \
-    fi
 
 COPY rootfs/ /
 RUN chmod +x /startapp.sh \
