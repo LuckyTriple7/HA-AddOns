@@ -422,9 +422,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
 .bubble-row.out .del-btn { order: -1; }
-.del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .del-btn { display: block; }
-.del-btn:hover { opacity: 1; }
+html.dark .del-btn { color: rgba(233,237,239,0.6); }
+html.light .del-btn { color: rgba(0,0,0,0.4); }
+.del-btn:hover { color: #e74c3c; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
 .day-sep { text-align: center; margin: 8px 0; }
 .day-sep span { background: rgba(255,255,255,0.8); padding: 4px 12px; border-radius: 12px; font-size: 12px; color: #666; }
@@ -705,7 +707,7 @@ function renderMessages(msgs) {
     let sep = '';
     if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
     const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${escHtml(m.body)}<div class="bubble-time">\${time}</div></div><button class="del-btn" title="Löschen">🗑</button></div>\`;
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${escHtml(m.body)}<div class="bubble-time">\${time}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }

@@ -510,9 +510,10 @@ app.get('/', (req, res) => {
     }
     .bubble-row-inner { display: flex; align-items: center; gap: 6px; }
     .bubble-wrap.out .del-btn { order: -1; }
-    .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+    .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
     .bubble-row-inner:hover .del-btn { display: block; }
-    .del-btn:hover { opacity: 1; }
+    html.light .del-btn { color: rgba(0,0,0,0.4); }
+    .del-btn:hover { color: #f15c5c; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
     .bubble .time {
@@ -903,7 +904,7 @@ app.get('/', (req, res) => {
         const delBtn = document.createElement('button');
         delBtn.className = 'del-btn';
         delBtn.title = 'Löschen';
-        delBtn.textContent = '🗑';
+        delBtn.textContent = '✕';
         delBtn.dataset.msgid = m.id;
         bri.appendChild(delBtn);
         wrap.appendChild(bri);

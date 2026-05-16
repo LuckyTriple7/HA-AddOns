@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.14] - 2026-05-16
+
+### Behoben
+- Löschen-Symbol im Dark Mode nicht sichtbar — Emoji 🗑 ignoriert CSS `color`; ersetzt durch `✕` mit expliziter Farbsteuerung (grau im Ruhezustand, rot beim Hovern)
+
 ## [1.0.13] - 2026-05-16
 
 ### Geändert
