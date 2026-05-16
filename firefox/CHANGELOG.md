@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.2.3] - 2026-05-16
+
+### Behoben
+- Firefox-Download auf deutsche Sprachversion umgestellt (`de` statt `en-US`) — `intl.locale.requested` allein reicht nicht ohne deutsches Sprachpaket
+
 ## [2.2.2] - 2026-05-16
 
 ### Behoben

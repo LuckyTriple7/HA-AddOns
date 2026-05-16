@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ARG FIREFOX_VERSION=140.10.2esr
 RUN curl -sL --fail \
-    "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.xz" \
+    "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/de/firefox-${FIREFOX_VERSION}.tar.xz" \
     -o /tmp/firefox.tar.xz \
     && tar -xJ -C /opt -f /tmp/firefox.tar.xz \
     && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
