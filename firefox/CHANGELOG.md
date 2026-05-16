@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.0] - 2026-05-16
+
+### Komplett neu aufgebaut
+- Basis gewechselt auf `jlesage/baseimage-gui:debian-12-v4` — VNC, noVNC, Window Manager, Clipboard-Sync alles vom Base Image übernommen
+- Firefox direkt von Mozilla geladen (immer aktuelle ESR-Version, nicht Debian-Paket)
+- Nur noch amd64 (kein ARM mehr)
+- `startapp.sh` statt `run.sh` — nur noch Firefox-Start + user.js, kein manuelles VNC/websockify/matchbox
+- Build-Workflow ohne QEMU (deutlich schneller)
+
 ## [1.0.12] - 2026-05-16
 
 ### Behoben

@@ -1,7 +1,7 @@
 name: Build Firefox Image
 
 on:
-  workflow_dispatch:  # nur manuell auslösbar
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,9 +29,6 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Firefox ESR: ${VERSION}"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -42,13 +39,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push multi-arch image
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: firefox
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           no-cache: true
+          build-args: |
+            FIREFOX_VERSION=${{ steps.ffver.outputs.version }}
           tags: |
             ghcr.io/luckytriple7/firefox:${{ steps.ver.outputs.version }}
             ghcr.io/luckytriple7/firefox:latest
@@ -59,6 +58,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           echo "${{ steps.ffver.outputs.version }}" > .firefox-version
           git add .firefox-version
-          git diff --staged --quiet || git commit -m "Track Firefox ESR ${{ steps.ffver.outputs.version }} nach initialem Build"
+          git diff --staged --quiet || git commit -m "Track Firefox ESR ${{ steps.ffver.outputs.version }}"
           git pull --rebase origin main
           git push

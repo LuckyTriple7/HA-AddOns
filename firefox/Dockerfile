@@ -1,45 +1,30 @@
-FROM debian:bookworm-slim
+FROM jlesage/baseimage-gui:debian-12-v4
 
-ENV DEBIAN_FRONTEND=noninteractive \
+ENV APP_NAME="Firefox" \
     LANG=de_DE.UTF-8 \
     LANGUAGE=de_DE:de \
     LC_ALL=de_DE.UTF-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    firefox-esr \
-    firefox-esr-l10n-de \
-    tigervnc-standalone-server \
-    websockify \
-    matchbox-window-manager \
-    autocutsel \
     ca-certificates \
     curl \
-    locales \
-    dbus-x11 \
-    libpci3 \
-    libegl1 \
-    libgl1-mesa-dri \
-    libdbus-glib-1-2 \
     jq \
-    procps \
-    fonts-liberation \
-    fonts-noto-core \
+    locales \
+    libdbus-glib-1-2 \
+    libgtk-3-0 \
+    libxt6 \
+    libpci3 \
     && sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen \
-    && update-locale LANG=de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
-# noVNC direkt von GitHub — enthält Clipboard-Sync via navigator.clipboard Browser API
-ARG NOVNC_VERSION=1.7.0
-RUN curl -sL --fail "https://github.com/novnc/noVNC/archive/refs/tags/v${NOVNC_VERSION}.tar.gz" \
-       -o /tmp/novnc.tar.gz \
-    && tar -xz -C /opt -f /tmp/novnc.tar.gz \
-    && mv /opt/noVNC-${NOVNC_VERSION} /opt/novnc \
-    && rm /tmp/novnc.tar.gz
+ARG FIREFOX_VERSION=128.10.0esr
+RUN curl -sL --fail \
+    "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.bz2" \
+    -o /tmp/firefox.tar.bz2 \
+    && tar -xj -C /opt -f /tmp/firefox.tar.bz2 \
+    && ln -sf /opt/firefox/firefox /usr/local/bin/firefox \
+    && rm /tmp/firefox.tar.bz2
 
 COPY rootfs/ /
-RUN chmod +x /run.sh
-
-EXPOSE 5800
-
-CMD ["/run.sh"]
+RUN chmod +x /startapp.sh
