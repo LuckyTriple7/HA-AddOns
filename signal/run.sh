@@ -26,17 +26,6 @@ start_signal_api() {
 echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG)..."
 start_signal_api
 
-# Health check: 500 on /v1/accounts means data is corrupt — clear and restart
-ACCOUNTS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v1/accounts)
-if [ "$ACCOUNTS_STATUS" = "500" ]; then
-  echo "[WARN] /v1/accounts returned 500 — clearing corrupt data and restarting..."
-  pkill -f "signal-cli-rest-api" 2>/dev/null || true
-  sleep 2
-  rm -rf /data/signal-cli
-  mkdir -p /data/signal-cli
-  echo "[INFO] Restarting signal-cli-rest-api with clean data..."
-  start_signal_api
-fi
 
 export PORT=3002
 echo "[INFO] Starting Signal UI on port $PORT..."

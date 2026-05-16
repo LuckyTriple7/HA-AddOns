@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.16] - 2026-05-16
+
+### Behoben
+- Session nach Neustart verloren — Health-Check in run.sh erkannte /v1/accounts 500 (native mode braucht länger) als Datenfehler und löschte `/data/signal-cli`; Auto-Wipe entfernt
+
 ## [1.0.15] - 2026-05-16
 
 ### Geändert
