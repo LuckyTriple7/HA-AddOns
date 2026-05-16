@@ -2,13 +2,10 @@
 # jlesage's Debian-Base hat keine GUI-Pakete in seinen Repos — deswegen
 # schlägt apt-get install libgtk-3-0 etc. dort fehl.
 FROM debian:bookworm-slim AS deps
+# firefox-esr installieren damit apt alle transitiven Abhängigkeiten auflöst.
+# Der Binary wird nicht gebraucht — nur die Libraries in /usr/lib/x86_64-linux-gnu.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgtk-3-0 \
-    libdbus-glib-1-2 \
-    libxt6 \
-    libpci3 \
-    libasound2 \
-    libxkbcommon0 \
+    firefox-esr \
     && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Hauptimage auf jlesage-Basis

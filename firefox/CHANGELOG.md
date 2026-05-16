@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.3] - 2026-05-16
+
+### Behoben
+- deps-Stage installiert jetzt `firefox-esr` komplett — apt löst alle transitiven Abhängigkeiten (libX11-xcb, libasound, libxkbcommon, ...) automatisch auf; kein manuelles Nachpflegen mehr nötig
+
 ## [2.1.2] - 2026-05-16
 
 ### Behoben
