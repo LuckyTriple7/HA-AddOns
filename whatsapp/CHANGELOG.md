@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.12] - 2026-05-16
+
+### Neu
+- Option `download_media` (Standard: aus) — einschalten damit empfangene Fotos und Sticker automatisch heruntergeladen und in der Chat-Ansicht angezeigt werden; Klick vergrößert das Bild
+- Ohne die Option erscheint `📷 Foto` als Textplatzhalter statt des Bildes
+- Bilder werden in `/data/media/` gespeichert und bleiben nach Neustart erhalten
+
 ## [1.1.11] - 2026-05-16
 
 ### Behoben

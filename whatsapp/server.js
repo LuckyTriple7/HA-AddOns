@@ -7,7 +7,8 @@ const qrcode = require('qrcode');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
-const { existsSync, rmSync } = require('fs');
+const fs = require('fs');
+const { existsSync, rmSync } = fs;
 
 // ── Chromium detection ────────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ let connectedPhone = null;
 let lastError = null;
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
+const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_DIR = '/data/media';
 const MAX_MSGS_PER_CHAT = 200;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
@@ -70,10 +73,27 @@ function addMsg(chatId, msg) {
   if (msgs.length > MAX_MSGS_PER_CHAT) msgs.splice(0, msgs.length - MAX_MSGS_PER_CHAT);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    chat.lastMsg = msg.body.length > 60 ? msg.body.slice(0, 60) + '…' : msg.body;
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : '[Medien]');
+    chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
   }
   return true;
+}
+
+async function downloadWAMedia(msg, msgId) {
+  try {
+    const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
+    const ext = msg.type === 'sticker' ? 'webp' : 'jpg';
+    const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+    if (!existsSync(filePath)) {
+      const media = await msg.downloadMedia();
+      if (media?.data) fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+    }
+    return existsSync(filePath) ? `${safeId}.${ext}` : null;
+  } catch (e) {
+    console.error('[ERROR] downloadWAMedia:', e.message);
+    return null;
+  }
 }
 
 // ── WhatsApp Client ───────────────────────────────────────────────────────────
@@ -133,16 +153,24 @@ client.on('ready', async () => {
 
       const msgs = await chat.fetchMessages({ limit: INITIAL_MESSAGES }).catch(() => []);
       for (const msg of msgs) {
-        if (msg.type !== 'chat' && msg.type !== 'text') continue;
-        if (!msg.body) continue;
+        const isText = msg.type === 'chat' || msg.type === 'text';
+        const isImage = msg.type === 'image' || msg.type === 'sticker';
+        if (!isText && !isImage) continue;
+        if (!msg.body && !isImage) continue;
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
           contactName = c?.pushname || c?.name || msg.author?.replace('@c.us', '') || contactName;
         }
+        let type = 'text', mediaFile = null;
+        if (isImage) {
+          type = 'photo';
+          if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+        }
         addMsg(chatId, {
           id: msg.id._serialized,
-          body: msg.body,
+          body: msg.body || '',
+          type, mediaFile,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
           contact: contactName,
@@ -170,17 +198,25 @@ client.on('auth_failure', (msg) => {
 });
 
 client.on('message', async (msg) => {
-  if (msg.type !== 'chat' && msg.type !== 'text') return;
-  if (!msg.body) return;
+  const isText = msg.type === 'chat' || msg.type === 'text';
+  const isImage = msg.type === 'image' || msg.type === 'sticker';
+  if (!isText && !isImage) return;
+  if (!msg.body && !isImage) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
   const chatId = chat.id._serialized;
   const contact = await msg.getContact().catch(() => null);
   const contactName = contact?.pushname || contact?.name || msg.from.replace('@c.us', '');
   upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
+  let type = 'text', mediaFile = null;
+  if (isImage) {
+    type = 'photo';
+    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+  }
   addMsg(chatId, {
     id: msg.id._serialized,
-    body: msg.body,
+    body: msg.body || '',
+    type, mediaFile,
     timestamp: msg.timestamp * 1000,
     fromMe: false,
     contact: contactName,
@@ -192,15 +228,23 @@ client.on('message', async (msg) => {
 
 client.on('message_create', async (msg) => {
   if (!msg.fromMe) return;
-  if (msg.type !== 'chat' && msg.type !== 'text') return;
+  const isText = msg.type === 'chat' || msg.type === 'text';
+  const isImage = msg.type === 'image' || msg.type === 'sticker';
+  if (!isText && !isImage) return;
   if (msg.__logged) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
   const chatId = chat.id._serialized;
   upsertChat(chatId, { name: chat.name || msg.to.replace('@c.us', ''), phone: chat.id.user, isGroup: chat.isGroup });
+  let type = 'text', mediaFile = null;
+  if (isImage) {
+    type = 'photo';
+    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+  }
   addMsg(chatId, {
     id: msg.id._serialized,
-    body: msg.body,
+    body: msg.body || '',
+    type, mediaFile,
     timestamp: msg.timestamp * 1000,
     fromMe: true,
     contact: 'Ich',
@@ -320,6 +364,18 @@ app.post('/api/logout', async (req, res) => {
   try { rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true }); } catch(e) {}
   console.log('[INFO] Logged out — reinitializing…');
   await reinitClient();
+});
+
+app.get('/api/media/:filename', (req, res) => {
+  const { filename } = req.params;
+  if (!/^[\w.-]+$/.test(filename)) return res.status(400).end();
+  const filePath = `${MEDIA_DIR}/${filename}`;
+  if (!existsSync(filePath)) return res.status(404).end();
+  const ext = filename.split('.').pop();
+  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Cache-Control', 'max-age=86400');
+  res.sendFile(filePath);
 });
 
 app.post('/api/reset', async (req, res) => {
@@ -811,7 +867,13 @@ app.get('/', (req, res) => {
         }
         const bub = document.createElement('div');
         bub.className = 'bubble';
-        bub.innerHTML = esc(m.body) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+        if (m.type === 'photo' && m.mediaFile) {
+          bub.innerHTML = '<img src="api/media/' + encodeURIComponent(m.mediaFile) + '" style="max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer" loading="lazy" onclick="this.style.maxWidth=this.style.maxWidth===\'none\'?\'240px\':\'none\'">' +
+            (m.body ? '<div style="margin-top:4px">' + esc(m.body) + '</div>' : '') +
+            '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+        } else {
+          bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
+        }
         wrap.appendChild(bub);
         msgList.appendChild(wrap);
         if (m.timestamp > (lastMsgTime[selectedChatId] || 0)) {
@@ -921,6 +983,8 @@ app.get('/', (req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+
+fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 app.listen(PORT, () => console.log(`[INFO] Web UI running on port ${PORT}`));
