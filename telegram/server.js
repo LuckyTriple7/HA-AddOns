@@ -197,7 +197,6 @@ async function loadDialogs() {
       }
     }
     scheduleSave();
-    console.log(`[INFO] ${dialogs.length} dialogs loaded`);
   } catch (e) { console.error('[ERROR] loadDialogs:', e.message); }
 }
 
@@ -259,6 +258,7 @@ async function startClient() {
     }, new NewMessage({}));
 
     await loadDialogs();
+    console.log(`[INFO] ${chatMap.size} dialogs loaded`);
   } catch (e) {
     status = 'error';
     lastError = e.message;
