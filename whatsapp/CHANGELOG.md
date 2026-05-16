@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.25] - 2026-05-16
+
+### Neu
+- Option `ha_notifications` (Standard: aus) — bei neuen eingehenden Nachrichten wird eine persistente Benachrichtigung in Home Assistant erstellt; pro Chat wird immer nur eine Benachrichtigung angezeigt (Tag `whatsapp_<chatId>`), neuere Nachrichten überschreiben ältere
+
 ## [1.1.24] - 2026-05-16
 
 ### Geändert

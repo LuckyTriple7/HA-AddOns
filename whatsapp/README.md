@@ -24,6 +24,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | `initial_chats` | `30` | Anzahl Chats die beim Start geladen werden |
 | `initial_messages` | `20` | Nachrichten pro Chat die beim Start geladen werden |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
+| `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 
 ## REST-API
 
@@ -116,6 +117,7 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 | `initial_chats` | `30` | Number of chats loaded on startup |
 | `initial_messages` | `20` | Messages per chat loaded on startup |
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
+| `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 
 ## REST API
 

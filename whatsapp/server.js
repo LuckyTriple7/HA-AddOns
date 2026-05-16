@@ -42,6 +42,7 @@ let lastError = null;
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
+const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/data/media';
@@ -217,7 +218,7 @@ client.on('message', async (msg) => {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   }
-  addMsg(chatId, {
+  const added = addMsg(chatId, {
     id: msg.id._serialized,
     body: msg.body || '',
     type, mediaFile,
@@ -225,6 +226,9 @@ client.on('message', async (msg) => {
     fromMe: false,
     contact: contactName,
   });
+  if (added) {
+    sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
+  }
   if (process.env.WEBHOOK_INCOMING) {
     dbg(`Firing incoming webhook: ${process.env.WEBHOOK_INCOMING}`);
     postWebhook(process.env.WEBHOOK_INCOMING, { from: msg.from, body: msg.body, type: msg.type, timestamp: msg.timestamp });
@@ -273,6 +277,31 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function sendHANotification(chatId, senderName, body) {
+  if (!HA_NOTIFY) return;
+  const token = process.env.SUPERVISOR_TOKEN;
+  if (!token) { console.warn('[WARN] HA_NOTIFICATIONS enabled but SUPERVISOR_TOKEN not set'); return; }
+  const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
+  const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
+  const payload = JSON.stringify({
+    title: `WhatsApp: ${senderName}`,
+    message: preview || '📷 Foto',
+    notification_id: `whatsapp_${safeId}`,
+  });
+  dbg(`Sending HA notification for chat ${chatId}`);
+  const req = http.request('http://supervisor/core/api/services/persistent_notification/create', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  });
+  req.on('error', e => console.warn('[WARN] HA notification error:', e.message));
+  req.write(payload);
+  req.end();
+}
 
 function postWebhook(url, data) {
   try {
