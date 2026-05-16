@@ -11,12 +11,14 @@ fi
 PROFILE_DIR=/data/profile
 mkdir -p "$PROFILE_DIR"
 
-# user.js mit Speicherlimit und Spracheinstellung schreiben
+# user.js: Sprache + Software-Rendering (kein GPU in Xvfb)
 {
     echo 'user_pref("intl.locale.requested", "de");'
     echo 'user_pref("browser.search.region", "DE");'
     echo 'user_pref("browser.search.isUS", false);'
-}  > "$PROFILE_DIR/user.js"
+    echo 'user_pref("layers.acceleration.disabled", true);'
+    echo 'user_pref("gfx.webrender.all", false);'
+} > "$PROFILE_DIR/user.js"
 
 if [ "${MEMORY_LIMIT_MB:-0}" -gt 0 ] 2>/dev/null; then
     DISK_CACHE_KB=$(( MEMORY_LIMIT_MB * 256 ))
@@ -32,6 +34,7 @@ fi
 
 cleanup() {
     kill "$XVFB_PID" "$VNC_PID" "$NOVNC_PID" 2>/dev/null || true
+    [ -n "${DBUS_SESSION_BUS_PID:-}" ] && kill "$DBUS_SESSION_BUS_PID" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -39,6 +42,9 @@ trap cleanup EXIT
 Xvfb :1 -screen 0 1280x768x24 -nolisten tcp &
 XVFB_PID=$!
 sleep 1
+
+# DBus starten (Firefox benötigt dbus-launch)
+eval "$(dbus-launch --sh-syntax 2>/dev/null)" || true
 
 # VNC-Server starten (nur localhost, kein Passwort)
 x11vnc -display :1 -forever -shared -nopw -localhost -quiet &
