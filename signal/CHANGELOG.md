@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.13] - 2026-05-16
+
+### Behoben
+- Korrupte Daten in `/data/signal-cli` (von inkompatiblem Modus) führen zu 500/400 — beim Start wird `/v1/accounts` geprüft; bei 500 werden die Daten automatisch gelöscht und signal-cli neu gestartet
+
 ## [1.0.12] - 2026-05-16
 
 ### Behoben
