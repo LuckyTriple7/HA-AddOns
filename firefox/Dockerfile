@@ -8,16 +8,16 @@ ENV APP_NAME="Firefox" \
     USER_ID=0 \
     GROUP_ID=0
 
-# curl/ca-certificates für Firefox-Download, xz-utils für .tar.xz, jq für Optionen-Parsing
-# libgtk-3-0/libdbus-glib-1-2/libxt6: Firefox-Laufzeit-Abhängigkeiten (nicht im Base-Image)
+# firefox-esr aus Debian-Repos holt alle Laufzeit-Abhängigkeiten (GTK3, DBus etc.);
+# das Debian-Binary wird danach entfernt (apt remove entfernt nur firefox-esr,
+# nicht die Abhängigkeits-Libraries) — Mozilla's Build nutzt dieselben Libs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     jq \
     xz-utils \
-    libgtk-3-0 \
-    libdbus-glib-1-2 \
-    libxt6 \
+    firefox-esr \
+    && apt-get remove -y --purge firefox-esr \
     && rm -rf /var/lib/apt/lists/*
 
 ARG FIREFOX_VERSION=140.10.2esr

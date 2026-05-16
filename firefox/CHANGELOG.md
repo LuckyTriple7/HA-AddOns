@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.8] - 2026-05-16
+
+### Behoben
+- Firefox-Abhängigkeiten anders gelöst: `firefox-esr` aus Debian-Repos installieren zieht alle Libraries (GTK3, DBus etc.) als Deps mit; danach `firefox-esr` Binary entfernen — Libraries bleiben erhalten, Mozilla's Build nutzt sie. Umgeht das Problem mit unsicheren Package-Namen in jlesage's Base.
+
 ## [2.0.7] - 2026-05-16
 
 ### Behoben
