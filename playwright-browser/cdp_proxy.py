@@ -3,8 +3,8 @@
 CDP proxy with lazy Chromium start for the Playwright Browser Home Assistant add-on.
 
 Chromium is started on the first incoming connection and stopped after
-IDLE_TIMEOUT_MINUTES of inactivity (no active WebSocket connections).
-HTTP-only requests (e.g. /json/version) also reset the idle timer.
+IDLE_TIMEOUT_MINUTES with no active WebSocket connections.
+HTTP requests (e.g. /json/version health checks) do NOT reset the idle timer.
 """
 import http.client
 import http.server
@@ -29,11 +29,15 @@ _SRCS = [
 ]
 _DST = f'{EXTERNAL_HOST}:{EXTERNAL_PORT}'.encode()
 
-# State (protected by _lock where noted)
+# State (protected by _lock)
 _lock = threading.Lock()
-_chromium_proc = None   # protected by _lock
-_active_ws = 0          # protected by _lock
-_last_activity = time.monotonic()  # protected by _lock
+_chromium_proc = None
+_active_ws = 0
+_last_activity = time.monotonic()
+
+
+def log(level, msg):
+    print(f'[{level}] [{time.strftime("%H:%M:%S")}] {msg}', flush=True)
 
 
 def rewrite(body: bytes) -> bytes:
@@ -86,13 +90,13 @@ def _wait_ready(timeout=30):
 
 
 def ensure_chromium():
-    """Start Chromium if not running. Blocks until ready. Returns True on success."""
+    """Start Chromium if not running. Blocks until ready. Returns True on success.
+    Does NOT update _last_activity — only WS events do that."""
     global _chromium_proc, _last_activity
     with _lock:
-        _last_activity = time.monotonic()
         if _chromium_proc is not None and _chromium_proc.poll() is None:
             return True
-        print('[INFO] Chromium starting...', flush=True)
+        log('INFO', 'Chromium starting...')
         os.makedirs(TMPDIR, exist_ok=True)
         _chromium_proc = subprocess.Popen(
             _chromium_cmd(),
@@ -101,14 +105,15 @@ def ensure_chromium():
         )
         # _lock held during wait — serialises concurrent connection attempts
         if not _wait_ready():
-            print('[ERROR] Chromium did not become ready in time!', flush=True)
+            log('ERROR', 'Chromium did not become ready in time!')
             try:
                 _chromium_proc.kill()
             except Exception:
                 pass
             _chromium_proc = None
             return False
-        print('[INFO] Chromium ready.', flush=True)
+        _last_activity = time.monotonic()  # reset idle timer once on startup
+        log('INFO', 'Chromium ready.')
         return True
 
 
@@ -117,13 +122,14 @@ def stop_chromium():
     with _lock:
         if _chromium_proc is None or _chromium_proc.poll() is not None:
             return
-        print('[INFO] Stopping Chromium (idle timeout).', flush=True)
+        log('INFO', 'Chromium stopping (idle timeout reached).')
         _chromium_proc.terminate()
         try:
             _chromium_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             _chromium_proc.kill()
         _chromium_proc = None
+        log('INFO', 'Chromium stopped.')
 
 
 def _idle_watcher():
@@ -134,6 +140,7 @@ def _idle_watcher():
             ws = _active_ws
             idle = time.monotonic() - _last_activity
         if running and ws == 0 and idle >= IDLE_TIMEOUT:
+            log('INFO', f'Idle timeout reached ({int(idle)}s, limit={IDLE_TIMEOUT}s).')
             stop_chromium()
 
 
@@ -148,15 +155,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._proxy_http()
 
     def _proxy_http(self):
-        was_running = _chromium_proc is not None and _chromium_proc.poll() is None
         if not ensure_chromium():
             try:
                 self.send_error(503, 'Chromium unavailable')
             except Exception:
                 pass
             return
-        if not was_running:
-            print(f'[INFO] HTTP request triggered Chromium start ({self.client_address[0]}: {self.path})', flush=True)
         try:
             conn = http.client.HTTPConnection(INTERNAL_HOST, INTERNAL_PORT, timeout=30)
             headers = dict(self.headers)
@@ -196,7 +200,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 _active_ws += 1
                 _last_activity = time.monotonic()
                 ws_count = _active_ws
-            print(f'[INFO] Client connected: {self.client_address[0]} (active WebSocket connections: {ws_count})', flush=True)
+            log('INFO', f'Client connected: {self.client_address[0]} (active WebSocket connections: {ws_count})')
 
             def pipe(src, dst):
                 try:
@@ -218,14 +222,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pipe(client, backend)
             t.join(timeout=5)
         except Exception as e:
-            sys.stderr.write(f'WS error: {e}\n')
+            sys.stderr.write(f'[ERROR] [{time.strftime("%H:%M:%S")}] WS error: {e}\n')
             sys.stderr.flush()
         finally:
             with _lock:
                 _active_ws = max(0, _active_ws - 1)
                 _last_activity = time.monotonic()
                 ws_count = _active_ws
-            print(f'[INFO] Client disconnected: {self.client_address[0]} (active WebSocket connections: {ws_count})', flush=True)
+            log('INFO', f'Client disconnected: {self.client_address[0]} (active WebSocket connections: {ws_count})')
             if backend:
                 try:
                     backend.close()
@@ -237,9 +241,5 @@ if __name__ == '__main__':
     os.makedirs(TMPDIR, exist_ok=True)
     threading.Thread(target=_idle_watcher, daemon=True).start()
     srv = http.server.ThreadingHTTPServer(('0.0.0.0', EXTERNAL_PORT), Handler)
-    print(
-        f'CDP proxy :{EXTERNAL_PORT} -> {INTERNAL_HOST}:{INTERNAL_PORT} '
-        f'(lazy start, idle={IDLE_TIMEOUT}s, hostname={EXTERNAL_HOST})',
-        flush=True,
-    )
+    log('INFO', f'CDP proxy :{EXTERNAL_PORT} -> {INTERNAL_HOST}:{INTERNAL_PORT} (lazy start, idle={IDLE_TIMEOUT}s, hostname={EXTERNAL_HOST})')
     srv.serve_forever()

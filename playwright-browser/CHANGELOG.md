@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.8 - 2026-05-16
+
+### Behoben
+- Idle-Timer lief nie ab — HTTP-Anfragen (z.B. Playwright-Health-Check `/json/version`) haben `_last_activity` immer wieder zurückgesetzt; nur noch WebSocket-Events und Chromium-Start setzen den Timer
+- Log-Format vereinheitlicht: alle Meldungen folgen `[LEVEL] [HH:MM:SS] Nachricht`
+
 ## 1.0.7 - 2026-05-16
 
 ### Neu
