@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9 - 2026-05-16
+
+### Geändert
+- Chromium-Startmeldung zeigt jetzt den Auslöser: `trigger: HTTP 172.30.33.13 /json/version` oder `trigger: WebSocket ...` — macht sichtbar warum Chromium (neu) startet
+
 ## 1.0.8 - 2026-05-16
 
 ### Behoben

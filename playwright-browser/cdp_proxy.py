@@ -89,14 +89,14 @@ def _wait_ready(timeout=30):
     return False
 
 
-def ensure_chromium():
+def ensure_chromium(trigger=''):
     """Start Chromium if not running. Blocks until ready. Returns True on success.
     Does NOT update _last_activity — only WS events do that."""
     global _chromium_proc, _last_activity
     with _lock:
         if _chromium_proc is not None and _chromium_proc.poll() is None:
             return True
-        log('INFO', 'Chromium starting...')
+        log('INFO', f'Chromium starting... (trigger: {trigger})')
         os.makedirs(TMPDIR, exist_ok=True)
         _chromium_proc = subprocess.Popen(
             _chromium_cmd(),
@@ -155,7 +155,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._proxy_http()
 
     def _proxy_http(self):
-        if not ensure_chromium():
+        if not ensure_chromium(f'HTTP {self.client_address[0]} {self.path}'):
             try:
                 self.send_error(503, 'Chromium unavailable')
             except Exception:
@@ -184,7 +184,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _proxy_ws(self):
         global _active_ws, _last_activity
-        if not ensure_chromium():
+        if not ensure_chromium(f'WebSocket {self.client_address[0]} {self.path}'):
             return
         backend = None
         try:
