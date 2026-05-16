@@ -12,6 +12,8 @@ const SIGNAL_API = process.env.SIGNAL_API_URL || 'http://localhost:8080';
 const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const DARK_MODE = process.env.DARK_MODE === 'true';
+const DEBUG = process.env.DEBUG_MODE === 'true';
+function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';
@@ -100,6 +102,7 @@ async function checkStatus() {
       qrUri = null;
       qrDataUrl = null;
       console.log(`[INFO] Linked as ${PHONE_NUMBER}`);
+      if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
       loadContacts();
       loadGroups();
     }
@@ -192,10 +195,11 @@ function processEnvelope(envelope) {
   const env = envelope.envelope || envelope;
   const dm = env.dataMessage;
   const source = normPhone(env.sourceNumber || env.source);
-  if (!dm || !source || !dm.message) return;
+  dbg(`processEnvelope: source=${source} hasDataMessage=${!!dm} body="${(dm?.message||'').slice(0,60)}"`);
+  if (!dm || !source || !dm.message) { dbg(`processEnvelope: skipping — no dataMessage or message text`); return; }
 
   const msgId = `${source}_${dm.timestamp}`;
-  if (seenMsgIds.has(msgId)) return;
+  if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
 
   const isOwn = source === PHONE_NUMBER;
@@ -218,7 +222,10 @@ function processEnvelope(envelope) {
 
   scheduleSave();
 
+  dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
+
   if (WEBHOOK_INCOMING && !isOwn) {
+    dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -233,7 +240,10 @@ async function pollMessages() {
     const r = await fetch(`${SIGNAL_API}/v1/receive/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 5000 });
     if (!r.ok) return;
     const messages = await r.json();
-    if (Array.isArray(messages)) messages.forEach(processEnvelope);
+    if (Array.isArray(messages) && messages.length > 0) {
+      dbg(`pollMessages: received ${messages.length} envelope(s)`);
+      messages.forEach(processEnvelope);
+    }
   } catch (e) {}
 }
 
@@ -262,6 +272,7 @@ app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
   try {
+    dbg(`Sending message to ${to}: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -302,6 +313,7 @@ app.post('/api/qr/refresh', (req, res) => {
 
 app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
+  dbg(`Deleting message ${msgId} in chat ${chatId}`);
   // Always remove locally so the message disappears from the UI
   const msgs = messagesByChatId.get(chatId);
   if (msgs) {

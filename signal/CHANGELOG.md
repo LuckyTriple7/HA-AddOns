@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.34] - 2026-05-16
+
+### Neu
+- Option `debug_mode` (Standard: aus) — einschalten für ausführliches Logging: empfangene Envelopes mit Quelle/Inhalt, Duplikat-Erkennung, gespeicherte Nachrichten, Webhook-Aufrufe, gesendete und gelöschte Nachrichten; im Debug-Modus werden auch die GIN-Access-Logs von signal-cli-rest-api ungefiltert ausgegeben
+
 ## [1.0.33] - 2026-05-16
 
 ### Behoben
