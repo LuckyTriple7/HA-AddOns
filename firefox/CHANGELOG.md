@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.1] - 2026-05-16
+
+### Behoben
+- Überflüssige apt-Pakete entfernt — jlesage Base Image bringt GUI-Libraries mit; nur `jq` wird noch installiert
+
 ## [2.0.0] - 2026-05-16
 
 ### Komplett neu aufgebaut
