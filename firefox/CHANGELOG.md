@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.2] - 2026-05-16
+
+### Behoben
+- `libasound2` (ALSA) und `libxkbcommon0` zur deps-Stage hinzugefügt — `libasound.so.2: cannot open shared object file`
+
 ## [2.1.1] - 2026-05-16
 
 ### Behoben
