@@ -675,7 +675,6 @@ async function reconnect() {
 }
 
 async function logout() {
-  if (!confirm('Abmelden und Session löschen?')) return;
   currentStatus = '';
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('main').style.display = 'none';

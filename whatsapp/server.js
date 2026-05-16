@@ -924,13 +924,11 @@ app.get('/', (req, res) => {
     }
 
     async function logout() {
-      if (!confirm('Wirklich abmelden?')) return;
       showSpinner('Abgemeldet — lade QR-Code…');
       await fetch('api/logout', { method: 'POST' }).catch(() => {});
     }
 
     async function resetSession() {
-      if (!confirm('Session löschen und neu starten? Du musst den QR-Code erneut scannen.')) return;
       showSpinner('Session gelöscht — lade QR-Code…');
       await fetch('api/reset', { method: 'POST' }).catch(() => {});
     }

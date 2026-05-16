@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.11] - 2026-05-16
+
+### Behoben
+- "Abmelden"-Button tat nichts — `window.confirm()` ist in HA Ingress (iFrame) von modernen Browsern blockiert; Bestätigungsdialog entfernt
+
 ## [1.0.10] - 2026-05-16
 
 ### Behoben

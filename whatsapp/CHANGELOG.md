@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.14] - 2026-05-16
+
+### Behoben
+- "Session zurücksetzen" und "Abmelden" taten nichts — `window.confirm()` ist in HA Ingress (iFrame) von modernen Browsern blockiert; Bestätigungsdialoge entfernt
+
 ## [1.1.13] - 2026-05-16
 
 ### Behoben
