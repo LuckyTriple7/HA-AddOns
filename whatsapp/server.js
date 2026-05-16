@@ -506,10 +506,12 @@ app.get('/', (req, res) => {
     .contact-name { font-size: 11px; color: #8696a0; margin-bottom: 2px; padding: 0 4px; }
     .bubble {
       max-width: 65%; padding: 6px 10px 8px; border-radius: 7.5px;
-      font-size: 14px; line-height: 1.45; word-break: break-word; position: relative;
+      font-size: 14px; line-height: 1.45; word-break: break-word;
     }
-    .del-btn { display: none; position: absolute; top: 2px; right: 2px; background: none; border: none; cursor: pointer; font-size: 13px; opacity: 0.4; padding: 2px 4px; line-height: 1; border-radius: 4px; }
-    .bubble:hover .del-btn { display: block; }
+    .bubble-row-inner { display: flex; align-items: center; gap: 6px; }
+    .bubble-wrap.out .del-btn { order: -1; }
+    .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+    .bubble-row-inner:hover .del-btn { display: block; }
     .del-btn:hover { opacity: 1; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
@@ -895,13 +897,16 @@ app.get('/', (req, res) => {
         } else {
           bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
         }
+        const bri = document.createElement('div');
+        bri.className = 'bubble-row-inner';
+        bri.appendChild(bub);
         const delBtn = document.createElement('button');
         delBtn.className = 'del-btn';
         delBtn.title = 'Löschen';
         delBtn.textContent = '🗑';
         delBtn.dataset.msgid = m.id;
-        bub.appendChild(delBtn);
-        wrap.appendChild(bub);
+        bri.appendChild(delBtn);
+        wrap.appendChild(bri);
         msgList.appendChild(wrap);
         if (m.timestamp > (lastMsgTime[selectedChatId] || 0)) {
           lastMsgTime[selectedChatId] = m.timestamp;
@@ -948,9 +953,9 @@ app.get('/', (req, res) => {
     async function deleteMsg(chatId, msgId) {
       try {
         await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
-        for (const bub of msgList.querySelectorAll('.bubble')) {
-          if (bub.querySelector('.del-btn')?.dataset?.msgid === msgId) {
-            bub.closest('.bubble-wrap')?.remove();
+        for (const bri of msgList.querySelectorAll('.bubble-row-inner')) {
+          if (bri.querySelector('.del-btn')?.dataset?.msgid === msgId) {
+            bri.closest('.bubble-wrap')?.remove();
             break;
           }
         }

@@ -490,12 +490,16 @@ html.light #chat-header { background: #517DA2; }
 #back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 4px 8px 4px 0; }
 #ch-name { font-size: 16px; font-weight: 600; color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; display: none; }
-.bubble { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; position: relative; }
-.del-btn { display: none; position: absolute; top: 2px; right: 2px; background: none; border: none; cursor: pointer; font-size: 13px; opacity: 0.4; padding: 2px 4px; line-height: 1; border-radius: 4px; }
-.bubble:hover .del-btn { display: block; }
+.bubble { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
+.bubble.in { border-bottom-left-radius: 2px; }
+.bubble.out { border-bottom-right-radius: 2px; }
+.bubble-row { display: flex; align-items: center; gap: 6px; }
+.bubble-row.out { justify-content: flex-end; }
+.bubble-row.in { justify-content: flex-start; }
+.bubble-row.out .del-btn { order: -1; }
+.del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.5; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .del-btn { display: block; }
 .del-btn:hover { opacity: 1; }
-.bubble.in { align-self: flex-start; border-bottom-left-radius: 2px; }
-.bubble.out { align-self: flex-end; border-bottom-right-radius: 2px; }
 html.dark .bubble.in { background: #182533; color: #C1C9D4; }
 html.dark .bubble.out { background: #2B5278; color: #fff; }
 html.light .bubble.in { background: #fff; color: #222; }
@@ -785,7 +789,7 @@ function renderMessages(msgs) {
     } else {
       content=escHtml(m.body);
     }
-    return sep+\`<div class="bubble \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><button class="del-btn" title="Löschen">🗑</button>\${content}<span class="bubble-time">\${time}</span></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}</span></div><button class="del-btn" title="Löschen">🗑</button></div>\`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -815,9 +819,9 @@ async function deleteMsg(chatId, msgId) {
 document.getElementById('messages').addEventListener('click', e => {
   const btn = e.target.closest('.del-btn');
   if (!btn) return;
-  const bubble = btn.closest('.bubble');
-  if (!bubble) return;
-  deleteMsg(bubble.dataset.chatid, bubble.dataset.msgid);
+  const row = btn.closest('.bubble-row');
+  if (!row) return;
+  deleteMsg(row.dataset.chatid, row.dataset.msgid);
 });
 
 // ── Emoji picker ───────────────────────────────────────────────────────────────

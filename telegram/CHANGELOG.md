@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.13] - 2026-05-16
+
+### Geändert
+- Löschen-Button erscheint jetzt seitlich neben der Sprechblase (links bei gesendeten, rechts bei empfangenen Nachrichten) statt innerhalb der Blase
+
 ## [1.0.12] - 2026-05-16
 
 ### Neu
