@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.8] - 2026-05-16
+
+### Neu
+- Emoji-Tastatur in der Chat-Eingabe — 😊-Button öffnet Picker mit ~100 Emojis; Klick fügt Emoji an der Cursor-Position ein
+
 ## [1.1.7] - 2026-05-16
 
 ### Behoben

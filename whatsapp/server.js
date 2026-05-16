@@ -463,8 +463,15 @@ app.get('/', (req, res) => {
     #send-bar {
       background: #202c33; padding: 10px 12px;
       display: flex; gap: 8px; align-items: flex-end;
-      border-top: 1px solid #2a3942; flex-shrink: 0;
+      border-top: 1px solid #2a3942; flex-shrink: 0; position: relative;
     }
+    #emoji-picker { display: none; position: absolute; bottom: 100%; left: 0; right: 0; background: #202c33; border-top: 1px solid #2a3942; padding: 8px 12px; max-height: 200px; overflow-y: auto; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.2); }
+    #emoji-picker.open { display: block; }
+    .emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; }
+    .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; line-height: 1; }
+    .emoji-btn:hover { background: #2a3942; }
+    #emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; color: #8696a0; }
+    #emoji-toggle:hover { background: rgba(255,255,255,0.08); }
     #msg-input {
       flex: 1; background: #2a3942; border: none; border-radius: 8px;
       padding: 9px 12px; color: #e9edef; font-size: 14px; font-family: inherit;
@@ -558,6 +565,8 @@ app.get('/', (req, res) => {
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="send-bar" style="display:none;">
+        <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
+        <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" title="Emoji">😊</button>
         <textarea id="msg-input" rows="1" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>
@@ -617,6 +626,50 @@ app.get('/', (req, res) => {
       el.style.height = 'auto';
       el.style.height = Math.min(el.scrollHeight, 120) + 'px';
     }
+
+    const EMOJIS = [
+      '😀','😂','🤣','😊','😇','🥰','😍','🤩','😘','😋','😜','🤪','😎','🥳','😏','🤔','🤗','😐','🙄','😒',
+      '😔','🙃','😢','😭','😤','😠','🤬','🤯','😳','😱','🥺','😷','🤒','🤕','🤧','😴','🥱','🤤','😵','🤮',
+      '👍','👎','👋','🤝','🙏','💪','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','👏','🙌','🤲','✋','🖐️',
+      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','💕','💞','💓','💗','💖','💘','💝',
+      '🎉','🎊','🎈','🎁','🎂','🏆','🥇','⭐','🌟','💫','✨','🔥','💯','💎','🚀','🌈','☀️','🌙','⛅','🌊',
+      '🌸','🌺','🌹','🌻','🌼','🍀','🍁','🌴','🌵','🍄','🌍','🗺️',
+      '🍕','🍔','🌮','🌯','🍜','🍝','🍣','🍱','🍦','🍰','🎂','🍫','🍬','🍭','🍺','🥂','☕','🍵','🥤','🍷',
+      '🐶','🐱','🐭','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','😸','🐠',
+      '🎵','🎶','🎸','🎹','🎤','🎮','📱','💻','📷','🎬','🏖️','🏔️','🚗','✈️','🚢','🏠','🔑','💡','📚','🎯'
+    ];
+
+    (function buildEmojiGrid() {
+      const grid = document.getElementById('emoji-grid');
+      EMOJIS.forEach(e => {
+        const btn = document.createElement('button');
+        btn.className = 'emoji-btn';
+        btn.textContent = e;
+        btn.onclick = () => insertEmoji(e);
+        grid.appendChild(btn);
+      });
+    })();
+
+    function toggleEmojiPicker(evt) {
+      evt.stopPropagation();
+      document.getElementById('emoji-picker').classList.toggle('open');
+    }
+
+    function insertEmoji(emoji) {
+      const inp = document.getElementById('msg-input');
+      const start = inp.selectionStart;
+      const end = inp.selectionEnd;
+      inp.value = inp.value.slice(0, start) + emoji + inp.value.slice(end);
+      inp.selectionStart = inp.selectionEnd = start + emoji.length;
+      inp.focus();
+      autoResize(inp);
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#emoji-picker') && e.target.id !== 'emoji-toggle') {
+        document.getElementById('emoji-picker').classList.remove('open');
+      }
+    });
 
     function renderChatList(chats) {
       const list = document.getElementById('chat-list');
