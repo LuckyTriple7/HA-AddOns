@@ -8,15 +8,18 @@ ENV APP_NAME="Firefox" \
     USER_ID=0 \
     GROUP_ID=0
 
-# firefox-esr aus Debian-Repos holt alle Laufzeit-Abhängigkeiten (GTK3, DBus etc.);
-# das Debian-Binary wird danach entfernt (apt remove entfernt nur firefox-esr,
-# nicht die Abhängigkeits-Libraries) — Mozilla's Build nutzt dieselben Libs.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    jq \
-    xz-utils \
-    firefox-esr \
+# jlesage's Debian-Image hat nur minimale Repos — Debian bookworm main explizit hinzufügen,
+# damit firefox-esr (→ alle GTK3/DBus-Abhängigkeiten) installierbar ist.
+# firefox-esr Binary danach entfernen; Libraries bleiben — Mozilla's Build nutzt sie.
+RUN echo "deb http://deb.debian.org/debian bookworm main contrib" \
+        > /etc/apt/sources.list.d/bookworm-main.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        jq \
+        xz-utils \
+        firefox-esr \
     && apt-get remove -y --purge firefox-esr \
     && rm -rf /var/lib/apt/lists/*
 

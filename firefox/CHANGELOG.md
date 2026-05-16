@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.9] - 2026-05-16
+
+### Behoben
+- Debian bookworm main Repo explizit in `/etc/apt/sources.list.d/bookworm-main.list` hinzugefügt — jlesage's Base-Image hat nur minimale Repos; `ca-certificates`, `curl` etc. waren bereits vorinstalliert (deshalb kein Fehler), GUI-Pakete wie `firefox-esr` fehlten aber
+
 ## [2.0.8] - 2026-05-16
 
 ### Behoben
