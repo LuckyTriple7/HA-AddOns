@@ -163,7 +163,6 @@ async function loadContacts() {
       }
     }
     scheduleSave();
-    console.log(`[INFO] Loaded ${contacts.length} contacts`);
   } catch (e) {
     console.error('[ERROR] loadContacts:', e.message);
   }
@@ -184,7 +183,6 @@ async function loadGroups() {
       }
     }
     scheduleSave();
-    console.log(`[INFO] Loaded ${groups.length} groups`);
   } catch (e) {
     console.error('[ERROR] loadGroups:', e.message);
   }

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.32] - 2026-05-16
+
+### Behoben
+- Log-Spam reduziert — `GIN_MODE=release` unterdrückt die GIN-HTTP-Access-Logs von signal-cli-rest-api; periodische „Loaded X contacts/groups"-Meldungen entfernt
+
 ## [1.0.31] - 2026-05-16
 
 ### Behoben

@@ -6,6 +6,7 @@ export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
 export NATIVE_MODE=$(jq -r 'if .native_mode == false then "false" else "true" end' /data/options.json)
 export DARK_MODE=$(jq -r 'if .dark_mode == true then "true" else "false" end' /data/options.json)
 export SIGNAL_API_URL=http://localhost:8080
+export GIN_MODE=release
 
 export SIGNAL_CLI_CONFIG_DIR=/data/signal-cli
 mkdir -p /data/signal-cli
