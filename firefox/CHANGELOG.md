@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.4] - 2026-05-16
+
+### Behoben
+- Base-Image auf `jlesage/baseimage-gui:debian-12-v4.12.1` aktualisiert — behebt noVNC `isAndroid`-SyntaxError (inkonsistentes noVNC-Bundle in v4.12.0)
+- Fontconfig-Config (`/etc/fonts`) aus deps-Stage kopiert — behebt `Cannot load default config file`
+- Locale-Daten (`de_DE.UTF-8`) aus deps-Stage übernommen — behebt GTK-Locale-Warnung
+
 ## [2.1.3] - 2026-05-16
 
 ### Behoben

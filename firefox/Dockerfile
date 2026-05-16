@@ -2,14 +2,16 @@
 # jlesage's Debian-Base hat keine GUI-Pakete in seinen Repos — deswegen
 # schlägt apt-get install libgtk-3-0 etc. dort fehl.
 FROM debian:bookworm-slim AS deps
-# firefox-esr installieren damit apt alle transitiven Abhängigkeiten auflöst.
-# Der Binary wird nicht gebraucht — nur die Libraries in /usr/lib/x86_64-linux-gnu.
+# firefox-esr installieren damit apt alle transitiven Abhängigkeiten auflöst
+# (GTK3, ALSA, dbus, fontconfig, etc.) — Binary wird nicht gebraucht.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     firefox-esr \
+    locales \
+    && locale-gen de_DE.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
-# Stage 2: Hauptimage auf jlesage-Basis
-FROM jlesage/baseimage-gui:debian-12-v4
+# Stage 2: Hauptimage auf jlesage-Basis (v4.12.1 behebt noVNC isAndroid-Bug)
+FROM jlesage/baseimage-gui:debian-12-v4.12.1
 
 ENV APP_NAME="Firefox" \
     LANG=de_DE.UTF-8 \
@@ -19,19 +21,21 @@ ENV APP_NAME="Firefox" \
     USER_ID=0 \
     GROUP_ID=0
 
-# GTK3 und alle transitiven Abhängigkeiten aus Stage 1 übernehmen.
-# COPY überschreibt nicht — jlesage-eigene Libs bleiben erhalten.
+# Firefox-Laufzeit-Libs und Fontconfig-Config aus Stage 1 übernehmen
 COPY --from=deps /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+COPY --from=deps /etc/fonts /etc/fonts
+COPY --from=deps /usr/lib/locale /usr/lib/locale
+COPY --from=deps /usr/share/locale /usr/share/locale
 RUN ldconfig
 
-# Kleine Utilities: diese Pakete sind in jlesage's konfigurierten Repos vorhanden
-# (nur GUI-Pakete wie libgtk-3-0 fehlen dort).
+# Kleine Utilities aus jlesage's konfigurierten Repos
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     jq \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
+
 ARG FIREFOX_VERSION=140.10.2esr
 RUN curl -sL --fail \
     "https://releases.mozilla.org/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.xz" \
