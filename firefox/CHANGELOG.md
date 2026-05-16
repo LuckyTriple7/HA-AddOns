@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.2] - 2026-05-16
+
+### Behoben
+- `curl` und `ca-certificates` wieder in apt aufgenommen — werden für Firefox-Download von Mozilla benötigt
+
 ## [2.0.1] - 2026-05-16
 
 ### Behoben

@@ -3,8 +3,10 @@ FROM jlesage/baseimage-gui:debian-12-v4
 ENV APP_NAME="Firefox" \
     LANG=de_DE.UTF-8
 
-# jq für Optionen-Parsing; GUI-Libs kommen vom Base Image
+# curl/ca-certificates für Firefox-Download, jq für Optionen-Parsing
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
