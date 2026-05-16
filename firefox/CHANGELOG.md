@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.7] - 2026-05-16
+
+### Behoben
+- `libgtk-3-0`, `libdbus-glib-1-2`, `libxt6` installiert — jlesage/baseimage-gui bringt diese Firefox-Laufzeit-Abhängigkeiten nicht mit; `libgtk-3.so.0: cannot open shared object file` war der Fehler
+
 ## [2.0.6] - 2026-05-16
 
 ### Behoben

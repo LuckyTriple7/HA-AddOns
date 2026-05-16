@@ -9,11 +9,15 @@ ENV APP_NAME="Firefox" \
     GROUP_ID=0
 
 # curl/ca-certificates für Firefox-Download, xz-utils für .tar.xz, jq für Optionen-Parsing
+# libgtk-3-0/libdbus-glib-1-2/libxt6: Firefox-Laufzeit-Abhängigkeiten (nicht im Base-Image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     jq \
     xz-utils \
+    libgtk-3-0 \
+    libdbus-glib-1-2 \
+    libxt6 \
     && rm -rf /var/lib/apt/lists/*
 
 ARG FIREFOX_VERSION=140.10.2esr
