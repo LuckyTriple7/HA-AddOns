@@ -37,6 +37,19 @@ Headless-Chromium-Browser mit CDP-Endpoint für Browser-Automatisierung. Wird vo
 
 → [Dokumentation & Changelog](playwright-browser/README.md)
 
+### [Firefox DE](firefox/)
+
+Firefox ESR direkt in der HA-Seitenleiste via noVNC — deutschsprachig, mit persistentem Profil.
+
+- Vollständiger Firefox-Browser ohne externen VNC-Client
+- Deutsche Sprache voreingestellt
+- Persistentes Profil in `/data/profile` — bleibt über Neustarts erhalten
+- Downloads in `/share/firefox`
+- Clipboard-Sync über HA-Ingress (HTTPS)
+- Optionale RAM-Begrenzung via `memory_limit_mb`
+
+→ [Dokumentation & Changelog](firefox/README.md)
+
 ### [Webtop XFCE](ubuntu-webtop/)
 
 Vollständiger XFCE-Desktop im Webbrowser, direkt in Home Assistant integriert.
@@ -133,6 +146,19 @@ Headless Chromium browser with CDP endpoint for browser automation. Used by the 
 - Supports amd64 and aarch64
 
 → [Documentation & Changelog](playwright-browser/README.md)
+
+### [Firefox DE](firefox/)
+
+Firefox ESR directly in the HA sidebar via noVNC — German language, persistent profile.
+
+- Full Firefox browser without an external VNC client
+- German language preset
+- Persistent profile in `/data/profile` — survives restarts
+- Downloads in `/share/firefox`
+- Clipboard sync via HA ingress (HTTPS)
+- Optional RAM limit via `memory_limit_mb`
+
+→ [Documentation & Changelog](firefox/README.md)
 
 ### [Webtop XFCE](ubuntu-webtop/)
 
