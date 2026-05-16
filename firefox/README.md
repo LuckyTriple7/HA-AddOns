@@ -1,6 +1,6 @@
 # Firefox
 
-Firefox-Browser direkt als Home Assistant Add-on — mit persistentem Profil, deutscher Sprache und optionaler RAM-Begrenzung.
+Firefox-Browser direkt als Home Assistant Add-on — in der HA-Seitenleiste via noVNC, deutschsprachig, mit persistentem Profil.
 
 ## Installation
 
@@ -10,32 +10,39 @@ Dieses Add-on ist Teil des [LuckyTriple7 HA Add-Ons Repository](https://github.c
 
 | Option | Standard | Beschreibung |
 |---|---|---|
-| `memory_limit_mb` | `0` | RAM-Limit für Firefox in MB. `0` = kein Limit. Empfehlung: `512`–`2048`. |
+| `DISPLAY_WIDTH` | `1280` | Breite des virtuellen Displays in Pixel |
+| `DISPLAY_HEIGHT` | `720` | Höhe des virtuellen Displays in Pixel |
+| `DARK_MODE` | `0` | Dunkelmodus für die noVNC-Oberfläche (`1` = ein) |
+| `VNC_PASSWORD` | `` | Optionales Passwort für den VNC-Zugriff |
+| `KEEP_APP_RUNNING` | `1` | Firefox bei Absturz automatisch neu starten |
+| `TZ` | `Europe/Berlin` | Zeitzone |
+| `FF_OPEN_URL` | `` | URL die beim Start geöffnet wird |
+| `FF_KIOSK` | `0` | Kiosk-Modus (`1` = ein, kein Browser-Chrome) |
+| `FF_CUSTOM_ARGS` | `` | Zusätzliche Firefox-Startparameter |
+| `memory_limit_mb` | `0` | RAM-Limit in MB. `0` = kein Limit. Empfehlung: `512`–`2048`. |
+
+## Zwischenablage (Copy/Paste)
+
+Die Zwischenablage funktioniert nur wenn das Add-on über die HA-Seitenleiste geöffnet wird (HTTPS-Ingress). Direktzugriff über `http://IP:5800` unterstützt keine Clipboard-Synchronisation.
 
 ## RAM-Begrenzung
 
-Firefox kann ohne Einschränkung sehr viel RAM verbrauchen. Mit `memory_limit_mb` werden folgende Firefox-Einstellungen über `user.js` gesetzt:
+Mit `memory_limit_mb` werden folgende Firefox-Einstellungen gesetzt:
 
-- **Disk-Cache**: 25 % des Limits (in KB)
-- **Memory-Cache**: 12,5 % des Limits (in KB)
+- **Disk-Cache**: 25 % des Limits
+- **Memory-Cache**: 12,5 % des Limits
 - **Content-Prozesse**: nur 1 (statt Standard: 8)
 - **Back/Forward-Cache**: deaktiviert
 
-Beispiel: `memory_limit_mb: 1024` → 256 MB Disk-Cache, 128 MB Memory-Cache.
-
 ## Technischer Aufbau
 
-Das Add-on baut sein eigenes Docker-Image auf Basis von `debian:bookworm-slim`:
-
-- **Firefox ESR** — aktuell aus Debian-Paketen, inklusive `firefox-esr-l10n-de`
-- **Xvfb** — virtuelles Display
-- **x11vnc** — VNC-Server auf dem virtuellen Display
-- **noVNC + websockify** — Browser-basierter VNC-Client auf Port 5800
+- **Base-Image**: `jlesage/baseimage-gui` — VNC, noVNC und Window Manager bereits enthalten
+- **Firefox ESR** — deutsche Version, direkt von Mozilla geladen
+- **Software-Rendering** — kein GPU erforderlich (`LIBGL_ALWAYS_SOFTWARE`, `gfx.webrender.software`)
+- **Persistentes Profil** in `/data/profile`
+- **Downloads** in `/share/firefox`
+- Nur **amd64**
 
 ## Automatische Updates
 
-GitHub Actions prüft täglich die aktuelle Firefox ESR Version via [Mozilla Product Details API](https://product-details.mozilla.org/1.0/firefox_versions.json). Bei einer neuen Version wird automatisch ein neues Docker-Image gebaut, zu GHCR gepusht und ein Pull Request erstellt.
-
-## Ursprung
-
-Inspiriert von [mincka/ha-addons/firefox](https://github.com/mincka/ha-addons/tree/main/firefox).
+GitHub Actions prüft täglich die aktuelle Firefox ESR Version. Bei einer neuen Version wird automatisch ein neues Docker-Image gebaut und zu GHCR gepusht.
