@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.11] - 2026-05-16
+
+### Behoben
+- `ca-certificates` explizit installiert — fehlte bei `--no-install-recommends`, was curl-SSL-Fehler (exit 77) beim noVNC-Download verursachte
+
 ## [1.0.10] - 2026-05-16
 
 ### Geändert
