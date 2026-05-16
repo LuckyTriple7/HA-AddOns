@@ -373,7 +373,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 .day-sep { text-align: center; margin: 8px 0; }
 .day-sep span { background: rgba(255,255,255,0.8); padding: 4px 12px; border-radius: 12px; font-size: 12px; color: #666; }
 
-#input-bar { background: #f0f2f5; padding: 8px 16px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+#input-bar { background: #f0f2f5; padding: 8px 16px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; position: relative; }
+#emoji-picker { display: none; position: absolute; bottom: 100%; left: 0; right: 0; background: #fff; border-top: 1px solid #e0e0e0; padding: 8px 12px; max-height: 200px; overflow-y: auto; z-index: 20; box-shadow: 0 -2px 8px rgba(0,0,0,0.08); }
+#emoji-picker.open { display: block; }
+.emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; }
+.emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; line-height: 1; }
+.emoji-btn:hover { background: #f0f2f5; }
+#emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; }
+#emoji-toggle:hover { background: rgba(0,0,0,0.08); }
 #msg-input { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; background: #fff; font-size: 14px; outline: none; resize: none; max-height: 120px; overflow-y: auto; font-family: inherit; }
 #send-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: #3a76f8; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #send-btn:hover { background: #2960d6; }
@@ -426,6 +433,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
     </div>
     <div id="messages"><div id="no-chat">Wähle einen Chat aus der Liste</div></div>
     <div id="input-bar">
+      <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
+      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" title="Emoji">😊</button>
       <textarea id="msg-input" rows="1" placeholder="Nachricht…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
@@ -654,6 +663,50 @@ function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
+
+const EMOJIS = [
+  '😀','😂','🤣','😊','😇','🥰','😍','🤩','😘','😋','😜','🤪','😎','🥳','😏','🤔','🤗','😐','🙄','😒',
+  '😔','🙃','😢','😭','😤','😠','🤬','🤯','😳','😱','🥺','😷','🤒','🤕','🤧','😴','🥱','🤤','😵','🤮',
+  '👍','👎','👋','🤝','🙏','💪','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','👏','🙌','🤲','✋','🖐️',
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','💕','💞','💓','💗','💖','💘','💝',
+  '🎉','🎊','🎈','🎁','🎂','🏆','🥇','⭐','🌟','💫','✨','🔥','💯','💎','🚀','🌈','☀️','🌙','⛅','🌊',
+  '🌸','🌺','🌹','🌻','🌼','🍀','🍁','🌴','🌵','🍄','🌍','🗺️',
+  '🍕','🍔','🌮','🌯','🍜','🍝','🍣','🍱','🍦','🍰','🎂','🍫','🍬','🍭','🍺','🥂','☕','🍵','🥤','🍷',
+  '🐶','🐱','🐭','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','😸','🐠',
+  '🎵','🎶','🎸','🎹','🎤','🎮','📱','💻','📷','🎬','🏖️','🏔️','🚗','✈️','🚢','🏠','🔑','💡','📚','🎯'
+];
+
+(function buildEmojiGrid() {
+  const grid = document.getElementById('emoji-grid');
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-btn';
+    btn.textContent = e;
+    btn.onclick = () => insertEmoji(e);
+    grid.appendChild(btn);
+  });
+})();
+
+function toggleEmojiPicker(evt) {
+  evt.stopPropagation();
+  document.getElementById('emoji-picker').classList.toggle('open');
+}
+
+function insertEmoji(emoji) {
+  const inp = document.getElementById('msg-input');
+  const start = inp.selectionStart;
+  const end = inp.selectionEnd;
+  inp.value = inp.value.slice(0, start) + emoji + inp.value.slice(end);
+  inp.selectionStart = inp.selectionEnd = start + emoji.length;
+  inp.focus();
+  autoResize(inp);
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#emoji-picker') && e.target.id !== 'emoji-toggle') {
+    document.getElementById('emoji-picker').classList.remove('open');
+  }
+});
 </script>
 </body>
 </html>`;
