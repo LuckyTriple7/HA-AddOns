@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.9] - 2026-05-16
+
+### Neu
+- Option `fetch_messages_limit` (Standard: 50, Maximum: 150) — legt fest wie viele Nachrichten beim ersten Öffnen eines Chats von Telegram geladen werden
+
 ## [1.0.8] - 2026-05-16
 
 ### Geändert

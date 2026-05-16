@@ -15,6 +15,7 @@ const PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 150);
 
 const SESSION_FILE = '/data/session.txt';
 const CHATS_FILE = '/data/chats.json';
@@ -200,7 +201,7 @@ async function loadDialogs() {
   } catch (e) { console.error('[ERROR] loadDialogs:', e.message); }
 }
 
-async function fetchMessages(chatId, limit = 50) {
+async function fetchMessages(chatId, limit = FETCH_LIMIT) {
   try {
     let entity = peerMap.get(chatId);
     if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
