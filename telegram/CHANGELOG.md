@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.32] - 2026-05-16
+
+### Geändert
+- Foto-Toggle: Button zeigt jetzt „Fotos AN" (gedrückt = heller Hintergrund) bzw. „Fotos AUS" (gedimmt); Standard ist AN
+
 ## [1.0.31] - 2026-05-16
 
 ### Neu
