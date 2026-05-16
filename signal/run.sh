@@ -5,14 +5,10 @@ export PHONE_NUMBER=$(jq -r '.phone_number // ""' /data/options.json)
 export WEBHOOK_INCOMING=$(jq -r '.webhook_incoming // ""' /data/options.json)
 export SIGNAL_API_URL=http://localhost:8080
 
-# Persist signal-cli data to /data (always mounted in HA)
-# signal-cli-rest-api runs as user signal-api with HOME=/home → uses /home/.local/share/signal-cli
+# Tell signal-cli-rest-api to store data directly in /data/signal-cli (HA persistent storage)
+# This overrides the default /home/.local/share/signal-cli without needing a symlink
+export SIGNAL_CLI_CONFIG=/data/signal-cli
 mkdir -p /data/signal-cli
-mkdir -p /home/.local/share
-if [ ! -L /home/.local/share/signal-cli ]; then
-  rm -rf /home/.local/share/signal-cli
-  ln -sf /data/signal-cli /home/.local/share/signal-cli
-fi
 
 start_signal_api() {
   /entrypoint.sh &
@@ -26,10 +22,10 @@ start_signal_api() {
   done
 }
 
-echo "[INFO] Starting signal-cli-rest-api..."
+echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG)..."
 start_signal_api
 
-# Health check: 500 on /v1/accounts means data is corrupt (e.g. left by incompatible mode)
+# Health check: 500 on /v1/accounts means data is corrupt — clear and restart
 ACCOUNTS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/v1/accounts)
 if [ "$ACCOUNTS_STATUS" = "500" ]; then
   echo "[WARN] /v1/accounts returned 500 — clearing corrupt data and restarting..."

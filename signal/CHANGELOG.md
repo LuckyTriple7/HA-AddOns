@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.14] - 2026-05-16
+
+### Behoben
+- QR-Code schlägt mit 400 fehl wenn Symlink auf `/home` gesetzt war — Ursache: Symlink verändert das Verhalten von signal-cli; stattdessen wird jetzt `SIGNAL_CLI_CONFIG=/data/signal-cli` als Umgebungsvariable gesetzt (kein Symlink mehr nötig)
+
 ## [1.0.13] - 2026-05-16
 
 ### Behoben

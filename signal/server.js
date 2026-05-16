@@ -60,7 +60,10 @@ async function fetchQR() {
   try {
     console.log('[INFO] Requesting QR code from signal-cli-rest-api...');
     const r = await fetch(`${SIGNAL_API}/v1/qrcodelink?device_name=HomeAssistant`, { timeout: 120000 });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      throw new Error(`HTTP ${r.status}: ${body}`);
+    }
     const contentType = r.headers.get('content-type') || '';
     console.log('[INFO] QR response content-type:', contentType);
     if (contentType.includes('image/')) {
