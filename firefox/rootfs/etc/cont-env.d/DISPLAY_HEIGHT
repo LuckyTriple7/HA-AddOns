@@ -1,0 +1,4 @@
+#!/bin/sh
+val=$(jq -r '.DISPLAY_HEIGHT // empty' /data/options.json 2>/dev/null)
+[ -z "$val" ] && exit 100
+printf '%s' "$val"

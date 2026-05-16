@@ -1,6 +1,6 @@
 name: Firefox
 description: Firefox-Browser direkt in Home Assistant — persistentes Profil, deutsche Sprache, optionale RAM-Begrenzung
-version: "2.0.4"
+version: "2.0.5"
 slug: firefox
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -21,15 +21,35 @@ panel_title: Firefox
 
 ports:
   5800/tcp: 5800
+  5900/tcp: 5900
 
 ports_description:
   5800/tcp: Firefox Web-UI (noVNC)
+  5900/tcp: Firefox VNC-Direktzugriff
 
 map:
   - share:rw
 
 options:
+  DISPLAY_WIDTH: "1280"
+  DISPLAY_HEIGHT: "720"
+  DARK_MODE: "0"
+  VNC_PASSWORD: ""
+  KEEP_APP_RUNNING: "1"
+  TZ: "Europe/Berlin"
+  FF_OPEN_URL: ""
+  FF_KIOSK: "0"
+  FF_CUSTOM_ARGS: ""
   memory_limit_mb: 0
 
 schema:
+  DISPLAY_WIDTH: str
+  DISPLAY_HEIGHT: str
+  DARK_MODE: str
+  VNC_PASSWORD: str?
+  KEEP_APP_RUNNING: str
+  TZ: str
+  FF_OPEN_URL: str?
+  FF_KIOSK: str
+  FF_CUSTOM_ARGS: str?
   memory_limit_mb: int?

@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.5] - 2026-05-16
+
+### Neu
+- Konfigurationsoptionen wie im Original-Repo: `DISPLAY_WIDTH`, `DISPLAY_HEIGHT`, `DARK_MODE`, `VNC_PASSWORD`, `KEEP_APP_RUNNING`, `TZ`, `FF_OPEN_URL`, `FF_KIOSK`, `FF_CUSTOM_ARGS`
+- `cont-env.d`-Mechanismus — Optionen aus `/data/options.json` werden als ENV-Variablen gesetzt, bevor jlesage Init-Skripte laufen (Auflösung, Dunkelmodus, VNC-Passwort etc. konfigurierbar)
+- Firefox startet automatisch neu bei Absturz (`KEEP_APP_RUNNING=1` Standard)
+- Kiosk-Modus, Start-URL und eigene Firefox-Argumente per Option konfigurierbar
+
+### Behoben
+- Crash-Loop beim Start behoben — `08-clear-tmp-dir.sh` überschrieben: HA mounted `/tmp/run/cid` als Device, das jlesage's Original-Skript nicht entfernen kann; neues Skript räumt `/tmp` selektiv auf
+
 ## [2.0.4] - 2026-05-16
 
 ### Behoben

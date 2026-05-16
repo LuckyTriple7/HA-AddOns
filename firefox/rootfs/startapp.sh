@@ -5,10 +5,16 @@ PROFILE_DIR=/data/profile
 mkdir -p "$PROFILE_DIR"
 mkdir -p /share/firefox
 
-MEMORY_LIMIT_MB=0
-if [ -f /data/options.json ]; then
-    MEMORY_LIMIT_MB=$(jq -r '.memory_limit_mb // 0' /data/options.json 2>/dev/null || echo "0")
-fi
+OPTIONS=/data/options.json
+
+read_opt() {
+    [ -f "$OPTIONS" ] && jq -r ".${1} // empty" "$OPTIONS" 2>/dev/null || true
+}
+
+MEMORY_LIMIT_MB=$(read_opt memory_limit_mb)
+FF_OPEN_URL=$(read_opt FF_OPEN_URL)
+FF_KIOSK=$(read_opt FF_KIOSK)
+FF_CUSTOM_ARGS=$(read_opt FF_CUSTOM_ARGS)
 
 cat > "$PROFILE_DIR/user.js" << 'USERJS'
 user_pref("intl.locale.requested", "de");
@@ -32,4 +38,11 @@ user_pref("media.memory_cache_max_size", ${MEM_CACHE_KB});
 MEMJS
 fi
 
-exec /usr/local/bin/firefox --profile "$PROFILE_DIR" --no-remote
+FF_ARGS="--profile $PROFILE_DIR --no-remote"
+
+[ "${FF_KIOSK:-0}" = "1" ] && FF_ARGS="$FF_ARGS --kiosk"
+[ -n "$FF_CUSTOM_ARGS" ] && FF_ARGS="$FF_ARGS $FF_CUSTOM_ARGS"
+[ -n "$FF_OPEN_URL" ] && FF_ARGS="$FF_ARGS $FF_OPEN_URL"
+
+# shellcheck disable=SC2086
+exec /usr/local/bin/firefox $FF_ARGS
