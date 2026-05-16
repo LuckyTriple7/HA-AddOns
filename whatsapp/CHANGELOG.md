@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.36] - 2026-05-16
+
+### Behoben
+- Log-Format: Uhrzeit stand am Ende statt nach `[LEVEL]` — Regex trennt jetzt `[LEVEL]` vom Rest und fügt `[HH:MM:SS]` korrekt dazwischen ein
+
 ## [1.1.35] - 2026-05-16
 
 ### Behoben

@@ -4,10 +4,15 @@
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
     console[m] = (...a) => {
-      if (a.length && typeof a[0] === 'string' && /^\[(INFO|WARN|ERROR|DEBUG)\]/.test(a[0]))
-        orig(a[0], `[${_ts()}]`, ...a.slice(1));
-      else
-        orig(`[INFO] [${_ts()}]`, ...a);
+      if (a.length && typeof a[0] === 'string') {
+        const match = a[0].match(/^(\[(?:INFO|WARN|ERROR|DEBUG)\])(.*)/s);
+        if (match) {
+          const rest = match[2].trimStart();
+          orig(`${match[1]} [${_ts()}]${rest ? ' ' + rest : ''}`, ...a.slice(1));
+          return;
+        }
+      }
+      orig(`[INFO] [${_ts()}]`, ...a);
     };
   });
 })();
