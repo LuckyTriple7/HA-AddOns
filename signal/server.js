@@ -283,6 +283,33 @@ app.post('/api/qr/refresh', (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
+  const { chatId, msgId } = req.params;
+  if (status !== 'linked') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const rawTs = parseInt(msgId.split('_').pop(), 10);
+    const tsMs = rawTs > 1e12 ? rawTs : rawTs * 1000;
+    const r = await fetch(`${SIGNAL_API}/v2/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '', number: PHONE_NUMBER, recipients: [chatId], deleteForEveryone: true, deleteForEveryoneTimestamp: tsMs }),
+      timeout: 10000,
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      return res.status(500).json({ error: body });
+    }
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const idx = msgs.findIndex(m => m.id === msgId);
+      if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
   try {
@@ -367,7 +394,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #ch-phone { font-size: 12px; color: #aaa; }
 #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
 #no-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 15px; }
-.bubble { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-break: break-word; }
+.bubble { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-break: break-word; position: relative; }
+.del-btn { display: none; position: absolute; top: 2px; right: 2px; background: none; border: none; cursor: pointer; font-size: 13px; opacity: 0.4; padding: 2px 4px; line-height: 1; border-radius: 4px; }
+.bubble:hover .del-btn { display: block; }
+.del-btn:hover { opacity: 1; }
 .bubble.in { background: #fff; align-self: flex-start; border-bottom-left-radius: 2px; }
 .bubble.out { background: #dcf8c6; align-self: flex-end; border-bottom-right-radius: 2px; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
@@ -650,7 +680,7 @@ function renderMessages(msgs) {
     let sep = '';
     if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
     const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    return sep + \`<div class="bubble \${m.fromMe ? 'out' : 'in'}">\${escHtml(m.body)}<div class="bubble-time">\${time}</div></div>\`;
+    return sep + \`<div class="bubble \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><button class="del-btn" title="Löschen">🗑</button>\${escHtml(m.body)}<div class="bubble-time">\${time}</div></div>\`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -674,10 +704,23 @@ async function sendMsg() {
 }
 
 async function logout() {
-  if (!confirm('Signal-Verknüpfung aufheben?')) return;
   showSpinner('Abmelden…');
   await fetch(api('/api/logout'), { method: 'POST' }).catch(() => {});
 }
+
+async function deleteMsg(chatId, msgId) {
+  try {
+    await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'});
+    await loadMessages(chatId);
+  } catch(e) {}
+}
+document.getElementById('messages').addEventListener('click', e => {
+  const btn = e.target.closest('.del-btn');
+  if (!btn) return;
+  const bubble = btn.closest('.bubble');
+  if (!bubble) return;
+  deleteMsg(bubble.dataset.chatid, bubble.dataset.msgid);
+});
 
 function handleKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }

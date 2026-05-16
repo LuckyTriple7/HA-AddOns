@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.12] - 2026-05-16
+
+### Neu
+- Nachrichten löschen — Mülleimer-Symbol erscheint beim Hovern über eine Nachricht; löscht die Nachricht auf Telegram für alle (revoke: true)
+
 ## [1.0.11] - 2026-05-16
 
 ### Behoben

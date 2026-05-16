@@ -381,6 +381,23 @@ app.post('/api/reset', async (req, res) => {
   await reinitClient();
 });
 
+app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
+  const { chatId, msgId } = req.params;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const msg = await client.getMessageById(msgId);
+    await msg.delete(true);
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const idx = msgs.findIndex(m => m.id === msgId);
+      if (idx !== -1) { msgs.splice(idx, 1); seenIds.delete(msgId); }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
@@ -489,8 +506,11 @@ app.get('/', (req, res) => {
     .contact-name { font-size: 11px; color: #8696a0; margin-bottom: 2px; padding: 0 4px; }
     .bubble {
       max-width: 65%; padding: 6px 10px 8px; border-radius: 7.5px;
-      font-size: 14px; line-height: 1.45; word-break: break-word;
+      font-size: 14px; line-height: 1.45; word-break: break-word; position: relative;
     }
+    .del-btn { display: none; position: absolute; top: 2px; right: 2px; background: none; border: none; cursor: pointer; font-size: 13px; opacity: 0.4; padding: 2px 4px; line-height: 1; border-radius: 4px; }
+    .bubble:hover .del-btn { display: block; }
+    .del-btn:hover { opacity: 1; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
     .bubble .time {
@@ -875,6 +895,12 @@ app.get('/', (req, res) => {
         } else {
           bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + '</span>';
         }
+        const delBtn = document.createElement('button');
+        delBtn.className = 'del-btn';
+        delBtn.title = 'Löschen';
+        delBtn.textContent = '🗑';
+        delBtn.dataset.msgid = m.id;
+        bub.appendChild(delBtn);
         wrap.appendChild(bub);
         msgList.appendChild(wrap);
         if (m.timestamp > (lastMsgTime[selectedChatId] || 0)) {
@@ -918,6 +944,23 @@ app.get('/', (req, res) => {
         }
       } catch(e) { alert('Netzwerkfehler'); }
     }
+
+    async function deleteMsg(chatId, msgId) {
+      try {
+        await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
+        for (const bub of msgList.querySelectorAll('.bubble')) {
+          if (bub.querySelector('.del-btn')?.dataset?.msgid === msgId) {
+            bub.closest('.bubble-wrap')?.remove();
+            break;
+          }
+        }
+      } catch(e) {}
+    }
+    msgList.addEventListener('click', e => {
+      const btn = e.target.closest('.del-btn');
+      if (!btn) return;
+      deleteMsg(selectedChatId, btn.dataset.msgid);
+    });
 
     function showSpinner(msg) {
       document.getElementById('spinner-overlay').style.display = 'flex';

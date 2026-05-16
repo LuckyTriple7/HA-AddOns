@@ -342,6 +342,26 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
+  const { chatId, msgId } = req.params;
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const rawId = parseInt(msgId.split('_').pop(), 10);
+    await client.deleteMessages(entity, [rawId], { revoke: true });
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const idx = msgs.findIndex(m => m.id === msgId);
+      if (idx !== -1) { msgs.splice(idx, 1); seenMsgIds.delete(msgId); scheduleSave(); }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
   try { await client.destroy(); } catch (e) {}
@@ -470,7 +490,10 @@ html.light #chat-header { background: #517DA2; }
 #back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 4px 8px 4px 0; }
 #ch-name { font-size: 16px; font-weight: 600; color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; display: none; }
-.bubble { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
+.bubble { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; position: relative; }
+.del-btn { display: none; position: absolute; top: 2px; right: 2px; background: none; border: none; cursor: pointer; font-size: 13px; opacity: 0.4; padding: 2px 4px; line-height: 1; border-radius: 4px; }
+.bubble:hover .del-btn { display: block; }
+.del-btn:hover { opacity: 1; }
 .bubble.in { align-self: flex-start; border-bottom-left-radius: 2px; }
 .bubble.out { align-self: flex-end; border-bottom-right-radius: 2px; }
 html.dark .bubble.in { background: #182533; color: #C1C9D4; }
@@ -762,7 +785,7 @@ function renderMessages(msgs) {
     } else {
       content=escHtml(m.body);
     }
-    return sep+\`<div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}</span></div>\`;
+    return sep+\`<div class="bubble \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><button class="del-btn" title="Löschen">🗑</button>\${content}<span class="bubble-time">\${time}</span></div>\`;
   }).join('');
   el.scrollTop = el.scrollHeight;
 }
@@ -782,6 +805,20 @@ async function sendMsg() {
 
 function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();} }
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
+
+async function deleteMsg(chatId, msgId) {
+  try {
+    await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'});
+    await loadMessages(chatId);
+  } catch(e) {}
+}
+document.getElementById('messages').addEventListener('click', e => {
+  const btn = e.target.closest('.del-btn');
+  if (!btn) return;
+  const bubble = btn.closest('.bubble');
+  if (!bubble) return;
+  deleteMsg(bubble.dataset.chatid, bubble.dataset.msgid);
+});
 
 // ── Emoji picker ───────────────────────────────────────────────────────────────
 const EMOJIS = [

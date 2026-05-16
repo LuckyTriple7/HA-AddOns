@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.16] - 2026-05-16
+
+### Neu
+- Nachrichten löschen — Mülleimer-Symbol erscheint beim Hovern über eine Nachricht; löscht die Nachricht auf WhatsApp für alle (`msg.delete(true)`)
+
 ## [1.1.15] - 2026-05-16
 
 ### Behoben

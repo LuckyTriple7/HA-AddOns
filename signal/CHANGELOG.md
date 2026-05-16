@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.26] - 2026-05-16
+
+### Neu
+- Nachrichten löschen — Mülleimer-Symbol erscheint beim Hovern über eine Nachricht; sendet "deleteForEveryone" via signal-cli-rest-api
+
+### Behoben
+- "Abmelden"-Button tat nichts — `window.confirm()` in HA Ingress blockiert; Bestätigungsdialog entfernt
+
 ## [1.0.25] - 2026-05-16
 
 ### Geändert
