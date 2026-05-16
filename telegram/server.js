@@ -14,6 +14,7 @@ const API_HASH = process.env.API_HASH || '';
 const PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
+const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 
 const SESSION_FILE = '/data/session.txt';
 const CHATS_FILE = '/data/chats.json';
@@ -141,11 +142,16 @@ async function processMessage(rawMsg, chatId, chatName) {
   let type = 'text';
   let mediaFile = null;
   if (hasMedia) {
-    mediaFile = await downloadMedia(rawMsg, msgId);
-    if (mediaFile) type = 'photo';
+    const mc = rawMsg.media?.className;
+    const isImage = mc === 'MessageMediaPhoto' ||
+      (mc === 'MessageMediaDocument' && rawMsg.media.document?.mimeType?.startsWith('image/'));
+    if (isImage) {
+      type = 'photo';
+      if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
+    }
   }
 
-  const body = rawMsg.message || '';
+  const body = rawMsg.message || (type === 'photo' && !mediaFile ? '📷 Foto' : '');
   const preview = body || (type === 'photo' ? '📷 Foto' : '[Medien]');
 
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);

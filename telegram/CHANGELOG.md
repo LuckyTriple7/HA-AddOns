@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.4] - 2026-05-16
+
+### Neu
+- Option `download_media` (Standard: aus) — einschalten damit empfangene Fotos automatisch heruntergeladen und angezeigt werden; ohne die Option erscheint stattdessen `📷 Foto` als Text
+
 ## [1.0.3] - 2026-05-16
 
 ### Neu
