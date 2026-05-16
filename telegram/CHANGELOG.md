@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.20] - 2026-05-16
+
+### Behoben
+- Internes `MAX_MSGS`-Limit von 200 auf 300 erhöht — passt jetzt zum erhöhten `fetch_messages_limit`-Maximum
+
 ## [1.0.19] - 2026-05-16
 
 ### Geändert

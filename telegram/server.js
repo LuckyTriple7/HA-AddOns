@@ -23,7 +23,7 @@ const SESSION_FILE = '/data/session.txt';
 const CHATS_FILE = '/data/chats.json';
 const MESSAGES_FILE = '/data/messages.json';
 const MEDIA_DIR = '/data/media';
-const MAX_MSGS = 200;
+const MAX_MSGS = 300;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
