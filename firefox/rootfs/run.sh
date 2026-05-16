@@ -46,7 +46,7 @@ trap cleanup EXIT
 # TigerVNC starten — virtuelles Display + VNC-Server in einem
 Xvnc :1 -geometry 1280x800 -depth 24 -rfbport 5900 -SecurityTypes None &
 XVNC_PID=$!
-sleep 1
+sleep 3
 
 # DBus starten
 eval "$(dbus-launch --sh-syntax 2>/dev/null)" || true
@@ -57,9 +57,8 @@ DISPLAY=:1 matchbox-window-manager -use_titlebar no &
 sleep 1
 
 # Zwischenablage synchronisieren: CLIPBOARD ↔ PRIMARY
-# Ermöglicht Copy/Paste zwischen Firefox und anderen X11-Anwendungen
-DISPLAY=:1 autocutsel -fork
-DISPLAY=:1 autocutsel -selection PRIMARY -fork
+DISPLAY=:1 autocutsel -fork || true
+DISPLAY=:1 autocutsel -selection PRIMARY -fork || true
 
 # noVNC / WebSocket-Proxy starten
 websockify --web /opt/novnc/ 5800 localhost:5900 &

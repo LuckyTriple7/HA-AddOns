@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.12] - 2026-05-16
+
+### Behoben
+- `autocutsel -fork` mit `|| true` abgesichert — Fehler beim X11-Connect verhinderte Start von websockify und Firefox (set -e)
+- Sleep nach Xvnc-Start von 1s auf 3s erhöht — verhindert Race Condition wenn Xvnc noch nicht bereit ist
+
 ## [1.0.11] - 2026-05-16
 
 ### Behoben
