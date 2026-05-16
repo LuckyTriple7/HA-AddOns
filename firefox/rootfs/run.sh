@@ -62,7 +62,7 @@ DISPLAY=:1 autocutsel -fork
 DISPLAY=:1 autocutsel -selection PRIMARY -fork
 
 # noVNC / WebSocket-Proxy starten
-websockify --web /usr/share/novnc/ 5800 localhost:5900 &
+websockify --web /opt/novnc/ 5800 localhost:5900 &
 NOVNC_PID=$!
 sleep 1
 

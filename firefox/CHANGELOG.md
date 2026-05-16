@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.7] - 2026-05-16
+
+### Geändert
+- noVNC-Paket aus Debian ersetzt durch neueste Version direkt von GitHub — enthält automatischen Clipboard-Sync via `navigator.clipboard` Browser API; Copy/Paste funktioniert jetzt nahtlos ohne noVNC-Panel
+
 ## [1.0.6] - 2026-05-16
 
 ### Behoben
