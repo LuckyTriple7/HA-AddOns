@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8] - 2026-05-16
+
+### Geändert
+- Sidebar-Icon zurück auf `phu:telegram`
+
 ## [1.0.7] - 2026-05-16
 
 ### Geändert
