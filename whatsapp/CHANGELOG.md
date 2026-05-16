@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.26] - 2026-05-16
+
+### Behoben
+- HA-Benachrichtigung kam nicht an — fehlender Response-Handler im HTTP-Request führte dazu dass der Socket nicht freigegeben wurde; außerdem wird der Versuch jetzt immer im Log sichtbar (`[INFO] Sending HA notification: …`) statt nur im Debug-Modus
+
 ## [1.1.25] - 2026-05-16
 
 ### Neu

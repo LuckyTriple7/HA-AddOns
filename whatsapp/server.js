@@ -281,7 +281,7 @@ process.on('unhandledRejection', (reason) => {
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
   const token = process.env.SUPERVISOR_TOKEN;
-  if (!token) { console.warn('[WARN] HA_NOTIFICATIONS enabled but SUPERVISOR_TOKEN not set'); return; }
+  if (!token) { console.warn('[WARN] HA_NOTIFICATIONS enabled but SUPERVISOR_TOKEN not available'); return; }
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
   const payload = JSON.stringify({
@@ -289,7 +289,7 @@ function sendHANotification(chatId, senderName, body) {
     message: preview || '📷 Foto',
     notification_id: `whatsapp_${safeId}`,
   });
-  dbg(`Sending HA notification for chat ${chatId}`);
+  console.log(`[INFO] Sending HA notification: WhatsApp: ${senderName}`);
   const req = http.request('http://supervisor/core/api/services/persistent_notification/create', {
     method: 'POST',
     headers: {
@@ -297,8 +297,15 @@ function sendHANotification(chatId, senderName, body) {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(payload),
     },
+  }, (res) => {
+    res.resume(); // consume body so socket is released
+    if (res.statusCode === 200) {
+      dbg(`HA notification OK (HTTP 200)`);
+    } else {
+      console.warn(`[WARN] HA notification returned HTTP ${res.statusCode}`);
+    }
   });
-  req.on('error', e => console.warn('[WARN] HA notification error:', e.message));
+  req.on('error', e => console.warn('[WARN] HA notification request error:', e.message));
   req.write(payload);
   req.end();
 }
