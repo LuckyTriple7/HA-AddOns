@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.6] - 2026-05-16
+
+### Behoben
+- Bilder wurden nach Neustart mit `download_media: false` noch angezeigt — `mediaFile`-Einträge werden jetzt beim Start aus `messages.json` entfernt, sodass Nachrichten korrekt als `📷 Foto`-Text erscheinen
+
 ## [1.0.5] - 2026-05-16
 
 ### Neu
