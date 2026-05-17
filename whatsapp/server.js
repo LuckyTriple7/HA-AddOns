@@ -554,37 +554,63 @@ app.get('/api/presence/:chatId', async (req, res) => {
 
     // Dump Store structure once for diagnosis
     const storeInfo = await client.pupPage.evaluate(() => {
-      const s = window.Store;
-      if (s) {
-        const keys = Object.keys(s);
-        const interesting = keys.filter(k => /presence|contact|chat|wid|lid/i.test(k));
-        return { storeExists: true, keyCount: keys.length, keys: keys.slice(0, 40).join(','), interesting: interesting.join(',') };
+      if (window.Store) {
+        const keys = Object.keys(window.Store);
+        return { storeExists: true, keys: keys.slice(0, 40).join(',') };
       }
-      // Check WWebJS namespace (whatsapp-web.js v1.26+)
-      const wwebjs = window.WWebJS;
-      const wwebjsKeys = wwebjs ? Object.keys(wwebjs).slice(0, 30).join(',') : null;
-      const storeViaWWebJS = wwebjs?.Store;
-      const wwebjsStoreKeys = storeViaWWebJS ? Object.keys(storeViaWWebJS).filter(k => /presence|contact|chat/i.test(k)).join(',') : null;
-      // Scan ALL webpack module sources for presence+subscribe
-      const mods = window.require?.m || {};
-      const allIds = Object.keys(mods);
+      const result = { storeExists: false };
+      // Check require.c (module cache — modules already loaded by WA)
+      const cache = window.require?.c || {};
+      const cachedIds = Object.keys(cache);
+      result.cachedMods = cachedIds.length;
       let presenceMod = null, presenceFns = null;
-      for (const id of allIds) {
+      for (const id of cachedIds) {
         try {
-          const src = mods[id].toString();
-          if (/presence/i.test(src) && /subscribe/i.test(src)) {
-            const m = window.require(id);
-            if (!m || typeof m !== 'object') continue;
-            const fns = Object.keys(m).filter(k => typeof m[k] === 'function');
-            if (fns.some(f => /subscribe|presence/i.test(f))) {
-              presenceMod = id; presenceFns = fns.join(','); break;
-            }
-          }
+          const m = cache[id]?.exports;
+          if (!m || typeof m !== 'object') continue;
+          const fns = Object.keys(m).filter(k => typeof m[k] === 'function' && /subscribe|presence/i.test(k));
+          if (fns.length) { presenceMod = id; presenceFns = fns.join(','); break; }
         } catch(e) {}
       }
-      return { storeExists: false, wwebjsKeys, wwebjsStoreKeys, totalMods: allIds.length, presenceMod, presenceFns };
+      result.presenceModFromCache = presenceMod;
+      result.presenceFnsFromCache = presenceFns;
+      // Scan webpackChunkwhatsapp_web_client chunks for presence factories
+      let chunkMod = null, chunkFns = null;
+      for (const chunk of (window.webpackChunkwhatsapp_web_client || [])) {
+        for (const [id, factory] of Object.entries(chunk[1] || {})) {
+          try {
+            const src = factory.toString();
+            if (/presence/i.test(src) && /subscribe/i.test(src)) {
+              const m = window.require(id);
+              if (!m) continue;
+              const fns = Object.keys(m).filter(k => typeof m[k] === 'function' && /subscribe|presence/i.test(k));
+              if (fns.length) { chunkMod = id; chunkFns = fns.join(','); break; }
+            }
+          } catch(e) {}
+        }
+        if (chunkMod) break;
+      }
+      result.presenceModFromChunk = chunkMod;
+      result.presenceFnsFromChunk = chunkFns;
+      return result;
     });
     dbg('presence store-keys:', JSON.stringify(storeInfo));
+
+    // Check what WWebJS.getContact returns
+    const contactInfo = await client.pupPage.evaluate(async (jid) => {
+      try {
+        const c = window.WWebJS?.getContact ? await window.WWebJS.getContact(jid) : null;
+        if (!c) return { notFound: true };
+        const allProps = [...new Set([...Object.getOwnPropertyNames(c), ...Object.keys(c)])];
+        const relevant = allProps.filter(k => /last|seen|presence|online|status|time/i.test(k));
+        const data = {};
+        for (const k of allProps.slice(0, 60)) {
+          try { const v = c[k]; if (typeof v !== 'function') data[k] = v; } catch(e) {}
+        }
+        return { relevant, data };
+      } catch(e) { return { error: e.message }; }
+    }, chatId);
+    dbg('presence contact:', JSON.stringify(contactInfo));
 
     // Try to get lastSeen via whatsapp-web.js high-level API
     let lastSeen = null;

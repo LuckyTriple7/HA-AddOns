@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.56] - 2026-05-17
+
+### Geändert
+- Diagnose: scannt require.c (Modul-Cache), webpackChunk-Factories und WWebJS.getContact-Rückgabe nach Presence-Daten
+
 ## [1.1.55] - 2026-05-17
 
 ### Geändert
