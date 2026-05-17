@@ -644,7 +644,7 @@ app.get('/', (req, res) => {
     .logout-btn:hover { color: #f15c5c; }
     .photo-toggle-btn {
       background: none; border: 1px solid #8696a0; color: #e9edef;
-      padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; opacity: 0.55;
+      padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1;
     }
     .photo-toggle-btn:hover { opacity: 0.8; }
     .photo-toggle-btn.active { opacity: 1; background: rgba(60,219,124,0.15); border-color: #3cdb7c; color: #3cdb7c; }
@@ -901,7 +901,7 @@ app.get('/', (req, res) => {
     <h1>WhatsApp</h1>
     <div class="status-dot connected" id="status-dot" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
-    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()">Fotos AN</button>' : ''}
+    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" title="Fotos AN">📷</button>' : ''}
     ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
@@ -1020,13 +1020,13 @@ app.get('/', (req, res) => {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? 'Fotos AUS' : 'Fotos AN'; }
+      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? 'Fotos AUS' : 'Fotos AN'; }
       localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
     }
     if (localStorage.getItem('wa-hide-photos')) {
       document.body.classList.add('hide-photos');
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.remove('active'); btn.textContent = 'Fotos AUS'; }
+      if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = 'Fotos AUS'; }
     }
 
     function ackMark(ack) {

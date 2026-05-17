@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.9] - 2026-05-17
+
+### Geändert
+- Foto-Toggle-Button zeigt jetzt 📷 (AN) bzw. 🚫 (AUS) statt Text; Zustand als Tooltip
+
 ## [1.2.8] - 2026-05-17
 
 ### Behoben
