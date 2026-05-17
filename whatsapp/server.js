@@ -473,6 +473,23 @@ app.get('/api/media/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
+function getDirSize(dir) {
+  let total = 0;
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) total += getDirSize(full);
+      else if (entry.isFile()) { try { total += fs.statSync(full).size; } catch (e) {} }
+    }
+  } catch (e) {}
+  return total;
+}
+
+app.get('/api/storage', (req, res) => {
+  const bytes = getDirSize('/data');
+  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+});
+
 app.post('/api/reset', async (req, res) => {
   res.json({ success: true });
   try { rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true }); } catch(e) {}
@@ -530,6 +547,7 @@ app.get('/', (req, res) => {
     .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
     .status-dot.initializing { background: #8696a0; }
     .status-label { font-size: 12px; color: #8696a0; }
+    .storage-info { font-size: 12px; color: #8696a0; white-space: nowrap; }
     .logout-btn {
       background: none; border: none; color: #8696a0;
       font-size: 20px; cursor: pointer; padding: 4px; line-height: 1;
@@ -766,6 +784,7 @@ app.get('/', (req, res) => {
     <h1>WhatsApp</h1>
     <span class="status-label" id="status-label">Verbunden</span>
     <div class="status-dot connected" id="status-dot"></div>
+    <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()">Fotos AN</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
@@ -854,6 +873,16 @@ app.get('/', (req, res) => {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
     }
+    async function loadStorage() {
+      try {
+        const d = await fetch(api('/api/storage')).then(r => r.json());
+        const el = document.getElementById('storage-info');
+        if (el) el.textContent = '💾 ' + d.mb + ' MB';
+      } catch(e) {}
+    }
+    loadStorage();
+    setInterval(loadStorage, 60000);
+
     function scrollMsgs(dir) {
       const el = document.getElementById('messages');
       if (!el) return;

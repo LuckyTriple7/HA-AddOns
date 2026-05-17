@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.44] - 2026-05-17
+
+### Neu
+- Speicheranzeige in der Topbar — zeigt den belegten Speicher des Add-on-Datenverzeichnisses in MB (💾 12.3 MB); aktualisiert sich automatisch alle 60 Sekunden
+
 ## [1.1.43] - 2026-05-17
 
 ### Behoben

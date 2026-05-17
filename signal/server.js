@@ -333,6 +333,23 @@ app.get('/api/media/:filename', (req, res) => {
   fs.createReadStream(filepath).pipe(res);
 });
 
+function getDirSize(dir) {
+  let total = 0;
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) total += getDirSize(full);
+      else if (entry.isFile()) { try { total += fs.statSync(full).size; } catch (e) {} }
+    }
+  } catch (e) {}
+  return total;
+}
+
+app.get('/api/storage', (req, res) => {
+  const bytes = getDirSize('/data');
+  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+});
+
 app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
@@ -466,6 +483,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #topbar { display: none; align-items: center; background: #2c6bed; color: #fff; padding: 0 16px; height: 56px; gap: 8px; flex-shrink: 0; }
 #topbar h1 { font-size: 18px; flex: 1; }
 #topbar .phone { font-size: 13px; color: rgba(255,255,255,0.75); }
+#storage-info { font-size: 12px; opacity: 0.6; white-space: nowrap; }
 .scroll-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; opacity: 0.6; line-height: 1; }
 .scroll-btn:hover { opacity: 1; }
 #photo-toggle-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
@@ -574,6 +592,7 @@ html.dark #emoji-toggle { color: #8696a0; }
 <div id="topbar">
   <h1>Signal</h1>
   <span class="phone" id="my-phone"></span>
+  <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" title="Fotos ein/aus">Fotos AN</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
@@ -836,6 +855,16 @@ function scrollMsgs(dir) {
   if (!el) return;
   el.scrollTop = dir === 'top' ? 0 : el.scrollHeight;
 }
+
+async function loadStorage() {
+  try {
+    const d = await fetch(api('/api/storage')).then(r => r.json());
+    const el = document.getElementById('storage-info');
+    if (el) el.textContent = '💾 ' + d.mb + ' MB';
+  } catch(e) {}
+}
+loadStorage();
+setInterval(loadStorage, 60000);
 
 function togglePhotos() {
   showPhotos = !showPhotos;
