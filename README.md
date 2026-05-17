@@ -37,6 +37,18 @@ Headless-Chromium-Browser mit CDP-Endpoint für Browser-Automatisierung. Wird vo
 
 → [Dokumentation & Changelog](playwright-browser/README.md)
 
+### [FileBox](filebox/)
+
+Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant.
+
+- Dateien hochladen, herunterladen und verwalten
+- Standardmäßig Zugriff auf `/share/filebox`
+- Optionaler Zugriff auf `/media`, `/config`, `/backup`
+- Konfigurierbarer Benutzername und Passwort (werden aus den Add-on-Optionen übernommen)
+- Deutsche Benutzeroberfläche, weitere Benutzer im UI anlegbar
+
+→ [Dokumentation & Changelog](filebox/README.md)
+
 ### [Firefox DE](firefox/)
 
 Firefox ESR direkt in der HA-Seitenleiste via noVNC — deutschsprachig, mit persistentem Profil.
@@ -146,6 +158,18 @@ Headless Chromium browser with CDP endpoint for browser automation. Used by the 
 - Supports amd64 and aarch64
 
 → [Documentation & Changelog](playwright-browser/README.md)
+
+### [FileBox](filebox/)
+
+Web UI for uploading and downloading files directly in Home Assistant.
+
+- Upload, download and manage files
+- Default access to `/share/filebox`
+- Optional access to `/media`, `/config`, `/backup`
+- Configurable username and password (always taken from add-on options)
+- German UI, additional users can be created in the UI
+
+→ [Documentation & Changelog](filebox/README.md)
 
 ### [Firefox DE](firefox/)
 
