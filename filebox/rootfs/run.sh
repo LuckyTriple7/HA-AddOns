@@ -12,6 +12,6 @@ filebrowser config set \
     --address 0.0.0.0 \
     --port "$PORT" \
     --root /share \
-    --noauth
+    --auth.method noauth
 
 exec filebrowser --database /data/filebrowser.db
