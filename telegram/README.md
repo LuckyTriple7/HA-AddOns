@@ -182,6 +182,7 @@ Das reicht aus, um die aktuelle Bibliotheksversion zu laden.
 - Session wird in `/data/session.txt` gespeichert und überlebt Neustarts
 - Chats und Nachrichten werden in `/data/chats.json` und `/data/messages.json` gespeichert
 - Medien werden in `/data/media/` gespeichert
+- Das Sidebar-Logo (`phu:telegram`) erfordert [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
 
 → [Changelog](CHANGELOG.md)
 
@@ -367,3 +368,4 @@ That's all it takes to pull the current library version.
 - Session is stored in `/data/session.txt` and survives restarts
 - Chats and messages are stored in `/data/chats.json` and `/data/messages.json`
 - Media files are stored in `/data/media/`
+- The sidebar icon (`phu:telegram`) requires [custom-brand-icons](https://github.com/elax46/custom-brand-icons)

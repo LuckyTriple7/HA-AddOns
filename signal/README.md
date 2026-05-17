@@ -162,6 +162,7 @@ Das reicht aus, um die aktuelle Version der Bibliothek zu laden.
 - Das Konto wird als verknüpftes Gerät hinzugefügt, nicht als Primärgerät registriert
 - Zum Abmelden: Button "Abmelden" in der UI, danach auch in Signal unter Verknüpfte Geräte entfernen
 - "Für alle löschen" erfordert eine aktuelle Version von signal-cli-rest-api; ältere Versionen löschen nur lokal
+- Das Sidebar-Logo (`phu:signal`) erfordert [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
 
 → [Changelog](CHANGELOG.md)
 
@@ -327,3 +328,4 @@ That's all it takes to pull the current library version.
 - The account is added as a linked device, not registered as a primary device
 - To log out: use the "Log out" button in the UI, then also remove the device in Signal under Linked Devices
 - "Delete for everyone" requires a recent version of signal-cli-rest-api; older versions only delete locally
+- The sidebar icon (`phu:signal`) requires [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
