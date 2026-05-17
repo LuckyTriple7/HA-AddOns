@@ -1,6 +1,7 @@
 # Webtop XFCE – Home Assistant Add-on
 
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
+![Commits](https://img.shields.io/github/commit-activity/t/LuckyTriple7/HA-AddOns?style=flat-square&label=commits)
 
 Vollständiger XFCE-Desktop, zugänglich über jeden modernen Webbrowser – direkt in Home Assistant integriert. Basiert auf dem KasmVNC-Streaming-Stack von [LinuxServer.io](https://www.linuxserver.io).
 

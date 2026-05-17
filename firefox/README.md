@@ -1,6 +1,7 @@
 # Firefox DE
 
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
+![Commits](https://img.shields.io/github/commit-activity/t/LuckyTriple7/HA-AddOns?style=flat-square&label=commits)
 ![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?style=flat-square&logo=docker)
 
 Firefox-Browser direkt als Home Assistant Add-on — in der HA-Seitenleiste via noVNC, deutschsprachig, mit persistentem Profil.

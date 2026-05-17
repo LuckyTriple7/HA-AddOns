@@ -1,6 +1,7 @@
 # Playwright Browser
 
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
+![Commits](https://img.shields.io/github/commit-activity/t/LuckyTriple7/HA-AddOns?style=flat-square&label=commits)
 
 Headless Chromium mit CDP-Endpoint (Chrome DevTools Protocol) für Browser-Automatisierung in Home Assistant.
 
