@@ -552,137 +552,83 @@ app.get('/api/presence/:chatId', async (req, res) => {
       return res.json({ isGroup: true, memberCount: chat.participants?.length || 0 });
     }
 
-    // Dump Store structure once for diagnosis
-    const storeInfo = await client.pupPage.evaluate(() => {
-      if (window.Store) {
-        const keys = Object.keys(window.Store);
-        return { storeExists: true, keys: keys.slice(0, 40).join(',') };
-      }
-      const result = { storeExists: false };
-      // Check require.c (module cache — modules already loaded by WA)
-      const cache = window.require?.c || {};
-      const cachedIds = Object.keys(cache);
-      result.cachedMods = cachedIds.length;
-      let presenceMod = null, presenceFns = null;
-      for (const id of cachedIds) {
+    // Resolve @lid → @c.us JID via WWebJS.getContact
+    const cusJid = await client.pupPage.evaluate(async (jid) => {
+      try {
+        const c = window.WWebJS?.getContact ? await window.WWebJS.getContact(jid) : null;
+        return c?.id?._serialized || null;
+      } catch(e) { return null; }
+    }, chatId);
+    dbg(`presence ${chatId} cusJid=${cusJid}`);
+
+    // Test which requireLazy module names respond (fires synchronously for loaded modules)
+    const reqTest = await client.pupPage.evaluate(() => {
+      const results = {};
+      const names = ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceStore', 'ContactPresenceStore',
+                     'WAPresence', 'PresenceActions', 'PresenceSubscribeUtils', 'ContactStore'];
+      for (const name of names) {
         try {
-          const m = cache[id]?.exports;
-          if (!m || typeof m !== 'object') continue;
-          const fns = Object.keys(m).filter(k => typeof m[k] === 'function' && /subscribe|presence/i.test(k));
-          if (fns.length) { presenceMod = id; presenceFns = fns.join(','); break; }
-        } catch(e) {}
+          window.requireLazy([name], (mod) => {
+            results[name] = mod ? Object.keys(mod).filter(k => typeof mod[k] === 'function').slice(0, 8).join(',') : 'null';
+          });
+          if (!(name in results)) results[name] = 'pending';
+        } catch(e) { results[name] = 'err:' + e.message; }
       }
-      result.presenceModFromCache = presenceMod;
-      result.presenceFnsFromCache = presenceFns;
-      // Scan webpackChunkwhatsapp_web_client chunks for presence factories
-      let chunkMod = null, chunkFns = null;
+      return results;
+    });
+    dbg('requireLazy test:', JSON.stringify(reqTest));
+
+    // Also scan chunks for any module referencing lastSeen
+    const lastSeenChunk = await client.pupPage.evaluate(() => {
       for (const chunk of (window.webpackChunkwhatsapp_web_client || [])) {
         for (const [id, factory] of Object.entries(chunk[1] || {})) {
           try {
-            const src = factory.toString();
-            if (/presence/i.test(src) && /subscribe/i.test(src)) {
-              const m = window.require(id);
-              if (!m) continue;
-              const fns = Object.keys(m).filter(k => typeof m[k] === 'function' && /subscribe|presence/i.test(k));
-              if (fns.length) { chunkMod = id; chunkFns = fns.join(','); break; }
-            }
+            if (/lastSeen/.test(factory.toString())) return { id, src: factory.toString().slice(0, 300) };
           } catch(e) {}
         }
-        if (chunkMod) break;
       }
-      result.presenceModFromChunk = chunkMod;
-      result.presenceFnsFromChunk = chunkFns;
-      return result;
+      return null;
     });
-    dbg('presence store-keys:', JSON.stringify(storeInfo));
+    if (lastSeenChunk) dbg('lastSeen chunk found:', JSON.stringify({ id: lastSeenChunk.id, src: lastSeenChunk.src.slice(0, 150) }));
 
-    // Check what WWebJS.getContact returns
-    const contactInfo = await client.pupPage.evaluate(async (jid) => {
-      try {
-        const c = window.WWebJS?.getContact ? await window.WWebJS.getContact(jid) : null;
-        if (!c) return { notFound: true };
-        const allProps = [...new Set([...Object.getOwnPropertyNames(c), ...Object.keys(c)])];
-        const relevant = allProps.filter(k => /last|seen|presence|online|status|time/i.test(k));
-        const data = {};
-        for (const k of allProps.slice(0, 60)) {
-          try { const v = c[k]; if (typeof v !== 'function') data[k] = v; } catch(e) {}
-        }
-        return { relevant, data };
-      } catch(e) { return { error: e.message }; }
-    }, chatId);
-    dbg('presence contact:', JSON.stringify(contactInfo));
+    const jids = [...new Set([chatId, cusJid].filter(Boolean))];
+    const lastSeen = await client.pupPage.evaluate((jids) => {
+      return new Promise((resolve) => {
+        let resolved = false;
+        const done = (val) => { if (!resolved) { resolved = true; resolve(val ?? null); } };
+        setTimeout(() => done(null), 6000);
 
-    // Try to get lastSeen via whatsapp-web.js high-level API
-    let lastSeen = null;
-    try {
-      const chat = await client.getChatById(chatId);
-      const rawChat = await client.pupPage.evaluate((jid) => {
-        // Try all common Store paths with @lid and @c.us variants
-        const s = window.Store;
-        const variants = [jid, jid.replace('@lid', '@c.us'), jid.replace('@lid', '@s.whatsapp.net')];
-        for (const v of variants) {
-          const c = s?.Contact?.get(v);
-          if (c?.lastSeen != null) return { source: 'Contact@' + v, lastSeen: c.lastSeen };
-          const ch = s?.Chat?.get(v);
-          if (ch?.presence?.lastSeen != null) return { source: 'Chat.presence@' + v, lastSeen: ch.presence.lastSeen };
-          if (ch?.lastSeen != null) return { source: 'Chat@' + v, lastSeen: ch.lastSeen };
-        }
-        // Try iterating all contacts
-        const allContacts = s?.Contact?.getModelsArray?.() || [];
-        const match = allContacts.find(c => c.id?._serialized === jid || c.id?.lid === jid || c.id?._serialized?.includes(jid.replace('@lid', '')));
-        if (match?.lastSeen != null) return { source: 'allContacts', lastSeen: match.lastSeen };
-        return null;
-      }, chatId);
-      if (rawChat?.lastSeen != null) {
-        dbg('presence found via:', rawChat.source);
-        lastSeen = rawChat.lastSeen;
-      }
-    } catch(e) { dbg('presence getChatById error:', e.message); }
+        const tryLazy = (name, fn) => { try { window.requireLazy([name], fn); } catch(e) {} };
 
-    if (lastSeen == null) {
-      // Trigger subscription and watch for Store updates
-      lastSeen = await client.pupPage.evaluate((jid) => {
-        return new Promise((resolve) => {
-          let resolved = false;
-          const done = (val) => { if (!resolved) { resolved = true; resolve(val ?? null); } };
-          setTimeout(() => done(null), 5000);
-          const s = window.Store;
-          const variants = [jid, jid.replace('@lid', '@c.us'), jid.replace('@lid', '@s.whatsapp.net')];
-          for (const v of variants) {
-            const contact = s?.Contact?.get(v);
-            if (contact) {
-              try {
-                let stored = contact.lastSeen;
-                Object.defineProperty(contact, 'lastSeen', {
-                  get() { return stored; },
-                  set(val) { stored = val; if (val != null) done(val); },
-                  configurable: true,
-                });
-              } catch(e) {}
-            }
-            const chat = s?.Chat?.get(v);
-            if (chat?.presence) {
-              try {
-                let stored = chat.presence.lastSeen;
-                Object.defineProperty(chat.presence, 'lastSeen', {
-                  get() { return stored; },
-                  set(val) { stored = val; if (val != null) done(val); },
-                  configurable: true,
-                });
-              } catch(e) {}
-            }
+        const readPresence = () => {
+          for (const storeName of ['ContactStore', 'ContactPresenceStore', 'PresenceStore']) {
+            tryLazy(storeName, (store) => {
+              if (resolved) return;
+              for (const j of jids) {
+                const c = store?.get?.(j) || store?.getContact?.(j) || store?.find?.(j);
+                if (c?.lastSeen != null) { done(c.lastSeen); return; }
+                if (c?.presence?.lastSeen != null) { done(c.presence.lastSeen); return; }
+              }
+            });
           }
-          const wid = s?.WidFactory?.createWid?.(jid) || jid;
-          try { window.WPP?.presence?.subscribe?.([jid]); } catch(e) {}
-          for (const v of variants) {
-            try { s?.PresenceUtils?.sendPresenceSubscribe?.(v); } catch(e) {}
-            try { s?.Presence?.subscribe?.(v); } catch(e) {}
-            try { s?.Presence?.subscribePresence?.(v); } catch(e) {}
-            try { s?.Chat?.get?.(v)?.subscribePresence?.(); } catch(e) {}
-          }
-        });
-      }, chatId);
-    }
+        };
+
+        // Subscribe via requireLazy
+        for (const name of ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceActions', 'PresenceSubscribeUtils']) {
+          tryLazy(name, (mod) => {
+            for (const j of jids) {
+              try { mod?.sendPresenceSubscribe?.(j); } catch(e) {}
+              try { mod?.subscribe?.(j); } catch(e) {}
+              try { mod?.subscribePresence?.(j); } catch(e) {}
+            }
+          });
+        }
+
+        // Read after 3s and 5s
+        setTimeout(readPresence, 3000);
+        setTimeout(readPresence, 5000);
+      });
+    }, jids);
 
     dbg(`presence ${chatId}: lastSeen=${lastSeen}`);
     res.json({ lastSeen: lastSeen ?? null });

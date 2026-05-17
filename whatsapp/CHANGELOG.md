@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.57] - 2026-05-17
+
+### Geändert
+- Presence komplett neu: löst @lid → @c.us JID via WWebJS.getContact; testet requireLazy mit WhatsApp-internen Modulnamen; scannt Chunks nach lastSeen-Referenzen; subscribt über requireLazy-Module
+
 ## [1.1.56] - 2026-05-17
 
 ### Geändert
