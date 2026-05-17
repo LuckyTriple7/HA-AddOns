@@ -551,18 +551,54 @@ app.get('/api/presence/:chatId', async (req, res) => {
       const chat = await client.getChatById(chatId);
       return res.json({ isGroup: true, memberCount: chat.participants?.length || 0 });
     }
-    // Try getContactById first
-    const contact = await client.getContactById(chatId);
-    if (contact.lastSeen != null) return res.json({ lastSeen: contact.lastSeen });
-    // Fallback: read from internal WhatsApp Web Store (populated after presence subscription)
-    const lastSeen = await client.pupPage.evaluate((jid) => {
+
+    const readPresence = async () => client.pupPage.evaluate((jid) => {
       try {
-        const c = window.Store?.Contact?.get(jid);
-        return c?.lastSeen ?? null;
+        const s = window.Store;
+        const c = s?.Contact?.get(jid);
+        if (c?.lastSeen != null) return c.lastSeen;
+        const chat = s?.Chat?.get(jid);
+        if (chat?.lastSeen != null) return chat.lastSeen;
+        if (chat?.presence?.lastSeen != null) return chat.presence.lastSeen;
+        // WPP path (injected by whatsapp-web.js)
+        const wppChat = window.WPP?.chat?.get?.(jid);
+        if (wppChat?.presence?.lastSeen != null) return wppChat.presence.lastSeen;
+        return null;
       } catch(e) { return null; }
     }, chatId);
+
+    // Quick check — data may already be cached
+    const cached = await readPresence();
+    if (cached != null) return res.json({ lastSeen: cached });
+
+    // Trigger presence subscription — all methods, no break (optional chaining never throws)
+    await client.pupPage.evaluate(async (jid) => {
+      // WPP (injected by whatsapp-web.js, most reliable in newer versions)
+      if (window.WPP?.presence?.subscribe) {
+        try { await window.WPP.presence.subscribe([jid]); } catch(e) {}
+      }
+      const s = window.Store;
+      if (!s) return;
+      const wid = s?.WidFactory?.createWid?.(jid) || jid;
+      try { await s?.PresenceUtils?.sendPresenceSubscribe?.(wid); } catch(e) {}
+      try { await s?.PresenceUtils?.sendPresenceSubscribe?.(jid); } catch(e) {}
+      try { await s?.Presence?.subscribe?.(wid); } catch(e) {}
+      try { await s?.Presence?.subscribePresence?.(wid); } catch(e) {}
+      try { s?.Chat?.get?.(jid)?.subscribePresence?.(); } catch(e) {}
+    }, chatId);
+
+    // Poll every 600ms for up to 5.4s — break as soon as data arrives
+    let lastSeen = null;
+    for (let i = 0; i < 9; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      lastSeen = await readPresence();
+      if (lastSeen != null) break;
+    }
+
+    dbg(`presence ${chatId}: lastSeen=${lastSeen}`);
     res.json({ lastSeen: lastSeen ?? null });
   } catch (e) {
+    console.error('[ERROR] presence:', e.message);
     res.json({ lastSeen: null });
   }
 });

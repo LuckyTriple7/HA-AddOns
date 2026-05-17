@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.51] - 2026-05-17
+
+### Behoben
+- „Zuletzt gesehen" zuverlässiger: alle Presence-Subscription-Methoden werden jetzt vollständig durchprobiert (kein vorzeitiges `break`); WPP-API (von whatsapp-web.js injiziert) wird bevorzugt; statt einmaligem 3,5s-Warten wird alle 600ms gepollt (bis zu 5,4s) und sofort zurückgegeben sobald Daten vorhanden sind
+
 ## [1.1.50] - 2026-05-17
 
 ### Behoben
