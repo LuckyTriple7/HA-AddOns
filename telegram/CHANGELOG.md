@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4] - 2026-05-17
+
+### Behoben
+- Reaktionen verschwanden beim Neuladen des Chats — werden jetzt direkt in `renderMessages` aus den Message-Daten gerendert, nicht erst beim nächsten Poll
+- HA-Benachrichtigung feuerte beim Reagieren — `recentlyReacted`-Guard unterdrückt für 5 Sekunden alle Notifications für die reagierte Nachricht
+- Reactions-Bar erschien auf gleicher Zeile wie Blase — `.bubble-row` ist jetzt Column-Flex, `.bubble-row-inner` übernimmt die horizontale Anordnung von Buttons und Blase
+
 ## [1.1.3] - 2026-05-17
 
 ### Neu
