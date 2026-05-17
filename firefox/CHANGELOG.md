@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.1] - 2026-05-17
+
+### Geändert
+- Automatischer Firefox-Updater deaktiviert (`policies.json`) — Updates kommen ausschließlich über das Docker-Image
+
 ## [1.0.0] - 2026-05-16
 
 ### Erstveröffentlichung
