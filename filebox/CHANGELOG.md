@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.5] - 2026-05-17
+
+### Neu
+- Standardsprache Deutsch (`--defaults.locale de`, `--locale de` pro User)
+- Root-Verzeichnis auf `/share/filebox` geändert (wird automatisch angelegt)
+- Optionen `show_media`, `show_config`, `show_backup` — weitere HA-Shares als Unterordner einblendbar (Symlinks in `/data/filebox-root/`)
+- Alle Shares (`share`, `media`, `config`, `backup`) immer gemountet
+
 ## [0.0.4] - 2026-05-17
 
 ### Behoben

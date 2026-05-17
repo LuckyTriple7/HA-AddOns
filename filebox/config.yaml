@@ -1,6 +1,6 @@
 name: FileBox
-description: Web-Oberfläche zum Hoch- und Herunterladen von Dateien in /share
-version: "0.0.4"
+description: Web-Oberfläche zum Hoch- und Herunterladen von Dateien in /share/filebox
+version: "0.0.5"
 slug: filebox
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -26,13 +26,22 @@ ports_description:
 
 map:
   - share:rw
+  - media:rw
+  - config:rw
+  - backup:rw
 
 options:
   port: 17771
   username: admin
   password: admin1234567
+  show_media: false
+  show_config: false
+  show_backup: false
 
 schema:
   port: int
   username: str
   password: str
+  show_media: bool
+  show_config: bool
+  show_backup: bool
