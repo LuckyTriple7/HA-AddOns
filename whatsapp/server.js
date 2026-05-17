@@ -561,54 +561,86 @@ app.get('/api/presence/:chatId', async (req, res) => {
     }, chatId);
     dbg(`presence ${chatId} cusJid=${cusJid}`);
 
-    // Try WWebJS raw models (getContactModel / getChatModel return internal WA objects)
-    const rawModelInfo = await client.pupPage.evaluate(async (jid, cusJid) => {
-      const result = {};
-      const jids = [...new Set([jid, cusJid].filter(Boolean))];
+    const jids = [...new Set([chatId, cusJid].filter(Boolean))];
+    const result = await client.pupPage.evaluate(async (jids) => {
+      const out = { lastSeen: null, dbg: {} };
+
+      // 1. Direct Store.Presence access (standard workaround)
+      out.dbg.storeExists = !!window.Store;
+      if (window.Store?.Presence) {
+        for (const j of jids) {
+          try {
+            const p = await window.Store.Presence.get(j);
+            if (p?.lastSeen != null) { out.lastSeen = p.lastSeen; out.dbg.src = 'Store.Presence'; return out; }
+          } catch(e) {}
+        }
+      }
+
+      // 2. Monkeypatch Object.prototype.serialize to intercept internal contact model.
+      //    WWebJS.getContactModel(j) calls contact.serialize() — but @lid contacts lack that
+      //    method, so JS walks the prototype chain and finds our patch instead.
       for (const j of jids) {
         try {
-          const cm = window.WWebJS?.getContactModel ? window.WWebJS.getContactModel(j) : null;
-          if (cm) {
-            const allKeys = [...new Set([...Object.getOwnPropertyNames(cm), ...Object.keys(cm)])];
-            const presenceKeys = allKeys.filter(k => /last|seen|presence|online|status|avail/i.test(k));
-            const presenceData = {};
-            for (const k of presenceKeys) { try { presenceData[k] = cm[k]; } catch(e) {} }
-            result['contactModel_' + j] = { allKeyCount: allKeys.length, presenceKeys, presenceData };
-          } else {
-            result['contactModel_' + j] = null;
-          }
-        } catch(e) { result['contactModel_' + j] = { error: e.message }; }
-        try {
-          const chatM = window.WWebJS?.getChatModel ? window.WWebJS.getChatModel(j) : null;
-          if (chatM) {
-            const allKeys = [...new Set([...Object.getOwnPropertyNames(chatM), ...Object.keys(chatM)])];
-            const presenceKeys = allKeys.filter(k => /last|seen|presence|online|status|avail/i.test(k));
-            const presenceData = {};
-            for (const k of presenceKeys) { try { presenceData[k] = chatM[k]; } catch(e) {} }
-            result['chatModel_' + j] = { allKeyCount: allKeys.length, presenceKeys, presenceData };
-          } else {
-            result['chatModel_' + j] = null;
-          }
-        } catch(e) { result['chatModel_' + j] = { error: e.message }; }
-      }
-      // Try requireDynamic for presence module
-      try {
-        const dynResult = typeof window.requireDynamic === 'function' ? await window.requireDynamic('PresenceUtils') : 'no-fn';
-        result.requireDynamic_PresenceUtils = dynResult ? 'found:' + Object.keys(dynResult).slice(0, 5).join(',') : String(dynResult);
-      } catch(e) { result.requireDynamic_PresenceUtils = 'err:' + e.message.slice(0, 60); }
-      return result;
-    }, chatId, cusJid);
-    dbg('rawModel:', JSON.stringify(rawModelInfo));
+          let capturedContact = null;
+          const hadSerialize = Object.prototype.hasOwnProperty('serialize');
+          const origSerialize = Object.prototype.serialize;
+          Object.prototype.serialize = function() { if (!capturedContact) capturedContact = this; return {}; };
+          try { window.WWebJS?.getContactModel?.(j); } catch(e) {}
+          if (hadSerialize) Object.prototype.serialize = origSerialize; else delete Object.prototype.serialize;
 
-    const jids = [...new Set([chatId, cusJid].filter(Boolean))];
-    const lastSeen = await client.pupPage.evaluate((jids) => {
-      return new Promise((resolve) => {
+          if (capturedContact) {
+            out.dbg['cap_' + j] = true;
+            // Gather all keys from object + prototype chain
+            const allKeys = new Set();
+            let proto = capturedContact; let depth = 0;
+            while (proto && proto !== Object.prototype && depth < 5) {
+              Object.getOwnPropertyNames(proto).forEach(k => allKeys.add(k));
+              proto = Object.getPrototypeOf(proto); depth++;
+            }
+            const presenceKeys = [...allKeys].filter(k => /last|seen|presence|online|status|avail/i.test(k));
+            const presenceData = {};
+            for (const k of presenceKeys) { try { presenceData[k] = capturedContact[k]; } catch(e) {} }
+            out.dbg['pkeys_' + j] = presenceKeys;
+            out.dbg['pdata_' + j] = presenceData;
+
+            if (capturedContact.lastSeen != null) {
+              out.lastSeen = capturedContact.lastSeen; out.dbg.src = 'contact.lastSeen'; return out;
+            }
+            if (capturedContact.presence?.lastSeen != null) {
+              out.lastSeen = capturedContact.presence.lastSeen; out.dbg.src = 'contact.presence.lastSeen'; return out;
+            }
+
+            // Try to reach Store.Presence via contact's collection
+            try {
+              const coll = capturedContact.collection;
+              out.dbg.collName = coll?.constructor?.name;
+              if (coll) {
+                for (const sk of ['_store', 'store', '_parent', 'parent']) {
+                  const storeRef = coll[sk];
+                  if (storeRef?.Presence) {
+                    for (const jj of jids) {
+                      try {
+                        const p = await storeRef.Presence.get(jj);
+                        if (p?.lastSeen != null) { out.lastSeen = p.lastSeen; out.dbg.src = 'coll.' + sk + '.Presence'; return out; }
+                      } catch(e) {}
+                    }
+                  }
+                }
+                out.dbg.collKeys = Object.getOwnPropertyNames(coll).slice(0, 20);
+              }
+            } catch(e) { out.dbg.collErr = e.message.slice(0, 60); }
+          } else {
+            out.dbg['cap_' + j] = false;
+          }
+        } catch(e) { out.dbg['capErr_' + j] = e.message.slice(0, 60); }
+      }
+
+      // 3. requireLazy subscription + read (last resort, 5s timeout)
+      const lazyResult = await new Promise((resolve) => {
         let resolved = false;
         const done = (val) => { if (!resolved) { resolved = true; resolve(val ?? null); } };
-        setTimeout(() => done(null), 6000);
-
+        setTimeout(() => done(null), 5000);
         const tryLazy = (name, fn) => { try { window.requireLazy([name], fn); } catch(e) {} };
-
         const readPresence = () => {
           for (const storeName of ['ContactStore', 'ContactPresenceStore', 'PresenceStore']) {
             tryLazy(storeName, (store) => {
@@ -621,8 +653,6 @@ app.get('/api/presence/:chatId', async (req, res) => {
             });
           }
         };
-
-        // Subscribe via requireLazy
         for (const name of ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceActions', 'PresenceSubscribeUtils']) {
           tryLazy(name, (mod) => {
             for (const j of jids) {
@@ -632,15 +662,17 @@ app.get('/api/presence/:chatId', async (req, res) => {
             }
           });
         }
-
-        // Read after 3s and 5s
-        setTimeout(readPresence, 3000);
-        setTimeout(readPresence, 5000);
+        setTimeout(readPresence, 2000);
+        setTimeout(readPresence, 4000);
       });
+      if (lazyResult != null) { out.lastSeen = lazyResult; out.dbg.src = 'requireLazy'; }
+
+      return out;
     }, jids);
 
-    dbg(`presence ${chatId}: lastSeen=${lastSeen}`);
-    res.json({ lastSeen: lastSeen ?? null });
+    dbg(`presence ${chatId}: lastSeen=${result.lastSeen} src=${result.dbg?.src}`);
+    dbg('presence dbg:', JSON.stringify(result.dbg));
+    res.json({ lastSeen: result.lastSeen ?? null });
   } catch (e) {
     console.error('[ERROR] presence:', e.message);
     res.json({ lastSeen: null });

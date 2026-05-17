@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.60] - 2026-05-17
+
+### Geändert
+- Presence: Object.prototype.serialize-Monkeypatch fängt internen Kontakt-Model ab (WWebJS.getContactModel wirft „serialize is not a function" — JS sucht Prototypkette und findet unseren Patch); aus dem Kontaktobjekt werden lastSeen und presence-Keys gelesen; Navigation zur Store.Presence via contact.collection versucht; direkter Store.Presence-Zugriff bleibt Schritt 1; requireLazy als Fallback bleibt
+- Debug-Log zeigt `cap_jid`, `pkeys_jid`, `pdata_jid`, `collName`, `collKeys` und `src`-Feld
+
 ## [1.1.59] - 2026-05-17
 
 ### Geändert
