@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-05-17
+
+### Neu
+- Refresh-Button (↺) in der Topbar — lädt den aktuellen Chat neu von Telegram (löscht den In-Memory-Cache); nützlich wenn ein Bot eine Nachricht extern gelöscht hat; dreht sich während des Ladens
+
 ## [1.1.0] - 2026-05-17
 
 ### Behoben

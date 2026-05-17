@@ -403,6 +403,11 @@ app.get('/api/chats', (req, res) => {
 
 app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
+  if (req.query.refresh === '1' && status === 'connected') {
+    messagesByChatId.delete(chatId);
+    await fetchMessages(chatId);
+    return res.json(messagesByChatId.get(chatId) || []);
+  }
   const existing = messagesByChatId.get(chatId) || [];
   if (existing.length < FETCH_LIMIT && status === 'connected') {
     await fetchMessages(chatId);
@@ -561,6 +566,10 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #photo-toggle.active { opacity: 1; background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.8); }
 .scroll-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 15px; opacity: 0.55; line-height: 1; }
 .scroll-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
+#refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
+#refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
+#refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .photo-placeholder { display: none; }
 body.hide-photos .msg-img { display: none !important; }
 body.hide-photos .photo-placeholder { display: inline; }
@@ -721,6 +730,7 @@ html.light #emoji-toggle { color: #888; }
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()">Fotos AN</button>' : ''}
+  <button id="refresh-btn" onclick="refreshChat()" title="Chat neu laden">↺</button>
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
   <button id="logout-btn" onclick="logout()" title="Abmelden">⏻</button>
@@ -931,6 +941,7 @@ function openChat(chat) {
   document.getElementById('chat-header').style.display = 'flex';
   document.getElementById('messages').style.display = 'flex';
   document.getElementById('input-bar').style.display = 'flex';
+  document.getElementById('refresh-btn').style.display = 'inline-block';
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   const av = document.getElementById('ch-avatar');
   av.textContent = avatarInitial(chat.name||chat.id);
@@ -946,6 +957,18 @@ function closeChat() {
   document.getElementById('chat-header').style.display = 'none';
   document.getElementById('messages').style.display = 'none';
   document.getElementById('input-bar').style.display = 'none';
+  document.getElementById('refresh-btn').style.display = 'none';
+}
+
+async function refreshChat() {
+  if (!selectedChatId) return;
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  try {
+    const msgs = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?refresh=1')).then(r=>r.json());
+    renderMessages(msgs);
+  } catch(e) {}
+  btn.classList.remove('spinning');
 }
 
 async function loadMessages(chatId) {
