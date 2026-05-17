@@ -552,49 +552,76 @@ app.get('/api/presence/:chatId', async (req, res) => {
       return res.json({ isGroup: true, memberCount: chat.participants?.length || 0 });
     }
 
-    const readPresence = async () => client.pupPage.evaluate((jid) => {
-      try {
+    const lastSeen = await client.pupPage.evaluate((jid) => {
+      return new Promise((resolve) => {
+        let resolved = false;
+        const done = (val) => { if (!resolved) { resolved = true; resolve(val ?? null); } };
+        setTimeout(() => done(null), 5500);
+
         const s = window.Store;
-        const c = s?.Contact?.get(jid);
-        if (c?.lastSeen != null) return c.lastSeen;
+
+        // Check if already cached in any known location
+        const contact = s?.Contact?.get(jid);
+        if (contact?.lastSeen != null) { done(contact.lastSeen); return; }
         const chat = s?.Chat?.get(jid);
-        if (chat?.lastSeen != null) return chat.lastSeen;
-        if (chat?.presence?.lastSeen != null) return chat.presence.lastSeen;
-        // WPP path (injected by whatsapp-web.js)
+        if (chat?.presence?.lastSeen != null) { done(chat.presence.lastSeen); return; }
+        if (chat?.lastSeen != null) { done(chat.lastSeen); return; }
         const wppChat = window.WPP?.chat?.get?.(jid);
-        if (wppChat?.presence?.lastSeen != null) return wppChat.presence.lastSeen;
-        return null;
-      } catch(e) { return null; }
+        if (wppChat?.presence?.lastSeen != null) { done(wppChat.presence.lastSeen); return; }
+
+        // Watch Contact.lastSeen being set by WhatsApp
+        if (contact) {
+          try {
+            let stored = contact.lastSeen;
+            Object.defineProperty(contact, 'lastSeen', {
+              get() { return stored; },
+              set(val) { stored = val; if (val != null) done(val); },
+              configurable: true,
+            });
+          } catch(e) {}
+        }
+
+        // Watch Chat.presence.lastSeen being set
+        if (chat?.presence) {
+          try {
+            let stored = chat.presence.lastSeen;
+            Object.defineProperty(chat.presence, 'lastSeen', {
+              get() { return stored; },
+              set(val) { stored = val; if (val != null) done(val); },
+              configurable: true,
+            });
+          } catch(e) {}
+        }
+
+        // Trigger presence subscription via all available methods
+        const wid = s?.WidFactory?.createWid?.(jid) || jid;
+        const debug = {
+          hasWPP: !!window.WPP,
+          wppPresenceKeys: window.WPP?.presence ? Object.keys(window.WPP.presence).join(',') : null,
+          hasPresenceUtils: !!s?.PresenceUtils,
+          presenceUtilsKeys: s?.PresenceUtils ? Object.keys(s.PresenceUtils).join(',') : null,
+          hasPresence: !!s?.Presence,
+          presenceKeys: s?.Presence ? Object.keys(s.Presence).join(',') : null,
+          hasContact: !!contact,
+          contactLastSeen: contact?.lastSeen ?? null,
+          hasChat: !!chat,
+          chatLastSeen: chat?.lastSeen ?? null,
+          chatPresenceLastSeen: chat?.presence?.lastSeen ?? null,
+        };
+        // debug info posted to console — visible in HA log when debug_mode is on
+        window.__waPresenceDebug = debug;
+        try { window.WPP?.presence?.subscribe?.([jid]); } catch(e) {}
+        try { s?.PresenceUtils?.sendPresenceSubscribe?.(wid); } catch(e) {}
+        try { s?.PresenceUtils?.sendPresenceSubscribe?.(jid); } catch(e) {}
+        try { s?.Presence?.subscribe?.(wid); } catch(e) {}
+        try { s?.Presence?.subscribePresence?.(wid); } catch(e) {}
+        try { chat?.subscribePresence?.(); } catch(e) {}
+      });
     }, chatId);
 
-    // Quick check — data may already be cached
-    const cached = await readPresence();
-    if (cached != null) return res.json({ lastSeen: cached });
-
-    // Trigger presence subscription — all methods, no break (optional chaining never throws)
-    await client.pupPage.evaluate(async (jid) => {
-      // WPP (injected by whatsapp-web.js, most reliable in newer versions)
-      if (window.WPP?.presence?.subscribe) {
-        try { await window.WPP.presence.subscribe([jid]); } catch(e) {}
-      }
-      const s = window.Store;
-      if (!s) return;
-      const wid = s?.WidFactory?.createWid?.(jid) || jid;
-      try { await s?.PresenceUtils?.sendPresenceSubscribe?.(wid); } catch(e) {}
-      try { await s?.PresenceUtils?.sendPresenceSubscribe?.(jid); } catch(e) {}
-      try { await s?.Presence?.subscribe?.(wid); } catch(e) {}
-      try { await s?.Presence?.subscribePresence?.(wid); } catch(e) {}
-      try { s?.Chat?.get?.(jid)?.subscribePresence?.(); } catch(e) {}
-    }, chatId);
-
-    // Poll every 600ms for up to 5.4s — break as soon as data arrives
-    let lastSeen = null;
-    for (let i = 0; i < 9; i++) {
-      await new Promise(r => setTimeout(r, 600));
-      lastSeen = await readPresence();
-      if (lastSeen != null) break;
-    }
-
+    // Log Store/WPP info for diagnosis (visible when debug_mode is on)
+    const debugInfo = await client.pupPage.evaluate(() => window.__waPresenceDebug || null);
+    if (debugInfo) dbg('presence store-info:', JSON.stringify(debugInfo));
     dbg(`presence ${chatId}: lastSeen=${lastSeen}`);
     res.json({ lastSeen: lastSeen ?? null });
   } catch (e) {

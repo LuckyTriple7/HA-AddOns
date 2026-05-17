@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.52] - 2026-05-17
+
+### Behoben
+- „Zuletzt gesehen": neuer Ansatz mit `Object.defineProperty`-Watcher — statt zu pollen wird direkt beobachtet wenn WhatsApp `lastSeen` im Contact/Chat-Objekt setzt; Auflösung erfolgt sofort wenn Daten eintreffen (max. 5,5s Timeout)
+- Debug-Logging für Presence erweitert: bei aktiviertem `debug_mode` werden verfügbare Store/WPP-Namespaces und Ausgangswerte geloggt — hilft bei der Diagnose
+
 ## [1.1.51] - 2026-05-17
 
 ### Behoben
