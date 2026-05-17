@@ -618,7 +618,6 @@ app.get('/', (req, res) => {
     .status-dot.waiting   { background: #f0a500; }
     .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
     .status-dot.initializing { background: #8696a0; }
-    .status-label { font-size: 12px; color: #8696a0; }
     .storage-info { font-size: 12px; color: #8696a0; white-space: nowrap; }
     .logout-btn {
       background: none; border: none; color: #8696a0;
@@ -882,8 +881,7 @@ app.get('/', (req, res) => {
 
   <div class="topbar" id="topbar" style="display:none;">
     <h1>WhatsApp</h1>
-    <span class="status-label" id="status-label">Verbunden</span>
-    <div class="status-dot connected" id="status-dot"></div>
+    <div class="status-dot connected" id="status-dot" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()">Fotos AN</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
@@ -1352,16 +1350,18 @@ app.get('/', (req, res) => {
     async function refresh() {
       try {
         const s = await fetch('api/status').then(r => r.json());
-        document.getElementById('status-dot').className = 'status-dot ' + (
-          s.status === 'connected' ? 'connected' :
-          s.status === 'waiting_for_scan' || s.status === 'authenticated' ? 'waiting' :
-          s.status === 'initializing' ? 'initializing' : 'error'
-        );
-        document.getElementById('status-label').textContent = ({
+        const dotLabel = ({
           connected: 'Verbunden', waiting_for_scan: 'QR scannen',
           authenticated: 'Authentifiziert…', initializing: 'Starte…',
           disconnected: 'Getrennt', auth_failed: 'Auth-Fehler', error: 'Fehler',
         })[s.status] || s.status;
+        const dot = document.getElementById('status-dot');
+        dot.className = 'status-dot ' + (
+          s.status === 'connected' ? 'connected' :
+          s.status === 'waiting_for_scan' || s.status === 'authenticated' ? 'waiting' :
+          s.status === 'initializing' ? 'initializing' : 'error'
+        );
+        dot.title = dotLabel;
 
         if (s.phone && !myPhone) myPhone = s.phone;
         if (s.status !== currentStatus) {

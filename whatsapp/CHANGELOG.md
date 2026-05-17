@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-05-17
+
+### Geändert
+- „Verbunden"-Text aus der Topbar entfernt — Status-Punkt zeigt den Text jetzt als Mouse-Over-Tooltip (grün = verbunden, gelb = QR scannen, rot = getrennt/Fehler, grau = startet)
+
 ## [1.2.3] - 2026-05-17
 
 ### Geändert
