@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] - 2026-05-17
+
+### Behoben
+- Empfangene Nachrichten zu schmal — `.bubble-row-inner` hatte kein `width: 100%` für `.in`; `max-width: 65%` berechnete sich gegen die geschrumpfte Containerbreite statt gegen die volle Chat-Breite; Blasen sind jetzt gleich breit wie gesendete
+- Löschen-Button (✕) erschien rechts neben empfangenen Blasen — `order: -1` jetzt auch für `.in .del-btn`; Hover-Layout ist jetzt `[✕][Blase][😊]` für alle Nachrichten
+
 ## [1.2.0] - 2026-05-17
 
 ### Geändert

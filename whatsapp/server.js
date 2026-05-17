@@ -715,9 +715,10 @@ app.get('/', (req, res) => {
       max-width: 65%; padding: 6px 10px 8px; border-radius: 7.5px;
       font-size: 14px; line-height: 1.45; word-break: break-word;
     }
-    .bubble-row-inner { display: flex; align-items: center; gap: 6px; }
-    .bubble-wrap.out .bubble-row-inner { width: 100%; justify-content: flex-end; }
-    .bubble-wrap.out .del-btn { order: -1; }
+    .bubble-row-inner { display: flex; align-items: center; gap: 6px; width: 100%; }
+    .bubble-wrap.out .bubble-row-inner { justify-content: flex-end; }
+    .bubble-wrap.out .del-btn,
+    .bubble-wrap.in  .del-btn { order: -1; }
     .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
     .bubble-row-inner:hover .del-btn { display: block; }
     html.light .del-btn { color: rgba(0,0,0,0.4); }
