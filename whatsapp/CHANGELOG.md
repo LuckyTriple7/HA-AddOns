@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.43] - 2026-05-17
+
+### Behoben
+- Gesendete Nachrichten: bubble-row-inner auf width:100% + justify-content:flex-end — garantiert rechtsbündig unabhängig von Nachrichtenlänge
+
 ## [1.1.42] - 2026-05-17
 
 ### Behoben
