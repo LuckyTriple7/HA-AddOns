@@ -543,6 +543,21 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
+app.get('/api/presence/:chatId', async (req, res) => {
+  const { chatId } = req.params;
+  if (status !== 'connected') return res.json({ lastSeen: null });
+  try {
+    if (chatId.endsWith('@g.us')) {
+      const chat = await client.getChatById(chatId);
+      return res.json({ isGroup: true, memberCount: chat.participants?.length || 0 });
+    }
+    const contact = await client.getContactById(chatId);
+    res.json({ lastSeen: contact.lastSeen || null });
+  } catch (e) {
+    res.json({ lastSeen: null });
+  }
+});
+
 app.post('/api/fetch-media/:chatId', async (req, res) => {
   const { chatId } = req.params;
   const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
@@ -696,6 +711,7 @@ app.get('/', (req, res) => {
     #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
+    #ch-lastseen { font-size: 12px; color: #8696a0; margin-top: 1px; }
     #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
     #fetch-media-btn:hover { border-color: #25d366; color: #25d366; }
     #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
@@ -840,6 +856,7 @@ app.get('/', (req, res) => {
     html.light #chat-header { background: #075e54; border-color: #075e54; }
     html.light #ch-name { color: #fff; }
     html.light #ch-phone { color: rgba(255,255,255,0.75); }
+    html.light #ch-lastseen { color: rgba(255,255,255,0.75); }
     html.light #welcome { color: #555; }
     html.light .bubble-wrap.in .bubble { background: #fff; color: #111; }
     html.light .bubble-wrap.out .bubble { background: #dcf8c6; color: #111; }
@@ -909,6 +926,7 @@ app.get('/', (req, res) => {
         <div>
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
+          <div id="ch-lastseen"></div>
         </div>
         ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
       </div>
@@ -1119,6 +1137,8 @@ app.get('/', (req, res) => {
       document.getElementById('ch-name').textContent = chat.name;
       const ph = chat.phone || '';
       document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
+      document.getElementById('ch-lastseen').textContent = '';
+      fetchPresence(chat.id);
 
       lastSeenTime[chat.id] = chat.lastTime || Date.now();
       renderChatList(allChats);
@@ -1228,6 +1248,32 @@ app.get('/', (req, res) => {
         }
       });
       if (atBottom) msgList.scrollTop = msgList.scrollHeight;
+    }
+
+    function fmtLastSeen(ts) {
+      const d = new Date(ts > 1e10 ? ts : ts * 1000);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today.getTime() - 86400000);
+      const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      if (day.getTime() === today.getTime()) return 'heute um ' + time;
+      if (day.getTime() === yesterday.getTime()) return 'gestern um ' + time;
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + '. um ' + time;
+    }
+
+    async function fetchPresence(chatId) {
+      const el = document.getElementById('ch-lastseen');
+      if (!el) return;
+      el.textContent = '';
+      try {
+        const d = await fetch('api/presence/' + encodeURIComponent(chatId)).then(r => r.json());
+        if (d.isGroup) {
+          el.textContent = d.memberCount ? d.memberCount + ' Mitglieder' : '';
+        } else if (d.lastSeen) {
+          el.textContent = 'Zuletzt gesehen ' + fmtLastSeen(d.lastSeen);
+        }
+      } catch(e) {}
     }
 
     async function reloadMessages(chatId) {

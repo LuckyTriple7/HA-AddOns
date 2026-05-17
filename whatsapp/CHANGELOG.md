@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.49] - 2026-05-17
+
+### Neu
+- „Zuletzt gesehen"-Anzeige im Chat-Header — zeigt z.B. „Zuletzt gesehen heute um 14:30" oder „gestern um 09:15"; bei Gruppen wird die Mitgliederanzahl angezeigt; nur sichtbar wenn der Kontakt die Anzeige in seinen Datenschutz-Einstellungen erlaubt
+
 ## [1.1.48] - 2026-05-17
 
 ### Behoben
