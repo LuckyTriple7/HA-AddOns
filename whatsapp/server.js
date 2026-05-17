@@ -561,86 +561,90 @@ app.get('/api/presence/:chatId', async (req, res) => {
     }, chatId);
     dbg(`presence ${chatId} cusJid=${cusJid}`);
 
+    // Node.js side: check client API for presence methods
+    const clientPresenceMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(client))
+      .filter(k => /pres|last.*seen|subscribe/i.test(k));
+    dbg('client presence methods:', clientPresenceMethods.join(',') || 'none');
+
     const jids = [...new Set([chatId, cusJid].filter(Boolean))];
     const result = await client.pupPage.evaluate(async (jids) => {
       const out = { lastSeen: null, dbg: {} };
 
-      // 1. Direct Store.Presence access (standard workaround)
+      // 1. Direct Store.Presence access + scan window for store-like globals
       out.dbg.storeExists = !!window.Store;
-      if (window.Store?.Presence) {
-        for (const j of jids) {
-          try {
-            const p = await window.Store.Presence.get(j);
-            if (p?.lastSeen != null) { out.lastSeen = p.lastSeen; out.dbg.src = 'Store.Presence'; return out; }
-          } catch(e) {}
+      const storeGlobals = Object.getOwnPropertyNames(window).filter(k =>
+        /store|presence/i.test(k) && k !== 'Store' && typeof window[k] === 'object' && window[k]
+      );
+      out.dbg.storeGlobals = storeGlobals;
+      // Try window.Store and any store-like globals for Presence
+      for (const storeName of ['Store', ...storeGlobals]) {
+        const s = window[storeName];
+        if (s?.Presence) {
+          for (const j of jids) {
+            try {
+              const p = await s.Presence.get(j);
+              if (p?.lastSeen != null) { out.lastSeen = p.lastSeen; out.dbg.src = storeName + '.Presence'; return out; }
+            } catch(e) {}
+          }
         }
       }
 
-      // 2. Monkeypatch Object.prototype.serialize to intercept internal contact model.
-      //    WWebJS.getContactModel(j) calls contact.serialize() — but @lid contacts lack that
-      //    method, so JS walks the prototype chain and finds our patch instead.
-      let capturedContact = null;
+      // 2. WWebJS.getChat — serialize the chat model and inspect ALL keys
       for (const j of jids) {
         try {
-          let cap = null;
-          const hadSerialize = Object.prototype.hasOwnProperty('serialize');
-          const origSerialize = Object.prototype.serialize;
-          Object.prototype.serialize = function() { if (!cap) cap = this; return {}; };
-          try { window.WWebJS?.getContactModel?.(j); } catch(e) {}
-          if (hadSerialize) Object.prototype.serialize = origSerialize; else delete Object.prototype.serialize;
-
-          if (cap) {
-            // Type diagnosis — tell us exactly what was captured
-            out.dbg['cap_' + j] = {
-              type: typeof cap,
-              ctor: cap?.constructor?.name,
-              isStr: typeof cap === 'string',
-              isArr: Array.isArray(cap),
-              ownKeys: Object.getOwnPropertyNames(cap).slice(0, 40),
-            };
-            // Prototype chain method names (first 60, presence/subscribe/fetch filtered)
-            const methodNames = [];
-            let proto = Object.getPrototypeOf(cap); let depth = 0;
-            while (proto && proto !== Object.prototype && depth < 6) {
-              Object.getOwnPropertyNames(proto).filter(k => {
-                try { return typeof proto[k] === 'function'; } catch(e) { return false; }
-              }).forEach(k => { if (!methodNames.includes(k)) methodNames.push(k); });
-              proto = Object.getPrototypeOf(proto); depth++;
+          const chat = window.WWebJS?.getChat ? await window.WWebJS.getChat(j) : null;
+          if (chat && typeof chat === 'object') {
+            const allKeys = Object.keys(chat);
+            const presKeys = allKeys.filter(k => /last|seen|pres|online|status|avail/i.test(k));
+            const presData = {};
+            for (const k of presKeys) { try { presData[k] = chat[k]; } catch(e) {} }
+            out.dbg['chat_' + j] = { totalKeys: allKeys.length, presKeys, presData };
+            // Check nested contact object
+            if (chat.contact && typeof chat.contact === 'object') {
+              const ck = Object.keys(chat.contact);
+              const cpk = ck.filter(k => /last|seen|pres|online|status|avail/i.test(k));
+              const cpd = {};
+              for (const k of cpk) { try { cpd[k] = chat.contact[k]; } catch(e) {} }
+              out.dbg['chatContact_' + j] = { totalKeys: ck.length, presKeys: cpk, presData: cpd };
+              if (chat.contact.lastSeen != null) {
+                out.lastSeen = chat.contact.lastSeen; out.dbg.src = 'chat.contact.lastSeen'; return out;
+              }
             }
-            out.dbg['methods_' + j] = methodNames.filter(k => /last|seen|pres|online|status|avail|subscri|fetch|request|update/i.test(k));
-            out.dbg['methods_' + j + '_all'] = methodNames.slice(0, 60);
-            if (!capturedContact) capturedContact = cap;
           } else {
-            out.dbg['cap_' + j] = false;
+            out.dbg['chat_' + j] = null;
           }
-        } catch(e) { out.dbg['capErr_' + j] = e.message.slice(0, 60); }
+        } catch(e) { out.dbg['chat_' + j] = 'err:' + e.message.slice(0, 60); }
       }
 
-      // All WWebJS function names (find any presence-related we haven't tried)
-      try {
-        const wwebjsAllFns = Object.getOwnPropertyNames(window.WWebJS).filter(k => {
-          try { return typeof window.WWebJS[k] === 'function'; } catch(e) { return false; }
-        });
-        out.dbg.wwebjsFns = wwebjsAllFns.filter(k => /last|seen|pres|online|status|subscri|fetch/i.test(k));
-        out.dbg.wwebjsFnsAll = wwebjsAllFns;
-      } catch(e) {}
+      // 3. Monkeypatch Object.prototype.toJSON to capture raw contact model from WWebJS.getContact
+      //    (getContact works and presumably calls contact.toJSON() internally)
+      for (const j of jids) {
+        try {
+          const capturedModels = [];
+          const hadToJSON = Object.prototype.hasOwnProperty('toJSON');
+          const origToJSON = Object.prototype.toJSON;
+          Object.prototype.toJSON = function() {
+            capturedModels.push(this);
+            return Object.assign({}, this);
+          };
+          try { await window.WWebJS.getContact(j); } catch(e) {}
+          if (hadToJSON) Object.prototype.toJSON = origToJSON; else delete Object.prototype.toJSON;
 
-      // Try presence-related WWebJS functions we may not have tried yet
-      if (capturedContact || jids.length) {
-        for (const fnName of ['getPresence', 'subscribePresence', 'getLastSeen', 'fetchPresence', 'requestPresence', 'getContactPresence']) {
-          if (typeof window.WWebJS?.[fnName] === 'function') {
-            for (const j of jids) {
-              try {
-                const r = await window.WWebJS[fnName](j);
-                out.dbg['wwebjs_' + fnName + '_' + j] = r;
-                if (r?.lastSeen != null) { out.lastSeen = r.lastSeen; out.dbg.src = 'WWebJS.' + fnName; return out; }
-              } catch(e) { out.dbg['wwebjs_' + fnName + '_err'] = e.message.slice(0, 60); }
+          for (let i = 0; i < capturedModels.length; i++) {
+            const m = capturedModels[i];
+            const ownKeys = Object.getOwnPropertyNames(m);
+            const presKeys = ownKeys.filter(k => /last|seen|pres|online|status|avail/i.test(k));
+            if (presKeys.length > 0 || i === 0) {
+              const presData = {};
+              for (const k of presKeys) { try { presData[k] = m[k]; } catch(e) {} }
+              out.dbg['toJSON_' + i + '_' + j] = { ctor: m?.constructor?.name, ownKeyCount: ownKeys.length, presKeys, presData };
             }
           }
-        }
+          out.dbg['toJSONCnt_' + j] = capturedModels.length;
+        } catch(e) { out.dbg['toJSONErr_' + j] = e.message.slice(0, 60); }
       }
 
-      // 3. requireLazy subscription + read (last resort, 5s timeout)
+      // 4. requireLazy subscription + read (last resort, 5s timeout)
       const lazyResult = await new Promise((resolve) => {
         let resolved = false;
         const done = (val) => { if (!resolved) { resolved = true; resolve(val ?? null); } };

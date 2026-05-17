@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.62] - 2026-05-17
+
+### Geändert
+- Diagnose: scannt window-Globals auf Store-ähnliche Objekte mit Presence-Eigenschaft; testet `WWebJS.getChat(jid)` (Äquivalent zu Store.Chat.get) und inspiziert alle Keys inklusive verschachteltem `contact`; Monkeypatch auf `Object.prototype.toJSON` fängt rohen Kontakt bei `WWebJS.getContact()`-Aufruf ab
+- Node.js-Seite: listet alle Presence-Methoden des client-Objekts
+
 ## [1.1.61] - 2026-05-17
 
 ### Geändert
