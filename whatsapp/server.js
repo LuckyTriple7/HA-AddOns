@@ -579,60 +579,65 @@ app.get('/api/presence/:chatId', async (req, res) => {
       // 2. Monkeypatch Object.prototype.serialize to intercept internal contact model.
       //    WWebJS.getContactModel(j) calls contact.serialize() — but @lid contacts lack that
       //    method, so JS walks the prototype chain and finds our patch instead.
+      let capturedContact = null;
       for (const j of jids) {
         try {
-          let capturedContact = null;
+          let cap = null;
           const hadSerialize = Object.prototype.hasOwnProperty('serialize');
           const origSerialize = Object.prototype.serialize;
-          Object.prototype.serialize = function() { if (!capturedContact) capturedContact = this; return {}; };
+          Object.prototype.serialize = function() { if (!cap) cap = this; return {}; };
           try { window.WWebJS?.getContactModel?.(j); } catch(e) {}
           if (hadSerialize) Object.prototype.serialize = origSerialize; else delete Object.prototype.serialize;
 
-          if (capturedContact) {
-            out.dbg['cap_' + j] = true;
-            // Gather all keys from object + prototype chain
-            const allKeys = new Set();
-            let proto = capturedContact; let depth = 0;
-            while (proto && proto !== Object.prototype && depth < 5) {
-              Object.getOwnPropertyNames(proto).forEach(k => allKeys.add(k));
+          if (cap) {
+            // Type diagnosis — tell us exactly what was captured
+            out.dbg['cap_' + j] = {
+              type: typeof cap,
+              ctor: cap?.constructor?.name,
+              isStr: typeof cap === 'string',
+              isArr: Array.isArray(cap),
+              ownKeys: Object.getOwnPropertyNames(cap).slice(0, 40),
+            };
+            // Prototype chain method names (first 60, presence/subscribe/fetch filtered)
+            const methodNames = [];
+            let proto = Object.getPrototypeOf(cap); let depth = 0;
+            while (proto && proto !== Object.prototype && depth < 6) {
+              Object.getOwnPropertyNames(proto).filter(k => {
+                try { return typeof proto[k] === 'function'; } catch(e) { return false; }
+              }).forEach(k => { if (!methodNames.includes(k)) methodNames.push(k); });
               proto = Object.getPrototypeOf(proto); depth++;
             }
-            const presenceKeys = [...allKeys].filter(k => /last|seen|presence|online|status|avail/i.test(k));
-            const presenceData = {};
-            for (const k of presenceKeys) { try { presenceData[k] = capturedContact[k]; } catch(e) {} }
-            out.dbg['pkeys_' + j] = presenceKeys;
-            out.dbg['pdata_' + j] = presenceData;
-
-            if (capturedContact.lastSeen != null) {
-              out.lastSeen = capturedContact.lastSeen; out.dbg.src = 'contact.lastSeen'; return out;
-            }
-            if (capturedContact.presence?.lastSeen != null) {
-              out.lastSeen = capturedContact.presence.lastSeen; out.dbg.src = 'contact.presence.lastSeen'; return out;
-            }
-
-            // Try to reach Store.Presence via contact's collection
-            try {
-              const coll = capturedContact.collection;
-              out.dbg.collName = coll?.constructor?.name;
-              if (coll) {
-                for (const sk of ['_store', 'store', '_parent', 'parent']) {
-                  const storeRef = coll[sk];
-                  if (storeRef?.Presence) {
-                    for (const jj of jids) {
-                      try {
-                        const p = await storeRef.Presence.get(jj);
-                        if (p?.lastSeen != null) { out.lastSeen = p.lastSeen; out.dbg.src = 'coll.' + sk + '.Presence'; return out; }
-                      } catch(e) {}
-                    }
-                  }
-                }
-                out.dbg.collKeys = Object.getOwnPropertyNames(coll).slice(0, 20);
-              }
-            } catch(e) { out.dbg.collErr = e.message.slice(0, 60); }
+            out.dbg['methods_' + j] = methodNames.filter(k => /last|seen|pres|online|status|avail|subscri|fetch|request|update/i.test(k));
+            out.dbg['methods_' + j + '_all'] = methodNames.slice(0, 60);
+            if (!capturedContact) capturedContact = cap;
           } else {
             out.dbg['cap_' + j] = false;
           }
         } catch(e) { out.dbg['capErr_' + j] = e.message.slice(0, 60); }
+      }
+
+      // All WWebJS function names (find any presence-related we haven't tried)
+      try {
+        const wwebjsAllFns = Object.getOwnPropertyNames(window.WWebJS).filter(k => {
+          try { return typeof window.WWebJS[k] === 'function'; } catch(e) { return false; }
+        });
+        out.dbg.wwebjsFns = wwebjsAllFns.filter(k => /last|seen|pres|online|status|subscri|fetch/i.test(k));
+        out.dbg.wwebjsFnsAll = wwebjsAllFns;
+      } catch(e) {}
+
+      // Try presence-related WWebJS functions we may not have tried yet
+      if (capturedContact || jids.length) {
+        for (const fnName of ['getPresence', 'subscribePresence', 'getLastSeen', 'fetchPresence', 'requestPresence', 'getContactPresence']) {
+          if (typeof window.WWebJS?.[fnName] === 'function') {
+            for (const j of jids) {
+              try {
+                const r = await window.WWebJS[fnName](j);
+                out.dbg['wwebjs_' + fnName + '_' + j] = r;
+                if (r?.lastSeen != null) { out.lastSeen = r.lastSeen; out.dbg.src = 'WWebJS.' + fnName; return out; }
+              } catch(e) { out.dbg['wwebjs_' + fnName + '_err'] = e.message.slice(0, 60); }
+            }
+          }
+        }
       }
 
       // 3. requireLazy subscription + read (last resort, 5s timeout)

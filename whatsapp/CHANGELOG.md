@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.61] - 2026-05-17
+
+### Geändert
+- Diagnose: abgefangenes Objekt wird vollständig typisiert (`type`, `ctor`, `isStr`, `isArr`, `ownKeys`), alle Methoden aus der Prototypkette gelistet; alle WWebJS-Funktionsnamen gedumpt; unbekannte Presence-Funktionen wie `getPresence`, `subscribePresence`, `getLastSeen` etc. werden versucht
+
 ## [1.1.60] - 2026-05-17
 
 ### Geändert
