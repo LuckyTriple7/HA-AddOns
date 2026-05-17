@@ -1005,7 +1005,7 @@ app.get('/', (req, res) => {
       if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
       try {
         const d = await fetch('api/cleanup-media', { method: 'POST' }).then(r => r.json());
-        alert(`${d.deleted} Datei(en) gelöscht, ${d.freedMb} MB freigegeben.`);
+        alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
         loadStorage();
       } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
     }
