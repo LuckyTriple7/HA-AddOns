@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.8] - 2026-05-17
+
+### Behoben
+- `jq` ins Dockerfile aufgenommen — fehlte komplett; alle Optionen (show_media, show_config, show_backup) wurden daher nie gelesen und fielen auf false zurück
+
 ## [0.0.7] - 2026-05-17
 
 ### Geändert

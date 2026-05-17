@@ -4,6 +4,7 @@ ARG FILEBROWSER_VERSION=2.63.3
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    jq \
     && curl -fsSL \
     "https://github.com/filebrowser/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser.tar.gz" \
     -o /tmp/filebrowser.tar.gz \
