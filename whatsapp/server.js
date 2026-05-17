@@ -612,10 +612,9 @@ app.get('/', (req, res) => {
       display: flex; align-items: center; gap: 12px;
       border-bottom: 1px solid #2a3942; flex-shrink: 0; height: 56px;
     }
-    .topbar .logo { font-size: 24px; }
     .topbar h1 { font-size: 16px; font-weight: 600; flex: 1; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .status-dot.connected { background: #25d366; }
+    .status-dot.connected { background: #3cdb7c; }
     .status-dot.waiting   { background: #f0a500; }
     .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
     .status-dot.initializing { background: #8696a0; }
@@ -631,7 +630,7 @@ app.get('/', (req, res) => {
       padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; opacity: 0.55;
     }
     .photo-toggle-btn:hover { opacity: 0.8; }
-    .photo-toggle-btn.active { opacity: 1; background: rgba(37,211,102,0.15); border-color: #25d366; color: #25d366; }
+    .photo-toggle-btn.active { opacity: 1; background: rgba(60,219,124,0.15); border-color: #3cdb7c; color: #3cdb7c; }
     .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; opacity: 0.55; line-height: 1; }
     .scroll-btn:hover { opacity: 0.8; }
     .photo-placeholder { display: none; }
@@ -681,7 +680,7 @@ app.get('/', (req, res) => {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .chat-time { font-size: 11px; color: #8696a0; white-space: nowrap; }
-    .unread-dot { width: 10px; height: 10px; background: #25d366; border-radius: 50%; }
+    .unread-dot { width: 10px; height: 10px; background: #3cdb7c; border-radius: 50%; }
     html.light .unread-dot { background: #128c7e; }
     .no-chats { color: #8696a0; text-align: center; padding: 32px 16px; font-size: 14px; }
 
@@ -697,7 +696,7 @@ app.get('/', (req, res) => {
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
-    #fetch-media-btn:hover { border-color: #25d366; color: #25d366; }
+    #fetch-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
 
     #messages {
@@ -741,9 +740,9 @@ app.get('/', (req, res) => {
     .reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 2px 7px; font-size: 13px; cursor: pointer; border: 1px solid transparent; user-select: none; line-height: 1.5; }
     html.dark .reaction-badge { background: #233038; border-color: #2a3942; color: #e9edef; }
     html.light .reaction-badge { background: #f0f2f5; border-color: #d9dbdf; color: #111; }
-    .reaction-badge.own { border-color: #25d366; }
-    html.dark .reaction-badge.own { background: rgba(37,211,102,0.12); }
-    html.light .reaction-badge.own { background: rgba(37,211,102,0.1); }
+    .reaction-badge.own { border-color: #3cdb7c; }
+    html.dark .reaction-badge.own { background: rgba(60,219,124,0.12); }
+    html.light .reaction-badge.own { background: rgba(60,219,124,0.1); }
     .reaction-badge:hover { opacity: 0.8; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
@@ -793,7 +792,7 @@ app.get('/', (req, res) => {
       resize: none; outline: none; max-height: 120px; min-height: 42px; line-height: 1.4;
     }
     #send-bar button {
-      background: #25d366; border: none; border-radius: 50%;
+      background: #3cdb7c; border: none; border-radius: 50%;
       width: 42px; height: 42px; flex-shrink: 0; cursor: pointer;
       font-size: 18px; display: flex; align-items: center; justify-content: center;
     }
@@ -882,7 +881,6 @@ app.get('/', (req, res) => {
   </div>
 
   <div class="topbar" id="topbar" style="display:none;">
-    <div class="logo">💬</div>
     <h1>WhatsApp</h1>
     <span class="status-label" id="status-label">Verbunden</span>
     <div class="status-dot connected" id="status-dot"></div>
@@ -943,7 +941,7 @@ app.get('/', (req, res) => {
       atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 30;
     });
 
-    const COLORS = ['#128c7e','#075e54','#25d366','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
+    const COLORS = ['#128c7e','#075e54','#3cdb7c','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
     function avatarColor(name) {
       let h = 0;
       for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);

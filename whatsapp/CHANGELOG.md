@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.3] - 2026-05-17
+
+### Geändert
+- 💬-Icon oben links in der Topbar entfernt
+- Grünton von `#25d366` auf `#3cdb7c` aufgehellt (Status-Dot, Sende-Button, Reaktions-Badges, Foto-Toggle, Unread-Dot)
+
 ## [1.2.2] - 2026-05-17
 
 ### Geändert
