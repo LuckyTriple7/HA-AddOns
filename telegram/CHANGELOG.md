@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.4] - 2026-05-17
+
+### Geändert
+- Debug-Logging erweitert — jedes `processMessage` zeigt jetzt `[source]` (NewMessage / fetchMessages), `class`, `action`, Reaktionsanzahl; HA-Notification-Check loggt `msgId`, `isBot`, `skipBot` und Inhalt; hilft die genaue Quelle unerwünschter Notifications zu identifizieren
+
 ## [1.1.3] - 2026-05-17
 
 ### Neu

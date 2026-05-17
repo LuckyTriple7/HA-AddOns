@@ -191,17 +191,17 @@ function sendHANotification(chatId, senderName, body) {
   req.end();
 }
 
-async function processMessage(rawMsg, chatId, chatName) {
+async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   const hasText = !!(rawMsg.message);
   const hasMedia = rawMsg.media && rawMsg.media.className && rawMsg.media.className !== 'MessageMediaEmpty';
-  dbg(`processMessage: chatId=${chatId} id=${rawMsg.id} fromMe=${rawMsg.out} hasText=${hasText} hasMedia=${hasMedia} body="${(rawMsg.message||'').slice(0,60)}"`);
-  if (!hasText && !hasMedia) { dbg(`processMessage: skipping — no text and no media`); return; }
+  dbg(`processMessage [${source}]: chatId=${chatId} id=${rawMsg.id} fromMe=${rawMsg.out} class=${rawMsg.className||'?'} action=${rawMsg.action?.className||'none'} hasText=${hasText} hasMedia=${hasMedia} body="${(rawMsg.message||'').slice(0,60)}"`);
+  if (!hasText && !hasMedia) { dbg(`processMessage [${source}]: skipping — no text and no media`); return; }
 
   const fromMe = rawMsg.out || false;
   const ts = (rawMsg.date || 0) * 1000;
   const msgId = `${chatId}_${rawMsg.id}`;
 
-  if (seenMsgIds.has(msgId)) return;
+  if (seenMsgIds.has(msgId)) { dbg(`processMessage [${source}]: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
 
   let type = 'text';
@@ -234,7 +234,10 @@ async function processMessage(rawMsg, chatId, chatName) {
   scheduleSave();
 
   if (!fromMe) {
-    if (!(HA_NOTIFY_SKIP_BOTS && chatMap.get(chatId)?.isBot)) {
+    const isBot = chatMap.get(chatId)?.isBot;
+    const skipBot = HA_NOTIFY_SKIP_BOTS && isBot;
+    dbg(`HA-Notification check [${source}]: msgId=${msgId} isBot=${isBot} skipBot=${skipBot} body="${(body||'').slice(0,60)}"`);
+    if (!skipBot) {
       sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
     }
   }
@@ -281,7 +284,7 @@ async function fetchMessages(chatId, limit = FETCH_LIMIT) {
     if (!entity) return;
     const msgs = await client.getMessages(entity, { limit });
     const chatName = chatMap.get(chatId)?.name || chatId;
-    for (const msg of msgs) processMessage(msg, chatId, chatName);
+    for (const msg of msgs) processMessage(msg, chatId, chatName, 'fetchMessages');
   } catch (e) { console.error(`[ERROR] fetchMessages(${chatId}):`, e.message); }
 }
 
@@ -323,13 +326,13 @@ async function startClient() {
       try {
         const msg = event.message;
         if (!msg) return;
-        dbg(`NewMessage event: id=${msg.id} fromMe=${msg.out} body="${(msg.message||'').slice(0,60)}"`);
+        dbg(`NewMessage event: id=${msg.id} class=${msg.className||'?'} action=${msg.action?.className||'none'} fromMe=${msg.out} reactions=${msg.reactions?.results?.length||0} body="${(msg.message||'').slice(0,60)}"`);
         const chat = await msg.getChat();
         const chatId = getEntityId(chat);
         const chatName = getEntityName(chat);
         if (!peerMap.has(chatId)) peerMap.set(chatId, chat);
         if (chatMap.has(chatId)) chatMap.get(chatId).isBot = chat.bot === true;
-        await processMessage(msg, chatId, chatName);
+        await processMessage(msg, chatId, chatName, 'NewMessage');
       } catch (e) { dbg(`NewMessage handler error: ${e.message}`); }
     }, new NewMessage({}));
 
