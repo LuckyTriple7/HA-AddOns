@@ -875,7 +875,7 @@ app.get('/', (req, res) => {
     }
     async function loadStorage() {
       try {
-        const d = await fetch(api('/api/storage')).then(r => r.json());
+        const d = await fetch('api/storage').then(r => r.json());
         const el = document.getElementById('storage-info');
         if (el) el.textContent = '💾 ' + d.mb + ' MB';
       } catch(e) {}

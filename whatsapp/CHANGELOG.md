@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.45] - 2026-05-17
+
+### Behoben
+- Speicheranzeige nicht sichtbar — WhatsApp verwendet relative URLs (`api/storage`), kein `api()`-Helper wie Signal/Telegram
+
 ## [1.1.44] - 2026-05-17
 
 ### Neu
