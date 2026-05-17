@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.55] - 2026-05-17
+
+### Geändert
+- Diagnose: scannt WWebJS-Namespace und ALLE webpack-Module nach Presence+Subscribe per Quelltext-Suche
+
 ## [1.1.54] - 2026-05-17
 
 ### Geändert

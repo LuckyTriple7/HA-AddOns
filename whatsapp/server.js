@@ -560,28 +560,29 @@ app.get('/api/presence/:chatId', async (req, res) => {
         const interesting = keys.filter(k => /presence|contact|chat|wid|lid/i.test(k));
         return { storeExists: true, keyCount: keys.length, keys: keys.slice(0, 40).join(','), interesting: interesting.join(',') };
       }
-      // Store not found — scan window for Store-like globals
-      const waKeys = Object.keys(window).filter(k =>
-        /store|WPP|WWeb|webpack|require|whatsapp/i.test(k) ||
-        (window[k] && typeof window[k] === 'object' && window[k].Contact && window[k].Chat)
-      );
-      const hasChunks = !!(window.webpackChunkwhatsapp_web_client);
-      const hasRequire = typeof window.require === 'function';
-      // Try to access modules via webpack require if available
-      let presenceMod = null;
-      if (hasRequire) {
+      // Check WWebJS namespace (whatsapp-web.js v1.26+)
+      const wwebjs = window.WWebJS;
+      const wwebjsKeys = wwebjs ? Object.keys(wwebjs).slice(0, 30).join(',') : null;
+      const storeViaWWebJS = wwebjs?.Store;
+      const wwebjsStoreKeys = storeViaWWebJS ? Object.keys(storeViaWWebJS).filter(k => /presence|contact|chat/i.test(k)).join(',') : null;
+      // Scan ALL webpack module sources for presence+subscribe
+      const mods = window.require?.m || {};
+      const allIds = Object.keys(mods);
+      let presenceMod = null, presenceFns = null;
+      for (const id of allIds) {
         try {
-          const mods = window.require.m || {};
-          const ids = Object.keys(mods).slice(0, 500);
-          for (const id of ids) {
-            try {
-              const m = window.require(id);
-              if (m && typeof m.sendPresenceSubscribe === 'function') { presenceMod = id; break; }
-            } catch(e) {}
+          const src = mods[id].toString();
+          if (/presence/i.test(src) && /subscribe/i.test(src)) {
+            const m = window.require(id);
+            if (!m || typeof m !== 'object') continue;
+            const fns = Object.keys(m).filter(k => typeof m[k] === 'function');
+            if (fns.some(f => /subscribe|presence/i.test(f))) {
+              presenceMod = id; presenceFns = fns.join(','); break;
+            }
           }
         } catch(e) {}
       }
-      return { storeExists: false, waKeys: waKeys.join(','), hasChunks, hasRequire, presenceMod };
+      return { storeExists: false, wwebjsKeys, wwebjsStoreKeys, totalMods: allIds.length, presenceMod, presenceFns };
     });
     dbg('presence store-keys:', JSON.stringify(storeInfo));
 
