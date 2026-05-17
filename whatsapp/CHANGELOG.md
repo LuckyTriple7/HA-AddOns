@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.40] - 2026-05-17
+
+### Behoben
+- Scroll-Buttons ↑ ↓ verwendeten falschen Element-ID (`msgList` statt `messages`) — Buttons funktionierten nicht
+
 ## [1.1.39] - 2026-05-17
 
 ### Neu

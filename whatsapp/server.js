@@ -854,7 +854,7 @@ app.get('/', (req, res) => {
                       .replace(/\\n/g,'<br>');
     }
     function scrollMsgs(dir) {
-      const el = document.getElementById('msgList');
+      const el = document.getElementById('messages');
       if (!el) return;
       el.scrollTop = dir === 'top' ? 0 : el.scrollHeight;
     }
