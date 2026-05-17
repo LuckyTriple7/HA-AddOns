@@ -1,7 +1,6 @@
 # WhatsApp
 
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
-![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?style=flat-square)
 
 WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, REST-API und Webhook-Support.
 

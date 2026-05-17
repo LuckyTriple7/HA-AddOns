@@ -1,7 +1,6 @@
 ﻿# Claude Code for Home Assistant
 
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
-![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?style=flat-square)
 
 > **Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix-hass-addons/tree/main/claudecode)**,
 > which itself is based on [robsonfelix/robsonfelix-hass-addons](https://github.com/robsonfelix/robsonfelix-hass-addons).
