@@ -291,6 +291,29 @@ client.on('message_create', async (msg) => {
   });
 });
 
+client.on('message_reaction', (reaction) => {
+  const msgId = reaction.msgId?._serialized;
+  if (!msgId) return;
+  const senderId = reaction.senderId?._serialized || String(reaction.senderId || '');
+  const emoji = reaction.reaction || '';
+  dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
+  for (const msgs of messagesByChatId.values()) {
+    const msg = msgs.find(m => m.id === msgId);
+    if (msg) {
+      if (!msg.reactions) msg.reactions = {};
+      for (const e of Object.keys(msg.reactions)) {
+        msg.reactions[e] = msg.reactions[e].filter(s => s !== senderId);
+        if (!msg.reactions[e].length) delete msg.reactions[e];
+      }
+      if (emoji) {
+        if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+        if (!msg.reactions[emoji].includes(senderId)) msg.reactions[emoji].push(senderId);
+      }
+      break;
+    }
+  }
+});
+
 client.on('message_ack', (msg, ack) => {
   dbg(`message_ack: ${msg.id._serialized} ack=${ack}`);
   const msgs = messagesByChatId.get(msg.to);
@@ -497,6 +520,29 @@ app.post('/api/reset', async (req, res) => {
   await reinitClient();
 });
 
+app.post('/api/react', async (req, res) => {
+  const { msgId, reaction } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const msg = await client.getMessageById(msgId);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    await msg.react(reaction || '');
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/reactions/:chatId', (req, res) => {
+  const msgs = getChatMsgs(req.params.chatId);
+  const result = {};
+  for (const m of msgs) {
+    if (m.reactions && Object.keys(m.reactions).length) result[m.id] = m.reactions;
+  }
+  res.json(result);
+});
+
 app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -646,6 +692,25 @@ app.get('/', (req, res) => {
     .bubble-row-inner:hover .del-btn { display: block; }
     html.light .del-btn { color: rgba(0,0,0,0.4); }
     .del-btn:hover { color: #f15c5c !important; }
+    .react-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; border-radius: 50%; color: rgba(233,237,239,0.55); flex-shrink: 0; }
+    .bubble-row-inner:hover .react-btn { display: inline-flex; align-items: center; }
+    html.light .react-btn { color: rgba(0,0,0,0.35); }
+    .react-btn:hover { background: rgba(134,150,160,0.18); color: #e9edef; }
+    html.light .react-btn:hover { color: #111; }
+    #reaction-picker { position: fixed; z-index: 300; border-radius: 28px; padding: 6px 10px; display: none; gap: 2px; box-shadow: 0 2px 16px rgba(0,0,0,0.3); }
+    html.dark #reaction-picker { background: #233038; border: 1px solid #2a3942; }
+    html.light #reaction-picker { background: #fff; border: 1px solid #d9dbdf; }
+    #reaction-picker button { background: none; border: none; font-size: 24px; cursor: pointer; padding: 3px 4px; border-radius: 50%; line-height: 1; transition: transform 0.12s; }
+    #reaction-picker button:hover { transform: scale(1.4); }
+    .reactions-bar { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px 2px 0; }
+    .bubble-wrap.out .reactions-bar { justify-content: flex-end; }
+    .reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 2px 7px; font-size: 13px; cursor: pointer; border: 1px solid transparent; user-select: none; line-height: 1.5; }
+    html.dark .reaction-badge { background: #233038; border-color: #2a3942; color: #e9edef; }
+    html.light .reaction-badge { background: #f0f2f5; border-color: #d9dbdf; color: #111; }
+    .reaction-badge.own { border-color: #25d366; }
+    html.dark .reaction-badge.own { background: rgba(37,211,102,0.12); }
+    html.light .reaction-badge.own { background: rgba(37,211,102,0.1); }
+    .reaction-badge:hover { opacity: 0.8; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
     .bubble .time {
@@ -1065,6 +1130,7 @@ app.get('/', (req, res) => {
         }
         const wrap = document.createElement('div');
         wrap.className = 'bubble-wrap ' + (m.fromMe ? 'out' : 'in');
+        wrap.dataset.msgid = m.id;
         if (!m.fromMe && m.contact) {
           const n = document.createElement('div');
           n.className = 'contact-name';
@@ -1099,7 +1165,28 @@ app.get('/', (req, res) => {
         delBtn.textContent = '✕';
         delBtn.dataset.msgid = m.id;
         bri.appendChild(delBtn);
+        const reactBtn = document.createElement('button');
+        reactBtn.className = 'react-btn';
+        reactBtn.title = 'Reagieren';
+        reactBtn.textContent = '😊';
+        reactBtn.dataset.msgid = m.id;
+        bri.appendChild(reactBtn);
         wrap.appendChild(bri);
+        if (m.reactions && Object.keys(m.reactions).length) {
+          const bar = document.createElement('div');
+          bar.className = 'reactions-bar';
+          const myJid = myPhone ? myPhone + '@c.us' : null;
+          for (const [emoji, senders] of Object.entries(m.reactions)) {
+            if (!senders.length) continue;
+            const isOwn = myJid ? senders.includes(myJid) : false;
+            const badge = document.createElement('span');
+            badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
+            badge.textContent = emoji + (senders.length > 1 ? ' ' + senders.length : '');
+            badge.onclick = () => toggleReaction(m.id, emoji, isOwn);
+            bar.appendChild(badge);
+          }
+          wrap.appendChild(bar);
+        }
         msgList.appendChild(wrap);
         if (m.timestamp > (lastMsgTime[selectedChatId] || 0)) {
           lastMsgTime[selectedChatId] = m.timestamp;
@@ -1159,9 +1246,10 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
     msgList.addEventListener('click', e => {
-      const btn = e.target.closest('.del-btn');
-      if (!btn) return;
-      deleteMsg(selectedChatId, btn.dataset.msgid);
+      const del = e.target.closest('.del-btn');
+      if (del) { deleteMsg(selectedChatId, del.dataset.msgid); return; }
+      const react = e.target.closest('.react-btn');
+      if (react) { openReactionPicker(react, react.dataset.msgid); return; }
     });
 
     function showSpinner(msg) {
@@ -1197,6 +1285,7 @@ app.get('/', (req, res) => {
           disconnected: 'Getrennt', auth_failed: 'Auth-Fehler', error: 'Fehler',
         })[s.status] || s.status;
 
+        if (s.phone && !myPhone) myPhone = s.phone;
         if (s.status !== currentStatus) {
           currentStatus = s.status;
           const connecting = s.status === 'initializing' || s.status === 'authenticated' || s.status === 'disconnected';
@@ -1221,6 +1310,106 @@ app.get('/', (req, res) => {
     setInterval(refresh, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
+    setInterval(pollReactions, 5000);
+
+    // ── Reactions ──────────────────────────────────────────────────────────────
+    const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
+    let pickerTargetMsgId = null;
+    let myPhone = null;
+
+    const reactionPicker = document.createElement('div');
+    reactionPicker.id = 'reaction-picker';
+    reactionPicker.style.display = 'none';
+    REACTION_EMOJIS.forEach(e => {
+      const btn = document.createElement('button');
+      btn.textContent = e;
+      btn.title = e;
+      btn.onclick = () => reactTo(e);
+      reactionPicker.appendChild(btn);
+    });
+    document.body.appendChild(reactionPicker);
+
+    document.addEventListener('click', ev => {
+      if (!ev.target.closest('#reaction-picker') && !ev.target.closest('.react-btn')) {
+        reactionPicker.style.display = 'none';
+        pickerTargetMsgId = null;
+      }
+    });
+
+    function openReactionPicker(btn, msgId) {
+      pickerTargetMsgId = msgId;
+      reactionPicker.style.display = 'flex';
+      // Position above the trigger button
+      const r = btn.getBoundingClientRect();
+      reactionPicker.style.top = '-9999px';
+      reactionPicker.style.left = '-9999px';
+      requestAnimationFrame(() => {
+        const pw = reactionPicker.offsetWidth || 220;
+        const ph = reactionPicker.offsetHeight || 52;
+        let top = r.top - ph - 8;
+        if (top < 4) top = r.bottom + 8;
+        let left = r.left + r.width / 2 - pw / 2;
+        if (left < 4) left = 4;
+        if (left + pw > window.innerWidth - 4) left = window.innerWidth - pw - 4;
+        reactionPicker.style.top = top + 'px';
+        reactionPicker.style.left = left + 'px';
+      });
+    }
+
+    async function reactTo(emoji) {
+      if (!pickerTargetMsgId) return;
+      const msgId = pickerTargetMsgId;
+      reactionPicker.style.display = 'none';
+      pickerTargetMsgId = null;
+      await fetch('api/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msgId, reaction: emoji }),
+      }).catch(() => {});
+      setTimeout(pollReactions, 800);
+    }
+
+    async function toggleReaction(msgId, emoji, isOwn) {
+      await fetch('api/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msgId, reaction: isOwn ? '' : emoji }),
+      }).catch(() => {});
+      setTimeout(pollReactions, 800);
+    }
+
+    async function pollReactions() {
+      if (!selectedChatId) return;
+      try {
+        const data = await fetch('api/reactions/' + encodeURIComponent(selectedChatId)).then(r => r.json());
+        updateReactionsInDOM(data);
+      } catch(e) {}
+    }
+
+    function updateReactionsInDOM(reactionsMap) {
+      const myJid = myPhone ? myPhone + '@c.us' : null;
+      for (const wrap of msgList.querySelectorAll('.bubble-wrap[data-msgid]')) {
+        const msgId = wrap.dataset.msgid;
+        const reactions = reactionsMap[msgId];
+        let bar = wrap.querySelector('.reactions-bar');
+        if (!reactions || !Object.keys(reactions).length) {
+          if (bar) bar.remove();
+          continue;
+        }
+        if (!bar) { bar = document.createElement('div'); bar.className = 'reactions-bar'; wrap.appendChild(bar); }
+        bar.innerHTML = '';
+        for (const [emoji, senders] of Object.entries(reactions)) {
+          if (!senders.length) continue;
+          const isOwn = myJid ? senders.includes(myJid) : false;
+          const badge = document.createElement('span');
+          badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
+          badge.title = isOwn ? 'Klicken zum Entfernen' : 'Klicken zum Reagieren';
+          badge.textContent = emoji + (senders.length > 1 ? ' ' + senders.length : '');
+          badge.onclick = () => toggleReaction(msgId, emoji, isOwn);
+          bar.appendChild(badge);
+        }
+      }
+    }
   </script>
 </body>
 </html>`);

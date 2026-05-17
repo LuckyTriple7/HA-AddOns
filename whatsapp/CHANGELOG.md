@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.46] - 2026-05-17
+
+### Neu
+- Nachrichten-Reaktionen (👍 ❤️ 😂 😮 😢 🙏) — beim Hovern über eine Nachricht erscheint ein 😊-Button; Klick öffnet den Reaktions-Picker; eigene Reaktion durch erneuten Klick entfernen
+- Reaktionen anderer werden in Echtzeit empfangen und als kleine Badges unter der Sprechblase angezeigt
+- Eigene Reaktionen sind grün hervorgehoben
+
 ## [1.1.45] - 2026-05-17
 
 ### Behoben
