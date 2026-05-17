@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.53] - 2026-05-17
+
+### Geändert
+- „Zuletzt gesehen" Diagnose: Store-Keys werden geloggt; `@lid`-JIDs werden in `@c.us`/`@s.whatsapp.net` umgewandelt und alle Varianten werden im Store geprüft; alle Kontakte werden nach Übereinstimmung durchsucht
+
 ## [1.1.52] - 2026-05-17
 
 ### Behoben
