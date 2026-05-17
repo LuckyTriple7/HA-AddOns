@@ -939,7 +939,7 @@ app.get('/', (req, res) => {
       atBottom = msgList.scrollTop + msgList.clientHeight >= msgList.scrollHeight - 30;
     });
 
-    const COLORS = ['#128c7e','#075e54','#3cdb7c','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
+    const COLORS = ['#e67e22','#d35400','#27ae60','#34b7f1','#00bcd4','#9c27b0','#ff5722','#607d8b','#e91e63','#3f51b5'];
     function avatarColor(name) {
       let h = 0;
       for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);

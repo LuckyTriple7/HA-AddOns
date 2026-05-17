@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.6] - 2026-05-17
+
+### Behoben
+- Avatar-Farben: Teal-Töne (`#128c7e`, `#075e54`) und UI-Grün (`#3cdb7c`) aus der Farbpalette entfernt — Avatare hatten die gleiche Farbe wie Header/Topbar
+
 ## [1.2.5] - 2026-05-17
 
 ### Geändert
