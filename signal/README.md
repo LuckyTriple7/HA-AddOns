@@ -88,6 +88,16 @@ action:
       message: "Bewegung erkannt!"
 ```
 
+## Updates
+
+Dieses Add-on wird von Home Assistant **lokal gebaut** — es gibt kein vorgefertigtes Image. Als Basis dient immer `signal-cli-rest-api:latest`, das beim Rebuild automatisch aktualisiert wird.
+
+Falls Signal sein Protokoll ändert und das Add-on nicht mehr funktioniert:
+
+**Einstellungen → Add-ons → Signal → Neu aufbauen**
+
+Das reicht aus, um die aktuelle Version der Bibliothek zu laden.
+
 ## Hinweise
 
 - Basiert auf [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
@@ -188,6 +198,16 @@ action:
       to: "+4915123456789"
       message: "Motion detected!"
 ```
+
+## Updates
+
+This add-on is **built locally** by Home Assistant — there is no pre-built image. The base image `signal-cli-rest-api:latest` is automatically updated on every rebuild.
+
+If Signal changes its protocol and the add-on stops working:
+
+**Settings → Add-ons → Signal → Rebuild**
+
+That's all it takes to pull the current library version.
 
 ## Notes
 

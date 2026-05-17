@@ -88,6 +88,16 @@ action:
       message: "Bewegung erkannt!"
 ```
 
+## Updates
+
+Dieses Add-on wird von Home Assistant **lokal gebaut** — es gibt kein vorgefertigtes Image. Bei jedem Build wird automatisch die neueste kompatible Version von whatsapp-web.js installiert.
+
+Falls WhatsApp sein Protokoll ändert und das Add-on nicht mehr funktioniert:
+
+**Einstellungen → Add-ons → WhatsApp → Neu aufbauen**
+
+Das reicht aus, um die aktuelle Bibliotheksversion zu laden.
+
 ## Hinweise
 
 - Erfordert ein WhatsApp-Konto auf einem Smartphone
@@ -188,6 +198,16 @@ action:
       to: "4915123456789"
       message: "Motion detected!"
 ```
+
+## Updates
+
+This add-on is **built locally** by Home Assistant — there is no pre-built image. Every build automatically installs the latest compatible version of whatsapp-web.js.
+
+If WhatsApp changes its protocol and the add-on stops working:
+
+**Settings → Add-ons → WhatsApp → Rebuild**
+
+That's all it takes to pull the current library version.
 
 ## Notes
 

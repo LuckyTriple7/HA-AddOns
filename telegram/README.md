@@ -108,6 +108,16 @@ action:
       message: "Bewegung erkannt!"
 ```
 
+## Updates
+
+Dieses Add-on wird von Home Assistant **lokal gebaut** — es gibt kein vorgefertigtes Image. Bei jedem Build wird automatisch die neueste kompatible Version von GramJS installiert.
+
+Falls Telegram sein Protokoll ändert und das Add-on nicht mehr funktioniert:
+
+**Einstellungen → Add-ons → Telegram → Neu aufbauen**
+
+Das reicht aus, um die aktuelle Bibliotheksversion zu laden.
+
 ## Hinweise
 
 - Basiert auf [GramJS](https://github.com/gram-js/gramjs) (offizielle MTProto-Implementierung für JavaScript)
@@ -228,6 +238,16 @@ action:
       to: "123456789"
       message: "Motion detected!"
 ```
+
+## Updates
+
+This add-on is **built locally** by Home Assistant — there is no pre-built image. Every build automatically installs the latest compatible version of GramJS.
+
+If Telegram changes its protocol and the add-on stops working:
+
+**Settings → Add-ons → Telegram → Rebuild**
+
+That's all it takes to pull the current library version.
 
 ## Notes
 
