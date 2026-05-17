@@ -1,5 +1,9 @@
 # Signal Messenger Add-on
 
+![Version](https://img.shields.io/badge/version-1.0.39-blue?style=flat-square)
+![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
+![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?style=flat-square)
+
 Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpfen, Nachrichten senden und empfangen, Webhook für Automatisierungen.
 
 ## Funktionen
