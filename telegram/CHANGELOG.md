@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2026-05-17
+
+### Neu
+- Nachrichten-Reaktionen — 😊-Button erscheint beim Hovern; Picker mit 👍 👎 ❤️ 🔥 😂 😮 😢 🙏; Badge unter der Blase zeigt Emoji + Anzahl; eigene Reaktion (blau umrandet) beim Klicken entfernen; Echtzeit-Updates via `UpdateMessageReactions`
+
 ## [1.1.2] - 2026-05-17
 
 ### Behoben

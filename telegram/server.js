@@ -18,7 +18,7 @@
 })();
 const express = require('express');
 const http = require('http');
-const { TelegramClient } = require('telegram');
+const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { NewMessage, Raw } = require('telegram/events');
 const fs = require('fs');
@@ -334,20 +334,37 @@ async function startClient() {
     }, new NewMessage({}));
 
     client.addEventHandler((update) => {
-      if (update.className !== 'UpdateReadHistoryOutbox') return;
       const peer = update.peer;
-      const chatId = String(peer.userId || peer.chatId || peer.channelId || '');
+      const chatId = String(peer?.userId || peer?.chatId || peer?.channelId || '');
       if (!chatId) return;
-      const maxId = update.maxId;
-      const msgs = messagesByChatId.get(chatId);
-      if (!msgs) return;
-      let changed = false;
-      msgs.forEach(m => {
-        if (!m.fromMe || m.ack >= 3) return;
-        const rawId = parseInt(m.id.split('_').pop(), 10);
-        if (rawId <= maxId) { m.ack = 3; changed = true; }
-      });
-      if (changed) dbg(`UpdateReadHistoryOutbox: chatId=${chatId} maxId=${maxId}`);
+
+      if (update.className === 'UpdateReadHistoryOutbox') {
+        const maxId = update.maxId;
+        const msgs = messagesByChatId.get(chatId);
+        if (!msgs) return;
+        let changed = false;
+        msgs.forEach(m => {
+          if (!m.fromMe || m.ack >= 3) return;
+          const rawId = parseInt(m.id.split('_').pop(), 10);
+          if (rawId <= maxId) { m.ack = 3; changed = true; }
+        });
+        if (changed) dbg(`UpdateReadHistoryOutbox: chatId=${chatId} maxId=${update.maxId}`);
+      }
+
+      if (update.className === 'UpdateMessageReactions') {
+        const msgId = `${chatId}_${update.msgId}`;
+        const msgs = messagesByChatId.get(chatId);
+        if (!msgs) return;
+        const msg = msgs.find(m => m.id === msgId);
+        if (!msg) return;
+        const newReactions = {};
+        for (const r of (update.reactions?.results || [])) {
+          const emoticon = r.reaction?.emoticon;
+          if (emoticon && r.count > 0) newReactions[emoticon] = r.count;
+        }
+        msg.reactions = newReactions;
+        dbg(`UpdateMessageReactions: ${msgId} → ${JSON.stringify(newReactions)}`);
+      }
     }, new Raw({}));
 
     await loadDialogs();
@@ -462,6 +479,46 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post('/api/react', async (req, res) => {
+  const { msgId, reaction } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const parts = msgId.split('_');
+    const rawId = parseInt(parts[parts.length - 1], 10);
+    const chatId = parts.slice(0, -1).join('_');
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const reactionList = reaction ? [new Api.ReactionEmoji({ emoticon: reaction })] : [];
+    await client.invoke(new Api.messages.SendReaction({ peer: entity, msgId: rawId, reaction: reactionList }));
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const msg = msgs.find(m => m.id === msgId);
+      if (msg) {
+        if (!msg.reactions) msg.reactions = {};
+        const prev = msg.myReaction;
+        if (prev) { msg.reactions[prev] = Math.max(0, (msg.reactions[prev] || 1) - 1); if (!msg.reactions[prev]) delete msg.reactions[prev]; }
+        msg.myReaction = reaction || null;
+        if (reaction) msg.reactions[reaction] = (msg.reactions[reaction] || 0) + 1;
+        scheduleSave();
+      }
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/reactions/:chatId', (req, res) => {
+  const msgs = messagesByChatId.get(req.params.chatId) || [];
+  const result = {};
+  for (const m of msgs) {
+    if ((m.reactions && Object.keys(m.reactions).length) || m.myReaction) {
+      result[m.id] = { reactions: m.reactions || {}, myReaction: m.myReaction || null };
+    }
+  }
+  res.json(result);
 });
 
 app.post('/api/logout', async (req, res) => {
@@ -634,6 +691,26 @@ html.light #chat-header { background: #517DA2; }
 #lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
 #lightbox.open { display: flex; }
 #lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }
+#reaction-picker { position: fixed; z-index: 300; border-radius: 28px; padding: 6px 10px; display: none; gap: 2px; box-shadow: 0 2px 16px rgba(0,0,0,0.3); }
+html.dark #reaction-picker { background: #232E3C; border: 1px solid #1A2432; }
+html.light #reaction-picker { background: #fff; border: 1px solid #d9dbdf; }
+#reaction-picker button { background: none; border: none; font-size: 24px; cursor: pointer; padding: 3px 4px; border-radius: 50%; line-height: 1; transition: transform 0.12s; }
+#reaction-picker button:hover { transform: scale(1.4); }
+.react-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 5px; line-height: 1; border-radius: 50%; flex-shrink: 0; }
+.bubble-row:hover .react-btn { display: block; }
+html.dark .react-btn { color: rgba(193,201,212,0.5); }
+html.light .react-btn { color: rgba(0,0,0,0.35); }
+html.dark .react-btn:hover { color: #C1C9D4; }
+html.light .react-btn:hover { color: #111; }
+.reactions-bar { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px 2px 0; }
+.bubble-row.out .reactions-bar { justify-content: flex-end; }
+.reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 2px 7px; font-size: 13px; cursor: pointer; border: 1px solid transparent; user-select: none; line-height: 1.5; }
+html.dark .reaction-badge { background: #1A2432; border-color: #2B3A4A; color: #C1C9D4; }
+html.light .reaction-badge { background: #f0f2f5; border-color: #d9dbdf; color: #111; }
+.reaction-badge.own { border-color: #2AABEE; }
+html.dark .reaction-badge.own { background: rgba(42,171,238,0.12); }
+html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
+.reaction-badge:hover { opacity: 0.8; }
 .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .del-btn { display: block; }
 html.dark .del-btn { color: rgba(193,201,212,0.6); }
@@ -977,6 +1054,7 @@ async function loadMessages(chatId) {
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
     renderMessages(msgs);
+    if (window.pollReactions) window.pollReactions();
   } catch(e) {}
 }
 
@@ -1001,7 +1079,7 @@ function renderMessages(msgs) {
       content=escHtml(m.body);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div><button class="del-btn" title="Löschen">✕</button></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div><button class="react-btn" title="Reagieren">😊</button><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
@@ -1055,6 +1133,100 @@ const EMOJIS = [
 function toggleEmojiPicker(evt){evt.stopPropagation();document.getElementById('emoji-picker').classList.toggle('open');}
 function insertEmoji(emoji){const inp=document.getElementById('msg-input');const s=inp.selectionStart,e=inp.selectionEnd;inp.value=inp.value.slice(0,s)+emoji+inp.value.slice(e);inp.selectionStart=inp.selectionEnd=s+emoji.length;inp.focus();autoResize(inp);}
 document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.target.id!=='emoji-toggle')document.getElementById('emoji-picker').classList.remove('open');});
+
+// ── Reactions ─────────────────────────────────────────────────────────────────
+(function(){
+  const REACTION_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','🙏'];
+  let pickerTargetMsgId = null;
+
+  const picker = document.createElement('div');
+  picker.id = 'reaction-picker';
+  REACTION_EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.textContent = e; btn.title = e;
+    btn.onclick = () => reactTo(e);
+    picker.appendChild(btn);
+  });
+  document.body.appendChild(picker);
+
+  document.addEventListener('click', ev => {
+    if (!ev.target.closest('#reaction-picker') && !ev.target.closest('.react-btn')) {
+      picker.style.display = 'none'; pickerTargetMsgId = null;
+    }
+  });
+
+  document.getElementById('messages').addEventListener('click', ev => {
+    const btn = ev.target.closest('.react-btn');
+    if (!btn) return;
+    ev.stopPropagation();
+    const row = btn.closest('.bubble-row');
+    if (!row) return;
+    const msgId = row.dataset.msgid;
+    if (pickerTargetMsgId === msgId) { picker.style.display = 'none'; pickerTargetMsgId = null; return; }
+    pickerTargetMsgId = msgId;
+    picker.style.display = 'flex';
+    picker.style.top = '-9999px'; picker.style.left = '-9999px';
+    requestAnimationFrame(() => {
+      const r = btn.getBoundingClientRect();
+      const pw = picker.offsetWidth || 220, ph = picker.offsetHeight || 52;
+      let top = r.top - ph - 8; if (top < 4) top = r.bottom + 8;
+      let left = r.left + r.width / 2 - pw / 2;
+      if (left < 4) left = 4;
+      if (left + pw > window.innerWidth - 4) left = window.innerWidth - pw - 4;
+      picker.style.top = top + 'px'; picker.style.left = left + 'px';
+    });
+  });
+
+  async function reactTo(emoji) {
+    if (!pickerTargetMsgId) return;
+    const msgId = pickerTargetMsgId;
+    picker.style.display = 'none'; pickerTargetMsgId = null;
+    await fetch(api('/api/react'), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ msgId, reaction: emoji }),
+    }).catch(() => {});
+    setTimeout(pollReactions, 600);
+  }
+
+  window.toggleReaction = async function(msgId, emoji, isOwn) {
+    await fetch(api('/api/react'), {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ msgId, reaction: isOwn ? '' : emoji }),
+    }).catch(() => {});
+    setTimeout(pollReactions, 600);
+  };
+
+  async function pollReactions() {
+    if (!selectedChatId) return;
+    try {
+      const data = await fetch(api('/api/reactions/'+encodeURIComponent(selectedChatId))).then(r=>r.json());
+      updateReactionsInDOM(data);
+    } catch(e) {}
+  }
+  window.pollReactions = pollReactions;
+  setInterval(() => { if (selectedChatId) pollReactions(); }, 4000);
+
+  function updateReactionsInDOM(map) {
+    for (const row of document.querySelectorAll('#messages .bubble-row[data-msgid]')) {
+      const msgId = row.dataset.msgid;
+      const entry = map[msgId];
+      let bar = row.querySelector('.reactions-bar');
+      if (!entry || !Object.keys(entry.reactions).length) { if (bar) bar.remove(); continue; }
+      if (!bar) { bar = document.createElement('div'); bar.className = 'reactions-bar'; row.appendChild(bar); }
+      bar.innerHTML = '';
+      for (const [emoji, count] of Object.entries(entry.reactions)) {
+        if (!count) continue;
+        const isOwn = entry.myReaction === emoji;
+        const badge = document.createElement('span');
+        badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
+        badge.title = isOwn ? 'Klicken zum Entfernen' : emoji;
+        badge.textContent = emoji + (count > 1 ? ' ' + count : '');
+        badge.onclick = () => window.toggleReaction(msgId, emoji, isOwn);
+        bar.appendChild(badge);
+      }
+    }
+  }
+})();
 
 // Lightbox
 (function(){
