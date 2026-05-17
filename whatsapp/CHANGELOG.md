@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.5] - 2026-05-17
+
+### Geändert
+- `webhook_url` aus config.yaml entfernt — war nie implementiert, nur `webhook_incoming` ist aktiv
+
 ## [1.2.4] - 2026-05-17
 
 ### Geändert
