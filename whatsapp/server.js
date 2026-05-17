@@ -551,8 +551,17 @@ app.get('/api/presence/:chatId', async (req, res) => {
       const chat = await client.getChatById(chatId);
       return res.json({ isGroup: true, memberCount: chat.participants?.length || 0 });
     }
+    // Try getContactById first
     const contact = await client.getContactById(chatId);
-    res.json({ lastSeen: contact.lastSeen || null });
+    if (contact.lastSeen != null) return res.json({ lastSeen: contact.lastSeen });
+    // Fallback: read from internal WhatsApp Web Store (populated after presence subscription)
+    const lastSeen = await client.pupPage.evaluate((jid) => {
+      try {
+        const c = window.Store?.Contact?.get(jid);
+        return c?.lastSeen ?? null;
+      } catch(e) { return null; }
+    }, chatId);
+    res.json({ lastSeen: lastSeen ?? null });
   } catch (e) {
     res.json({ lastSeen: null });
   }
@@ -1266,14 +1275,26 @@ app.get('/', (req, res) => {
       const el = document.getElementById('ch-lastseen');
       if (!el) return;
       el.textContent = '';
-      try {
-        const d = await fetch('api/presence/' + encodeURIComponent(chatId)).then(r => r.json());
-        if (d.isGroup) {
-          el.textContent = d.memberCount ? d.memberCount + ' Mitglieder' : '';
-        } else if (d.lastSeen) {
-          el.textContent = 'Zuletzt gesehen ' + fmtLastSeen(d.lastSeen);
-        }
-      } catch(e) {}
+
+      const tryFetch = async () => {
+        if (chatId !== selectedChatId) return true; // chat changed, stop
+        try {
+          const d = await fetch('api/presence/' + encodeURIComponent(chatId)).then(r => r.json());
+          if (chatId !== selectedChatId) return true;
+          if (d.isGroup) {
+            el.textContent = d.memberCount ? d.memberCount + ' Mitglieder' : '';
+            return true;
+          } else if (d.lastSeen) {
+            el.textContent = 'Zuletzt gesehen ' + fmtLastSeen(d.lastSeen);
+            return true;
+          }
+          return false;
+        } catch(e) { return false; }
+      };
+
+      if (await tryFetch()) return;
+      // WhatsApp presence subscription takes a few seconds — retry
+      setTimeout(async () => { if (!await tryFetch()) setTimeout(tryFetch, 5000); }, 3000);
     }
 
     async function reloadMessages(chatId) {

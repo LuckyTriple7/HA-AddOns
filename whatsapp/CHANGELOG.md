@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.50] - 2026-05-17
+
+### Behoben
+- „Zuletzt gesehen" wurde nicht angezeigt — WhatsApp Web braucht ein paar Sekunden für die Presence-Subscription; Server liest nun zusätzlich aus `window.Store.Contact`; Client wiederholt die Anfrage nach 3 und 8 Sekunden automatisch
+
 ## [1.1.49] - 2026-05-17
 
 ### Neu
