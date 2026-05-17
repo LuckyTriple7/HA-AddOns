@@ -210,13 +210,17 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     const mc = rawMsg.media?.className;
     const isImage = mc === 'MessageMediaPhoto' ||
       (mc === 'MessageMediaDocument' && rawMsg.media.document?.mimeType?.startsWith('image/'));
+    const isVideo = !isImage && mc === 'MessageMediaDocument' &&
+      rawMsg.media.document?.mimeType?.startsWith('video/');
     if (isImage) {
       type = 'photo';
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
+    } else if (isVideo) {
+      type = 'video';
     }
   }
 
-  const body = rawMsg.message || (type === 'photo' && !mediaFile ? '📷 Foto' : '');
+  const body = rawMsg.message || (type === 'photo' && !mediaFile ? '📷 Foto' : type === 'video' ? '📹 Video' : '');
   const preview = body || (type === 'photo' ? '📷 Foto' : '[Medien]');
 
   const msgReactions = {};

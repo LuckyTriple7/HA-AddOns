@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.11] - 2026-05-17
+
+### Neu
+- Video-Nachrichten zeigen jetzt `📹 Video` als Platzhalter-Text in der Blase (analog zu `📷 Foto` bei Bildern); hat das Video eine Bildunterschrift, wird stattdessen die Bildunterschrift angezeigt
+
 ## [1.1.10] - 2026-05-17
 
 ### Behoben
