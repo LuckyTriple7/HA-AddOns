@@ -12,25 +12,28 @@ SHOW_CONFIG=$(jq -r '.show_config // false' /data/options.json 2>/dev/null || ec
 SHOW_BACKUP=$(jq -r '.show_backup // false' /data/options.json 2>/dev/null || echo "false")
 
 # Standard-Ordner anlegen
-mkdir -p /share/filebox "$ROOT"
+echo "Erstelle /share/filebox ..."
+mkdir -p /share/filebox && echo "OK: /share/filebox erstellt" || echo "FEHLER: /share/filebox konnte nicht erstellt werden"
+mkdir -p "$ROOT" && echo "OK: $ROOT erstellt" || echo "FEHLER: $ROOT konnte nicht erstellt werden"
+ls -la /share/ || echo "FEHLER: ls /share fehlgeschlagen"
 
 # Symlinks im FileBrowser-Root setzen
-ln -sfn /share/filebox "$ROOT/FileBox"
+ln -sfn /share/filebox "$ROOT/FileBox" && echo "OK: Symlink FileBox -> /share/filebox" || echo "FEHLER: Symlink FileBox"
 
 if [ "$SHOW_MEDIA" = "true" ]; then
-    ln -sfn /media "$ROOT/Media"
+    ln -sfn /media "$ROOT/Media" && echo "OK: Symlink Media" || echo "FEHLER: Symlink Media"
 else
     rm -f "$ROOT/Media"
 fi
 
 if [ "$SHOW_CONFIG" = "true" ]; then
-    ln -sfn /config "$ROOT/Config"
+    ln -sfn /config "$ROOT/Config" && echo "OK: Symlink Config" || echo "FEHLER: Symlink Config"
 else
     rm -f "$ROOT/Config"
 fi
 
 if [ "$SHOW_BACKUP" = "true" ]; then
-    ln -sfn /backup "$ROOT/Backup"
+    ln -sfn /backup "$ROOT/Backup" && echo "OK: Symlink Backup" || echo "FEHLER: Symlink Backup"
 else
     rm -f "$ROOT/Backup"
 fi

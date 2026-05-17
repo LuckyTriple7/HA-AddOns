@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.6] - 2026-05-17
+
+### Geändert
+- Debug-Logging für mkdir und Symlink-Erstellung hinzugefügt — Berechtigungsprobleme auf /share sichtbar machen
+
 ## [0.0.5] - 2026-05-17
 
 ### Neu
