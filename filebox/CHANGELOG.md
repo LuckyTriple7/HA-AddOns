@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.3] - 2026-05-17
+
+### Neu
+- `username` und `password` als konfigurierbare Optionen — Benutzer wird beim Start angelegt bzw. Passwort aktualisiert (Standard: `admin` / `admin1234567`)
+
 ## [0.0.2] - 2026-05-17
 
 ### Behoben
