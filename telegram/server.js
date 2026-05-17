@@ -366,6 +366,7 @@ async function startClient() {
           if (emoticon && r.count > 0) newReactions[emoticon] = r.count;
         }
         msg.reactions = newReactions;
+        scheduleSave();
         dbg(`UpdateMessageReactions: ${msgId} → ${JSON.stringify(newReactions)}`);
       }
     }, new Raw({}));
@@ -424,9 +425,16 @@ app.get('/api/chats', (req, res) => {
 app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
   if (req.query.refresh === '1' && status === 'connected') {
-    (messagesByChatId.get(chatId) || []).forEach(m => seenMsgIds.delete(m.id));
+    const prevMsgs = messagesByChatId.get(chatId) || [];
+    const savedReactions = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction }]));
+    prevMsgs.forEach(m => seenMsgIds.delete(m.id));
     messagesByChatId.delete(chatId);
     await fetchMessages(chatId);
+    for (const m of (messagesByChatId.get(chatId) || [])) {
+      const saved = savedReactions.get(m.id);
+      if (saved?.reactions && Object.keys(saved.reactions).length) m.reactions = saved.reactions;
+      if (saved?.myReaction) m.myReaction = saved.myReaction;
+    }
     return res.json(messagesByChatId.get(chatId) || []);
   }
   const existing = messagesByChatId.get(chatId) || [];

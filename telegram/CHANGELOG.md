@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.9] - 2026-05-17
+
+### Behoben
+- Reaktionen verschwanden nach Chat-Reload — Refresh-Endpoint sichert `reactions`/`myReaction` aller Nachrichten vor dem Cache-Löschen und stellt sie nach dem Telegram-Refetch wieder her
+- Reaktionen anderer Nutzer wurden nach AddOn-Neustart nicht gespeichert — `UpdateMessageReactions`-Handler ruft jetzt `scheduleSave()` auf
+
 ## [1.1.8] - 2026-05-17
 
 ### Behoben
