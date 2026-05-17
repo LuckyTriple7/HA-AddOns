@@ -1,6 +1,5 @@
 # WhatsApp
 
-![Version](https://img.shields.io/badge/version-1.2.6-blue?style=flat-square)
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
 ![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?style=flat-square)
 
