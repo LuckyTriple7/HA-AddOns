@@ -8,6 +8,7 @@ export DARK_MODE=$(jq -r 'if .dark_mode == true then "true" else "false" end' /d
 export SIGNAL_API_URL=http://localhost:8080
 export GIN_MODE=release
 export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' /data/options.json)
+export DOWNLOAD_MEDIA=$(jq -r 'if .download_media == true then "true" else "false" end' /data/options.json)
 
 export SIGNAL_CLI_CONFIG_DIR=/data/signal-cli
 mkdir -p /data/signal-cli

@@ -30,6 +30,8 @@ const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const DARK_MODE = process.env.DARK_MODE === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
+const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_DIR = '/data/media/';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 let status = 'starting'; // starting | not-linked | linked | error
@@ -212,8 +214,10 @@ function processEnvelope(envelope) {
   const env = envelope.envelope || envelope;
   const dm = env.dataMessage;
   const source = normPhone(env.sourceNumber || env.source);
-  dbg(`processEnvelope: source=${source} hasDataMessage=${!!dm} body="${(dm?.message||'').slice(0,60)}"`);
-  if (!dm || !source || !dm.message) { dbg(`processEnvelope: skipping — no dataMessage or message text`); return; }
+  const hasText = !!(dm && dm.message);
+  const hasAttachments = !!(dm && Array.isArray(dm.attachments) && dm.attachments.length > 0);
+  dbg(`processEnvelope: source=${source} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
+  if (!dm || !source || (!hasText && !hasAttachments)) { dbg(`processEnvelope: skipping — no dataMessage, source, or content`); return; }
 
   const msgId = `${source}_${dm.timestamp}`;
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
@@ -222,17 +226,24 @@ function processEnvelope(envelope) {
   const isOwn = source === PHONE_NUMBER;
   const chatId = source;
   const senderName = env.sourceName || source;
+  const previewText = dm.message || (hasAttachments ? '📷 Foto' : '');
 
-  const msg = { id: msgId, from: source, body: dm.message, timestamp: dm.timestamp, fromMe: isOwn };
+  const msg = { id: msgId, from: source, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn };
+
+  if (DOWNLOAD_MEDIA && hasAttachments) {
+    for (const att of dm.attachments) {
+      if (att.id) downloadAttachment(att.id, att.contentType || 'image/jpeg', msgId);
+    }
+  }
 
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   messagesByChatId.get(chatId).push(msg);
 
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: senderName, phone: source, lastMsg: dm.message, lastTime: dm.timestamp });
+    chatMap.set(chatId, { id: chatId, name: senderName, phone: source, lastMsg: previewText, lastTime: dm.timestamp });
   } else {
     const chat = chatMap.get(chatId);
-    chat.lastMsg = dm.message;
+    chat.lastMsg = previewText;
     chat.lastTime = dm.timestamp;
     if (senderName && senderName !== source) chat.name = senderName;
   }
@@ -246,7 +257,7 @@ function processEnvelope(envelope) {
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: source, name: senderName, message: dm.message, timestamp: dm.timestamp }),
+      body: JSON.stringify({ from: source, name: senderName, message: dm.message || previewText, timestamp: dm.timestamp }),
     }).catch(() => {});
   }
 }
@@ -262,6 +273,32 @@ async function pollMessages() {
       messages.forEach(processEnvelope);
     }
   } catch (e) {}
+}
+
+async function downloadAttachment(attId, contentType, msgId) {
+  try {
+    const ext = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
+    const filepath = MEDIA_DIR + filename;
+    if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); return; }
+    dbg(`Downloading attachment ${attId}...`);
+    const r = await fetch(`${SIGNAL_API}/v1/attachments/${encodeURIComponent(attId)}`, { timeout: 30000 });
+    if (!r.ok) { console.warn(`[WARN] Attachment download failed: HTTP ${r.status}`); return; }
+    const buf = await r.buffer();
+    fs.writeFileSync(filepath, buf);
+    dbg(`Attachment saved: ${filename} (${buf.length} bytes)`);
+    updateMsgMedia(msgId, filename);
+    scheduleSave();
+  } catch (e) {
+    console.error('[ERROR] downloadAttachment:', e.message);
+  }
+}
+
+function updateMsgMedia(msgId, filename) {
+  for (const [, msgs] of messagesByChatId) {
+    const msg = msgs.find(m => m.id === msgId);
+    if (msg) { msg.mediaFile = filename; break; }
+  }
 }
 
 // --- API ---
@@ -283,6 +320,17 @@ app.get('/api/chats', (req, res) => {
 
 app.get('/api/messages/:chatId', (req, res) => {
   res.json(messagesByChatId.get(req.params.chatId) || []);
+});
+
+app.get('/api/media/:filename', (req, res) => {
+  const filename = req.params.filename;
+  if (!/^[\w.-]+$/.test(filename)) return res.status(400).send('Invalid filename');
+  const filepath = MEDIA_DIR + filename;
+  if (!fs.existsSync(filepath)) return res.status(404).send('Not found');
+  const ext = filename.split('.').pop().toLowerCase();
+  const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+  res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+  fs.createReadStream(filepath).pipe(res);
 });
 
 app.post('/api/send', async (req, res) => {
@@ -415,11 +463,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #qr-refresh-btn { background: #3a76f8; color: white; border: none; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; }
 #qr-refresh-btn:hover { background: #2960d6; }
 
-#topbar { display: none; align-items: center; background: #1b1b21; color: #fff; padding: 0 16px; height: 56px; gap: 12px; flex-shrink: 0; }
+#topbar { display: none; align-items: center; background: #2c6bed; color: #fff; padding: 0 16px; height: 56px; gap: 8px; flex-shrink: 0; }
 #topbar h1 { font-size: 18px; flex: 1; }
-#topbar .phone { font-size: 13px; color: #aaa; }
-#logout-btn { background: transparent; border: 1px solid #555; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-#logout-btn:hover { background: rgba(255,255,255,0.1); }
+#topbar .phone { font-size: 13px; color: rgba(255,255,255,0.75); }
+.scroll-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; opacity: 0.6; line-height: 1; }
+.scroll-btn:hover { opacity: 1; }
+#photo-toggle-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+#photo-toggle-btn.active { border-color: #fff; color: #fff; background: rgba(255,255,255,0.15); }
+#logout-btn { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
+#logout-btn:hover { color: #f15c5c; }
+.msg-img { max-width: 250px; max-height: 250px; border-radius: 8px; cursor: zoom-in; display: block; object-fit: cover; margin-top: 4px; }
+.photo-placeholder { color: #3a76f8; }
 
 #main { display: none; flex: 1; overflow: hidden; }
 
@@ -520,7 +574,10 @@ html.dark #emoji-toggle { color: #8696a0; }
 <div id="topbar">
   <h1>Signal</h1>
   <span class="phone" id="my-phone"></span>
-  <button id="logout-btn" onclick="logout()">Abmelden</button>
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" title="Fotos ein/aus">Fotos AN</button>' : ''}
+  <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
+  <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
+  <button id="logout-btn" onclick="logout()" title="Abmelden">⏻</button>
 </div>
 
 <div id="main">
@@ -556,6 +613,7 @@ const BASE = location.pathname.replace(/\\/$/, '');
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
+let showPhotos = ${DOWNLOAD_MEDIA} && localStorage.getItem('signal_show_photos') !== 'false';
 
 function api(path) { return BASE + path; }
 
@@ -728,6 +786,7 @@ async function loadMessages(chatId) {
 function renderMessages(msgs) {
   const el = document.getElementById('messages');
   if (!msgs.length) { el.innerHTML = '<div id="no-chat">Noch keine Nachrichten</div>'; return; }
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   let lastDate = '';
   el.innerHTML = msgs.map(m => {
     const d = new Date(m.timestamp > 1e12 ? m.timestamp : m.timestamp * 1000);
@@ -735,9 +794,18 @@ function renderMessages(msgs) {
     let sep = '';
     if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
     const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${escHtml(m.body)}<div class="bubble-time">\${time}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
+    let content;
+    if (m.mediaFile) {
+      content = showPhotos
+        ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
+        : '<span class="photo-placeholder">📷 Foto</span>';
+      if (m.body) content += \`<div>\${escHtml(m.body)}</div>\`;
+    } else {
+      content = escHtml(m.body || '');
+    }
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');
-  el.scrollTop = el.scrollHeight;
+  if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 async function sendMsg() {
@@ -761,6 +829,31 @@ async function sendMsg() {
 async function logout() {
   showSpinner('Abmelden…');
   await fetch(api('/api/logout'), { method: 'POST' }).catch(() => {});
+}
+
+function scrollMsgs(dir) {
+  const el = document.getElementById('messages');
+  if (!el) return;
+  el.scrollTop = dir === 'top' ? 0 : el.scrollHeight;
+}
+
+function togglePhotos() {
+  showPhotos = !showPhotos;
+  localStorage.setItem('signal_show_photos', showPhotos ? 'true' : 'false');
+  const btn = document.getElementById('photo-toggle-btn');
+  if (btn) { btn.textContent = showPhotos ? 'Fotos AN' : 'Fotos AUS'; btn.classList.toggle('active', showPhotos); }
+  if (selectedChatId) loadMessages(selectedChatId);
+}
+
+function openImg(src) {
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  const img = document.createElement('img');
+  img.src = src;
+  img.style.cssText = 'max-width:90%;max-height:90%;border-radius:8px;object-fit:contain;';
+  ov.appendChild(img);
+  ov.onclick = () => document.body.removeChild(ov);
+  document.body.appendChild(ov);
 }
 
 async function deleteMsg(chatId, msgId) {
@@ -839,6 +932,7 @@ process.on('unhandledRejection', (reason) => {
 
 async function init() {
   console.log('[INFO] Signal UI starting...');
+  if (DOWNLOAD_MEDIA) { try { fs.mkdirSync(MEDIA_DIR, { recursive: true }); } catch (e) {} }
   loadFromDisk();
   let retries = 30;
   while (retries-- > 0) {

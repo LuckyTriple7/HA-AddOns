@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.38] - 2026-05-17
+
+### Neu
+- Option `download_media` (Standard: aus) — empfangene Fotos werden heruntergeladen und in der Chat-Ansicht angezeigt; Klick vergrößert das Bild; ohne Option erscheint `📷 Foto` als Text
+- „Fotos AN/AUS"-Schalter in der Topbar — blendet Fotos aus; Zustand wird im Browser gespeichert; erscheint nur wenn `download_media` aktiv
+- Scroll-Buttons ↑ ↓ in der Topbar — springt direkt an den Anfang oder das Ende der Nachrichten
+- Abmelden-Button als ⏻-Symbol (wie WhatsApp und Telegram)
+
+### Geändert
+- Topbar-Hintergrund auf Signal-Blau (#2c6bed) — passt zum Signal-Branding
+
 ## [1.0.37] - 2026-05-16
 
 ### Behoben
