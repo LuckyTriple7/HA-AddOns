@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.47] - 2026-05-17
+
+### Neu
+- „📥 Fotos nachladen"-Button im Chat-Header (nur wenn `download_media` aktiv) — lädt die letzten 20 Fotos des aktuellen Chats nach; Fotos werden mit 600ms Abstand geladen um WhatsApp/Puppeteer nicht zu überlasten; Button zeigt Fortschritt und aktualisiert die Ansicht alle 2 Sekunden
+
 ## [1.1.46] - 2026-05-17
 
 ### Neu

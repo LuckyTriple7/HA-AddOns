@@ -543,6 +543,33 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
+app.post('/api/fetch-media/:chatId', async (req, res) => {
+  const { chatId } = req.params;
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
+  if (!DOWNLOAD_MEDIA) return res.status(400).json({ error: 'download_media not enabled' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const msgs = getChatMsgs(chatId);
+  const pending = msgs.filter(m => m.type === 'photo' && !m.mediaFile).slice(-limit);
+  res.json({ total: pending.length });
+  if (!pending.length) return;
+  (async () => {
+    let count = 0;
+    for (const stored of pending) {
+      try {
+        const fullMsg = await client.getMessageById(stored.id);
+        if (fullMsg) {
+          const file = await downloadWAMedia(fullMsg, stored.id);
+          if (file) { stored.mediaFile = file; count++; }
+        }
+      } catch (e) {
+        dbg(`fetch-media: error for ${stored.id}: ${e.message}`);
+      }
+      await new Promise(r => setTimeout(r, 600));
+    }
+    console.log(`[INFO] fetch-media: ${count}/${pending.length} Fotos geladen für ${chatId}`);
+  })();
+});
+
 app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -669,6 +696,9 @@ app.get('/', (req, res) => {
     #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
+    #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+    #fetch-media-btn:hover { border-color: #25d366; color: #25d366; }
+    #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
 
     #messages {
       flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -877,6 +907,7 @@ app.get('/', (req, res) => {
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
         </div>
+        ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="send-bar" style="display:none;">
@@ -1193,6 +1224,47 @@ app.get('/', (req, res) => {
         }
       });
       if (atBottom) msgList.scrollTop = msgList.scrollHeight;
+    }
+
+    async function reloadMessages(chatId) {
+      if (!chatId || chatId !== selectedChatId) return;
+      try {
+        const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId)).then(r => r.json());
+        msgList.innerHTML = '';
+        lastMsgTime[chatId] = 0;
+        atBottom = true;
+        if (msgs.length) renderMessages(msgs, chatId);
+        lastMsgTime[chatId] = msgs.reduce((max, m) => Math.max(max, m.timestamp), 0);
+      } catch(e) {}
+    }
+
+    async function fetchMedia() {
+      const btn = document.getElementById('fetch-media-btn');
+      if (!btn || !selectedChatId) return;
+      btn.disabled = true;
+      btn.textContent = '⏳ Lade…';
+      try {
+        const d = await fetch('api/fetch-media/' + encodeURIComponent(selectedChatId), { method: 'POST' }).then(r => r.json());
+        if (!d.total) {
+          btn.textContent = '✓ Alle geladen';
+          setTimeout(() => { btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }, 2500);
+          return;
+        }
+        btn.textContent = '⏳ ' + d.total + ' Fotos…';
+        let polls = 0;
+        const iv = setInterval(async () => {
+          polls++;
+          await reloadMessages(selectedChatId);
+          if (polls >= 20) {
+            clearInterval(iv);
+            btn.disabled = false;
+            btn.textContent = '📥 Fotos nachladen';
+          }
+        }, 2000);
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = '📥 Fotos nachladen';
+      }
     }
 
     async function pollMessages() {
