@@ -1,0 +1,116 @@
+name: Check FileBrowser Update
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # täglich um 9:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest FileBrowser version (GitHub API)
+        id: upstream
+        run: |
+          VERSION=$(curl -s "https://api.github.com/repos/filebrowser/filebrowser/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Upstream FileBrowser: ${VERSION}"
+
+      - name: Get tracked version
+        id: tracked
+        run: |
+          if [ -f .filebox-version ]; then
+            echo "version=$(cat .filebox-version)" >> $GITHUB_OUTPUT
+          else
+            echo "version=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if already up to date
+        if: steps.upstream.outputs.version == steps.tracked.outputs.version
+        run: echo "FileBrowser ${{ steps.upstream.outputs.version }} wird bereits gebaut — nichts zu tun."
+
+      - name: Set up Docker Buildx
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute new add-on version
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        id: versions
+        run: |
+          ADDON_VER=$(grep '^version:' filebox/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo $ADDON_VER | cut -d. -f1)
+          MINOR=$(echo $ADDON_VER | cut -d. -f2)
+          PATCH=$(echo $ADDON_VER | cut -d. -f3)
+          NEW_ADDON_VER="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "old=${ADDON_VER}" >> $GITHUB_OUTPUT
+          echo "new=${NEW_ADDON_VER}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        uses: docker/build-push-action@v6
+        with:
+          context: filebox
+          platforms: linux/amd64
+          push: true
+          no-cache: true
+          build-args: |
+            FILEBROWSER_VERSION=${{ steps.upstream.outputs.version }}
+          tags: |
+            ghcr.io/luckytriple7/filebox:${{ steps.versions.outputs.new }}
+            ghcr.io/luckytriple7/filebox:latest
+
+      - name: Create PR with update
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FB_VER: ${{ steps.upstream.outputs.version }}
+          OLD_ADDON_VER: ${{ steps.versions.outputs.old }}
+          NEW_ADDON_VER: ${{ steps.versions.outputs.new }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="update/filebox-${FB_VER}"
+
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} existiert bereits — überspringe."
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
+
+          DATE=$(date +%Y-%m-%d)
+
+          sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" filebox/config.yaml
+          echo "$FB_VER" > .filebox-version
+
+          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Geändert\n- Rebuild für FileBrowser ${FB_VER}\n"
+          sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" filebox/CHANGELOG.md
+          sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" filebox/CHANGELOG.md
+
+          git add filebox/config.yaml filebox/CHANGELOG.md .filebox-version
+          git commit -m "Bump FileBox Add-on zu v${NEW_ADDON_VER} — FileBrowser ${FB_VER}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "Update FileBrowser ${FB_VER} (Add-on v${NEW_ADDON_VER})" \
+            --body "$(printf '## FileBrowser Update\n\nNeue FileBrowser Version **%s** verfügbar.\n\n- Add-on Version: `%s` → `%s`\n- FileBrowser: `%s`\n- Image: `ghcr.io/luckytriple7/filebox:%s`\n\n_Automatisch erstellt von GitHub Actions._' "$FB_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FB_VER" "$NEW_ADDON_VER")" \
+            --base main
