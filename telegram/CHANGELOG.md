@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.12] - 2026-05-17
+
+### Neu
+- 🗑️-Button in der Topbar (nur bei `download_media: true`): löscht verwaiste Mediendateien die von keiner geladenen Nachricht mehr referenziert werden
+
+### Geändert
+- Foto-Toggle-Button zeigt jetzt 📷 (AN) bzw. 🚫 (AUS) statt Text; Zustand als Tooltip
+
 ## [1.1.11] - 2026-05-17
 
 ### Neu

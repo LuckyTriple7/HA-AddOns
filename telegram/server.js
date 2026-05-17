@@ -579,6 +579,24 @@ app.get('/api/storage', (req, res) => {
   res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
 });
 
+app.post('/api/cleanup-media', (req, res) => {
+  try {
+    const referenced = new Set();
+    for (const msgs of messagesByChatId.values())
+      for (const m of msgs)
+        if (m.mediaFile) referenced.add(m.mediaFile);
+    const files = fs.readdirSync(MEDIA_DIR);
+    let count = 0, freed = 0;
+    for (const f of files) {
+      if (!referenced.has(f)) {
+        const fp = `${MEDIA_DIR}/${f}`;
+        try { freed += fs.statSync(fp).size; fs.unlinkSync(fp); count++; } catch(e) {}
+      }
+    }
+    res.json({ deleted: count, freedMb: (freed / (1024 * 1024)).toFixed(1) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/media/:filename', (req, res) => {
   const { filename } = req.params;
   if (!/^[\w.-]+$/.test(filename)) return res.status(400).end();
@@ -648,7 +666,7 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #storage-info { font-size: 12px; opacity: 0.6; white-space: nowrap; }
 #logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
 #logout-btn:hover { color: #f15c5c; }
-#photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; opacity: 0.55; }
+#photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #photo-toggle.active { opacity: 1; background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.8); }
 .scroll-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 15px; opacity: 0.55; line-height: 1; }
@@ -840,7 +858,8 @@ html.light #emoji-toggle { color: #888; }
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()">Fotos AN</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button id="refresh-btn" onclick="refreshChat()" title="Chat neu laden">↺</button>
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
@@ -917,13 +936,22 @@ function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
   document.body.classList.toggle('hide-photos', hiding);
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? 'Fotos AUS' : 'Fotos AN'; }
+  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? 'Fotos AUS' : 'Fotos AN'; }
   localStorage.setItem('tg-hide-photos', hiding ? '1' : '');
 }
 if (localStorage.getItem('tg-hide-photos')) {
   document.body.classList.add('hide-photos');
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.remove('active'); btn.textContent = 'Fotos AUS'; }
+  if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = 'Fotos AUS'; }
+}
+
+async function cleanupMedia() {
+  if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
+  try {
+    const d = await fetch(api('/api/cleanup-media'), { method: 'POST' }).then(r => r.json());
+    alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
+    loadStorage();
+  } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
 }
 
 function ackMark(ack) {
