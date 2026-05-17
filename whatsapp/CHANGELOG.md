@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.8] - 2026-05-17
+
+### Behoben
+- Backtick-Konflikt in cleanupMedia() behoben — Add-on startete nicht mehr (SyntaxError)
+
 ## [1.2.7] - 2026-05-17
 
 ### Neu
