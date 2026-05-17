@@ -233,7 +233,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   }
   scheduleSave();
 
-  if (!fromMe) {
+  if (!fromMe && source === 'NewMessage') {
     const isBot = chatMap.get(chatId)?.isBot;
     const skipBot = HA_NOTIFY_SKIP_BOTS && isBot;
     dbg(`HA-Notification check [${source}]: msgId=${msgId} isBot=${isBot} skipBot=${skipBot} body="${(body||'').slice(0,60)}"`);

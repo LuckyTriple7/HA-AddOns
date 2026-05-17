@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.5] - 2026-05-17
+
+### Behoben
+- HA-Notifications feuerten beim Reload-Button für alle alten Nachrichten — `fetchMessages` löscht `seenMsgIds` und re-verarbeitet den ganzen Chat als "neu"; HA-Notifications werden jetzt ausschließlich bei echten Echtzeit-Nachrichten gesendet (`source = 'NewMessage'`), nie beim API-Nachladen
+
 ## [1.1.4] - 2026-05-17
 
 ### Geändert
