@@ -619,7 +619,11 @@ html.light #chat-header { background: #517DA2; }
 .bubble-row { display: flex; align-items: center; gap: 6px; }
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
-.bubble-row.out .del-btn { order: -1; }
+.bubble-row.out .del-btn,
+.bubble-row.in  .del-btn { order: -1; }
+#lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
+#lightbox.open { display: flex; }
+#lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }
 .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .del-btn { display: block; }
 html.dark .del-btn { color: rgba(193,201,212,0.6); }
@@ -967,7 +971,7 @@ function renderMessages(msgs) {
     const time=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
     let content='';
     if(m.type==='photo'&&m.mediaFile){
-      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer" loading="lazy" onclick="this.style.maxWidth=this.style.maxWidth==='none'?'240px':'none'">\`;
+      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;border-radius:8px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div style="margin-top:4px">\${escHtml(m.body)}</div>\`;
     } else {
       content=escHtml(m.body);
@@ -1027,6 +1031,17 @@ const EMOJIS = [
 function toggleEmojiPicker(evt){evt.stopPropagation();document.getElementById('emoji-picker').classList.toggle('open');}
 function insertEmoji(emoji){const inp=document.getElementById('msg-input');const s=inp.selectionStart,e=inp.selectionEnd;inp.value=inp.value.slice(0,s)+emoji+inp.value.slice(e);inp.selectionStart=inp.selectionEnd=s+emoji.length;inp.focus();autoResize(inp);}
 document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.target.id!=='emoji-toggle')document.getElementById('emoji-picker').classList.remove('open');});
+
+// Lightbox
+(function(){
+  const lb=document.createElement('div'); lb.id='lightbox';
+  const lbImg=document.createElement('img'); lb.appendChild(lbImg);
+  document.body.appendChild(lb);
+  window.openLightbox=function(src){lbImg.src=src;lb.classList.add('open');};
+  lb.addEventListener('click',()=>lb.classList.remove('open'));
+  lbImg.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
+})();
 </script>
 </body>
 </html>`;

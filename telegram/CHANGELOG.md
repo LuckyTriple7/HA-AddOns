@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0] - 2026-05-17
+
+### Behoben
+- Löschen-Button (✕) erschien rechts neben empfangenen Blasen — `order: -1` jetzt auch für `.bubble-row.in .del-btn`; Hover-Layout ist jetzt `[✕][Blase]` für alle Nachrichten
+
+### Geändert
+- Bilder in der Chat-Ansicht größer — Thumbnail-Maxgröße von 240×300 auf 320×400 px erhöht
+- Lightbox beim Klick auf ein Foto — schwarzer halbtransparenter Overlay, Bild zentriert in voller Fenstergröße (bis 92vw/92vh); Klick auf den Hintergrund oder Escape schließt die Lightbox
+
 ## [1.0.35] - 2026-05-17
 
 ### Neu
