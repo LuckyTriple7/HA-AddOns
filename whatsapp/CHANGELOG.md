@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.41] - 2026-05-17
+
+### Behoben
+- Gesendete Nachrichten liegen jetzt korrekt am rechten Rand an (bubble-wrap fehlte width: 100%)
+
 ## [1.1.40] - 2026-05-17
 
 ### Behoben

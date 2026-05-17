@@ -613,7 +613,7 @@ app.get('/', (req, res) => {
     #messages::-webkit-scrollbar { width: 5px; }
     #messages::-webkit-scrollbar-thumb { background: #2a3942; border-radius: 3px; }
 
-    .bubble-wrap { display: flex; flex-direction: column; margin: 1px 0; }
+    .bubble-wrap { display: flex; flex-direction: column; margin: 1px 0; width: 100%; }
     .bubble-wrap.out { align-items: flex-end; }
     .bubble-wrap.in  { align-items: flex-start; }
     .contact-name { font-size: 11px; color: #8696a0; margin-bottom: 2px; padding: 0 4px; }
