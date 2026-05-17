@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.42] - 2026-05-17
+
+### Behoben
+- Gesendete Nachrichten zuverlässig rechtsbündig via margin-left: auto
+
 ## [1.1.41] - 2026-05-17
 
 ### Behoben
