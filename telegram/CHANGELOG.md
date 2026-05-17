@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.8] - 2026-05-17
+
+### Behoben
+- Weißer Rand um Bilder — Foto-Blasen bekommen Klasse `photo-bubble` mit `padding: 0` und `overflow: hidden`; Uhrzeit erscheint als halbdurchsichtiges Overlay unten rechts auf dem Bild (weißer Text auf dunklem Hintergrund); Bildunterschriften haben eigenes `photo-caption`-Div mit Innenabstand
+
 ## [1.1.7] - 2026-05-17
 
 ### Behoben

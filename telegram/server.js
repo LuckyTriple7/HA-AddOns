@@ -714,6 +714,10 @@ html.light .reaction-badge { background: #f0f2f5; border-color: #d9dbdf; color: 
 html.dark .reaction-badge.own { background: rgba(42,171,238,0.12); }
 html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .reaction-badge:hover { opacity: 0.8; }
+.bubble.photo-bubble { padding: 0; overflow: hidden; position: relative; }
+.bubble.photo-bubble .bubble-time { position: absolute; bottom: 3px; right: 5px; background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.95) !important; border-radius: 8px; padding: 0 5px; float: none; margin: 0; }
+.bubble.photo-bubble .msg-ack { color: rgba(255,255,255,0.95) !important; }
+.photo-caption { padding: 4px 10px 4px; }
 .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .del-btn { display: block; }
 html.dark .del-btn { color: rgba(193,201,212,0.6); }
@@ -1075,16 +1079,17 @@ function renderMessages(msgs) {
     if(dateStr!==lastDate){sep=\`<div class="day-sep">\${dateStr}</div>\`;lastDate=dateStr;}
     const time=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
     let content='';
-    if(m.type==='photo'&&m.mediaFile){
-      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;border-radius:8px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
-      if(m.body) content+=\`<div style="margin-top:4px">\${escHtml(m.body)}</div>\`;
+    const isPhoto = m.type==='photo'&&m.mediaFile;
+    if(isPhoto){
+      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
+      if(m.body) content+=\`<div class="photo-caption">\${escHtml(m.body)}</div>\`;
     } else {
       content=escHtml(m.body);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn" title="Reagieren">😊</button><button class="del-btn" title="Löschen">✕</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn" title="Reagieren">😊</button><button class="del-btn" title="Löschen">✕</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
