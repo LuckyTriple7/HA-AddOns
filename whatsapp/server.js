@@ -561,36 +561,44 @@ app.get('/api/presence/:chatId', async (req, res) => {
     }, chatId);
     dbg(`presence ${chatId} cusJid=${cusJid}`);
 
-    // Probe the module system
-    const modSysInfo = await client.pupPage.evaluate(() => {
-      const result = {
-        has__d: typeof window.__d === 'function',
-        has__r: typeof window.__r === 'function',
-        requireKeys: window.require ? Object.keys(window.require).join(',') : null,
-        requireLazyKeys: window.requireLazy ? Object.keys(window.requireLazy).join(',') : null,
-        requireInteropKeys: window.requireInterop ? Object.keys(window.requireInterop).join(',') : null,
-      };
-      // Try require() directly for known names — errors tell us if wrong name
-      const names = ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceStore', 'ContactStore',
-                     'WAWebContactStore', 'WAWebPresenceStore', 'WABizPresenceUtils'];
-      result.requireDirect = {};
-      for (const name of names) {
+    // Try WWebJS raw models (getContactModel / getChatModel return internal WA objects)
+    const rawModelInfo = await client.pupPage.evaluate(async (jid, cusJid) => {
+      const result = {};
+      const jids = [...new Set([jid, cusJid].filter(Boolean))];
+      for (const j of jids) {
         try {
-          const m = window.require(name);
-          result.requireDirect[name] = m ? 'found:' + Object.keys(m).slice(0, 5).join(',') : 'null';
-        } catch(e) { result.requireDirect[name] = 'err:' + e.message.slice(0, 60); }
+          const cm = window.WWebJS?.getContactModel ? window.WWebJS.getContactModel(j) : null;
+          if (cm) {
+            const allKeys = [...new Set([...Object.getOwnPropertyNames(cm), ...Object.keys(cm)])];
+            const presenceKeys = allKeys.filter(k => /last|seen|presence|online|status|avail/i.test(k));
+            const presenceData = {};
+            for (const k of presenceKeys) { try { presenceData[k] = cm[k]; } catch(e) {} }
+            result['contactModel_' + j] = { allKeyCount: allKeys.length, presenceKeys, presenceData };
+          } else {
+            result['contactModel_' + j] = null;
+          }
+        } catch(e) { result['contactModel_' + j] = { error: e.message }; }
+        try {
+          const chatM = window.WWebJS?.getChatModel ? window.WWebJS.getChatModel(j) : null;
+          if (chatM) {
+            const allKeys = [...new Set([...Object.getOwnPropertyNames(chatM), ...Object.keys(chatM)])];
+            const presenceKeys = allKeys.filter(k => /last|seen|presence|online|status|avail/i.test(k));
+            const presenceData = {};
+            for (const k of presenceKeys) { try { presenceData[k] = chatM[k]; } catch(e) {} }
+            result['chatModel_' + j] = { allKeyCount: allKeys.length, presenceKeys, presenceData };
+          } else {
+            result['chatModel_' + j] = null;
+          }
+        } catch(e) { result['chatModel_' + j] = { error: e.message }; }
       }
-      // Check Meta module system internals
-      result.has__modulesMap = !!(window.__d && window.__d.moduleMap);
-      // Enumerate requireLazy's internal registry if accessible
+      // Try requireDynamic for presence module
       try {
-        const rl = window.requireLazy;
-        const internals = Object.keys(rl).join(',');
-        result.requireLazyInternals = internals;
-      } catch(e) {}
+        const dynResult = typeof window.requireDynamic === 'function' ? await window.requireDynamic('PresenceUtils') : 'no-fn';
+        result.requireDynamic_PresenceUtils = dynResult ? 'found:' + Object.keys(dynResult).slice(0, 5).join(',') : String(dynResult);
+      } catch(e) { result.requireDynamic_PresenceUtils = 'err:' + e.message.slice(0, 60); }
       return result;
-    });
-    dbg('modSys:', JSON.stringify(modSysInfo));
+    }, chatId, cusJid);
+    dbg('rawModel:', JSON.stringify(rawModelInfo));
 
     const jids = [...new Set([chatId, cusJid].filter(Boolean))];
     const lastSeen = await client.pupPage.evaluate((jids) => {

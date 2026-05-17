@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.59] - 2026-05-17
+
+### Geändert
+- Diagnose: testet WWebJS.getContactModel / getChatModel (interne rohe Modelle) und requireDynamic nach Presence-Daten
+
 ## [1.1.58] - 2026-05-17
 
 ### Geändert
