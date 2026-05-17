@@ -541,6 +541,8 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; opacity: 0.55; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #photo-toggle.active { opacity: 1; background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.8); }
+.scroll-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 15px; opacity: 0.55; line-height: 1; }
+.scroll-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 .photo-placeholder { display: none; }
 body.hide-photos .msg-img { display: none !important; }
 body.hide-photos .photo-placeholder { display: inline; }
@@ -696,6 +698,8 @@ html.light #emoji-toggle { color: #888; }
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()">Fotos AN</button>' : ''}
+  <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
+  <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
   <button id="logout-btn" onclick="logout()">Abmelden</button>
 </div>
 
@@ -748,6 +752,12 @@ function formatTime(ts) {
   return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function scrollMsgs(dir) {
+  const el = document.getElementById('messages');
+  if (!el) return;
+  el.scrollTop = dir === 'top' ? 0 : el.scrollHeight;
+}
 
 function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
