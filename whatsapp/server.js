@@ -728,6 +728,9 @@ app.get('/', (req, res) => {
     html.light .react-btn { color: rgba(0,0,0,0.35); }
     .react-btn:hover { background: rgba(134,150,160,0.18); color: #e9edef; }
     html.light .react-btn:hover { color: #111; }
+    #lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
+    #lightbox.open { display: flex; }
+    #lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }
     #reaction-picker { position: fixed; z-index: 300; border-radius: 28px; padding: 6px 10px; display: none; gap: 2px; box-shadow: 0 2px 16px rgba(0,0,0,0.3); }
     html.dark #reaction-picker { background: #233038; border: 1px solid #2a3942; }
     html.light #reaction-picker { background: #fff; border: 1px solid #d9dbdf; }
@@ -1183,9 +1186,9 @@ app.get('/', (req, res) => {
           const img = document.createElement('img');
           img.className = 'msg-img';
           img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
-          img.style.cssText = 'max-width:240px;max-height:300px;display:block;cursor:pointer;width:100%;';
+          img.style.cssText = 'max-width:320px;max-height:400px;display:block;cursor:zoom-in;width:100%;';
           img.loading = 'lazy';
-          img.addEventListener('click', function() { this.style.maxWidth = this.style.maxWidth === 'none' ? '240px' : 'none'; });
+          img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
           bub.appendChild(img);
           if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.textContent = m.body; bub.appendChild(cap); }
           const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
@@ -1405,6 +1408,17 @@ app.get('/', (req, res) => {
       reactionPicker.appendChild(btn);
     });
     document.body.appendChild(reactionPicker);
+
+    // Lightbox
+    const lightbox = document.createElement('div');
+    lightbox.id = 'lightbox';
+    const lbImg = document.createElement('img');
+    lightbox.appendChild(lbImg);
+    document.body.appendChild(lightbox);
+    function openLightbox(src) { lbImg.src = src; lightbox.classList.add('open'); }
+    lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+    lbImg.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') lightbox.classList.remove('open'); });
 
     document.addEventListener('click', ev => {
       if (!ev.target.closest('#reaction-picker') && !ev.target.closest('.react-btn')) {

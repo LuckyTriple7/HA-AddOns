@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2026-05-17
+
+### Geändert
+- Bilder in der Chat-Ansicht größer — Thumbnail-Maxgröße von 240×300 auf 320×400 px erhöht
+- Lightbox beim Klick auf ein Foto — schwarzer halbtransparenter Overlay, Bild zentriert in voller Fenstergröße (bis 92vw/92vh); Klick auf den Hintergrund oder Escape schließt die Lightbox
+
 ## [1.2.1] - 2026-05-17
 
 ### Behoben
