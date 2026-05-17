@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.58] - 2026-05-17
+
+### Geändert
+- Diagnose: testet require() direkt (Fehlermeldung zeigt ob Modulname falsch), prüft Meta-Modulsystem (__d/__r), liest requireLazy-Interna aus
+
 ## [1.1.57] - 2026-05-17
 
 ### Geändert

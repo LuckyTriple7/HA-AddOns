@@ -561,35 +561,36 @@ app.get('/api/presence/:chatId', async (req, res) => {
     }, chatId);
     dbg(`presence ${chatId} cusJid=${cusJid}`);
 
-    // Test which requireLazy module names respond (fires synchronously for loaded modules)
-    const reqTest = await client.pupPage.evaluate(() => {
-      const results = {};
-      const names = ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceStore', 'ContactPresenceStore',
-                     'WAPresence', 'PresenceActions', 'PresenceSubscribeUtils', 'ContactStore'];
+    // Probe the module system
+    const modSysInfo = await client.pupPage.evaluate(() => {
+      const result = {
+        has__d: typeof window.__d === 'function',
+        has__r: typeof window.__r === 'function',
+        requireKeys: window.require ? Object.keys(window.require).join(',') : null,
+        requireLazyKeys: window.requireLazy ? Object.keys(window.requireLazy).join(',') : null,
+        requireInteropKeys: window.requireInterop ? Object.keys(window.requireInterop).join(',') : null,
+      };
+      // Try require() directly for known names — errors tell us if wrong name
+      const names = ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceStore', 'ContactStore',
+                     'WAWebContactStore', 'WAWebPresenceStore', 'WABizPresenceUtils'];
+      result.requireDirect = {};
       for (const name of names) {
         try {
-          window.requireLazy([name], (mod) => {
-            results[name] = mod ? Object.keys(mod).filter(k => typeof mod[k] === 'function').slice(0, 8).join(',') : 'null';
-          });
-          if (!(name in results)) results[name] = 'pending';
-        } catch(e) { results[name] = 'err:' + e.message; }
+          const m = window.require(name);
+          result.requireDirect[name] = m ? 'found:' + Object.keys(m).slice(0, 5).join(',') : 'null';
+        } catch(e) { result.requireDirect[name] = 'err:' + e.message.slice(0, 60); }
       }
-      return results;
+      // Check Meta module system internals
+      result.has__modulesMap = !!(window.__d && window.__d.moduleMap);
+      // Enumerate requireLazy's internal registry if accessible
+      try {
+        const rl = window.requireLazy;
+        const internals = Object.keys(rl).join(',');
+        result.requireLazyInternals = internals;
+      } catch(e) {}
+      return result;
     });
-    dbg('requireLazy test:', JSON.stringify(reqTest));
-
-    // Also scan chunks for any module referencing lastSeen
-    const lastSeenChunk = await client.pupPage.evaluate(() => {
-      for (const chunk of (window.webpackChunkwhatsapp_web_client || [])) {
-        for (const [id, factory] of Object.entries(chunk[1] || {})) {
-          try {
-            if (/lastSeen/.test(factory.toString())) return { id, src: factory.toString().slice(0, 300) };
-          } catch(e) {}
-        }
-      }
-      return null;
-    });
-    if (lastSeenChunk) dbg('lastSeen chunk found:', JSON.stringify({ id: lastSeenChunk.id, src: lastSeenChunk.src.slice(0, 150) }));
+    dbg('modSys:', JSON.stringify(modSysInfo));
 
     const jids = [...new Set([chatId, cusJid].filter(Boolean))];
     const lastSeen = await client.pupPage.evaluate((jids) => {
