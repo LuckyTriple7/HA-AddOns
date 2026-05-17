@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.54] - 2026-05-17
+
+### Geändert
+- Diagnose erweitert: wenn `window.Store` fehlt, werden alle window-Globals nach Store-ähnlichen Objekten, webpack-Chunks und require-Funktion gescannt
+
 ## [1.1.53] - 2026-05-17
 
 ### Geändert

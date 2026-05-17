@@ -555,11 +555,33 @@ app.get('/api/presence/:chatId', async (req, res) => {
     // Dump Store structure once for diagnosis
     const storeInfo = await client.pupPage.evaluate(() => {
       const s = window.Store;
-      if (!s) return { storeExists: false };
-      const keys = Object.keys(s);
-      // Look for any key that smells like presence or contact
-      const interesting = keys.filter(k => /presence|contact|chat|wid|lid/i.test(k));
-      return { storeExists: true, keyCount: keys.length, keys: keys.slice(0, 40).join(','), interesting: interesting.join(',') };
+      if (s) {
+        const keys = Object.keys(s);
+        const interesting = keys.filter(k => /presence|contact|chat|wid|lid/i.test(k));
+        return { storeExists: true, keyCount: keys.length, keys: keys.slice(0, 40).join(','), interesting: interesting.join(',') };
+      }
+      // Store not found — scan window for Store-like globals
+      const waKeys = Object.keys(window).filter(k =>
+        /store|WPP|WWeb|webpack|require|whatsapp/i.test(k) ||
+        (window[k] && typeof window[k] === 'object' && window[k].Contact && window[k].Chat)
+      );
+      const hasChunks = !!(window.webpackChunkwhatsapp_web_client);
+      const hasRequire = typeof window.require === 'function';
+      // Try to access modules via webpack require if available
+      let presenceMod = null;
+      if (hasRequire) {
+        try {
+          const mods = window.require.m || {};
+          const ids = Object.keys(mods).slice(0, 500);
+          for (const id of ids) {
+            try {
+              const m = window.require(id);
+              if (m && typeof m.sendPresenceSubscribe === 'function') { presenceMod = id; break; }
+            } catch(e) {}
+          }
+        } catch(e) {}
+      }
+      return { storeExists: false, waKeys: waKeys.join(','), hasChunks, hasRequire, presenceMod };
     });
     dbg('presence store-keys:', JSON.stringify(storeInfo));
 
