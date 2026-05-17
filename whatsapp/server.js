@@ -543,151 +543,6 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
-app.get('/api/presence/:chatId', async (req, res) => {
-  const { chatId } = req.params;
-  if (status !== 'connected') return res.json({ lastSeen: null });
-  try {
-    if (chatId.endsWith('@g.us')) {
-      const chat = await client.getChatById(chatId);
-      return res.json({ isGroup: true, memberCount: chat.participants?.length || 0 });
-    }
-
-    // Resolve @lid → @c.us JID via WWebJS.getContact
-    const cusJid = await client.pupPage.evaluate(async (jid) => {
-      try {
-        const c = window.WWebJS?.getContact ? await window.WWebJS.getContact(jid) : null;
-        return c?.id?._serialized || null;
-      } catch(e) { return null; }
-    }, chatId);
-    dbg(`presence ${chatId} cusJid=${cusJid}`);
-
-    // Node.js side: check client API for presence methods
-    const clientPresenceMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(client))
-      .filter(k => /pres|last.*seen|subscribe/i.test(k));
-    dbg('client presence methods:', clientPresenceMethods.join(',') || 'none');
-
-    const jids = [...new Set([chatId, cusJid].filter(Boolean))];
-    const result = await client.pupPage.evaluate(async (jids) => {
-      const out = { lastSeen: null, dbg: {} };
-
-      // 1. Direct Store.Presence access + scan window for store-like globals
-      out.dbg.storeExists = !!window.Store;
-      const storeGlobals = Object.getOwnPropertyNames(window).filter(k =>
-        /store|presence/i.test(k) && k !== 'Store' && typeof window[k] === 'object' && window[k]
-      );
-      out.dbg.storeGlobals = storeGlobals;
-      // Try window.Store and any store-like globals for Presence
-      for (const storeName of ['Store', ...storeGlobals]) {
-        const s = window[storeName];
-        if (s?.Presence) {
-          for (const j of jids) {
-            try {
-              const p = await s.Presence.get(j);
-              if (p?.lastSeen != null) { out.lastSeen = p.lastSeen; out.dbg.src = storeName + '.Presence'; return out; }
-            } catch(e) {}
-          }
-        }
-      }
-
-      // 2. WWebJS.getChat — serialize the chat model and inspect ALL keys
-      for (const j of jids) {
-        try {
-          const chat = window.WWebJS?.getChat ? await window.WWebJS.getChat(j) : null;
-          if (chat && typeof chat === 'object') {
-            const allKeys = Object.keys(chat);
-            const presKeys = allKeys.filter(k => /last|seen|pres|online|status|avail/i.test(k));
-            const presData = {};
-            for (const k of presKeys) { try { presData[k] = chat[k]; } catch(e) {} }
-            out.dbg['chat_' + j] = { totalKeys: allKeys.length, presKeys, presData };
-            // Check nested contact object
-            if (chat.contact && typeof chat.contact === 'object') {
-              const ck = Object.keys(chat.contact);
-              const cpk = ck.filter(k => /last|seen|pres|online|status|avail/i.test(k));
-              const cpd = {};
-              for (const k of cpk) { try { cpd[k] = chat.contact[k]; } catch(e) {} }
-              out.dbg['chatContact_' + j] = { totalKeys: ck.length, presKeys: cpk, presData: cpd };
-              if (chat.contact.lastSeen != null) {
-                out.lastSeen = chat.contact.lastSeen; out.dbg.src = 'chat.contact.lastSeen'; return out;
-              }
-            }
-          } else {
-            out.dbg['chat_' + j] = null;
-          }
-        } catch(e) { out.dbg['chat_' + j] = 'err:' + e.message.slice(0, 60); }
-      }
-
-      // 3. Monkeypatch Object.prototype.toJSON to capture raw contact model from WWebJS.getContact
-      //    (getContact works and presumably calls contact.toJSON() internally)
-      for (const j of jids) {
-        try {
-          const capturedModels = [];
-          const hadToJSON = Object.prototype.hasOwnProperty('toJSON');
-          const origToJSON = Object.prototype.toJSON;
-          Object.prototype.toJSON = function() {
-            capturedModels.push(this);
-            return Object.assign({}, this);
-          };
-          try { await window.WWebJS.getContact(j); } catch(e) {}
-          if (hadToJSON) Object.prototype.toJSON = origToJSON; else delete Object.prototype.toJSON;
-
-          for (let i = 0; i < capturedModels.length; i++) {
-            const m = capturedModels[i];
-            const ownKeys = Object.getOwnPropertyNames(m);
-            const presKeys = ownKeys.filter(k => /last|seen|pres|online|status|avail/i.test(k));
-            if (presKeys.length > 0 || i === 0) {
-              const presData = {};
-              for (const k of presKeys) { try { presData[k] = m[k]; } catch(e) {} }
-              out.dbg['toJSON_' + i + '_' + j] = { ctor: m?.constructor?.name, ownKeyCount: ownKeys.length, presKeys, presData };
-            }
-          }
-          out.dbg['toJSONCnt_' + j] = capturedModels.length;
-        } catch(e) { out.dbg['toJSONErr_' + j] = e.message.slice(0, 60); }
-      }
-
-      // 4. requireLazy subscription + read (last resort, 5s timeout)
-      const lazyResult = await new Promise((resolve) => {
-        let resolved = false;
-        const done = (val) => { if (!resolved) { resolved = true; resolve(val ?? null); } };
-        setTimeout(() => done(null), 5000);
-        const tryLazy = (name, fn) => { try { window.requireLazy([name], fn); } catch(e) {} };
-        const readPresence = () => {
-          for (const storeName of ['ContactStore', 'ContactPresenceStore', 'PresenceStore']) {
-            tryLazy(storeName, (store) => {
-              if (resolved) return;
-              for (const j of jids) {
-                const c = store?.get?.(j) || store?.getContact?.(j) || store?.find?.(j);
-                if (c?.lastSeen != null) { done(c.lastSeen); return; }
-                if (c?.presence?.lastSeen != null) { done(c.presence.lastSeen); return; }
-              }
-            });
-          }
-        };
-        for (const name of ['PresenceUtils', 'WAWebPresenceUtils', 'PresenceActions', 'PresenceSubscribeUtils']) {
-          tryLazy(name, (mod) => {
-            for (const j of jids) {
-              try { mod?.sendPresenceSubscribe?.(j); } catch(e) {}
-              try { mod?.subscribe?.(j); } catch(e) {}
-              try { mod?.subscribePresence?.(j); } catch(e) {}
-            }
-          });
-        }
-        setTimeout(readPresence, 2000);
-        setTimeout(readPresence, 4000);
-      });
-      if (lazyResult != null) { out.lastSeen = lazyResult; out.dbg.src = 'requireLazy'; }
-
-      return out;
-    }, jids);
-
-    dbg(`presence ${chatId}: lastSeen=${result.lastSeen} src=${result.dbg?.src}`);
-    dbg('presence dbg:', JSON.stringify(result.dbg));
-    res.json({ lastSeen: result.lastSeen ?? null });
-  } catch (e) {
-    console.error('[ERROR] presence:', e.message);
-    res.json({ lastSeen: null });
-  }
-});
-
 app.post('/api/fetch-media/:chatId', async (req, res) => {
   const { chatId } = req.params;
   const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
@@ -841,7 +696,6 @@ app.get('/', (req, res) => {
     #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
-    #ch-lastseen { font-size: 12px; color: #8696a0; margin-top: 1px; }
     #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
     #fetch-media-btn:hover { border-color: #25d366; color: #25d366; }
     #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
@@ -986,7 +840,6 @@ app.get('/', (req, res) => {
     html.light #chat-header { background: #075e54; border-color: #075e54; }
     html.light #ch-name { color: #fff; }
     html.light #ch-phone { color: rgba(255,255,255,0.75); }
-    html.light #ch-lastseen { color: rgba(255,255,255,0.75); }
     html.light #welcome { color: #555; }
     html.light .bubble-wrap.in .bubble { background: #fff; color: #111; }
     html.light .bubble-wrap.out .bubble { background: #dcf8c6; color: #111; }
@@ -1056,7 +909,6 @@ app.get('/', (req, res) => {
         <div>
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
-          <div id="ch-lastseen"></div>
         </div>
         ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
       </div>
@@ -1267,8 +1119,6 @@ app.get('/', (req, res) => {
       document.getElementById('ch-name').textContent = chat.name;
       const ph = chat.phone || '';
       document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
-      document.getElementById('ch-lastseen').textContent = '';
-      fetchPresence(chat.id);
 
       lastSeenTime[chat.id] = chat.lastTime || Date.now();
       renderChatList(allChats);
@@ -1378,44 +1228,6 @@ app.get('/', (req, res) => {
         }
       });
       if (atBottom) msgList.scrollTop = msgList.scrollHeight;
-    }
-
-    function fmtLastSeen(ts) {
-      const d = new Date(ts > 1e10 ? ts : ts * 1000);
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const yesterday = new Date(today.getTime() - 86400000);
-      const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-      if (day.getTime() === today.getTime()) return 'heute um ' + time;
-      if (day.getTime() === yesterday.getTime()) return 'gestern um ' + time;
-      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + '. um ' + time;
-    }
-
-    async function fetchPresence(chatId) {
-      const el = document.getElementById('ch-lastseen');
-      if (!el) return;
-      el.textContent = '';
-
-      const tryFetch = async () => {
-        if (chatId !== selectedChatId) return true; // chat changed, stop
-        try {
-          const d = await fetch('api/presence/' + encodeURIComponent(chatId)).then(r => r.json());
-          if (chatId !== selectedChatId) return true;
-          if (d.isGroup) {
-            el.textContent = d.memberCount ? d.memberCount + ' Mitglieder' : '';
-            return true;
-          } else if (d.lastSeen) {
-            el.textContent = 'Zuletzt gesehen ' + fmtLastSeen(d.lastSeen);
-            return true;
-          }
-          return false;
-        } catch(e) { return false; }
-      };
-
-      if (await tryFetch()) return;
-      // WhatsApp presence subscription takes a few seconds — retry
-      setTimeout(async () => { if (!await tryFetch()) setTimeout(tryFetch, 5000); }, 3000);
     }
 
     async function reloadMessages(chatId) {

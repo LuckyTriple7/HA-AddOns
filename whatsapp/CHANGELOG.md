@@ -1,77 +1,10 @@
 # Changelog
 
-## [1.1.62] - 2026-05-17
+## [1.2.0] - 2026-05-17
 
 ### Geändert
-- Diagnose: scannt window-Globals auf Store-ähnliche Objekte mit Presence-Eigenschaft; testet `WWebJS.getChat(jid)` (Äquivalent zu Store.Chat.get) und inspiziert alle Keys inklusive verschachteltem `contact`; Monkeypatch auf `Object.prototype.toJSON` fängt rohen Kontakt bei `WWebJS.getContact()`-Aufruf ab
-- Node.js-Seite: listet alle Presence-Methoden des client-Objekts
-
-## [1.1.61] - 2026-05-17
-
-### Geändert
-- Diagnose: abgefangenes Objekt wird vollständig typisiert (`type`, `ctor`, `isStr`, `isArr`, `ownKeys`), alle Methoden aus der Prototypkette gelistet; alle WWebJS-Funktionsnamen gedumpt; unbekannte Presence-Funktionen wie `getPresence`, `subscribePresence`, `getLastSeen` etc. werden versucht
-
-## [1.1.60] - 2026-05-17
-
-### Geändert
-- Presence: Object.prototype.serialize-Monkeypatch fängt internen Kontakt-Model ab (WWebJS.getContactModel wirft „serialize is not a function" — JS sucht Prototypkette und findet unseren Patch); aus dem Kontaktobjekt werden lastSeen und presence-Keys gelesen; Navigation zur Store.Presence via contact.collection versucht; direkter Store.Presence-Zugriff bleibt Schritt 1; requireLazy als Fallback bleibt
-- Debug-Log zeigt `cap_jid`, `pkeys_jid`, `pdata_jid`, `collName`, `collKeys` und `src`-Feld
-
-## [1.1.59] - 2026-05-17
-
-### Geändert
-- Diagnose: testet WWebJS.getContactModel / getChatModel (interne rohe Modelle) und requireDynamic nach Presence-Daten
-
-## [1.1.58] - 2026-05-17
-
-### Geändert
-- Diagnose: testet require() direkt (Fehlermeldung zeigt ob Modulname falsch), prüft Meta-Modulsystem (__d/__r), liest requireLazy-Interna aus
-
-## [1.1.57] - 2026-05-17
-
-### Geändert
-- Presence komplett neu: löst @lid → @c.us JID via WWebJS.getContact; testet requireLazy mit WhatsApp-internen Modulnamen; scannt Chunks nach lastSeen-Referenzen; subscribt über requireLazy-Module
-
-## [1.1.56] - 2026-05-17
-
-### Geändert
-- Diagnose: scannt require.c (Modul-Cache), webpackChunk-Factories und WWebJS.getContact-Rückgabe nach Presence-Daten
-
-## [1.1.55] - 2026-05-17
-
-### Geändert
-- Diagnose: scannt WWebJS-Namespace und ALLE webpack-Module nach Presence+Subscribe per Quelltext-Suche
-
-## [1.1.54] - 2026-05-17
-
-### Geändert
-- Diagnose erweitert: wenn `window.Store` fehlt, werden alle window-Globals nach Store-ähnlichen Objekten, webpack-Chunks und require-Funktion gescannt
-
-## [1.1.53] - 2026-05-17
-
-### Geändert
-- „Zuletzt gesehen" Diagnose: Store-Keys werden geloggt; `@lid`-JIDs werden in `@c.us`/`@s.whatsapp.net` umgewandelt und alle Varianten werden im Store geprüft; alle Kontakte werden nach Übereinstimmung durchsucht
-
-## [1.1.52] - 2026-05-17
-
-### Behoben
-- „Zuletzt gesehen": neuer Ansatz mit `Object.defineProperty`-Watcher — statt zu pollen wird direkt beobachtet wenn WhatsApp `lastSeen` im Contact/Chat-Objekt setzt; Auflösung erfolgt sofort wenn Daten eintreffen (max. 5,5s Timeout)
-- Debug-Logging für Presence erweitert: bei aktiviertem `debug_mode` werden verfügbare Store/WPP-Namespaces und Ausgangswerte geloggt — hilft bei der Diagnose
-
-## [1.1.51] - 2026-05-17
-
-### Behoben
-- „Zuletzt gesehen" zuverlässiger: alle Presence-Subscription-Methoden werden jetzt vollständig durchprobiert (kein vorzeitiges `break`); WPP-API (von whatsapp-web.js injiziert) wird bevorzugt; statt einmaligem 3,5s-Warten wird alle 600ms gepollt (bis zu 5,4s) und sofort zurückgegeben sobald Daten vorhanden sind
-
-## [1.1.50] - 2026-05-17
-
-### Behoben
-- „Zuletzt gesehen" wurde nicht angezeigt — WhatsApp Web braucht ein paar Sekunden für die Presence-Subscription; Server liest nun zusätzlich aus `window.Store.Contact`; Client wiederholt die Anfrage nach 3 und 8 Sekunden automatisch
-
-## [1.1.49] - 2026-05-17
-
-### Neu
-- „Zuletzt gesehen"-Anzeige im Chat-Header — zeigt z.B. „Zuletzt gesehen heute um 14:30" oder „gestern um 09:15"; bei Gruppen wird die Mitgliederanzahl angezeigt; nur sichtbar wenn der Kontakt die Anzeige in seinen Datenschutz-Einstellungen erlaubt
+- Gruppen-Mitgliederzahl im Chat-Header — zeigt bei Gruppen die Anzahl der Mitglieder an
+- „Zuletzt gesehen"-Funktion entfernt — WhatsApp Web v1.26+ legt `window.Store` nicht mehr global ab; Presence-Subscription ist über die verfügbare API nicht zugänglich
 
 ## [1.1.48] - 2026-05-17
 
