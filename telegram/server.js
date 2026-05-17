@@ -536,8 +536,8 @@ html.dark #topbar { background: #232E3C; color: #fff; }
 html.light #topbar { background: #517DA2; color: #fff; }
 #topbar h1 { font-size: 17px; flex: 1; }
 #topbar .uname { font-size: 13px; opacity: 0.7; }
-#logout-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-#logout-btn:hover { background: rgba(255,255,255,0.1); }
+#logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
+#logout-btn:hover { color: #f15c5c; }
 #photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; opacity: 0.55; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #photo-toggle.active { opacity: 1; background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.8); }
@@ -700,7 +700,7 @@ html.light #emoji-toggle { color: #888; }
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()">Fotos AN</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
-  <button id="logout-btn" onclick="logout()">Abmelden</button>
+  <button id="logout-btn" onclick="logout()" title="Abmelden">⏻</button>
 </div>
 
 <div id="main">

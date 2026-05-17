@@ -541,6 +541,8 @@ app.get('/', (req, res) => {
     }
     .photo-toggle-btn:hover { opacity: 0.8; }
     .photo-toggle-btn.active { opacity: 1; background: rgba(37,211,102,0.15); border-color: #25d366; color: #25d366; }
+    .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; opacity: 0.55; line-height: 1; }
+    .scroll-btn:hover { opacity: 0.8; }
     .photo-placeholder { display: none; }
     body.hide-photos .msg-img { display: none !important; }
     body.hide-photos .photo-placeholder { display: inline; }
@@ -764,6 +766,8 @@ app.get('/', (req, res) => {
     <span class="status-label" id="status-label">Verbunden</span>
     <div class="status-dot connected" id="status-dot"></div>
     ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()">Fotos AN</button>' : ''}
+    <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
+    <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
     <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
   </div>
 
@@ -849,6 +853,12 @@ app.get('/', (req, res) => {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
     }
+    function scrollMsgs(dir) {
+      const el = document.getElementById('msgList');
+      if (!el) return;
+      el.scrollTop = dir === 'top' ? 0 : el.scrollHeight;
+    }
+
     function togglePhotos() {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);

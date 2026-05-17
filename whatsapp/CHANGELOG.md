@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.39] - 2026-05-17
+
+### Neu
+- Scroll-Buttons ↑ ↓ in der Topbar — springt direkt an den Anfang oder das Ende der Nachrichten
+
 ## [1.1.38] - 2026-05-16
 
 ### Behoben

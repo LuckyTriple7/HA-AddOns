@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.34] - 2026-05-17
+
+### Geändert
+- Abmelden-Button als ⏻-Symbol (wie WhatsApp)
+
 ## [1.0.33] - 2026-05-17
 
 ### Neu
