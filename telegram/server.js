@@ -470,6 +470,23 @@ app.post('/api/logout', async (req, res) => {
 
 setInterval(loadDialogs, 60000);
 
+function getDirSize(dir) {
+  let total = 0;
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) total += getDirSize(full);
+      else if (entry.isFile()) { try { total += fs.statSync(full).size; } catch (e) {} }
+    }
+  } catch (e) {}
+  return total;
+}
+
+app.get('/api/storage', (req, res) => {
+  const bytes = getDirSize('/data');
+  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+});
+
 app.get('/api/media/:filename', (req, res) => {
   const { filename } = req.params;
   if (!/^[\w.-]+$/.test(filename)) return res.status(400).end();
@@ -536,6 +553,7 @@ html.dark #topbar { background: #232E3C; color: #fff; }
 html.light #topbar { background: #517DA2; color: #fff; }
 #topbar h1 { font-size: 17px; flex: 1; }
 #topbar .uname { font-size: 13px; opacity: 0.7; }
+#storage-info { font-size: 12px; opacity: 0.6; white-space: nowrap; }
 #logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
 #logout-btn:hover { color: #f15c5c; }
 #photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; opacity: 0.55; }
@@ -697,6 +715,7 @@ html.light #emoji-toggle { color: #888; }
 <div id="topbar">
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
+  <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()">Fotos AN</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
@@ -758,6 +777,16 @@ function scrollMsgs(dir) {
   if (!el) return;
   el.scrollTop = dir === 'top' ? 0 : el.scrollHeight;
 }
+
+async function loadStorage() {
+  try {
+    const d = await fetch(api('/api/storage')).then(r => r.json());
+    const el = document.getElementById('storage-info');
+    if (el) el.textContent = '💾 ' + d.mb + ' MB';
+  } catch(e) {}
+}
+loadStorage();
+setInterval(loadStorage, 60000);
 
 function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
