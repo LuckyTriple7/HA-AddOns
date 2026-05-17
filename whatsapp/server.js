@@ -513,6 +513,24 @@ app.get('/api/storage', (req, res) => {
   res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
 });
 
+app.post('/api/cleanup-media', (req, res) => {
+  try {
+    const referenced = new Set();
+    for (const msgs of messagesByChatId.values())
+      for (const m of msgs)
+        if (m.mediaFile) referenced.add(m.mediaFile);
+    const files = fs.readdirSync(MEDIA_DIR);
+    let count = 0, freed = 0;
+    for (const f of files) {
+      if (!referenced.has(f)) {
+        const fp = `${MEDIA_DIR}/${f}`;
+        try { freed += fs.statSync(fp).size; fs.unlinkSync(fp); count++; } catch(e) {}
+      }
+    }
+    res.json({ deleted: count, freedMb: (freed / (1024 * 1024)).toFixed(1) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/reset', async (req, res) => {
   res.json({ success: true });
   try { rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true }); } catch(e) {}
@@ -884,6 +902,7 @@ app.get('/', (req, res) => {
     <div class="status-dot connected" id="status-dot" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()">Fotos AN</button>' : ''}
+    ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
     <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
@@ -981,6 +1000,15 @@ app.get('/', (req, res) => {
     }
     loadStorage();
     setInterval(loadStorage, 60000);
+
+    async function cleanupMedia() {
+      if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
+      try {
+        const d = await fetch('api/cleanup-media', { method: 'POST' }).then(r => r.json());
+        alert(`${d.deleted} Datei(en) gelöscht, ${d.freedMb} MB freigegeben.`);
+        loadStorage();
+      } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
+    }
 
     function scrollMsgs(dir) {
       const el = document.getElementById('messages');

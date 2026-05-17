@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.7] - 2026-05-17
+
+### Neu
+- 🗑️-Button in der Topbar (nur bei `download_media: true`): löscht verwaiste Mediendateien die von keiner geladenen Nachricht mehr referenziert werden
+
 ## [1.2.6] - 2026-05-17
 
 ### Behoben
