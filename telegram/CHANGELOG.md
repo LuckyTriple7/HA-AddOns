@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.7] - 2026-05-17
+
+### Behoben
+- Reactions-Bar erschien rechts neben der Blase statt darunter — neues `.bubble-stack`-Div (column-flex) umschließt Blase + Bar; `react-btn` und `del-btn` bleiben Geschwister davon in `.bubble-row-inner` (row-flex)
+- 😊-Button erschien mittig im Foto bei Bildnachrichten — `bubble-row-inner` hat jetzt `align-items: flex-end`, Buttons erscheinen unten rechts/links neben der Blase, nie überlappend
+
 ## [1.1.6] - 2026-05-17
 
 ### Behoben
