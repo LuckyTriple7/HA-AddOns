@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2026-05-17
+
+### Behoben
+- Refresh-Button lud keine Nachrichten nach — `seenMsgIds` enthielt noch alle IDs; werden jetzt vor dem Cache-Reset entfernt
+
 ## [1.1.1] - 2026-05-17
 
 ### Neu

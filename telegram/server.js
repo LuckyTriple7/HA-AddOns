@@ -404,6 +404,7 @@ app.get('/api/chats', (req, res) => {
 app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
   if (req.query.refresh === '1' && status === 'connected') {
+    (messagesByChatId.get(chatId) || []).forEach(m => seenMsgIds.delete(m.id));
     messagesByChatId.delete(chatId);
     await fetchMessages(chatId);
     return res.json(messagesByChatId.get(chatId) || []);
