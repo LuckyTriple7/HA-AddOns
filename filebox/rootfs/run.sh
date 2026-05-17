@@ -18,10 +18,8 @@ if [ ! -f "$DB" ]; then
     wait "$FB_PID" 2>/dev/null || true
 fi
 
-# Konfigurierte Zugangsdaten anlegen (erster Start) oder Passwort aktualisieren
-filebrowser users add "$USERNAME" "$PASSWORD" --perm.admin --database "$DB" 2>/dev/null \
-    || filebrowser users update "$USERNAME" --password "$PASSWORD" --database "$DB" 2>/dev/null \
-    || true
+# Konfigurierte Zugangsdaten setzen — update nutzt ID 1 (einziger Admin-User)
+filebrowser users update 1 --username "$USERNAME" --password "$PASSWORD" --database "$DB" 2>/dev/null || true
 
 exec filebrowser \
     --database "$DB" \

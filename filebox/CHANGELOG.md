@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.4] - 2026-05-17
+
+### Behoben
+- `users update` nutzt jetzt User-ID `1` statt Benutzername — v2.63.3 akzeptiert keinen Namen als Argument; konfigurierbarer Username/Password funktioniert jetzt korrekt
+
 ## [0.0.3] - 2026-05-17
 
 ### Neu
