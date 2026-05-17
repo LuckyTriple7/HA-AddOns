@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.48] - 2026-05-17
+
+### Behoben
+- Weißer Rahmen um empfangene Fotos — Foto-Bubbles haben jetzt padding:0 + overflow:hidden; die Bubble selbst stellt die abgerundeten Ecken bereit; Beschriftungen und Uhrzeit behalten eigenes Padding
+
 ## [1.1.47] - 2026-05-17
 
 ### Neu

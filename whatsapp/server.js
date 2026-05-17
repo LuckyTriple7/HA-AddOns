@@ -743,6 +743,9 @@ app.get('/', (req, res) => {
     .reaction-badge:hover { opacity: 0.8; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
+    .bubble.bubble-photo { padding: 0; overflow: hidden; }
+    .bubble.bubble-photo .time { display: block; padding: 2px 8px 4px; text-align: right; }
+    .bubble.bubble-photo .caption { padding: 4px 10px 0; }
     .bubble .time {
       font-size: 10px; color: rgba(134,150,160,0.85);
       float: right; margin-left: 8px; margin-top: 2px; white-space: nowrap;
@@ -1172,17 +1175,18 @@ app.get('/', (req, res) => {
         bub.className = 'bubble';
         const ack = m.fromMe ? ackMark(m.ack || 0) : '';
         if (m.type === 'photo' && m.mediaFile) {
+          bub.classList.add('bubble-photo');
           const ph = document.createElement('span');
           ph.className = 'photo-placeholder'; ph.textContent = '📷 Foto';
           bub.appendChild(ph);
           const img = document.createElement('img');
           img.className = 'msg-img';
           img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
-          img.style.cssText = 'max-width:240px;max-height:300px;border-radius:8px;display:block;cursor:pointer';
+          img.style.cssText = 'max-width:240px;max-height:300px;display:block;cursor:pointer;width:100%;';
           img.loading = 'lazy';
           img.addEventListener('click', function() { this.style.maxWidth = this.style.maxWidth === 'none' ? '240px' : 'none'; });
           bub.appendChild(img);
-          if (m.body) { const cap = document.createElement('div'); cap.style.marginTop = '4px'; cap.textContent = m.body; bub.appendChild(cap); }
+          if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.textContent = m.body; bub.appendChild(cap); }
           const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
         } else {
           bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
