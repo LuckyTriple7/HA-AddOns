@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.10] - 2026-05-17
+
+### Behoben
+- Reaktionszahlen beim Laden von Nachrichten falsch — `processMessage` liest jetzt `rawMsg.reactions.results` aus dem GramJS-Objekt; historische Nachrichten zeigen damit direkt die echten Telegram-Zähler statt nur lokal gesetzte Werte
+- `savedReactions` beim Reload nur noch als Fallback wenn Telegram keine Daten liefert (nicht mehr überschreibend)
+
 ## [1.1.9] - 2026-05-17
 
 ### Behoben

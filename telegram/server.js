@@ -219,9 +219,22 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   const body = rawMsg.message || (type === 'photo' && !mediaFile ? '📷 Foto' : '');
   const preview = body || (type === 'photo' ? '📷 Foto' : '[Medien]');
 
+  const msgReactions = {};
+  let msgMyReaction = null;
+  for (const r of (rawMsg.reactions?.results || [])) {
+    const em = r.reaction?.emoticon;
+    if (em && r.count > 0) msgReactions[em] = r.count;
+  }
+  for (const rr of (rawMsg.reactions?.recentReactions || [])) {
+    if (rr.self) { msgMyReaction = rr.reaction?.emoticon || null; break; }
+  }
+
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   const msgs = messagesByChatId.get(chatId);
-  msgs.push({ id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0 });
+  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0 };
+  if (Object.keys(msgReactions).length) msgObj.reactions = msgReactions;
+  if (msgMyReaction) msgObj.myReaction = msgMyReaction;
+  msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   if (msgs.length > MAX_MSGS) msgs.splice(0, msgs.length - MAX_MSGS);
 
@@ -432,8 +445,9 @@ app.get('/api/messages/:chatId', async (req, res) => {
     await fetchMessages(chatId);
     for (const m of (messagesByChatId.get(chatId) || [])) {
       const saved = savedReactions.get(m.id);
-      if (saved?.reactions && Object.keys(saved.reactions).length) m.reactions = saved.reactions;
-      if (saved?.myReaction) m.myReaction = saved.myReaction;
+      if (!saved) continue;
+      if (!m.myReaction && saved.myReaction) m.myReaction = saved.myReaction;
+      if ((!m.reactions || !Object.keys(m.reactions).length) && Object.keys(saved.reactions || {}).length) m.reactions = saved.reactions;
     }
     return res.json(messagesByChatId.get(chatId) || []);
   }
