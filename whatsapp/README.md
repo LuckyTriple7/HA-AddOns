@@ -19,7 +19,6 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 |--------|----------|--------------|
 | `dark_mode` | `true` | `true` = dunkles Theme, `false` = helles Theme |
 | `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen (funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten) |
-| `webhook_url` | — | URL für Bestätigung gesendeter Nachrichten |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `initial_chats` | `30` | Anzahl Chats die beim Start geladen werden |
 | `initial_messages` | `20` | Nachrichten pro Chat die beim Start geladen werden |
@@ -69,6 +68,8 @@ curl -X POST http://<HA-IP>:3000/api/send \
 
 ## HA-Automatisierung (Beispiel)
 
+### Nachricht senden aus einer Automatisierung
+
 `configuration.yaml`:
 ```yaml
 rest_command:
@@ -87,6 +88,58 @@ action:
       to: "4915123456789"
       message: "Bewegung erkannt!"
 ```
+
+### Webhook — auf eingehende Nachrichten reagieren
+
+**1. Add-on konfigurieren:**
+```
+webhook_incoming: http://homeassistant:8123/api/webhook/whatsapp
+```
+
+**2. Automatisierung in HA anlegen:**
+
+> **Wichtig:** `local_only: false` setzen — Anfragen aus dem Docker-Netzwerk werden sonst blockiert.
+
+Benachrichtigung bei jeder eingehenden Nachricht:
+```yaml
+alias: WhatsApp eingehend
+triggers:
+  - trigger: webhook
+    webhook_id: whatsapp
+    allowed_methods:
+      - POST
+    local_only: false
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "WhatsApp"
+      message: "{{ trigger.json.from }}: {{ trigger.json.body }}"
+```
+
+Auf ein Schlüsselwort reagieren (z.B. „Licht an"):
+```yaml
+alias: WhatsApp Licht steuern
+triggers:
+  - trigger: webhook
+    webhook_id: whatsapp
+    local_only: false
+conditions:
+  - condition: template
+    value_template: "{{ 'licht an' in (trigger.json.body | lower) }}"
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.wohnzimmer
+```
+
+**Verfügbare Variablen im Webhook:**
+
+| Variable | Inhalt |
+|----------|--------|
+| `trigger.json.from` | Absender (z.B. `4915123456789@c.us`) |
+| `trigger.json.body` | Nachrichtentext |
+| `trigger.json.type` | Typ (`chat`, `image`, …) |
+| `trigger.json.timestamp` | Unix-Zeitstempel (Sekunden) |
 
 ## Updates
 
@@ -130,7 +183,6 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 |--------|---------|-------------|
 | `dark_mode` | `true` | `true` = dark theme, `false` = light theme |
 | `download_media` | `false` | Automatically download and display received photos (only works reliably for newly incoming messages, not for historical ones) |
-| `webhook_url` | — | URL for confirmation of sent messages |
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `initial_chats` | `30` | Number of chats loaded on startup |
 | `initial_messages` | `20` | Messages per chat loaded on startup |
@@ -180,6 +232,8 @@ curl -X POST http://<HA-IP>:3000/api/send \
 
 ## HA Automation (example)
 
+### Send a message from an automation
+
 `configuration.yaml`:
 ```yaml
 rest_command:
@@ -198,6 +252,58 @@ action:
       to: "4915123456789"
       message: "Motion detected!"
 ```
+
+### Webhook — react to incoming messages
+
+**1. Configure the add-on:**
+```
+webhook_incoming: http://homeassistant:8123/api/webhook/whatsapp
+```
+
+**2. Create an automation in HA:**
+
+> **Important:** Set `local_only: false` — requests from the Docker network are otherwise blocked.
+
+Notification on every incoming message:
+```yaml
+alias: WhatsApp incoming
+triggers:
+  - trigger: webhook
+    webhook_id: whatsapp
+    allowed_methods:
+      - POST
+    local_only: false
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "WhatsApp"
+      message: "{{ trigger.json.from }}: {{ trigger.json.body }}"
+```
+
+React to a keyword (e.g. "lights on"):
+```yaml
+alias: WhatsApp control lights
+triggers:
+  - trigger: webhook
+    webhook_id: whatsapp
+    local_only: false
+conditions:
+  - condition: template
+    value_template: "{{ 'lights on' in (trigger.json.body | lower) }}"
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room
+```
+
+**Available variables in the webhook:**
+
+| Variable | Content |
+|----------|---------|
+| `trigger.json.from` | Sender (e.g. `4915123456789@c.us`) |
+| `trigger.json.body` | Message text |
+| `trigger.json.type` | Type (`chat`, `image`, …) |
+| `trigger.json.timestamp` | Unix timestamp (seconds) |
 
 ## Updates
 

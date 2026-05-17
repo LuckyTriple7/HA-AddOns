@@ -89,6 +89,8 @@ curl -X POST http://<HA-IP>:17778/api/send \
 
 ## HA-Automatisierung (Beispiel)
 
+### Nachricht senden aus einer Automatisierung
+
 `configuration.yaml`:
 ```yaml
 rest_command:
@@ -107,6 +109,58 @@ action:
       to: "123456789"
       message: "Bewegung erkannt!"
 ```
+
+### Webhook — auf eingehende Nachrichten reagieren
+
+**1. Add-on konfigurieren:**
+```
+webhook_incoming: http://homeassistant:8123/api/webhook/telegram
+```
+
+**2. Automatisierung in HA anlegen:**
+
+> **Wichtig:** `local_only: false` setzen — Anfragen aus dem Docker-Netzwerk werden sonst blockiert.
+
+Benachrichtigung bei jeder eingehenden Nachricht:
+```yaml
+alias: Telegram eingehend
+triggers:
+  - trigger: webhook
+    webhook_id: telegram
+    allowed_methods:
+      - POST
+    local_only: false
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Telegram von {{ trigger.json.name }}"
+      message: "{{ trigger.json.message }}"
+```
+
+Auf ein Schlüsselwort reagieren (z.B. „Licht an"):
+```yaml
+alias: Telegram Licht steuern
+triggers:
+  - trigger: webhook
+    webhook_id: telegram
+    local_only: false
+conditions:
+  - condition: template
+    value_template: "{{ 'licht an' in (trigger.json.message | lower) }}"
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.wohnzimmer
+```
+
+**Verfügbare Variablen im Webhook:**
+
+| Variable | Inhalt |
+|----------|--------|
+| `trigger.json.from` | Absender (Chat-ID, z.B. `123456789`) |
+| `trigger.json.name` | Name des Absenders |
+| `trigger.json.message` | Nachrichtentext |
+| `trigger.json.timestamp` | Unix-Zeitstempel (Millisekunden) |
 
 ## Updates
 
@@ -220,6 +274,8 @@ curl -X POST http://<HA-IP>:17778/api/send \
 
 ## HA Automation (example)
 
+### Send a message from an automation
+
 `configuration.yaml`:
 ```yaml
 rest_command:
@@ -238,6 +294,58 @@ action:
       to: "123456789"
       message: "Motion detected!"
 ```
+
+### Webhook — react to incoming messages
+
+**1. Configure the add-on:**
+```
+webhook_incoming: http://homeassistant:8123/api/webhook/telegram
+```
+
+**2. Create an automation in HA:**
+
+> **Important:** Set `local_only: false` — requests from the Docker network are otherwise blocked.
+
+Notification on every incoming message:
+```yaml
+alias: Telegram incoming
+triggers:
+  - trigger: webhook
+    webhook_id: telegram
+    allowed_methods:
+      - POST
+    local_only: false
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Telegram from {{ trigger.json.name }}"
+      message: "{{ trigger.json.message }}"
+```
+
+React to a keyword (e.g. "lights on"):
+```yaml
+alias: Telegram control lights
+triggers:
+  - trigger: webhook
+    webhook_id: telegram
+    local_only: false
+conditions:
+  - condition: template
+    value_template: "{{ 'lights on' in (trigger.json.message | lower) }}"
+actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.living_room
+```
+
+**Available variables in the webhook:**
+
+| Variable | Content |
+|----------|---------|
+| `trigger.json.from` | Sender (chat ID, e.g. `123456789`) |
+| `trigger.json.name` | Sender name |
+| `trigger.json.message` | Message text |
+| `trigger.json.timestamp` | Unix timestamp (milliseconds) |
 
 ## Updates
 
