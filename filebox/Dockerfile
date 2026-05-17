@@ -14,5 +14,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY rootfs/ /
 RUN chmod +x /run.sh
 
-EXPOSE 8080
+EXPOSE 17771
 CMD ["/run.sh"]

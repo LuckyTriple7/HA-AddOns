@@ -5,3 +5,4 @@
 ### Erstversion
 - FileBrowser als Web-Oberfläche für `/share`
 - Upload, Download, Ordnerverwaltung
+- Konfigurierbarer Port (Standard: 17771)

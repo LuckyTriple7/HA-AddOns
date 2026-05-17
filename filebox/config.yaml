@@ -14,12 +14,21 @@ init: false
 image: "ghcr.io/luckytriple7/filebox"
 
 ingress: true
-ingress_port: 8080
+ingress_port: 17771
 panel_icon: mdi:folder-open
 panel_title: FileBox
+
+ports:
+  17771/tcp: 17771
+
+ports_description:
+  17771/tcp: FileBox Web-UI
 
 map:
   - share:rw
 
-options: {}
-schema: {}
+options:
+  port: 17771
+
+schema:
+  port: int
