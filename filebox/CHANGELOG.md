@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.7] - 2026-05-17
+
+### Geändert
+- options.json vollständig ins Log ausgeben — zeigt ob Optionen korrekt gelesen werden
+- Optionswerte (PORT, SHOW_*) explizit loggen
+- else-Zweige der Symlink-Erstellung loggen
+
 ## [0.0.6] - 2026-05-17
 
 ### Geändert

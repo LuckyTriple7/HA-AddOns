@@ -4,12 +4,18 @@ set -e
 DB=/data/filebrowser.db
 ROOT=/data/filebox-root
 
+echo "=== options.json ==="
+cat /data/options.json 2>/dev/null || echo "FEHLER: /data/options.json nicht gefunden"
+echo "===================="
+
 PORT=$(jq -r '.port // 17771' /data/options.json 2>/dev/null || echo 17771)
 USERNAME=$(jq -r '.username // "admin"' /data/options.json 2>/dev/null || echo "admin")
 PASSWORD=$(jq -r '.password // "admin1234567"' /data/options.json 2>/dev/null || echo "admin1234567")
 SHOW_MEDIA=$(jq -r '.show_media // false' /data/options.json 2>/dev/null || echo "false")
 SHOW_CONFIG=$(jq -r '.show_config // false' /data/options.json 2>/dev/null || echo "false")
 SHOW_BACKUP=$(jq -r '.show_backup // false' /data/options.json 2>/dev/null || echo "false")
+
+echo "PORT=$PORT SHOW_MEDIA=$SHOW_MEDIA SHOW_CONFIG=$SHOW_CONFIG SHOW_BACKUP=$SHOW_BACKUP"
 
 # Standard-Ordner anlegen
 echo "Erstelle /share/filebox ..."
@@ -23,19 +29,19 @@ ln -sfn /share/filebox "$ROOT/FileBox" && echo "OK: Symlink FileBox -> /share/fi
 if [ "$SHOW_MEDIA" = "true" ]; then
     ln -sfn /media "$ROOT/Media" && echo "OK: Symlink Media" || echo "FEHLER: Symlink Media"
 else
-    rm -f "$ROOT/Media"
+    rm -f "$ROOT/Media" && echo "INFO: Media deaktiviert"
 fi
 
 if [ "$SHOW_CONFIG" = "true" ]; then
     ln -sfn /config "$ROOT/Config" && echo "OK: Symlink Config" || echo "FEHLER: Symlink Config"
 else
-    rm -f "$ROOT/Config"
+    rm -f "$ROOT/Config" && echo "INFO: Config deaktiviert"
 fi
 
 if [ "$SHOW_BACKUP" = "true" ]; then
     ln -sfn /backup "$ROOT/Backup" && echo "OK: Symlink Backup" || echo "FEHLER: Symlink Backup"
 else
-    rm -f "$ROOT/Backup"
+    rm -f "$ROOT/Backup" && echo "INFO: Backup deaktiviert"
 fi
 
 # Erster Start: FileBrowser kurz im Hintergrund starten damit die DB angelegt wird
