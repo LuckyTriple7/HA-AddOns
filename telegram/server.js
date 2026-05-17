@@ -686,11 +686,11 @@ html.light #chat-header { background: #517DA2; }
 .bubble { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
 .bubble.in { border-bottom-left-radius: 2px; }
 .bubble.out { border-bottom-right-radius: 2px; }
-.bubble-row { display: flex; align-items: center; gap: 6px; }
-.bubble-row.out { justify-content: flex-end; }
-.bubble-row.in { justify-content: flex-start; }
-.bubble-row.out .del-btn,
-.bubble-row.in  .del-btn { order: -1; }
+.bubble-row { display: flex; flex-direction: column; }
+.bubble-row.out { align-items: flex-end; }
+.bubble-row.in { align-items: flex-start; }
+.bubble-row-inner { display: flex; align-items: center; gap: 6px; }
+.bubble-row-inner .del-btn { order: -1; }
 #lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
 #lightbox.open { display: flex; }
 #lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }
@@ -706,7 +706,6 @@ html.light .react-btn { color: rgba(0,0,0,0.35); }
 html.dark .react-btn:hover { color: #C1C9D4; }
 html.light .react-btn:hover { color: #111; }
 .reactions-bar { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px 2px 0; }
-.bubble-row.out .reactions-bar { justify-content: flex-end; }
 .reaction-badge { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; padding: 2px 7px; font-size: 13px; cursor: pointer; border: 1px solid transparent; user-select: none; line-height: 1.5; }
 html.dark .reaction-badge { background: #1A2432; border-color: #2B3A4A; color: #C1C9D4; }
 html.light .reaction-badge { background: #f0f2f5; border-color: #d9dbdf; color: #111; }
@@ -1082,7 +1081,9 @@ function renderMessages(msgs) {
       content=escHtml(m.body);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div><button class="react-btn" title="Reagieren">😊</button><button class="del-btn" title="Löschen">✕</button></div>\`;
+    const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
+    const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div><button class="react-btn" title="Reagieren">😊</button><button class="del-btn" title="Löschen">✕</button></div>\${reactBar}</div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
@@ -1159,6 +1160,12 @@ document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.t
   });
 
   document.getElementById('messages').addEventListener('click', ev => {
+    const badge = ev.target.closest('.reaction-badge[data-emoji]');
+    if (badge) {
+      const row = badge.closest('.bubble-row');
+      if (row) window.toggleReaction(row.dataset.msgid, badge.dataset.emoji, badge.dataset.own === 'true');
+      return;
+    }
     const btn = ev.target.closest('.react-btn');
     if (!btn) return;
     ev.stopPropagation();

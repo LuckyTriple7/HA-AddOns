@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.6] - 2026-05-17
+
+### Behoben
+- Reactions-Bar erschien auf gleicher Zeile wie die Blase — `.bubble-row` ist jetzt Column-Flex, `.bubble-row-inner` übernimmt die horizontale Anordnung; Bar erscheint korrekt darunter
+- Reaktionen verschwanden nach Chat-Reload — werden jetzt direkt in `renderMessages` aus den Message-Daten gerendert (`data-emoji`/`data-own`-Attribute + Event-Delegation, kein `\'`-Escaping-Problem mehr)
+
 ## [1.1.5] - 2026-05-17
 
 ### Behoben
