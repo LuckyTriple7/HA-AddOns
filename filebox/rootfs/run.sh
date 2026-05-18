@@ -5,7 +5,8 @@ DB=/data/filebrowser.db
 ROOT=/data/filebox-root
 
 echo "=== options.json ==="
-cat /data/options.json 2>/dev/null || echo "FEHLER: /data/options.json nicht gefunden"
+jq 'to_entries | map(if (.key | test("password")) then .value = "***" else . end) | from_entries' \
+    /data/options.json 2>/dev/null || echo "FEHLER: /data/options.json nicht gefunden"
 echo "===================="
 
 PORT=$(jq -r '.port // 17771' /data/options.json 2>/dev/null || echo 17771)
