@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0] - 2026-05-18
+
+### Neu
+- Bis zu 5 SMB-Shares konfigurierbar (Server, Share-Name optional, Benutzer, Passwort)
+- SMB-Shares werden beim Start automatisch gemountet und in FileBrowser als Ordner eingeblendet
+- Share-Name optional — wird keiner angegeben, wird der erste verfügbare Share auf dem Server ermittelt
+- Detailliertes Logging: Mount-Versuche, Erfolg/Fehler und Fehlermeldungen im Add-on-Log
+- `cifs-utils` ins Docker-Image aufgenommen
+- `SYS_ADMIN`-Capability für CIFS-Kernel-Mounts aktiviert
+
 ## [1.0.0] - 2026-05-17
 
 ### Erstveröffentlichung
