@@ -67,8 +67,31 @@ do_mount() {
     UNC="//${SERVER}/${SHARE}"
     echo "[INFO] Mounte ${UNC} → ${MOUNTPOINT} ..."
 
-    MOUNT_ERR=$(timeout 15 mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" 2>&1)
-    if [ $? -eq 0 ]; then
+    ERR_FILE="/tmp/mount_err_$$"
+    mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1 &
+    MOUNT_PID=$!
+
+    ELAPSED=0
+    while [ $ELAPSED -lt 15 ]; do
+        if ! kill -0 $MOUNT_PID 2>/dev/null; then break; fi
+        sleep 1
+        ELAPSED=$((ELAPSED + 1))
+    done
+
+    if kill -0 $MOUNT_PID 2>/dev/null; then
+        kill -9 $MOUNT_PID 2>/dev/null
+        echo "[FAIL] Mount timeout (15s) für ${UNC} — übersprungen"
+        rm -f "$ERR_FILE"
+        rmdir "$MOUNTPOINT" 2>/dev/null || true
+        return
+    fi
+
+    wait $MOUNT_PID 2>/dev/null
+    MOUNT_RC=$?
+    MOUNT_ERR=$(cat "$ERR_FILE" 2>/dev/null)
+    rm -f "$ERR_FILE"
+
+    if [ $MOUNT_RC -eq 0 ]; then
         echo "[OK]   ${UNC} erfolgreich gemountet"
         rm -f "$ROOT/${LINKNAME}"
         ln -sfn "$MOUNTPOINT" "$ROOT/${LINKNAME}"

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2026-05-18
+
+### Behoben
+- Mount-Timeout funktioniert jetzt zuverlässig: Shell-Background-Job statt `timeout`-Befehl, da `mount.cifs` im Kernel-D-State nicht durch Signale unterbrechbar ist
+
 ## [1.1.2] - 2026-05-18
 
 ### Behoben
