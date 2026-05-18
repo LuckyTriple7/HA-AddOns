@@ -40,7 +40,7 @@ Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und 
 - **Flameshot** Screenshot-Tool mit Annotations
 - **Atril** PDF-Betrachter
 - **VLC** Mediaplayer
-- **Remmina** RDP/VNC/SSH Remote-Desktop-Client
+- **Remmina** RDP/VNC/SSH Remote-Desktop-Client (inkl. RDP- und VNC-Plugin)
 - **Bitwarden** Passwort-Manager (Desktop-App)
 - **Angry IP Scanner** Netzwerk-Scanner (GUI)
 - **PuTTY** SSH-Client
@@ -116,9 +116,13 @@ Alle Benutzereinstellungen (Desktop-Konfiguration, Lesezeichen, Passwörter) wer
 | `/share` | HA Share-Verzeichnis |
 | `/media` | HA Media-Verzeichnis |
 
-## App-Updates
+## App-Updates und Sicherheits-Patches
 
-Ein Klick auf **„Neu aufbauen"** in HA baut das Docker-Image neu und zieht dabei aktualisierte Versionen — je nach App:
+Der laufende Container bekommt **keine automatischen Updates** — Pakete sind zum Zeitpunkt des Builds eingefroren. Sicherheits-Patches kommen erst beim nächsten Rebuild:
+
+> **Empfehlung:** Einmal im Monat **„Neu aufbauen"** klicken. Dabei werden alle Debian-Sicherheits-Patches der letzten Wochen sowie das aktuelle LinuxServer.io-Base-Image gezogen.
+
+Ein Klick auf **„Neu aufbauen"** baut das Docker-Image neu und zieht dabei aktualisierte Versionen — je nach App:
 
 | App | Rebuild reicht? |
 |---|---|

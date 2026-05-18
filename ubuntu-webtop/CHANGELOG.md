@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.2] - 2026-05-18
+
+### Behoben
+- `remmina-plugin-rdp` und `remmina-plugin-vnc` hinzugefügt — ohne diese Pakete erscheint RDP/VNC nicht in der Protokoll-Auswahl von Remmina
+
 ## [1.6.1] - 2026-05-18
 
 ### Neu

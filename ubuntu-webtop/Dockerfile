@@ -50,6 +50,8 @@ RUN apt-get update \
         flameshot \
         gthumb \
         remmina \
+        remmina-plugin-rdp \
+        remmina-plugin-vnc \
         baobab \
         seahorse \
         jq \
