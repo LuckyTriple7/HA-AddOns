@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.5] - 2026-05-18
+
+### Behoben
+- `SETPCAP` und `DAC_OVERRIDE` zu privileged Capabilities hinzugefügt — `mount.cifs` benötigt `CAP_SETPCAP` um nach dem Mount seine Capabilities zu reduzieren (`cap_set_proc()`); fehlte und führte zu "Unable to apply new capability set."
+
 ## [1.1.4] - 2026-05-18
 
 ### Behoben
