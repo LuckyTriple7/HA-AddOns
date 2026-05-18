@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.15] - 2026-05-18
+
+### Neu
+- Flameshot (Screenshot-Tool mit Annotations) installiert
+- Pinta (einfacher Bildeditor zum Bearbeiten und Verkleinern) installiert
+
 ## [1.5.14] - 2026-05-15
 ### Behoben
 - Bitwarden: bitwarden-app (Electron-Binary) statt bitwarden-Script als Exec-Ziel

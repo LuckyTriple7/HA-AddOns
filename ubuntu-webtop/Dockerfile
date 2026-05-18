@@ -46,6 +46,8 @@ RUN apt-get update \
         vlc \
         galculator \
         xarchiver \
+        flameshot \
+        pinta \
         jq \
         curl \
         gnupg \
