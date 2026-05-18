@@ -47,7 +47,7 @@ RUN apt-get update \
         galculator \
         xarchiver \
         flameshot \
-        mtpaint \
+        gthumb \
         jq \
         curl \
         gnupg \

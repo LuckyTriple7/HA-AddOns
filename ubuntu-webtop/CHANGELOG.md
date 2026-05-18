@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.17] - 2026-05-18
+
+### Geändert
+- mtPaint durch **gThumb** ersetzt — mtPaint (GTK2) hat kein GIO-API-Support und kann daher keine SMB-Dateien über Thunar öffnen; gThumb (GTK3 + GIO) versteht `smb://`-URIs nativ
+
 ## [1.5.16] - 2026-05-18
 
 ### Geändert
