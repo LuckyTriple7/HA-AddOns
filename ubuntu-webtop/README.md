@@ -104,6 +104,17 @@ Alle Benutzereinstellungen (Desktop-Konfiguration, Lesezeichen, Passwörter) wer
 | `/share` | HA Share-Verzeichnis |
 | `/media` | HA Media-Verzeichnis |
 
+## App-Updates
+
+Ein Klick auf **„Neu aufbauen"** in HA baut das Docker-Image neu und zieht dabei aktualisierte Versionen — je nach App:
+
+| App | Rebuild reicht? |
+|---|---|
+| Firefox, Thunderbird | ✓ Ja — werden aus Mozillas Repo immer aktuell geladen |
+| Bitwarden | ✓ Ja — neueste Version wird automatisch via GitHub API ermittelt |
+| Geany, VLC, LibreOffice, mtPaint u.a. | Nur Sicherheits-Updates — Debian Stable liefert keine neuen Major-Versionen |
+| Angry IP Scanner | ✗ Nein — Version ist fest im Dockerfile hinterlegt, muss manuell angepasst werden |
+
 ## Bekannte Einschränkungen
 
 - **Kein automatischer CIFS-Kernel-Mount**: Der Linux-Kernel-CIFS-Mount (`mount -t cifs`) ist im HA-Container-Sicherheitsmodell nicht verfügbar. SMB-Zugriff funktioniert über Thunar (gvfs/userspace).
