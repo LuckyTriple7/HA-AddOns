@@ -48,7 +48,7 @@ Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und 
 - **Xarchiver** Archiv-Manager (ZIP, TAR, ...)
 - **nmap** Netzwerkscanner (CLI)
 - **Baobab** Speicherplatz-Analyse (grafisch)
-- **Seahorse** GNOME Keyring GUI — gespeicherte Passwörter verwalten
+- **Seahorse** GNOME Keyring GUI — gespeicherte Passwörter verwalten (Menü: *Zubehör → Passwörter und Schlüssel*)
 - **GNOME Keyring** – Passwörter für Netzwerk-Shares werden dauerhaft gespeichert
 - Persistente Konfiguration über Add-on-Updates hinweg (`/config`)
 - Zugriff auf Home Assistant Shares (`/share`, `/media`, SSL-Zertifikate)
