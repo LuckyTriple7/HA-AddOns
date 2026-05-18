@@ -1,9 +1,15 @@
 # Changelog
 
+## [1.1.6] - 2026-05-18
+
+### Behoben
+- `SETPCAP` und `DAC_OVERRIDE` aus privileged entfernt — diese Werte sind in HA-config.yaml nicht erlaubt und machten das Add-on im Store unsichtbar
+- `full_access: true` gesetzt — gibt dem Container volles `--privileged` inkl. aller Capabilities (SETPCAP, DAC_OVERRIDE usw.) die `mount.cifs` für `cap_set_proc()` benötigt
+
 ## [1.1.5] - 2026-05-18
 
 ### Behoben
-- `SETPCAP` und `DAC_OVERRIDE` zu privileged Capabilities hinzugefügt — `mount.cifs` benötigt `CAP_SETPCAP` um nach dem Mount seine Capabilities zu reduzieren (`cap_set_proc()`); fehlte und führte zu "Unable to apply new capability set."
+- `SETPCAP` und `DAC_OVERRIDE` zu privileged hinzugefügt (ungültige Werte — siehe 1.1.6)
 
 ## [1.1.4] - 2026-05-18
 
