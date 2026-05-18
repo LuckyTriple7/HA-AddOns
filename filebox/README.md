@@ -12,6 +12,7 @@ Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant
 - Dateien hochladen, herunterladen und verwalten
 - Standardmäßig Zugriff auf `/share/filebox`
 - Optionaler Zugriff auf weitere HA-Shares (`/media`, `/config`, `/backup`)
+- **SMB-Netzlaufwerke** — bis zu 5 Netzwerk-Shares (NAS, Windows, Samba) direkt einbinden
 - Konfigurierbarer Benutzername und Passwort
 - Deutsche Benutzeroberfläche
 - Weitere Benutzer können direkt in der Oberfläche angelegt werden
@@ -26,6 +27,22 @@ Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant
 | `show_media` | bool | `false` | `/media` als Ordner einblenden |
 | `show_config` | bool | `false` | `/config` als Ordner einblenden |
 | `show_backup` | bool | `false` | `/backup` als Ordner einblenden |
+| `smb_1_server` | str | — | IP oder Hostname des SMB-Servers (z. B. `192.168.178.10`) |
+| `smb_1_share` | str | — | Share-Name (optional — leer lässt alle Shares automatisch erkennen) |
+| `smb_1_user` | str | — | Benutzername (leer = Gastzugang) |
+| `smb_1_password` | str | — | Passwort |
+
+Die Felder `smb_2_*` bis `smb_5_*` funktionieren identisch für weitere Server.
+
+## SMB-Netzlaufwerke
+
+SMB-Shares (NAS, Windows-Freigaben, Samba) werden beim Start automatisch gemountet und in FileBrowser als Ordner angezeigt.
+
+**Share-Name leer lassen** → alle verfügbaren Disk-Shares des Servers werden automatisch erkannt und einzeln eingebunden (`SMB-1 Cloud`, `SMB-1 Backup` usw.).
+
+**Share-Name angeben** → nur dieser eine Share wird gemountet.
+
+> **Hinweis:** Das Add-on benötigt `SYS_ADMIN`-Rechte für Kernel-CIFS-Mounts. Diese werden automatisch gesetzt.
 
 ## Passwort-Verwaltung
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0] - 2026-05-18
+
+### Neu
+- SMB-Netzlaufwerke: bis zu 5 Server konfigurierbar, Share-Name optional (Auto-Discovery aller Shares)
+- README mit SMB-Dokumentation aktualisiert
+
+### Stabil
+- CIFS-Mounts funktionieren zuverlässig dank custom AppArmor-Profil, `sec=ntlmssp,nodfs` und TCP-Vorprüfung
+
 ## [1.1.7] - 2026-05-18
 
 ### Behoben
