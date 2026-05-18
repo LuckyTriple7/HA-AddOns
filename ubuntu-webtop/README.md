@@ -30,13 +30,25 @@ Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und 
 - **Firefox** (aktuell, aus Mozillas offiziellem Repository)
 - **Thunderbird** E-Mail-Client (deutsch)
 - **Thunar** Dateimanager mit SMB/CIFS-Netzwerkzugriff (`smb://server/share`)
-- **Geany** Code- und Texteditor
-- **VLC** Mediaplayer
+- **Firefox** (aktuell, aus Mozillas offiziellem Repository)
+- **Thunderbird** E-Mail-Client (deutsch)
+- **LibreOffice** Writer, Calc, Impress (deutsch)
+- **Geany** Code- und Texteditor mit Syntax-Highlighting
+- **gedit** Texteditor — öffnet SMB-Dateien aus Thunar direkt ohne Wrapper
+- **gThumb** Bildeditor — Bilder verkleinern, zuschneiden, aus SMB-Shares direkt öffnen
 - **Ristretto** Bildbetrachter
+- **Flameshot** Screenshot-Tool mit Annotations
 - **Atril** PDF-Betrachter
+- **VLC** Mediaplayer
+- **Remmina** RDP/VNC/SSH Remote-Desktop-Client
+- **Bitwarden** Passwort-Manager (Desktop-App)
+- **Angry IP Scanner** Netzwerk-Scanner (GUI)
+- **PuTTY** SSH-Client
 - **Galculator** Taschenrechner
 - **Xarchiver** Archiv-Manager (ZIP, TAR, ...)
-- **nmap** Netzwerkscanner
+- **nmap** Netzwerkscanner (CLI)
+- **Baobab** Speicherplatz-Analyse (grafisch)
+- **Seahorse** GNOME Keyring GUI — gespeicherte Passwörter verwalten
 - **GNOME Keyring** – Passwörter für Netzwerk-Shares werden dauerhaft gespeichert
 - Persistente Konfiguration über Add-on-Updates hinweg (`/config`)
 - Zugriff auf Home Assistant Shares (`/share`, `/media`, SSL-Zertifikate)
@@ -110,10 +122,10 @@ Ein Klick auf **„Neu aufbauen"** in HA baut das Docker-Image neu und zieht dab
 
 | App | Rebuild reicht? |
 |---|---|
-| Firefox, Thunderbird | ✓ Ja — werden aus Mozillas Repo immer aktuell geladen |
-| Bitwarden | ✓ Ja — neueste Version wird automatisch via GitHub API ermittelt |
-| Geany, VLC, LibreOffice, mtPaint u.a. | Nur Sicherheits-Updates — Debian Stable liefert keine neuen Major-Versionen |
-| Angry IP Scanner | ✗ Nein — Version ist fest im Dockerfile hinterlegt, muss manuell angepasst werden |
+| Firefox, Thunderbird | ✓ Ja — aus Mozillas Repo, immer aktuell |
+| Bitwarden | ✓ Ja — neueste Version via GitHub API automatisch ermittelt |
+| Geany, gedit, gThumb, VLC, LibreOffice, Ristretto, Remmina, Baobab, Seahorse u.a. | Nur Sicherheits-Updates — Debian Stable liefert keine neuen Major-Versionen |
+| Angry IP Scanner | ✗ Nein — Version fest im Dockerfile hinterlegt, muss manuell angepasst werden |
 
 ## Bekannte Einschränkungen
 
