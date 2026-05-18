@@ -47,7 +47,7 @@ RUN apt-get update \
         galculator \
         xarchiver \
         flameshot \
-        kolourpaint \
+        mtpaint \
         jq \
         curl \
         gnupg \

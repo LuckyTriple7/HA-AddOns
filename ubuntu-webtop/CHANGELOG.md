@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.16] - 2026-05-18
+
+### Geändert
+- KolourPaint durch **mtPaint** ersetzt — KolourPaint ist KDE/KIO-basiert und kann keine SMB-Shares öffnen (KIO ≠ GVFS); mtPaint ist GTK2-basiert und funktioniert nahtlos mit Thunar und GVFS-SMB-Shares
+- mtPaint unterstützt: Bilder verkleinern (`Image → Scale Canvas`), Zuschneiden, einfache Bildbearbeitung
+
 ## [1.5.15] - 2026-05-18
 
 ### Neu
