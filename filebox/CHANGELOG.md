@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.4] - 2026-05-18
+
+### Behoben
+- `apparmor: false` gesetzt — CIFS-Kernel-Modul benötigt `mount`, `umount` und `network netlink raw` Rechte, die das Standard-HA-AppArmor-Profil blockiert; der Prozess hing dadurch im D-State (nicht unterbrechbar, selbst kill -9 wirkungslos)
+- TCP-Vorprüfung (Port 445) vor jedem Mount-Versuch — sofortiger Abbruch bei falscher IP/nicht erreichbarem Server statt minutenlangem Hängen
+- Mount-Optionen um `sec=ntlmssp,nodfs` erweitert — verhindert Kerberos-Keyring-Zugriff im Kernel (zweite D-State-Ursache) und DFS-Referenz-Lookups
+- `mount` jetzt im Vordergrund statt Background-Job (TCP-Vorprüfung macht Background+kill-9-Workaround überflüssig)
+- `netcat-openbsd` ins Docker-Image aufgenommen (für TCP-Vorprüfung)
+
 ## [1.1.3] - 2026-05-18
 
 ### Behoben

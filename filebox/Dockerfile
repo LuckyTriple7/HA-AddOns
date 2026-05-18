@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     cifs-utils \
     smbclient \
+    netcat-openbsd \
     && curl -fsSL \
     "https://github.com/filebrowser/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser.tar.gz" \
     -o /tmp/filebrowser.tar.gz \

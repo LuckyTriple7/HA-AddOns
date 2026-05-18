@@ -42,7 +42,7 @@ else
     rm -f "$ROOT/Backup"
 fi
 
-# Einen SMB-Share mounten (mit Timeout gegen Hänger)
+# Einen SMB-Share mounten
 do_mount() {
     SERVER=$1
     SHARE=$2
@@ -54,7 +54,16 @@ do_mount() {
     mkdir -p "$MOUNTPOINT"
     umount "$MOUNTPOINT" 2>/dev/null || true
 
-    OPTS="vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm"
+    # TCP-Vorprüfung: Port 445 erreichbar? (schnelles Fail bei falscher IP)
+    if ! nc -z -w 5 "$SERVER" 445 2>/dev/null; then
+        echo "[FAIL] Port 445 auf ${SERVER} nicht erreichbar — übersprungen"
+        rmdir "$MOUNTPOINT" 2>/dev/null || true
+        return
+    fi
+
+    # sec=ntlmssp: kein Kerberos/Keyring — verhindert D-State im Kernel
+    # nodfs: kein DFS-Lookup — verhindert zusätzliche Netzwerkabfragen
+    OPTS="vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm,sec=ntlmssp,nodfs"
     if [ -n "$USER" ]; then
         OPTS="${OPTS},username=${USER}"
     else
@@ -68,35 +77,15 @@ do_mount() {
     echo "[INFO] Mounte ${UNC} → ${MOUNTPOINT} ..."
 
     ERR_FILE="/tmp/mount_err_$$"
-    mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1 &
-    MOUNT_PID=$!
-
-    ELAPSED=0
-    while [ $ELAPSED -lt 15 ]; do
-        if ! kill -0 $MOUNT_PID 2>/dev/null; then break; fi
-        sleep 1
-        ELAPSED=$((ELAPSED + 1))
-    done
-
-    if kill -0 $MOUNT_PID 2>/dev/null; then
-        kill -9 $MOUNT_PID 2>/dev/null
-        echo "[FAIL] Mount timeout (15s) für ${UNC} — übersprungen"
+    if mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1; then
         rm -f "$ERR_FILE"
-        rmdir "$MOUNTPOINT" 2>/dev/null || true
-        return
-    fi
-
-    wait $MOUNT_PID 2>/dev/null
-    MOUNT_RC=$?
-    MOUNT_ERR=$(cat "$ERR_FILE" 2>/dev/null)
-    rm -f "$ERR_FILE"
-
-    if [ $MOUNT_RC -eq 0 ]; then
         echo "[OK]   ${UNC} erfolgreich gemountet"
         rm -f "$ROOT/${LINKNAME}"
         ln -sfn "$MOUNTPOINT" "$ROOT/${LINKNAME}"
         echo "[OK]   In FileBrowser sichtbar als '${LINKNAME}'"
     else
+        MOUNT_ERR=$(cat "$ERR_FILE" 2>/dev/null)
+        rm -f "$ERR_FILE"
         echo "[FAIL] Mount von ${UNC} fehlgeschlagen: ${MOUNT_ERR}"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
     fi
