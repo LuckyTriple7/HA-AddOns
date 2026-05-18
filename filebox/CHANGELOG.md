@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.7] - 2026-05-18
+
+### Behoben
+- `full_access: true` durch custom `apparmor.txt` ersetzt (Ansatz von alexbelgium/booksonic_air)
+- `DAC_READ_SEARCH` statt ungültigem `DAC_OVERRIDE` in privileged
+- AppArmor-Profil erlaubt explizit: `mount`, `umount`, `remount`, `network netlink raw`, `capability setpcap` — genau was `mount.cifs` für CIFS-Kernel-Mounts benötigt
+
 ## [1.1.6] - 2026-05-18
 
 ### Behoben
