@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2] - 2026-05-18
+
+### Behoben
+- `smbclient` fehlte im Docker-Image — Share-Discovery schlug dadurch lautlos fehl
+- smbclient-Ausgabe wird bei Fehler jetzt vollständig ins Log geschrieben ([DEBUG])
+- Authentifizierung bei smbclient korrigiert: ohne User wird `-N` (kein Passwort) verwendet
+
 ## [1.1.1] - 2026-05-18
 
 ### Behoben

@@ -105,9 +105,14 @@ mount_server() {
     else
         # Auto-Discovery: alle Disk-Shares des Servers ermitteln
         echo "[INFO] SMB-${INDEX}: Ermittle alle Shares auf ${SERVER} ..."
-        SMB_AUTH="${USER}%${PASS}"
-        SHARES=$(smbclient -L "$SERVER" -U "$SMB_AUTH" -g 2>/dev/null \
-            | awk -F'|' '/^Disk\|/ {print $2}')
+        if [ -n "$USER" ]; then
+            SMB_LIST_CMD="smbclient -L $SERVER -U ${USER}%${PASS} -g"
+        else
+            SMB_LIST_CMD="smbclient -L $SERVER -N -g"
+        fi
+        SMB_LIST_OUT=$(eval "$SMB_LIST_CMD" 2>&1)
+        echo "[DEBUG] SMB-${INDEX}: smbclient Ausgabe: ${SMB_LIST_OUT}"
+        SHARES=$(echo "$SMB_LIST_OUT" | awk -F'|' '/^Disk\|/ {print $2}')
 
         if [ -z "$SHARES" ]; then
             echo "[WARN] SMB-${INDEX}: Keine Shares auf ${SERVER} gefunden"
