@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1] - 2026-05-18
+
+### Behoben
+- Mount-Befehl hing unbegrenzt — `timeout 15` verhindert das Einfrieren des Add-ons
+- `vers=3.0` explizit gesetzt für zuverlässigere SMB-Verbindungen
+
+### Geändert
+- Auto-Discovery: ohne Share-Namen werden jetzt **alle** Shares des Servers automatisch gemountet (nicht nur der erste)
+- Jeder Share erhält einen eigenen Mountpoint und Symlink (`SMB-1 Cloud`, `SMB-1 HABackup` usw.)
+
 ## [1.1.0] - 2026-05-18
 
 ### Neu

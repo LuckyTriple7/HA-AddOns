@@ -41,78 +41,101 @@ else
     rm -f "$ROOT/Backup"
 fi
 
-# SMB-Shares mounten
-mount_smb() {
-    INDEX=$1
-    SERVER=$(jq -r ".smb_${INDEX}_server // empty" /data/options.json 2>/dev/null)
-    SHARE=$(jq -r ".smb_${INDEX}_share // empty" /data/options.json 2>/dev/null)
-    USER=$(jq -r ".smb_${INDEX}_user // empty" /data/options.json 2>/dev/null)
-    PASS=$(jq -r ".smb_${INDEX}_password // empty" /data/options.json 2>/dev/null)
-    MOUNTPOINT="/mnt/smb${INDEX}"
+# Einen SMB-Share mounten (mit Timeout gegen Hänger)
+do_mount() {
+    SERVER=$1
+    SHARE=$2
+    USER=$3
+    PASS=$4
+    MOUNTPOINT=$5
+    LINKNAME=$6
 
-    if [ -z "$SERVER" ]; then
-        echo "[INFO] SMB-${INDEX}: nicht konfiguriert — übersprungen"
-        rm -f "$ROOT/SMB-${INDEX}"*
-        return
-    fi
-
-    echo "[INFO] SMB-${INDEX}: Verbinde mit ${SERVER} ..."
     mkdir -p "$MOUNTPOINT"
     umount "$MOUNTPOINT" 2>/dev/null || true
 
-    # Mount-Optionen
-    OPTS="uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm"
+    OPTS="vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm"
     if [ -n "$USER" ]; then
         OPTS="${OPTS},username=${USER}"
     else
         OPTS="${OPTS},guest"
-        echo "[INFO] SMB-${INDEX}: Kein Benutzer angegeben — versuche Gastzugang"
     fi
     if [ -n "$PASS" ]; then
         OPTS="${OPTS},password=${PASS}"
     fi
 
-    # UNC-Pfad aufbauen
-    if [ -n "$SHARE" ]; then
-        UNC="//${SERVER}/${SHARE}"
-        LINKNAME="SMB-${INDEX} (${SHARE})"
+    UNC="//${SERVER}/${SHARE}"
+    echo "[INFO] Mounte ${UNC} → ${MOUNTPOINT} ..."
+
+    MOUNT_ERR=$(timeout 15 mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" 2>&1)
+    if [ $? -eq 0 ]; then
+        echo "[OK]   ${UNC} erfolgreich gemountet"
+        rm -f "$ROOT/${LINKNAME}"
+        ln -sfn "$MOUNTPOINT" "$ROOT/${LINKNAME}"
+        echo "[OK]   In FileBrowser sichtbar als '${LINKNAME}'"
     else
-        echo "[INFO] SMB-${INDEX}: Kein Share-Name angegeben — ermittle ersten Share auf ${SERVER} ..."
-        FIRST_SHARE=$(smbclient -L "$SERVER" -U "${USER}%${PASS}" -g 2>/dev/null \
-            | awk -F'|' '/^Disk\|/ {print $2; exit}')
-        if [ -z "$FIRST_SHARE" ]; then
-            echo "[WARN] SMB-${INDEX}: Kein Share auf ${SERVER} gefunden — Mount übersprungen"
-            rm -f "$ROOT/SMB-${INDEX}"*
-            return
-        fi
-        echo "[INFO] SMB-${INDEX}: Erster Share gefunden: ${FIRST_SHARE}"
-        UNC="//${SERVER}/${FIRST_SHARE}"
-        LINKNAME="SMB-${INDEX} (${FIRST_SHARE})"
+        echo "[FAIL] Mount von ${UNC} fehlgeschlagen: ${MOUNT_ERR}"
+        rmdir "$MOUNTPOINT" 2>/dev/null || true
+    fi
+}
+
+# Alle Shares eines Servers mounten (Auto-Discovery oder einzelner Share)
+mount_server() {
+    INDEX=$1
+    SERVER=$(jq -r ".smb_${INDEX}_server // empty" /data/options.json 2>/dev/null)
+    SHARE=$(jq -r ".smb_${INDEX}_share // empty" /data/options.json 2>/dev/null)
+    USER=$(jq -r ".smb_${INDEX}_user // empty" /data/options.json 2>/dev/null)
+    PASS=$(jq -r ".smb_${INDEX}_password // empty" /data/options.json 2>/dev/null)
+
+    if [ -z "$SERVER" ]; then
+        echo "[INFO] SMB-${INDEX}: nicht konfiguriert — übersprungen"
+        return
     fi
 
-    echo "[INFO] SMB-${INDEX}: Mounte ${UNC} ..."
-    MOUNT_ERR=$(mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" 2>&1)
-    if [ $? -eq 0 ]; then
-        echo "[OK]   SMB-${INDEX}: ${UNC} erfolgreich gemountet → ${MOUNTPOINT}"
-        rm -f "$ROOT/SMB-${INDEX}"*
-        ln -sfn "$MOUNTPOINT" "$ROOT/${LINKNAME}"
-        echo "[OK]   SMB-${INDEX}: In FileBrowser sichtbar als '${LINKNAME}'"
+    echo "[INFO] SMB-${INDEX}: Server ${SERVER}"
+
+    # Alten Symlinks für diesen Slot aufräumen
+    rm -f "$ROOT/SMB-${INDEX}"*
+
+    if [ -n "$SHARE" ]; then
+        # Einzelner Share angegeben
+        do_mount "$SERVER" "$SHARE" "$USER" "$PASS" \
+            "/mnt/smb${INDEX}_${SHARE}" \
+            "SMB-${INDEX} ${SHARE}"
     else
-        echo "[FAIL] SMB-${INDEX}: Mount von ${UNC} fehlgeschlagen"
-        echo "[FAIL] SMB-${INDEX}: Fehler: ${MOUNT_ERR}"
-        rm -f "$ROOT/SMB-${INDEX}"*
+        # Auto-Discovery: alle Disk-Shares des Servers ermitteln
+        echo "[INFO] SMB-${INDEX}: Ermittle alle Shares auf ${SERVER} ..."
+        SMB_AUTH="${USER}%${PASS}"
+        SHARES=$(smbclient -L "$SERVER" -U "$SMB_AUTH" -g 2>/dev/null \
+            | awk -F'|' '/^Disk\|/ {print $2}')
+
+        if [ -z "$SHARES" ]; then
+            echo "[WARN] SMB-${INDEX}: Keine Shares auf ${SERVER} gefunden"
+            return
+        fi
+
+        COUNT=0
+        echo "$SHARES" | while IFS= read -r S; do
+            S=$(echo "$S" | tr -d '\r')
+            [ -z "$S" ] && continue
+            COUNT=$((COUNT + 1))
+            MNTPOINT="/mnt/smb${INDEX}_$(echo "$S" | tr ' ' '_')"
+            do_mount "$SERVER" "$S" "$USER" "$PASS" \
+                "$MNTPOINT" \
+                "SMB-${INDEX} ${S}"
+        done
+        echo "[INFO] SMB-${INDEX}: Auto-Discovery abgeschlossen"
     fi
 }
 
 echo "--- SMB-Mounts ---"
-mount_smb 1
-mount_smb 2
-mount_smb 3
-mount_smb 4
-mount_smb 5
+mount_server 1
+mount_server 2
+mount_server 3
+mount_server 4
+mount_server 5
 echo "------------------"
 
-# Erster Start: FileBrowser kurz im Hintergrund starten damit die DB angelegt wird
+# Erster Start: FileBrowser DB initialisieren
 if [ ! -f "$DB" ]; then
     echo "[INFO] Erste Initialisierung der FileBrowser-Datenbank ..."
     filebrowser --database "$DB" --address 127.0.0.1 --port 19999 --root "$ROOT" &
