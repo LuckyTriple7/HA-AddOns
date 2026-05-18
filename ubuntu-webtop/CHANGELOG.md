@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1] - 2026-05-18
+
+### Neu
+- **Remmina** — RDP/VNC/SSH Remote-Desktop-Client (GTK3+GIO)
+- **Baobab** — Grafische Speicherplatz-Analyse (GTK3+GIO)
+- **Seahorse** — GUI für GNOME Keyring: gespeicherte Passwörter verwalten (GTK3+GIO)
+
 ## [1.6.0] - 2026-05-18
 
 ### Neu

@@ -49,6 +49,9 @@ RUN apt-get update \
         xarchiver \
         flameshot \
         gthumb \
+        remmina \
+        baobab \
+        seahorse \
         jq \
         curl \
         gnupg \
