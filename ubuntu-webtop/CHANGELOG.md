@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0] - 2026-05-18
+
+### Neu
+- **gedit** installiert — GTK3/GIO-nativer Texteditor, öffnet SMB-Dateien aus Thunar ohne Wrapper direkt per Doppelklick
+- **gThumb** bestätigt funktionsfähig für SMB-Shares (GTK3+GIO)
+
+### Stabil
+- Geany bleibt für Code/Entwicklung (geany-gio Wrapper für SMB)
+- gThumb für Bildbearbeitung und -verkleinerung aus SMB-Shares
+
 ## [1.5.17] - 2026-05-18
 
 ### Geändert

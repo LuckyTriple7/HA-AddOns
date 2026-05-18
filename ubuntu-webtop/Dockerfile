@@ -40,6 +40,7 @@ RUN apt-get update \
         cifs-utils \
         smbclient \
         geany \
+        gedit \
         nmap \
         ristretto \
         atril \
