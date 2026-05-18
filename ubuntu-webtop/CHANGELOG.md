@@ -4,7 +4,7 @@
 
 ### Neu
 - Flameshot (Screenshot-Tool mit Annotations) installiert
-- Pinta (einfacher Bildeditor zum Bearbeiten und Verkleinern) installiert
+- KolourPaint (einfacher Bildeditor zum Bearbeiten und Verkleinern) installiert — Pinta nicht in Debian Bookworm verfügbar
 
 ## [1.5.14] - 2026-05-15
 ### Behoben
