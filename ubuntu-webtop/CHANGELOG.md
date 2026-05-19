@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.4] - 2026-05-18
+
+### Geändert
+- `PULSE_SERVER` auf interne PulseAudio-Instanz des KasmVNC-Containers gesetzt (`unix:/run/user/1000/pulse/native`) — VLC und andere Apps nutzen jetzt die lokale PulseAudio-Instanz statt hassio_audio zu kontaktieren
+
 ## [1.6.3] - 2026-05-18
 
 ### Behoben

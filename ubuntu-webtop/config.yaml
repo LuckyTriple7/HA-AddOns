@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox vorinstalliert
-version: "1.6.3"
+version: "1.6.4"
 slug: ubuntu_webtop
 init: false
 
@@ -46,6 +46,7 @@ map:
 environment:
   TITLE: Ubuntu Webtop
   START_DOCKER: "false"
+  PULSE_SERVER: "unix:/run/user/1000/pulse/native"
 
 # Benutzer-Optionen
 options:
