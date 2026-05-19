@@ -131,6 +131,14 @@ Ein Klick auf **„Neu aufbauen"** baut das Docker-Image neu und zieht dabei akt
 | Geany, gedit, gThumb, VLC, LibreOffice, Ristretto, Remmina, Baobab, Seahorse u.a. | Nur Sicherheits-Updates — Debian Stable liefert keine neuen Major-Versionen |
 | Angry IP Scanner | ✗ Nein — Version fest im Dockerfile hinterlegt, muss manuell angepasst werden |
 
+## Audio
+
+Audio wird über den integrierten PulseAudio-Dienst des Base-Images bereitgestellt und direkt im Browser wiedergegeben — ohne externe Abhängigkeiten oder hassio_audio.
+
+- **Browser-Audio**: YouTube, Mediaplayer und andere Web-Apps spielen Ton direkt im Browser-Tab ab
+- **VLC**: Nutzt PulseAudio automatisch
+- **Kein hassio_audio**: `audio: false` verhindert CPU-Spikes durch Audio-Retry-Schleifen (`audio: true` hat früher 50–60 % Host-CPU verursacht)
+
 ## Bekannte Einschränkungen
 
 - **Kein automatischer CIFS-Kernel-Mount**: Der Linux-Kernel-CIFS-Mount (`mount -t cifs`) ist im HA-Container-Sicherheitsmodell nicht verfügbar. SMB-Zugriff funktioniert über Thunar (gvfs/userspace).
