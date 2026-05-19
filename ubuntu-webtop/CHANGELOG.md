@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.6] - 2026-05-19
+
+### Behoben
+- `15-pulseaudio.sh` überarbeitet: PulseAudio startet jetzt mit `--daemonize=yes` + `default.pa` Konfigurationsdatei statt `--start --load=...` (falsche Flags, die PulseAudio ignorierte) — Audio in Browser (KasmVNC kclient) und VLC sollte damit funktionieren
+
 ## [1.6.5] - 2026-05-18
 
 ### Neu
