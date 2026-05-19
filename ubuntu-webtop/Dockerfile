@@ -130,6 +130,24 @@ RUN ARCH=$(dpkg --print-architecture) \
     && chmod +x /usr/bin/bitwarden \
     && sed -i 's|^Exec=.*|Exec=/opt/Bitwarden/bitwarden-app --no-sandbox %U|' /usr/share/applications/bitwarden.desktop
 
+# VS Code aus Microsofts offiziellem Debian-Repo installieren
+RUN apt-get update \
+    && install -d -m 0755 /etc/apt/keyrings \
+    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+        -o /etc/apt/keyrings/packages.microsoft.com.asc \
+    && echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/packages.microsoft.com.asc] https://packages.microsoft.com/repos/code stable main" \
+        > /etc/apt/sources.list.d/vscode.list \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        code \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && mv /usr/bin/code /usr/bin/code.orig \
+    && printf '#!/bin/sh\nexec /usr/bin/code.orig --no-sandbox "$@"\n' > /usr/bin/code \
+    && chmod +x /usr/bin/code \
+    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox |g' /usr/share/applications/code.desktop \
+    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox |g' /usr/share/applications/code-url-handler.desktop 2>/dev/null || true
+
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \

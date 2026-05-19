@@ -39,6 +39,7 @@ Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und 
 - **Ristretto** Bildbetrachter
 - **Flameshot** Screenshot-Tool mit Annotations
 - **Atril** PDF-Betrachter
+- **VS Code** Code-Editor mit Extension Marketplace (aktuell, aus Microsofts offiziellem Repository)
 - **VLC** Mediaplayer
 - **Remmina** RDP/VNC/SSH Remote-Desktop-Client (inkl. RDP- und VNC-Plugin)
 - **Bitwarden** Passwort-Manager (Desktop-App)
@@ -127,9 +128,19 @@ Ein Klick auf **„Neu aufbauen"** baut das Docker-Image neu und zieht dabei akt
 | App | Rebuild reicht? |
 |---|---|
 | Firefox, Thunderbird | ✓ Ja — aus Mozillas Repo, immer aktuell |
+| VS Code | ✓ Ja — aus Microsofts Repo, immer aktuell |
 | Bitwarden | ✓ Ja — neueste Version via GitHub API automatisch ermittelt |
 | Geany, gedit, gThumb, VLC, LibreOffice, Ristretto, Remmina, Baobab, Seahorse u.a. | Nur Sicherheits-Updates — Debian Stable liefert keine neuen Major-Versionen |
 | Angry IP Scanner | ✗ Nein — Version fest im Dockerfile hinterlegt, muss manuell angepasst werden |
+
+## VS Code
+
+VS Code ist aus Microsofts offiziellem apt-Repository installiert und immer aktuell nach einem Rebuild.
+
+- **Extension Marketplace** funktioniert vollständig — Extensions können wie unter Windows über das Extensions-Panel installiert werden
+- **Einstellungen und Extensions** werden in `/addon_configs/ubuntu_webtop/.config/Code/` gespeichert und bleiben über Rebuilds und Neustarts erhalten
+- **Kein Auto-Update im Container**: VS Code's eingebauter Updater ist deaktiviert (`update.mode: none`) — Updates kommen automatisch mit dem nächsten **„Neu aufbauen"** des Add-ons
+- **Terminal**: VS Code's integriertes Terminal funktioniert im Container
 
 ## Audio
 

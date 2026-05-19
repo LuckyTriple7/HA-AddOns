@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5] - 2026-05-19
+
+### Hinzugefügt
+- VS Code aus Microsofts offiziellem apt-Repository installiert — immer aktuell beim Rebuild, `--no-sandbox` Wrapper für HA-Container-Kompatibilität (kein Kernel-Namespace-Sandbox möglich)
+- Extension Marketplace voll funktionsfähig, Einstellungen und Extensions persistent in `/config/.config/Code/`
+- VS Code Auto-Updater deaktiviert (`update.mode: none`) — Updates kommen via Add-on-Rebuild
+
 ## [1.7.4] - 2026-05-19
 
 ### Behoben
