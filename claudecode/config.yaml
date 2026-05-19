@@ -1,6 +1,6 @@
 ﻿name: Claude Code
 description: Run Claude Code AI assistant inside Home Assistant to create automations, debug issues, and manage your smart home configuration
-version: "1.0.2"
+version: "1.0.3"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
 arch:
