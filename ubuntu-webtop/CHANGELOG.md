@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.9] - 2026-05-19
+
+### Behoben
+- Audio: Sink von `webtop` auf `auto_null` umbenannt — kclient liest hardcoded von `auto_null.monitor`; unser Monitor hieß `webtop.monitor` und wurde nie gefunden → kein Ton trotz laufendem PulseAudio
+
 ## [1.6.8] - 2026-05-19
 
 ### Behoben

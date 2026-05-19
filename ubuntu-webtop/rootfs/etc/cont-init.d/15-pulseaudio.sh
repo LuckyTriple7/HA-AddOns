@@ -11,14 +11,14 @@ mkdir -p "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
 chmod 777 "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
 
 cat > "${PULSE_CFG}/default.pa" << 'EOF'
-load-module module-null-sink sink_name=webtop sink_properties=device.description="Webtop"
-set-default-sink webtop
+load-module module-null-sink sink_name=auto_null sink_properties=device.description="Webtop Audio"
+set-default-sink auto_null
 load-module module-native-protocol-unix socket=/tmp/pulse-runtime/native
 load-module module-always-sink
 EOF
 
 cat > "${PULSE_CFG}/client.conf" << 'EOF'
-default-sink = webtop
+default-sink = auto_null
 autospawn = no
 daemon-binary = /bin/true
 EOF
