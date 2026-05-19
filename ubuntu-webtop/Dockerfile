@@ -59,6 +59,7 @@ RUN apt-get update \
         remmina-plugin-vnc \
         baobab \
         seahorse \
+        git \
         jq \
         curl \
         gnupg \

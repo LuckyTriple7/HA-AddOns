@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.6] - 2026-05-19
+
+### Behoben
+- `git` zu installierten Paketen hinzugefügt — fehlte im Dockerfile
+
 ## [1.7.5] - 2026-05-19
 
 ### Hinzugefügt
