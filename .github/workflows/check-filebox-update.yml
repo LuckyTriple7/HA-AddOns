@@ -95,6 +95,12 @@ jobs:
             exit 0
           fi
 
+          # Branch auf Remote löschen falls er ohne PR existiert (z. B. gecrasht)
+          if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+            echo "Branch $BRANCH existiert auf Remote ohne PR — wird neu erstellt."
+            git push origin --delete "$BRANCH" 2>/dev/null || true
+          fi
+
           git checkout -b "$BRANCH"
 
           DATE=$(date +%Y-%m-%d)
