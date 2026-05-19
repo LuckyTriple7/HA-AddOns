@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.8] - 2026-05-19
+
+### Hinzugefügt
+- `/share/webtop` wird beim Start automatisch angelegt falls nicht vorhanden
+- Thunar-Bookmark für `/share/webtop` wird einmalig in die Seitenleiste eingetragen (`~/.config/gtk-3.0/bookmarks`)
+
 ## [1.7.7] - 2026-05-19
 
 ### Hinzugefügt

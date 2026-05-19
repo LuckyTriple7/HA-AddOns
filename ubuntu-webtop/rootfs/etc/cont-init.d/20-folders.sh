@@ -12,3 +12,18 @@ if [ -d /config/.config ]; then
 fi
 
 echo "[ubuntu-webtop] /config bereit (addon_config-Mount, Besitzer: ${PUID}:${PGID})"
+
+# /share/webtop anlegen falls nicht vorhanden
+mkdir -p /share/webtop
+chown "${PUID}:${PGID}" /share/webtop 2>/dev/null || true
+echo "[ubuntu-webtop] /share/webtop bereit"
+
+# Thunar-Bookmark für /share/webtop eintragen (Seitenleiste)
+BOOKMARKS=/config/.config/gtk-3.0/bookmarks
+mkdir -p "$(dirname "$BOOKMARKS")"
+touch "$BOOKMARKS"
+if ! grep -q "file:///share/webtop" "$BOOKMARKS"; then
+    echo "file:///share/webtop HA Share" >> "$BOOKMARKS"
+    chown "${PUID}:${PGID}" "$BOOKMARKS" 2>/dev/null || true
+    echo "[ubuntu-webtop] Thunar-Bookmark für /share/webtop eingetragen"
+fi
