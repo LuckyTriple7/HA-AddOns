@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.1] - 2026-05-19
+
+### Behoben
+- VLC: `vlc-plugin-access-extra` hinzugefügt — enthält das SMB-Zugriffsmodul (`access_smb`), das nicht im Standard-`vlc`-Paket enthalten ist; ermöglicht direktes Abspielen von Videos aus SMB-Shares
+
 ## [1.7.0] - 2026-05-19
 
 ### Behoben

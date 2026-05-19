@@ -46,6 +46,7 @@ RUN apt-get update \
         ristretto \
         atril \
         vlc \
+        vlc-plugin-access-extra \
         galculator \
         xarchiver \
         flameshot \
