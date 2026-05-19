@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.4] - 2026-05-19
+
+### Behoben
+- Totem: Grilo-Plugin-Dateien für Tracker3 (`libgrltracker3.so`) und dleyna (`libgrldleyna.so`) nach der Installation entfernt — Tracker3 ist ein Datei-Indexierungsdienst der im Container nicht läuft; durch Entfernen der .so-Dateien kann Grilo die Plugins gar nicht erst laden
+
 ## [1.7.3] - 2026-05-19
 
 ### Behoben

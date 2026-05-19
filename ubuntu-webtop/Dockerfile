@@ -152,12 +152,9 @@ RUN apt-get update \
 RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-msvideo=org.gnome.Totem.desktop\nvideo/x-matroska=org.gnome.Totem.desktop\nvideo/quicktime=org.gnome.Totem.desktop\nvideo/mpeg=org.gnome.Totem.desktop\nvideo/webm=org.gnome.Totem.desktop\nvideo/x-m4v=org.gnome.Totem.desktop\nvideo/3gpp=org.gnome.Totem.desktop\nvideo/x-flv=org.gnome.Totem.desktop\nvideo/x-ms-wmv=org.gnome.Totem.desktop\n' \
     > /usr/share/applications/mimeapps.list
 
-# Totem: Grilo/Tracker3/dleyna-Plugins deaktivieren — im Container nicht verfügbar
-RUN echo '[org.gnome.totem]' \
-        > /usr/share/glib-2.0/schemas/99-totem-container.gschema.override \
-    && echo "active-plugins=['autoload-subtitles', 'chapters', 'im-status', 'media-player-keys', 'movie-properties', 'open-directory', 'screenshot', 'skipto', 'variable-rate']" \
-        >> /usr/share/glib-2.0/schemas/99-totem-container.gschema.override \
-    && glib-compile-schemas /usr/share/glib-2.0/schemas/
+# Tracker3 (Indexierungsdienst) und dleyna (DLNA) Grilo-Plugins entfernen — im Container nicht verfügbar
+RUN find /usr/lib -name "libgrltracker3.so" -delete \
+    && find /usr/lib -name "libgrldleyna.so" -delete
 
 # Deutsche Locale generieren
 RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
