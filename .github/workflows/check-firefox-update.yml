@@ -2,7 +2,7 @@ name: Check Firefox Update
 
 on:
   schedule:
-    - cron: '0 9 * * *'  # täglich um 9:00 UTC
+    - cron: '0 15 * * *'  # täglich um 17:00 CEST (15:00 UTC)
   workflow_dispatch:
 
 permissions:
