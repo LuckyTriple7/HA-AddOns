@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.2] - 2026-05-19
+
+### Hinzugefügt
+- Totem (GNOME Videos) als Standard-Videoplayer installiert — nutzt GStreamer mit `giosrc` und ist GIO-fähig, kann damit direkt auf GVFS-SMB-Shares zugreifen ohne eigene Authentifizierung (Credentials aus GNOME Keyring von Thunar werden wiederverwendet)
+- `gstreamer1.0-libav` und `gstreamer1.0-plugins-bad` für H.264/H.265-Unterstützung in Totem
+
+### Behoben
+- Videos aus SMB-Shares direkt in Thunar öffnen schlägt fehl: VLC ist nicht GIO-fähig und kennt keine GVFS-Anmeldedaten; Totem ist der korrekte GTK/GIO-native Ersatz (analog zur früheren KDE-App-Problematik)
+
 ## [1.7.1] - 2026-05-19
 
 ### Behoben

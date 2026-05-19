@@ -47,6 +47,9 @@ RUN apt-get update \
         atril \
         vlc \
         vlc-plugin-access-extra \
+        totem \
+        gstreamer1.0-libav \
+        gstreamer1.0-plugins-bad \
         galculator \
         xarchiver \
         flameshot \
@@ -144,6 +147,10 @@ RUN apt-get update \
         thunderbird-l10n-de \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Totem als Standard-Videoplayer für alle gängigen Formate setzen
+RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-msvideo=org.gnome.Totem.desktop\nvideo/x-matroska=org.gnome.Totem.desktop\nvideo/quicktime=org.gnome.Totem.desktop\nvideo/mpeg=org.gnome.Totem.desktop\nvideo/webm=org.gnome.Totem.desktop\nvideo/x-m4v=org.gnome.Totem.desktop\nvideo/3gpp=org.gnome.Totem.desktop\nvideo/x-flv=org.gnome.Totem.desktop\nvideo/x-ms-wmv=org.gnome.Totem.desktop\n' \
+    > /usr/share/applications/mimeapps.list
 
 # Deutsche Locale generieren
 RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
