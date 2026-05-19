@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.5] - 2026-05-18
+
+### Neu
+- `pulseaudio` ins Docker-Image aufgenommen
+- `15-pulseaudio.sh` cont-init.d-Skript: startet eigene PulseAudio-Instanz mit virtuellem Sink beim Container-Start — unabhängig von hassio_audio, kein CPU-Impact auf den Host
+
 ## [1.6.4] - 2026-05-18
 
 ### Geändert

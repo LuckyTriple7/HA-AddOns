@@ -34,6 +34,7 @@ RUN apt-get update \
         thunar \
         thunar-volman \
         tumbler \
+        pulseaudio \
         gvfs \
         gvfs-backends \
         gvfs-fuse \
