@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.3] - 2026-05-18
+
+### Behoben
+- `audio: false` gesetzt — Webtop hat den PulseAudio-Socket von `hassio_audio` gehalten und dadurch die Host-CPU auf 50–60 % getrieben; Audio wird im Webtop nicht benötigt
+
 ## [1.6.2] - 2026-05-18
 
 ### Behoben
