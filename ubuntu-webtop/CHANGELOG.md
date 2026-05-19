@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.7] - 2026-05-19
+
+### Behoben
+- PulseAudio Runtime-Dir von `/run/user/1000` auf `/tmp/pulse-runtime` verlegt — `/run/user/1000` gehört UID 911 (KasmVNC-intern) und ist für UID 1000 (abc) nicht schreibbar; `chown` schlug fehl, PulseAudio startete nicht
+- `PULSE_SERVER` in config.yaml entsprechend auf `unix:/tmp/pulse-runtime/native` aktualisiert
+- Socket-Pfad explizit in `module-native-protocol-unix` gesetzt statt über XDG_RUNTIME_DIR
+
 ## [1.6.6] - 2026-05-19
 
 ### Behoben
