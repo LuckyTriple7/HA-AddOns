@@ -149,6 +149,18 @@ RUN apt-get update \
     && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox |g' /usr/share/applications/code.desktop \
     && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox |g' /usr/share/applications/code-url-handler.desktop 2>/dev/null || true
 
+# GitHub CLI aus offiziellem GitHub-Repo installieren
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        gh \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Firefox + Thunderbird über Mozillas offizielles Debian-Repo installieren
 RUN apt-get update \
     && install -d -m 0755 /etc/apt/keyrings \

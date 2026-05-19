@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.7] - 2026-05-19
+
+### Hinzugefügt
+- GitHub CLI (`gh`) aus offiziellem GitHub-Debian-Repo installiert — ermöglicht `gh auth login`, PR- und Issue-Verwaltung direkt aus dem Terminal
+
 ## [1.7.6] - 2026-05-19
 
 ### Behoben
