@@ -1,9 +1,21 @@
 # Changelog
 
+## [1.0.2] - 2026-05-19
+
+### Geändert
+- Rebuild für Firefox ESR 140.11.0esr
+
+
 ## [1.0.1] - 2026-05-17
 
 ### Geändert
 - Automatischer Firefox-Updater deaktiviert (`policies.json`) — Updates kommen ausschließlich über das Docker-Image
+
+## [1.0.2] - 2026-05-19
+
+### Geändert
+- Rebuild für Firefox ESR 140.11.0esr
+
 
 ## [1.0.0] - 2026-05-16
 
