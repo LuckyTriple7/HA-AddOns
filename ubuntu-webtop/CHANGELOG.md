@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.8] - 2026-05-19
+
+### Behoben
+- PulseAudio: `/config` und `/run/user/1000` sind beim Start von cont-init.d Nr. 15 noch nicht für abc zugänglich — alle Pulse-Pfade komplett nach `/tmp` verlegt (`/tmp/pulse-runtime`, `/tmp/pulse-config`), `chmod 777` statt `chown`, `HOME=/tmp` statt `HOME=/config`
+
 ## [1.6.7] - 2026-05-19
 
 ### Behoben

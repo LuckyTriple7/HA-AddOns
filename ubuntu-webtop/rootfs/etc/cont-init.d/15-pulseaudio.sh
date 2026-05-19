@@ -1,14 +1,14 @@
 #!/bin/sh
-# PulseAudio mit virtuellem Sink — eigener Runtime-Dir unter /tmp um
-# den Konflikt mit /run/user/1000 (UID 911, KasmVNC-intern) zu umgehen.
+# PulseAudio mit virtuellem Sink.
+# Alles unter /tmp: /config und /run/user/1000 sind beim Start von
+# cont-init.d Nr. 15 noch nicht für abc zugänglich.
 
 PULSE_RUNTIME_DIR=/tmp/pulse-runtime
+PULSE_CFG=/tmp/pulse-config
 PULSE_SOCKET="${PULSE_RUNTIME_DIR}/native"
-PULSE_CFG=/config/.config/pulse
 
 mkdir -p "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
-chown abc:abc "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
-chmod 700 "${PULSE_RUNTIME_DIR}"
+chmod 777 "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
 
 cat > "${PULSE_CFG}/default.pa" << 'EOF'
 load-module module-null-sink sink_name=webtop sink_properties=device.description="Webtop"
@@ -16,23 +16,20 @@ set-default-sink webtop
 load-module module-native-protocol-unix socket=/tmp/pulse-runtime/native
 load-module module-always-sink
 EOF
-chown abc:abc "${PULSE_CFG}/default.pa"
 
 cat > "${PULSE_CFG}/client.conf" << 'EOF'
 default-sink = webtop
 autospawn = no
 daemon-binary = /bin/true
 EOF
-chown abc:abc "${PULSE_CFG}/client.conf"
 
 su -s /bin/sh abc -c "
-    export HOME=/config
+    export HOME=/tmp
     export XDG_RUNTIME_DIR=/tmp/pulse-runtime
-    export PULSE_CONFIG_PATH=/config/.config/pulse
     nohup pulseaudio \
         --daemonize=yes \
         --exit-idle-time=-1 \
-        --file=/config/.config/pulse/default.pa \
+        --file=/tmp/pulse-config/default.pa \
         --log-target=file:/tmp/pulseaudio.log \
         >/tmp/pulse-start.log 2>&1
 "
