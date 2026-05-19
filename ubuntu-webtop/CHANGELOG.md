@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.3] - 2026-05-19
+
+### Behoben
+- Totem: Grilo/Tracker3/dleyna-Plugins über GLib-Schema-Override deaktiviert — Tracker3-Miner und dleyna-Server sind im Container nicht verfügbar und erzeugen beim Start Fehler/Warnungen; verbleibende Plugins (autoload-subtitles, chapters, im-status, media-player-keys, movie-properties, open-directory, screenshot, skipto, variable-rate) decken alle für den Webtop relevanten Funktionen ab
+
 ## [1.7.2] - 2026-05-19
 
 ### Hinzugefügt
