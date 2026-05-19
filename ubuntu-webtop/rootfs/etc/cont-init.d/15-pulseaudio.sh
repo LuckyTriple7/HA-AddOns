@@ -1,49 +1,30 @@
 #!/bin/sh
-# PulseAudio mit virtuellem Sink.
-# Alles unter /tmp: /config und /run/user/1000 sind beim Start von
-# cont-init.d Nr. 15 noch nicht für abc zugänglich.
+# Das Base-Image startet PulseAudio über svc-pulseaudio (s6-managed, als abc).
+# abc's HOME=/config → Daemon liest /config/.config/pulse/default.pa.
+# Wir schreiben nur die korrekte Konfiguration; den Start übernimmt s6.
 
-PULSE_RUNTIME_DIR=/tmp/pulse-runtime
-PULSE_CFG=/tmp/pulse-config
-PULSE_SOCKET="${PULSE_RUNTIME_DIR}/native"
+PULSE_CFG=/config/.config/pulse
 
-mkdir -p "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
-chmod 777 "${PULSE_RUNTIME_DIR}" "${PULSE_CFG}"
+mkdir -p "${PULSE_CFG}"
+chown abc:abc "${PULSE_CFG}" 2>/dev/null || true
 
 cat > "${PULSE_CFG}/default.pa" << 'EOF'
 load-module module-null-sink sink_name=auto_null sink_properties=device.description="Webtop Audio"
 set-default-sink auto_null
-load-module module-native-protocol-unix socket=/tmp/pulse-runtime/native
+load-module module-native-protocol-unix socket=/tmp/pulse-runtime/native auth-anonymous=1
 load-module module-always-sink
 EOF
+chown abc:abc "${PULSE_CFG}/default.pa"
 
 cat > "${PULSE_CFG}/client.conf" << 'EOF'
 default-sink = auto_null
 autospawn = no
 daemon-binary = /bin/true
 EOF
+chown abc:abc "${PULSE_CFG}/client.conf"
 
-su -s /bin/sh abc -c "
-    export HOME=/tmp
-    export XDG_RUNTIME_DIR=/tmp/pulse-runtime
-    nohup pulseaudio \
-        --daemonize=yes \
-        --exit-idle-time=-1 \
-        --file=/tmp/pulse-config/default.pa \
-        --log-target=file:/tmp/pulseaudio.log \
-        >/tmp/pulse-start.log 2>&1
-"
+# Socket-Verzeichnis erstellen (PulseAudio schreibt den Socket nach Start dort rein)
+mkdir -p /tmp/pulse-runtime
+chmod 777 /tmp/pulse-runtime
 
-i=0
-while [ ! -S "${PULSE_SOCKET}" ] && [ $i -lt 10 ]; do
-    sleep 1
-    i=$((i + 1))
-done
-
-if [ -S "${PULSE_SOCKET}" ]; then
-    echo "[pulse] PulseAudio bereit: ${PULSE_SOCKET}"
-else
-    echo "[pulse] FEHLER beim Start — Log:"
-    cat /tmp/pulse-start.log 2>/dev/null
-    cat /tmp/pulseaudio.log 2>/dev/null
-fi
+echo "[pulse] Konfiguration geschrieben: ${PULSE_CFG}/default.pa (Sink: auto_null)"

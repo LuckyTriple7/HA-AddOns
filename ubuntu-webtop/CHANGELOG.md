@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.0] - 2026-05-19
+
+### Behoben
+- Audio: Eigener PulseAudio-Start entfernt — das Base-Image betreibt bereits einen eigenen `svc-pulseaudio` Dienst (s6-managed, abc-User, HOME=/config), der `/config/.config/pulse/default.pa` liest. Unser Skript schreibt jetzt nur noch die korrekte Konfiguration dorthin (`sink_name=auto_null`, `auth-anonymous=1`), den Start übernimmt s6
+- Ursache der `webtop`-Sink war die alte `/config/.config/pulse/default.pa` aus v1.6.7 (persistente Config-Volume), die vom Base-Image-Dienst geladen wurde
+
 ## [1.6.9] - 2026-05-19
 
 ### Behoben
