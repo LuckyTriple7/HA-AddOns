@@ -688,7 +688,7 @@ html.dark #emoji-toggle { color: #8696a0; }
   <h1>Signal</h1>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" title="Fotos ein/aus">Fotos AN</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" title="Fotos AN">📷</button>' : ''}
   ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
@@ -956,6 +956,8 @@ async function sendMsg() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: selectedChatId, message: text }),
     });
+    lastSeenTime[selectedChatId] = Date.now();
+    localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
     await loadMessages(selectedChatId);
     await loadChats();
   } catch (e) { alert('Fehler: ' + e.message); }
@@ -995,7 +997,7 @@ function togglePhotos() {
   showPhotos = !showPhotos;
   localStorage.setItem('signal_show_photos', showPhotos ? 'true' : 'false');
   const btn = document.getElementById('photo-toggle-btn');
-  if (btn) { btn.textContent = showPhotos ? 'Fotos AN' : 'Fotos AUS'; btn.classList.toggle('active', showPhotos); }
+  if (btn) { btn.textContent = showPhotos ? '📷' : '🚫'; btn.title = showPhotos ? 'Fotos AN' : 'Fotos AUS'; btn.classList.toggle('active', showPhotos); }
   if (selectedChatId) loadMessages(selectedChatId);
 }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1] - 2026-05-20
+
+### Behoben
+- Unread-Dot erschien nach eigenen gesendeten Nachrichten — `lastSeenTime` wird jetzt auch nach dem Senden aktualisiert
+- Foto-Toggle-Button zeigt jetzt 📷 / 🚫 statt Text (wie WhatsApp und Telegram)
+
 ## [1.1.0] - 2026-05-20
 
 ### Neu
