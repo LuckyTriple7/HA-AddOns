@@ -49,6 +49,9 @@ remove_bookmark() {
 # Share/Webtop — immer sichtbar
 add_bookmark "file:///share/webtop" "HA Share"
 
+# Veralteten HA-Config-Bookmark entfernen (war in v1.7.9/1.7.10, funktioniert nicht)
+remove_bookmark "file:///homeassistant"
+
 # Media
 if [ "$SHOW_MEDIA" = "true" ]; then
     if [ -d /media ]; then

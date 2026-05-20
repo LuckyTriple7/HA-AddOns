@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.12] - 2026-05-20
+
+### Behoben
+- Veralteten `/homeassistant`-Bookmark aus persistenter Bookmarks-Datei entfernen (eingeführt in v1.7.9, nicht funktionsfähig)
+
 ## [1.7.11] - 2026-05-20
 
 ### Entfernt
