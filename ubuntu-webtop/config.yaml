@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox, Thunderbird und vielen weiteren Programmen vorinstalliert
-version: "1.7.15"
+version: "1.8.0"
 slug: ubuntu_webtop
 init: false
 

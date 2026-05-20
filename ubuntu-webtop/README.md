@@ -30,8 +30,6 @@ Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und 
 - **Firefox** (aktuell, aus Mozillas offiziellem Repository)
 - **Thunderbird** E-Mail-Client (deutsch)
 - **Thunar** Dateimanager mit SMB/CIFS-Netzwerkzugriff (`smb://server/share`)
-- **Firefox** (aktuell, aus Mozillas offiziellem Repository)
-- **Thunderbird** E-Mail-Client (deutsch)
 - **LibreOffice** Writer, Calc, Impress (deutsch)
 - **Geany** Code- und Texteditor mit Syntax-Highlighting
 - **gedit** Texteditor — öffnet SMB-Dateien aus Thunar direkt ohne Wrapper
@@ -84,9 +82,15 @@ Ist ein Passwort gesetzt, erscheint ein Login-Dialog:
 | `PUID` | `1000` | Benutzer-ID des Desktop-Users |
 | `PGID` | `1000` | Gruppen-ID des Desktop-Users |
 | `TZ` | `Europe/Berlin` | Zeitzone (z. B. `Europe/Vienna`) |
-| `PASSWORD` | leer | Passwortschutz für den Web-Zugang (Benutzername: `abc`) |
+| `PASSWORD` | leer | Passwortschutz für den Web-Zugang — Benutzername ist immer `abc` |
 | `KEYBOARD` | leer | Tastaturlayout (z. B. `de-de-qwertz`) |
 | `DRINODE` | leer | GPU-Gerät für Hardwarebeschleunigung (z. B. `/dev/dri/renderD128`) |
+| `show_media` | `false` | HA-Media-Share (`/media`) als Thunar-Lesezeichen einblenden |
+| `show_backup` | `false` | HA-Backup-Share (`/backup`) als Thunar-Lesezeichen einblenden |
+| `smb_1_server` … `smb_5_server` | leer | IP oder Hostname des SMB-Servers (Slot 1–5) |
+| `smb_1_share` … `smb_5_share` | leer | Name des SMB-Shares (z. B. `backup`) |
+| `smb_1_user` … `smb_5_user` | leer | Benutzername für den SMB-Zugang (leer = Gastzugang) |
+| `smb_1_password` … `smb_5_password` | leer | Passwort für den SMB-Zugang |
 
 ### Empfehlung für Intel-CPUs mit integrierter Grafik
 
@@ -100,12 +104,32 @@ KasmVNC nutzt dann **Intel Quick Sync** für hardware-beschleunigtes Video-Encod
 
 ## Netzwerk-Shares (SMB/CIFS)
 
-SMB-Shares können direkt in Thunar geöffnet werden:
+### Automatisches Mounten beim Start (empfohlen)
+
+Bis zu 5 SMB-Shares können in der Add-on-Konfiguration eingetragen werden und werden beim Start automatisch als CIFS-Kernel-Mount eingehängt. Die Shares erscheinen anschließend als Thunar-Lesezeichen.
+
+**Beispiel für Slot 1:**
+```
+smb_1_server: 192.168.178.100
+smb_1_share:  backup
+smb_1_user:   homeassistant
+smb_1_password: meinPasswort
+```
+
+Die Shares sind nach dem Start unter `/mnt/smb1` bis `/mnt/smb5` erreichbar — auch für Apps die kein GVFS unterstützen (z. B. VLC, Terminal).
+
+Für Gastzugang einfach `smb_x_user` und `smb_x_password` leer lassen.
+
+### Manuell via Thunar (ohne Neustart)
+
+SMB-Shares können auch ohne Konfiguration direkt in Thunar geöffnet werden:
 
 1. Thunar öffnen → Adressleiste mit **Strg+L** aktivieren
 2. Adresse eingeben: `smb://192.168.178.x/sharename`
 3. Benutzername und Passwort eingeben
 4. **„Passwort merken"** auswählen → wird dauerhaft im GNOME Keyring gespeichert
+
+> **Hinweis:** Der manuelle Thunar-Zugriff läuft über GVFS (Userspace). Nur GIO-fähige Apps (Thunar, gedit, Totem) können diese Verbindung nutzen. Für VLC und andere Apps empfiehlt sich das automatische Mounten via Konfiguration.
 
 ## Persistente Daten
 
@@ -152,7 +176,6 @@ Audio wird über den integrierten PulseAudio-Dienst des Base-Images bereitgestel
 
 ## Bekannte Einschränkungen
 
-- **Kein automatischer CIFS-Kernel-Mount**: Der Linux-Kernel-CIFS-Mount (`mount -t cifs`) ist im HA-Container-Sicherheitsmodell nicht verfügbar. SMB-Zugriff funktioniert über Thunar (gvfs/userspace).
 - **xfce4-session deaktiviert**: In HA-Containern fehlen systemd-Dienste (polkit, logind). XFCE-Komponenten werden direkt gestartet.
 - **SESSION_MANAGER Warnungen** im Log sind harmlos und können ignoriert werden.
 

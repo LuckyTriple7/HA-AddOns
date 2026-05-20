@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.0] - 2026-05-20
+
+### Hinzugefügt
+- README: Dokumentation der neuen Optionen `show_media`, `show_backup` und `smb_1`–`smb_5`
+- README: Abschnitt „Automatisches Mounten beim Start" erklärt CIFS-Konfiguration
+- README: VNC-Benutzername (`abc`) in Konfigurationstabelle hervorgehoben
+
+### Behoben
+- README: Doppelte Firefox/Thunderbird-Einträge in der Features-Liste entfernt
+- README: Veralteten Hinweis „Kein automatischer CIFS-Kernel-Mount" entfernt (CIFS funktioniert seit v1.7.14)
+
 ## [1.7.15] - 2026-05-20
 
 ### Geändert
