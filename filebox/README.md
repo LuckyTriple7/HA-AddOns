@@ -3,6 +3,7 @@
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
 ![Commits](https://img.shields.io/github/commit-activity/t/LuckyTriple7/HA-AddOns?style=flat-square&label=commits)
 ![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?path=filebox&style=flat-square)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 ![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?style=flat-square&logo=docker)
 
 Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant — basierend auf [FileBrowser](https://filebrowser.xyz).
