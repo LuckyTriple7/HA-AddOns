@@ -52,21 +52,36 @@ add_bookmark "file:///share/webtop" "HA Share"
 
 # Media
 if [ "$SHOW_MEDIA" = "true" ]; then
-    add_bookmark "file:///media" "HA Media"
+    if [ -d /media ]; then
+        add_bookmark "file:///media" "HA Media"
+        echo "[ubuntu-webtop] /media gemountet und sichtbar"
+    else
+        echo "[ubuntu-webtop] WARN: /media nicht vorhanden — show_media ignoriert"
+    fi
 else
     remove_bookmark "file:///media"
 fi
 
 # Config (HA-Hauptkonfiguration — liegt bei /homeassistant wenn addon_config belegt ist)
 if [ "$SHOW_CONFIG" = "true" ]; then
-    add_bookmark "file:///homeassistant" "HA Config"
+    if [ -d /homeassistant ]; then
+        add_bookmark "file:///homeassistant" "HA Config"
+        echo "[ubuntu-webtop] /homeassistant gemountet und sichtbar"
+    else
+        echo "[ubuntu-webtop] WARN: /homeassistant nicht vorhanden — show_config ignoriert"
+    fi
 else
     remove_bookmark "file:///homeassistant"
 fi
 
 # Backup
 if [ "$SHOW_BACKUP" = "true" ]; then
-    add_bookmark "file:///backup" "HA Backup"
+    if [ -d /backup ]; then
+        add_bookmark "file:///backup" "HA Backup"
+        echo "[ubuntu-webtop] /backup gemountet und sichtbar"
+    else
+        echo "[ubuntu-webtop] WARN: /backup nicht vorhanden — show_backup ignoriert"
+    fi
 else
     remove_bookmark "file:///backup"
 fi

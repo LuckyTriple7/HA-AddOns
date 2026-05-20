@@ -192,6 +192,9 @@ RUN sed -i 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen \
     && update-locale LANG=de_DE.UTF-8
 
+# Mount-Point für HA-Config anlegen (Supervisor braucht existierendes Verzeichnis)
+RUN mkdir -p /homeassistant
+
 # Eigene rootfs-Skripte einspielen
 COPY rootfs/ /
 RUN find /etc/cont-init.d -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true \

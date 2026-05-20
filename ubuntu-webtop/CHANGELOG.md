@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.10] - 2026-05-20
+
+### Behoben
+- `/homeassistant` Mount-Point im Dockerfile angelegt — HA Supervisor kann die HA-Config nur einhängen wenn das Verzeichnis im Image existiert
+- Log-Ausgaben für alle Share-Mounts hinzugefügt — zeigt ob Mount vorhanden ist oder ob Option ignoriert wird
+
 ## [1.7.9] - 2026-05-20
 
 ### Hinzugefügt
