@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.13] - 2026-05-20
+
+### Behoben
+- Bookmark-Script vereinfacht: nur noch hinzufügen, nie löschen — `sed -i` hatte alle Thunar-Lesezeichen gelöscht
+
 ## [1.7.12] - 2026-05-20
 
 ### Behoben

@@ -25,7 +25,7 @@ SHOW_BACKUP=$(jq -r '.show_backup // false' "$OPTIONS" 2>/dev/null || echo "fals
 
 echo "[ubuntu-webtop] Shares: media=${SHOW_MEDIA} backup=${SHOW_BACKUP}"
 
-# Thunar-Bookmarks verwalten
+# Thunar-Bookmarks: nur hinzufügen, nie löschen
 BOOKMARKS=/config/.config/gtk-3.0/bookmarks
 mkdir -p "$(dirname "$BOOKMARKS")"
 touch "$BOOKMARKS"
@@ -38,42 +38,16 @@ add_bookmark() {
     fi
 }
 
-remove_bookmark() {
-    local URI=$1
-    if grep -qF "$URI" "$BOOKMARKS"; then
-        sed -i "\|${URI}|d" "$BOOKMARKS"
-        echo "[ubuntu-webtop] Bookmark entfernt: $URI"
-    fi
-}
-
-# Share/Webtop — immer sichtbar
 add_bookmark "file:///share/webtop" "HA Share"
 
-# Veralteten HA-Config-Bookmark entfernen (war in v1.7.9/1.7.10, funktioniert nicht)
-remove_bookmark "file:///homeassistant"
-
-# Media
-if [ "$SHOW_MEDIA" = "true" ]; then
-    if [ -d /media ]; then
-        add_bookmark "file:///media" "HA Media"
-        echo "[ubuntu-webtop] /media gemountet und sichtbar"
-    else
-        echo "[ubuntu-webtop] WARN: /media nicht vorhanden — show_media ignoriert"
-    fi
-else
-    remove_bookmark "file:///media"
+if [ "$SHOW_MEDIA" = "true" ] && [ -d /media ]; then
+    add_bookmark "file:///media" "HA Media"
+    echo "[ubuntu-webtop] /media sichtbar"
 fi
 
-# Backup
-if [ "$SHOW_BACKUP" = "true" ]; then
-    if [ -d /backup ]; then
-        add_bookmark "file:///backup" "HA Backup"
-        echo "[ubuntu-webtop] /backup gemountet und sichtbar"
-    else
-        echo "[ubuntu-webtop] WARN: /backup nicht vorhanden — show_backup ignoriert"
-    fi
-else
-    remove_bookmark "file:///backup"
+if [ "$SHOW_BACKUP" = "true" ] && [ -d /backup ]; then
+    add_bookmark "file:///backup" "HA Backup"
+    echo "[ubuntu-webtop] /backup sichtbar"
 fi
 
 chown "${PUID}:${PGID}" "$BOOKMARKS" 2>/dev/null || true
