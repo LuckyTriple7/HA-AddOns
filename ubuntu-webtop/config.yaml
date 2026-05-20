@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox, Thunderbird und vielen weiteren Programmen vorinstalliert
-version: "1.7.13"
+version: "1.7.14"
 slug: ubuntu_webtop
 init: false
 
@@ -57,6 +57,18 @@ options:
   PASSWORD: ""
   show_media: false
   show_backup: false
+  smb_1_server: ""
+  smb_1_share: ""
+  smb_1_user: ""
+  smb_1_password: ""
+  smb_2_server: ""
+  smb_2_share: ""
+  smb_2_user: ""
+  smb_2_password: ""
+  smb_3_server: ""
+  smb_3_share: ""
+  smb_3_user: ""
+  smb_3_password: ""
 
 schema:
   PUID: int
@@ -67,6 +79,18 @@ schema:
   DRINODE: list(/dev/dri/card0|/dev/dri/card1|/dev/dri/renderD128|/dev/dri/renderD129)?
   show_media: bool
   show_backup: bool
+  smb_1_server: str?
+  smb_1_share: str?
+  smb_1_user: str?
+  smb_1_password: str?
+  smb_2_server: str?
+  smb_2_share: str?
+  smb_2_user: str?
+  smb_2_password: str?
+  smb_3_server: str?
+  smb_3_share: str?
+  smb_3_user: str?
+  smb_3_password: str?
 
 panel_icon: mdi:monitor
 panel_admin: false

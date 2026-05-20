@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.14] - 2026-05-20
+
+### Hinzugefügt
+- `apparmor.txt` mit `mount`/`umount`/`remount`-Berechtigung — war der Grund warum CIFS-Mounts im Webtop bisher nicht funktionierten
+- SMB-Mount-Optionen (`smb_1` bis `smb_3`) — externe Shares werden beim Start gemountet und als Thunar-Bookmark eingetragen; gemountete Pfade sind für alle Apps direkt zugänglich (auch VLC)
+- `45-smb-mounts.sh` cont-init-Script analog zu FileBox
+
 ## [1.7.13] - 2026-05-20
 
 ### Behoben

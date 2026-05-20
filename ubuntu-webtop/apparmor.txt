@@ -1,0 +1,40 @@
+#include <tunables/global>
+
+profile ubuntu_webtop_addon flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  capability chown,
+  capability dac_override,
+  capability dac_read_search,
+  capability fowner,
+  capability fsetid,
+  capability kill,
+  capability net_bind_service,
+  capability setgid,
+  capability setuid,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  file,
+  signal,
+  mount,
+  umount,
+  remount,
+  network,
+  ptrace,
+
+  /dev/** mrwkl,
+  /run/{,**} rwk,
+  /tmp/** mrkwl,
+  /mnt/** rw,
+  /proc/** rw,
+
+  /data/** rw,
+  /share/** rw,
+  /media/** rw,
+  /config/** rw,
+  /backup/** rw,
+
+  ptrace (trace,read,tracedby,readby),
+  signal (send,receive),
+}
