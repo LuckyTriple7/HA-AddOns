@@ -212,6 +212,19 @@ async function loadGroups() {
 
 function processEnvelope(envelope) {
   const env = envelope.envelope || envelope;
+
+  // Lesebestätigungen / Zustellbestätigungen
+  const rm = env.receiptMessage;
+  if (rm && Array.isArray(rm.timestamps) && rm.timestamps.length > 0) {
+    const ackLevel = rm.isRead ? 2 : rm.isDelivery ? 1 : 0;
+    if (ackLevel > 0) {
+      dbg(`receiptMessage: ackLevel=${ackLevel} timestamps=${rm.timestamps.join(',')}`);
+      for (const ts of rm.timestamps) updateMsgAck(ts, ackLevel);
+      scheduleSave();
+    }
+    return;
+  }
+
   const dm = env.dataMessage;
   const source = normPhone(env.sourceNumber || env.source);
   const hasText = !!(dm && dm.message);
@@ -301,6 +314,21 @@ function updateMsgMedia(msgId, filename) {
   }
 }
 
+function updateMsgAck(signalTs, ackLevel) {
+  for (const msgs of messagesByChatId.values()) {
+    for (const msg of msgs) {
+      if (msg.signalTimestamp === signalTs && msg.fromMe) {
+        if ((msg.ack || 0) < ackLevel) {
+          msg.ack = ackLevel;
+          dbg(`ACK updated: signalTs=${signalTs} → ack=${ackLevel}`);
+        }
+        return;
+      }
+    }
+  }
+  dbg(`ACK: kein Match für signalTs=${signalTs}`);
+}
+
 // --- API ---
 
 app.get('/api/status', (req, res) => {
@@ -364,10 +392,11 @@ app.post('/api/send', async (req, res) => {
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
 
-    const msgId = `${PHONE_NUMBER}_${Date.now()}`;
+    const signalTs = result.timestamp || Date.now();
+    const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
-      const msg = { id: msgId, from: PHONE_NUMBER, body: message, timestamp: Date.now(), fromMe: true };
+      const msg = { id: msgId, from: PHONE_NUMBER, body: message, timestamp: signalTs, fromMe: true, ack: 0, signalTimestamp: signalTs };
       if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
       messagesByChatId.get(to).push(msg);
       if (!chatMap.has(to)) {
@@ -528,6 +557,11 @@ html.dark .del-btn { color: rgba(233,237,239,0.6); }
 html.light .del-btn { color: rgba(0,0,0,0.4); }
 .del-btn:hover { color: #e74c3c !important; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
+.msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
+.ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
+.ack-3 { color: #3a76f8; }
+html.dark .ack-1, html.dark .ack-2 { color: rgba(134,150,160,0.85); }
+html.dark .ack-3 { color: #53bdeb; }
 .day-sep { text-align: center; margin: 8px 0; }
 .day-sep span { background: rgba(255,255,255,0.8); padding: 4px 12px; border-radius: 12px; font-size: 12px; color: #666; }
 
@@ -741,6 +775,13 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function ackMark(ack) {
+  if (ack >= 2) return '<span class="msg-ack ack-3">✓✓</span>';
+  if (ack === 1) return '<span class="msg-ack ack-2">✓✓</span>';
+  if (ack === 0) return '<span class="msg-ack ack-1">✓</span>';
+  return '';
+}
+
 async function loadChats() {
   try {
     const chats = await fetch(api('/api/chats')).then(r => r.json());
@@ -813,6 +854,7 @@ function renderMessages(msgs) {
     let sep = '';
     if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
     const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
     if (m.mediaFile) {
       content = showPhotos
@@ -822,7 +864,7 @@ function renderMessages(msgs) {
     } else {
       content = escHtml(m.body || '');
     }
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.40] - 2026-05-20
+
+### Neu
+- ACK-Status für gesendete Nachrichten: ✓ gesendet, ✓✓ zugestellt (grau), ✓✓ gelesen (blau)
+- `receiptMessage`-Envelopes werden beim Polling ausgewertet und gespeichert — funktioniert in beiden Modi (native und default)
+
 ## [1.0.39] - 2026-05-17
 
 ### Neu
