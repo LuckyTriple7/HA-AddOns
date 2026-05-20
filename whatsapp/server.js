@@ -208,6 +208,31 @@ client.on('ready', async () => {
     }
     const total = [...messagesByChatId.values()].reduce((s, a) => s + a.length, 0);
     console.log(`[INFO] Loaded ${total} messages from ${recent.length} chats`);
+
+    if (DOWNLOAD_MEDIA) {
+      (async () => {
+        const pending = [];
+        for (const [chatId, msgs] of messagesByChatId) {
+          for (const m of msgs.filter(m => m.type === 'photo' && !m.mediaFile)) {
+            pending.push({ chatId, m });
+          }
+        }
+        if (!pending.length) return;
+        console.log(`[INFO] Auto-downloading media for ${pending.length} photo message(s) in background…`);
+        let count = 0;
+        for (const { m } of pending) {
+          try {
+            const fullMsg = await client.getMessageById(m.id);
+            if (fullMsg) {
+              const file = await downloadWAMedia(fullMsg, m.id);
+              if (file) { m.mediaFile = file; count++; }
+            }
+          } catch (e) { dbg(`auto-media: error for ${m.id}: ${e.message}`); }
+          await new Promise(r => setTimeout(r, 600));
+        }
+        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} Fotos geladen`);
+      })();
+    }
   } catch (err) {
     console.warn('[WARN] Could not load recent messages:', err.message);
   }

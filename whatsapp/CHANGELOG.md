@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.0] - 2026-05-20
+
+### Behoben
+- Fotos nach App-Neustart verschwunden — nach dem initialen Laden der Nachrichten werden alle Fotos automatisch im Hintergrund heruntergeladen (nur wenn `download_media: true`)
+
 ## [1.2.9] - 2026-05-17
 
 ### Geändert
