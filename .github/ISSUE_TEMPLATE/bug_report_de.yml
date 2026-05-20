@@ -1,0 +1,75 @@
+name: 🐛 Fehlerbericht (Deutsch)
+description: Einen Fehler in einem der Add-ons melden
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: addon
+    attributes:
+      label: Betroffenes Add-on
+      options:
+        - Signal
+        - WhatsApp
+        - Telegram
+        - Webtop XFCE
+        - Filebox
+        - Sonstiges
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Add-on Version
+      placeholder: z.B. 1.1.5
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant Version
+      placeholder: z.B. 2025.5.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architektur
+      options:
+        - amd64
+        - aarch64
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zum Reproduzieren
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Tatsächliches Verhalten
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log-Ausgabe
+      description: Relevante Zeilen aus dem Add-on Log (Supervisor → Add-on → Log)
+      render: text

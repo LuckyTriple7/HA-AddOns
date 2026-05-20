@@ -1,0 +1,39 @@
+name: 💡 Feature Request (English)
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: addon
+    attributes:
+      label: Affected Add-on
+      options:
+        - Signal
+        - WhatsApp
+        - Telegram
+        - Webtop XFCE
+        - Filebox
+        - All / General
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What should the feature do?
+      description: Describe the desired functionality as clearly as possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why would this be useful?
+      description: What problem does it solve, or what would be improved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Is there already a workaround?
+      description: Optional — if you already know a way to work around the issue.

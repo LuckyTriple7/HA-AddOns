@@ -1,0 +1,39 @@
+name: 💡 Feature-Wunsch (Deutsch)
+description: Eine neue Funktion oder Verbesserung vorschlagen
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: addon
+    attributes:
+      label: Betroffenes Add-on
+      options:
+        - Signal
+        - WhatsApp
+        - Telegram
+        - Webtop XFCE
+        - Filebox
+        - Alle / Allgemein
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Was soll das Feature tun?
+      description: Beschreibe die gewünschte Funktion so konkret wie möglich.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Warum wäre das nützlich?
+      description: Welches Problem löst es, oder was wird dadurch besser?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Gibt es bereits einen Workaround?
+      description: Optional — falls du schon einen Weg kennst das Problem zu umgehen.
