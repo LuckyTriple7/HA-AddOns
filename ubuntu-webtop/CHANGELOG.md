@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.15] - 2026-05-20
+
+### Geändert
+- SMB-Slots von 3 auf 5 erweitert (`smb_4` und `smb_5` in config.yaml und 45-smb-mounts.sh)
+
 ## [1.7.14] - 2026-05-20
 
 ### Hinzugefügt
