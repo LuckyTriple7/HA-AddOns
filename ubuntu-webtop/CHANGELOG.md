@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.11] - 2026-05-20
+
+### Entfernt
+- `config:rw` aus Map und `show_config`-Option entfernt — HA Supervisor hängt den Config-Share nicht ein wenn `addon_config` bereits `/config` belegt; HA-Config über Thunar via `smb://<HA-IP>/config` erreichbar
+
 ## [1.7.10] - 2026-05-20
 
 ### Behoben

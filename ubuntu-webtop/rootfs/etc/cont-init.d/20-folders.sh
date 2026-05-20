@@ -21,10 +21,9 @@ echo "[ubuntu-webtop] /share/webtop bereit"
 # Optionen lesen
 OPTIONS=/data/options.json
 SHOW_MEDIA=$(jq -r '.show_media // false' "$OPTIONS" 2>/dev/null || echo "false")
-SHOW_CONFIG=$(jq -r '.show_config // false' "$OPTIONS" 2>/dev/null || echo "false")
 SHOW_BACKUP=$(jq -r '.show_backup // false' "$OPTIONS" 2>/dev/null || echo "false")
 
-echo "[ubuntu-webtop] Shares: media=${SHOW_MEDIA} config=${SHOW_CONFIG} backup=${SHOW_BACKUP}"
+echo "[ubuntu-webtop] Shares: media=${SHOW_MEDIA} backup=${SHOW_BACKUP}"
 
 # Thunar-Bookmarks verwalten
 BOOKMARKS=/config/.config/gtk-3.0/bookmarks
@@ -60,18 +59,6 @@ if [ "$SHOW_MEDIA" = "true" ]; then
     fi
 else
     remove_bookmark "file:///media"
-fi
-
-# Config (HA-Hauptkonfiguration — liegt bei /homeassistant wenn addon_config belegt ist)
-if [ "$SHOW_CONFIG" = "true" ]; then
-    if [ -d /homeassistant ]; then
-        add_bookmark "file:///homeassistant" "HA Config"
-        echo "[ubuntu-webtop] /homeassistant gemountet und sichtbar"
-    else
-        echo "[ubuntu-webtop] WARN: /homeassistant nicht vorhanden — show_config ignoriert"
-    fi
-else
-    remove_bookmark "file:///homeassistant"
 fi
 
 # Backup
