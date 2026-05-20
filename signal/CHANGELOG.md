@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2026-05-20
+
+### Behoben
+- Unread-Dot erschien auch für den aktuell geöffneten Chat — Race Condition in `renderChats()` behoben: `lastSeenTime` wird beim jeden Poll-Zyklus für den aktiven Chat aktualisiert
+
 ## [1.1.1] - 2026-05-20
 
 ### Behoben
