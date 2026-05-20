@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.41] - 2026-05-20
+
+### Behoben
+- "Invalid Date" bei gesendeten Nachrichten — Timestamp aus signal-cli-REST-API wird jetzt immer als Number behandelt (war ggf. String)
+- Timestamp-Parsing im Frontend zusätzlich abgesichert gegen NaN/ungültige Werte
+
 ## [1.0.40] - 2026-05-20
 
 ### Neu

@@ -392,7 +392,7 @@ app.post('/api/send', async (req, res) => {
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
 
-    const signalTs = result.timestamp || Date.now();
+    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
     const msgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
@@ -765,7 +765,9 @@ function avatarInitial(s) { return (String(s || '?')).charAt(0).toUpperCase(); }
 
 function formatTime(ts) {
   if (!ts) return '';
-  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  const n = Number(ts);
+  const d = new Date(n > 1e12 ? n : n * 1000);
+  if (!Number.isFinite(d.getTime())) return '';
   const now = new Date();
   if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
@@ -849,7 +851,9 @@ function renderMessages(msgs) {
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   let lastDate = '';
   el.innerHTML = msgs.map(m => {
-    const d = new Date(m.timestamp > 1e12 ? m.timestamp : m.timestamp * 1000);
+    const tsNum = Number(m.timestamp);
+    const tsMs = tsNum > 1e12 ? tsNum : tsNum * 1000;
+    const d = new Date(Number.isFinite(tsMs) && tsMs > 0 ? tsMs : Date.now());
     const dateStr = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     let sep = '';
     if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
