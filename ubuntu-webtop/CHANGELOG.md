@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.1] - 2026-05-20
+
+### Behoben
+- `/share/webtop` und alle Unterverzeichnisse werden beim Start rekursiv auf den konfigurierten User (`PUID`/`PGID`) gesetzt — Unterordner wie `VSCode/HA AddOns` hatten nach Neustart Besitzer `root`
+
 ## [1.8.0] - 2026-05-20
 
 ### Hinzugefügt

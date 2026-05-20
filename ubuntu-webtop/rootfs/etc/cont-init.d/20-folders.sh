@@ -13,10 +13,10 @@ fi
 
 echo "[ubuntu-webtop] /config bereit (addon_config-Mount, Besitzer: ${PUID}:${PGID})"
 
-# /share/webtop anlegen falls nicht vorhanden
+# /share/webtop anlegen falls nicht vorhanden, Besitzer rekursiv setzen
 mkdir -p /share/webtop
-chown "${PUID}:${PGID}" /share/webtop 2>/dev/null || true
-echo "[ubuntu-webtop] /share/webtop bereit"
+chown -R "${PUID}:${PGID}" /share/webtop 2>/dev/null || true
+echo "[ubuntu-webtop] /share/webtop bereit (Besitzer rekursiv gesetzt)"
 
 # Optionen lesen
 OPTIONS=/data/options.json
