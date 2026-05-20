@@ -2,7 +2,7 @@ name: Check Claude Code Update
 
 on:
   schedule:
-    - cron: '0 15 * * *'  # täglich um 17:00 CEST (15:00 UTC)
+    - cron: '0 3 * * *'   # täglich um 3:00 UTC (5:00 CEST)
   workflow_dispatch:       # manuell auslösbar
 
 permissions:
