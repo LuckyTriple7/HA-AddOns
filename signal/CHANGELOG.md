@@ -1,29 +1,15 @@
 # Changelog
 
-## [1.0.43] - 2026-05-20
-
-### Behoben
-- Unread-Dots nach F5 wieder sichtbar — `lastSeenTime` wird jetzt in `localStorage` gespeichert und überlebt Seitenreloads
-
-## [1.0.42] - 2026-05-20
+## [1.1.0] - 2026-05-20
 
 ### Neu
-- HA Notifications: neue Eingehende Nachricht → persistente HA-Benachrichtigung (Optionen: `ha_notifications`, `ha_notifications_privacy`, `ha_token`)
-- Unread-Dots: blauer Punkt in der Chat-Liste bei neuen ungelesenen Nachrichten
-- Media Cleanup: 🗑️-Button in der Topbar löscht verwaiste Mediendateien (nur sichtbar wenn `download_media: true`)
-- `/api/cleanup-media` Endpoint
-
-## [1.0.41] - 2026-05-20
+- **ACK-Status** für gesendete Nachrichten: ✓ gesendet, ✓✓ zugestellt (grau), ✓✓ gelesen (blau) — `receiptMessage`-Envelopes werden beim Polling ausgewertet, funktioniert in beiden Modi (native und default)
+- **HA Notifications**: bei eingehenden Nachrichten wird eine persistente HA-Benachrichtigung erstellt (neue Optionen: `ha_notifications`, `ha_notifications_privacy`, `ha_token`)
+- **Unread-Dots**: blauer Punkt in der Chat-Liste für Chats mit ungelesenen Nachrichten — bleibt über Seitenreloads erhalten (localStorage)
+- **Media Cleanup**: 🗑️-Button in der Topbar löscht verwaiste Mediendateien (nur sichtbar wenn `download_media: true`)
 
 ### Behoben
-- "Invalid Date" bei gesendeten Nachrichten — Timestamp aus signal-cli-REST-API wird jetzt immer als Number behandelt (war ggf. String)
-- Timestamp-Parsing im Frontend zusätzlich abgesichert gegen NaN/ungültige Werte
-
-## [1.0.40] - 2026-05-20
-
-### Neu
-- ACK-Status für gesendete Nachrichten: ✓ gesendet, ✓✓ zugestellt (grau), ✓✓ gelesen (blau)
-- `receiptMessage`-Envelopes werden beim Polling ausgewertet und gespeichert — funktioniert in beiden Modi (native und default)
+- "Invalid Date" bei gesendeten Nachrichten — Timestamp aus signal-cli-REST-API wird jetzt immer als Number behandelt
 
 ## [1.0.39] - 2026-05-17
 
