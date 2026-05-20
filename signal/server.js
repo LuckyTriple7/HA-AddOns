@@ -862,6 +862,7 @@ function renderChats(chats) {
   const filtered = q ? chats.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : chats;
   const el = document.getElementById('chat-list');
   el.innerHTML = filtered.map(c => {
+    if (c.id === selectedChatId) lastSeenTime[c.id] = Math.max(lastSeenTime[c.id] || 0, c.lastTime || 0);
     const hasUnread = c.id !== selectedChatId && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
     return \`
     <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
