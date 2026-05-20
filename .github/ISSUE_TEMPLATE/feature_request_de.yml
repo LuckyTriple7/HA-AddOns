@@ -12,6 +12,9 @@ body:
         - Telegram
         - Webtop XFCE
         - Filebox
+        - Firefox
+        - Playwright Browser
+        - Claude Code
         - Alle / Allgemein
     validations:
       required: true
