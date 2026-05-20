@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.42] - 2026-05-20
+
+### Neu
+- HA Notifications: neue Eingehende Nachricht → persistente HA-Benachrichtigung (Optionen: `ha_notifications`, `ha_notifications_privacy`, `ha_token`)
+- Unread-Dots: blauer Punkt in der Chat-Liste bei neuen ungelesenen Nachrichten
+- Media Cleanup: 🗑️-Button in der Topbar löscht verwaiste Mediendateien (nur sichtbar wenn `download_media: true`)
+- `/api/cleanup-media` Endpoint
+
 ## [1.0.41] - 2026-05-20
 
 ### Behoben

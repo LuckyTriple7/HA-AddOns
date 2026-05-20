@@ -31,6 +31,9 @@ let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const DARK_MODE = process.env.DARK_MODE === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
+const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
+const HA_TOKEN = process.env.HA_TOKEN || '';
 const MEDIA_DIR = '/data/media/';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
@@ -265,6 +268,10 @@ function processEnvelope(envelope) {
 
   dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
 
+  if (!isOwn) {
+    sendHANotification(senderName, dm.message || previewText);
+  }
+
   if (WEBHOOK_INCOMING && !isOwn) {
     dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
     fetch(WEBHOOK_INCOMING, {
@@ -312,6 +319,39 @@ function updateMsgMedia(msgId, filename) {
     const msg = msgs.find(m => m.id === msgId);
     if (msg) { msg.mediaFile = filename; break; }
   }
+}
+
+function sendHANotification(senderName, body) {
+  if (!HA_NOTIFY || !HA_TOKEN) {
+    if (HA_NOTIFY && !HA_TOKEN) console.warn('[WARN] HA_NOTIFICATIONS: ha_token in der Add-on-Konfiguration setzen');
+    return;
+  }
+  const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');
+  const payload = JSON.stringify(HA_PRIVACY ? {
+    title: 'Signal',
+    message: 'Neue Nachricht',
+    notification_id: 'signal_new_message',
+  } : {
+    title: `Signal: ${senderName}`,
+    message: preview || '📷 Foto',
+    notification_id: 'signal_new_message',
+  });
+  const http = require('http');
+  const req = http.request('http://homeassistant:8123/api/services/persistent_notification/create', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${HA_TOKEN}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  }, (res) => {
+    res.resume();
+    if (res.statusCode !== 200) console.warn(`[WARN] HA notification returned HTTP ${res.statusCode}`);
+  });
+  req.on('error', e => console.warn('[WARN] HA notification error:', e.message));
+  req.write(payload);
+  req.end();
+  console.log(`[INFO] HA notification: Signal${HA_PRIVACY ? '' : `: ${senderName}`}`);
 }
 
 function updateMsgAck(signalTs, ackLevel) {
@@ -376,6 +416,24 @@ function getDirSize(dir) {
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/data');
   res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+});
+
+app.post('/api/cleanup-media', (req, res) => {
+  try {
+    const referenced = new Set();
+    for (const msgs of messagesByChatId.values())
+      for (const m of msgs)
+        if (m.mediaFile) referenced.add(m.mediaFile);
+    const files = fs.readdirSync(MEDIA_DIR);
+    let count = 0, freed = 0;
+    for (const f of files) {
+      if (!referenced.has(f)) {
+        const fp = MEDIA_DIR + f;
+        try { freed += fs.statSync(fp).size; fs.unlinkSync(fp); count++; } catch(e) {}
+      }
+    }
+    res.json({ deleted: count, freedMb: (freed / (1024 * 1024)).toFixed(1) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/send', async (req, res) => {
@@ -536,6 +594,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 .chat-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-preview { font-size: 13px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .chat-time { font-size: 12px; color: #999; white-space: nowrap; }
+.chat-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.unread-dot { width: 10px; height: 10px; background: #3a76f8; border-radius: 50%; }
+html.dark .unread-dot { background: #3cdb7c; }
 
 #chat-panel { flex: 1; display: flex; flex-direction: column; background: #e5ddd5; }
 #chat-header { background: #1b1b21; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -628,6 +689,7 @@ html.dark #emoji-toggle { color: #8696a0; }
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" title="Fotos ein/aus">Fotos AN</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
   <button id="logout-btn" onclick="logout()" title="Abmelden">⏻</button>
@@ -666,6 +728,7 @@ const BASE = location.pathname.replace(/\\/$/, '');
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
+let lastSeenTime = {};
 let showPhotos = ${DOWNLOAD_MEDIA} && localStorage.getItem('signal_show_photos') !== 'false';
 
 function api(path) { return BASE + path; }
@@ -798,16 +861,21 @@ function renderChats(chats) {
   const q = document.getElementById('search-input').value.toLowerCase();
   const filtered = q ? chats.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : chats;
   const el = document.getElementById('chat-list');
-  el.innerHTML = filtered.map(c => \`
+  el.innerHTML = filtered.map(c => {
+    const hasUnread = c.id !== selectedChatId && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
+    return \`
     <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
       <div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}</div>
       <div class="chat-info">
         <div class="chat-name">\${escHtml(c.name || c.id)}</div>
         <div class="chat-preview">\${escHtml(c.lastMsg || '')}</div>
       </div>
-      <div class="chat-time">\${formatTime(c.lastTime)}</div>
-    </div>
-  \`).join('');
+      <div class="chat-meta">
+        <div class="chat-time">\${formatTime(c.lastTime)}</div>
+        \${hasUnread ? '<div class="unread-dot"></div>' : ''}
+      </div>
+    </div>\`;
+  }).join('');
 }
 
 function filterChats() {
@@ -821,6 +889,7 @@ function openChatById(chatId) {
 
 function openChat(chat) {
   selectedChatId = chat.id;
+  lastSeenTime[chat.id] = chat.lastTime || Date.now();
   document.body.classList.add('chat-open');
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   const ph = chat.phone || '';
@@ -911,6 +980,15 @@ async function loadStorage() {
 }
 loadStorage();
 setInterval(loadStorage, 60000);
+
+async function cleanupMedia() {
+  if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
+  try {
+    const d = await fetch(api('/api/cleanup-media'), { method: 'POST' }).then(r => r.json());
+    alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
+    loadStorage();
+  } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
+}
 
 function togglePhotos() {
   showPhotos = !showPhotos;
