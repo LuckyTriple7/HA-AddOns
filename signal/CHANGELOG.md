@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.4] - 2026-05-20
+
+### Behoben
+- Gesendete Nachricht erschien verzögert — Poll läuft jetzt fire-and-forget im Hintergrund, `loadMessages()` wird sofort danach aufgerufen
+
 ## [1.1.3] - 2026-05-20
 
 ### Geändert

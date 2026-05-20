@@ -964,7 +964,7 @@ async function sendMsg() {
     });
     lastSeenTime[selectedChatId] = Date.now();
     localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
-    await fetch(api('/api/poll'), { method: 'POST' });
+    fetch(api('/api/poll'), { method: 'POST' });
     await loadMessages(selectedChatId);
     await loadChats();
   } catch (e) { alert('Fehler: ' + e.message); }
