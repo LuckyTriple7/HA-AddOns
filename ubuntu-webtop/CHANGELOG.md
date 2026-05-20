@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.9] - 2026-05-20
+
+### Hinzugefügt
+- Optionen `show_media`, `show_config`, `show_backup` — aktiviert Thunar-Seitenleisten-Bookmark für die jeweiligen HA-Shares (Standard: alle aus)
+- `config:rw` und `backup:rw` zu den gemounteten Shares hinzugefügt; HA-Config liegt im Container unter `/homeassistant` (Supervisor weicht wegen `addon_config` auf `/config` aus)
+- Bookmark-Verwaltung in `20-folders.sh` dynamisch: Bookmarks werden bei Änderung der Option beim nächsten Neustart hinzugefügt oder entfernt
+
 ## [1.7.8] - 2026-05-19
 
 ### Hinzugefügt
