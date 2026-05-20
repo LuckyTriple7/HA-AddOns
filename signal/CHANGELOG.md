@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.5] - 2026-05-20
+
+### Neu
+- **📥 Fotos nachladen**-Button im Chat-Header — lädt fehlende Bilder nach einem Neustart nach (nur sichtbar wenn `download_media: true`)
+
+### Behoben
+- `attId` wird jetzt im Message-Objekt gespeichert — Grundlage für das Nachladen nach Neustart
+- Race Condition: `scheduleSave()` fehlte beim Early-Return in `downloadAttachment()` wenn die Datei bereits existierte
+
 ## [1.1.4] - 2026-05-20
 
 ### Behoben

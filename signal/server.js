@@ -244,7 +244,10 @@ function processEnvelope(envelope) {
   const senderName = env.sourceName || source;
   const previewText = dm.message || (hasAttachments ? '📷 Foto' : '');
 
-  const msg = { id: msgId, from: source, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn };
+  const attIds = hasAttachments
+    ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
+    : undefined;
+  const msg = { id: msgId, from: source, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, attIds };
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -300,7 +303,7 @@ async function downloadAttachment(attId, contentType, msgId) {
     const ext = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
     const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
     const filepath = MEDIA_DIR + filename;
-    if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); return; }
+    if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); scheduleSave(); return; }
     dbg(`Downloading attachment ${attId}...`);
     const r = await fetch(`${SIGNAL_API}/v1/attachments/${encodeURIComponent(attId)}`, { timeout: 30000 });
     if (!r.ok) { console.warn(`[WARN] Attachment download failed: HTTP ${r.status}`); return; }
@@ -434,6 +437,24 @@ app.post('/api/cleanup-media', (req, res) => {
     }
     res.json({ deleted: count, freedMb: (freed / (1024 * 1024)).toFixed(1) });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fetch-media/:chatId', async (req, res) => {
+  if (!DOWNLOAD_MEDIA) return res.status(400).json({ error: 'download_media not enabled' });
+  const msgs = messagesByChatId.get(req.params.chatId) || [];
+  const pending = msgs.filter(m => !m.mediaFile && m.attIds && m.attIds.length > 0);
+  res.json({ total: pending.length });
+  (async () => {
+    let count = 0;
+    for (const m of pending) {
+      for (const att of m.attIds) {
+        await downloadAttachment(att.id, att.ct, m.id);
+        if (m.mediaFile) count++;
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
+    console.log(`[INFO] fetch-media: ${count}/${pending.length} Fotos nachgeladen für ${req.params.chatId}`);
+  })();
 });
 
 app.post('/api/poll', async (req, res) => {
@@ -608,6 +629,9 @@ html.dark .unread-dot { background: #3cdb7c; }
 #back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 0 8px 0 0; line-height: 1; }
 #ch-name { font-weight: 600; font-size: 16px; flex: 1; }
 #ch-phone { font-size: 12px; color: #aaa; }
+#fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+#fetch-media-btn:hover { border-color: #fff; color: #fff; }
+#fetch-media-btn:disabled { opacity: 0.4; cursor: default; }
 #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
 #no-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 15px; }
 .bubble { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-break: break-word; }
@@ -715,6 +739,7 @@ html.dark #emoji-toggle { color: #8696a0; }
         <div id="ch-name">Kein Chat ausgewählt</div>
         <div id="ch-phone"></div>
       </div>
+      ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Fehlende Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
     </div>
     <div id="messages"><div id="no-chat">Wähle einen Chat aus der Liste</div></div>
     <div id="input-bar">
@@ -998,6 +1023,28 @@ async function cleanupMedia() {
     alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
     loadStorage();
   } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
+}
+
+async function fetchMedia() {
+  const btn = document.getElementById('fetch-media-btn');
+  if (!btn || !selectedChatId) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ Lade…';
+  try {
+    const d = await fetch(api('/api/fetch-media/' + encodeURIComponent(selectedChatId)), { method: 'POST' }).then(r => r.json());
+    if (!d.total) {
+      btn.textContent = '✓ Alle geladen';
+      setTimeout(() => { btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }, 2500);
+      return;
+    }
+    btn.textContent = '⏳ ' + d.total + ' Fotos…';
+    let polls = 0;
+    const iv = setInterval(async () => {
+      await loadMessages(selectedChatId);
+      polls++;
+      if (polls >= 20) { clearInterval(iv); btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }
+    }, 2000);
+  } catch(e) { btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }
 }
 
 function togglePhotos() {
