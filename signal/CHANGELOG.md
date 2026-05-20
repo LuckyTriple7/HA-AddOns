@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.43] - 2026-05-20
+
+### Behoben
+- Unread-Dots nach F5 wieder sichtbar — `lastSeenTime` wird jetzt in `localStorage` gespeichert und überlebt Seitenreloads
+
 ## [1.0.42] - 2026-05-20
 
 ### Neu

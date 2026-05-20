@@ -728,7 +728,7 @@ const BASE = location.pathname.replace(/\\/$/, '');
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
-let lastSeenTime = {};
+let lastSeenTime = JSON.parse(localStorage.getItem('signal_last_seen') || '{}');
 let showPhotos = ${DOWNLOAD_MEDIA} && localStorage.getItem('signal_show_photos') !== 'false';
 
 function api(path) { return BASE + path; }
@@ -890,6 +890,7 @@ function openChatById(chatId) {
 function openChat(chat) {
   selectedChatId = chat.id;
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
+  localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
   document.body.classList.add('chat-open');
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   const ph = chat.phone || '';
