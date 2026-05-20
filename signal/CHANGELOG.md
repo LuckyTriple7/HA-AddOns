@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2026-05-20
+
+### Geändert
+- Nach dem Senden einer Nachricht wird sofort ein Poll ausgelöst (statt auf den nächsten 10s-Zyklus zu warten) — ACK-Bestätigungen und Antworten erscheinen schneller
+
 ## [1.1.2] - 2026-05-20
 
 ### Behoben

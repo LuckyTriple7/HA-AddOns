@@ -436,6 +436,11 @@ app.post('/api/cleanup-media', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/poll', async (req, res) => {
+  await pollMessages();
+  res.json({ ok: true });
+});
+
 app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
@@ -959,6 +964,7 @@ async function sendMsg() {
     });
     lastSeenTime[selectedChatId] = Date.now();
     localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
+    await fetch(api('/api/poll'), { method: 'POST' });
     await loadMessages(selectedChatId);
     await loadChats();
   } catch (e) { alert('Fehler: ' + e.message); }
