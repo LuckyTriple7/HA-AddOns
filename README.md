@@ -2,6 +2,8 @@
 
 Eigene Home Assistant Add-ons von [LuckyTriple7](https://github.com/LuckyTriple7).
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
+
 > Ich bin kein klassischer Programmierer — aber mit Claude Code als KI-Assistenten entwickle und pflege ich diese Add-ons selbst. Feedback und Fragen gerne als [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
 
 ## Installation
@@ -123,6 +125,8 @@ Signal Messenger als verknüpftes Gerät direkt in Home Assistant — mit Chat-U
 # HA-AddOns (English)
 
 Custom Home Assistant add-ons by [LuckyTriple7](https://github.com/LuckyTriple7).
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
 > I'm not a traditional programmer — but with Claude Code as my AI assistant I develop and maintain these add-ons myself. Feedback and questions welcome as a [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
 
