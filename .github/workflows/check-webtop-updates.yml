@@ -1,0 +1,134 @@
+name: Check Webtop Package Updates
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # täglich um 3:00 UTC (5:00 CEST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Aktuelle Versionen ermitteln
+        id: latest
+        run: |
+          BW=$(curl -s "https://api.github.com/repos/bitwarden/clients/releases" \
+            | jq -r '[.[] | select(.tag_name | startswith("desktop-v")) | select(.prerelease==false)][0].tag_name' \
+            | sed 's/desktop-v//')
+          IPSCAN=$(curl -s "https://api.github.com/repos/angryip/ipscan/releases/latest" \
+            | jq -r '.tag_name' | sed 's/^v//')
+          VSCODE=$(curl -s "https://api.github.com/repos/microsoft/vscode/releases/latest" \
+            | jq -r '.tag_name')
+          GHCLI=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" \
+            | jq -r '.tag_name' | sed 's/^v//')
+          FIREFOX=$(curl -s "https://product-details.mozilla.org/1.0/firefox_versions.json" \
+            | jq -r '.LATEST_FIREFOX_VERSION')
+          THUNDERBIRD=$(curl -s "https://product-details.mozilla.org/1.0/thunderbird_versions.json" \
+            | jq -r '.LATEST_THUNDERBIRD_VERSION')
+          echo "bitwarden=${BW}"       >> $GITHUB_OUTPUT
+          echo "ipscan=${IPSCAN}"      >> $GITHUB_OUTPUT
+          echo "vscode=${VSCODE}"      >> $GITHUB_OUTPUT
+          echo "ghcli=${GHCLI}"        >> $GITHUB_OUTPUT
+          echo "firefox=${FIREFOX}"    >> $GITHUB_OUTPUT
+          echo "thunderbird=${THUNDERBIRD}" >> $GITHUB_OUTPUT
+          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD}"
+
+      - name: Getrackte Versionen lesen
+        id: tracked
+        run: |
+          echo "bitwarden=$(cat .webtop-bitwarden-version   2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "ipscan=$(cat .webtop-ipscan-version         2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "vscode=$(cat .webtop-vscode-version         2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "ghcli=$(cat .webtop-ghcli-version           2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "firefox=$(cat .webtop-firefox-version       2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "thunderbird=$(cat .webtop-thunderbird-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+
+      - name: Änderungen prüfen
+        id: check
+        run: |
+          CHANGED=false
+          CHANGES=""
+          if [ "${{ steps.latest.outputs.bitwarden }}"    != "${{ steps.tracked.outputs.bitwarden }}" ];    then CHANGED=true; CHANGES="${CHANGES}\n- Bitwarden: ${{ steps.tracked.outputs.bitwarden }} → ${{ steps.latest.outputs.bitwarden }}"; fi
+          if [ "${{ steps.latest.outputs.ipscan }}"       != "${{ steps.tracked.outputs.ipscan }}" ];       then CHANGED=true; CHANGES="${CHANGES}\n- Angry IP Scanner: ${{ steps.tracked.outputs.ipscan }} → ${{ steps.latest.outputs.ipscan }}"; fi
+          if [ "${{ steps.latest.outputs.vscode }}"       != "${{ steps.tracked.outputs.vscode }}" ];       then CHANGED=true; CHANGES="${CHANGES}\n- VS Code: ${{ steps.tracked.outputs.vscode }} → ${{ steps.latest.outputs.vscode }}"; fi
+          if [ "${{ steps.latest.outputs.ghcli }}"        != "${{ steps.tracked.outputs.ghcli }}" ];        then CHANGED=true; CHANGES="${CHANGES}\n- GitHub CLI: ${{ steps.tracked.outputs.ghcli }} → ${{ steps.latest.outputs.ghcli }}"; fi
+          if [ "${{ steps.latest.outputs.firefox }}"      != "${{ steps.tracked.outputs.firefox }}" ];      then CHANGED=true; CHANGES="${CHANGES}\n- Firefox: ${{ steps.tracked.outputs.firefox }} → ${{ steps.latest.outputs.firefox }}"; fi
+          if [ "${{ steps.latest.outputs.thunderbird }}"  != "${{ steps.tracked.outputs.thunderbird }}" ];  then CHANGED=true; CHANGES="${CHANGES}\n- Thunderbird: ${{ steps.tracked.outputs.thunderbird }} → ${{ steps.latest.outputs.thunderbird }}"; fi
+          echo "changed=${CHANGED}" >> $GITHUB_OUTPUT
+          echo "changes=${CHANGES}" >> $GITHUB_OUTPUT
+          if [ "$CHANGED" = "false" ]; then echo "Alle Webtop-Pakete aktuell — nichts zu tun."; fi
+
+      - name: PR mit Updates erstellen
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BW_VER:   ${{ steps.latest.outputs.bitwarden }}
+          IP_VER:   ${{ steps.latest.outputs.ipscan }}
+          VS_VER:   ${{ steps.latest.outputs.vscode }}
+          GH_VER:   ${{ steps.latest.outputs.ghcli }}
+          FF_VER:   ${{ steps.latest.outputs.firefox }}
+          TB_VER:   ${{ steps.latest.outputs.thunderbird }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="update/webtop-${DATE}"
+
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} existiert bereits — überspringe."
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
+
+          # Dockerfile ARGs aktualisieren
+          sed -i "s/ARG BITWARDEN_VERSION=.*/ARG BITWARDEN_VERSION=${BW_VER}/" ubuntu-webtop/Dockerfile
+          sed -i "s/ARG IPSCAN_VERSION=.*/ARG IPSCAN_VERSION=${IP_VER}/"       ubuntu-webtop/Dockerfile
+          sed -i "s/ARG VSCODE_VERSION=.*/ARG VSCODE_VERSION=${VS_VER}/"       ubuntu-webtop/Dockerfile
+          sed -i "s/ARG GH_CLI_VERSION=.*/ARG GH_CLI_VERSION=${GH_VER}/"       ubuntu-webtop/Dockerfile
+          sed -i "s/ARG FIREFOX_VERSION=.*/ARG FIREFOX_VERSION=${FF_VER}/"     ubuntu-webtop/Dockerfile
+          sed -i "s/ARG THUNDERBIRD_VERSION=.*/ARG THUNDERBIRD_VERSION=${TB_VER}/" ubuntu-webtop/Dockerfile
+
+          # Tracking-Dateien aktualisieren
+          echo "$BW_VER" > .webtop-bitwarden-version
+          echo "$IP_VER" > .webtop-ipscan-version
+          echo "$VS_VER" > .webtop-vscode-version
+          echo "$GH_VER" > .webtop-ghcli-version
+          echo "$FF_VER" > .webtop-firefox-version
+          echo "$TB_VER" > .webtop-thunderbird-version
+
+          # Add-on Version bumpen
+          ADDON_VER=$(grep '^version:' ubuntu-webtop/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo $ADDON_VER | cut -d. -f1)
+          MINOR=$(echo $ADDON_VER | cut -d. -f2)
+          PATCH=$(echo $ADDON_VER | cut -d. -f3)
+          NEW_ADDON_VER="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+          sed -i "s/version: \"${ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" ubuntu-webtop/config.yaml
+
+          # CHANGELOG aktualisieren
+          CHANGES_TEXT=$(printf "${{ steps.check.outputs.changes }}")
+          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Aktualisiert\n${CHANGES_TEXT}\n"
+          sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" ubuntu-webtop/CHANGELOG.md
+          sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" ubuntu-webtop/CHANGELOG.md
+
+          git add ubuntu-webtop/Dockerfile ubuntu-webtop/config.yaml ubuntu-webtop/CHANGELOG.md \
+                  .webtop-bitwarden-version .webtop-ipscan-version .webtop-vscode-version \
+                  .webtop-ghcli-version .webtop-firefox-version .webtop-thunderbird-version
+          git commit -m "Webtop v${NEW_ADDON_VER}: Paket-Updates ${DATE}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "Webtop ${NEW_ADDON_VER}: Paket-Updates (${DATE})" \
+            --body "$(printf '## Webtop Paket-Updates\n\n### Geänderte Versionen\n%s\n\n### Hinweis\nNach dem Merge: **Update + Neu Aufbauen** in Home Assistant.\nAlle Pakete (inkl. LibreOffice, XFCE, VLC) werden dann auf den neuesten Stand gebracht.\n\n_Automatisch erstellt von GitHub Actions._' "${{ steps.check.outputs.changes }}")" \
+            --base main

@@ -21,6 +21,17 @@ RUN if ls /etc/services.d/*/run 1>/dev/null 2>&1; then \
         sed -i "1a set +e" /etc/services.d/*/run; \
     fi
 
+# Alle gepinnten Paketversionen — wenn sich eine ändert, werden alle nachfolgenden
+# Layer (inkl. LibreOffice, XFCE, etc.) beim nächsten "Neu Aufbauen" rebuilt.
+# BUILD_VERSION kommt aus config.yaml und wird von HA bei jedem Update übergeben.
+ARG BUILD_VERSION
+ARG IPSCAN_VERSION=3.9.3
+ARG BITWARDEN_VERSION=2026.4.0
+ARG VSCODE_VERSION=1.121.0
+ARG GH_CLI_VERSION=2.92.0
+ARG FIREFOX_VERSION=151.0
+ARG THUNDERBIRD_VERSION=151.0
+
 # XFCE Desktop-Umgebung + Anwendungen installieren
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -99,7 +110,7 @@ RUN mkdir -p /usr/share/man/man1 \
 # dpkg-deb -x umgeht die Dependency-Prüfung (Bookworm-inkompatible Deps).
 RUN ARCH=$(dpkg --print-architecture) \
     && curl -fsSL \
-        "https://github.com/angryip/ipscan/releases/download/3.9.3/ipscan_3.9.3_${ARCH}.deb" \
+        "https://github.com/angryip/ipscan/releases/download/${IPSCAN_VERSION}/ipscan_${IPSCAN_VERSION}_${ARCH}.deb" \
         -o /tmp/ipscan.deb \
     && dpkg-deb -x /tmp/ipscan.deb /tmp/ipscan \
     && find /tmp/ipscan -name "*.jar" -exec install -Dm644 {} /usr/share/ipscan/ipscan.jar \; \
@@ -112,18 +123,11 @@ RUN ARCH=$(dpkg --print-architecture) \
     && chmod +x /usr/bin/ipscan \
     && rm -rf /tmp/ipscan*
 
-# Cache-Breaker: BUILD_DATE wird von HA bei jedem Rebuild neu gesetzt →
-# alle nachfolgenden RUN-Schritte holen immer die neueste Version
-ARG BUILD_DATE
-
-# Bitwarden Desktop: neueste stabile Version via GitHub API
+# Bitwarden Desktop: gepinnte Version, via GitHub Releases
 # --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
 RUN ARCH=$(dpkg --print-architecture) \
-    && BW_VERSION=$(curl -fsSL "https://api.github.com/repos/bitwarden/clients/releases" \
-        | jq -r '[.[] | select(.tag_name | startswith("desktop-v")) | select(.prerelease==false)][0].tag_name' \
-        | sed 's/desktop-v//') \
     && curl -fsSL \
-        "https://github.com/bitwarden/clients/releases/download/desktop-v${BW_VERSION}/Bitwarden-${BW_VERSION}-${ARCH}.deb" \
+        "https://github.com/bitwarden/clients/releases/download/desktop-v${BITWARDEN_VERSION}/Bitwarden-${BITWARDEN_VERSION}-${ARCH}.deb" \
         -o /tmp/bitwarden.deb \
     && apt-get update \
     && apt-get install -y /tmp/bitwarden.deb \

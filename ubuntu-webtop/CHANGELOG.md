@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.3] - 2026-05-21
+
+### Geändert
+- Alle Paketversionen als `ARG` im Dockerfile gepinnt: Bitwarden, VS Code, GitHub CLI, Firefox, Thunderbird, Angry IP Scanner
+- Neuer GitHub-Actions-Workflow prüft täglich auf neue Versionen und erstellt automatisch einen PR
+- Bei jedem "Update + Neu Aufbauen" in HA werden alle Pakete (inkl. LibreOffice, XFCE, VLC) aktualisiert
+
 ## [1.8.2] - 2026-05-21
 
 ### Geändert
