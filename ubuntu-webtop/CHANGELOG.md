@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.5] - 2026-05-21
+
+### Behoben
+- rclone: `/dev/fuse` wird beim Start automatisch angelegt falls im HA-Container nicht gemappt
+
 ## [1.8.4] - 2026-05-21
 
 ### Neu
