@@ -93,10 +93,23 @@ RUN apt-get update \
         python3-gi-cairo \
         gir1.2-gtk-3.0 \
         xdg-utils \
-        rclone \
         fuse3 \
+        unzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# rclone v1.74.1 direkt installieren (Debian-Paket ist veraltet und hat OneDrive-Download-Bug)
+RUN ARCH=$(dpkg --print-architecture) \
+    && case "$ARCH" in \
+        amd64)   RCLONE_ARCH="amd64" ;; \
+        aarch64|arm64) RCLONE_ARCH="arm64" ;; \
+        *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac \
+    && curl -fsSL "https://downloads.rclone.org/v1.74.1/rclone-v1.74.1-linux-${RCLONE_ARCH}.zip" -o /tmp/rclone.zip \
+    && unzip -q /tmp/rclone.zip -d /tmp/rclone \
+    && cp "/tmp/rclone/rclone-v1.74.1-linux-${RCLONE_ARCH}/rclone" /usr/local/bin/rclone \
+    && chmod 755 /usr/local/bin/rclone \
+    && rm -rf /tmp/rclone.zip /tmp/rclone
 
 # Java separat installieren: /usr/share/man/man1 muss vorher existieren,
 # sonst schlägt das ca-certificates-java Postinst-Skript im Docker-Build fehl.

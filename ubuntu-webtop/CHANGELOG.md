@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.12] - 2026-05-21
+
+### Geändert
+- rclone auf v1.74.1 aktualisiert (direkt von rclone.org statt Debian-Paket) — behebt OneDrive-Download-Bug in v1.60.1 (302-Redirect wurde nicht gefolgt → "unauthenticated: Unauthenticated")
+
 ## [1.8.11] - 2026-05-21
 
 ### Behoben
