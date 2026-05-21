@@ -203,6 +203,26 @@ rclone ist vorinstalliert und ermöglicht den Zugriff auf OneDrive, Google Drive
 - Schreibzugriff ist möglich; Änderungen werden sofort hochgeladen.
 - Kein FUSE, keine Kernel-Module nötig — funktioniert in HA-Containern ohne Sonder-Privileges.
 
+### Dateien öffnen — GVfs und die LibreOffice-Einschränkung
+
+Thunar greift auf den WebDAV-Server über **GVfs** (GNOME Virtual File System) zu. GVfs stellt die Dateien unter einem virtuellen Pfad bereit (`/run/user/1000/gvfs/dav:host=localhost,port=8800/`), der nur für GVfs-fähige Anwendungen (Thunar, Gedit, Totem) sichtbar ist.
+
+**LibreOffice** ist nicht GVfs-fähig und kann Dateien daher nicht direkt aus dem Thunar-Lesezeichen öffnen. Es gibt zwei Workarounds:
+
+**Option 1 — Datei auf den Desktop kopieren**
+Im Thunar-Lesezeichen navigieren, Datei auf den Desktop kopieren, dann in LibreOffice öffnen.
+
+**Option 2 — LibreOffice WebDAV (empfohlen)**
+LibreOffice hat einen eigenen WebDAV-Client eingebaut:
+1. LibreOffice öffnen → **Datei → Fernzugriff**
+2. **Dienst hinzufügen** → Typ: `WebDAV (HTTP)`
+3. URL: `http://localhost:8800/`, kein Benutzername/Passwort
+4. Dateien direkt im Cloud-Ordner öffnen und speichern — kein Desktop-Umweg nötig
+
+### Warum kein FUSE-Mount?
+
+Ein klassischer FUSE-Mount (`rclone mount`) würde das Problem elegant lösen — der Cloud-Ordner wäre ein echter Dateisystempfad den alle Apps direkt nutzen können. In **HA OS ist FUSE jedoch nicht verfügbar**: Das Device `/dev/fuse` existiert im Container nicht, da der HA OS Kernel keine FUSE-Unterstützung für Add-on-Container freigibt. WebDAV ist daher die einzig funktionierende Alternative.
+
 ### Hinweis
 
 Die Ersteinrichtung (`rclone config`) erfordert kurz einen Browser für die OAuth-Anmeldung — dieser ist im Webtop bereits vorhanden.
