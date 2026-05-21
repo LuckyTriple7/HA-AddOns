@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.6] - 2026-05-21
+
+### Behoben
+- `MKNOD`-Capability hinzugefügt — ermöglicht das automatische Anlegen von `/dev/fuse` im Container
+
 ## [1.8.5] - 2026-05-21
 
 ### Behoben
