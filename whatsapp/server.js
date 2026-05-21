@@ -203,6 +203,8 @@ client.on('ready', async () => {
           fromMe: msg.fromMe,
           contact: contactName,
           ack: msg.ack || 0,
+          isForwarded: !!msg.isForwarded,
+          forwardingScore: msg.forwardingScore || 0,
         });
       }
     }
@@ -277,6 +279,8 @@ client.on('message', async (msg) => {
     timestamp: msg.timestamp * 1000,
     fromMe: false,
     contact: contactName,
+    isForwarded: !!msg.isForwarded,
+    forwardingScore: msg.forwardingScore || 0,
   });
   if (added) {
     sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
@@ -313,6 +317,8 @@ client.on('message_create', async (msg) => {
     fromMe: true,
     contact: 'Ich',
     ack: msg.ack || 1,
+    isForwarded: !!msg.isForwarded,
+    forwardingScore: msg.forwardingScore || 0,
   });
 });
 
@@ -806,6 +812,8 @@ app.get('/', (req, res) => {
       padding: 4px 12px; margin: 8px 0;
     }
     .empty-msg { color: #8696a0; text-align: center; margin: auto; font-size: 14px; }
+    .forwarded-label { font-size: 11px; font-style: italic; display: block; margin-bottom: 3px; color: #8696a0; }
+    .forwarded-label.frequent { color: #f15c5c; font-weight: 500; }
 
     /* Welcome screen */
     #welcome {
@@ -1229,6 +1237,12 @@ app.get('/', (req, res) => {
         const ack = m.fromMe ? ackMark(m.ack || 0) : '';
         if (m.type === 'photo' && m.mediaFile) {
           bub.classList.add('bubble-photo');
+          if (m.isForwarded) {
+            const fwdEl = document.createElement('span');
+            fwdEl.className = 'forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '');
+            fwdEl.textContent = m.forwardingScore >= 5 ? '↪↪ Häufig weitergeleitet' : '↪ Weitergeleitet';
+            bub.appendChild(fwdEl);
+          }
           const ph = document.createElement('span');
           ph.className = 'photo-placeholder'; ph.textContent = '📷 Foto';
           bub.appendChild(ph);
@@ -1242,7 +1256,10 @@ app.get('/', (req, res) => {
           if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.textContent = m.body; bub.appendChild(cap); }
           const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
         } else {
-          bub.innerHTML = esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          const fwdHtml = m.isForwarded
+            ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? '↪↪ Häufig weitergeleitet' : '↪ Weitergeleitet') + '</span>'
+            : '';
+          bub.innerHTML = fwdHtml + esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         }
         const bri = document.createElement('div');
         bri.className = 'bubble-row-inner';

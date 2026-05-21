@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-05-21
+
+### Neu
+- Weitergeleitete Nachrichten werden mit `↪ Weitergeleitet` gekennzeichnet
+- Häufig weitergeleitete Nachrichten (Kettenbriefe/Spam, Score ≥ 5) werden rot mit `↪↪ Häufig weitergeleitet` markiert
+
 ## [1.3.0] - 2026-05-20
 
 ### Behoben
