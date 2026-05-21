@@ -46,6 +46,10 @@ for REMOTE in $REMOTES; do
     nohup rclone serve webdav "${REMOTE}:" \
         --config "$RCLONE_CONF" \
         --addr "127.0.0.1:${PORT}" \
+        --vfs-cache-mode full \
+        --vfs-cache-max-size 1G \
+        --buffer-size 256M \
+        --no-modtime \
         --log-level ERROR \
         >/tmp/rclone_webdav_${REMOTE}.log 2>&1 &
 

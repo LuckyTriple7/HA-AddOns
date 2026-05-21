@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.11] - 2026-05-21
+
+### Behoben
+- rclone: `--vfs-cache-mode full` + `--buffer-size 256M` + `--no-modtime` hinzugefügt — behebt abgebrochene Dateiübertragungen aus OneDrive (rclone sendete HTTP 200 mit korrekter Dateigröße aber 0 Bytes, weil OneDrive-Streaming und WebDAV-Auslieferung ohne Cache nicht entkoppelt waren)
+
 ## [1.8.10] - 2026-05-21
 
 ### Behoben
