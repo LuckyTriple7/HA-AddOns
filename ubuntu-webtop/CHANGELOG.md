@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.2] - 2026-05-21
+
+### Geändert
+- Docker-Cache-Breaker eingebaut: `ARG BUILD_DATE` vor den dynamischen Installationsschritten sorgt dafür, dass bei jedem „Neu Aufbauen" in HA automatisch die neuesten Versionen von Bitwarden, VS Code, Firefox, Thunderbird und GitHub CLI geladen werden
+
 ## [1.8.1] - 2026-05-20
 
 ### Behoben

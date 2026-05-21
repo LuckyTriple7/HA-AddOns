@@ -112,6 +112,10 @@ RUN ARCH=$(dpkg --print-architecture) \
     && chmod +x /usr/bin/ipscan \
     && rm -rf /tmp/ipscan*
 
+# Cache-Breaker: BUILD_DATE wird von HA bei jedem Rebuild neu gesetzt →
+# alle nachfolgenden RUN-Schritte holen immer die neueste Version
+ARG BUILD_DATE
+
 # Bitwarden Desktop: neueste stabile Version via GitHub API
 # --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
 RUN ARCH=$(dpkg --print-architecture) \
