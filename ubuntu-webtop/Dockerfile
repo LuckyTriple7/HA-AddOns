@@ -140,10 +140,10 @@ RUN ARCH=$(dpkg --print-architecture) \
     && rm -f /tmp/bitwarden.deb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && printf '#!/bin/sh\nexec /opt/Bitwarden/bitwarden-app --no-sandbox "$@"\n' \
+    && printf '#!/bin/sh\nexec /opt/Bitwarden/bitwarden-app --no-sandbox --disable-gpu "$@"\n' \
         > /usr/bin/bitwarden \
     && chmod +x /usr/bin/bitwarden \
-    && sed -i 's|^Exec=.*|Exec=/opt/Bitwarden/bitwarden-app --no-sandbox %U|' /usr/share/applications/bitwarden.desktop
+    && sed -i 's|^Exec=.*|Exec=/opt/Bitwarden/bitwarden-app --no-sandbox --disable-gpu %U|' /usr/share/applications/bitwarden.desktop
 
 # VS Code aus Microsofts offiziellem Debian-Repo installieren
 RUN apt-get update \
@@ -158,10 +158,10 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && mv /usr/bin/code /usr/bin/code.orig \
-    && printf '#!/bin/sh\nexec /usr/bin/code.orig --no-sandbox "$@"\n' > /usr/bin/code \
+    && printf '#!/bin/sh\nexec /usr/bin/code.orig --no-sandbox --disable-gpu "$@"\n' > /usr/bin/code \
     && chmod +x /usr/bin/code \
-    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox |g' /usr/share/applications/code.desktop \
-    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox |g' /usr/share/applications/code-url-handler.desktop 2>/dev/null || true
+    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox --disable-gpu |g' /usr/share/applications/code.desktop \
+    && sed -i '/^Exec=/ s|/usr/share/code/code |/usr/share/code/code --no-sandbox --disable-gpu |g' /usr/share/applications/code-url-handler.desktop 2>/dev/null || true
 
 # GitHub CLI aus offiziellem GitHub-Repo installieren
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \

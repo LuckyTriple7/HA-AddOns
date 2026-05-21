@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.10] - 2026-05-21
+
+### Behoben
+- VS Code und Bitwarden: `--disable-gpu` hinzugefügt — unterdrückt Xlib/EGL-Fehlermeldungen im Log (KasmVNC unterstützt XFree86-VidModeExtension nicht)
+
 ## [1.8.9] - 2026-05-21
 
 ### Behoben
