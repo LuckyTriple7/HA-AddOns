@@ -197,10 +197,11 @@ rclone ist vorinstalliert und ermöglicht den Zugriff auf OneDrive, Google Drive
 
 ### Wie es funktioniert
 
-- Beim Start liest das Skript alle Remotes aus `rclone.conf` und mountet sie als FUSE-Laufwerk.
-- Jeder Remote erscheint unter `/config/{remotename}/` und als Thunar-Lesezeichen in der Seitenleiste.
-- Mit `--vfs-cache-mode minimal` werden Dateien erst beim Öffnen heruntergeladen — kein vollständiger Sync.
+- Beim Start liest das Skript alle Remotes aus `rclone.conf` und startet für jeden einen lokalen WebDAV-Server (`rclone serve webdav`, Port 8800, 8801, …).
+- Jeder Remote erscheint als Thunar-Lesezeichen (`dav://localhost:8800/` usw.) in der Seitenleiste.
+- Dateien werden erst beim Öffnen heruntergeladen — kein vollständiger Sync (echtes Files-on-Demand).
 - Schreibzugriff ist möglich; Änderungen werden sofort hochgeladen.
+- Kein FUSE, keine Kernel-Module nötig — funktioniert in HA-Containern ohne Sonder-Privileges.
 
 ### Hinweis
 

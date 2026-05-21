@@ -4,19 +4,8 @@ RCLONE_CONF="/config/.config/rclone/rclone.conf"
 BOOKMARKS_FILE="/config/.config/gtk-3.0/bookmarks"
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
+BASE_PORT=8800
 
-# /dev/fuse anlegen falls nicht vorhanden (im HA-Container nicht immer gemappt)
-if [ ! -c /dev/fuse ]; then
-    if mknod /dev/fuse c 10 229 2>/dev/null; then
-        chmod 666 /dev/fuse
-        echo "[rclone] /dev/fuse angelegt (war nicht vorhanden)"
-    else
-        echo "[rclone] FEHLER: /dev/fuse nicht verfügbar und konnte nicht erstellt werden — rclone übersprungen"
-        exit 0
-    fi
-fi
-
-# Kein rclone.conf → nichts zu tun
 if [ ! -f "$RCLONE_CONF" ]; then
     echo "[rclone] Keine rclone.conf gefunden — überspringe."
     exit 0
@@ -25,7 +14,6 @@ fi
 mkdir -p "$(dirname "$BOOKMARKS_FILE")"
 touch "$BOOKMARKS_FILE"
 
-# Alle konfigurierten Remotes einlesen
 REMOTES=$(RCLONE_CONFIG="$RCLONE_CONF" rclone listremotes 2>/dev/null | sed 's/:$//')
 
 if [ -z "$REMOTES" ]; then
@@ -33,43 +21,31 @@ if [ -z "$REMOTES" ]; then
     exit 0
 fi
 
+PORT=$BASE_PORT
 for REMOTE in $REMOTES; do
-    MOUNT_POINT="/config/${REMOTE}"
-    mkdir -p "$MOUNT_POINT"
+    echo "[rclone] Starte WebDAV-Server für ${REMOTE}: auf Port ${PORT}"
 
-    # Alten Mount aushängen falls vorhanden
-    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
-        fusermount3 -uz "$MOUNT_POINT" 2>/dev/null || umount -l "$MOUNT_POINT" 2>/dev/null || true
-        sleep 1
-    fi
-
-    echo "[rclone] Mounte ${REMOTE}: → ${MOUNT_POINT}"
-    RCLONE_CONFIG="$RCLONE_CONF" rclone mount "${REMOTE}:" "$MOUNT_POINT" \
-        --vfs-cache-mode minimal \
-        --vfs-cache-max-age 1h \
-        --allow-other \
-        --uid "$PUID" \
-        --gid "$PGID" \
-        --dir-cache-time 5m \
-        --poll-interval 15s \
-        --daemon \
+    nohup rclone serve webdav "${REMOTE}:" \
+        --config "$RCLONE_CONF" \
+        --addr "127.0.0.1:${PORT}" \
         --log-level ERROR \
-        2>/tmp/rclone_err_${REMOTE}
+        >/tmp/rclone_webdav_${REMOTE}.log 2>&1 &
 
     sleep 2
-    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
-        chown "${PUID}:${PGID}" "$MOUNT_POINT" 2>/dev/null || true
-        echo "[rclone] ${REMOTE}: erfolgreich gemountet auf ${MOUNT_POINT}"
 
-        BOOKMARK="file://${MOUNT_POINT} ${REMOTE}"
-        if ! grep -qF "$BOOKMARK" "$BOOKMARKS_FILE" 2>/dev/null; then
+    if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+        echo "[rclone] ${REMOTE}: WebDAV-Server läuft auf Port ${PORT}"
+
+        BOOKMARK="dav://localhost:${PORT}/ ${REMOTE}"
+        if ! grep -qF "dav://localhost:${PORT}/" "$BOOKMARKS_FILE" 2>/dev/null; then
             echo "$BOOKMARK" >> "$BOOKMARKS_FILE"
         fi
     else
-        ERR=$(cat "/tmp/rclone_err_${REMOTE}" 2>/dev/null)
-        echo "[rclone] FEHLER: Mount von ${REMOTE}: fehlgeschlagen${ERR:+ — $ERR}"
-        rmdir "$MOUNT_POINT" 2>/dev/null || true
+        ERR=$(cat "/tmp/rclone_webdav_${REMOTE}.log" 2>/dev/null | tail -3)
+        echo "[rclone] FEHLER: WebDAV für ${REMOTE}: konnte nicht gestartet werden${ERR:+ — $ERR}"
     fi
+
+    PORT=$((PORT + 1))
 done
 
 chown "${PUID}:${PGID}" "$BOOKMARKS_FILE" 2>/dev/null || true

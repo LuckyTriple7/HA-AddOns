@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.8] - 2026-05-21
+
+### Geändert
+- rclone: FUSE-Mount ersetzt durch `rclone serve webdav` — kein `/dev/fuse` nötig, kein MKNOD
+- Jeder konfigurierte Remote startet einen lokalen WebDAV-Server (Port 8800+), Thunar verbindet sich per `dav://localhost:PORT/`
+
 ## [1.8.7] - 2026-05-21
 
 ### Behoben
