@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.7] - 2026-05-21
+
+### Behoben
+- `MKNOD`-Capability entfernt (von HA nicht unterstützt)
+
 ## [1.8.6] - 2026-05-21
 
 ### Behoben
