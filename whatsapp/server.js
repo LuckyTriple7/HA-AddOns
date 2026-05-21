@@ -658,6 +658,19 @@ app.post('/api/delete-batch/:chatId', async (req, res) => {
       failed++;
     }
   }
+  // Vorschautext in der Chat-Liste aktualisieren
+  const remaining = messagesByChatId.get(chatId) || [];
+  const chat = chatMap.get(chatId);
+  if (chat) {
+    if (remaining.length) {
+      const last = remaining[remaining.length - 1];
+      const preview = last.body || (last.type === 'photo' ? '📷 Foto' : '[Medien]');
+      chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
+      chat.lastTime = last.timestamp;
+    } else {
+      chat.lastMsg = '';
+    }
+  }
   console.log(`[INFO] Spam-Löschung: ${deleted}/${ids.length} gelöscht in Chat ${chatId}`);
   res.json({ deleted, failed });
 });
@@ -1420,6 +1433,7 @@ app.get('/', (req, res) => {
           body: JSON.stringify({ ids }),
         }).then(r => r.json());
         for (const wrap of wraps) wrap.remove();
+        await pollChats();
         if (btn) { btn.textContent = '✓ ' + r.deleted + ' gelöscht'; setTimeout(() => { btn.textContent = '🗑️ Spam löschen'; }, 3000); }
       } catch(e) {
         if (btn) { btn.textContent = '✗ Fehler'; setTimeout(() => { btn.textContent = '🗑️ Spam löschen'; }, 3000); }
