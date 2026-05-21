@@ -31,6 +31,7 @@ ARG VSCODE_VERSION=1.121.0
 ARG GH_CLI_VERSION=2.92.0
 ARG FIREFOX_VERSION=151.0
 ARG THUNDERBIRD_VERSION=151.0
+ARG RCLONE_VERSION=1.74.1
 
 # XFCE Desktop-Umgebung + Anwendungen installieren
 RUN apt-get update \
@@ -98,16 +99,17 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# rclone v1.74.1 direkt installieren (Debian-Paket ist veraltet und hat OneDrive-Download-Bug)
+# rclone direkt installieren (Debian-Paket ist veraltet und hat OneDrive-Download-Bug)
+ARG RCLONE_VERSION
 RUN ARCH=$(dpkg --print-architecture) \
     && case "$ARCH" in \
         amd64)   RCLONE_ARCH="amd64" ;; \
         aarch64|arm64) RCLONE_ARCH="arm64" ;; \
         *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac \
-    && curl -fsSL "https://downloads.rclone.org/v1.74.1/rclone-v1.74.1-linux-${RCLONE_ARCH}.zip" -o /tmp/rclone.zip \
+    && curl -fsSL "https://downloads.rclone.org/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-${RCLONE_ARCH}.zip" -o /tmp/rclone.zip \
     && unzip -q /tmp/rclone.zip -d /tmp/rclone \
-    && cp "/tmp/rclone/rclone-v1.74.1-linux-${RCLONE_ARCH}/rclone" /usr/local/bin/rclone \
+    && cp "/tmp/rclone/rclone-v${RCLONE_VERSION}-linux-${RCLONE_ARCH}/rclone" /usr/local/bin/rclone \
     && chmod 755 /usr/local/bin/rclone \
     && rm -rf /tmp/rclone.zip /tmp/rclone
 

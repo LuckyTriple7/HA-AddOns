@@ -33,13 +33,16 @@ jobs:
             | jq -r '.LATEST_FIREFOX_VERSION')
           THUNDERBIRD=$(curl -s "https://product-details.mozilla.org/1.0/thunderbird_versions.json" \
             | jq -r '.LATEST_THUNDERBIRD_VERSION')
+          RCLONE=$(curl -s "https://api.github.com/repos/rclone/rclone/releases/latest" \
+            | jq -r '.tag_name' | sed 's/^v//')
           echo "bitwarden=${BW}"       >> $GITHUB_OUTPUT
           echo "ipscan=${IPSCAN}"      >> $GITHUB_OUTPUT
           echo "vscode=${VSCODE}"      >> $GITHUB_OUTPUT
           echo "ghcli=${GHCLI}"        >> $GITHUB_OUTPUT
           echo "firefox=${FIREFOX}"    >> $GITHUB_OUTPUT
           echo "thunderbird=${THUNDERBIRD}" >> $GITHUB_OUTPUT
-          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD}"
+          echo "rclone=${RCLONE}"      >> $GITHUB_OUTPUT
+          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE}"
 
       - name: Getrackte Versionen lesen
         id: tracked
@@ -50,6 +53,7 @@ jobs:
           echo "ghcli=$(cat .webtop-ghcli-version           2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "firefox=$(cat .webtop-firefox-version       2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "thunderbird=$(cat .webtop-thunderbird-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "rclone=$(cat .webtop-rclone-version         2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
 
       - name: Änderungen prüfen
         id: check
@@ -62,6 +66,7 @@ jobs:
           if [ "${{ steps.latest.outputs.ghcli }}"        != "${{ steps.tracked.outputs.ghcli }}" ];        then CHANGED=true; CHANGES="${CHANGES}\n- GitHub CLI: ${{ steps.tracked.outputs.ghcli }} → ${{ steps.latest.outputs.ghcli }}"; fi
           if [ "${{ steps.latest.outputs.firefox }}"      != "${{ steps.tracked.outputs.firefox }}" ];      then CHANGED=true; CHANGES="${CHANGES}\n- Firefox: ${{ steps.tracked.outputs.firefox }} → ${{ steps.latest.outputs.firefox }}"; fi
           if [ "${{ steps.latest.outputs.thunderbird }}"  != "${{ steps.tracked.outputs.thunderbird }}" ];  then CHANGED=true; CHANGES="${CHANGES}\n- Thunderbird: ${{ steps.tracked.outputs.thunderbird }} → ${{ steps.latest.outputs.thunderbird }}"; fi
+          if [ "${{ steps.latest.outputs.rclone }}"       != "${{ steps.tracked.outputs.rclone }}" ];       then CHANGED=true; CHANGES="${CHANGES}\n- rclone: ${{ steps.tracked.outputs.rclone }} → ${{ steps.latest.outputs.rclone }}"; fi
           echo "changed=${CHANGED}" >> $GITHUB_OUTPUT
           echo "changes=${CHANGES}" >> $GITHUB_OUTPUT
           if [ "$CHANGED" = "false" ]; then echo "Alle Webtop-Pakete aktuell — nichts zu tun."; fi
@@ -76,6 +81,7 @@ jobs:
           GH_VER:   ${{ steps.latest.outputs.ghcli }}
           FF_VER:   ${{ steps.latest.outputs.firefox }}
           TB_VER:   ${{ steps.latest.outputs.thunderbird }}
+          RC_VER:   ${{ steps.latest.outputs.rclone }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -98,6 +104,7 @@ jobs:
           sed -i "s/ARG GH_CLI_VERSION=.*/ARG GH_CLI_VERSION=${GH_VER}/"       ubuntu-webtop/Dockerfile
           sed -i "s/ARG FIREFOX_VERSION=.*/ARG FIREFOX_VERSION=${FF_VER}/"     ubuntu-webtop/Dockerfile
           sed -i "s/ARG THUNDERBIRD_VERSION=.*/ARG THUNDERBIRD_VERSION=${TB_VER}/" ubuntu-webtop/Dockerfile
+          sed -i "s/ARG RCLONE_VERSION=.*/ARG RCLONE_VERSION=${RC_VER}/"         ubuntu-webtop/Dockerfile
 
           # Tracking-Dateien aktualisieren
           echo "$BW_VER" > .webtop-bitwarden-version
@@ -106,6 +113,7 @@ jobs:
           echo "$GH_VER" > .webtop-ghcli-version
           echo "$FF_VER" > .webtop-firefox-version
           echo "$TB_VER" > .webtop-thunderbird-version
+          echo "$RC_VER" > .webtop-rclone-version
 
           # Add-on Version bumpen
           ADDON_VER=$(grep '^version:' ubuntu-webtop/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
@@ -124,7 +132,8 @@ jobs:
 
           git add ubuntu-webtop/Dockerfile ubuntu-webtop/config.yaml ubuntu-webtop/CHANGELOG.md \
                   .webtop-bitwarden-version .webtop-ipscan-version .webtop-vscode-version \
-                  .webtop-ghcli-version .webtop-firefox-version .webtop-thunderbird-version
+                  .webtop-ghcli-version .webtop-firefox-version .webtop-thunderbird-version \
+                  .webtop-rclone-version
           git commit -m "Webtop v${NEW_ADDON_VER}: Paket-Updates ${DATE}"
           git push origin "$BRANCH"
 
