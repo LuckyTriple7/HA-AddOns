@@ -21,7 +21,7 @@ Dieses Add-on basiert auf:
 | **Init-System** | s6-overlay v3 |
 | **Desktop-User** | `abc` (UID 1000) |
 
-Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox und Thunderbird werden direkt aus Mozillas offiziellem Debian-Repository installiert und sind daher immer aktuell (Stand: letzter Rebuild).
+Debian Bookworm wird bis ca. 2028 mit Sicherheits-Updates versorgt. Firefox, Thunderbird, VS Code und GitHub CLI werden aus den offiziellen Repositories der jeweiligen Hersteller installiert. Bitwarden und Angry IP Scanner werden als gepinnte Versionen via GitHub Releases bezogen — ein GitHub Actions Workflow prüft täglich auf neue Versionen.
 
 ## Features
 
@@ -144,23 +144,35 @@ Alle Benutzereinstellungen (Desktop-Konfiguration, Lesezeichen, Passwörter) wer
 
 ## App-Updates und Sicherheits-Patches
 
-Der laufende Container bekommt **keine automatischen Updates** — Pakete sind zum Zeitpunkt des Builds eingefroren. Sicherheits-Patches kommen erst beim nächsten Rebuild:
+Der laufende Container bekommt **keine automatischen Updates** — Pakete sind zum Zeitpunkt des Builds eingefroren.
 
-> **Empfehlung:** Einmal im Monat **„Neu aufbauen"** klicken. Dabei werden alle Debian-Sicherheits-Patches der letzten Wochen sowie das aktuelle LinuxServer.io-Base-Image gezogen.
+### Wie Updates funktionieren
 
-Ein Klick auf **„Neu aufbauen"** baut das Docker-Image neu und zieht dabei aktualisierte Versionen — je nach App:
+Ein **GitHub Actions Workflow** prüft täglich um 3:00 Uhr UTC auf neue Versionen der folgenden Pakete:
 
-| App | Rebuild reicht? |
-|---|---|
-| Firefox, Thunderbird | ✓ Ja — aus Mozillas Repo, immer aktuell |
-| VS Code | ✓ Ja — aus Microsofts Repo, immer aktuell |
-| Bitwarden | ✓ Ja — neueste Version via GitHub API automatisch ermittelt |
-| Geany, gedit, gThumb, VLC, LibreOffice, Ristretto, Remmina, Baobab, Seahorse u.a. | Nur Sicherheits-Updates — Debian Stable liefert keine neuen Major-Versionen |
-| Angry IP Scanner | ✗ Nein — Version fest im Dockerfile hinterlegt, muss manuell angepasst werden |
+| Paket | Quelle |
+|-------|--------|
+| Bitwarden | GitHub Releases |
+| VS Code | Microsoft apt-Repository |
+| GitHub CLI | GitHub Releases |
+| Firefox | Mozilla apt-Repository |
+| Thunderbird | Mozilla apt-Repository |
+| Angry IP Scanner | GitHub Releases |
+
+Sobald eine neue Version erkannt wird, erstellt der Workflow automatisch einen **Pull Request** in diesem Repository.
+
+**Update-Ablauf:**
+1. PR im GitHub-Repository mergen
+2. In Home Assistant: **„Aktualisieren"** klicken (neue Add-on-Version erscheint)
+3. Dann **„Neu aufbauen"** klicken
+
+Beim Rebuild werden nicht nur die oben gelisteten Pakete aktualisiert — auch **LibreOffice, VLC, Remmina, Geany** und alle anderen Debian-Pakete erhalten beim Rebuild die aktuellen Sicherheits-Updates aus dem Debian-Repository.
+
+> **Hinweis:** Ein **„Neu aufbauen"** ohne vorherigen Update-Schritt (ohne gemergten PR) bringt keine neuen Paketversionen, da Docker den Build-Cache verwendet.
 
 ## VS Code
 
-VS Code ist aus Microsofts offiziellem apt-Repository installiert und immer aktuell nach einem Rebuild.
+VS Code ist aus Microsofts offiziellem apt-Repository installiert. Der Workflow prüft täglich auf neue Versionen und erstellt bei Bedarf automatisch einen PR — nach Merge und Rebuild ist VS Code aktuell.
 
 - **Extension Marketplace** funktioniert vollständig — Extensions können wie unter Windows über das Extensions-Panel installiert werden
 - **Einstellungen und Extensions** werden in `/addon_configs/ubuntu_webtop/.config/Code/` gespeichert und bleiben über Rebuilds und Neustarts erhalten
