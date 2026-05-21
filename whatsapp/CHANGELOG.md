@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.2] - 2026-05-21
+
+### Neu
+- „🗑️ Spam löschen"-Button im Chat-Header — zählt häufig weitergeleitete Nachrichten (Score ≥ 5) im aktuellen Chat und löscht diese nach Bestätigung auf WhatsApp für alle
+
 ## [1.3.1] - 2026-05-21
 
 ### Neu

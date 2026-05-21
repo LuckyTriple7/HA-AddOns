@@ -637,6 +637,31 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   }
 });
 
+app.post('/api/delete-batch/:chatId', async (req, res) => {
+  const { chatId } = req.params;
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.json({ deleted: 0, failed: 0 });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  let deleted = 0, failed = 0;
+  for (const msgId of ids) {
+    try {
+      const msg = await client.getMessageById(msgId);
+      if (msg) await msg.delete(true);
+      const list = messagesByChatId.get(chatId);
+      if (list) {
+        const idx = list.findIndex(m => m.id === msgId);
+        if (idx !== -1) { list.splice(idx, 1); seenIds.delete(msgId); }
+      }
+      deleted++;
+    } catch(e) {
+      dbg(`delete-batch: failed for ${msgId}: ${e.message}`);
+      failed++;
+    }
+  }
+  console.log(`[INFO] Spam-Löschung: ${deleted}/${ids.length} gelöscht in Chat ${chatId}`);
+  res.json({ deleted, failed });
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
@@ -746,6 +771,19 @@ app.get('/', (req, res) => {
     #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
     #fetch-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
+    #spam-delete-btn { margin-left: 8px; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+    #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
+    #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
+    #spam-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
+    #spam-modal.open { display:flex; }
+    .spam-modal-box { background:#202c33; border-radius:12px; padding:24px; max-width:360px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+    .spam-modal-box p { color:#e9edef; font-size:14px; line-height:1.6; margin-bottom:20px; }
+    .spam-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+    .spam-modal-actions button { padding:8px 18px; border-radius:8px; border:none; font-size:14px; cursor:pointer; }
+    .spam-modal-cancel { background:#2a3942; color:#e9edef; }
+    .spam-modal-cancel:hover { background:#3d5259; }
+    .spam-modal-confirm { background:#f15c5c; color:#fff; }
+    .spam-modal-confirm:hover { background:#d94444; }
 
     #messages {
       flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -963,6 +1001,7 @@ app.get('/', (req, res) => {
           <div id="ch-phone"></div>
         </div>
         ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
+        <button id="spam-delete-btn" onclick="deleteSpam()" title="Häufig weitergeleitete Nachrichten löschen"${DOWNLOAD_MEDIA ? '' : ' style="margin-left:auto"'}>🗑️ Spam löschen</button>
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="send-bar" style="display:none;">
@@ -975,6 +1014,16 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
+  </div>
+
+  <div id="spam-modal">
+    <div class="spam-modal-box">
+      <p id="spam-modal-text"></p>
+      <div class="spam-modal-actions">
+        <button class="spam-modal-cancel" onclick="closeSpamModal()">Abbrechen</button>
+        <button class="spam-modal-confirm" onclick="confirmDeleteSpam()">Ja, löschen</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1339,6 +1388,56 @@ app.get('/', (req, res) => {
         btn.disabled = false;
         btn.textContent = '📥 Fotos nachladen';
       }
+    }
+
+    let _spamDeleteIds = [];
+    let _spamDeleteWraps = [];
+
+    function openSpamModal(count, wraps, ids) {
+      _spamDeleteIds = ids;
+      _spamDeleteWraps = wraps;
+      document.getElementById('spam-modal-text').textContent =
+        'In diesem Chat wurden ' + count + ' Nachricht' + (count === 1 ? '' : 'en') + ' häufig weitergeleitet. Soll ich diese jetzt löschen?';
+      document.getElementById('spam-modal').classList.add('open');
+    }
+
+    function closeSpamModal() {
+      document.getElementById('spam-modal').classList.remove('open');
+      _spamDeleteIds = [];
+      _spamDeleteWraps = [];
+    }
+
+    async function confirmDeleteSpam() {
+      const ids = _spamDeleteIds.slice();
+      const wraps = _spamDeleteWraps.slice();
+      closeSpamModal();
+      const btn = document.getElementById('spam-delete-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Lösche…'; }
+      try {
+        const r = await fetch('api/delete-batch/' + encodeURIComponent(selectedChatId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        }).then(r => r.json());
+        for (const wrap of wraps) wrap.remove();
+        if (btn) { btn.textContent = '✓ ' + r.deleted + ' gelöscht'; setTimeout(() => { btn.textContent = '🗑️ Spam löschen'; }, 3000); }
+      } catch(e) {
+        if (btn) { btn.textContent = '✗ Fehler'; setTimeout(() => { btn.textContent = '🗑️ Spam löschen'; }, 3000); }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function deleteSpam() {
+      if (!selectedChatId) return;
+      const spamWraps = [...msgList.querySelectorAll('.bubble-wrap')].filter(w => w.querySelector('.forwarded-label.frequent'));
+      const count = spamWraps.length;
+      if (!count) {
+        const btn = document.getElementById('spam-delete-btn');
+        if (btn) { const orig = btn.textContent; btn.textContent = '✓ Kein Spam'; setTimeout(() => { btn.textContent = orig; }, 2000); }
+        return;
+      }
+      openSpamModal(count, spamWraps, spamWraps.map(w => w.dataset.msgid).filter(Boolean));
     }
 
     async function pollMessages() {
