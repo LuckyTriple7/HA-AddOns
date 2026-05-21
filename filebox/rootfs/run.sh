@@ -170,9 +170,11 @@ filebrowser users update 1 \
     --locale de \
     --database "$DB" 2>/dev/null || true
 
+echo "[INFO] INGRESS_PATH=${INGRESS_PATH:-nicht gesetzt}"
 echo "[INFO] Starte FileBrowser auf Port ${PORT} ..."
 exec filebrowser \
     --database "$DB" \
     --address 0.0.0.0 \
     --port "$PORT" \
-    --root "$ROOT"
+    --root "$ROOT" \
+    --baseurl "${INGRESS_PATH:-/}"

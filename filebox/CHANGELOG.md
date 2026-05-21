@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.2] - 2026-05-21
+
+### Behoben
+- FileBrowser hängt im Lade-Spinner hinter HA Ingress — `--baseurl $INGRESS_PATH` ergänzt; JavaScript-Assets werden jetzt vom korrekten Pfad geladen
+
 ## [1.2.1] - 2026-05-19
 
 ### Geändert
