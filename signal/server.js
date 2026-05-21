@@ -869,6 +869,16 @@ function formatTime(ts) {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function formatText(s) {
+  let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
+  html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
+    let url = m.replace(/[.,!?;:)]+$/, '');
+    const trail = m.slice(url.length);
+    const href = url.startsWith('www.') ? 'https://' + url : url;
+    return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
+  });
+  return html;
+}
 
 function ackMark(ack) {
   if (ack >= 2) return '<span class="msg-ack ack-3">✓✓</span>';
@@ -965,9 +975,9 @@ function renderMessages(msgs) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
-      if (m.body) content += \`<div>\${escHtml(m.body)}</div>\`;
+      if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else {
-      content = escHtml(m.body || '');
+      content = formatText(m.body || '');
     }
     return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
   }).join('');

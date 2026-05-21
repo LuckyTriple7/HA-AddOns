@@ -915,6 +915,16 @@ function formatTime(ts) {
   return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function formatText(s) {
+  let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
+  html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
+    let url = m.replace(/[.,!?;:)]+$/, '');
+    const trail = m.slice(url.length);
+    const href = url.startsWith('www.') ? 'https://' + url : url;
+    return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
+  });
+  return html;
+}
 
 function scrollMsgs(dir) {
   const el = document.getElementById('messages');
@@ -1136,9 +1146,9 @@ function renderMessages(msgs) {
     const isPhoto = m.type==='photo'&&m.mediaFile;
     if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
-      if(m.body) content+=\`<div class="photo-caption">\${escHtml(m.body)}</div>\`;
+      if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
     } else {
-      content=escHtml(m.body);
+      content=formatText(m.body);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';

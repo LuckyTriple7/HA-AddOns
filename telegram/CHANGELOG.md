@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.13] - 2026-05-21
+
+### Neu
+- URLs in Nachrichten (`https://`, `http://`, `www.`) werden automatisch als anklickbare Hyperlinks dargestellt (öffnen im neuen Tab)
+
 ## [1.1.12] - 2026-05-17
 
 ### Neu
