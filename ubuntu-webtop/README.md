@@ -163,8 +163,9 @@ Sobald eine neue Version erkannt wird, erstellt der Workflow automatisch einen *
 
 **Update-Ablauf:**
 1. PR im GitHub-Repository mergen
-2. In Home Assistant: **„Aktualisieren"** klicken (neue Add-on-Version erscheint)
-3. Dann **„Neu aufbauen"** klicken
+2. In Home Assistant erscheint automatisch die neue Add-on-Version — **„Aktualisieren"** klicken
+
+„Aktualisieren" zieht die neue Version und baut das Image dabei neu.
 
 Beim Rebuild werden nicht nur die oben gelisteten Pakete aktualisiert — auch **LibreOffice, VLC, Remmina, Geany** und alle anderen Debian-Pakete erhalten beim Rebuild die aktuellen Sicherheits-Updates aus dem Debian-Repository.
 
