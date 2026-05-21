@@ -180,6 +180,32 @@ VS Code ist aus Microsofts offiziellem apt-Repository installiert. Der Workflow 
 - **Kein Auto-Update im Container**: VS Code's eingebauter Updater ist deaktiviert (`update.mode: none`) — Updates kommen automatisch mit dem nächsten **„Neu aufbauen"** des Add-ons
 - **Terminal**: VS Code's integriertes Terminal funktioniert im Container
 
+## Cloud-Speicher (OneDrive, Google Drive, …)
+
+rclone ist vorinstalliert und ermöglicht den Zugriff auf OneDrive, Google Drive, Dropbox und weitere Cloud-Anbieter als lokales Laufwerk — ähnlich wie Files-On-Demand unter Windows. Dateien werden erst beim Öffnen heruntergeladen.
+
+### Einrichtung (einmalig im Terminal)
+
+1. **Terminal öffnen** (im Webtop-Desktop) und rclone konfigurieren:
+   ```
+   rclone config
+   ```
+   → Remote-Typ wählen (z. B. `onedrive`), Anleitung im Browser folgen.
+   Die Konfiguration wird dauerhaft in `/config/.config/rclone/rclone.conf` gespeichert.
+
+2. **Add-on neu starten** — rclone mountet beim nächsten Start alle konfigurierten Remotes automatisch.
+
+### Wie es funktioniert
+
+- Beim Start liest das Skript alle Remotes aus `rclone.conf` und mountet sie als FUSE-Laufwerk.
+- Jeder Remote erscheint unter `/config/{remotename}/` und als Thunar-Lesezeichen in der Seitenleiste.
+- Mit `--vfs-cache-mode minimal` werden Dateien erst beim Öffnen heruntergeladen — kein vollständiger Sync.
+- Schreibzugriff ist möglich; Änderungen werden sofort hochgeladen.
+
+### Hinweis
+
+Die Ersteinrichtung (`rclone config`) erfordert kurz einen Browser für die OAuth-Anmeldung — dieser ist im Webtop bereits vorhanden.
+
 ## Audio
 
 Audio wird über den integrierten PulseAudio-Dienst des Base-Images bereitgestellt und direkt im Browser wiedergegeben — ohne externe Abhängigkeiten oder hassio_audio.

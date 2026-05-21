@@ -93,6 +93,8 @@ RUN apt-get update \
         python3-gi-cairo \
         gir1.2-gtk-3.0 \
         xdg-utils \
+        rclone \
+        fuse3 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -104,6 +106,10 @@ RUN mkdir -p /usr/share/man/man1 \
         default-jre-headless \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# FUSE: user_allow_other erlauben, damit rclone-Mounts (als root gemountet) für abc erreichbar sind
+RUN sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf; \
+    grep -q "^user_allow_other" /etc/fuse.conf || echo "user_allow_other" >> /etc/fuse.conf
 
 # Angry IP Scanner: arch-spezifisches .deb extrahieren (enthält SWT-JAR für die GUI).
 # Der _all.deb enthält kein SWT → NoClassDefFoundError bei Start.

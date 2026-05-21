@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.4] - 2026-05-21
+
+### Neu
+- **rclone** + **fuse3** installiert — OneDrive, Google Drive und andere Cloud-Speicher als FUSE-Mount einbinden
+- Neues Startup-Skript `50-rclone-mount.sh`: liest `/config/.config/rclone/rclone.conf`, mountet alle konfigurierten Remotes automatisch beim Start
+- Mounts landen unter `/config/{remotename}/` und erscheinen als Thunar-Lesezeichen
+- `user_allow_other` in `/etc/fuse.conf` aktiviert
+
 ## [1.8.3] - 2026-05-21
 
 ### Geändert
