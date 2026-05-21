@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.4] - 2026-05-21
+
+### Neu
+- Nachrichten weiterleiten — beim Hovern über eine Nachricht erscheint ein ↪-Button; Klick öffnet eine Chat-Auswahl mit Suchfeld; Nachricht wird per `msg.forward()` an den gewählten Chat weitergeleitet
+
 ## [1.3.3] - 2026-05-21
 
 ### Geändert

@@ -637,6 +637,21 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   }
 });
 
+app.post('/api/forward', async (req, res) => {
+  const { msgId, to } = req.body;
+  if (!msgId || !to) return res.status(400).json({ error: 'msgId and to required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const msg = await client.getMessageById(msgId);
+    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    const chat = await client.getChatById(to);
+    await msg.forward(chat);
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/delete-batch/:chatId', async (req, res) => {
   const { chatId } = req.params;
   const { ids } = req.body;
@@ -826,6 +841,21 @@ app.get('/', (req, res) => {
     html.light .react-btn { color: rgba(0,0,0,0.35); }
     .react-btn:hover { background: rgba(134,150,160,0.18); color: #e9edef; }
     html.light .react-btn:hover { color: #111; }
+    .fwd-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
+    .bubble-row-inner:hover .fwd-btn { display: block; }
+    html.light .fwd-btn { color: rgba(0,0,0,0.4); }
+    .fwd-btn:hover { color: #3cdb7c !important; }
+    #fwd-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
+    #fwd-modal.open { display:flex; }
+    .fwd-modal-box { background:#202c33; border-radius:12px; padding:20px; max-width:400px; width:92%; max-height:70vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+    .fwd-modal-box h3 { font-size:15px; font-weight:600; margin-bottom:12px; color:#e9edef; }
+    #fwd-search { width:100%; background:#2a3942; border:none; border-radius:8px; padding:8px 12px; color:#e9edef; font-size:14px; outline:none; margin-bottom:10px; }
+    #fwd-search::placeholder { color:#8696a0; }
+    #fwd-chat-list { flex:1; overflow-y:auto; }
+    .fwd-chat-item { display:flex; align-items:center; gap:10px; padding:8px 12px; cursor:pointer; border-radius:8px; }
+    .fwd-chat-item:hover { background:#2a3942; }
+    .fwd-modal-cancel { margin-top:12px; background:#2a3942; color:#e9edef; border:none; border-radius:8px; padding:8px 18px; font-size:14px; cursor:pointer; width:100%; }
+    .fwd-modal-cancel:hover { background:#3d5259; }
     #lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
     #lightbox.open { display: flex; }
     #lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }
@@ -1027,6 +1057,15 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
+  </div>
+
+  <div id="fwd-modal">
+    <div class="fwd-modal-box">
+      <h3>↪ Weiterleiten an…</h3>
+      <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+      <div id="fwd-chat-list"></div>
+      <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+    </div>
   </div>
 
   <div id="spam-modal">
@@ -1338,6 +1377,12 @@ app.get('/', (req, res) => {
         reactBtn.textContent = '😊';
         reactBtn.dataset.msgid = m.id;
         bri.appendChild(reactBtn);
+        const fwdBtn = document.createElement('button');
+        fwdBtn.className = 'fwd-btn';
+        fwdBtn.title = 'Weiterleiten';
+        fwdBtn.textContent = '↪';
+        fwdBtn.dataset.msgid = m.id;
+        bri.appendChild(fwdBtn);
         wrap.appendChild(bri);
         if (m.reactions && Object.keys(m.reactions).length) {
           const bar = document.createElement('div');
@@ -1454,6 +1499,63 @@ app.get('/', (req, res) => {
       openSpamModal(count, spamWraps, spamWraps.map(w => w.dataset.msgid).filter(Boolean));
     }
 
+    let _fwdMsgId = null;
+
+    function renderFwdChatList(chats) {
+      const list = document.getElementById('fwd-chat-list');
+      list.innerHTML = '';
+      for (const chat of chats) {
+        const item = document.createElement('div');
+        item.className = 'fwd-chat-item';
+        const av = document.createElement('div');
+        av.className = 'avatar';
+        av.style.cssText = 'width:36px;height:36px;font-size:13px;flex-shrink:0;';
+        av.style.background = avatarColor(chat.name);
+        av.textContent = avatarInitials(chat.name);
+        const name = document.createElement('div');
+        name.style.cssText = 'font-size:14px;color:#e9edef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        name.textContent = chat.name;
+        item.appendChild(av);
+        item.appendChild(name);
+        item.onclick = () => forwardTo(chat.id);
+        list.appendChild(item);
+      }
+    }
+
+    function filterFwdChats() {
+      const q = document.getElementById('fwd-search').value.toLowerCase();
+      renderFwdChatList(q ? allChats.filter(c => c.name.toLowerCase().includes(q)) : allChats);
+    }
+
+    function openFwdModal(msgId) {
+      _fwdMsgId = msgId;
+      document.getElementById('fwd-search').value = '';
+      renderFwdChatList(allChats);
+      document.getElementById('fwd-modal').classList.add('open');
+      setTimeout(() => document.getElementById('fwd-search').focus(), 50);
+    }
+
+    function closeFwdModal() {
+      document.getElementById('fwd-modal').classList.remove('open');
+      _fwdMsgId = null;
+    }
+
+    async function forwardTo(chatId) {
+      const msgId = _fwdMsgId;
+      closeFwdModal();
+      if (!msgId) return;
+      try {
+        const r = await fetch('api/forward', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ msgId, to: chatId }),
+        }).then(r => r.json());
+        if (!r.success) console.error('Forward failed:', r.error);
+      } catch(e) {
+        console.error('Forward error:', e.message);
+      }
+    }
+
     async function pollMessages() {
       if (currentStatus !== 'connected' || !selectedChatId) return;
       await loadMessages(selectedChatId);
@@ -1509,6 +1611,8 @@ app.get('/', (req, res) => {
       if (del) { deleteMsg(selectedChatId, del.dataset.msgid); return; }
       const react = e.target.closest('.react-btn');
       if (react) { openReactionPicker(react, react.dataset.msgid); return; }
+      const fwd = e.target.closest('.fwd-btn');
+      if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
     });
 
     function showSpinner(msg) {
