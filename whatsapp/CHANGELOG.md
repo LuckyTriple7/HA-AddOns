@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.3] - 2026-05-21
+
+### Geändert
+- Versionsbump für HA-Update-Erkennung
+
 ## [1.3.2] - 2026-05-21
 
 ### Neu
