@@ -5,13 +5,23 @@ BOOKMARKS_FILE="/config/.config/gtk-3.0/bookmarks"
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
+# /dev/fuse anlegen falls nicht vorhanden (im HA-Container nicht immer gemappt)
+if [ ! -c /dev/fuse ]; then
+    if mknod /dev/fuse c 10 229 2>/dev/null; then
+        chmod 666 /dev/fuse
+        echo "[rclone] /dev/fuse angelegt (war nicht vorhanden)"
+    else
+        echo "[rclone] FEHLER: /dev/fuse nicht verfügbar und konnte nicht erstellt werden — rclone übersprungen"
+        exit 0
+    fi
+fi
+
 # Kein rclone.conf → nichts zu tun
 if [ ! -f "$RCLONE_CONF" ]; then
     echo "[rclone] Keine rclone.conf gefunden — überspringe."
     exit 0
 fi
 
-mkdir -p "$BOOKMARKS_FILE" 2>/dev/null; rmdir "$BOOKMARKS_FILE" 2>/dev/null || true
 mkdir -p "$(dirname "$BOOKMARKS_FILE")"
 touch "$BOOKMARKS_FILE"
 
@@ -44,21 +54,21 @@ for REMOTE in $REMOTES; do
         --poll-interval 15s \
         --daemon \
         --log-level ERROR \
-        2>/dev/null
+        2>/tmp/rclone_err_${REMOTE}
 
-    # Kurz warten und prüfen ob Mount erfolgreich war
     sleep 2
     if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
         chown "${PUID}:${PGID}" "$MOUNT_POINT" 2>/dev/null || true
         echo "[rclone] ${REMOTE}: erfolgreich gemountet auf ${MOUNT_POINT}"
 
-        # Thunar-Lesezeichen eintragen
         BOOKMARK="file://${MOUNT_POINT} ${REMOTE}"
         if ! grep -qF "$BOOKMARK" "$BOOKMARKS_FILE" 2>/dev/null; then
             echo "$BOOKMARK" >> "$BOOKMARKS_FILE"
         fi
     else
-        echo "[rclone] WARNUNG: Mount von ${REMOTE}: fehlgeschlagen — Konfiguration prüfen."
+        ERR=$(cat "/tmp/rclone_err_${REMOTE}" 2>/dev/null)
+        echo "[rclone] FEHLER: Mount von ${REMOTE}: fehlgeschlagen${ERR:+ — $ERR}"
+        rmdir "$MOUNT_POINT" 2>/dev/null || true
     fi
 done
 
