@@ -194,6 +194,17 @@ client.on('ready', async () => {
           const c = await msg.getContact().catch(() => null);
           contactName = c?.pushname || c?.name || msg.author?.replace('@c.us', '') || contactName;
         }
+        let quotedMsg = null;
+        if (msg.hasQuotedMsg) {
+          try {
+            const q = await msg.getQuotedMessage();
+            if (q) quotedMsg = {
+              body: (q.body || '').slice(0, 100),
+              type: q.type,
+              contact: q.fromMe ? 'Ich' : (q._data?.notifyName || (q.from || '').replace('@c.us', '')),
+            };
+          } catch(e) { dbg('getQuotedMessage:', e.message); }
+        }
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
@@ -205,6 +216,7 @@ client.on('ready', async () => {
           ack: msg.ack || 0,
           isForwarded: !!msg.isForwarded,
           forwardingScore: msg.forwardingScore || 0,
+          quotedMsg,
         });
       }
     }
@@ -272,6 +284,17 @@ client.on('message', async (msg) => {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   }
+  let quotedMsgData = null;
+  if (msg.hasQuotedMsg) {
+    try {
+      const q = await msg.getQuotedMessage();
+      if (q) quotedMsgData = {
+        body: (q.body || '').slice(0, 100),
+        type: q.type,
+        contact: q.fromMe ? 'Ich' : (q._data?.notifyName || (q.from || '').replace('@c.us', '')),
+      };
+    } catch(e) { dbg('getQuotedMessage:', e.message); }
+  }
   const added = addMsg(chatId, {
     id: msg.id._serialized,
     body: msg.body || '',
@@ -281,6 +304,7 @@ client.on('message', async (msg) => {
     contact: contactName,
     isForwarded: !!msg.isForwarded,
     forwardingScore: msg.forwardingScore || 0,
+    quotedMsg: quotedMsgData,
   });
   if (added) {
     sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
@@ -309,6 +333,17 @@ client.on('message_create', async (msg) => {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   }
+  let quotedMsgDataOut = null;
+  if (msg.hasQuotedMsg) {
+    try {
+      const q = await msg.getQuotedMessage();
+      if (q) quotedMsgDataOut = {
+        body: (q.body || '').slice(0, 100),
+        type: q.type,
+        contact: q.fromMe ? 'Ich' : (q._data?.notifyName || (q.from || '').replace('@c.us', '')),
+      };
+    } catch(e) { dbg('getQuotedMessage:', e.message); }
+  }
   addMsg(chatId, {
     id: msg.id._serialized,
     body: msg.body || '',
@@ -319,6 +354,7 @@ client.on('message_create', async (msg) => {
     ack: msg.ack || 1,
     isForwarded: !!msg.isForwarded,
     forwardingScore: msg.forwardingScore || 0,
+    quotedMsg: quotedMsgDataOut,
   });
 });
 
@@ -637,6 +673,29 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   }
 });
 
+app.post('/api/reply', async (req, res) => {
+  const { quotedMsgId, chatId, message } = req.body;
+  if (!quotedMsgId || !chatId || !message) return res.status(400).json({ error: 'quotedMsgId, chatId and message required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const qMsg = await client.getMessageById(quotedMsgId);
+    if (!qMsg) throw new Error('Quoted message not found');
+    const result = await qMsg.reply(message);
+    result.__logged = true;
+    addMsg(chatId, {
+      id: result.id._serialized,
+      body: message,
+      timestamp: Date.now(),
+      fromMe: true,
+      contact: 'Ich',
+      ack: 1,
+    });
+    res.json({ success: true, id: result.id._serialized });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/forward', async (req, res) => {
   const { msgId, to } = req.body;
   if (!msgId || !to) return res.status(400).json({ error: 'msgId and to required' });
@@ -812,6 +871,22 @@ app.get('/', (req, res) => {
     .spam-modal-cancel:hover { background:#3d5259; }
     .spam-modal-confirm { background:#f15c5c; color:#fff; }
     .spam-modal-confirm:hover { background:#d94444; }
+    .reply-btn { display:none; background:none; border:none; cursor:pointer; font-size:15px; padding:4px 6px; line-height:1; border-radius:6px; flex-shrink:0; color:rgba(233,237,239,0.6); }
+    .bubble-row-inner:hover .reply-btn { display:block; }
+    html.light .reply-btn { color:rgba(0,0,0,0.4); }
+    .reply-btn:hover { color:#3cdb7c !important; }
+    .quoted-block { border-left:3px solid #3cdb7c; background:rgba(0,0,0,0.15); border-radius:4px; padding:4px 8px; margin-bottom:6px; overflow:hidden; }
+    .bubble-wrap.out .quoted-block { border-left-color:rgba(255,255,255,0.3); }
+    .quoted-sender { font-size:11px; font-weight:600; color:#3cdb7c; margin-bottom:1px; }
+    .bubble-wrap.out .quoted-sender { color:rgba(255,255,255,0.85); }
+    .quoted-text { font-size:12px; color:rgba(233,237,239,0.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #reply-bar { display:none; background:#1a2530; border-left:3px solid #3cdb7c; border-top:1px solid #2a3942; padding:6px 16px; align-items:center; gap:10px; flex-shrink:0; }
+    #reply-bar.active { display:flex; }
+    .reply-bar-content { flex:1; overflow:hidden; }
+    #reply-bar-sender { font-size:11px; font-weight:600; color:#3cdb7c; }
+    #reply-bar-text { font-size:12px; color:#8696a0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #reply-close { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
+    #reply-close:hover { color:#e9edef; }
 
     #messages {
       flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -1047,6 +1122,13 @@ app.get('/', (req, res) => {
         <button id="spam-delete-btn" onclick="deleteSpam()" title="Häufig weitergeleitete Nachrichten löschen"${DOWNLOAD_MEDIA ? '' : ' style="margin-left:auto"'}>🗑️ Spam löschen</button>
       </div>
       <div id="messages" style="display:none;"></div>
+      <div id="reply-bar">
+        <div class="reply-bar-content">
+          <div id="reply-bar-sender"></div>
+          <div id="reply-bar-text"></div>
+        </div>
+        <button id="reply-close" onclick="clearReply()">✕</button>
+      </div>
       <div id="send-bar" style="display:none;">
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
         <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" title="Emoji">😊</button>
@@ -1124,6 +1206,22 @@ app.get('/', (req, res) => {
     function esc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
+    }
+    function formatText(s) {
+      let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
+      html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
+        let url = m.replace(/[.,!?;:)]+$/, '');
+        const trail = m.slice(url.length);
+        const href = url.startsWith('www.') ? 'https://' + url : url;
+        return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
+      });
+      return html;
+    }
+    function renderQuotedBlock(q) {
+      const preview = q.body
+        ? (q.body.length > 80 ? q.body.slice(0,80)+'…' : q.body)
+        : (q.type==='image'||q.type==='photo' ? '📷 Foto' : q.type==='ptt'||q.type==='audio' ? '🎵 Sprachnachricht' : '📎');
+      return '<div class="quoted-block"><div class="quoted-sender">' + esc(q.contact||'') + '</div><div class="quoted-text">' + esc(preview) + '</div></div>';
     }
     async function loadStorage() {
       try {
@@ -1264,6 +1362,7 @@ app.get('/', (req, res) => {
     function filterChats() { renderChatList(allChats); }
 
     async function openChat(chat) {
+      clearReply();
       selectedChatId = chat.id;
       selectedChatPhone = chat.phone;
       document.querySelectorAll('.chat-item').forEach(el => {
@@ -1295,6 +1394,7 @@ app.get('/', (req, res) => {
       selectedChatId = null;
       selectedChatPhone = null;
       document.querySelectorAll('.chat-item').forEach(el => el.classList.remove('active'));
+      clearReply();
     }
 
     async function loadMessages(chatId) {
@@ -1344,6 +1444,7 @@ app.get('/', (req, res) => {
             fwdEl.textContent = m.forwardingScore >= 5 ? '↪↪ Häufig weitergeleitet' : '↪ Weitergeleitet';
             bub.appendChild(fwdEl);
           }
+          if (m.quotedMsg) bub.insertAdjacentHTML('beforeend', renderQuotedBlock(m.quotedMsg));
           const ph = document.createElement('span');
           ph.className = 'photo-placeholder'; ph.textContent = '📷 Foto';
           bub.appendChild(ph);
@@ -1354,13 +1455,14 @@ app.get('/', (req, res) => {
           img.loading = 'lazy';
           img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
           bub.appendChild(img);
-          if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.textContent = m.body; bub.appendChild(cap); }
+          if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.innerHTML = formatText(m.body); bub.appendChild(cap); }
           const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
         } else {
           const fwdHtml = m.isForwarded
             ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? '↪↪ Häufig weitergeleitet' : '↪ Weitergeleitet') + '</span>'
             : '';
-          bub.innerHTML = fwdHtml + esc(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          const quotedHtml = m.quotedMsg ? renderQuotedBlock(m.quotedMsg) : '';
+          bub.innerHTML = fwdHtml + quotedHtml + formatText(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         }
         const bri = document.createElement('div');
         bri.className = 'bubble-row-inner';
@@ -1383,6 +1485,14 @@ app.get('/', (req, res) => {
         fwdBtn.textContent = '↪';
         fwdBtn.dataset.msgid = m.id;
         bri.appendChild(fwdBtn);
+        const replyBtn = document.createElement('button');
+        replyBtn.className = 'reply-btn';
+        replyBtn.title = 'Antworten';
+        replyBtn.textContent = '↩';
+        replyBtn.dataset.msgid = m.id;
+        replyBtn.dataset.contact = m.fromMe ? 'Ich' : (m.contact || '');
+        replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? '📷 Foto' : '📎')).slice(0, 60);
+        bri.appendChild(replyBtn);
         wrap.appendChild(bri);
         if (m.reactions && Object.keys(m.reactions).length) {
           const bar = document.createElement('div');
@@ -1446,6 +1556,21 @@ app.get('/', (req, res) => {
         btn.disabled = false;
         btn.textContent = '📥 Fotos nachladen';
       }
+    }
+
+    let _replyMsgId = null;
+
+    function setReply(msgId, contact, preview) {
+      _replyMsgId = msgId;
+      document.getElementById('reply-bar-sender').textContent = contact;
+      document.getElementById('reply-bar-text').textContent = preview;
+      document.getElementById('reply-bar').classList.add('active');
+      document.getElementById('msg-input').focus();
+    }
+
+    function clearReply() {
+      _replyMsgId = null;
+      document.getElementById('reply-bar').classList.remove('active');
     }
 
     let _spamDeleteIds = [];
@@ -1578,11 +1703,17 @@ app.get('/', (req, res) => {
       if (!selectedChatId) return;
       const txt = document.getElementById('msg-input').value.trim();
       if (!txt) return;
+      const quotedMsgId = _replyMsgId;
+      clearReply();
       try {
-        const r = await fetch('api/send', {
+        const endpoint = quotedMsgId ? 'api/reply' : 'api/send';
+        const payload = quotedMsgId
+          ? { quotedMsgId, chatId: selectedChatId, message: txt }
+          : { to: selectedChatId, message: txt };
+        const r = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: selectedChatId, message: txt })
+          body: JSON.stringify(payload)
         }).then(r => r.json());
         if (r.success) {
           document.getElementById('msg-input').value = '';
@@ -1613,6 +1744,8 @@ app.get('/', (req, res) => {
       if (react) { openReactionPicker(react, react.dataset.msgid); return; }
       const fwd = e.target.closest('.fwd-btn');
       if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
+      const reply = e.target.closest('.reply-btn');
+      if (reply) { setReply(reply.dataset.msgid, reply.dataset.contact, reply.dataset.preview); return; }
     });
 
     function showSpinner(msg) {

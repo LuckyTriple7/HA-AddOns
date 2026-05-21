@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.5] - 2026-05-21
+
+### Neu
+- Zitat-Blase beim Antworten — hover ↩-Button an jeder Nachricht öffnet Reply-Leiste über dem Eingabefeld; Antwort wird mit korrektem Zitat via `msg.reply()` gesendet; Zitat-Blöcke werden auch beim initialen Laden angezeigt
+- URLs in Nachrichten werden automatisch zu anklickbaren Links (öffnen im neuen Tab); unterstützt `https://`, `http://` und `www.`-Links
+
 ## [1.3.4] - 2026-05-21
 
 ### Neu
