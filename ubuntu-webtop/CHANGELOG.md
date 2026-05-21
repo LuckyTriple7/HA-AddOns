@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.13] - 2026-05-21
+
+### Neu
+- NFS-Mounts: 3 Slots (`nfs_1` bis `nfs_3`) mit Server + Share-Pfad, analog zu SMB
+- `nfs-common` im Dockerfile installiert
+- `47-nfs-mounts.sh`: Port-2049-Check, NFSv4 mit soft/timeo, Thunar-Bookmark, Log-Ausgabe
+
 ## [1.8.12] - 2026-05-21
 
 ### Geändert

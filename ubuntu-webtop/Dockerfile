@@ -96,6 +96,7 @@ RUN apt-get update \
         xdg-utils \
         fuse3 \
         unzip \
+        nfs-common \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
