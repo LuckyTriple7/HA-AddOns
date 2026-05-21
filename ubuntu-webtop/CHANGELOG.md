@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.9] - 2026-05-21
+
+### Behoben
+- rclone: DNS-Readiness-Check vor WebDAV-Start — verhindert Fehler wenn DNS beim Containerstart noch nicht verfügbar ist
+- rclone: Warte bis WebDAV-Server tatsächlich antwortet bevor Bookmark gesetzt wird
+
 ## [1.8.8] - 2026-05-21
 
 ### Geändert

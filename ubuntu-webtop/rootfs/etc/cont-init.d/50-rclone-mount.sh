@@ -21,6 +21,24 @@ if [ -z "$REMOTES" ]; then
     exit 0
 fi
 
+# Warte bis DNS verfügbar ist (bis zu 30 Sekunden)
+echo "[rclone] Warte auf DNS..."
+DNS_OK=false
+for i in $(seq 1 15); do
+    if getent hosts microsoft.com >/dev/null 2>&1 \
+    || getent hosts graph.microsoft.com >/dev/null 2>&1 \
+    || getent hosts graph.microsoft.de >/dev/null 2>&1; then
+        DNS_OK=true
+        echo "[rclone] DNS verfügbar (nach ${i}x2s)"
+        break
+    fi
+    sleep 2
+done
+
+if [ "$DNS_OK" = false ]; then
+    echo "[rclone] WARNUNG: DNS nach 30s nicht erreichbar — versuche trotzdem..."
+fi
+
 PORT=$BASE_PORT
 for REMOTE in $REMOTES; do
     echo "[rclone] Starte WebDAV-Server für ${REMOTE}: auf Port ${PORT}"
@@ -31,9 +49,17 @@ for REMOTE in $REMOTES; do
         --log-level ERROR \
         >/tmp/rclone_webdav_${REMOTE}.log 2>&1 &
 
-    sleep 2
+    # Warte bis WebDAV antwortet (bis zu 15 Sekunden)
+    STARTED=false
+    for i in $(seq 1 15); do
+        sleep 1
+        if curl -sf --connect-timeout 2 "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+            STARTED=true
+            break
+        fi
+    done
 
-    if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+    if [ "$STARTED" = true ]; then
         echo "[rclone] ${REMOTE}: WebDAV-Server läuft auf Port ${PORT}"
 
         BOOKMARK="dav://localhost:${PORT}/ ${REMOTE}"
