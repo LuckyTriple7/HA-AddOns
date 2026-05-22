@@ -148,7 +148,7 @@ echo "------------------"
 # occ-Wrapper: läuft als root mit --allow-root (kein sudo/s6-suexec nötig)
 OCC_BIN=/config/www/nextcloud/occ
 occ() {
-    php "$OCC_BIN" --allow-root "$@" 2>/dev/null || true
+    php "$OCC_BIN" --allow-root "$@" || true
 }
 
 # Konfiguration anwenden (Erst- und Folgestarts)
@@ -215,8 +215,8 @@ if [ ! -f "$NC_CONFIG" ]; then
             --database-pass "$DB_PASS" \
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
-            --data-dir /config/data 2>/dev/null || true
-        echo "[OK]   Nextcloud mit MariaDB installiert"
+            --data-dir /config/data
+        echo "[OK]   Nextcloud mit MariaDB installiert (Exit: $?)"
     else
         echo "[INFO] Installation mit SQLite ..."
         php "$OCC_BIN" --allow-root maintenance:install \
@@ -224,8 +224,8 @@ if [ ! -f "$NC_CONFIG" ]; then
             --database-name oc_nextcloud \
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
-            --data-dir /config/data 2>/dev/null || true
-        echo "[OK]   Nextcloud mit SQLite installiert"
+            --data-dir /config/data
+        echo "[OK]   Nextcloud mit SQLite installiert (Exit: $?)"
     fi
 
     apply_config

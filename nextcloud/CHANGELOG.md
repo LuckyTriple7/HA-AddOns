@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.5
+- Verbose Logging für occ maintenance:install (Fehlerausgabe nicht mehr unterdrückt)
+
 ## 0.0.4
 - Fix: Warte-Schleife für Nextcloud-Dateien — linuxserver kopiert diese asynchron nach dem Start
 
