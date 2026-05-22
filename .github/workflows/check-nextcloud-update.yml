@@ -20,7 +20,14 @@ jobs:
       - name: Hole aktuelle Nextcloud-Version (linuxserver.io)
         id: remote
         run: |
-          TAGS=$(curl -s "https://registry.hub.docker.com/v2/repositories/linuxserver/nextcloud/tags?page_size=10" | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-ls' | sort -V | tail -1)
+          TAGS=$(curl -s "https://hub.docker.com/v2/repositories/linuxserver/nextcloud/tags/?page_size=100&ordering=last_updated" \
+            | jq -r '.results[].name' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-ls' \
+            | sort -V | tail -1 || true)
+          if [ -z "$TAGS" ]; then
+            echo "Konnte aktuelle Version nicht ermitteln — API-Fehler?"
+            exit 1
+          fi
           VERSION=$(echo "$TAGS" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
           echo "remote=${VERSION}" >> $GITHUB_OUTPUT
           echo "Aktuelle linuxserver Nextcloud-Version: ${VERSION} (Tag: ${TAGS})"
