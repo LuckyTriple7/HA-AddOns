@@ -12,8 +12,6 @@ echo "===================="
 PUID=$(jq -r '.PUID // 1000' "$OPTIONS" 2>/dev/null || echo 1000)
 PGID=$(jq -r '.PGID // 1000' "$OPTIONS" 2>/dev/null || echo 1000)
 TZ=$(jq -r '.TZ // "Europe/Berlin"' "$OPTIONS" 2>/dev/null || echo "Europe/Berlin")
-ADMIN_USER=$(jq -r '.admin_user // "admin"' "$OPTIONS" 2>/dev/null || echo "admin")
-ADMIN_PASS=$(jq -r '.admin_password // ""' "$OPTIONS" 2>/dev/null || echo "")
 TRUSTED_DOMAINS=$(jq -r '.trusted_domains // ""' "$OPTIONS" 2>/dev/null || echo "")
 DEFAULT_PHONE_REGION=$(jq -r '.default_phone_region // "DE"' "$OPTIONS" 2>/dev/null || echo "DE")
 ENABLE_THUMBNAILS=$(jq -r '.enable_thumbnails // true' "$OPTIONS" 2>/dev/null || echo "true")
@@ -26,10 +24,10 @@ MARIADB_DISCOVERY=$(jq -r '.mariadb_discovery // false' "$OPTIONS" 2>/dev/null |
 echo "[INFO] PUID=$PUID PGID=$PGID TZ=$TZ"
 export PUID PGID TZ
 
-# --- Diagnose Verzeichnisstruktur ---
-echo "[DEBUG] /app/www/: $(ls /app/www/ 2>/dev/null | tr '\n' ' ')"
-echo "[DEBUG] /app/www/public/config symlink: $(readlink /app/www/public/config 2>/dev/null || echo 'kein symlink / nicht vorhanden')"
-echo "[DEBUG] /app/www/src/config symlink: $(readlink /app/www/src/config 2>/dev/null || echo 'kein symlink / nicht vorhanden')"
+# --- /config/data früh anlegen damit der Web-Installer schreiben kann ---
+mkdir -p /config/data
+chown -R "${PUID}:${PGID}" /config/data
+chmod 770 /config/data
 
 # --- MariaDB Autodiscovery ---
 DB_TYPE="sqlite"
@@ -110,27 +108,32 @@ echo "------------------"
 OCC_BIN=/app/www/src/occ
 
 if [ ! -f "$OCC_BIN" ]; then
-    echo "[INFO] Warte auf linuxserver Init (occ bei ${OCC_BIN}) ..."
+    echo "[INFO] Warte auf linuxserver Init ..."
     TRIES=0
     while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 60 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
     done
     if [ ! -f "$OCC_BIN" ]; then
-        echo "[WARN] occ nicht gefunden"
-        echo "  find occ: $(find /app /config/www -name 'occ' 2>/dev/null | tr '\n' ' ')"
+        echo "[WARN] occ nicht gefunden: $(find /app /config/www -name 'occ' 2>/dev/null | tr '\n' ' ')"
         exec tail -f /dev/null
     fi
 fi
 
 echo "[INFO] occ gefunden: ${OCC_BIN}"
 
+# /app/www/src/config auf persistente Config zeigen lassen.
+# Webserver: /app/www/public/config → /config/www/nextcloud/config (Symlink)
+# occ schreibt nach /app/www/src/config/ — muss dasselbe Ziel sein.
+rm -rf /app/www/src/config || true
+ln -sf /config/www/nextcloud/config /app/www/src/config
+
 # --- occ-Wrapper ---
 occ() {
     ALLOW_ROOT=1 php "$OCC_BIN" "$@" || true
 }
 
-# --- Konfiguration ---
+# --- Konfiguration (idempotent, läuft bei jedem Start) ---
 apply_config() {
     echo "[INFO] Wende Konfiguration an ..."
     occ config:system:set trusted_domains 0 --value="localhost"
@@ -154,72 +157,47 @@ apply_config() {
     fi
 }
 
-# --- Installations-Check via occ status ---
+# --- Installations-Check ---
 NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
     | jq -r '.installed // false' 2>/dev/null || echo "false")
 echo "[INFO] NC installed: ${NC_INSTALLED}"
 
 if [ "$NC_INSTALLED" != "true" ]; then
-    echo "[INFO] Bereinige vor Neuinstallation ..."
-    rm -rf /config/data            || true
-    rm -f /app/www/public/config/config.php  || true
-    rm -f /app/www/src/config/config.php     || true
-    rm -f /config/www/nextcloud/config/config.php || true
-    echo "[DEBUG] config.php nach Bereinigung: $(find /app/www /config/www/nextcloud/config -name 'config.php' 2>/dev/null | tr '\n' ' ' || echo 'keine')"
+    echo "[INFO] Nextcloud nicht installiert."
+    echo "[INFO] Bitte Web-Installer aufrufen: http://<HA-IP>:7780"
+    echo "[INFO] Datenverzeichnis im Installer eintragen: /config/data"
+    echo "[INFO] Warte auf Abschluss der Web-Installation ..."
 
-    mkdir -p /config/data
-    chown -R "${PUID}:${PGID}" /config/data
-    chmod 770 /config/data
-
-    echo "[INFO] Führe Nextcloud-Installation aus ..."
-    if [ "$DB_TYPE" = "mysql" ]; then
-        echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
-        ALLOW_ROOT=1 php "$OCC_BIN" maintenance:install \
-            --database mysql \
-            --database-name "$DB_NAME" \
-            --database-host "$DB_HOST" \
-            --database-port "$DB_PORT" \
-            --database-user "$DB_USER" \
-            --database-pass "$DB_PASS" \
-            --admin-user "$ADMIN_USER" \
-            --admin-pass "$ADMIN_PASS" \
-            --data-dir /config/data
-    else
-        echo "[INFO] Installation mit SQLite ..."
-        ALLOW_ROOT=1 php "$OCC_BIN" maintenance:install \
-            --database sqlite \
-            --database-name oc_nextcloud \
-            --admin-user "$ADMIN_USER" \
-            --admin-pass "$ADMIN_PASS" \
-            --data-dir /config/data
-    fi
-    INSTALL_RC=$?
-    echo "[INFO] maintenance:install RC=${INSTALL_RC}"
-    echo "[DEBUG] config.php nach Install: $(find /app/www /config/www/nextcloud/config -name 'config.php' 2>/dev/null | tr '\n' ' ' || echo 'keine')"
-    echo "[DEBUG] config.php Inhalt (Zeile 1-3): $(head -3 /app/www/public/config/config.php 2>/dev/null || head -3 /config/www/nextcloud/config/config.php 2>/dev/null || echo 'nicht lesbar')"
-
-    if [ "$INSTALL_RC" -ne 0 ]; then
-        echo "[FAIL] Installation fehlgeschlagen (RC=${INSTALL_RC}) — warte dauerhaft"
-        exec tail -f /dev/null
-    fi
-    echo "[OK]   Installation abgeschlossen"
-
-    apply_config
-
-    occ app:enable files_external
-    for IDX in 1 2 3; do
-        if mountpoint -q "/mnt/smb${IDX}" 2>/dev/null; then
-            SHARE=$(jq -r ".smb_${IDX}_share // empty" "$OPTIONS" 2>/dev/null)
-            echo "[INFO] Binde SMB-${IDX} (${SHARE}) als externen Speicher ein ..."
-            occ files_external:create "SMB-${IDX} ${SHARE}" local null::null \
-                --config datadir="/mnt/smb${IDX}"
+    while true; do
+        sleep 15
+        NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
+            | jq -r '.installed // false' 2>/dev/null || echo "false")
+        if [ "$NC_INSTALLED" = "true" ]; then
+            break
         fi
     done
 
-    occ maintenance:mode --off
+    echo "[OK]   Web-Installation abgeschlossen — wende Konfiguration an"
+    apply_config
+
+    # SMB-Shares als externen Speicher einbinden (nur einmalig nach Erstinstall)
+    FLAG=/config/data/.smb_registered
+    if [ ! -f "$FLAG" ]; then
+        occ app:enable files_external
+        for IDX in 1 2 3; do
+            if mountpoint -q "/mnt/smb${IDX}" 2>/dev/null; then
+                SHARE=$(jq -r ".smb_${IDX}_share // empty" "$OPTIONS" 2>/dev/null)
+                echo "[INFO] Binde SMB-${IDX} (${SHARE}) als externen Speicher ein ..."
+                occ files_external:create "SMB-${IDX} ${SHARE}" local null::null \
+                    --config datadir="/mnt/smb${IDX}"
+            fi
+        done
+        touch "$FLAG"
+    fi
+
     echo "[INFO] Ersteinrichtung abgeschlossen"
 else
-    echo "[INFO] Nextcloud bereits installiert — aktualisiere Konfiguration"
+    echo "[INFO] Nextcloud installiert — aktualisiere Konfiguration"
     apply_config
 fi
 

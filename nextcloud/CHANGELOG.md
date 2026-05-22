@@ -1,5 +1,14 @@
 # Changelog — Nextcloud
 
+## 0.0.20
+- Redesign: admin_user/admin_password entfernt — Ersteinrichtung über Web-Installer
+- Fix: /app/www/src/config als Symlink auf /config/www/nextcloud/config (occ + Webserver nutzen dieselbe config.php)
+- Fix: /config/data wird früh mit korrekten Rechten angelegt (Web-Installer kann schreiben)
+- Neu: run.sh wartet nach Web-Install und wendet dann automatisch Konfiguration an
+
+## 0.0.19
+- Fix: /app/www/src/config als Symlink auf /config/www/nextcloud/config — occ und Webserver nutzen jetzt dieselbe config.php
+
 ## 0.0.18
 - Fix: set -e entfernt (verhinderte frühen Scriptabbruch bei rm-Fehlern)
 - Fix: alle rm/mkdir mit || true abgesichert

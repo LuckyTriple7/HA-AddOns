@@ -1,6 +1,6 @@
 name: Nextcloud
 description: Nextcloud – Private Cloud direkt in Home Assistant, mit SMB-Netzwerkspeicher-Unterstützung
-version: "0.0.18"
+version: "0.0.20"
 slug: nextcloud
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -40,8 +40,6 @@ options:
   PUID: 1000
   PGID: 1000
   TZ: "Europe/Berlin"
-  admin_user: "admin"
-  admin_password: ""
   trusted_domains: ""
   default_phone_region: "DE"
   enable_thumbnails: true
@@ -67,8 +65,6 @@ schema:
   PUID: int
   PGID: int
   TZ: str?
-  admin_user: str
-  admin_password: str
   trusted_domains: str?
   default_phone_region: match([A-Z]{2})?
   enable_thumbnails: bool
