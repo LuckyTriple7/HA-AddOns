@@ -1,5 +1,9 @@
 # Changelog — Nextcloud
 
+## 0.0.2
+- MariaDB Discovery Schalter (default: aus → immer SQLite)
+- Logo hinzugefügt
+
 ## 0.0.1
 - Erstveröffentlichung (Beta)
 - Basiert auf `lscr.io/linuxserver/nextcloud:latest`
