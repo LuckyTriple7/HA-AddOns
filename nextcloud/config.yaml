@@ -1,0 +1,90 @@
+name: Nextcloud
+description: Nextcloud – Private Cloud direkt in Home Assistant, mit SMB-Netzwerkspeicher-Unterstützung
+version: "0.0.1"
+slug: nextcloud
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: false
+
+image: "ghcr.io/luckytriple7/nextcloud"
+
+panel_icon: mdi:cloud
+panel_title: Nextcloud
+
+ports:
+  80/tcp: 7780
+  443/tcp: 7443
+
+ports_description:
+  80/tcp: Nextcloud HTTP
+  443/tcp: Nextcloud HTTPS
+
+privileged:
+  - SYS_ADMIN
+  - DAC_READ_SEARCH
+
+map:
+  - addon_config:rw
+  - share:rw
+  - media:ro
+  - ssl
+
+apparmor: true
+
+options:
+  PUID: 1000
+  PGID: 1000
+  TZ: "Europe/Berlin"
+  admin_user: "admin"
+  admin_password: ""
+  trusted_domains: ""
+  default_phone_region: "DE"
+  enable_thumbnails: true
+  memory_limit: "512M"
+  upload_max_filesize: "512M"
+  post_max_size: "512M"
+  disable_updates: false
+  smb_1_server: ""
+  smb_1_share: ""
+  smb_1_user: ""
+  smb_1_password: ""
+  smb_2_server: ""
+  smb_2_share: ""
+  smb_2_user: ""
+  smb_2_password: ""
+  smb_3_server: ""
+  smb_3_share: ""
+  smb_3_user: ""
+  smb_3_password: ""
+
+schema:
+  PUID: int
+  PGID: int
+  TZ: str?
+  admin_user: str
+  admin_password: str
+  trusted_domains: str?
+  default_phone_region: match([A-Z]{2})?
+  enable_thumbnails: bool
+  memory_limit: str?
+  upload_max_filesize: str?
+  post_max_size: str?
+  disable_updates: bool
+  smb_1_server: str?
+  smb_1_share: str?
+  smb_1_user: str?
+  smb_1_password: str?
+  smb_2_server: str?
+  smb_2_share: str?
+  smb_2_user: str?
+  smb_2_password: str?
+  smb_3_server: str?
+  smb_3_share: str?
+  smb_3_user: str?
+  smb_3_password: str?

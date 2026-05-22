@@ -1,0 +1,102 @@
+name: Check Nextcloud Update
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hole aktuelle Nextcloud-Version (linuxserver.io)
+        id: remote
+        run: |
+          TAGS=$(curl -s "https://registry.hub.docker.com/v2/repositories/linuxserver/nextcloud/tags?page_size=10" | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-ls' | sort -V | tail -1)
+          VERSION=$(echo "$TAGS" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+          echo "remote=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Aktuelle linuxserver Nextcloud-Version: ${VERSION} (Tag: ${TAGS})"
+
+      - name: Hole gebaute Version aus GHCR
+        id: local
+        run: |
+          TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:luckytriple7/nextcloud:pull" | jq -r '.token')
+          DIGEST=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+            "https://ghcr.io/v2/luckytriple7/nextcloud/manifests/latest" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" | jq -r '.config.digest // empty')
+          if [ -z "$DIGEST" ]; then
+            echo "built=none" >> $GITHUB_OUTPUT
+            echo "Noch kein Image in GHCR vorhanden"
+          else
+            LABELS=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+              "https://ghcr.io/v2/luckytriple7/nextcloud/blobs/${DIGEST}" | jq -r '.config.Labels // {} | to_entries[] | "\(.key)=\(.value)"' 2>/dev/null || true)
+            NC_VERSION=$(echo "$LABELS" | grep 'build_version' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+            echo "built=${NC_VERSION}" >> $GITHUB_OUTPUT
+            echo "Gebaute Version: ${NC_VERSION}"
+          fi
+
+      - name: Vergleiche Versionen
+        id: compare
+        run: |
+          REMOTE="${{ steps.remote.outputs.remote }}"
+          BUILT="${{ steps.local.outputs.built }}"
+          echo "Remote: ${REMOTE} | Gebaut: ${BUILT}"
+          if [ "$REMOTE" != "$BUILT" ] && [ -n "$REMOTE" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "Neue Version verfügbar: ${REMOTE} (gebaut: ${BUILT})"
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "Kein Update notwendig"
+          fi
+
+      - name: Set up QEMU
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push updated image
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: nextcloud
+          platforms: linux/amd64,linux/arm64
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/luckytriple7/nextcloud:latest
+
+      - name: Bump add-on version in config.yaml
+        if: steps.compare.outputs.rebuild == 'true'
+        run: |
+          CURRENT=$(grep '^version:' nextcloud/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" nextcloud/config.yaml
+          echo "Version: ${CURRENT} → ${NEW_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add nextcloud/config.yaml
+          git commit -m "Nextcloud: Auto-Update auf Nextcloud ${{ steps.remote.outputs.remote }} (v${NEW_VERSION})"
+          git push
