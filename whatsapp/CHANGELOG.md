@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.15] - 2026-05-22
+
+### Behoben
+- **Reaktionszahl springt nach kurzer Zeit auf 2** — Ursache in v1.3.14: Der 3s-Fallback-Timer in `/api/react` wurde nicht gecancelt wenn `message_reaction` mit einem JID eintraf der nicht exakt mit `myJid` übereinstimmte (z. B. andere Schreibweise). Dadurch wurden beide Einträge gespeichert. Fix: Fallback-Timer und lokales Update komplett entfernt. Nur `message_reaction` aktualisiert Reaktionen (wie vor v1.3.10, wo es funktionierte). Die Persistenz in `reactions.json` bleibt erhalten da `message_reaction` weiterhin in den Cache schreibt.
+
 ## [1.3.14] - 2026-05-22
 
 ### Behoben
