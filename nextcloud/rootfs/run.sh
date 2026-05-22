@@ -102,38 +102,24 @@ echo "--- SMB-Mounts ---"
 mount_smb 1; mount_smb 2; mount_smb 3
 echo "------------------"
 
-# --- Warte auf linuxservers persistente Nextcloud-Instanz ---
-# linuxserver initialisiert /config/www/nextcloud/ asynchron beim ersten Start
-# Suche per find (maxdepth 3) statt hartem Pfad — Struktur kann je nach Version abweichen
+# --- Warte auf linuxservers Init ---
+# linuxserver v33+: App liegt im Image unter /app/www/src/, nur apps/config/themes
+# werden nach /config/www/nextcloud/ persistiert. occ ist immer bei /app/www/src/occ.
+OCC_BIN=/app/www/src/occ
 
-find_occ() {
-    find /config/www/nextcloud -maxdepth 3 -name "occ" -type f 2>/dev/null | head -1
-}
-
-OCC_BIN=$(find_occ)
-if [ -z "$OCC_BIN" ]; then
-    echo "[INFO] Warte auf occ in /config/www/nextcloud/ (max. 30 min) ..."
+if [ ! -f "$OCC_BIN" ]; then
+    echo "[INFO] Warte auf linuxserver Init (occ bei ${OCC_BIN}) ..."
     TRIES=0
-    while [ $TRIES -lt 360 ]; do
+    while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 60 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
-        OCC_BIN=$(find_occ)
-        if [ -n "$OCC_BIN" ]; then
-            break
-        fi
-        if [ $((TRIES % 6)) -eq 0 ]; then
-            echo "[DEBUG] +$((TRIES * 5))s — /config/www: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
-            echo "[DEBUG] /config/www/nextcloud/: $(ls /config/www/nextcloud/ 2>/dev/null | head -15 | tr '\n' ' ' || echo 'leer/fehlt')"
-            echo "[DEBUG] find occ: $(find /config/www -name 'occ' 2>/dev/null | tr '\n' ' ' || echo 'nichts')"
-        fi
     done
-fi
-
-if [ -z "$OCC_BIN" ]; then
-    echo "[WARN] occ nach 30 Min nicht gefunden"
-    echo "[DEBUG] find /config/www: $(find /config/www -name 'occ' 2>/dev/null | tr '\n' ' ')"
-    echo "[DEBUG] find /app: $(find /app -name 'occ' 2>/dev/null | tr '\n' ' ')"
-    exec tail -f /dev/null
+    if [ ! -f "$OCC_BIN" ]; then
+        echo "[WARN] occ nicht gefunden — Diagnostik:"
+        echo "  /app/www/src/: $(ls /app/www/src/ 2>/dev/null | head -10 | tr '\n' ' ' || echo 'fehlt')"
+        echo "  find occ: $(find /app /config/www -name 'occ' 2>/dev/null | tr '\n' ' ' || echo 'nichts')"
+        exec tail -f /dev/null
+    fi
 fi
 
 echo "[INFO] occ gefunden: ${OCC_BIN}"

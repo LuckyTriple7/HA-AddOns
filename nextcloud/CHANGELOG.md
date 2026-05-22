@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.13
+- Fix: occ-Pfad auf /app/www/src/occ korrigiert (linuxserver v33+: App im Image, nur config/apps/themes persistiert)
+
 ## 0.0.12
 - Fix: occ per `find` suchen (maxdepth 3) statt hartem Pfad — fängt Strukturänderungen in linuxserver/nextcloud v33 ab
 - Fix: Erweiterte Diagnostik im Warte-Loop (Inhalt /config/www/nextcloud/, find-Ergebnis)
