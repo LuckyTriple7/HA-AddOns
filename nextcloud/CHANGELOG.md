@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.25
+- Fix: /config/data wird mit chown abc:abc angelegt — Web-Installer kann schreiben
+
 ## 0.0.24
 - Komplette Architektur-Überarbeitung nach Vorbild alexbelgium/hassio-addons
 - Kein CMD-Override mehr — kein Race Condition mit linuxservers s6-Init

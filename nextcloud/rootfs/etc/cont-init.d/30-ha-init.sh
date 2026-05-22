@@ -8,8 +8,10 @@ MEMORY_LIMIT=$(jq -r '.memory_limit // "512M"' "$OPTIONS" 2>/dev/null || echo "5
 UPLOAD_MAX=$(jq -r '.upload_max_filesize // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
 POST_MAX=$(jq -r '.post_max_size // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
 
-# /config/data anlegen — linuxserver setzt Rechte später selbst (Setting permissions)
+# /config/data anlegen und für linuxservers abc-User beschreibbar machen
 mkdir -p /config/data
+chown "$(id -u abc):$(id -g abc)" /config/data
+chmod 755 /config/data
 
 # PHP-Limits
 mkdir -p /config/php
