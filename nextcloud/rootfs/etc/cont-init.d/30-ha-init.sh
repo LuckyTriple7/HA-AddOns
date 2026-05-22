@@ -24,6 +24,16 @@ max_input_time = 300
 EOF
 echo "[ha-init] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX}"
 
+# PHP-FPM: mehr Worker-Prozesse (Standard linuxserver = 5, zu wenig)
+for POOL_CONF in /etc/php*/php-fpm.d/www.conf; do
+    [ -f "$POOL_CONF" ] || continue
+    sed -i 's/^pm.max_children = .*/pm.max_children = 15/' "$POOL_CONF"
+    sed -i 's/^pm.start_servers = .*/pm.start_servers = 5/' "$POOL_CONF"
+    sed -i 's/^pm.min_spare_servers = .*/pm.min_spare_servers = 3/' "$POOL_CONF"
+    sed -i 's/^pm.max_spare_servers = .*/pm.max_spare_servers = 10/' "$POOL_CONF"
+    echo "[ha-init] PHP-FPM pool: max_children=15 (${POOL_CONF})"
+done
+
 # SMB-Mounts
 do_mount() {
     SERVER=$1 SHARE=$2 USER=$3 PASS=$4 MOUNTPOINT=$5

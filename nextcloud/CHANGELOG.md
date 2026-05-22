@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.32
+- Fix: PHP-FPM pm.max_children von 5 auf 15 erhöht (verhindert "server reached pm.max_children" Warnung)
+
 ## 0.0.30
 - Neu: maintenance_window_start als konfigurierbare Option (Stunde 0-23 UTC, Standard: 1)
 
