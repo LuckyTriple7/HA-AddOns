@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.9] - 2026-05-22
+
+### Geändert
+- **signal-cli-rest-api Version im Log** — Ausgabe verbessert: zeigt `build.version` wenn vorhanden, sonst `(API: v1, v2)` statt rohem Array-Join
+
 ## [1.1.8] - 2026-05-22
 
 ### Neu
