@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.21
+- Fix: OC_CONFIG_PATH=/config/www/nextcloud/config/ gesetzt — occ und Webserver nutzen jetzt garantiert dieselbe config.php (Symlink-Ansatz entfernt)
+
 ## 0.0.20
 - Redesign: admin_user/admin_password entfernt — Ersteinrichtung über Web-Installer
 - Fix: /app/www/src/config als Symlink auf /config/www/nextcloud/config (occ + Webserver nutzen dieselbe config.php)

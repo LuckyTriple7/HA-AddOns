@@ -122,11 +122,10 @@ fi
 
 echo "[INFO] occ gefunden: ${OCC_BIN}"
 
-# /app/www/src/config auf persistente Config zeigen lassen.
-# Webserver: /app/www/public/config → /config/www/nextcloud/config (Symlink)
-# occ schreibt nach /app/www/src/config/ — muss dasselbe Ziel sein.
-rm -rf /app/www/src/config || true
-ln -sf /config/www/nextcloud/config /app/www/src/config
+# OC_CONFIG_PATH zeigt occ auf die persistente config.php (identisch mit dem
+# Pfad den der Webserver nutzt: /app/www/public/config → /config/www/nextcloud/config)
+export OC_CONFIG_PATH=/config/www/nextcloud/config/
+echo "[INFO] OC_CONFIG_PATH=${OC_CONFIG_PATH}"
 
 # --- occ-Wrapper ---
 occ() {
