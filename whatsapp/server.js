@@ -76,6 +76,11 @@ const seenIds = new Set();
 const REACTIONS_FILE = '/data/reactions.json';
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
+// Eigene Reaktionen werden unabhängig von JID-Formaten getrackt.
+// Format: { msgId: emoji } — kein JID-Vergleich nötig.
+const OWN_REACTIONS_FILE = '/data/ownreactions.json';
+let myReactions = new Map(); // msgId -> emoji (leer = keine eigene Reaktion)
+
 function normalizeJid(jid) {
   const m = String(jid).match(/^(\d+)/);
   return m ? m[1] + '@c.us' : '';
@@ -87,7 +92,7 @@ try {
     for (const [msgId, reactions] of Object.entries(data)) {
       const clean = {};
       for (const [emoji, senders] of Object.entries(reactions)) {
-        const deduped = [...new Set(senders.map(normalizeJid))];
+        const deduped = [...new Set(senders.map(normalizeJid))].filter(Boolean);
         if (deduped.length) clean[emoji] = deduped;
       }
       if (Object.keys(clean).length) reactionsCache.set(msgId, clean);
@@ -96,12 +101,21 @@ try {
   }
 } catch (e) { console.error('[ERROR] loadReactions:', e.message); }
 
+try {
+  if (existsSync(OWN_REACTIONS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(OWN_REACTIONS_FILE, 'utf8'));
+    myReactions = new Map(Object.entries(data));
+    console.log(`[INFO] Loaded own reactions for ${myReactions.size} messages from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadOwnReactions:', e.message); }
+
 let reactionsSaveTimer = null;
 function saveReactions() {
   if (reactionsSaveTimer) clearTimeout(reactionsSaveTimer);
   reactionsSaveTimer = setTimeout(() => {
     try {
       fs.writeFileSync(REACTIONS_FILE, JSON.stringify(Object.fromEntries(reactionsCache)));
+      fs.writeFileSync(OWN_REACTIONS_FILE, JSON.stringify(Object.fromEntries(myReactions)));
     } catch (e) { console.error('[ERROR] saveReactions:', e.message); }
   }, 3000);
 }
@@ -665,6 +679,9 @@ app.post('/api/react', async (req, res) => {
     if (!msg) return res.status(404).json({ error: 'Message not found' });
     await msg.react(reaction || '');
     dbg(`/api/react: sent reaction="${reaction||''}" for msgId=${msgId}`);
+    // Eigene Reaktion explizit tracken — kein JID-Vergleich nötig
+    if (reaction) { myReactions.set(msgId, reaction); } else { myReactions.delete(msgId); }
+    saveReactions();
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -673,14 +690,14 @@ app.post('/api/react', async (req, res) => {
 
 app.get('/api/reactions/:chatId', (req, res) => {
   const msgs = getChatMsgs(req.params.chatId);
-  const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
   const result = {};
   for (const m of msgs) {
     if (!m.reactions || !Object.keys(m.reactions).length) continue;
+    const ownEmoji = myReactions.get(m.id) || null;
     const entry = {};
     for (const [emoji, senders] of Object.entries(m.reactions)) {
       if (!senders.length) continue;
-      entry[emoji] = { count: senders.length, own: myJid ? senders.includes(myJid) : false };
+      entry[emoji] = { count: senders.length, own: emoji === ownEmoji };
     }
     if (Object.keys(entry).length) result[m.id] = entry;
   }

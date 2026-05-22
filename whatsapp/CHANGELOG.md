@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.19] - 2026-05-22
+
+### Behoben
+- **Eigene Reaktion konnte nicht entfernt werden** — Alle vorherigen Fixes versuchten `isOwn` über JID-Vergleich zu ermitteln (`senderId` aus `message_reaction` vs. `connectedPhone`). Dieser Vergleich schlug in dieser HA-Installation immer fehl, weil WhatsApp intern unterschiedliche JID-Formate für den Sender und die verbundene Nummer verwendet. Lösung: JID-Vergleich vollständig entfernt. Eigene Reaktionen werden jetzt direkt in `/api/react` in einer `myReactions`-Map gespeichert (msgId → Emoji). `own` wird in `/api/reactions` aus dieser Map gelesen — kein JID-Abgleich mehr nötig. Die Map wird in `/data/ownreactions.json` persistiert.
+
 ## [1.3.18] - 2026-05-22
 
 ### Behoben
