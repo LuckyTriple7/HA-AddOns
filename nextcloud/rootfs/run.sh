@@ -161,6 +161,8 @@ echo "[INFO] NC installed: ${NC_INSTALLED}"
 if [ "$NC_INSTALLED" != "true" ]; then
     echo "[INFO] Bereinige vor Neuinstallation ..."
     rm -rf /config/data
+    rm -f /app/www/public/config/config.php
+    rm -f /app/www/src/config/config.php
     rm -f /config/www/nextcloud/config/config.php
     mkdir -p /config/data
     chown -R "${PUID}:${PGID}" /config/data

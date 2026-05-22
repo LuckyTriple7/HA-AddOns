@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.17
+- Fix: config.php aus allen möglichen Pfaden löschen (/app/www/public/, /app/www/src/, /config/www/nextcloud/)
+
 ## 0.0.16
 - Fix: /config/data vor Installation mit PUID/PGID anlegen (Webserver-User kann schreiben)
 - Fix: config.php vor Neuinstallation löschen (sauberer Reset)
