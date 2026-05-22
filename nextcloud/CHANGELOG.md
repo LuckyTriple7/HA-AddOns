@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.10
+- Fix: `--allow-root` → `ALLOW_ROOT=1` Umgebungsvariable (neues NC-Format)
+
 ## 0.0.9
 - Fix: NC_CONFIG relativ zu OCC_BIN (neuer linuxserver Pfad /app/www/src/)
 - Fix: Installations-Erkennung via `occ status` statt config.php-Check

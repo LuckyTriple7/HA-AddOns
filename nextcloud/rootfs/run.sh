@@ -161,7 +161,7 @@ OCC_BIN=$(find_occ)
 echo "[INFO] occ gefunden: ${OCC_BIN:-NICHT GEFUNDEN}"
 
 occ() {
-    php "$OCC_BIN" --allow-root "$@" || true
+    ALLOW_ROOT=1 php "$OCC_BIN" "$@" || true
 }
 
 # Konfiguration anwenden (Erst- und Folgestarts)
@@ -229,7 +229,7 @@ NC_CONFIG="$(dirname "$OCC_BIN")/config/config.php"
 echo "[INFO] NC_CONFIG: ${NC_CONFIG}"
 
 # Zuverlässige Installations-Erkennung via occ status
-NC_INSTALLED=$(php "$OCC_BIN" --allow-root status --output=json 2>/dev/null \
+NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
     | jq -r '.installed // false' 2>/dev/null || echo "false")
 echo "[INFO] NC installed: ${NC_INSTALLED}"
 
@@ -238,7 +238,7 @@ if [ "$NC_INSTALLED" != "true" ]; then
 
     if [ "$DB_TYPE" = "mysql" ]; then
         echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
-        php "$OCC_BIN" --allow-root maintenance:install \
+        ALLOW_ROOT=1 php "$OCC_BIN" maintenance:install \
             --database mysql \
             --database-name "$DB_NAME" \
             --database-host "$DB_HOST" \
@@ -251,7 +251,7 @@ if [ "$NC_INSTALLED" != "true" ]; then
         echo "[OK]   Nextcloud mit MariaDB installiert (Exit: $?)"
     else
         echo "[INFO] Installation mit SQLite ..."
-        php "$OCC_BIN" --allow-root maintenance:install \
+        ALLOW_ROOT=1 php "$OCC_BIN" maintenance:install \
             --database sqlite \
             --database-name oc_nextcloud \
             --admin-user "$ADMIN_USER" \
