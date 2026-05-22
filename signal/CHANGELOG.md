@@ -1,40 +1,5 @@
 # Changelog
 
-## [1.1.14] - 2026-05-22
-
-### Geändert
-- **signal-cli-rest-api Version** — gezielt nach dem Modul-Pfad `bbernhard/signal-cli-rest-api` im Binary gesucht statt erstem beliebigen Versions-String (Go-Binaries enthalten dutzende eingebettete Dependency-Versionen)
-
-## [1.1.13] - 2026-05-22
-
-### Geändert
-- **signal-cli-rest-api Version** — Binary direkt per `grep -a` nach eingebetteter Versionsnummer durchsucht (Go-Binaries enthalten die Version als lesbare Zeichenkette)
-
-## [1.1.12] - 2026-05-22
-
-### Geändert
-- **signal-cli-rest-api Version im Log** — stdout+stderr werden gecaptured, Versionsmuster (`v0.0.0`) per grep extrahiert; falls kein Muster gefunden: „version unknown"
-
-## [1.1.11] - 2026-05-22
-
-### Geändert
-- **signal-cli-rest-api Version im Log** — wird jetzt in `run.sh` direkt vom Binary abgefragt (`signal-cli-rest-api --version`); REST-API liefert keine Build-Versionsnummer
-
-## [1.1.10] - 2026-05-22
-
-### Geändert
-- **signal-cli-rest-api Log** — zeigt echte Build-Version wenn vorhanden, sonst nur „bereit" (das Image liefert kein `build.version`)
-
-## [1.1.9] - 2026-05-22
-
-### Geändert
-- **signal-cli-rest-api Version im Log** — Ausgabe verbessert: zeigt `build.version` wenn vorhanden, sonst `(API: v1, v2)` statt rohem Array-Join
-
-## [1.1.8] - 2026-05-22
-
-### Neu
-- **signal-cli-rest-api Version im Log** — beim Start wird die API-Version geloggt: `[INFO] signal-cli-rest-api v0.x.x`
-
 ## [1.1.7] - 2026-05-22
 
 ### Neu
