@@ -1094,7 +1094,7 @@ app.get('/', (req, res) => {
     ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
-    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:18px;padding:0 6px;">🇩🇪</button>
+    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
     <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()">⏻</button>
   </div>
 
@@ -1231,7 +1231,7 @@ app.get('/', (req, res) => {
       document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
       document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
       const lb = document.getElementById('lang-btn');
-      if (lb) lb.textContent = lang === 'de' ? '🇩🇪' : '🇬🇧';
+      if (lb) lb.textContent = lang === 'de' ? '🌐 DE' : '🌐 EN';
       const fmb = document.getElementById('fetch-media-btn');
       if (fmb && !fmb.disabled) fmb.textContent = t('btnFetchMedia');
       const sdb = document.getElementById('spam-delete-btn');

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.8] - 2026-05-22
+
+### Geändert
+- Sprachbutton zeigt jetzt `🌐 DE` / `🌐 EN` statt Flaggen-Emojis — Windows unterstützt keine Länder-Flaggen
+
 ## [1.3.7] - 2026-05-22
 
 ### Behoben
