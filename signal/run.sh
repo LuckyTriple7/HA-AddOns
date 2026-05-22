@@ -41,6 +41,9 @@ start_signal_api() {
   done
 }
 
+SIG_VER=$(signal-cli-rest-api --version 2>/dev/null || signal-cli-rest-api -version 2>/dev/null || echo "")
+[ -n "$SIG_VER" ] && echo "[INFO] signal-cli-rest-api $SIG_VER"
+
 echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG_DIR)..."
 start_signal_api
 

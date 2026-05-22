@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.11] - 2026-05-22
+
+### Geändert
+- **signal-cli-rest-api Version im Log** — wird jetzt in `run.sh` direkt vom Binary abgefragt (`signal-cli-rest-api --version`); REST-API liefert keine Build-Versionsnummer
+
 ## [1.1.10] - 2026-05-22
 
 ### Geändert
