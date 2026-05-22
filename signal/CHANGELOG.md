@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.13] - 2026-05-22
+
+### Geändert
+- **signal-cli-rest-api Version** — Binary direkt per `grep -a` nach eingebetteter Versionsnummer durchsucht (Go-Binaries enthalten die Version als lesbare Zeichenkette)
+
 ## [1.1.12] - 2026-05-22
 
 ### Geändert

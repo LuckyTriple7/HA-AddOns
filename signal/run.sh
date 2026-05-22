@@ -41,8 +41,9 @@ start_signal_api() {
   done
 }
 
-SIG_VER=$({ signal-cli-rest-api --version 2>&1 || signal-cli-rest-api -version 2>&1 || true; } | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-[ -n "$SIG_VER" ] && echo "[INFO] signal-cli-rest-api ${SIG_VER#v}" || echo "[INFO] signal-cli-rest-api version unknown"
+BINARY=$(which signal-cli-rest-api 2>/dev/null)
+SIG_VER=$(grep -oaE 'v[0-9]+\.[0-9]+\.[0-9]+' "${BINARY:-/dev/null}" 2>/dev/null | grep -v '^v1\.' | head -1)
+echo "[INFO] signal-cli-rest-api ${SIG_VER:-version unknown}"
 
 echo "[INFO] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG_DIR)..."
 start_signal_api
