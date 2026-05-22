@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.10] - 2026-05-22
+
+### Geändert
+- **signal-cli-rest-api Log** — zeigt echte Build-Version wenn vorhanden, sonst nur „bereit" (das Image liefert kein `build.version`)
+
 ## [1.1.9] - 2026-05-22
 
 ### Geändert
