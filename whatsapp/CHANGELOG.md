@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.20] - 2026-05-22
+
+### Neu
+- **whatsapp-web.js Version im Log** — beim Start wird die installierte API-Version geloggt: `[INFO] whatsapp-web.js v1.26.x`
+
 ## [1.3.19] - 2026-05-22
 
 ### Behoben

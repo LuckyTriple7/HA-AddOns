@@ -44,6 +44,8 @@ function findChromium() {
 }
 
 const CHROMIUM = findChromium();
+const WA_VERSION = require('./node_modules/whatsapp-web.js/package.json').version;
+console.log(`[INFO] whatsapp-web.js v${WA_VERSION}`);
 console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 
 // ── State ─────────────────────────────────────────────────────────────────────
