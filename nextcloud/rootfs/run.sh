@@ -26,6 +26,44 @@ echo "[INFO] PUID=$PUID PGID=$PGID TZ=$TZ"
 # Umgebungsvariablen für linuxserver
 export PUID PGID TZ
 
+# --- MariaDB Autodiscovery via HA Supervisor API ---
+DB_TYPE="sqlite"
+DB_HOST=""
+DB_PORT="3306"
+DB_NAME="nextcloud"
+DB_USER=""
+DB_PASS=""
+
+if [ -n "$SUPERVISOR_TOKEN" ]; then
+    echo "[INFO] Prüfe MariaDB-Service via Supervisor API ..."
+    MYSQL_SVC=$(curl -sf \
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        "http://supervisor/services/mysql" 2>/dev/null || echo '{"result":"error"}')
+    MYSQL_RESULT=$(echo "$MYSQL_SVC" | jq -r '.result // "error"')
+
+    if [ "$MYSQL_RESULT" = "ok" ]; then
+        DB_HOST=$(echo "$MYSQL_SVC" | jq -r '.data.host // "core-mariadb"')
+        DB_PORT=$(echo "$MYSQL_SVC" | jq -r '.data.port // 3306')
+        DB_USER=$(echo "$MYSQL_SVC" | jq -r '.data.username // empty')
+        DB_PASS=$(echo "$MYSQL_SVC" | jq -r '.data.password // empty')
+        DB_TYPE="mysql"
+        echo "[OK]   MariaDB gefunden: ${DB_HOST}:${DB_PORT} — nutze MySQL"
+    else
+        echo "[INFO] Kein MariaDB-Service gefunden — nutze SQLite"
+    fi
+else
+    echo "[INFO] SUPERVISOR_TOKEN nicht gesetzt — nutze SQLite"
+fi
+
+# MariaDB: Nextcloud-Datenbank anlegen falls nicht vorhanden
+if [ "$DB_TYPE" = "mysql" ]; then
+    echo "[INFO] Stelle Nextcloud-Datenbank '${DB_NAME}' in MariaDB sicher ..."
+    mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" \
+        -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" \
+        2>/dev/null && echo "[OK]   Datenbank '${DB_NAME}' bereit" \
+        || echo "[WARN] Konnte Datenbank nicht prüfen — eventuell bereits vorhanden"
+fi
+
 # Nextcloud-Datenpfad im addon_config-Ordner
 NC_DATA=/config/data
 mkdir -p "$NC_DATA" /config/www /config/log /config/cron
@@ -110,119 +148,110 @@ mount_smb 2
 mount_smb 3
 echo "------------------"
 
-# Ersten-Start-Erkennung: Nextcloud-Installation via occ
+# occ-Hilfsfunktion
+OCC_BIN=/config/www/nextcloud/occ
+occ() {
+    sudo -u abc php "$OCC_BIN" "$@" 2>/dev/null || true
+}
+
+# occ-Konfiguration (Erst- und Folgestarts)
+apply_config() {
+    echo "[INFO] Wende Nextcloud-Konfiguration an ..."
+
+    occ config:system:set trusted_domains 0 --value="localhost"
+    occ config:system:set trusted_domains 1 --value="homeassistant.local"
+    IDX=2
+    if [ -n "$TRUSTED_DOMAINS" ]; then
+        echo "$TRUSTED_DOMAINS" | tr ',' '\n' | while IFS= read -r D; do
+            D=$(echo "$D" | tr -d ' \r')
+            [ -z "$D" ] && continue
+            occ config:system:set trusted_domains "$IDX" --value="$D"
+            IDX=$((IDX + 1))
+        done
+    fi
+
+    occ config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION"
+
+    if [ "$ENABLE_THUMBNAILS" = "true" ]; then
+        occ config:system:set enable_previews --value=true --type=boolean
+    else
+        occ config:system:set enable_previews --value=false --type=boolean
+    fi
+
+    if [ "$DISABLE_UPDATES" = "true" ]; then
+        occ config:system:set upgrade.disable-web --value=true --type=boolean
+    fi
+}
+
+# Ersten-Start-Erkennung
+NC_OCC=/config/www/nextcloud/occ
 NC_CONFIG=/config/www/nextcloud/config/config.php
+
 if [ ! -f "$NC_CONFIG" ]; then
-    echo "[INFO] Erster Start — warte auf Nextcloud-Initialisierung durch linuxserver ..."
-    # linuxserver initialisiert Nextcloud in /config/www/nextcloud beim ersten Start
-    # Wir starten /init zuerst im Hintergrund und warten dann
+    echo "[INFO] Erster Start — starte linuxserver /init im Hintergrund ..."
     /init &
     INIT_PID=$!
 
-    echo "[INFO] Warte auf Nextcloud-Installation ..."
+    # Warte bis Nextcloud-Dateien bereitgestellt wurden (occ ist das früheste Zeichen)
+    echo "[INFO] Warte auf Nextcloud-Dateien ..."
     TRIES=0
-    while [ ! -f "$NC_CONFIG" ] && [ $TRIES -lt 120 ]; do
+    while [ ! -f "$NC_OCC" ] && [ $TRIES -lt 120 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
     done
 
-    if [ ! -f "$NC_CONFIG" ]; then
-        echo "[WARN] Nextcloud-Config nach 10 Minuten noch nicht vorhanden"
+    if [ ! -f "$NC_OCC" ]; then
+        echo "[WARN] Nextcloud nicht bereitgestellt nach 10 Minuten — Abbruch"
         wait $INIT_PID
         exit 1
     fi
 
-    echo "[INFO] Nextcloud-Installation abgeschlossen, konfiguriere ..."
+    echo "[INFO] Nextcloud-Dateien bereit — führe Installation aus ..."
 
-    OCC="php /config/www/nextcloud/occ"
-
-    # Admin-Passwort setzen (linuxserver setzt default admin/admin)
-    if [ -n "$ADMIN_PASS" ]; then
-        echo "[INFO] Setze Admin-Passwort ..."
-        sudo -u abc "$OCC" user:resetpassword --password-from-env admin <<< "$ADMIN_PASS" 2>/dev/null || true
-        # Admin-User umbenennen falls gewünscht
-        if [ "$ADMIN_USER" != "admin" ]; then
-            echo "[INFO] Admin-User: admin → ${ADMIN_USER}"
-            sudo -u abc "$OCC" user:modify admin --display-name "$ADMIN_USER" 2>/dev/null || true
-        fi
-    fi
-
-    # Datenpfad konfigurieren
-    sudo -u abc "$OCC" config:system:set datadirectory --value="/config/data" 2>/dev/null || true
-
-    # Trusted Domains
-    sudo -u abc "$OCC" config:system:set trusted_domains 0 --value="localhost" 2>/dev/null || true
-    sudo -u abc "$OCC" config:system:set trusted_domains 1 --value="homeassistant.local" 2>/dev/null || true
-    IDX=2
-    if [ -n "$TRUSTED_DOMAINS" ]; then
-        echo "$TRUSTED_DOMAINS" | tr ',' '\n' | while IFS= read -r D; do
-            D=$(echo "$D" | tr -d ' \r')
-            [ -z "$D" ] && continue
-            sudo -u abc "$OCC" config:system:set trusted_domains $IDX --value="$D" 2>/dev/null || true
-            IDX=$((IDX + 1))
-        done
-    fi
-
-    # Telefon-Region
-    sudo -u abc "$OCC" config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION" 2>/dev/null || true
-
-    # Thumbnails
-    if [ "$ENABLE_THUMBNAILS" = "true" ]; then
-        sudo -u abc "$OCC" config:system:set enable_previews --value=true --type=boolean 2>/dev/null || true
+    # occ maintenance:install je nach Datenbanktyp
+    if [ "$DB_TYPE" = "mysql" ]; then
+        echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
+        sudo -u abc php "$OCC_BIN" maintenance:install \
+            --database mysql \
+            --database-name "$DB_NAME" \
+            --database-host "$DB_HOST" \
+            --database-port "$DB_PORT" \
+            --database-user "$DB_USER" \
+            --database-pass "$DB_PASS" \
+            --admin-user "$ADMIN_USER" \
+            --admin-pass "$ADMIN_PASS" \
+            --data-dir "$NC_DATA" 2>/dev/null || true
+        echo "[OK]   Nextcloud mit MariaDB installiert"
     else
-        sudo -u abc "$OCC" config:system:set enable_previews --value=false --type=boolean 2>/dev/null || true
+        echo "[INFO] Installation mit SQLite ..."
+        sudo -u abc php "$OCC_BIN" maintenance:install \
+            --database sqlite \
+            --database-name oc_nextcloud \
+            --admin-user "$ADMIN_USER" \
+            --admin-pass "$ADMIN_PASS" \
+            --data-dir "$NC_DATA" 2>/dev/null || true
+        echo "[OK]   Nextcloud mit SQLite installiert"
     fi
 
-    # Updates deaktivieren
-    if [ "$DISABLE_UPDATES" = "true" ]; then
-        sudo -u abc "$OCC" config:system:set upgrade.disable-web --value=true --type=boolean 2>/dev/null || true
-    fi
+    apply_config
 
-    # SMB-Shares als externe Speicher einbinden (falls gemountet)
-    sudo -u abc "$OCC" app:enable files_external 2>/dev/null || true
+    # SMB-Shares als externe Speicher einbinden
+    occ app:enable files_external
     for IDX in 1 2 3; do
         if mountpoint -q "/mnt/smb${IDX}" 2>/dev/null; then
             SHARE=$(jq -r ".smb_${IDX}_share // empty" "$OPTIONS" 2>/dev/null)
             echo "[INFO] Binde SMB-${IDX} (${SHARE}) als externen Speicher ein ..."
-            sudo -u abc "$OCC" files_external:create "SMB-${IDX} ${SHARE}" local null::null \
-                --config datadir="/mnt/smb${IDX}" 2>/dev/null || true
+            occ files_external:create "SMB-${IDX} ${SHARE}" local null::null \
+                --config datadir="/mnt/smb${IDX}"
         fi
     done
 
-    sudo -u abc "$OCC" maintenance:mode --off 2>/dev/null || true
-    echo "[INFO] Konfiguration abgeschlossen"
+    occ maintenance:mode --off
+    echo "[INFO] Ersteinrichtung abgeschlossen — Nextcloud läuft"
 
     wait $INIT_PID
 else
-    # Folgestarts: nur PHP-Config anpassen, dann /init starten
     echo "[INFO] Nextcloud bereits installiert — starte normal"
-
-    OCC="php /config/www/nextcloud/occ"
-
-    # Trusted Domains aktualisieren
-    sudo -u abc "$OCC" config:system:set trusted_domains 0 --value="localhost" 2>/dev/null || true
-    sudo -u abc "$OCC" config:system:set trusted_domains 1 --value="homeassistant.local" 2>/dev/null || true
-    IDX=2
-    if [ -n "$TRUSTED_DOMAINS" ]; then
-        echo "$TRUSTED_DOMAINS" | tr ',' '\n' | while IFS= read -r D; do
-            D=$(echo "$D" | tr -d ' \r')
-            [ -z "$D" ] && continue
-            sudo -u abc "$OCC" config:system:set trusted_domains $IDX --value="$D" 2>/dev/null || true
-            IDX=$((IDX + 1))
-        done
-    fi
-
-    sudo -u abc "$OCC" config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION" 2>/dev/null || true
-
-    if [ "$ENABLE_THUMBNAILS" = "true" ]; then
-        sudo -u abc "$OCC" config:system:set enable_previews --value=true --type=boolean 2>/dev/null || true
-    else
-        sudo -u abc "$OCC" config:system:set enable_previews --value=false --type=boolean 2>/dev/null || true
-    fi
-
-    if [ "$DISABLE_UPDATES" = "true" ]; then
-        sudo -u abc "$OCC" config:system:set upgrade.disable-web --value=true --type=boolean 2>/dev/null || true
-    fi
-
+    apply_config
     exec /init
 fi
