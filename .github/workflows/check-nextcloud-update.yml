@@ -32,33 +32,26 @@ jobs:
           echo "remote=${VERSION}" >> $GITHUB_OUTPUT
           echo "Aktuelle linuxserver Nextcloud-Version: ${VERSION} (Tag: ${TAGS})"
 
-      - name: Hole gebaute Version aus GHCR
+      - name: Hole gebaute Version aus Versionsdatei
         id: local
         run: |
-          TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:luckytriple7/nextcloud:pull" | jq -r '.token')
-          DIGEST=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
-            "https://ghcr.io/v2/luckytriple7/nextcloud/manifests/latest" \
-            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" | jq -r '.config.digest // empty')
-          if [ -z "$DIGEST" ]; then
-            echo "built=none" >> $GITHUB_OUTPUT
-            echo "Noch kein Image in GHCR vorhanden"
+          if [ -f .nextcloud-version ]; then
+            echo "version=$(cat .nextcloud-version)" >> $GITHUB_OUTPUT
+            echo "Gebaute Version: $(cat .nextcloud-version)"
           else
-            LABELS=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
-              "https://ghcr.io/v2/luckytriple7/nextcloud/blobs/${DIGEST}" | jq -r '.config.Labels // {} | to_entries[] | "\(.key)=\(.value)"' 2>/dev/null || true)
-            NC_VERSION=$(echo "$LABELS" | grep 'build_version' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
-            echo "built=${NC_VERSION}" >> $GITHUB_OUTPUT
-            echo "Gebaute Version: ${NC_VERSION}"
+            echo "version=unknown" >> $GITHUB_OUTPUT
+            echo "Noch keine Versionsdatei vorhanden"
           fi
 
       - name: Vergleiche Versionen
         id: compare
         run: |
           REMOTE="${{ steps.remote.outputs.remote }}"
-          BUILT="${{ steps.local.outputs.built }}"
-          echo "Remote: ${REMOTE} | Gebaut: ${BUILT}"
-          if [ "$REMOTE" != "$BUILT" ] && [ -n "$REMOTE" ]; then
+          LOCAL="${{ steps.local.outputs.version }}"
+          echo "Remote: ${REMOTE} | Lokal: ${LOCAL}"
+          if [ "$REMOTE" != "$LOCAL" ]; then
             echo "rebuild=true" >> $GITHUB_OUTPUT
-            echo "Neue Version verfügbar: ${REMOTE} (gebaut: ${BUILT})"
+            echo "Neue Version verfügbar: ${REMOTE} (bisher: ${LOCAL})"
           else
             echo "rebuild=false" >> $GITHUB_OUTPUT
             echo "Kein Update notwendig"
@@ -87,9 +80,10 @@ jobs:
           tags: |
             ghcr.io/luckytriple7/nextcloud:latest
 
-      - name: Bump add-on version in config.yaml
+      - name: Versionsdatei + config.yaml aktualisieren
         if: steps.compare.outputs.rebuild == 'true'
         run: |
+          echo "${{ steps.remote.outputs.remote }}" > .nextcloud-version
           CURRENT=$(grep '^version:' nextcloud/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
@@ -100,6 +94,6 @@ jobs:
           echo "Version: ${CURRENT} → ${NEW_VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add nextcloud/config.yaml
+          git add .nextcloud-version nextcloud/config.yaml
           git commit -m "Nextcloud: Auto-Update auf Nextcloud ${{ steps.remote.outputs.remote }} (v${NEW_VERSION})"
           git push
