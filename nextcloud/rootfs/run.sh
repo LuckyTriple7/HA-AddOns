@@ -201,9 +201,10 @@ NC_CONFIG=/config/www/nextcloud/config/config.php
 
 # Warte auf Nextcloud-Dateien (linuxserver kopiert diese asynchron)
 if [ -z "$OCC_BIN" ]; then
-    echo "[INFO] occ noch nicht vorhanden — warte (max. 10 min) ..."
+    echo "[INFO] occ noch nicht vorhanden — warte auf Download/Entpacken (max. 30 min) ..."
+    echo "[INFO] Erster Start: linuxserver lädt Nextcloud herunter und entpackt ~100 MB"
     TRIES=0
-    while [ $TRIES -lt 120 ]; do
+    while [ $TRIES -lt 360 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
         OCC_BIN=$(find_occ)
@@ -217,7 +218,7 @@ if [ -z "$OCC_BIN" ]; then
         fi
     done
     if [ -z "$OCC_BIN" ]; then
-        echo "[WARN] occ nach 10 Minuten nicht gefunden — Abbruch"
+        echo "[WARN] occ nach 30 Minuten nicht gefunden — Abbruch"
         echo "[DEBUG] /config: $(ls /config/ 2>/dev/null | tr '\n' ' ')"
         echo "[DEBUG] /app:    $(ls /app/ 2>/dev/null | tr '\n' ' ' || echo 'nicht vorhanden')"
         echo "[DEBUG] find occ: $(find / -name occ -type f 2>/dev/null | tr '\n' ' ' || echo 'nichts')"

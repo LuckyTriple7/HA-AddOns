@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.8
+- Timeout erhöht: 10 → 30 Minuten (erster Start lädt ~100 MB Nextcloud herunter)
+
 ## 0.0.7
 - occ-Pfad dynamisch per find_occ() ermittelt (mehrere Kandidaten + breite Suche)
 - Warte-Schleife zeigt alle 30s was in /config und /app liegt
