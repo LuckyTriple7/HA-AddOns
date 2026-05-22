@@ -44,6 +44,7 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 | `upload_max_filesize` | `512M` | Maximale Upload-Dateigröße |
 | `post_max_size` | `512M` | Maximale POST-Größe |
 | `disable_updates` | `false` | Nextcloud-Webupdate deaktivieren |
+| `mariadb_discovery` | `false` | HA MariaDB Add-on automatisch erkennen und nutzen (aus = immer SQLite) |
 | `smb_1_server` | — | IP/Hostname des SMB-Servers (Slot 1) |
 | `smb_1_share` | — | Name des SMB-Shares (Slot 1) |
 | `smb_1_user` | — | Benutzername für den SMB-Share (Slot 1) |
@@ -134,6 +135,7 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 | `upload_max_filesize` | `512M` | Maximum upload file size |
 | `post_max_size` | `512M` | Maximum POST size |
 | `disable_updates` | `false` | Disable Nextcloud web update |
+| `mariadb_discovery` | `false` | Auto-detect and use HA MariaDB add-on (off = always SQLite) |
 | `smb_1_server` | — | IP/hostname of SMB server (slot 1) |
 | `smb_1_share` | — | Name of SMB share (slot 1) |
 | `smb_1_user` | — | Username for SMB share (slot 1) |

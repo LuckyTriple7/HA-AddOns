@@ -49,6 +49,7 @@ options:
   upload_max_filesize: "512M"
   post_max_size: "512M"
   disable_updates: false
+  mariadb_discovery: false
   smb_1_server: ""
   smb_1_share: ""
   smb_1_user: ""
@@ -75,6 +76,7 @@ schema:
   upload_max_filesize: str?
   post_max_size: str?
   disable_updates: bool
+  mariadb_discovery: bool
   smb_1_server: str?
   smb_1_share: str?
   smb_1_user: str?

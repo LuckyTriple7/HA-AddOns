@@ -20,6 +20,7 @@ MEMORY_LIMIT=$(jq -r '.memory_limit // "512M"' "$OPTIONS" 2>/dev/null || echo "5
 UPLOAD_MAX=$(jq -r '.upload_max_filesize // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
 POST_MAX=$(jq -r '.post_max_size // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
 DISABLE_UPDATES=$(jq -r '.disable_updates // false' "$OPTIONS" 2>/dev/null || echo "false")
+MARIADB_DISCOVERY=$(jq -r '.mariadb_discovery // false' "$OPTIONS" 2>/dev/null || echo "false")
 
 echo "[INFO] PUID=$PUID PGID=$PGID TZ=$TZ"
 
@@ -34,7 +35,7 @@ DB_NAME="nextcloud"
 DB_USER=""
 DB_PASS=""
 
-if [ -n "$SUPERVISOR_TOKEN" ]; then
+if [ "$MARIADB_DISCOVERY" = "true" ] && [ -n "$SUPERVISOR_TOKEN" ]; then
     echo "[INFO] Prüfe MariaDB-Service via Supervisor API ..."
     MYSQL_SVC=$(curl -sf \
         -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
@@ -51,6 +52,8 @@ if [ -n "$SUPERVISOR_TOKEN" ]; then
     else
         echo "[INFO] Kein MariaDB-Service gefunden — nutze SQLite"
     fi
+elif [ "$MARIADB_DISCOVERY" != "true" ]; then
+    echo "[INFO] MariaDB Discovery deaktiviert — nutze SQLite"
 else
     echo "[INFO] SUPERVISOR_TOKEN nicht gesetzt — nutze SQLite"
 fi
