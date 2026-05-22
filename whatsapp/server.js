@@ -526,7 +526,8 @@ function formatNumber(to) {
 // ── API ───────────────────────────────────────────────────────────────────────
 
 app.get('/api/status', (req, res) => {
-  res.json({ status, phone: connectedPhone, error: lastError });
+  const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
+  res.json({ status, phone: connectedPhone, myJid, error: lastError });
 });
 
 app.get('/api/qr', (req, res) => {
@@ -1632,7 +1633,6 @@ app.get('/', (req, res) => {
         if (m.reactions && Object.keys(m.reactions).length) {
           const bar = document.createElement('div');
           bar.className = 'reactions-bar';
-          const myJid = myPhone ? myPhone + '@c.us' : null;
           for (const [emoji, senders] of Object.entries(m.reactions)) {
             if (!senders.length) continue;
             const isOwn = myJid ? senders.includes(myJid) : false;
@@ -1918,6 +1918,7 @@ app.get('/', (req, res) => {
         dot.title = dotLabel;
 
         if (s.phone && !myPhone) myPhone = s.phone;
+        if (s.myJid && !myJid) myJid = s.myJid;
         if (s.status !== currentStatus) {
           currentStatus = s.status;
           const connecting = s.status === 'initializing' || s.status === 'authenticated' || s.status === 'disconnected';
@@ -1949,6 +1950,7 @@ app.get('/', (req, res) => {
     const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
     let pickerTargetMsgId = null;
     let myPhone = null;
+    let myJid = null;
 
     const reactionPicker = document.createElement('div');
     reactionPicker.id = 'reaction-picker';
@@ -2031,7 +2033,6 @@ app.get('/', (req, res) => {
     }
 
     function updateReactionsInDOM(reactionsMap) {
-      const myJid = myPhone ? myPhone + '@c.us' : null;
       for (const wrap of msgList.querySelectorAll('.bubble-wrap[data-msgid]')) {
         const msgId = wrap.dataset.msgid;
         const reactions = reactionsMap[msgId];

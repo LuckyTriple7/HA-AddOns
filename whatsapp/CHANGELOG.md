@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.16] - 2026-05-22
+
+### Behoben
+- **Reaktion konnte nicht entfernt werden** — `isOwn`-Erkennung schlug fehl weil der Client `myPhone + "@c.us"` selbst zusammenbaute, was nicht mit der vom Server normalisierten JID übereinstimmte. Lösung: `/api/status` liefert jetzt `myJid` (fertig normalisiert), der Client verwendet diese direkt für den `senders.includes(myJid)`-Vergleich.
+
 ## [1.3.15] - 2026-05-22
 
 ### Behoben
