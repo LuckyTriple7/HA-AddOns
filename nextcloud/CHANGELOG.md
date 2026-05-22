@@ -1,5 +1,13 @@
 # Changelog — Nextcloud
 
+## 0.0.24
+- Komplette Architektur-Überarbeitung nach Vorbild alexbelgium/hassio-addons
+- Kein CMD-Override mehr — kein Race Condition mit linuxservers s6-Init
+- ha-config.sh läuft jetzt AM ENDE von linuxservers init-nextcloud-config (occ bereit, config.php existiert)
+- 30-ha-init.sh als cont-init.d Script: SMB-Mounts + PHP-Limits (früh, als root)
+- Kein chown /config/data — linuxserver setzt Rechte selbst ("Setting permissions")
+- trusted_domains und alle occ-Config schreiben jetzt zuverlässig in die richtige config.php
+
 ## 0.0.23
 - Fix: OCC_BIN auf /app/www/public/occ geändert — dessen __DIR__/config/ zeigt via Symlink auf /config/www/nextcloud/config/ (persistente config.php), identisch zum Webserver
 - Fix: OC_CONFIG_PATH-Workaround entfernt (war wirkungslos, weil occ __DIR__-relativ sucht)
