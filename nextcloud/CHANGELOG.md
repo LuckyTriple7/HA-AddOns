@@ -1,5 +1,11 @@
 # Changelog — Nextcloud
 
+## 0.0.33
+- Neu: loglevel (0-4, Standard 3=nur Fehler)
+- Neu: skeletondirectory (Standard leer — neue User ohne Demo-Dateien)
+- Neu: trashbin_retention_obligation (Standard "auto, 30" — max. 30 Tage Papierkorb)
+- Neu: versions_retention_obligation (Standard "auto, 30" — max. 30 Tage Versionen)
+
 ## 0.0.32
 - Fix: PHP-FPM pm.max_children von 5 auf 15 erhöht (verhindert "server reached pm.max_children" Warnung)
 

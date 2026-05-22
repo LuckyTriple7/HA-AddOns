@@ -16,6 +16,10 @@ TRUSTED_DOMAINS=$(jq -r '.trusted_domains // ""' "$OPTIONS" 2>/dev/null || echo 
 DEFAULT_PHONE_REGION=$(jq -r '.default_phone_region // "DE"' "$OPTIONS" 2>/dev/null || echo "DE")
 ENABLE_THUMBNAILS=$(jq -r '.enable_thumbnails // true' "$OPTIONS" 2>/dev/null || echo "true")
 DISABLE_UPDATES=$(jq -r '.disable_updates // false' "$OPTIONS" 2>/dev/null || echo "false")
+LOGLEVEL=$(jq -r '.loglevel // 3' "$OPTIONS" 2>/dev/null || echo 3)
+SKELETONDIR=$(jq -r '.skeletondirectory // ""' "$OPTIONS" 2>/dev/null || echo "")
+TRASHBIN=$(jq -r '.trashbin_retention_obligation // "auto, 30"' "$OPTIONS" 2>/dev/null || echo "auto, 30")
+VERSIONS=$(jq -r '.versions_retention_obligation // "auto, 30"' "$OPTIONS" 2>/dev/null || echo "auto, 30")
 
 occ() { ALLOW_ROOT=1 php "$OCC" "$@" || true; }
 
@@ -36,6 +40,10 @@ fi
 occ config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION"
 occ config:system:set default_language --value="de"
 occ config:system:set default_locale --value="de_DE"
+occ config:system:set loglevel --type=integer --value="$LOGLEVEL"
+occ config:system:set skeletondirectory --value="$SKELETONDIR"
+occ config:system:set trashbin_retention_obligation --value="$TRASHBIN"
+occ config:system:set versions_retention_obligation --value="$VERSIONS"
 MAINTENANCE_WINDOW=$(jq -r '.maintenance_window_start // 1' "$OPTIONS" 2>/dev/null || echo 1)
 occ config:system:set maintenance_window_start --type=integer --value="$MAINTENANCE_WINDOW"
 occ maintenance:repair --include-expensive
