@@ -37,6 +37,7 @@ occ config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION"
 occ config:system:set default_language --value="de"
 occ config:system:set default_locale --value="de_DE"
 occ config:system:set maintenance_window_start --type=integer --value=1
+occ maintenance:repair --include-expensive
 
 if [ "$ENABLE_THUMBNAILS" = "true" ]; then
     occ config:system:set enable_previews --value=true --type=boolean

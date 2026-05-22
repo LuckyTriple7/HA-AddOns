@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.29
+- MIME-Type-Migrationen automatisch ausführen (occ maintenance:repair --include-expensive)
+
 ## 0.0.28
 - Wartungsfenster auf 1 Uhr UTC gesetzt (= 2-3 Uhr nachts DE)
 
