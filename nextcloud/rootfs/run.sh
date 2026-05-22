@@ -1,7 +1,6 @@
 #!/bin/sh
 # s6-overlay supervises dieses Script als Longrun.
-# WICHTIG: Niemals einfach exit — am Ende exec tail -f /dev/null um Neustart-Loop zu verhindern.
-set -e
+# KEIN set -e — zu viele Seiteneffekte; Fehler werden manuell geprüft.
 
 OPTIONS=/data/options.json
 
@@ -26,6 +25,11 @@ MARIADB_DISCOVERY=$(jq -r '.mariadb_discovery // false' "$OPTIONS" 2>/dev/null |
 
 echo "[INFO] PUID=$PUID PGID=$PGID TZ=$TZ"
 export PUID PGID TZ
+
+# --- Diagnose Verzeichnisstruktur ---
+echo "[DEBUG] /app/www/: $(ls /app/www/ 2>/dev/null | tr '\n' ' ')"
+echo "[DEBUG] /app/www/public/config symlink: $(readlink /app/www/public/config 2>/dev/null || echo 'kein symlink / nicht vorhanden')"
+echo "[DEBUG] /app/www/src/config symlink: $(readlink /app/www/src/config 2>/dev/null || echo 'kein symlink / nicht vorhanden')"
 
 # --- MariaDB Autodiscovery ---
 DB_TYPE="sqlite"
@@ -103,8 +107,6 @@ mount_smb 1; mount_smb 2; mount_smb 3
 echo "------------------"
 
 # --- Warte auf linuxservers Init ---
-# linuxserver v33+: App liegt im Image unter /app/www/src/, nur apps/config/themes
-# werden nach /config/www/nextcloud/ persistiert. occ ist immer bei /app/www/src/occ.
 OCC_BIN=/app/www/src/occ
 
 if [ ! -f "$OCC_BIN" ]; then
@@ -115,9 +117,8 @@ if [ ! -f "$OCC_BIN" ]; then
         TRIES=$((TRIES + 1))
     done
     if [ ! -f "$OCC_BIN" ]; then
-        echo "[WARN] occ nicht gefunden — Diagnostik:"
-        echo "  /app/www/src/: $(ls /app/www/src/ 2>/dev/null | head -10 | tr '\n' ' ' || echo 'fehlt')"
-        echo "  find occ: $(find /app /config/www -name 'occ' 2>/dev/null | tr '\n' ' ' || echo 'nichts')"
+        echo "[WARN] occ nicht gefunden"
+        echo "  find occ: $(find /app /config/www -name 'occ' 2>/dev/null | tr '\n' ' ')"
         exec tail -f /dev/null
     fi
 fi
@@ -160,10 +161,12 @@ echo "[INFO] NC installed: ${NC_INSTALLED}"
 
 if [ "$NC_INSTALLED" != "true" ]; then
     echo "[INFO] Bereinige vor Neuinstallation ..."
-    rm -rf /config/data
-    rm -f /app/www/public/config/config.php
-    rm -f /app/www/src/config/config.php
-    rm -f /config/www/nextcloud/config/config.php
+    rm -rf /config/data            || true
+    rm -f /app/www/public/config/config.php  || true
+    rm -f /app/www/src/config/config.php     || true
+    rm -f /config/www/nextcloud/config/config.php || true
+    echo "[DEBUG] config.php nach Bereinigung: $(find /app/www /config/www/nextcloud/config -name 'config.php' 2>/dev/null | tr '\n' ' ' || echo 'keine')"
+
     mkdir -p /config/data
     chown -R "${PUID}:${PGID}" /config/data
     chmod 770 /config/data
@@ -191,7 +194,11 @@ if [ "$NC_INSTALLED" != "true" ]; then
             --data-dir /config/data
     fi
     INSTALL_RC=$?
-    if [ $INSTALL_RC -ne 0 ]; then
+    echo "[INFO] maintenance:install RC=${INSTALL_RC}"
+    echo "[DEBUG] config.php nach Install: $(find /app/www /config/www/nextcloud/config -name 'config.php' 2>/dev/null | tr '\n' ' ' || echo 'keine')"
+    echo "[DEBUG] config.php Inhalt (Zeile 1-3): $(head -3 /app/www/public/config/config.php 2>/dev/null || head -3 /config/www/nextcloud/config/config.php 2>/dev/null || echo 'nicht lesbar')"
+
+    if [ "$INSTALL_RC" -ne 0 ]; then
         echo "[FAIL] Installation fehlgeschlagen (RC=${INSTALL_RC}) — warte dauerhaft"
         exec tail -f /dev/null
     fi

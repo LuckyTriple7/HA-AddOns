@@ -1,5 +1,10 @@
 # Changelog — Nextcloud
 
+## 0.0.18
+- Fix: set -e entfernt (verhinderte frühen Scriptabbruch bei rm-Fehlern)
+- Fix: alle rm/mkdir mit || true abgesichert
+- Diagnose: Symlink-Struktur, config.php-Pfad und Inhalt nach Install im Log
+
 ## 0.0.17
 - Fix: config.php aus allen möglichen Pfaden löschen (/app/www/public/, /app/www/src/, /config/www/nextcloud/)
 
