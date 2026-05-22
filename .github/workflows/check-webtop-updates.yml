@@ -125,11 +125,13 @@ jobs:
 
           sed -i "s/version: \"${ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" ubuntu-webtop/config.yaml
 
-          # CHANGELOG aktualisieren
+          # CHANGELOG aktualisieren (kein sed — CHANGES_TEXT enthält echte Zeilenumbrüche)
           CHANGES_TEXT=$(printf "${{ steps.check.outputs.changes }}")
-          ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Aktualisiert\n${CHANGES_TEXT}\n"
-          sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" ubuntu-webtop/CHANGELOG.md
-          sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" ubuntu-webtop/CHANGELOG.md
+          {
+            printf "## [%s] - %s\n\n### Aktualisiert\n%s\n\n" "${NEW_ADDON_VER}" "${DATE}" "${CHANGES_TEXT}"
+            cat ubuntu-webtop/CHANGELOG.md
+          } > /tmp/changelog_new.md
+          mv /tmp/changelog_new.md ubuntu-webtop/CHANGELOG.md
 
           git add ubuntu-webtop/Dockerfile ubuntu-webtop/config.yaml ubuntu-webtop/CHANGELOG.md \
                   .webtop-bitwarden-version .webtop-ipscan-version .webtop-vscode-version \
