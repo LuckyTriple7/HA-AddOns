@@ -43,10 +43,10 @@ function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 const GRAMJS_VERSION = require('./node_modules/telegram/package.json').version;
 console.log(`[INFO] GramJS (telegram) v${GRAMJS_VERSION}`);
 
-const SESSION_FILE = '/data/session.txt';
-const CHATS_FILE = '/data/chats.json';
-const MESSAGES_FILE = '/data/messages.json';
-const MEDIA_DIR = '/data/media';
+const SESSION_FILE = '/config/session.txt';
+const CHATS_FILE = '/config/chats.json';
+const MESSAGES_FILE = '/config/messages.json';
+const MEDIA_DIR = '/config/media';
 const MAX_MSGS = 300;
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -578,7 +578,7 @@ function getDirSize(dir) {
 }
 
 app.get('/api/storage', (req, res) => {
-  const bytes = getDirSize('/data');
+  const bytes = getDirSize('/config');
   res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
 });
 

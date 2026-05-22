@@ -15,7 +15,20 @@ export HA_NOTIFY_SKIP_BOTS=$(jq -r 'if .ha_notifications_skip_bots == true then 
 export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
 export PORT=17778
 
-mkdir -p /data
+mkdir -p /config
+
+if [ -f /data/session.txt ] && [ ! -f /config/session.txt ]; then
+  cp /data/session.txt /config/session.txt 2>/dev/null || true
+fi
+if [ -f /data/chats.json ] && [ ! -f /config/chats.json ]; then
+  cp /data/chats.json /config/chats.json 2>/dev/null || true
+fi
+if [ -f /data/messages.json ] && [ ! -f /config/messages.json ]; then
+  cp /data/messages.json /config/messages.json 2>/dev/null || true
+fi
+if [ -d /data/media ] && [ ! -d /config/media ]; then
+  cp -a /data/media /config/media 2>/dev/null || true
+fi
 
 echo "[INFO] Starting Telegram add-on (API_ID: $API_ID)..."
 cd /ui

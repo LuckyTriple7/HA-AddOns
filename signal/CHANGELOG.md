@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.9] - 2026-05-23
+
+### Geändert
+- **Datenspeicherung auf addon_config umgestellt** — Signal-CLI-Konfiguration, Chats, Nachrichten und Medien liegen jetzt unter `/config` (addon_config-Share, im Datei-Manager sichtbar) statt unter `/data`; bestehende Daten werden beim ersten Start automatisch migriert
+
 ## [1.1.8] - 2026-05-22
 
 ### Geändert

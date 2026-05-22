@@ -34,7 +34,7 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_TOKEN = process.env.HA_TOKEN || '';
-const MEDIA_DIR = '/data/media/';
+const MEDIA_DIR = '/config/media/';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 let status = 'starting'; // starting | not-linked | linked | error
@@ -48,8 +48,8 @@ const chatMap = new Map();           // chatId -> { id, name, phone, lastMsg, la
 const messagesByChatId = new Map();  // chatId -> Message[]
 const seenMsgIds = new Set();
 
-const CHATS_FILE = '/data/chats.json';
-const MESSAGES_FILE = '/data/messages.json';
+const CHATS_FILE = '/config/chats.json';
+const MESSAGES_FILE = '/config/messages.json';
 
 function normPhone(num) {
   if (!num) return '';
@@ -417,7 +417,7 @@ function getDirSize(dir) {
 }
 
 app.get('/api/storage', (req, res) => {
-  const bytes = getDirSize('/data');
+  const bytes = getDirSize('/config');
   res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
 });
 

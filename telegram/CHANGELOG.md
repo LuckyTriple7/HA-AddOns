@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.16] - 2026-05-23
+
+### Geändert
+- **Datenspeicherung auf addon_config umgestellt** — Session, Chats, Nachrichten und Medien liegen jetzt unter `/config` (addon_config-Share, im Datei-Manager sichtbar) statt unter `/data`; bestehende Daten werden beim ersten Start automatisch migriert
+
 ## [1.1.15] - 2026-05-22
 
 ### Neu

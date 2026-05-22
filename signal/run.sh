@@ -13,8 +13,22 @@ export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
 export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
 
-export SIGNAL_CLI_CONFIG_DIR=/data/signal-cli
-mkdir -p /data/signal-cli
+export SIGNAL_CLI_CONFIG_DIR=/config/signal-cli
+mkdir -p /config/signal-cli
+
+if [ -d /data/signal-cli ] && [ ! -f /config/signal-cli/.migrated ]; then
+  cp -a /data/signal-cli/. /config/signal-cli/ 2>/dev/null || true
+  touch /config/signal-cli/.migrated
+fi
+if [ -f /data/chats.json ] && [ ! -f /config/chats.json ]; then
+  cp /data/chats.json /config/chats.json 2>/dev/null || true
+fi
+if [ -f /data/messages.json ] && [ ! -f /config/messages.json ]; then
+  cp /data/messages.json /config/messages.json 2>/dev/null || true
+fi
+if [ -d /data/media ] && [ ! -d /config/media ]; then
+  cp -a /data/media /config/media 2>/dev/null || true
+fi
 
 if [ "$NATIVE_MODE" = "true" ]; then
   export MODE=native
