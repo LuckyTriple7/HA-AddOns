@@ -24,7 +24,6 @@ MARIADB_DISCOVERY=$(jq -r '.mariadb_discovery // false' "$OPTIONS" 2>/dev/null |
 
 echo "[INFO] PUID=$PUID PGID=$PGID TZ=$TZ"
 
-# Umgebungsvariablen für linuxserver
 export PUID PGID TZ
 
 # --- MariaDB Autodiscovery via HA Supervisor API ---
@@ -64,17 +63,12 @@ if [ "$DB_TYPE" = "mysql" ]; then
     mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" \
         -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" \
         2>/dev/null && echo "[OK]   Datenbank '${DB_NAME}' bereit" \
-        || echo "[WARN] Konnte Datenbank nicht prüfen — eventuell bereits vorhanden"
+        || echo "[WARN] Konnte Datenbank nicht anlegen"
 fi
 
-# Nextcloud-Datenpfad im addon_config-Ordner
-NC_DATA=/config/data
-mkdir -p "$NC_DATA" /config/www /config/log /config/cron
-
 # PHP-Limits setzen (linuxserver: /config/php/php-local.ini)
-PHP_INI=/config/php/php-local.ini
 mkdir -p /config/php
-cat > "$PHP_INI" << EOF
+cat > /config/php/php-local.ini << EOF
 memory_limit = ${MEMORY_LIMIT}
 upload_max_filesize = ${UPLOAD_MAX}
 post_max_size = ${POST_MAX}
@@ -151,13 +145,13 @@ mount_smb 2
 mount_smb 3
 echo "------------------"
 
-# occ-Hilfsfunktion
+# occ-Wrapper: läuft als root mit --allow-root (kein sudo/s6-suexec nötig)
 OCC_BIN=/config/www/nextcloud/occ
 occ() {
-    sudo -u abc php "$OCC_BIN" "$@" 2>/dev/null || true
+    php "$OCC_BIN" --allow-root "$@" 2>/dev/null || true
 }
 
-# occ-Konfiguration (Erst- und Folgestarts)
+# Konfiguration anwenden (Erst- und Folgestarts)
 apply_config() {
     echo "[INFO] Wende Nextcloud-Konfiguration an ..."
 
@@ -186,35 +180,24 @@ apply_config() {
     fi
 }
 
-# Ersten-Start-Erkennung
+# Hinweis: s6-overlay (linuxserver /init) läuft bereits als PID 1.
+# Unser Script wird als CMD-Callback aufgerufen — Nextcloud-Dateien
+# sind bereits in /config/www/nextcloud vorhanden.
+
 NC_OCC=/config/www/nextcloud/occ
 NC_CONFIG=/config/www/nextcloud/config/config.php
 
+if [ ! -f "$OCC_BIN" ]; then
+    echo "[WARN] Nextcloud-Dateien noch nicht bereit — überspringe occ-Konfiguration"
+    exit 0
+fi
+
 if [ ! -f "$NC_CONFIG" ]; then
-    echo "[INFO] Erster Start — starte linuxserver /init im Hintergrund ..."
-    /init &
-    INIT_PID=$!
+    echo "[INFO] Erster Start — führe Nextcloud-Installation aus ..."
 
-    # Warte bis Nextcloud-Dateien bereitgestellt wurden (occ ist das früheste Zeichen)
-    echo "[INFO] Warte auf Nextcloud-Dateien ..."
-    TRIES=0
-    while [ ! -f "$NC_OCC" ] && [ $TRIES -lt 120 ]; do
-        sleep 5
-        TRIES=$((TRIES + 1))
-    done
-
-    if [ ! -f "$NC_OCC" ]; then
-        echo "[WARN] Nextcloud nicht bereitgestellt nach 10 Minuten — Abbruch"
-        wait $INIT_PID
-        exit 1
-    fi
-
-    echo "[INFO] Nextcloud-Dateien bereit — führe Installation aus ..."
-
-    # occ maintenance:install je nach Datenbanktyp
     if [ "$DB_TYPE" = "mysql" ]; then
         echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
-        sudo -u abc php "$OCC_BIN" maintenance:install \
+        php "$OCC_BIN" --allow-root maintenance:install \
             --database mysql \
             --database-name "$DB_NAME" \
             --database-host "$DB_HOST" \
@@ -223,16 +206,16 @@ if [ ! -f "$NC_CONFIG" ]; then
             --database-pass "$DB_PASS" \
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
-            --data-dir "$NC_DATA" 2>/dev/null || true
+            --data-dir /config/data 2>/dev/null || true
         echo "[OK]   Nextcloud mit MariaDB installiert"
     else
         echo "[INFO] Installation mit SQLite ..."
-        sudo -u abc php "$OCC_BIN" maintenance:install \
+        php "$OCC_BIN" --allow-root maintenance:install \
             --database sqlite \
             --database-name oc_nextcloud \
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
-            --data-dir "$NC_DATA" 2>/dev/null || true
+            --data-dir /config/data 2>/dev/null || true
         echo "[OK]   Nextcloud mit SQLite installiert"
     fi
 
@@ -250,11 +233,10 @@ if [ ! -f "$NC_CONFIG" ]; then
     done
 
     occ maintenance:mode --off
-    echo "[INFO] Ersteinrichtung abgeschlossen — Nextcloud läuft"
-
-    wait $INIT_PID
+    echo "[INFO] Ersteinrichtung abgeschlossen"
 else
-    echo "[INFO] Nextcloud bereits installiert — starte normal"
+    echo "[INFO] Nextcloud bereits installiert — aktualisiere Konfiguration"
     apply_config
-    exec /init
 fi
+
+echo "[INFO] run.sh abgeschlossen — s6-overlay übernimmt"
