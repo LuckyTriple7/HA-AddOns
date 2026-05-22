@@ -1226,7 +1226,14 @@ async function init() {
   while (retries-- > 0) {
     try {
       const r = await fetch(`${SIGNAL_API}/v1/about`, { timeout: 3000 });
-      if (r.ok) break;
+      if (r.ok) {
+        try {
+          const about = await r.json();
+          const ver = about?.build?.version || about?.versions?.join(', ') || '?';
+          console.log(`[INFO] signal-cli-rest-api ${ver}`);
+        } catch (e) {}
+        break;
+      }
     } catch (e) {}
     await new Promise(r => setTimeout(r, 2000));
   }

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.15] - 2026-05-22
+
+### Neu
+- **GramJS Version im Log** — beim Start wird die installierte GramJS-Version geloggt: `[INFO] GramJS (telegram) v2.x.x`
+
 ## [1.1.14] - 2026-05-22
 
 ### Neu

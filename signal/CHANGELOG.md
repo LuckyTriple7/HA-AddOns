@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.8] - 2026-05-22
+
+### Neu
+- **signal-cli-rest-api Version im Log** — beim Start wird die API-Version geloggt: `[INFO] signal-cli-rest-api v0.x.x`
+
 ## [1.1.7] - 2026-05-22
 
 ### Neu

@@ -40,6 +40,9 @@ const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_NOTIFY_SKIP_BOTS = process.env.HA_NOTIFY_SKIP_BOTS === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
+const GRAMJS_VERSION = require('./node_modules/telegram/package.json').version;
+console.log(`[INFO] GramJS (telegram) v${GRAMJS_VERSION}`);
+
 const SESSION_FILE = '/data/session.txt';
 const CHATS_FILE = '/data/chats.json';
 const MESSAGES_FILE = '/data/messages.json';
