@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.27
+- Standardsprache für neue Benutzer auf Deutsch gesetzt (default_language=de, default_locale=de_DE)
+
 ## 0.0.26
 - SMB-Shares nach Erstinstall automatisch als Externer Speicher registrieren (sichtbar im Dateimanager)
 
