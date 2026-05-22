@@ -45,4 +45,19 @@ if [ "$DISABLE_UPDATES" = "true" ]; then
     occ config:system:set upgrade.disable-web --value=true --type=boolean
 fi
 
+# SMB-Shares als externen Speicher einbinden (nur einmalig nach Erstinstall)
+FLAG=/config/data/.smb_registered
+if [ ! -f "$FLAG" ]; then
+    occ app:enable files_external
+    for IDX in 1 2 3; do
+        if mountpoint -q "/mnt/smb${IDX}" 2>/dev/null; then
+            SHARE=$(jq -r ".smb_${IDX}_share // empty" "$OPTIONS" 2>/dev/null)
+            echo "[ha-config] Registriere SMB-${IDX} (${SHARE}) als externen Speicher ..."
+            occ files_external:create "SMB-${IDX} ${SHARE}" local null::null \
+                --config datadir="/mnt/smb${IDX}"
+        fi
+    done
+    touch "$FLAG"
+fi
+
 echo "[ha-config] Fertig"

@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.26
+- SMB-Shares nach Erstinstall automatisch als Externer Speicher registrieren (sichtbar im Dateimanager)
+
 ## 0.0.25
 - Fix: /config/data wird mit chown abc:abc angelegt — Web-Installer kann schreiben
 
