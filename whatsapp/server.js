@@ -673,9 +673,16 @@ app.post('/api/react', async (req, res) => {
 
 app.get('/api/reactions/:chatId', (req, res) => {
   const msgs = getChatMsgs(req.params.chatId);
+  const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
   const result = {};
   for (const m of msgs) {
-    if (m.reactions && Object.keys(m.reactions).length) result[m.id] = m.reactions;
+    if (!m.reactions || !Object.keys(m.reactions).length) continue;
+    const entry = {};
+    for (const [emoji, senders] of Object.entries(m.reactions)) {
+      if (!senders.length) continue;
+      entry[emoji] = { count: senders.length, own: myJid ? senders.includes(myJid) : false };
+    }
+    if (Object.keys(entry).length) result[m.id] = entry;
   }
   res.json(result);
 });
@@ -2043,14 +2050,12 @@ app.get('/', (req, res) => {
         }
         if (!bar) { bar = document.createElement('div'); bar.className = 'reactions-bar'; wrap.appendChild(bar); }
         bar.innerHTML = '';
-        for (const [emoji, senders] of Object.entries(reactions)) {
-          if (!senders.length) continue;
-          const isOwn = myJid ? senders.includes(myJid) : false;
+        for (const [emoji, { count, own }] of Object.entries(reactions)) {
           const badge = document.createElement('span');
-          badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
-          badge.title = isOwn ? t('ttRemoveReaction') : t('ttAddReaction');
-          badge.textContent = emoji + (senders.length > 1 ? ' ' + senders.length : '');
-          badge.onclick = () => toggleReaction(msgId, emoji, isOwn);
+          badge.className = 'reaction-badge' + (own ? ' own' : '');
+          badge.title = own ? t('ttRemoveReaction') : t('ttAddReaction');
+          badge.textContent = emoji + (count > 1 ? ' ' + count : '');
+          badge.onclick = () => toggleReaction(msgId, emoji, own);
           bar.appendChild(badge);
         }
       }

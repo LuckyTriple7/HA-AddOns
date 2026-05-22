@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.17] - 2026-05-22
+
+### Behoben
+- **Reaktion konnte nicht entfernt werden** — Client-seitiger JID-Vergleich (`senders.includes(myJid)`) war grundsätzlich fehleranfällig. Lösung: `/api/reactions` berechnet `isOwn` jetzt serverseitig und gibt `{ count, own }` pro Emoji zurück. Der Client vergleicht keine JIDs mehr.
+
 ## [1.3.16] - 2026-05-22
 
 ### Behoben
