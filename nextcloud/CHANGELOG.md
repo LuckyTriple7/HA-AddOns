@@ -1,5 +1,9 @@
 # Changelog — Nextcloud
 
+## 0.0.7
+- occ-Pfad dynamisch per find_occ() ermittelt (mehrere Kandidaten + breite Suche)
+- Warte-Schleife zeigt alle 30s was in /config und /app liegt
+
 ## 0.0.6
 - Diagnose-Output in Warte-Schleife (alle 30s Verzeichnisinhalt)
 

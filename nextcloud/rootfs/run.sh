@@ -145,8 +145,21 @@ mount_smb 2
 mount_smb 3
 echo "------------------"
 
-# occ-Wrapper: läuft als root mit --allow-root (kein sudo/s6-suexec nötig)
-OCC_BIN=/config/www/nextcloud/occ
+# occ-Pfad dynamisch ermitteln
+find_occ() {
+    for P in \
+        /config/www/nextcloud/occ \
+        /app/www/nextcloud/occ \
+        /app/nextcloud/occ \
+        /var/www/nextcloud/occ \
+        /var/www/html/occ; do
+        [ -f "$P" ] && echo "$P" && return
+    done
+    find /config /app /var/www 2>/dev/null -name occ -type f | head -1
+}
+OCC_BIN=$(find_occ)
+echo "[INFO] occ gefunden: ${OCC_BIN:-NICHT GEFUNDEN}"
+
 occ() {
     php "$OCC_BIN" --allow-root "$@" || true
 }
@@ -187,25 +200,29 @@ apply_config() {
 NC_CONFIG=/config/www/nextcloud/config/config.php
 
 # Warte auf Nextcloud-Dateien (linuxserver kopiert diese asynchron)
-if [ ! -f "$OCC_BIN" ]; then
-    echo "[INFO] Warte auf Nextcloud-Dateien (max. 10 min) ..."
-    echo "[DEBUG] Erwarte: ${OCC_BIN}"
-    echo "[DEBUG] /config/www jetzt: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'Verzeichnis nicht vorhanden')"
+if [ -z "$OCC_BIN" ]; then
+    echo "[INFO] occ noch nicht vorhanden — warte (max. 10 min) ..."
     TRIES=0
-    while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 120 ]; do
+    while [ $TRIES -lt 120 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
+        OCC_BIN=$(find_occ)
+        if [ -n "$OCC_BIN" ]; then
+            echo "[INFO] occ gefunden nach $((TRIES * 5))s: ${OCC_BIN}"
+            break
+        fi
         if [ $((TRIES % 6)) -eq 0 ]; then
-            echo "[DEBUG] +$((TRIES * 5))s — /config/www: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
+            echo "[DEBUG] +$((TRIES * 5))s — /config: $(ls /config/ 2>/dev/null | tr '\n' ' ')"
+            echo "[DEBUG] +$((TRIES * 5))s — /app:    $(ls /app/ 2>/dev/null | tr '\n' ' ' || echo 'nicht vorhanden')"
         fi
     done
-    if [ ! -f "$OCC_BIN" ]; then
-        echo "[WARN] Nextcloud-Dateien nach 10 Minuten nicht gefunden"
-        echo "[DEBUG] /config/www final: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
-        echo "[DEBUG] /config: $(ls /config/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
+    if [ -z "$OCC_BIN" ]; then
+        echo "[WARN] occ nach 10 Minuten nicht gefunden — Abbruch"
+        echo "[DEBUG] /config: $(ls /config/ 2>/dev/null | tr '\n' ' ')"
+        echo "[DEBUG] /app:    $(ls /app/ 2>/dev/null | tr '\n' ' ' || echo 'nicht vorhanden')"
+        echo "[DEBUG] find occ: $(find / -name occ -type f 2>/dev/null | tr '\n' ' ' || echo 'nichts')"
         exit 0
     fi
-    echo "[INFO] Nextcloud-Dateien bereit"
 fi
 
 if [ ! -f "$NC_CONFIG" ]; then
