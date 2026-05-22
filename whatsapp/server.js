@@ -1546,7 +1546,7 @@ app.get('/', (req, res) => {
       try {
         const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&since=' + since)
           .then(r => r.json());
-        if (msgs.length) renderMessages(msgs, chatId);
+        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
       } catch(e) {}
     }
 
@@ -1637,20 +1637,8 @@ app.get('/', (req, res) => {
         replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? t('photo') : t('mediaGeneric'))).slice(0, 60);
         bri.appendChild(replyBtn);
         wrap.appendChild(bri);
-        if (m.reactions && Object.keys(m.reactions).length) {
-          const bar = document.createElement('div');
-          bar.className = 'reactions-bar';
-          for (const [emoji, senders] of Object.entries(m.reactions)) {
-            if (!senders.length) continue;
-            const isOwn = myJid ? senders.includes(myJid) : false;
-            const badge = document.createElement('span');
-            badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
-            badge.textContent = emoji + (senders.length > 1 ? ' ' + senders.length : '');
-            badge.onclick = () => toggleReaction(m.id, emoji, isOwn);
-            bar.appendChild(badge);
-          }
-          wrap.appendChild(bar);
-        }
+        // Reaktions-Badges werden ausschließlich von updateReactionsInDOM gesetzt
+        // (mit server-seitigem isOwn). Kein client-seitiger JID-Vergleich hier.
         msgList.appendChild(wrap);
         if (m.timestamp > (lastMsgTime[selectedChatId] || 0)) {
           lastMsgTime[selectedChatId] = m.timestamp;
@@ -1666,7 +1654,7 @@ app.get('/', (req, res) => {
         msgList.innerHTML = '';
         lastMsgTime[chatId] = 0;
         atBottom = true;
-        if (msgs.length) renderMessages(msgs, chatId);
+        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
         lastMsgTime[chatId] = msgs.reduce((max, m) => Math.max(max, m.timestamp), 0);
       } catch(e) {}
     }

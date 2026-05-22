@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.18] - 2026-05-22
+
+### Behoben
+- **Reaktion konnte nicht entfernt werden** — `renderMessages` renderte Reaktions-Badges mit `isOwn = false` (client-seitiger JID-Vergleich); `updateReactionsInDOM` korrigierte das erst beim nächsten Poll (bis zu 5 s später). Fix: Reaktions-Bars werden nicht mehr in `renderMessages` erstellt. Stattdessen wird nach jedem `renderMessages`-Aufruf sofort `pollReactions()` aufgerufen, das `updateReactionsInDOM` mit dem server-seitigen `own`-Flag ausführt.
+
 ## [1.3.17] - 2026-05-22
 
 ### Behoben
