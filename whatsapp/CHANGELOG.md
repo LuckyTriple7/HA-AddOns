@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.14] - 2026-05-22
+
+### Behoben
+- **Reaktionszahl immer noch 2** — Grundursache: `/api/react` und `message_reaction`-Event aktualisierten Reaktionen beide gleichzeitig. `message_reaction` ist jetzt der **einzige** Updater; `/api/react` ruft nur noch `msg.react()` auf und setzt einen 3-Sekunden-Fallback-Timer (für den seltenen Fall dass das Event nicht feuert). Der Timer wird sofort gecancelt wenn `message_reaction` für die eigene Nachricht eintrifft. Poll-Delay nach Reaktion von 800 ms auf 1500 ms erhöht damit das Event sicher vorher eintrifft.
+
 ## [1.3.13] - 2026-05-22
 
 ### Behoben

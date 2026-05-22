@@ -405,7 +405,15 @@ client.on('message_reaction', (reaction) => {
   const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
   if (!senderId) return;
   const emoji = reaction.reaction || '';
-  dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
+  const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
+  dbg(`message_reaction: msgId=${msgId} sender=${senderId} myJid=${myJid} emoji="${emoji}"`);
+
+  // Eigene Reaktion: Fallback-Timer canceln — message_reaction übernimmt die Aktualisierung
+  if (myJid && senderId === myJid && pendingOwnReacts.has(msgId)) {
+    clearTimeout(pendingOwnReacts.get(msgId));
+    pendingOwnReacts.delete(msgId);
+    dbg(`message_reaction: eigene Reaktion bestätigt, Fallback-Timer gecancelt für msgId=${msgId}`);
+  }
 
   function applyReaction(reactions) {
     for (const e of Object.keys(reactions)) {
@@ -423,6 +431,7 @@ client.on('message_reaction', (reaction) => {
     if (msg) {
       if (!msg.reactions) msg.reactions = {};
       applyReaction(msg.reactions);
+      dbg(`message_reaction: reactions[${msgId}] =`, JSON.stringify(msg.reactions));
       reactionsCache.set(msgId, { ...msg.reactions });
       saveReactions();
       break;
@@ -654,6 +663,9 @@ app.post('/api/reset', async (req, res) => {
   await reinitClient();
 });
 
+// msgId -> Timer: Fallback falls message_reaction-Event für eigene Reaktion nicht feuert
+const pendingOwnReacts = new Map();
+
 app.post('/api/react', async (req, res) => {
   const { msgId, reaction } = req.body;
   if (!msgId) return res.status(400).json({ error: 'msgId required' });
@@ -662,28 +674,35 @@ app.post('/api/react', async (req, res) => {
     const msg = await client.getMessageById(msgId);
     if (!msg) return res.status(404).json({ error: 'Message not found' });
     await msg.react(reaction || '');
+    dbg(`/api/react: sent reaction="${reaction||''}" for msgId=${msgId}`);
 
-    // Lokale Reaktion sofort in Cache + Datei schreiben, da message_reaction-Event
-    // für eigene Reaktionen nicht zuverlässig feuert
+    // message_reaction-Event ist der primäre Updater für eigene Reaktionen.
+    // Fallback: Falls das Event innerhalb von 3s nicht feuert, lokal aktualisieren.
     const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
     if (myJid) {
-      for (const msgs of messagesByChatId.values()) {
-        const stored = msgs.find(m => m.id === msgId);
-        if (stored) {
-          if (!stored.reactions) stored.reactions = {};
-          for (const e of Object.keys(stored.reactions)) {
-            stored.reactions[e] = stored.reactions[e].filter(s => s !== myJid);
-            if (!stored.reactions[e].length) delete stored.reactions[e];
+      if (pendingOwnReacts.has(msgId)) clearTimeout(pendingOwnReacts.get(msgId));
+      const timer = setTimeout(() => {
+        pendingOwnReacts.delete(msgId);
+        dbg(`/api/react fallback: message_reaction blieb aus, aktualisiere lokal msgId=${msgId}`);
+        for (const msgs of messagesByChatId.values()) {
+          const stored = msgs.find(m => m.id === msgId);
+          if (stored) {
+            if (!stored.reactions) stored.reactions = {};
+            for (const e of Object.keys(stored.reactions)) {
+              stored.reactions[e] = stored.reactions[e].filter(s => s !== myJid);
+              if (!stored.reactions[e].length) delete stored.reactions[e];
+            }
+            if (reaction) {
+              if (!stored.reactions[reaction]) stored.reactions[reaction] = [];
+              if (!stored.reactions[reaction].includes(myJid)) stored.reactions[reaction].push(myJid);
+            }
+            reactionsCache.set(msgId, { ...stored.reactions });
+            saveReactions();
+            break;
           }
-          if (reaction) {
-            if (!stored.reactions[reaction]) stored.reactions[reaction] = [];
-            if (!stored.reactions[reaction].includes(myJid)) stored.reactions[reaction].push(myJid);
-          }
-          reactionsCache.set(msgId, { ...stored.reactions });
-          saveReactions();
-          break;
         }
-      }
+      }, 3000);
+      pendingOwnReacts.set(msgId, timer);
     }
 
     res.json({ success: true });
@@ -2032,7 +2051,7 @@ app.get('/', (req, res) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ msgId, reaction: emoji }),
       }).catch(() => {});
-      setTimeout(pollReactions, 800);
+      setTimeout(pollReactions, 1500);
     }
 
     async function toggleReaction(msgId, emoji, isOwn) {
@@ -2041,7 +2060,7 @@ app.get('/', (req, res) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ msgId, reaction: isOwn ? '' : emoji }),
       }).catch(() => {});
-      setTimeout(pollReactions, 800);
+      setTimeout(pollReactions, 1500);
     }
 
     async function pollReactions() {
