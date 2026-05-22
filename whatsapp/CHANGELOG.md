@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.6] - 2026-05-22
+
+### Neu
+- **Sprachauswahl Deutsch / Englisch** — Flaggen-Button 🇩🇪/🇬🇧 oben rechts in der Topbar; Einstellung wird im Browser gespeichert (Standard: Deutsch)
+- Alle UI-Texte übersetzt: Buttons, Tooltips, Spinner, Modals, Statusmeldungen, Datum/Uhrzeit-Format, Weitergeleitet-Labels, Zitat-Blöcke, Fehlermeldungen
+
 ## [1.3.5] - 2026-05-21
 
 ### Neu

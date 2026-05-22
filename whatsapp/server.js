@@ -1068,8 +1068,8 @@ app.get('/', (req, res) => {
 
   <div id="spinner-overlay" class="overlay">
     <div style="font-size:48px;">💬</div>
-    <p id="spinner-text">Verbinde mit WhatsApp…</p>
-    <button onclick="resetSession()" style="
+    <p id="spinner-text" data-i18n="spinnerConnecting">Verbinde mit WhatsApp…</p>
+    <button onclick="resetSession()" data-i18n="btnReset" style="
       margin-top:16px; background:none; border:1px solid #3d5259;
       color:#8696a0; border-radius:8px; padding:8px 16px;
       font-size:13px; cursor:pointer;">
@@ -1088,38 +1088,39 @@ app.get('/', (req, res) => {
 
   <div class="topbar" id="topbar" style="display:none;">
     <h1>WhatsApp</h1>
-    <div class="status-dot connected" id="status-dot" title="Verbunden"></div>
+    <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
-    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" title="Fotos AN">📷</button>' : ''}
-    ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
-    <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
-    <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
-    <button class="logout-btn" title="Abmelden" onclick="logout()">⏻</button>
+    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+    ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
+    <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
+    <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
+    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:18px;padding:0 6px;">🇩🇪</button>
+    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()">⏻</button>
   </div>
 
   <div id="main" style="display:none;">
 
     <div id="sidebar">
       <div id="sidebar-header">
-        <input type="text" id="search" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()">
+        <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()">
       </div>
-      <div id="chat-list"><div class="no-chats">Lade Chats…</div></div>
+      <div id="chat-list"><div class="no-chats" data-i18n="loadingChats">Lade Chats…</div></div>
     </div>
 
     <div id="chat-panel">
       <div id="welcome">
         <div class="icon">💬</div>
-        <p>Wähle einen Chat aus der Liste</p>
+        <p data-i18n="welcomeMsg">Wähle einen Chat aus der Liste</p>
       </div>
       <div id="chat-header" style="display:none;">
-        <button id="back-btn" onclick="closeChat()" title="Zurück">&#8592;</button>
+        <button id="back-btn" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück">&#8592;</button>
         <div class="avatar" id="ch-avatar"></div>
         <div>
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
         </div>
-        ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
-        <button id="spam-delete-btn" onclick="deleteSpam()" title="Häufig weitergeleitete Nachrichten löschen"${DOWNLOAD_MEDIA ? '' : ' style="margin-left:auto"'}>🗑️ Spam löschen</button>
+        ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="ttFetchMedia" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
+        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen"${DOWNLOAD_MEDIA ? '' : ' style="margin-left:auto"'}>🗑️ Spam löschen</button>
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="reply-bar">
@@ -1131,11 +1132,11 @@ app.get('/', (req, res) => {
       </div>
       <div id="send-bar" style="display:none;">
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
-        <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" title="Emoji">😊</button>
-        <textarea id="msg-input" rows="1" placeholder="Nachricht…"
+        <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
+        <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>
-        <button onclick="sendMsg()" title="Senden">➤</button>
+        <button onclick="sendMsg()" data-i18n-title="btnSend" title="Senden">➤</button>
       </div>
     </div>
 
@@ -1143,10 +1144,10 @@ app.get('/', (req, res) => {
 
   <div id="fwd-modal">
     <div class="fwd-modal-box">
-      <h3>↪ Weiterleiten an…</h3>
-      <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+      <h3 data-i18n="fwdTitle">↪ Weiterleiten an…</h3>
+      <input type="text" id="fwd-search" data-i18n-pl="searchForward" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
       <div id="fwd-chat-list"></div>
-      <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+      <button class="fwd-modal-cancel" data-i18n="btnCancel" onclick="closeFwdModal()">Abbrechen</button>
     </div>
   </div>
 
@@ -1154,13 +1155,96 @@ app.get('/', (req, res) => {
     <div class="spam-modal-box">
       <p id="spam-modal-text"></p>
       <div class="spam-modal-actions">
-        <button class="spam-modal-cancel" onclick="closeSpamModal()">Abbrechen</button>
-        <button class="spam-modal-confirm" onclick="confirmDeleteSpam()">Ja, löschen</button>
+        <button class="spam-modal-cancel" data-i18n="btnCancel" onclick="closeSpamModal()">Abbrechen</button>
+        <button class="spam-modal-confirm" data-i18n="btnDeleteYes" onclick="confirmDeleteSpam()">Ja, löschen</button>
       </div>
     </div>
   </div>
 
   <script>
+    // ── i18n ────────────────────────────────────────────────────────────────────
+    const LANG = {
+      de: {
+        spinnerConnecting:'Verbinde mit WhatsApp…', btnReset:'Session zurücksetzen',
+        statusConnected:'Verbunden', statusQR:'QR scannen', statusAuth:'Authentifiziert…',
+        statusInit:'Starte…', statusDisc:'Getrennt', statusAuthFail:'Auth-Fehler', statusError:'Fehler',
+        photosOn:'Fotos AN', photosOff:'Fotos AUS', btnCleanup:'Verwaiste Mediendateien löschen',
+        btnScrollUp:'Nach oben', btnScrollDown:'Nach unten', btnLogout:'Abmelden',
+        searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
+        welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
+        btnBack:'Zurück', ttFetchMedia:'Letzte 20 Fotos herunterladen', btnFetchMedia:'📥 Fotos nachladen',
+        ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🗑️ Spam löschen',
+        btnEmoji:'Emoji', msgInput:'Nachricht…', btnSend:'Senden',
+        fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
+        btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
+        today:'Heute', yesterday:'Gestern',
+        photo:'📷 Foto', voiceMsg:'🎵 Sprachnachricht', mediaGeneric:'📎', media:'[Medien]', me:'Ich',
+        forwarded:'↪ Weitergeleitet', frequentForwarded:'↪↪ Häufig weitergeleitet',
+        ttDelete:'Löschen', ttReact:'Reagieren', ttForward:'Weiterleiten', ttReply:'Antworten',
+        ttRemoveReaction:'Klicken zum Entfernen', ttAddReaction:'Klicken zum Reagieren',
+        cleanupConfirm:'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
+        cleanupDone:(d,m)=>d+' Datei(en) gelöscht, '+m+' MB freigegeben.',
+        cleanupError:(e)=>'Fehler beim Cleanup: '+e,
+        spamModal:(n)=>'In diesem Chat wurden '+n+' Nachricht'+(n===1?'':'en')+' häufig weitergeleitet. Soll ich diese jetzt löschen?',
+        spinnerRestart:'Starte neu…', spinnerLogout:'Abgemeldet — lade QR-Code…',
+        spinnerReset:'Session gelöscht — lade QR-Code…', spinnerDisconnect:'Abgemeldet — starte neu…',
+        fetchLoading:'⏳ Lade…', fetchDone:'✓ Alle geladen', fetchProgress:(n)=>'⏳ '+n+' Fotos…',
+        spamDeleting:'⏳ Lösche…', spamDeleted:(n)=>'✓ '+n+' gelöscht',
+        spamError:'✗ Fehler', spamNone:'✓ Kein Spam',
+        errSend:(e)=>'Fehler: '+e, errNetwork:'Netzwerkfehler', locale:'de-DE',
+      },
+      en: {
+        spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
+        statusConnected:'Connected', statusQR:'Scan QR', statusAuth:'Authenticating…',
+        statusInit:'Starting…', statusDisc:'Disconnected', statusAuthFail:'Auth error', statusError:'Error',
+        photosOn:'Photos ON', photosOff:'Photos OFF', btnCleanup:'Delete orphaned media files',
+        btnScrollUp:'Scroll up', btnScrollDown:'Scroll down', btnLogout:'Logout',
+        searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
+        welcomeMsg:'Select a chat from the list', noChats:'No chats',
+        btnBack:'Back', ttFetchMedia:'Download last 20 photos', btnFetchMedia:'📥 Load Photos',
+        ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🗑️ Delete Spam',
+        btnEmoji:'Emoji', msgInput:'Message…', btnSend:'Send',
+        fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
+        btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
+        today:'Today', yesterday:'Yesterday',
+        photo:'📷 Photo', voiceMsg:'🎵 Voice message', mediaGeneric:'📎', media:'[Media]', me:'Me',
+        forwarded:'↪ Forwarded', frequentForwarded:'↪↪ Frequently forwarded',
+        ttDelete:'Delete', ttReact:'React', ttForward:'Forward', ttReply:'Reply',
+        ttRemoveReaction:'Click to remove', ttAddReaction:'Click to react',
+        cleanupConfirm:'Delete orphaned media files (photos no longer referenced)?',
+        cleanupDone:(d,m)=>d+' file(s) deleted, '+m+' MB freed.',
+        cleanupError:(e)=>'Cleanup error: '+e,
+        spamModal:(n)=>n+' message'+(n===1?'':'s')+' in this chat '+(n===1?'was':'were')+' frequently forwarded. Delete '+(n===1?'it':'them')+' now?',
+        spinnerRestart:'Restarting…', spinnerLogout:'Logged out — loading QR code…',
+        spinnerReset:'Session deleted — loading QR code…', spinnerDisconnect:'Disconnected — restarting…',
+        fetchLoading:'⏳ Loading…', fetchDone:'✓ All loaded', fetchProgress:(n)=>'⏳ '+n+' photos…',
+        spamDeleting:'⏳ Deleting…', spamDeleted:(n)=>'✓ '+n+' deleted',
+        spamError:'✗ Error', spamNone:'✓ No spam',
+        errSend:(e)=>'Error: '+e, errNetwork:'Network error', locale:'en-US',
+      },
+    };
+    let lang = localStorage.getItem('wa_lang') || 'de';
+    function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
+    function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
+    function applyLang() {
+      document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
+      document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+      const lb = document.getElementById('lang-btn');
+      if (lb) lb.textContent = lang === 'de' ? '🇩🇪' : '🇬🇧';
+      const fmb = document.getElementById('fetch-media-btn');
+      if (fmb && !fmb.disabled) fmb.textContent = t('btnFetchMedia');
+      const sdb = document.getElementById('spam-delete-btn');
+      if (sdb && !sdb.disabled) sdb.textContent = t('btnSpamDelete');
+      const ptb = document.getElementById('photo-toggle');
+      if (ptb) ptb.title = document.body.classList.contains('hide-photos') ? t('photosOff') : t('photosOn');
+    }
+    function switchLang() {
+      lang = lang === 'de' ? 'en' : 'de';
+      localStorage.setItem('wa_lang', lang);
+      applyLang();
+    }
+    // ────────────────────────────────────────────────────────────────────────────
     let currentStatus = '';
     let selectedChatId = null;
     let selectedChatPhone = null;
@@ -1186,22 +1270,22 @@ app.get('/', (req, res) => {
     }
 
     function fmtTime(ts) {
-      return new Date(ts).toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+      return new Date(ts).toLocaleTimeString(t('locale'), { hour:'2-digit', minute:'2-digit' });
     }
     function fmtDate(ts) {
-      const d = new Date(ts), t = new Date();
-      if (d.toDateString() === t.toDateString()) return 'Heute';
-      const y = new Date(t); y.setDate(t.getDate()-1);
-      if (d.toDateString() === y.toDateString()) return 'Gestern';
-      return d.toLocaleDateString('de-DE');
+      const d = new Date(ts), now = new Date();
+      if (d.toDateString() === now.toDateString()) return t('today');
+      const y = new Date(now); y.setDate(now.getDate()-1);
+      if (d.toDateString() === y.toDateString()) return t('yesterday');
+      return d.toLocaleDateString(t('locale'));
     }
     function fmtChatTime(ts) {
-      const d = new Date(ts), t = new Date();
-      if (d.toDateString() === t.toDateString())
-        return d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
-      const y = new Date(t); y.setDate(t.getDate()-1);
-      if (d.toDateString() === y.toDateString()) return 'Gestern';
-      return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+      const d = new Date(ts), now = new Date();
+      if (d.toDateString() === now.toDateString())
+        return d.toLocaleTimeString(t('locale'), { hour:'2-digit', minute:'2-digit' });
+      const y = new Date(now); y.setDate(now.getDate()-1);
+      if (d.toDateString() === y.toDateString()) return t('yesterday');
+      return d.toLocaleDateString(t('locale'), { day:'2-digit', month:'2-digit' });
     }
     function esc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -1220,7 +1304,7 @@ app.get('/', (req, res) => {
     function renderQuotedBlock(q) {
       const preview = q.body
         ? (q.body.length > 80 ? q.body.slice(0,80)+'…' : q.body)
-        : (q.type==='image'||q.type==='photo' ? '📷 Foto' : q.type==='ptt'||q.type==='audio' ? '🎵 Sprachnachricht' : '📎');
+        : (q.type==='image'||q.type==='photo' ? t('photo') : q.type==='ptt'||q.type==='audio' ? t('voiceMsg') : t('mediaGeneric'));
       return '<div class="quoted-block"><div class="quoted-sender">' + esc(q.contact||'') + '</div><div class="quoted-text">' + esc(preview) + '</div></div>';
     }
     async function loadStorage() {
@@ -1234,12 +1318,12 @@ app.get('/', (req, res) => {
     setInterval(loadStorage, 60000);
 
     async function cleanupMedia() {
-      if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
+      if (!confirm(t('cleanupConfirm'))) return;
       try {
         const d = await fetch('api/cleanup-media', { method: 'POST' }).then(r => r.json());
-        alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
+        alert(tf('cleanupDone', d.deleted, d.freedMb));
         loadStorage();
-      } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
+      } catch(e) { alert(tf('cleanupError', e.message)); }
     }
 
     function scrollMsgs(dir) {
@@ -1252,13 +1336,13 @@ app.get('/', (req, res) => {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? 'Fotos AUS' : 'Fotos AN'; }
+      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
       localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
     }
     if (localStorage.getItem('wa-hide-photos')) {
       document.body.classList.add('hide-photos');
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = 'Fotos AUS'; }
+      if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = t('photosOff'); }
     }
 
     function ackMark(ack) {
@@ -1321,7 +1405,7 @@ app.get('/', (req, res) => {
       const q = document.getElementById('search').value.toLowerCase();
       const filtered = q ? chats.filter(c => c.name.toLowerCase().includes(q)) : chats;
       if (!filtered.length) {
-        list.innerHTML = '<div class="no-chats">Keine Chats</div>';
+        list.innerHTML = '<div class="no-chats">' + t('noChats') + '</div>';
         return;
       }
       list.innerHTML = '';
@@ -1441,12 +1525,12 @@ app.get('/', (req, res) => {
           if (m.isForwarded) {
             const fwdEl = document.createElement('span');
             fwdEl.className = 'forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '');
-            fwdEl.textContent = m.forwardingScore >= 5 ? '↪↪ Häufig weitergeleitet' : '↪ Weitergeleitet';
+            fwdEl.textContent = m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded');
             bub.appendChild(fwdEl);
           }
           if (m.quotedMsg) bub.insertAdjacentHTML('beforeend', renderQuotedBlock(m.quotedMsg));
           const ph = document.createElement('span');
-          ph.className = 'photo-placeholder'; ph.textContent = '📷 Foto';
+          ph.className = 'photo-placeholder'; ph.textContent = t('photo');
           bub.appendChild(ph);
           const img = document.createElement('img');
           img.className = 'msg-img';
@@ -1459,39 +1543,39 @@ app.get('/', (req, res) => {
           const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
         } else {
           const fwdHtml = m.isForwarded
-            ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? '↪↪ Häufig weitergeleitet' : '↪ Weitergeleitet') + '</span>'
+            ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded')) + '</span>'
             : '';
           const quotedHtml = m.quotedMsg ? renderQuotedBlock(m.quotedMsg) : '';
-          bub.innerHTML = fwdHtml + quotedHtml + formatText(m.body || (m.type === 'photo' ? '📷 Foto' : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          bub.innerHTML = fwdHtml + quotedHtml + formatText(m.body || (m.type === 'photo' ? t('photo') : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         }
         const bri = document.createElement('div');
         bri.className = 'bubble-row-inner';
         bri.appendChild(bub);
         const delBtn = document.createElement('button');
         delBtn.className = 'del-btn';
-        delBtn.title = 'Löschen';
+        delBtn.title = t('ttDelete');
         delBtn.textContent = '✕';
         delBtn.dataset.msgid = m.id;
         bri.appendChild(delBtn);
         const reactBtn = document.createElement('button');
         reactBtn.className = 'react-btn';
-        reactBtn.title = 'Reagieren';
+        reactBtn.title = t('ttReact');
         reactBtn.textContent = '😊';
         reactBtn.dataset.msgid = m.id;
         bri.appendChild(reactBtn);
         const fwdBtn = document.createElement('button');
         fwdBtn.className = 'fwd-btn';
-        fwdBtn.title = 'Weiterleiten';
+        fwdBtn.title = t('ttForward');
         fwdBtn.textContent = '↪';
         fwdBtn.dataset.msgid = m.id;
         bri.appendChild(fwdBtn);
         const replyBtn = document.createElement('button');
         replyBtn.className = 'reply-btn';
-        replyBtn.title = 'Antworten';
+        replyBtn.title = t('ttReply');
         replyBtn.textContent = '↩';
         replyBtn.dataset.msgid = m.id;
-        replyBtn.dataset.contact = m.fromMe ? 'Ich' : (m.contact || '');
-        replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? '📷 Foto' : '📎')).slice(0, 60);
+        replyBtn.dataset.contact = m.fromMe ? t('me') : (m.contact || '');
+        replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? t('photo') : t('mediaGeneric'))).slice(0, 60);
         bri.appendChild(replyBtn);
         wrap.appendChild(bri);
         if (m.reactions && Object.keys(m.reactions).length) {
@@ -1533,15 +1617,15 @@ app.get('/', (req, res) => {
       const btn = document.getElementById('fetch-media-btn');
       if (!btn || !selectedChatId) return;
       btn.disabled = true;
-      btn.textContent = '⏳ Lade…';
+      btn.textContent = t('fetchLoading');
       try {
         const d = await fetch('api/fetch-media/' + encodeURIComponent(selectedChatId), { method: 'POST' }).then(r => r.json());
         if (!d.total) {
-          btn.textContent = '✓ Alle geladen';
-          setTimeout(() => { btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }, 2500);
+          btn.textContent = t('fetchDone');
+          setTimeout(() => { btn.disabled = false; btn.textContent = t('btnFetchMedia'); }, 2500);
           return;
         }
-        btn.textContent = '⏳ ' + d.total + ' Fotos…';
+        btn.textContent = tf('fetchProgress', d.total);
         let polls = 0;
         const iv = setInterval(async () => {
           polls++;
@@ -1549,12 +1633,12 @@ app.get('/', (req, res) => {
           if (polls >= 20) {
             clearInterval(iv);
             btn.disabled = false;
-            btn.textContent = '📥 Fotos nachladen';
+            btn.textContent = t('btnFetchMedia');
           }
         }, 2000);
       } catch(e) {
         btn.disabled = false;
-        btn.textContent = '📥 Fotos nachladen';
+        btn.textContent = t('btnFetchMedia');
       }
     }
 
@@ -1579,8 +1663,7 @@ app.get('/', (req, res) => {
     function openSpamModal(count, wraps, ids) {
       _spamDeleteIds = ids;
       _spamDeleteWraps = wraps;
-      document.getElementById('spam-modal-text').textContent =
-        'In diesem Chat wurden ' + count + ' Nachricht' + (count === 1 ? '' : 'en') + ' häufig weitergeleitet. Soll ich diese jetzt löschen?';
+      document.getElementById('spam-modal-text').textContent = tf('spamModal', count);
       document.getElementById('spam-modal').classList.add('open');
     }
 
@@ -1595,7 +1678,7 @@ app.get('/', (req, res) => {
       const wraps = _spamDeleteWraps.slice();
       closeSpamModal();
       const btn = document.getElementById('spam-delete-btn');
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ Lösche…'; }
+      if (btn) { btn.disabled = true; btn.textContent = t('spamDeleting'); }
       try {
         const r = await fetch('api/delete-batch/' + encodeURIComponent(selectedChatId), {
           method: 'POST',
@@ -1604,9 +1687,9 @@ app.get('/', (req, res) => {
         }).then(r => r.json());
         for (const wrap of wraps) wrap.remove();
         await pollChats();
-        if (btn) { btn.textContent = '✓ ' + r.deleted + ' gelöscht'; setTimeout(() => { btn.textContent = '🗑️ Spam löschen'; }, 3000); }
+        if (btn) { btn.textContent = tf('spamDeleted', r.deleted); setTimeout(() => { btn.textContent = t('btnSpamDelete'); }, 3000); }
       } catch(e) {
-        if (btn) { btn.textContent = '✗ Fehler'; setTimeout(() => { btn.textContent = '🗑️ Spam löschen'; }, 3000); }
+        if (btn) { btn.textContent = t('spamError'); setTimeout(() => { btn.textContent = t('btnSpamDelete'); }, 3000); }
       } finally {
         if (btn) btn.disabled = false;
       }
@@ -1618,7 +1701,7 @@ app.get('/', (req, res) => {
       const count = spamWraps.length;
       if (!count) {
         const btn = document.getElementById('spam-delete-btn');
-        if (btn) { const orig = btn.textContent; btn.textContent = '✓ Kein Spam'; setTimeout(() => { btn.textContent = orig; }, 2000); }
+        if (btn) { const orig = btn.textContent; btn.textContent = t('spamNone'); setTimeout(() => { btn.textContent = orig; }, 2000); }
         return;
       }
       openSpamModal(count, spamWraps, spamWraps.map(w => w.dataset.msgid).filter(Boolean));
@@ -1721,9 +1804,9 @@ app.get('/', (req, res) => {
           atBottom = true;
           await pollMessages();
         } else {
-          alert('Fehler: ' + r.error);
+          alert(tf('errSend', r.error));
         }
-      } catch(e) { alert('Netzwerkfehler'); }
+      } catch(e) { alert(t('errNetwork')); }
     }
 
     async function deleteMsg(chatId, msgId) {
@@ -1750,7 +1833,7 @@ app.get('/', (req, res) => {
 
     function showSpinner(msg) {
       document.getElementById('spinner-overlay').style.display = 'flex';
-      document.getElementById('spinner-text').textContent = msg || 'Starte neu…';
+      document.getElementById('spinner-text').textContent = msg || t('spinnerRestart');
       document.getElementById('topbar').style.display = 'none';
       document.getElementById('main').style.display = 'none';
       document.getElementById('qr-overlay').style.display = 'none';
@@ -1758,12 +1841,12 @@ app.get('/', (req, res) => {
     }
 
     async function logout() {
-      showSpinner('Abgemeldet — lade QR-Code…');
+      showSpinner(t('spinnerLogout'));
       await fetch('api/logout', { method: 'POST' }).catch(() => {});
     }
 
     async function resetSession() {
-      showSpinner('Session gelöscht — lade QR-Code…');
+      showSpinner(t('spinnerReset'));
       await fetch('api/reset', { method: 'POST' }).catch(() => {});
     }
 
@@ -1771,9 +1854,9 @@ app.get('/', (req, res) => {
       try {
         const s = await fetch('api/status').then(r => r.json());
         const dotLabel = ({
-          connected: 'Verbunden', waiting_for_scan: 'QR scannen',
-          authenticated: 'Authentifiziert…', initializing: 'Starte…',
-          disconnected: 'Getrennt', auth_failed: 'Auth-Fehler', error: 'Fehler',
+          connected: t('statusConnected'), waiting_for_scan: t('statusQR'),
+          authenticated: t('statusAuth'), initializing: t('statusInit'),
+          disconnected: t('statusDisc'), auth_failed: t('statusAuthFail'), error: t('statusError'),
         })[s.status] || s.status;
         const dot = document.getElementById('status-dot');
         dot.className = 'status-dot ' + (
@@ -1788,7 +1871,7 @@ app.get('/', (req, res) => {
           currentStatus = s.status;
           const connecting = s.status === 'initializing' || s.status === 'authenticated' || s.status === 'disconnected';
           document.getElementById('spinner-text').textContent =
-            s.status === 'disconnected' ? 'Abgemeldet — starte neu…' : 'Verbinde mit WhatsApp…';
+            s.status === 'disconnected' ? t('spinnerDisconnect') : t('spinnerConnecting');
           const qr = s.status === 'waiting_for_scan';
           const connected = s.status === 'connected';
           document.getElementById('spinner-overlay').style.display = connecting ? 'flex' : 'none';
@@ -1804,6 +1887,7 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
 
+    applyLang();
     refresh();
     setInterval(refresh, 5000);
     setInterval(pollMessages, 2000);
@@ -1912,7 +1996,7 @@ app.get('/', (req, res) => {
           const isOwn = myJid ? senders.includes(myJid) : false;
           const badge = document.createElement('span');
           badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
-          badge.title = isOwn ? 'Klicken zum Entfernen' : 'Klicken zum Reagieren';
+          badge.title = isOwn ? t('ttRemoveReaction') : t('ttAddReaction');
           badge.textContent = emoji + (senders.length > 1 ? ' ' + senders.length : '');
           badge.onclick = () => toggleReaction(msgId, emoji, isOwn);
           bar.appendChild(badge);
