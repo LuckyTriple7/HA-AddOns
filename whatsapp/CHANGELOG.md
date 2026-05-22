@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.12] - 2026-05-22
+
+### Behoben
+- **Reaktionszahl immer noch 2** — `reactions.json` enthielt aus v1.3.10 noch un-normalisierte JID-Duplikate; JIDs werden jetzt auch beim Einlesen aus der Datei bereinigt (`Set` + `normalizeJid`)
+
 ## [1.3.11] - 2026-05-22
 
 ### Behoben

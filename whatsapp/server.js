@@ -76,10 +76,19 @@ const seenIds = new Set();
 const REACTIONS_FILE = '/data/reactions.json';
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
+function normalizeJid(jid) { return String(jid).replace(/:\d+@/, '@'); }
+
 try {
   if (existsSync(REACTIONS_FILE)) {
     const data = JSON.parse(fs.readFileSync(REACTIONS_FILE, 'utf8'));
-    for (const [k, v] of Object.entries(data)) reactionsCache.set(k, v);
+    for (const [msgId, reactions] of Object.entries(data)) {
+      const clean = {};
+      for (const [emoji, senders] of Object.entries(reactions)) {
+        const deduped = [...new Set(senders.map(normalizeJid))];
+        if (deduped.length) clean[emoji] = deduped;
+      }
+      if (Object.keys(clean).length) reactionsCache.set(msgId, clean);
+    }
     console.log(`[INFO] Loaded reactions for ${reactionsCache.size} messages from disk`);
   }
 } catch (e) { console.error('[ERROR] loadReactions:', e.message); }
@@ -390,10 +399,7 @@ client.on('message_create', async (msg) => {
 client.on('message_reaction', (reaction) => {
   const msgId = reaction.msgId?._serialized;
   if (!msgId) return;
-  // Multi-Device-JIDs haben ein Gerät-Suffix ":10@c.us" — normalisieren auf "phone@c.us"
-  // damit kein Duplikat mit dem in /api/react gespeicherten Eintrag entsteht
-  const rawSenderId = reaction.senderId?._serialized || String(reaction.senderId || '');
-  const senderId = rawSenderId.replace(/:\d+@/, '@');
+  const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
   const emoji = reaction.reaction || '';
   dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
 
@@ -655,7 +661,7 @@ app.post('/api/react', async (req, res) => {
 
     // Lokale Reaktion sofort in Cache + Datei schreiben, da message_reaction-Event
     // für eigene Reaktionen nicht zuverlässig feuert
-    const myJid = connectedPhone ? (connectedPhone + '@c.us').replace(/:\d+@/, '@') : null;
+    const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
     if (myJid) {
       for (const msgs of messagesByChatId.values()) {
         const stored = msgs.find(m => m.id === msgId);
