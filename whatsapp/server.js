@@ -390,7 +390,10 @@ client.on('message_create', async (msg) => {
 client.on('message_reaction', (reaction) => {
   const msgId = reaction.msgId?._serialized;
   if (!msgId) return;
-  const senderId = reaction.senderId?._serialized || String(reaction.senderId || '');
+  // Multi-Device-JIDs haben ein Gerät-Suffix ":10@c.us" — normalisieren auf "phone@c.us"
+  // damit kein Duplikat mit dem in /api/react gespeicherten Eintrag entsteht
+  const rawSenderId = reaction.senderId?._serialized || String(reaction.senderId || '');
+  const senderId = rawSenderId.replace(/:\d+@/, '@');
   const emoji = reaction.reaction || '';
   dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
 
@@ -652,7 +655,7 @@ app.post('/api/react', async (req, res) => {
 
     // Lokale Reaktion sofort in Cache + Datei schreiben, da message_reaction-Event
     // für eigene Reaktionen nicht zuverlässig feuert
-    const myJid = connectedPhone ? connectedPhone + '@c.us' : null;
+    const myJid = connectedPhone ? (connectedPhone + '@c.us').replace(/:\d+@/, '@') : null;
     if (myJid) {
       for (const msgs of messagesByChatId.values()) {
         const stored = msgs.find(m => m.id === msgId);

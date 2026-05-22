@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.11] - 2026-05-22
+
+### Behoben
+- **Reaktionszahl doppelt** — Multi-Device-JIDs (`491512345:10@c.us`) wurden nicht mit der normalisierten JID (`491512345@c.us`) aus `/api/react` abgeglichen; Device-Suffix wird jetzt im `message_reaction`-Handler entfernt
+
 ## [1.3.10] - 2026-05-22
 
 ### Behoben
