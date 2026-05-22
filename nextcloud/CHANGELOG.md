@@ -1,5 +1,9 @@
 # Changelog — Nextcloud
 
+## 0.0.12
+- Fix: occ per `find` suchen (maxdepth 3) statt hartem Pfad — fängt Strukturänderungen in linuxserver/nextcloud v33 ab
+- Fix: Erweiterte Diagnostik im Warte-Loop (Inhalt /config/www/nextcloud/, find-Ergebnis)
+
 ## 0.0.11
 - Fix: Nur /config/www/nextcloud/occ verwenden (persistente Instanz)
 - Fix: exec tail -f /dev/null am Ende verhindert s6-Neustart-Loop

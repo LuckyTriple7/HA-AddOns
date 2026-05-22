@@ -104,22 +104,36 @@ echo "------------------"
 
 # --- Warte auf linuxservers persistente Nextcloud-Instanz ---
 # linuxserver initialisiert /config/www/nextcloud/ asynchron beim ersten Start
-OCC_BIN=/config/www/nextcloud/occ
+# Suche per find (maxdepth 3) statt hartem Pfad — Struktur kann je nach Version abweichen
 
-if [ ! -f "$OCC_BIN" ]; then
-    echo "[INFO] Warte auf /config/www/nextcloud/occ (max. 30 min) ..."
+find_occ() {
+    find /config/www/nextcloud -maxdepth 3 -name "occ" -type f 2>/dev/null | head -1
+}
+
+OCC_BIN=$(find_occ)
+if [ -z "$OCC_BIN" ]; then
+    echo "[INFO] Warte auf occ in /config/www/nextcloud/ (max. 30 min) ..."
     TRIES=0
-    while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 360 ]; do
+    while [ $TRIES -lt 360 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
+        OCC_BIN=$(find_occ)
+        if [ -n "$OCC_BIN" ]; then
+            break
+        fi
         if [ $((TRIES % 6)) -eq 0 ]; then
             echo "[DEBUG] +$((TRIES * 5))s — /config/www: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
+            echo "[DEBUG] /config/www/nextcloud/: $(ls /config/www/nextcloud/ 2>/dev/null | head -15 | tr '\n' ' ' || echo 'leer/fehlt')"
+            echo "[DEBUG] find occ: $(find /config/www -name 'occ' 2>/dev/null | tr '\n' ' ' || echo 'nichts')"
         fi
     done
-    if [ ! -f "$OCC_BIN" ]; then
-        echo "[WARN] occ nach 30 Min nicht gefunden — warte dauerhaft"
-        exec tail -f /dev/null
-    fi
+fi
+
+if [ -z "$OCC_BIN" ]; then
+    echo "[WARN] occ nach 30 Min nicht gefunden"
+    echo "[DEBUG] find /config/www: $(find /config/www -name 'occ' 2>/dev/null | tr '\n' ' ')"
+    echo "[DEBUG] find /app: $(find /app -name 'occ' 2>/dev/null | tr '\n' ' ')"
+    exec tail -f /dev/null
 fi
 
 echo "[INFO] occ gefunden: ${OCC_BIN}"
