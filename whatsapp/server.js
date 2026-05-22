@@ -71,6 +71,34 @@ const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, las
 const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();
 
+// Reaktionen separat persistieren (Nachrichten werden bei jedem Start neu von WA geladen,
+// die Reaktions-Daten gehen dabei verloren)
+const REACTIONS_FILE = '/data/reactions.json';
+const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
+
+try {
+  if (existsSync(REACTIONS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(REACTIONS_FILE, 'utf8'));
+    for (const [k, v] of Object.entries(data)) reactionsCache.set(k, v);
+    console.log(`[INFO] Loaded reactions for ${reactionsCache.size} messages from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadReactions:', e.message); }
+
+let reactionsSaveTimer = null;
+function saveReactions() {
+  if (reactionsSaveTimer) clearTimeout(reactionsSaveTimer);
+  reactionsSaveTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(REACTIONS_FILE, JSON.stringify(Object.fromEntries(reactionsCache)));
+    } catch (e) { console.error('[ERROR] saveReactions:', e.message); }
+  }, 3000);
+}
+
+function applyReactionsToMsg(msg) {
+  const saved = reactionsCache.get(msg.id);
+  if (saved && Object.keys(saved).length) msg.reactions = { ...saved };
+}
+
 // Filtert Status-Updates, Broadcasts und WhatsApp-Channels (@newsletter = "Aktuelles"-Tab)
 function isFilteredChat(chatId) {
   return chatId.endsWith('@broadcast') || chatId.endsWith('@newsletter');
@@ -96,6 +124,7 @@ function addMsg(chatId, msg) {
   seenIds.add(msg.id);
   dbg(`addMsg: chatId=${chatId} fromMe=${msg.fromMe} type=${msg.type} body="${(msg.body||'').slice(0,60)}"`);
   const msgs = getChatMsgs(chatId);
+  applyReactionsToMsg(msg);
   msgs.push(msg);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   if (msgs.length > MAX_MSGS_PER_CHAT) msgs.splice(0, msgs.length - MAX_MSGS_PER_CHAT);
@@ -364,18 +393,25 @@ client.on('message_reaction', (reaction) => {
   const senderId = reaction.senderId?._serialized || String(reaction.senderId || '');
   const emoji = reaction.reaction || '';
   dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
+
+  function applyReaction(reactions) {
+    for (const e of Object.keys(reactions)) {
+      reactions[e] = reactions[e].filter(s => s !== senderId);
+      if (!reactions[e].length) delete reactions[e];
+    }
+    if (emoji) {
+      if (!reactions[emoji]) reactions[emoji] = [];
+      if (!reactions[emoji].includes(senderId)) reactions[emoji].push(senderId);
+    }
+  }
+
   for (const msgs of messagesByChatId.values()) {
     const msg = msgs.find(m => m.id === msgId);
     if (msg) {
       if (!msg.reactions) msg.reactions = {};
-      for (const e of Object.keys(msg.reactions)) {
-        msg.reactions[e] = msg.reactions[e].filter(s => s !== senderId);
-        if (!msg.reactions[e].length) delete msg.reactions[e];
-      }
-      if (emoji) {
-        if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
-        if (!msg.reactions[emoji].includes(senderId)) msg.reactions[emoji].push(senderId);
-      }
+      applyReaction(msg.reactions);
+      reactionsCache.set(msgId, { ...msg.reactions });
+      saveReactions();
       break;
     }
   }
@@ -614,8 +650,8 @@ app.post('/api/react', async (req, res) => {
     if (!msg) return res.status(404).json({ error: 'Message not found' });
     await msg.react(reaction || '');
 
-    // Lokale Reaktion sofort persistieren (message_reaction-Event feuert für eigene
-    // Reaktionen nicht zuverlässig, weshalb sie nach einem Neustart sonst verloren gehen)
+    // Lokale Reaktion sofort in Cache + Datei schreiben, da message_reaction-Event
+    // für eigene Reaktionen nicht zuverlässig feuert
     const myJid = connectedPhone ? connectedPhone + '@c.us' : null;
     if (myJid) {
       for (const msgs of messagesByChatId.values()) {
@@ -630,7 +666,8 @@ app.post('/api/react', async (req, res) => {
             if (!stored.reactions[reaction]) stored.reactions[reaction] = [];
             if (!stored.reactions[reaction].includes(myJid)) stored.reactions[reaction].push(myJid);
           }
-          scheduleSave();
+          reactionsCache.set(msgId, { ...stored.reactions });
+          saveReactions();
           break;
         }
       }

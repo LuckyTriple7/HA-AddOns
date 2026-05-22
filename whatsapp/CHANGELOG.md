@@ -1,9 +1,14 @@
 # Changelog
 
+## [1.3.10] - 2026-05-22
+
+### Behoben
+- **Reaktionen nach Neustart weg** — Reaktionen werden jetzt in `/data/reactions.json` persistiert und beim Start wiederhergestellt; WhatsApp lädt Nachrichten bei jedem Start neu und liefert dabei keine Reaktionsdaten
+
 ## [1.3.9] - 2026-05-22
 
 ### Behoben
-- **Eigene Reaktionen nach Neustart weg** — `/api/react` persistiert die eigene Reaktion jetzt sofort lokal; der `message_reaction`-Event von whatsapp-web.js feuert für eigene Reaktionen nicht zuverlässig und konnte die Daten nicht rechtzeitig speichern
+- Erster (unvollständiger) Fix-Versuch für Reaktions-Persistenz — ersetzt durch v1.3.10
 
 ## [1.3.8] - 2026-05-22
 
