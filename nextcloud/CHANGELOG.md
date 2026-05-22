@@ -1,5 +1,9 @@
 # Changelog — Nextcloud
 
+## 0.0.9
+- Fix: NC_CONFIG relativ zu OCC_BIN (neuer linuxserver Pfad /app/www/src/)
+- Fix: Installations-Erkennung via `occ status` statt config.php-Check
+
 ## 0.0.8
 - Timeout erhöht: 10 → 30 Minuten (erster Start lädt ~100 MB Nextcloud herunter)
 

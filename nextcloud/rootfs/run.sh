@@ -197,8 +197,6 @@ apply_config() {
 # Unser Script wird als CMD-Callback aufgerufen — Nextcloud-Dateien
 # sind bereits in /config/www/nextcloud vorhanden.
 
-NC_CONFIG=/config/www/nextcloud/config/config.php
-
 # Warte auf Nextcloud-Dateien (linuxserver kopiert diese asynchron)
 if [ -z "$OCC_BIN" ]; then
     echo "[INFO] occ noch nicht vorhanden — warte auf Download/Entpacken (max. 30 min) ..."
@@ -226,8 +224,17 @@ if [ -z "$OCC_BIN" ]; then
     fi
 fi
 
-if [ ! -f "$NC_CONFIG" ]; then
-    echo "[INFO] Erster Start — führe Nextcloud-Installation aus ..."
+# NC_CONFIG relativ zu OCC_BIN (linuxserver hat Pfad geändert: /app/www/src/)
+NC_CONFIG="$(dirname "$OCC_BIN")/config/config.php"
+echo "[INFO] NC_CONFIG: ${NC_CONFIG}"
+
+# Zuverlässige Installations-Erkennung via occ status
+NC_INSTALLED=$(php "$OCC_BIN" --allow-root status --output=json 2>/dev/null \
+    | jq -r '.installed // false' 2>/dev/null || echo "false")
+echo "[INFO] NC installed: ${NC_INSTALLED}"
+
+if [ "$NC_INSTALLED" != "true" ]; then
+    echo "[INFO] Führe Nextcloud-Installation aus ..."
 
     if [ "$DB_TYPE" = "mysql" ]; then
         echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
