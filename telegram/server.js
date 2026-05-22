@@ -822,59 +822,60 @@ html.light #emoji-toggle { color: #888; }
 <div id="overlay-spinner" class="overlay">
   <div class="tg-logo">✈️</div>
   <div class="spinner"></div>
-  <p id="spinner-text">Verbinde mit Telegram…</p>
+  <p id="spinner-text" data-i18n="spinnerConnect">Verbinde mit Telegram…</p>
 </div>
 
 <div id="overlay-code" class="overlay" style="display:none">
   <div class="tg-logo">✈️</div>
-  <h2>Code eingeben</h2>
-  <p>Telegram hat einen Code an deine App oder per SMS gesendet.</p>
+  <h2 data-i18n="codeTitle">Code eingeben</h2>
+  <p data-i18n="codeInstr">Telegram hat einen Code an deine App oder per SMS gesendet.</p>
   <div class="auth-box">
     <input class="auth-input" id="code-input" type="text" inputmode="numeric" maxlength="8" placeholder="12345">
     <div class="auth-error" id="code-error"></div>
-    <button class="auth-btn" onclick="submitCode()">Bestätigen</button>
+    <button class="auth-btn" onclick="submitCode()" data-i18n="btnConfirm">Bestätigen</button>
   </div>
 </div>
 
 <div id="overlay-password" class="overlay" style="display:none">
   <div class="tg-logo">✈️</div>
-  <h2>2-Faktor-Passwort</h2>
-  <p>Dein Konto ist durch ein Cloud-Passwort geschützt.</p>
+  <h2 data-i18n="pwTitle">2-Faktor-Passwort</h2>
+  <p data-i18n="pwInstr">Dein Konto ist durch ein Cloud-Passwort geschützt.</p>
   <div class="auth-box">
     <input class="auth-input text" id="pw-input" type="password" placeholder="Passwort">
     <div class="auth-error" id="pw-error"></div>
-    <button class="auth-btn" onclick="submitPassword()">Bestätigen</button>
+    <button class="auth-btn" onclick="submitPassword()" data-i18n="btnConfirm">Bestätigen</button>
   </div>
 </div>
 
 <div id="overlay-error" class="overlay" style="display:none">
   <div class="tg-logo">✈️</div>
-  <h2>Fehler</h2>
+  <h2 data-i18n="overlayErrorTitle">Fehler</h2>
   <p id="error-text"></p>
-  <button class="auth-btn" style="max-width:220px;margin-top:8px" onclick="reconnect()">Erneut verbinden</button>
+  <button class="auth-btn" style="max-width:220px;margin-top:8px" onclick="reconnect()" data-i18n="btnReconnect">Erneut verbinden</button>
 </div>
 
 <div id="topbar">
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" title="Fotos AN">📷</button>' : ''}
-  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
-  <button id="refresh-btn" onclick="refreshChat()" title="Chat neu laden">↺</button>
-  <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
-  <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
-  <button id="logout-btn" onclick="logout()" title="Abmelden">⏻</button>
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
+  <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">↺</button>
+  <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
+  <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
+  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
+  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden">⏻</button>
 </div>
 
 <div id="main">
   <div id="sidebar">
     <div id="search-wrap">
-      <input id="search-input" type="text" placeholder="Suchen…" oninput="filterChats()">
+      <input id="search-input" type="text" placeholder="Suchen…" data-i18n-pl="searchPlaceholder" oninput="filterChats()">
     </div>
     <div id="chat-list"></div>
   </div>
   <div id="chat-panel">
-    <div id="no-chat-wrap">Wähle einen Chat aus der Liste</div>
+    <div id="no-chat-wrap" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div>
     <div id="chat-header">
       <button id="back-btn" onclick="closeChat()">&#8592;</button>
       <div class="avatar" id="ch-avatar" style="width:36px;height:36px;font-size:14px;background:#2AABEE">?</div>
@@ -885,8 +886,8 @@ html.light #emoji-toggle { color: #888; }
     <div id="messages"></div>
     <div id="input-bar">
       <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
-      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" title="Emoji">😊</button>
-      <textarea id="msg-input" rows="1" placeholder="Nachricht…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">😊</button>
+      <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -895,6 +896,63 @@ html.light #emoji-toggle { color: #888; }
 </div>
 
 <script>
+const LANG = {
+  de: {
+    spinnerConnect: 'Verbinde mit Telegram…', spinnerLogout: 'Abmelden…',
+    codeTitle: 'Code eingeben',
+    codeInstr: 'Telegram hat einen Code an deine App oder per SMS gesendet.',
+    pwTitle: '2-Faktor-Passwort', pwInstr: 'Dein Konto ist durch ein Cloud-Passwort geschützt.',
+    btnConfirm: 'Bestätigen', overlayErrorTitle: 'Fehler', btnReconnect: 'Erneut verbinden',
+    unknownError: 'Unbekannter Fehler',
+    photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
+    cleanupTitle: 'Verwaiste Mediendateien löschen',
+    btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten',
+    btnLogout: 'Abmelden', searchPlaceholder: 'Suchen…',
+    noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…',
+    btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
+    cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
+    cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
+    cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
+  },
+  en: {
+    spinnerConnect: 'Connecting to Telegram…', spinnerLogout: 'Logging out…',
+    codeTitle: 'Enter code',
+    codeInstr: 'Telegram sent a code to your app or via SMS.',
+    pwTitle: '2-Factor Password', pwInstr: 'Your account is protected by a cloud password.',
+    btnConfirm: 'Confirm', overlayErrorTitle: 'Error', btnReconnect: 'Reconnect',
+    unknownError: 'Unknown error',
+    photosOn: 'Photos ON', photosOff: 'Photos OFF',
+    cleanupTitle: 'Delete orphaned media files',
+    btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down',
+    btnLogout: 'Log out', searchPlaceholder: 'Search…',
+    noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Message…',
+    btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
+    cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
+    cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
+    cleanupError: (e) => 'Cleanup error: ' + e,
+  },
+};
+let lang = localStorage.getItem('tg_lang') || 'de';
+function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
+function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
+function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  const lb = document.getElementById('lang-btn');
+  if (lb) lb.textContent = lang === 'de' ? '🌐 DE' : '🌐 EN';
+  const ptb = document.getElementById('photo-toggle');
+  if (ptb) ptb.title = ptb.classList.contains('active') ? t('photosOn') : t('photosOff');
+}
+function switchLang() {
+  lang = lang === 'de' ? 'en' : 'de';
+  localStorage.setItem('tg_lang', lang);
+  applyLang();
+}
+
 const BASE = location.pathname.replace(/\\/+$/, '');
 let currentStatus = '';
 let selectedChatId = null;
@@ -911,8 +969,8 @@ function avatarInitial(s) { return (String(s||'?')).charAt(0).toUpperCase(); }
 function formatTime(ts) {
   if (!ts) return '';
   const d = new Date(ts), now = new Date();
-  if (d.toDateString()===now.toDateString()) return d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
-  return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
+  if (d.toDateString()===now.toDateString()) return d.toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString(locale(),{day:'2-digit',month:'2-digit'});
 }
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function formatText(s) {
@@ -946,22 +1004,22 @@ function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
   document.body.classList.toggle('hide-photos', hiding);
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? 'Fotos AUS' : 'Fotos AN'; }
+  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
   localStorage.setItem('tg-hide-photos', hiding ? '1' : '');
 }
 if (localStorage.getItem('tg-hide-photos')) {
   document.body.classList.add('hide-photos');
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = 'Fotos AUS'; }
+  if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = t('photosOff'); }
 }
 
 async function cleanupMedia() {
-  if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
+  if (!confirm(t('cleanupConfirm'))) return;
   try {
     const d = await fetch(api('/api/cleanup-media'), { method: 'POST' }).then(r => r.json());
-    alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
+    alert(tf('cleanupSuccess', d.deleted, d.freedMb));
     loadStorage();
-  } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
+  } catch(e) { alert(tf('cleanupError', e.message)); }
 }
 
 function ackMark(ack) {
@@ -989,7 +1047,7 @@ async function refresh() {
       setTimeout(()=>document.getElementById('pw-input').focus(), 100);
     } else if (d.status==='error') {
       document.getElementById('overlay-error').style.display = 'flex';
-      document.getElementById('error-text').textContent = d.error || 'Unbekannter Fehler';
+      document.getElementById('error-text').textContent = d.error || t('unknownError');
     } else if (d.status==='connected') {
       document.getElementById('topbar').style.display = 'flex';
       document.getElementById('main').style.display = 'flex';
@@ -1040,7 +1098,7 @@ async function logout() {
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('main').style.display = 'none';
   document.getElementById('overlay-spinner').style.display = 'flex';
-  document.getElementById('spinner-text').textContent = 'Abmelden…';
+  document.getElementById('spinner-text').textContent = t('spinnerLogout');
   await fetch(api('/api/logout'),{method:'POST'}).catch(()=>{});
 }
 
@@ -1131,17 +1189,17 @@ async function loadMessages(chatId) {
 
 function renderMessages(msgs) {
   const el = document.getElementById('messages');
-  if (!msgs||!msgs.length) { el.innerHTML='<div style="text-align:center;padding:24px;opacity:0.5">Noch keine Nachrichten</div>'; return; }
+  if (!msgs||!msgs.length) { el.innerHTML='<div style="text-align:center;padding:24px;opacity:0.5">'+t('noMessages')+'</div>'; return; }
   const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   const prevCount = lastMsgCount[selectedChatId] || 0;
   lastMsgCount[selectedChatId] = msgs.length;
   let lastDate='';
   el.innerHTML = msgs.map(m => {
     const d=new Date(m.timestamp);
-    const dateStr=d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+    const dateStr=d.toLocaleDateString(locale(),{day:'2-digit',month:'2-digit',year:'numeric'});
     let sep='';
     if(dateStr!==lastDate){sep=\`<div class="day-sep">\${dateStr}</div>\`;lastDate=dateStr;}
-    const time=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    const time=d.toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'});
     let content='';
     const isPhoto = m.type==='photo'&&m.mediaFile;
     if(isPhoto){
@@ -1153,7 +1211,7 @@ function renderMessages(msgs) {
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn" title="Reagieren">😊</button><button class="del-btn" title="Löschen">✕</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn" title="\${t('btnReact')}">😊</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
@@ -1299,7 +1357,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.t
         const isOwn = entry.myReaction === emoji;
         const badge = document.createElement('span');
         badge.className = 'reaction-badge' + (isOwn ? ' own' : '');
-        badge.title = isOwn ? 'Klicken zum Entfernen' : emoji;
+        badge.title = isOwn ? t('reactionRemove') : emoji;
         badge.textContent = emoji + (count > 1 ? ' ' + count : '');
         badge.onclick = () => window.toggleReaction(msgId, emoji, isOwn);
         bar.appendChild(badge);
@@ -1307,6 +1365,8 @@ document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.t
     }
   }
 })();
+
+applyLang();
 
 // Lightbox
 (function(){
