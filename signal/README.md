@@ -14,6 +14,7 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 - **Nachrichten löschen**: Lokal sofort entfernt; platform-seitiges "Für alle löschen" wird im Hintergrund versucht (erfordert aktuelle signal-cli-rest-api)
 - **Ungelesene-Badge**: Grüner Punkt in der Sidebar bei neuen Nachrichten
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
+- **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Verknüpfen nach Neustart
 - **REST-API**: Nachrichten aus Automatisierungen heraus senden
 - **Webhook**: Eingehende Nachrichten an eine URL weiterleiten
@@ -182,6 +183,7 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 - **Delete messages**: Removed locally immediately; platform-side "delete for everyone" is attempted in the background (requires a recent signal-cli-rest-api)
 - **Unread badge**: Green dot in the sidebar for new messages
 - **Emoji keyboard**: 😊 button in the input field
+- **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
 - **Persistent session**: No re-linking after restart
 - **REST API**: Send messages from automations
 - **Webhook**: Forward incoming messages to a URL
