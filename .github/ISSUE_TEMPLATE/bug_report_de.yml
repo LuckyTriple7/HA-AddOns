@@ -15,6 +15,7 @@ body:
         - Firefox
         - Playwright Browser
         - Claude Code
+        - Nextcloud
         - Sonstiges
     validations:
       required: true
