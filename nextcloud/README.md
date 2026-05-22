@@ -5,9 +5,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?path=nextcloud&style=flat-square)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
-Nextcloud direkt in Home Assistant — private Cloud mit Web-UI, REST-API und SMB-Netzwerkspeicher-Unterstützung.
-
-> **Beta:** Dieses Add-on befindet sich in der Entwicklung. Für den produktiven Einsatz empfiehlt sich eine vollständige Nextcloud-Installation auf einem dedizierten Server.
+Nextcloud direkt in Home Assistant — private Cloud mit Web-UI und SMB-Netzwerkspeicher-Unterstützung.
 
 ## Zugriff
 
@@ -18,6 +16,13 @@ Nach dem Start ist Nextcloud erreichbar unter:
 
 Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist erforderlich.
 
+## Ersteinrichtung
+
+1. Add-on starten
+2. Browser öffnen: `http://<HA-IP>:7780`
+3. Web-Installer ausfüllen — Datenverzeichnis: `/config/data`
+4. Add-on **neu starten** — alle Konfigurationen (trusted_domains etc.) werden automatisch angewendet
+
 ## Funktionen
 
 - **Nextcloud**: Vollständige Nextcloud-Instanz auf Basis des linuxserver.io-Images
@@ -26,7 +31,7 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 - **SMB-Mounts**: Bis zu 3 Netzwerklaufwerke als externe Speicher einbinden
 - **PHP-Limits**: Speicher, Upload- und POST-Größe frei konfigurierbar
 - **Thumbnails**: Vorschaubilder aktivierbar
-- **Updates**: Nextcloud-Webupdate deaktivierbar für mehr Kontrolle
+- **Automatische Updates**: GitHub Actions prüft täglich auf neue Nextcloud-Versionen
 
 ## Konfiguration
 
@@ -35,16 +40,19 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 | `PUID` | `1000` | User-ID für Dateiberechtigungen |
 | `PGID` | `1000` | Group-ID für Dateiberechtigungen |
 | `TZ` | `Europe/Berlin` | Zeitzone |
-| `admin_user` | `admin` | Anzeigename des Admin-Nutzers |
-| `admin_password` | — | Passwort für den Admin-Nutzer |
-| `trusted_domains` | — | Kommagetrennte Liste zusätzlicher Domains/IPs (z.B. `192.168.1.100,meinserver.local`) |
-| `default_phone_region` | `DE` | Standard-Telefonregion (ISO 3166-1 Alpha-2, z.B. `DE`, `AT`, `CH`) |
+| `trusted_domains` | — | Kommagetrennte Liste zusätzlicher Domains/IPs (z.B. `192.168.1.100,meinserver.de`) |
+| `default_phone_region` | `DE` | Standard-Telefonregion (ISO 3166-1, z.B. `DE`, `AT`, `CH`) |
 | `enable_thumbnails` | `true` | Vorschaubilder für Fotos und Videos generieren |
 | `memory_limit` | `512M` | PHP-Speicherlimit |
 | `upload_max_filesize` | `512M` | Maximale Upload-Dateigröße |
-| `post_max_size` | `512M` | Maximale POST-Größe |
+| `post_max_size` | `512M` | Maximale POST-Größe (muss ≥ upload_max_filesize sein) |
 | `disable_updates` | `false` | Nextcloud-Webupdate deaktivieren |
-| `mariadb_discovery` | `false` | HA MariaDB Add-on automatisch erkennen und nutzen (aus = immer SQLite) |
+| `maintenance_window_start` | `1` | Startzeit Wartungsfenster in UTC (0–23, z.B. 1 = 2–3 Uhr DE) |
+| `loglevel` | `3` | Log-Level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
+| `skeletondirectory` | — | Vorlageordner für neue Benutzer (leer = keine Demo-Dateien) |
+| `trashbin_retention_obligation` | `auto, 30` | Aufbewahrung gelöschter Dateien (z.B. `auto, 30` = max. 30 Tage) |
+| `versions_retention_obligation` | `auto, 30` | Aufbewahrung von Datei-Versionen (z.B. `auto, 30` = max. 30 Tage) |
+| `mariadb_discovery` | `false` | HA MariaDB Add-on automatisch erkennen und nutzen (aus = SQLite) |
 | `smb_1_server` | — | IP/Hostname des SMB-Servers (Slot 1) |
 | `smb_1_share` | — | Name des SMB-Shares (Slot 1) |
 | `smb_1_user` | — | Benutzername für den SMB-Share (Slot 1) |
@@ -72,21 +80,17 @@ Alle Nextcloud-Daten (Dateien, Datenbank, Konfiguration) liegen im HA-Konfigurat
 
 ```
 /addon_configs/nextcloud/
-├── data/          ← Benutzerdateien
-├── www/nextcloud/ ← Nextcloud-Installation
+├── data/          ← Benutzerdateien + nextcloud.log
+├── www/nextcloud/ ← Nextcloud-Konfiguration (config.php)
 ├── php/           ← PHP-Konfiguration
-└── log/           ← Logs
+└── keys/          ← SSL-Zertifikate
 ```
 
 Die Daten bleiben bei Add-on-Updates, Neustarts und Neuinstallationen erhalten.
 
 ## Updates
 
-Dieses Add-on nutzt das vorgefertigte Image von `ghcr.io/luckytriple7/nextcloud`. Ein GitHub Actions Workflow prüft regelmäßig auf neue Nextcloud-Versionen und baut bei Bedarf automatisch ein neues Image.
-
-Zum Aktualisieren:
-1. **Einstellungen → Add-ons → Nextcloud → Aktualisieren** (falls eine neue Version verfügbar ist)
-2. Oder manuell: **Neu aufbauen** um das aktuelle Image zu laden
+Ein GitHub Actions Workflow prüft täglich auf neue Nextcloud-Versionen (linuxserver.io-Image) und baut bei Bedarf automatisch ein neues Image. Zum Aktualisieren in HA: **Einstellungen → Add-ons → Nextcloud → Aktualisieren**.
 
 → [Changelog](CHANGELOG.md)
 
@@ -96,9 +100,7 @@ Zum Aktualisieren:
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
-Nextcloud directly in Home Assistant — private cloud with web UI, REST API and SMB network storage support.
-
-> **Beta:** This add-on is under development. For production use, a full Nextcloud installation on a dedicated server is recommended.
+Nextcloud directly in Home Assistant — private cloud with web UI and SMB network storage support.
 
 ## Access
 
@@ -109,6 +111,13 @@ After startup, Nextcloud is available at:
 
 The add-on does **not** run as an HA Ingress panel — direct port access is required.
 
+## First Setup
+
+1. Start the add-on
+2. Open browser: `http://<HA-IP>:7780`
+3. Complete web installer — data directory: `/config/data`
+4. **Restart** the add-on — all settings (trusted_domains etc.) are applied automatically
+
 ## Features
 
 - **Nextcloud**: Full Nextcloud instance based on the linuxserver.io image
@@ -117,7 +126,7 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 - **SMB mounts**: Mount up to 3 network drives as external storage
 - **PHP limits**: Memory, upload and POST size freely configurable
 - **Thumbnails**: Preview image generation configurable
-- **Updates**: Nextcloud web update can be disabled for more control
+- **Automatic updates**: GitHub Actions checks daily for new Nextcloud versions
 
 ## Configuration
 
@@ -126,16 +135,19 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 | `PUID` | `1000` | User ID for file permissions |
 | `PGID` | `1000` | Group ID for file permissions |
 | `TZ` | `Europe/Berlin` | Timezone |
-| `admin_user` | `admin` | Display name of admin user |
-| `admin_password` | — | Password for the admin user |
-| `trusted_domains` | — | Comma-separated list of additional domains/IPs (e.g. `192.168.1.100,myserver.local`) |
-| `default_phone_region` | `DE` | Default phone region (ISO 3166-1 Alpha-2, e.g. `DE`, `AT`, `CH`) |
+| `trusted_domains` | — | Comma-separated list of additional domains/IPs (e.g. `192.168.1.100,myserver.de`) |
+| `default_phone_region` | `DE` | Default phone region (ISO 3166-1, e.g. `DE`, `AT`, `CH`) |
 | `enable_thumbnails` | `true` | Generate preview images for photos and videos |
 | `memory_limit` | `512M` | PHP memory limit |
 | `upload_max_filesize` | `512M` | Maximum upload file size |
-| `post_max_size` | `512M` | Maximum POST size |
+| `post_max_size` | `512M` | Maximum POST size (must be ≥ upload_max_filesize) |
 | `disable_updates` | `false` | Disable Nextcloud web update |
-| `mariadb_discovery` | `false` | Auto-detect and use HA MariaDB add-on (off = always SQLite) |
+| `maintenance_window_start` | `1` | Maintenance window start in UTC (0–23, e.g. 1 = 2–3 AM DE) |
+| `loglevel` | `3` | Log level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
+| `skeletondirectory` | — | Template folder for new users (empty = no demo files) |
+| `trashbin_retention_obligation` | `auto, 30` | Deleted files retention (e.g. `auto, 30` = max. 30 days) |
+| `versions_retention_obligation` | `auto, 30` | File version retention (e.g. `auto, 30` = max. 30 days) |
+| `mariadb_discovery` | `false` | Auto-detect and use HA MariaDB add-on (off = SQLite) |
 | `smb_1_server` | — | IP/hostname of SMB server (slot 1) |
 | `smb_1_share` | — | Name of SMB share (slot 1) |
 | `smb_1_user` | — | Username for SMB share (slot 1) |
@@ -163,18 +175,16 @@ All Nextcloud data (files, database, configuration) is stored in the HA config f
 
 ```
 /addon_configs/nextcloud/
-├── data/          ← User files
-├── www/nextcloud/ ← Nextcloud installation
+├── data/          ← User files + nextcloud.log
+├── www/nextcloud/ ← Nextcloud configuration (config.php)
 ├── php/           ← PHP configuration
-└── log/           ← Logs
+└── keys/          ← SSL certificates
 ```
 
 Data is preserved across add-on updates, restarts, and reinstallations.
 
 ## Updates
 
-This add-on uses the pre-built image from `ghcr.io/luckytriple7/nextcloud`. A GitHub Actions workflow regularly checks for new Nextcloud versions and automatically builds a new image when needed.
+A GitHub Actions workflow checks daily for new Nextcloud versions (linuxserver.io image) and automatically builds a new image when needed. To update in HA: **Settings → Add-ons → Nextcloud → Update**.
 
-To update:
-1. **Settings → Add-ons → Nextcloud → Update** (if a new version is available)
-2. Or manually: **Rebuild** to pull the current image
+→ [Changelog](CHANGELOG.md)
