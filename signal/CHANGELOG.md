@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.14] - 2026-05-22
+
+### Geändert
+- **signal-cli-rest-api Version** — gezielt nach dem Modul-Pfad `bbernhard/signal-cli-rest-api` im Binary gesucht statt erstem beliebigen Versions-String (Go-Binaries enthalten dutzende eingebettete Dependency-Versionen)
+
 ## [1.1.13] - 2026-05-22
 
 ### Geändert
