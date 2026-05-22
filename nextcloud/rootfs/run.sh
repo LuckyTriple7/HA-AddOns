@@ -184,12 +184,21 @@ apply_config() {
 # Unser Script wird als CMD-Callback aufgerufen — Nextcloud-Dateien
 # sind bereits in /config/www/nextcloud vorhanden.
 
-NC_OCC=/config/www/nextcloud/occ
 NC_CONFIG=/config/www/nextcloud/config/config.php
 
+# Warte auf Nextcloud-Dateien (linuxserver kopiert diese asynchron)
 if [ ! -f "$OCC_BIN" ]; then
-    echo "[WARN] Nextcloud-Dateien noch nicht bereit — überspringe occ-Konfiguration"
-    exit 0
+    echo "[INFO] Warte auf Nextcloud-Dateien (max. 10 min) ..."
+    TRIES=0
+    while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 120 ]; do
+        sleep 5
+        TRIES=$((TRIES + 1))
+    done
+    if [ ! -f "$OCC_BIN" ]; then
+        echo "[WARN] Nextcloud-Dateien nach 10 Minuten nicht gefunden — Abbruch"
+        exit 0
+    fi
+    echo "[INFO] Nextcloud-Dateien bereit"
 fi
 
 if [ ! -f "$NC_CONFIG" ]; then

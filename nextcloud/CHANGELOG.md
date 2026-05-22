@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.4
+- Fix: Warte-Schleife für Nextcloud-Dateien — linuxserver kopiert diese asynchron nach dem Start
+
 ## 0.0.3
 - Fix: `s6-overlay-suexec` Fehler — occ läuft jetzt als root mit `--allow-root`
 - Fix: `exec /init` entfernt — s6-overlay läuft bereits als PID 1, run.sh ist CMD-Callback
