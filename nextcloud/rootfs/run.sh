@@ -1,4 +1,6 @@
 #!/bin/sh
+# s6-overlay supervises dieses Script als Longrun.
+# WICHTIG: Niemals einfach exit — am Ende exec tail -f /dev/null um Neustart-Loop zu verhindern.
 set -e
 
 OPTIONS=/data/options.json
@@ -23,50 +25,34 @@ DISABLE_UPDATES=$(jq -r '.disable_updates // false' "$OPTIONS" 2>/dev/null || ec
 MARIADB_DISCOVERY=$(jq -r '.mariadb_discovery // false' "$OPTIONS" 2>/dev/null || echo "false")
 
 echo "[INFO] PUID=$PUID PGID=$PGID TZ=$TZ"
-
 export PUID PGID TZ
 
-# --- MariaDB Autodiscovery via HA Supervisor API ---
+# --- MariaDB Autodiscovery ---
 DB_TYPE="sqlite"
-DB_HOST=""
-DB_PORT="3306"
-DB_NAME="nextcloud"
-DB_USER=""
-DB_PASS=""
+DB_HOST="" DB_PORT="3306" DB_NAME="nextcloud" DB_USER="" DB_PASS=""
 
 if [ "$MARIADB_DISCOVERY" = "true" ] && [ -n "$SUPERVISOR_TOKEN" ]; then
     echo "[INFO] Prüfe MariaDB-Service via Supervisor API ..."
-    MYSQL_SVC=$(curl -sf \
-        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+    MYSQL_SVC=$(curl -sf -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
         "http://supervisor/services/mysql" 2>/dev/null || echo '{"result":"error"}')
-    MYSQL_RESULT=$(echo "$MYSQL_SVC" | jq -r '.result // "error"')
-
-    if [ "$MYSQL_RESULT" = "ok" ]; then
+    if [ "$(echo "$MYSQL_SVC" | jq -r '.result')" = "ok" ]; then
         DB_HOST=$(echo "$MYSQL_SVC" | jq -r '.data.host // "core-mariadb"')
         DB_PORT=$(echo "$MYSQL_SVC" | jq -r '.data.port // 3306')
         DB_USER=$(echo "$MYSQL_SVC" | jq -r '.data.username // empty')
         DB_PASS=$(echo "$MYSQL_SVC" | jq -r '.data.password // empty')
         DB_TYPE="mysql"
-        echo "[OK]   MariaDB gefunden: ${DB_HOST}:${DB_PORT} — nutze MySQL"
+        echo "[OK]   MariaDB gefunden: ${DB_HOST}:${DB_PORT}"
+        mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" \
+            -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" \
+            2>/dev/null && echo "[OK]   Datenbank '${DB_NAME}' bereit" || true
     else
-        echo "[INFO] Kein MariaDB-Service gefunden — nutze SQLite"
+        echo "[INFO] Kein MariaDB-Service — nutze SQLite"
     fi
 elif [ "$MARIADB_DISCOVERY" != "true" ]; then
     echo "[INFO] MariaDB Discovery deaktiviert — nutze SQLite"
-else
-    echo "[INFO] SUPERVISOR_TOKEN nicht gesetzt — nutze SQLite"
 fi
 
-# MariaDB: Nextcloud-Datenbank anlegen falls nicht vorhanden
-if [ "$DB_TYPE" = "mysql" ]; then
-    echo "[INFO] Stelle Nextcloud-Datenbank '${DB_NAME}' in MariaDB sicher ..."
-    mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" \
-        -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;" \
-        2>/dev/null && echo "[OK]   Datenbank '${DB_NAME}' bereit" \
-        || echo "[WARN] Konnte Datenbank nicht anlegen"
-fi
-
-# PHP-Limits setzen (linuxserver: /config/php/php-local.ini)
+# --- PHP-Limits ---
 mkdir -p /config/php
 cat > /config/php/php-local.ini << EOF
 memory_limit = ${MEMORY_LIMIT}
@@ -77,44 +63,26 @@ max_input_time = 300
 EOF
 echo "[INFO] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX}"
 
-# SMB-Mount-Funktion
+# --- SMB-Mounts ---
 do_mount() {
-    SERVER=$1
-    SHARE=$2
-    USER=$3
-    PASS=$4
-    MOUNTPOINT=$5
-
+    SERVER=$1 SHARE=$2 USER=$3 PASS=$4 MOUNTPOINT=$5
     mkdir -p "$MOUNTPOINT"
     umount "$MOUNTPOINT" 2>/dev/null || true
-
     if ! nc -z -w 5 "$SERVER" 445 2>/dev/null; then
-        echo "[FAIL] Port 445 auf ${SERVER} nicht erreichbar — übersprungen"
+        echo "[FAIL] Port 445 auf ${SERVER} nicht erreichbar"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
         return
     fi
-
     OPTS="vers=3.0,uid=${PUID},gid=${PGID},file_mode=0755,dir_mode=0755,noperm,sec=ntlmssp,nodfs"
-    if [ -n "$USER" ]; then
-        OPTS="${OPTS},username=${USER}"
-    else
-        OPTS="${OPTS},guest"
-    fi
-    if [ -n "$PASS" ]; then
-        OPTS="${OPTS},password=${PASS}"
-    fi
-
-    UNC="//${SERVER}/${SHARE}"
-    echo "[INFO] Mounte ${UNC} → ${MOUNTPOINT} ..."
-
+    [ -n "$USER" ] && OPTS="${OPTS},username=${USER}" || OPTS="${OPTS},guest"
+    [ -n "$PASS" ] && OPTS="${OPTS},password=${PASS}"
     ERR_FILE="/tmp/mount_err_$$"
-    if mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1; then
+    if mount -t cifs "//${SERVER}/${SHARE}" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1; then
         rm -f "$ERR_FILE"
-        echo "[OK]   ${UNC} erfolgreich gemountet"
+        echo "[OK]   //${SERVER}/${SHARE} → ${MOUNTPOINT}"
     else
-        MOUNT_ERR=$(cat "$ERR_FILE" 2>/dev/null)
+        echo "[FAIL] Mount //${SERVER}/${SHARE}: $(cat "$ERR_FILE" 2>/dev/null)"
         rm -f "$ERR_FILE"
-        echo "[FAIL] Mount von ${UNC} fehlgeschlagen: ${MOUNT_ERR}"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
     fi
 }
@@ -122,120 +90,76 @@ do_mount() {
 mount_smb() {
     INDEX=$1
     SERVER=$(jq -r ".smb_${INDEX}_server // empty" "$OPTIONS" 2>/dev/null)
-    SHARE=$(jq -r ".smb_${INDEX}_share // empty" "$OPTIONS" 2>/dev/null)
-    USER=$(jq -r ".smb_${INDEX}_user // empty" "$OPTIONS" 2>/dev/null)
-    PASS=$(jq -r ".smb_${INDEX}_password // empty" "$OPTIONS" 2>/dev/null)
-
-    if [ -z "$SERVER" ]; then
-        echo "[INFO] SMB-${INDEX}: nicht konfiguriert — übersprungen"
-        return
-    fi
-
-    if [ -z "$SHARE" ]; then
-        echo "[WARN] SMB-${INDEX}: Kein Share angegeben — übersprungen"
-        return
-    fi
-
+    SHARE=$(jq -r  ".smb_${INDEX}_share // empty"  "$OPTIONS" 2>/dev/null)
+    USER=$(jq -r   ".smb_${INDEX}_user // empty"   "$OPTIONS" 2>/dev/null)
+    PASS=$(jq -r   ".smb_${INDEX}_password // empty" "$OPTIONS" 2>/dev/null)
+    [ -z "$SERVER" ] && echo "[INFO] SMB-${INDEX}: nicht konfiguriert" && return
+    [ -z "$SHARE"  ] && echo "[WARN] SMB-${INDEX}: kein Share" && return
     do_mount "$SERVER" "$SHARE" "$USER" "$PASS" "/mnt/smb${INDEX}"
 }
 
 echo "--- SMB-Mounts ---"
-mount_smb 1
-mount_smb 2
-mount_smb 3
+mount_smb 1; mount_smb 2; mount_smb 3
 echo "------------------"
 
-# occ-Pfad dynamisch ermitteln
-find_occ() {
-    for P in \
-        /config/www/nextcloud/occ \
-        /app/www/nextcloud/occ \
-        /app/nextcloud/occ \
-        /var/www/nextcloud/occ \
-        /var/www/html/occ; do
-        [ -f "$P" ] && echo "$P" && return
-    done
-    find /config /app /var/www 2>/dev/null -name occ -type f | head -1
-}
-OCC_BIN=$(find_occ)
-echo "[INFO] occ gefunden: ${OCC_BIN:-NICHT GEFUNDEN}"
+# --- Warte auf linuxservers persistente Nextcloud-Instanz ---
+# linuxserver initialisiert /config/www/nextcloud/ asynchron beim ersten Start
+OCC_BIN=/config/www/nextcloud/occ
 
+if [ ! -f "$OCC_BIN" ]; then
+    echo "[INFO] Warte auf /config/www/nextcloud/occ (max. 30 min) ..."
+    TRIES=0
+    while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 360 ]; do
+        sleep 5
+        TRIES=$((TRIES + 1))
+        if [ $((TRIES % 6)) -eq 0 ]; then
+            echo "[DEBUG] +$((TRIES * 5))s — /config/www: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
+        fi
+    done
+    if [ ! -f "$OCC_BIN" ]; then
+        echo "[WARN] occ nach 30 Min nicht gefunden — warte dauerhaft"
+        exec tail -f /dev/null
+    fi
+fi
+
+echo "[INFO] occ gefunden: ${OCC_BIN}"
+
+# --- occ-Wrapper ---
 occ() {
     ALLOW_ROOT=1 php "$OCC_BIN" "$@" || true
 }
 
-# Konfiguration anwenden (Erst- und Folgestarts)
+# --- Konfiguration ---
 apply_config() {
-    echo "[INFO] Wende Nextcloud-Konfiguration an ..."
-
+    echo "[INFO] Wende Konfiguration an ..."
     occ config:system:set trusted_domains 0 --value="localhost"
     occ config:system:set trusted_domains 1 --value="homeassistant.local"
     IDX=2
     if [ -n "$TRUSTED_DOMAINS" ]; then
         echo "$TRUSTED_DOMAINS" | tr ',' '\n' | while IFS= read -r D; do
-            D=$(echo "$D" | tr -d ' \r')
-            [ -z "$D" ] && continue
+            D=$(echo "$D" | tr -d ' \r'); [ -z "$D" ] && continue
             occ config:system:set trusted_domains "$IDX" --value="$D"
             IDX=$((IDX + 1))
         done
     fi
-
     occ config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION"
-
     if [ "$ENABLE_THUMBNAILS" = "true" ]; then
         occ config:system:set enable_previews --value=true --type=boolean
     else
         occ config:system:set enable_previews --value=false --type=boolean
     fi
-
     if [ "$DISABLE_UPDATES" = "true" ]; then
         occ config:system:set upgrade.disable-web --value=true --type=boolean
     fi
 }
 
-# Hinweis: s6-overlay (linuxserver /init) läuft bereits als PID 1.
-# Unser Script wird als CMD-Callback aufgerufen — Nextcloud-Dateien
-# sind bereits in /config/www/nextcloud vorhanden.
-
-# Warte auf Nextcloud-Dateien (linuxserver kopiert diese asynchron)
-if [ -z "$OCC_BIN" ]; then
-    echo "[INFO] occ noch nicht vorhanden — warte auf Download/Entpacken (max. 30 min) ..."
-    echo "[INFO] Erster Start: linuxserver lädt Nextcloud herunter und entpackt ~100 MB"
-    TRIES=0
-    while [ $TRIES -lt 360 ]; do
-        sleep 5
-        TRIES=$((TRIES + 1))
-        OCC_BIN=$(find_occ)
-        if [ -n "$OCC_BIN" ]; then
-            echo "[INFO] occ gefunden nach $((TRIES * 5))s: ${OCC_BIN}"
-            break
-        fi
-        if [ $((TRIES % 6)) -eq 0 ]; then
-            echo "[DEBUG] +$((TRIES * 5))s — /config: $(ls /config/ 2>/dev/null | tr '\n' ' ')"
-            echo "[DEBUG] +$((TRIES * 5))s — /app:    $(ls /app/ 2>/dev/null | tr '\n' ' ' || echo 'nicht vorhanden')"
-        fi
-    done
-    if [ -z "$OCC_BIN" ]; then
-        echo "[WARN] occ nach 30 Minuten nicht gefunden — Abbruch"
-        echo "[DEBUG] /config: $(ls /config/ 2>/dev/null | tr '\n' ' ')"
-        echo "[DEBUG] /app:    $(ls /app/ 2>/dev/null | tr '\n' ' ' || echo 'nicht vorhanden')"
-        echo "[DEBUG] find occ: $(find / -name occ -type f 2>/dev/null | tr '\n' ' ' || echo 'nichts')"
-        exit 0
-    fi
-fi
-
-# NC_CONFIG relativ zu OCC_BIN (linuxserver hat Pfad geändert: /app/www/src/)
-NC_CONFIG="$(dirname "$OCC_BIN")/config/config.php"
-echo "[INFO] NC_CONFIG: ${NC_CONFIG}"
-
-# Zuverlässige Installations-Erkennung via occ status
+# --- Installations-Check via occ status ---
 NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
     | jq -r '.installed // false' 2>/dev/null || echo "false")
 echo "[INFO] NC installed: ${NC_INSTALLED}"
 
 if [ "$NC_INSTALLED" != "true" ]; then
     echo "[INFO] Führe Nextcloud-Installation aus ..."
-
     if [ "$DB_TYPE" = "mysql" ]; then
         echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
         ALLOW_ROOT=1 php "$OCC_BIN" maintenance:install \
@@ -248,7 +172,6 @@ if [ "$NC_INSTALLED" != "true" ]; then
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
             --data-dir /config/data
-        echo "[OK]   Nextcloud mit MariaDB installiert (Exit: $?)"
     else
         echo "[INFO] Installation mit SQLite ..."
         ALLOW_ROOT=1 php "$OCC_BIN" maintenance:install \
@@ -257,12 +180,11 @@ if [ "$NC_INSTALLED" != "true" ]; then
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
             --data-dir /config/data
-        echo "[OK]   Nextcloud mit SQLite installiert (Exit: $?)"
     fi
+    echo "[OK]   Installation abgeschlossen"
 
     apply_config
 
-    # SMB-Shares als externe Speicher einbinden
     occ app:enable files_external
     for IDX in 1 2 3; do
         if mountpoint -q "/mnt/smb${IDX}" 2>/dev/null; then
@@ -280,4 +202,5 @@ else
     apply_config
 fi
 
-echo "[INFO] run.sh abgeschlossen — s6-overlay übernimmt"
+echo "[INFO] Konfiguration fertig — halte Prozess am Leben (s6 Supervision)"
+exec tail -f /dev/null

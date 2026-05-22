@@ -1,5 +1,10 @@
 # Changelog — Nextcloud
 
+## 0.0.11
+- Fix: Nur /config/www/nextcloud/occ verwenden (persistente Instanz)
+- Fix: exec tail -f /dev/null am Ende verhindert s6-Neustart-Loop
+- Fix: Kein falscher occ-Aufruf auf /app/www/src/ mehr
+
 ## 0.0.10
 - Fix: `--allow-root` → `ALLOW_ROOT=1` Umgebungsvariable (neues NC-Format)
 
