@@ -1,5 +1,10 @@
 # Changelog — Nextcloud
 
+## 0.0.16
+- Fix: /config/data vor Installation mit PUID/PGID anlegen (Webserver-User kann schreiben)
+- Fix: config.php vor Neuinstallation löschen (sauberer Reset)
+- Fix: maintenance:install Exit-Code prüfen — bei Fehler klarer FAIL-Log statt stilles Weitermachen
+
 ## 0.0.15
 - Fix: Gesamtes /config/data/ vor Neuinstallation bereinigen (nicht nur Admin-Ordner) — verhindert "Login already used" bei SQLite-DB-Resten
 

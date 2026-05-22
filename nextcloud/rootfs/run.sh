@@ -159,11 +159,13 @@ NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
 echo "[INFO] NC installed: ${NC_INSTALLED}"
 
 if [ "$NC_INSTALLED" != "true" ]; then
-    # Überreste von gescheiterten Vorinstallationen bereinigen (DB + Dateiordner)
-    if [ -d "/config/data" ] && [ "$(ls -A /config/data 2>/dev/null)" ]; then
-        echo "[INFO] Bereinige /config/data/ vor Neuinstallation ..."
-        rm -rf /config/data
-    fi
+    echo "[INFO] Bereinige vor Neuinstallation ..."
+    rm -rf /config/data
+    rm -f /config/www/nextcloud/config/config.php
+    mkdir -p /config/data
+    chown -R "${PUID}:${PGID}" /config/data
+    chmod 770 /config/data
+
     echo "[INFO] Führe Nextcloud-Installation aus ..."
     if [ "$DB_TYPE" = "mysql" ]; then
         echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
@@ -185,6 +187,11 @@ if [ "$NC_INSTALLED" != "true" ]; then
             --admin-user "$ADMIN_USER" \
             --admin-pass "$ADMIN_PASS" \
             --data-dir /config/data
+    fi
+    INSTALL_RC=$?
+    if [ $INSTALL_RC -ne 0 ]; then
+        echo "[FAIL] Installation fehlgeschlagen (RC=${INSTALL_RC}) — warte dauerhaft"
+        exec tail -f /dev/null
     fi
     echo "[OK]   Installation abgeschlossen"
 
