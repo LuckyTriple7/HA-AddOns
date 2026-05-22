@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.28
+- Wartungsfenster auf 1 Uhr UTC gesetzt (= 2-3 Uhr nachts DE)
+
 ## 0.0.27
 - Standardsprache für neue Benutzer auf Deutsch gesetzt (default_language=de, default_locale=de_DE)
 
