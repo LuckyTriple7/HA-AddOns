@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.15
+- Fix: Gesamtes /config/data/ vor Neuinstallation bereinigen (nicht nur Admin-Ordner) — verhindert "Login already used" bei SQLite-DB-Resten
+
 ## 0.0.14
 - Fix: Admin-Ordner in /config/data/ vor Neuinstallation bereinigen ("files already exist"-Fehler)
 
