@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.7] - 2026-05-22
+
+### Behoben
+- **Leere Chats nach Sprachauswahl-Feature** — Temporal Dead Zone (TDZ) Bug: `const t` als lokale Variable in der Foto-Renderlogik kollidierte mit der globalen `t()`-Übersetzungsfunktion und warf `ReferenceError` für alle Chats mit Fotos; lokale Variable in `timeEl` umbenannt
+
 ## [1.3.6] - 2026-05-22
 
 ### Neu

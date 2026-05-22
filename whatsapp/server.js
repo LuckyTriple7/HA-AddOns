@@ -1540,7 +1540,7 @@ app.get('/', (req, res) => {
           img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
           bub.appendChild(img);
           if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.innerHTML = formatText(m.body); bub.appendChild(cap); }
-          const t = document.createElement('span'); t.className = 'time'; t.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(t);
+          const timeEl = document.createElement('span'); timeEl.className = 'time'; timeEl.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(timeEl);
         } else {
           const fwdHtml = m.isForwarded
             ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded')) + '</span>'
