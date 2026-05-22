@@ -156,10 +156,19 @@ apply_config() {
     fi
 }
 
-# --- Installations-Check ---
-NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
-    | jq -r '.installed // false' 2>/dev/null || echo "false")
-echo "[INFO] NC installed: ${NC_INSTALLED}"
+# --- Installations-Check (direkt via config.php, kein occ nötig) ---
+CONFIG_PHP=/config/www/nextcloud/config/config.php
+
+nc_is_installed() {
+    [ -f "$CONFIG_PHP" ] && grep -q "'installed' => true" "$CONFIG_PHP" 2>/dev/null
+}
+
+if nc_is_installed; then
+    NC_INSTALLED="true"
+else
+    NC_INSTALLED="false"
+fi
+echo "[INFO] NC installed: ${NC_INSTALLED} (config.php: ${CONFIG_PHP})"
 
 if [ "$NC_INSTALLED" != "true" ]; then
     echo "[INFO] Nextcloud nicht installiert."
@@ -169,9 +178,7 @@ if [ "$NC_INSTALLED" != "true" ]; then
 
     while true; do
         sleep 15
-        NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
-            | jq -r '.installed // false' 2>/dev/null || echo "false")
-        if [ "$NC_INSTALLED" = "true" ]; then
+        if nc_is_installed; then
             break
         fi
     done

@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.22
+- Fix: Installations-Check liest config.php direkt (grep statt occ status) — 100% zuverlässig nach Web-Installer
+
 ## 0.0.21
 - Fix: OC_CONFIG_PATH=/config/www/nextcloud/config/ gesetzt — occ und Webserver nutzen jetzt garantiert dieselbe config.php (Symlink-Ansatz entfernt)
 
