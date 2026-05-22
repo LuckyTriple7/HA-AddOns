@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.30
+- Neu: maintenance_window_start als konfigurierbare Option (Stunde 0-23 UTC, Standard: 1)
+
 ## 0.0.29
 - MIME-Type-Migrationen automatisch ausführen (occ maintenance:repair --include-expensive)
 

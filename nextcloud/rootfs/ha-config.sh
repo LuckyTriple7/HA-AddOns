@@ -36,7 +36,8 @@ fi
 occ config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION"
 occ config:system:set default_language --value="de"
 occ config:system:set default_locale --value="de_DE"
-occ config:system:set maintenance_window_start --type=integer --value=1
+MAINTENANCE_WINDOW=$(jq -r '.maintenance_window_start // 1' "$OPTIONS" 2>/dev/null || echo 1)
+occ config:system:set maintenance_window_start --type=integer --value="$MAINTENANCE_WINDOW"
 occ maintenance:repair --include-expensive
 
 if [ "$ENABLE_THUMBNAILS" = "true" ]; then
