@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.8] - 2026-05-22
+
+### Geändert
+- **Chat-Bubble-Farbe** — gesendete Nachrichten waren WhatsApp-grün (`#dcf8c6`); jetzt Signal-Blau (`#d1e3ff` hell / `#1d3c8a` dunkel)
+
 ## [1.1.7] - 2026-05-22
 
 ### Neu

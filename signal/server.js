@@ -636,7 +636,7 @@ html.dark .unread-dot { background: #3cdb7c; }
 #no-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 15px; }
 .bubble { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; word-break: break-word; }
 .bubble.in { background: #fff; border-bottom-left-radius: 2px; }
-.bubble.out { background: #dcf8c6; border-bottom-right-radius: 2px; }
+.bubble.out { background: #d1e3ff; border-bottom-right-radius: 2px; }
 .bubble-row { display: flex; align-items: center; gap: 6px; }
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
@@ -687,7 +687,7 @@ html.dark .chat-preview { color: #8696a0; }
 html.dark .chat-time { color: #8696a0; }
 html.dark #chat-panel { background: #0b141a; }
 html.dark .bubble.in { background: #202c33; color: #e9edef; }
-html.dark .bubble.out { background: #005c4b; color: #e9edef; }
+html.dark .bubble.out { background: #1d3c8a; color: #e9edef; }
 html.dark .bubble-time { color: rgba(134,150,160,0.85); }
 html.dark .day-sep span { background: rgba(17,27,33,0.9); color: #8696a0; }
 html.dark #no-chat { color: #8696a0; }
