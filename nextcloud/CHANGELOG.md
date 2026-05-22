@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.14
+- Fix: Admin-Ordner in /config/data/ vor Neuinstallation bereinigen ("files already exist"-Fehler)
+
 ## 0.0.13
 - Fix: occ-Pfad auf /app/www/src/occ korrigiert (linuxserver v33+: App im Image, nur config/apps/themes persistiert)
 

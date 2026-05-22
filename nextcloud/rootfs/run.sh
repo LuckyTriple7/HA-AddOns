@@ -159,6 +159,11 @@ NC_INSTALLED=$(ALLOW_ROOT=1 php "$OCC_BIN" status --output=json 2>/dev/null \
 echo "[INFO] NC installed: ${NC_INSTALLED}"
 
 if [ "$NC_INSTALLED" != "true" ]; then
+    # Überreste von gescheiterten Vorinstallationen bereinigen (verhindert "files already exist")
+    if [ -d "/config/data/${ADMIN_USER}" ]; then
+        echo "[INFO] Bereinige alten Admin-Ordner /config/data/${ADMIN_USER} ..."
+        rm -rf "/config/data/${ADMIN_USER}"
+    fi
     echo "[INFO] Führe Nextcloud-Installation aus ..."
     if [ "$DB_TYPE" = "mysql" ]; then
         echo "[INFO] Installation mit MariaDB (${DB_HOST}:${DB_PORT}) ..."
