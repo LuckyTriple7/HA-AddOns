@@ -613,6 +613,29 @@ app.post('/api/react', async (req, res) => {
     const msg = await client.getMessageById(msgId);
     if (!msg) return res.status(404).json({ error: 'Message not found' });
     await msg.react(reaction || '');
+
+    // Lokale Reaktion sofort persistieren (message_reaction-Event feuert für eigene
+    // Reaktionen nicht zuverlässig, weshalb sie nach einem Neustart sonst verloren gehen)
+    const myJid = connectedPhone ? connectedPhone + '@c.us' : null;
+    if (myJid) {
+      for (const msgs of messagesByChatId.values()) {
+        const stored = msgs.find(m => m.id === msgId);
+        if (stored) {
+          if (!stored.reactions) stored.reactions = {};
+          for (const e of Object.keys(stored.reactions)) {
+            stored.reactions[e] = stored.reactions[e].filter(s => s !== myJid);
+            if (!stored.reactions[e].length) delete stored.reactions[e];
+          }
+          if (reaction) {
+            if (!stored.reactions[reaction]) stored.reactions[reaction] = [];
+            if (!stored.reactions[reaction].includes(myJid)) stored.reactions[reaction].push(myJid);
+          }
+          scheduleSave();
+          break;
+        }
+      }
+    }
+
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

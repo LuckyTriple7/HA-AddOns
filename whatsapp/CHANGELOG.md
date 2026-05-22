@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.9] - 2026-05-22
+
+### Behoben
+- **Eigene Reaktionen nach Neustart weg** — `/api/react` persistiert die eigene Reaktion jetzt sofort lokal; der `message_reaction`-Event von whatsapp-web.js feuert für eigene Reaktionen nicht zuverlässig und konnte die Daten nicht rechtzeitig speichern
+
 ## [1.3.8] - 2026-05-22
 
 ### Geändert
