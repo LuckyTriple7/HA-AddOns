@@ -702,14 +702,14 @@ html.dark #emoji-toggle { color: #8696a0; }
 
 <div id="spinner-overlay">
   <div class="spinner"></div>
-  <div id="spinner-text">Starte Signal…</div>
+  <div id="spinner-text" data-i18n="spinnerStart">Starte Signal…</div>
 </div>
 
 <div id="qr-overlay">
-  <h2>Signal verknüpfen</h2>
-  <p>Signal öffnen → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen</p>
-  <div id="qr-img">Lade QR-Code…</div>
-  <button id="qr-refresh-btn" onclick="refreshQR()">QR-Code neu laden</button>
+  <h2 data-i18n="qrTitle">Signal verknüpfen</h2>
+  <p data-i18n="qrInstr">Signal öffnen → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen</p>
+  <div id="qr-img" data-i18n="qrLoading">Lade QR-Code…</div>
+  <button id="qr-refresh-btn" onclick="refreshQR()" data-i18n="qrRefreshBtn">QR-Code neu laden</button>
   <p id="qr-uri"></p>
 </div>
 
@@ -717,17 +717,18 @@ html.dark #emoji-toggle { color: #8696a0; }
   <h1>Signal</h1>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" title="Fotos AN">📷</button>' : ''}
-  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
-  <button class="scroll-btn" onclick="scrollMsgs('top')" title="Nach oben">↑</button>
-  <button class="scroll-btn" onclick="scrollMsgs('bottom')" title="Nach unten">↓</button>
-  <button id="logout-btn" onclick="logout()" title="Abmelden">⏻</button>
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
+  <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
+  <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
+  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
+  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden">⏻</button>
 </div>
 
 <div id="main">
   <div id="sidebar">
     <div id="search-wrap">
-      <input id="search-input" type="text" placeholder="Suchen…" oninput="filterChats(this.value)">
+      <input id="search-input" type="text" placeholder="Suchen…" data-i18n-pl="searchPlaceholder" oninput="filterChats(this.value)">
     </div>
     <div id="chat-list"></div>
   </div>
@@ -736,16 +737,16 @@ html.dark #emoji-toggle { color: #8696a0; }
       <button id="back-btn" onclick="closeChat()">&#8592;</button>
       <div class="avatar" id="ch-avatar" style="width:36px;height:36px;font-size:14px;background:#3a76f8">?</div>
       <div style="flex:1;overflow:hidden">
-        <div id="ch-name">Kein Chat ausgewählt</div>
+        <div id="ch-name" data-i18n="noChatSelected">Kein Chat ausgewählt</div>
         <div id="ch-phone"></div>
       </div>
-      ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" title="Fehlende Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
+      ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
     </div>
-    <div id="messages"><div id="no-chat">Wähle einen Chat aus der Liste</div></div>
+    <div id="messages"><div id="no-chat" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div></div>
     <div id="input-bar">
       <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
-      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" title="Emoji">😊</button>
-      <textarea id="msg-input" rows="1" placeholder="Nachricht…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">😊</button>
+      <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -754,6 +755,71 @@ html.dark #emoji-toggle { color: #8696a0; }
 </div>
 
 <script>
+const LANG = {
+  de: {
+    spinnerStart: 'Starte Signal…', spinnerConnect: 'Verbinde…', spinnerLogout: 'Abmelden…',
+    spinnerError: (e) => 'Fehler: ' + e,
+    qrTitle: 'Signal verknüpfen',
+    qrInstr: 'Signal öffnen → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen',
+    qrLoading: 'Lade QR-Code…', qrLoadingLong: 'Lade QR-Code… (kann bis zu 60s dauern)',
+    qrError: (e) => 'Fehler: ' + e, qrRefreshBtn: 'QR-Code neu laden',
+    photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
+    cleanupTitle: 'Verwaiste Mediendateien löschen',
+    btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', btnLogout: 'Abmelden',
+    searchPlaceholder: 'Suchen…', noChatSelected: 'Wähle einen Chat aus der Liste',
+    noMessages: 'Noch keine Nachrichten',
+    btnFetchMedia: '📥 Fotos nachladen', fetchMediaTitle: 'Fehlende Fotos herunterladen',
+    fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
+    fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', emojiTitle: 'Emoji',
+    errSend: (e) => 'Fehler: ' + e,
+    cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
+    cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
+    cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
+  },
+  en: {
+    spinnerStart: 'Starting Signal…', spinnerConnect: 'Connecting…', spinnerLogout: 'Logging out…',
+    spinnerError: (e) => 'Error: ' + e,
+    qrTitle: 'Link Signal',
+    qrInstr: 'Open Signal → Settings → Linked Devices → Link a Device → Scan QR code',
+    qrLoading: 'Loading QR code…', qrLoadingLong: 'Loading QR code… (may take up to 60s)',
+    qrError: (e) => 'Error: ' + e, qrRefreshBtn: 'Reload QR code',
+    photosOn: 'Photos ON', photosOff: 'Photos OFF',
+    cleanupTitle: 'Delete orphaned media files',
+    btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', btnLogout: 'Log out',
+    searchPlaceholder: 'Search…', noChatSelected: 'Select a chat from the list',
+    noMessages: 'No messages yet',
+    btnFetchMedia: '📥 Load photos', fetchMediaTitle: 'Download missing photos',
+    fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
+    fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', emojiTitle: 'Emoji',
+    errSend: (e) => 'Error: ' + e,
+    cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
+    cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
+    cleanupError: (e) => 'Cleanup error: ' + e,
+  },
+};
+let lang = localStorage.getItem('signal_lang') || 'de';
+function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
+function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
+function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  const lb = document.getElementById('lang-btn');
+  if (lb) lb.textContent = lang === 'de' ? '🌐 DE' : '🌐 EN';
+  const fmb = document.getElementById('fetch-media-btn');
+  if (fmb && !fmb.disabled) fmb.textContent = t('btnFetchMedia');
+  const ptb = document.getElementById('photo-toggle-btn');
+  if (ptb) ptb.title = document.getElementById('photo-toggle-btn').classList.contains('active') ? t('photosOn') : t('photosOff');
+}
+function switchLang() {
+  lang = lang === 'de' ? 'en' : 'de';
+  localStorage.setItem('signal_lang', lang);
+  applyLang();
+}
+
 const BASE = location.pathname.replace(/\\/$/, '');
 let currentStatus = '';
 let selectedChatId = null;
@@ -765,7 +831,7 @@ function api(path) { return BASE + path; }
 
 function showSpinner(msg) {
   document.getElementById('spinner-overlay').style.display = 'flex';
-  document.getElementById('spinner-text').textContent = msg || 'Verbinde…';
+  document.getElementById('spinner-text').textContent = msg || t('spinnerConnect');
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('main').style.display = 'none';
   document.getElementById('qr-overlay').style.display = 'none';
@@ -806,9 +872,9 @@ function loadQR() {
         const svg = el.querySelector('svg');
         if (svg) { svg.style.width = '300px'; svg.style.height = '300px'; }
       } else if (d.error) {
-        el.textContent = 'Fehler: ' + d.error;
+        el.textContent = tf('qrError', d.error);
       } else {
-        el.textContent = 'Lade QR-Code… (kann bis zu 60s dauern)';
+        el.textContent = t('qrLoadingLong');
       }
       if (uriEl) uriEl.textContent = d.uri ? 'URI: ' + d.uri.substring(0, 40) + '…' : '';
     }).catch(() => {});
@@ -817,7 +883,7 @@ function loadQR() {
 
 function refreshQR() {
   const el = document.getElementById('qr-img');
-  el.textContent = 'Lade QR-Code…';
+  el.textContent = t('qrLoading');
   document.getElementById('qr-uri').textContent = '';
   // Tell server to fetch a fresh QR code
   fetch(api('/api/qr/refresh'), { method: 'POST' }).catch(() => {});
@@ -831,7 +897,7 @@ async function refresh() {
     currentStatus = d.status;
 
     if (d.status === 'starting') {
-      showSpinner('Starte Signal…');
+      showSpinner(t('spinnerStart'));
     } else if (d.status === 'not-linked') {
       if (qrInterval) { clearInterval(qrInterval); qrInterval = null; }
       showQR();
@@ -840,7 +906,7 @@ async function refresh() {
       showMain(d.phone);
       loadChats();
     } else if (d.status === 'error') {
-      showSpinner('Fehler: ' + d.error);
+      showSpinner(tf('spinnerError', d.error));
     }
   } catch (e) {}
 }
@@ -862,8 +928,8 @@ function formatTime(ts) {
   const d = new Date(n > 1e12 ? n : n * 1000);
   if (!Number.isFinite(d.getTime())) return '';
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit' });
 }
 
 function escHtml(s) {
@@ -958,17 +1024,17 @@ async function loadMessages(chatId) {
 
 function renderMessages(msgs) {
   const el = document.getElementById('messages');
-  if (!msgs.length) { el.innerHTML = '<div id="no-chat">Noch keine Nachrichten</div>'; return; }
+  if (!msgs.length) { el.innerHTML = '<div id="no-chat">' + t('noMessages') + '</div>'; return; }
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   let lastDate = '';
   el.innerHTML = msgs.map(m => {
     const tsNum = Number(m.timestamp);
     const tsMs = tsNum > 1e12 ? tsNum : tsNum * 1000;
     const d = new Date(Number.isFinite(tsMs) && tsMs > 0 ? tsMs : Date.now());
-    const dateStr = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dateStr = d.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
     let sep = '';
     if (dateStr !== lastDate) { sep = \`<div class="day-sep"><span>\${dateStr}</span></div>\`; lastDate = dateStr; }
-    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
     const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
     if (m.mediaFile) {
@@ -979,7 +1045,7 @@ function renderMessages(msgs) {
     } else {
       content = formatText(m.body || '');
     }
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="Löschen">✕</button></div>\`;
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">✕</button></div>\`;
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
@@ -1002,11 +1068,11 @@ async function sendMsg() {
     fetch(api('/api/poll'), { method: 'POST' });
     await loadMessages(selectedChatId);
     await loadChats();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { alert(tf('errSend', e.message)); }
 }
 
 async function logout() {
-  showSpinner('Abmelden…');
+  showSpinner(t('spinnerLogout'));
   await fetch(api('/api/logout'), { method: 'POST' }).catch(() => {});
 }
 
@@ -1027,41 +1093,41 @@ loadStorage();
 setInterval(loadStorage, 60000);
 
 async function cleanupMedia() {
-  if (!confirm('Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?')) return;
+  if (!confirm(t('cleanupConfirm'))) return;
   try {
     const d = await fetch(api('/api/cleanup-media'), { method: 'POST' }).then(r => r.json());
-    alert(d.deleted + ' Datei(en) gelöscht, ' + d.freedMb + ' MB freigegeben.');
+    alert(tf('cleanupSuccess', d.deleted, d.freedMb));
     loadStorage();
-  } catch(e) { alert('Fehler beim Cleanup: ' + e.message); }
+  } catch(e) { alert(tf('cleanupError', e.message)); }
 }
 
 async function fetchMedia() {
   const btn = document.getElementById('fetch-media-btn');
   if (!btn || !selectedChatId) return;
   btn.disabled = true;
-  btn.textContent = '⏳ Lade…';
+  btn.textContent = t('fetchMediaLoading');
   try {
     const d = await fetch(api('/api/fetch-media/' + encodeURIComponent(selectedChatId)), { method: 'POST' }).then(r => r.json());
     if (!d.total) {
-      btn.textContent = '✓ Alle geladen';
-      setTimeout(() => { btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }, 2500);
+      btn.textContent = t('fetchMediaDone');
+      setTimeout(() => { btn.disabled = false; btn.textContent = t('btnFetchMedia'); }, 2500);
       return;
     }
-    btn.textContent = '⏳ ' + d.total + ' Fotos…';
+    btn.textContent = tf('fetchMediaCount', d.total);
     let polls = 0;
     const iv = setInterval(async () => {
       await loadMessages(selectedChatId);
       polls++;
-      if (polls >= 20) { clearInterval(iv); btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }
+      if (polls >= 20) { clearInterval(iv); btn.disabled = false; btn.textContent = t('btnFetchMedia'); }
     }, 2000);
-  } catch(e) { btn.disabled = false; btn.textContent = '📥 Fotos nachladen'; }
+  } catch(e) { btn.disabled = false; btn.textContent = t('btnFetchMedia'); }
 }
 
 function togglePhotos() {
   showPhotos = !showPhotos;
   localStorage.setItem('signal_show_photos', showPhotos ? 'true' : 'false');
   const btn = document.getElementById('photo-toggle-btn');
-  if (btn) { btn.textContent = showPhotos ? '📷' : '🚫'; btn.title = showPhotos ? 'Fotos AN' : 'Fotos AUS'; btn.classList.toggle('active', showPhotos); }
+  if (btn) { btn.textContent = showPhotos ? '📷' : '🚫'; btn.title = showPhotos ? t('photosOn') : t('photosOff'); btn.classList.toggle('active', showPhotos); }
   if (selectedChatId) loadMessages(selectedChatId);
 }
 
@@ -1141,6 +1207,8 @@ document.addEventListener('click', (e) => {
     document.getElementById('emoji-picker').classList.remove('open');
   }
 });
+
+applyLang();
 </script>
 </body>
 </html>`;

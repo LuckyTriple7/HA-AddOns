@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.7] - 2026-05-22
+
+### Neu
+- **Sprachauswahl Deutsch / Englisch** — `🌐 DE` / `🌐 EN` Button in der Topbar; Einstellung wird im Browser gespeichert (Standard: Deutsch)
+- Alle UI-Texte übersetzt: Buttons, Tooltips, Modals, Spinner, Datum/Uhrzeit-Format, Fehlermeldungen
+
 ## [1.1.6] - 2026-05-21
 
 ### Neu
