@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.12] - 2026-05-22
+
+### Geändert
+- **signal-cli-rest-api Version im Log** — stdout+stderr werden gecaptured, Versionsmuster (`v0.0.0`) per grep extrahiert; falls kein Muster gefunden: „version unknown"
+
 ## [1.1.11] - 2026-05-22
 
 ### Geändert
