@@ -189,13 +189,20 @@ NC_CONFIG=/config/www/nextcloud/config/config.php
 # Warte auf Nextcloud-Dateien (linuxserver kopiert diese asynchron)
 if [ ! -f "$OCC_BIN" ]; then
     echo "[INFO] Warte auf Nextcloud-Dateien (max. 10 min) ..."
+    echo "[DEBUG] Erwarte: ${OCC_BIN}"
+    echo "[DEBUG] /config/www jetzt: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'Verzeichnis nicht vorhanden')"
     TRIES=0
     while [ ! -f "$OCC_BIN" ] && [ $TRIES -lt 120 ]; do
         sleep 5
         TRIES=$((TRIES + 1))
+        if [ $((TRIES % 6)) -eq 0 ]; then
+            echo "[DEBUG] +$((TRIES * 5))s — /config/www: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
+        fi
     done
     if [ ! -f "$OCC_BIN" ]; then
-        echo "[WARN] Nextcloud-Dateien nach 10 Minuten nicht gefunden — Abbruch"
+        echo "[WARN] Nextcloud-Dateien nach 10 Minuten nicht gefunden"
+        echo "[DEBUG] /config/www final: $(ls /config/www/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
+        echo "[DEBUG] /config: $(ls /config/ 2>/dev/null | tr '\n' ' ' || echo 'leer')"
         exit 0
     fi
     echo "[INFO] Nextcloud-Dateien bereit"

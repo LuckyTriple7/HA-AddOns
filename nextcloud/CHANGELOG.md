@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.6
+- Diagnose-Output in Warte-Schleife (alle 30s Verzeichnisinhalt)
+
 ## 0.0.5
 - Verbose Logging für occ maintenance:install (Fehlerausgabe nicht mehr unterdrückt)
 
