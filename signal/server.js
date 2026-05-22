@@ -1229,7 +1229,9 @@ async function init() {
       if (r.ok) {
         try {
           const about = await r.json();
-          const ver = about?.build?.version || about?.versions?.join(', ') || '?';
+          const buildVer = about?.build?.version;
+          const apiVers = about?.versions?.join(', ');
+          const ver = buildVer ? buildVer : apiVers ? `(API: ${apiVers})` : '?';
           console.log(`[INFO] signal-cli-rest-api ${ver}`);
         } catch (e) {}
         break;
