@@ -1,5 +1,10 @@
 # Changelog — Nextcloud
 
+## 0.0.23
+- Fix: OCC_BIN auf /app/www/public/occ geändert — dessen __DIR__/config/ zeigt via Symlink auf /config/www/nextcloud/config/ (persistente config.php), identisch zum Webserver
+- Fix: OC_CONFIG_PATH-Workaround entfernt (war wirkungslos, weil occ __DIR__-relativ sucht)
+- trusted_domains und alle anderen occ-Konfigurationen schreiben jetzt in die richtige config.php
+
 ## 0.0.22
 - Fix: Installations-Check liest config.php direkt (grep statt occ status) — 100% zuverlässig nach Web-Installer
 

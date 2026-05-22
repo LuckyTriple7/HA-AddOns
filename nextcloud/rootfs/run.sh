@@ -105,7 +105,9 @@ mount_smb 1; mount_smb 2; mount_smb 3
 echo "------------------"
 
 # --- Warte auf linuxservers Init ---
-OCC_BIN=/app/www/src/occ
+# /app/www/public/occ lesen: __DIR__/config/ = /app/www/public/config/
+# → dieser Symlink zeigt bereits auf /config/www/nextcloud/config/ (persistente config.php)
+OCC_BIN=/app/www/public/occ
 
 if [ ! -f "$OCC_BIN" ]; then
     echo "[INFO] Warte auf linuxserver Init ..."
@@ -121,11 +123,6 @@ if [ ! -f "$OCC_BIN" ]; then
 fi
 
 echo "[INFO] occ gefunden: ${OCC_BIN}"
-
-# OC_CONFIG_PATH zeigt occ auf die persistente config.php (identisch mit dem
-# Pfad den der Webserver nutzt: /app/www/public/config → /config/www/nextcloud/config)
-export OC_CONFIG_PATH=/config/www/nextcloud/config/
-echo "[INFO] OC_CONFIG_PATH=${OC_CONFIG_PATH}"
 
 # --- occ-Wrapper ---
 occ() {
