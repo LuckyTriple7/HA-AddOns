@@ -11,10 +11,16 @@ export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' 
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
 export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
-export SESSION_DIR=/data/session
+export SESSION_DIR=/config/session
 export PORT=3000
 
 mkdir -p "$SESSION_DIR"
+
+# Migration: /data/session → /config/session (einmalig)
+if [ -d /data/session ] && [ ! -f /config/session/.migrated ]; then
+    cp -a /data/session/. /config/session/ 2>/dev/null || true
+    touch /config/session/.migrated
+fi
 
 # Remove Chromium lock files left over from unclean shutdown (process.exit kills
 # Node before Chromium can clean up, leaving SingletonLock which blocks next start)

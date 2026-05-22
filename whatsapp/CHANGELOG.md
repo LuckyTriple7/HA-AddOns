@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.21] - 2026-05-23
+- Session, Media, Reaktionen nach /config (addon_config Share) verschoben — im Dateimanager sichtbar und sicherbar
+- Migration: vorhandene /data/session wird einmalig automatisch kopiert (kein QR-Scan nötig)
+
 ## [1.3.20] - 2026-05-22
 
 ### Neu

@@ -65,7 +65,7 @@ const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
-const MEDIA_DIR = '/data/media';
+const MEDIA_DIR = '/config/media';
 const MAX_MSGS_PER_CHAT = 200;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
@@ -75,12 +75,12 @@ const seenIds = new Set();
 
 // Reaktionen separat persistieren (Nachrichten werden bei jedem Start neu von WA geladen,
 // die Reaktions-Daten gehen dabei verloren)
-const REACTIONS_FILE = '/data/reactions.json';
+const REACTIONS_FILE = '/config/reactions.json';
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
 // Eigene Reaktionen werden unabhängig von JID-Formaten getrackt.
 // Format: { msgId: emoji } — kein JID-Vergleich nötig.
-const OWN_REACTIONS_FILE = '/data/ownreactions.json';
+const OWN_REACTIONS_FILE = '/config/ownreactions.json';
 let myReactions = new Map(); // msgId -> emoji (leer = keine eigene Reaktion)
 
 function normalizeJid(jid) {
@@ -643,7 +643,7 @@ function getDirSize(dir) {
 }
 
 app.get('/api/storage', (req, res) => {
-  const bytes = getDirSize('/data');
+  const bytes = getDirSize('/config');
   res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
 });
 
