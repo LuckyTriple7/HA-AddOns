@@ -57,10 +57,6 @@ jobs:
             echo "Kein Update notwendig"
           fi
 
-      - name: Set up QEMU
-        if: steps.compare.outputs.rebuild == 'true'
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         if: steps.compare.outputs.rebuild == 'true'
         uses: docker/setup-buildx-action@v3
@@ -78,7 +74,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: nextcloud
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           no-cache: true
           tags: |

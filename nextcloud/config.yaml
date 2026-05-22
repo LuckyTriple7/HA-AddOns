@@ -6,7 +6,6 @@ url: https://github.com/LuckyTriple7/HA-AddOns
 
 arch:
   - amd64
-  - aarch64
 
 startup: application
 boot: manual
