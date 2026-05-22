@@ -76,7 +76,10 @@ const seenIds = new Set();
 const REACTIONS_FILE = '/data/reactions.json';
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
-function normalizeJid(jid) { return String(jid).replace(/:\d+@/, '@'); }
+function normalizeJid(jid) {
+  const m = String(jid).match(/^(\d+)/);
+  return m ? m[1] + '@c.us' : '';
+}
 
 try {
   if (existsSync(REACTIONS_FILE)) {
@@ -201,7 +204,7 @@ client.on('authenticated', () => {
 });
 
 client.on('ready', async () => {
-  connectedPhone = client.info?.wid?.user || null;
+  connectedPhone = (client.info?.wid?.user || '').replace(/:\d+$/, '') || null;
   status = 'connected';
   lastError = null;
   console.log(`[INFO] WhatsApp ready — phone: ${connectedPhone}`);
@@ -400,6 +403,7 @@ client.on('message_reaction', (reaction) => {
   const msgId = reaction.msgId?._serialized;
   if (!msgId) return;
   const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
+  if (!senderId) return;
   const emoji = reaction.reaction || '';
   dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
 

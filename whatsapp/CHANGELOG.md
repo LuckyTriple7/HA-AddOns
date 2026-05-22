@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.13] - 2026-05-22
+
+### Behoben
+- **Reaktionszahl immer noch 2** — robusteres JID-Normalisieren: `normalizeJid()` extrahiert jetzt nur den Ziffern-Teil und setzt immer `@c.us` als Domain. WhatsApp liefert je nach Kontext `@c.us` oder `@s.whatsapp.net`; beide Varianten (plus Device-Suffix) wurden dadurch als unterschiedliche Sender gezählt. Außerdem: ungültige Sender ohne Ziffern (z. B. leerer String) werden im `message_reaction`-Handler verworfen; `connectedPhone` wird beim Login um Device-Suffix bereinigt.
+
 ## [1.3.12] - 2026-05-22
 
 ### Behoben
