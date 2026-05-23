@@ -1,7 +1,7 @@
 # Changelog — Nextcloud
 
 ## 0.0.37
-- Neu: trusted_proxies Option (Standard: 192.168.178.0/24) — verhindert Brute-Force-Drosselung hinter NGINX Proxy Manager
+- Neu: trusted_proxies Option (Standard: 172.30.32.0/23) — verhindert Brute-Force-Drosselung hinter NGINX Proxy Manager
 
 ## 0.0.36
 - Revert: db:add-missing-indices entfernt — verursacht CPU-Last beim Start

@@ -13,7 +13,7 @@ fi
 echo "[ha-config] Nextcloud installiert — wende HA-Konfiguration an ..."
 
 TRUSTED_DOMAINS=$(jq -r '.trusted_domains // ""' "$OPTIONS" 2>/dev/null || echo "")
-TRUSTED_PROXIES=$(jq -r '.trusted_proxies // "192.168.178.0/24"' "$OPTIONS" 2>/dev/null || echo "192.168.178.0/24")
+TRUSTED_PROXIES=$(jq -r '.trusted_proxies // "172.30.32.0/23"' "$OPTIONS" 2>/dev/null || echo "172.30.32.0/23")
 DEFAULT_PHONE_REGION=$(jq -r '.default_phone_region // "DE"' "$OPTIONS" 2>/dev/null || echo "DE")
 ENABLE_THUMBNAILS=$(jq -r '.enable_thumbnails // true' "$OPTIONS" 2>/dev/null || echo "true")
 DISABLE_UPDATES=$(jq -r '.disable_updates // false' "$OPTIONS" 2>/dev/null || echo "false")

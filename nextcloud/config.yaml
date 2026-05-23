@@ -39,7 +39,7 @@ options:
   PGID: 1000
   TZ: "Europe/Berlin"
   trusted_domains: ""
-  trusted_proxies: "192.168.178.0/24"
+  trusted_proxies: "172.30.32.0/23"
   default_phone_region: "DE"
   enable_thumbnails: true
   memory_limit: "512M"
