@@ -11,7 +11,6 @@ Nextcloud direkt in Home Assistant — private Cloud mit Web-UI und SMB-Netzwerk
 
 Nach dem Start ist Nextcloud erreichbar unter:
 
-- **HTTP:** `http://<HA-IP>:7780`
 - **HTTPS:** `https://<HA-IP>:7443`
 
 Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist erforderlich.
@@ -19,7 +18,7 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 ## Ersteinrichtung
 
 1. Add-on starten
-2. Browser öffnen: `http://<HA-IP>:7780`
+2. Browser öffnen: `https://<HA-IP>:7443` (Browser-Sicherheitswarnung beim selbstsignierten Zertifikat akzeptieren)
 3. Web-Installer ausfüllen — Datenverzeichnis: `/config/data`
 4. Add-on **neu starten** — alle Konfigurationen (trusted_domains etc.) werden automatisch angewendet
 
@@ -106,7 +105,6 @@ Nextcloud directly in Home Assistant — private cloud with web UI and SMB netwo
 
 After startup, Nextcloud is available at:
 
-- **HTTP:** `http://<HA-IP>:7780`
 - **HTTPS:** `https://<HA-IP>:7443`
 
 The add-on does **not** run as an HA Ingress panel — direct port access is required.
@@ -114,7 +112,7 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 ## First Setup
 
 1. Start the add-on
-2. Open browser: `http://<HA-IP>:7780`
+2. Open browser: `https://<HA-IP>:7443` (accept the browser security warning for the self-signed certificate)
 3. Complete web installer — data directory: `/config/data`
 4. **Restart** the add-on — all settings (trusted_domains etc.) are applied automatically
 
