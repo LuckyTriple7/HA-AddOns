@@ -1,6 +1,6 @@
 name: Nextcloud
 description: Nextcloud – Private Cloud direkt in Home Assistant, mit SMB-Netzwerkspeicher-Unterstützung
-version: "0.0.38"
+version: "0.0.39"
 slug: nextcloud
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -13,8 +13,12 @@ init: false
 
 image: "ghcr.io/luckytriple7/nextcloud"
 
-panel_icon: mdi:cloud
-panel_title: Nextcloud
+panel_icon: mdi:console
+panel_title: Nextcloud Terminal
+webui: https://[HOST]:[PORT:7443]
+
+ingress: true
+ingress_port: 7681
 
 ports:
   443/tcp: 7443

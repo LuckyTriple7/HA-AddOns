@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.39
+- Neu: Web-Terminal via HA Ingress (ttyd) — occ-Befehle direkt im Browser ausführbar
+
 ## 0.0.38
 - Neu: run_db_indices Option — fehlende DB-Indizes manuell per Schalter hinzufügen (Standard: aus)
 

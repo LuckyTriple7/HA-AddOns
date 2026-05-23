@@ -1,0 +1,5 @@
+#!/bin/sh
+exec /usr/local/bin/ttyd \
+    --port 7681 \
+    --interface 0.0.0.0 \
+    /bin/bash
