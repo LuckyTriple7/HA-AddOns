@@ -13,6 +13,7 @@ fi
 echo "[ha-config] Nextcloud installiert — wende HA-Konfiguration an ..."
 
 TRUSTED_DOMAINS=$(jq -r '.trusted_domains // ""' "$OPTIONS" 2>/dev/null || echo "")
+TRUSTED_PROXIES=$(jq -r '.trusted_proxies // "192.168.178.0/24"' "$OPTIONS" 2>/dev/null || echo "192.168.178.0/24")
 DEFAULT_PHONE_REGION=$(jq -r '.default_phone_region // "DE"' "$OPTIONS" 2>/dev/null || echo "DE")
 ENABLE_THUMBNAILS=$(jq -r '.enable_thumbnails // true' "$OPTIONS" 2>/dev/null || echo "true")
 DISABLE_UPDATES=$(jq -r '.disable_updates // false' "$OPTIONS" 2>/dev/null || echo "false")
@@ -36,6 +37,19 @@ if [ -n "$TRUSTED_DOMAINS" ]; then
         IDX=$((IDX + 1))
     done
 fi
+
+# Trusted proxies (Reverse Proxy / NGINX)
+occ config:system:delete trusted_proxies || true
+PIDX=0
+if [ -n "$TRUSTED_PROXIES" ]; then
+    echo "$TRUSTED_PROXIES" | tr ',' '\n' | while IFS= read -r P; do
+        P=$(echo "$P" | tr -d ' \r')
+        [ -z "$P" ] && continue
+        occ config:system:set trusted_proxies $PIDX --value="$P"
+        PIDX=$((PIDX + 1))
+    done
+fi
+occ config:system:set forwarded_for_headers 0 --value="HTTP_X_FORWARDED_FOR"
 
 occ config:system:set default_phone_region --value="$DEFAULT_PHONE_REGION"
 occ config:system:set default_language --value="de"

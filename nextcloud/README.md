@@ -40,6 +40,7 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 | `PGID` | `1000` | Group-ID für Dateiberechtigungen |
 | `TZ` | `Europe/Berlin` | Zeitzone |
 | `trusted_domains` | — | Kommagetrennte Liste zusätzlicher Domains/IPs (z.B. `192.168.1.100,meinserver.de`) |
+| `trusted_proxies` | `192.168.178.0/24` | IP/Subnetz des Reverse-Proxys (z.B. NGINX Proxy Manager) — verhindert Brute-Force-Drosselung |
 | `default_phone_region` | `DE` | Standard-Telefonregion (ISO 3166-1, z.B. `DE`, `AT`, `CH`) |
 | `enable_thumbnails` | `true` | Vorschaubilder für Fotos und Videos generieren |
 | `memory_limit` | `512M` | PHP-Speicherlimit |
@@ -134,6 +135,7 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 | `PGID` | `1000` | Group ID for file permissions |
 | `TZ` | `Europe/Berlin` | Timezone |
 | `trusted_domains` | — | Comma-separated list of additional domains/IPs (e.g. `192.168.1.100,myserver.de`) |
+| `trusted_proxies` | `192.168.178.0/24` | IP/subnet of reverse proxy (e.g. NGINX Proxy Manager) — prevents brute-force throttling |
 | `default_phone_region` | `DE` | Default phone region (ISO 3166-1, e.g. `DE`, `AT`, `CH`) |
 | `enable_thumbnails` | `true` | Generate preview images for photos and videos |
 | `memory_limit` | `512M` | PHP memory limit |
