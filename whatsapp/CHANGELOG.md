@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.22] - 2026-05-23
+- Fix: Chromium-Cache auf 50 MB begrenzt (--disk-cache-size) — verhindert unbegrenztes Speicherwachstum
+- Fix: Cache-Verzeichnisse (Cache, Cache2, Code Cache, GPUCache) werden beim Start bereinigt
+
 ## [1.3.21] - 2026-05-23
 - Session, Media, Reaktionen nach /config (addon_config Share) verschoben — im Dateimanager sichtbar und sicherbar
 - Migration: vorhandene /data/session wird einmalig automatisch kopiert (kein QR-Scan nötig)

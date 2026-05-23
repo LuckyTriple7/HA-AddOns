@@ -204,6 +204,8 @@ const client = new Client({
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--disable-extensions',
+      '--disk-cache-size=52428800',
+      '--media-cache-size=52428800',
     ],
   },
 });

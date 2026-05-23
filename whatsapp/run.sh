@@ -28,6 +28,12 @@ rm -f "$SESSION_DIR/chromium/SingletonLock"
 rm -f "$SESSION_DIR/chromium/SingletonCookie"
 rm -f "$SESSION_DIR/chromium/SingletonSocket"
 
+# Chromium cache bereinigen (wächst unbegrenzt, enthält keine Session-Daten)
+rm -rf "$SESSION_DIR/chromium/Default/Cache"
+rm -rf "$SESSION_DIR/chromium/Default/Cache2"
+rm -rf "$SESSION_DIR/chromium/Default/Code Cache"
+rm -rf "$SESSION_DIR/chromium/Default/GPUCache"
+
 echo "[INFO] Starting WhatsApp add-on..."
 cd /app
 exec node server.js
