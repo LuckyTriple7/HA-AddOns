@@ -47,6 +47,7 @@ occ config:system:set versions_retention_obligation --value="$VERSIONS"
 MAINTENANCE_WINDOW=$(jq -r '.maintenance_window_start // 1' "$OPTIONS" 2>/dev/null || echo 1)
 occ config:system:set maintenance_window_start --type=integer --value="$MAINTENANCE_WINDOW"
 occ maintenance:repair --include-expensive
+occ db:add-missing-indices
 
 if [ "$ENABLE_THUMBNAILS" = "true" ]; then
     occ config:system:set enable_previews --value=true --type=boolean

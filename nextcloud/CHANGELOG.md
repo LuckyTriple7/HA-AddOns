@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.35
+- Neu: db:add-missing-indices wird automatisch beim Start ausgeführt (behebt DB-Index-Warnungen)
+
 ## 0.0.34
 - Entfernt: HTTP-Port 7780 — Nextcloud läuft ausschließlich über HTTPS (Port 7443)
 
