@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.34
+- Entfernt: HTTP-Port 7780 — Nextcloud läuft ausschließlich über HTTPS (Port 7443)
+
 ## 0.0.33
 - Neu: loglevel (0-4, Standard 3=nur Fehler)
 - Neu: skeletondirectory (Standard leer — neue User ohne Demo-Dateien)
