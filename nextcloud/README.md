@@ -30,6 +30,7 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 - **SMB-Mounts**: Bis zu 3 Netzwerklaufwerke als externe Speicher einbinden
 - **PHP-Limits**: Speicher, Upload- und POST-Größe frei konfigurierbar
 - **Thumbnails**: Vorschaubilder aktivierbar
+- **Web-Terminal**: occ-Befehle direkt im Browser ausführbar (HA Ingress)
 - **Automatische Updates**: GitHub Actions prüft täglich auf neue Nextcloud-Versionen
 
 ## Konfiguration
@@ -60,6 +61,33 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 | `smb_1_password` | — | Passwort für den SMB-Share (Slot 1) |
 | `smb_2_*` | — | SMB-Slot 2 (analog zu Slot 1) |
 | `smb_3_*` | — | SMB-Slot 3 (analog zu Slot 1) |
+
+## Web-Terminal (occ-Befehle)
+
+Das Add-on enthält ein Web-Terminal, erreichbar über den **„Nextcloud Terminal"-Eintrag in der HA-Seitenleiste**. Dort können `occ`-Befehle direkt ausgeführt werden.
+
+Alle Befehle mit folgendem Präfix:
+```sh
+ALLOW_ROOT=1 php /app/www/public/occ <befehl>
+```
+
+**Nützliche Befehle:**
+
+| Befehl | Beschreibung |
+|--------|-------------|
+| `occ status` | Nextcloud-Status anzeigen |
+| `occ app:list` | Installierte Apps anzeigen |
+| `occ app:enable <app>` | App aktivieren |
+| `occ app:disable <app>` | App deaktivieren |
+| `occ files:scan --all` | Dateien neu einlesen (nach manuellem Upload) |
+| `occ files:cleanup` | Verwaiste Dateieinträge bereinigen |
+| `occ db:add-missing-indices` | Fehlende DB-Indizes hinzufügen |
+| `occ maintenance:repair` | Nextcloud-Reparatur ausführen |
+| `occ security:bruteforce:reset <IP>` | IP-Sperre der Brute-Force-Erkennung aufheben |
+| `occ user:list` | Benutzer anzeigen |
+| `occ user:resetpassword <user>` | Passwort zurücksetzen |
+| `occ log:tail` | Live-Log anzeigen |
+| `occ list` | Alle verfügbaren Befehle anzeigen |
 
 ## SMB-Netzwerkspeicher
 
@@ -126,6 +154,7 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 - **SMB mounts**: Mount up to 3 network drives as external storage
 - **PHP limits**: Memory, upload and POST size freely configurable
 - **Thumbnails**: Preview image generation configurable
+- **Web terminal**: Run occ commands directly in the browser (HA Ingress)
 - **Automatic updates**: GitHub Actions checks daily for new Nextcloud versions
 
 ## Configuration
@@ -156,6 +185,33 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 | `smb_1_password` | — | Password for SMB share (slot 1) |
 | `smb_2_*` | — | SMB slot 2 (same as slot 1) |
 | `smb_3_*` | — | SMB slot 3 (same as slot 1) |
+
+## Web Terminal (occ Commands)
+
+The add-on includes a web terminal, accessible via the **"Nextcloud Terminal" entry in the HA sidebar**. From there, `occ` commands can be executed directly.
+
+All commands use the following prefix:
+```sh
+ALLOW_ROOT=1 php /app/www/public/occ <command>
+```
+
+**Useful commands:**
+
+| Command | Description |
+|---------|-------------|
+| `occ status` | Show Nextcloud status |
+| `occ app:list` | List installed apps |
+| `occ app:enable <app>` | Enable an app |
+| `occ app:disable <app>` | Disable an app |
+| `occ files:scan --all` | Re-scan files (after manual upload) |
+| `occ files:cleanup` | Clean up orphaned file entries |
+| `occ db:add-missing-indices` | Add missing database indices |
+| `occ maintenance:repair` | Run Nextcloud repair |
+| `occ security:bruteforce:reset <IP>` | Remove brute-force block for an IP |
+| `occ user:list` | List users |
+| `occ user:resetpassword <user>` | Reset user password |
+| `occ log:tail` | Show live log |
+| `occ list` | Show all available commands |
 
 ## SMB Network Storage
 

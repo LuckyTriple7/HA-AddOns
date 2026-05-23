@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.41
+- Doku: README um Web-Terminal-Sektion mit occ-Befehlsübersicht erweitert
+
 ## 0.0.40
 - Fix: ttyd --writable + --ping-interval gesetzt, sh statt bash (Terminal-Input-Fix)
 
