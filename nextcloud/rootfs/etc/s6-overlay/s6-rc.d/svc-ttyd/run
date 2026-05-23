@@ -2,4 +2,6 @@
 exec /usr/local/bin/ttyd \
     --port 7681 \
     --interface 0.0.0.0 \
-    /bin/bash
+    --writable \
+    --ping-interval 30 \
+    sh
