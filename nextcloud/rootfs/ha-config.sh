@@ -17,6 +17,7 @@ TRUSTED_PROXIES=$(jq -r '.trusted_proxies // "172.30.32.0/23"' "$OPTIONS" 2>/dev
 DEFAULT_PHONE_REGION=$(jq -r '.default_phone_region // "DE"' "$OPTIONS" 2>/dev/null || echo "DE")
 ENABLE_THUMBNAILS=$(jq -r '.enable_thumbnails // true' "$OPTIONS" 2>/dev/null || echo "true")
 DISABLE_UPDATES=$(jq -r '.disable_updates // false' "$OPTIONS" 2>/dev/null || echo "false")
+RUN_DB_INDICES=$(jq -r '.run_db_indices // false' "$OPTIONS" 2>/dev/null || echo "false")
 LOGLEVEL=$(jq -r '.loglevel // 3' "$OPTIONS" 2>/dev/null || echo 3)
 SKELETONDIR=$(jq -r '.skeletondirectory // ""' "$OPTIONS" 2>/dev/null || echo "")
 TRASHBIN=$(jq -r '.trashbin_retention_obligation // "auto, 30"' "$OPTIONS" 2>/dev/null || echo "auto, 30")
@@ -70,6 +71,11 @@ fi
 
 if [ "$DISABLE_UPDATES" = "true" ]; then
     occ config:system:set upgrade.disable-web --value=true --type=boolean
+fi
+
+if [ "$RUN_DB_INDICES" = "true" ]; then
+    echo "[ha-config] Füge fehlende DB-Indizes hinzu ..."
+    occ db:add-missing-indices
 fi
 
 # SMB-Shares als externen Speicher einbinden (nur einmalig nach Erstinstall)

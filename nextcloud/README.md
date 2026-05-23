@@ -47,6 +47,7 @@ Das Add-on läuft **nicht** als HA-Ingress-Panel — der direkte Portzugriff ist
 | `upload_max_filesize` | `512M` | Maximale Upload-Dateigröße |
 | `post_max_size` | `512M` | Maximale POST-Größe (muss ≥ upload_max_filesize sein) |
 | `disable_updates` | `false` | Nextcloud-Webupdate deaktivieren |
+| `run_db_indices` | `false` | Fehlende DB-Indizes beim Start hinzufügen (`occ db:add-missing-indices`) — danach wieder deaktivieren |
 | `maintenance_window_start` | `1` | Startzeit Wartungsfenster in UTC (0–23, z.B. 1 = 2–3 Uhr DE) |
 | `loglevel` | `3` | Log-Level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
 | `skeletondirectory` | — | Vorlageordner für neue Benutzer (leer = keine Demo-Dateien) |
@@ -142,6 +143,7 @@ The add-on does **not** run as an HA Ingress panel — direct port access is req
 | `upload_max_filesize` | `512M` | Maximum upload file size |
 | `post_max_size` | `512M` | Maximum POST size (must be ≥ upload_max_filesize) |
 | `disable_updates` | `false` | Disable Nextcloud web update |
+| `run_db_indices` | `false` | Add missing DB indices on startup (`occ db:add-missing-indices`) — disable again afterwards |
 | `maintenance_window_start` | `1` | Maintenance window start in UTC (0–23, e.g. 1 = 2–3 AM DE) |
 | `loglevel` | `3` | Log level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
 | `skeletondirectory` | — | Template folder for new users (empty = no demo files) |

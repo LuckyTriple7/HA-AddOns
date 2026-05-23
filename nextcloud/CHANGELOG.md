@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.38
+- Neu: run_db_indices Option — fehlende DB-Indizes manuell per Schalter hinzufügen (Standard: aus)
+
 ## 0.0.37
 - Neu: trusted_proxies Option (Standard: 172.30.32.0/23) — verhindert Brute-Force-Drosselung hinter NGINX Proxy Manager
 
