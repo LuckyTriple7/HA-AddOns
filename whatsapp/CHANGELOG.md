@@ -1,36 +1,5 @@
 # Changelog
 
-## [1.3.39] - 2026-05-25
-- Fix: markDeleted vereinfacht — kein 30s-Timer, keine Fallunterscheidung; Nachricht bleibt immer mit deleted=true im Speicher (wie v1.3.31), Client entscheidet 🚫 oder Bubble entfernen
-- Fix: /api/messages filtert beim initialen Load (since=0) gelöschte Nachrichten bei KEEP_DELETED=false heraus
-
-## [1.3.38] - 2026-05-25
-- Fix: Bei KEEP_DELETED=false wurden Löschungen dem Client nicht signalisiert — Bubble blieb bis Chat-Wechsel sichtbar
-- Fix: Gelöschte Nachrichten bleiben jetzt 30s im Speicher (nicht auf Disk), damit der Poll die Bubble entfernen kann; danach Bereinigung aus dem Speicher
-- Fix: saveMsgs filtert gelöschte Nachrichten aus der JSON wenn KEEP_DELETED=false (verhindert Wiedererscheinen nach Neustart)
-- Fix: Reply-Button wurde bei gelöschten Nachrichten nicht ausgeblendet
-
-## [1.3.37] - 2026-05-25
-- Fix: deleteMsg verwendete timeEl.dataset.ts (nie gesetzt) — stattdessen wrap.dataset.ts beim Rendern gesetzt und ausgelesen
-
-## [1.3.36] - 2026-05-24
-- Fix: KEEP_DELETED und MAX_MESSAGES_PER_CHAT fehlten in run.sh → Optionen wurden ignoriert
-
-## [1.3.35] - 2026-05-24
-- Fix: keep_deleted — Client liest keepDeleted-Flag aus Server-Response statt eingebetteter JS-Konstante (verhindert Stale-Cache-Bug)
-- Fix: CSS.escape() für message IDs mit @lid-Format in querySelector
-- Fix: Startup-Log und markDeleted-Log zeigen KEEP_DELETED-Wert zur Diagnose
-- Fix: "Nachricht wurde gelöscht" Text besser lesbar (höherer Kontrast, Light-Mode-Unterstützung)
-
-## [1.3.34] - 2026-05-24
-- Fix: keep_deleted Standard auf false geändert
-- Fix: Bei gelöschten Nachrichten werden Emoji-, Weiterleiten- und Antworten-Buttons ebenfalls ausgeblendet
-
-## [1.3.33] - 2026-05-24
-- Neu: Option `keep_deleted` (Standard: true) — gelöschte Nachrichten als 🚫 anzeigen oder entfernen
-- Fix: Gelöschte Nachrichten werden im laufenden Poll erkannt und sofort in der UI aktualisiert (kein Chat-Wechsel nötig)
-- Fix: Existierende Bubbles werden bei Löschung in-place aktualisiert statt dupliziert
-
 ## [1.3.32] - 2026-05-24
 - Fix: Eigene gelöschte Nachrichten werden jetzt sofort als "🚫 gelöscht" in der UI markiert (vorher blieben sie sichtbar wenn delete(true) fehlschlug)
 - Fix: message_revoke_everyone Handler robuster + immer geloggt; message_revoke_me als Fallback ergänzt

@@ -62,13 +62,11 @@ let lastError = null;
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
-const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
-console.log(`[INFO] KEEP_DELETED=${KEEP_DELETED}`);
 const MEDIA_DIR = '/config/media';
 const MAX_MSGS_PER_CHAT = parseInt(process.env.MAX_MESSAGES_PER_CHAT || '200', 10);
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
@@ -155,11 +153,7 @@ function saveMsgs() {
     try {
       fs.writeFileSync(CHATS_FILE, JSON.stringify([...chatMap.values()]));
       const msgsObj = {};
-      for (const [chatId, msgs] of messagesByChatId.entries()) {
-        // When KEEP_DELETED=false, deleted messages are not persisted to disk
-        const toSave = KEEP_DELETED ? msgs : msgs.filter(m => !m.deleted);
-        if (toSave.length) msgsObj[chatId] = toSave;
-      }
+      for (const [chatId, msgs] of messagesByChatId.entries()) msgsObj[chatId] = msgs;
       fs.writeFileSync(MESSAGES_FILE, JSON.stringify(msgsObj));
     } catch (e) { console.error('[ERROR] saveMsgs:', e.message); }
   }, 3000);
@@ -504,17 +498,9 @@ client.on('message_reaction', (reaction) => {
 
 function markDeleted(msgId) {
   if (!msgId) return false;
-  for (const [, msgs] of messagesByChatId.entries()) {
-    const idx = msgs.findIndex(m => m.id === msgId);
-    if (idx !== -1) {
-      if (msgs[idx].deleted) return true; // already handled, skip double-processing
-      console.log(`[INFO] markDeleted: ${msgId} KEEP_DELETED=${KEEP_DELETED}`);
-      msgs[idx].deleted = true;
-      msgs[idx].body = '';
-      msgs[idx].deletedAt = Date.now();
-      saveMsgs(); // saveMsgs filters deleted msgs from disk when KEEP_DELETED=false
-      return true;
-    }
+  for (const msgs of messagesByChatId.values()) {
+    const stored = msgs.find(m => m.id === msgId);
+    if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); return true; }
   }
   return false;
 }
@@ -648,12 +634,7 @@ app.get('/api/messages', (req, res) => {
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  if (since_ts) {
-    res.json(msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts)));
-  } else {
-    // Initial load: when KEEP_DELETED=false, don't send deleted messages (client has no wrap to remove anyway)
-    res.json(KEEP_DELETED ? msgs : msgs.filter(m => !m.deleted));
-  }
+  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts) : msgs);
 });
 
 app.post('/api/send', async (req, res) => {
@@ -913,8 +894,12 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
     dbg(`Deleting message ${msgId} in chat ${chatId}`);
     const msg = await client.getMessageById(msgId).catch(() => null);
     if (msg) await msg.delete(true).catch(e => console.log(`[WARN] delete(true) failed: ${e.message}`));
-    markDeleted(msgId);
-    res.json({ success: true, keepDeleted: KEEP_DELETED });
+    const msgs = messagesByChatId.get(chatId);
+    if (msgs) {
+      const stored = msgs.find(m => m.id === msgId);
+      if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); }
+    }
+    res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1152,9 +1137,8 @@ app.get('/', (req, res) => {
     #attach-cancel:hover { color:#e9edef; }
     #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
     #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
-    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
-    .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
-    html.light .bubble-deleted { color:rgba(0,0,0,0.55); }
+    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.45); font-size:13px; padding:2px 0; }
+    .bubble-deleted .del-icon { margin-right:5px; }
     .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
     .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
     .bubble-document .doc-info { flex:1; min-width:0; }
@@ -1546,7 +1530,6 @@ app.get('/', (req, res) => {
       applyLang();
     }
     // ────────────────────────────────────────────────────────────────────────────
-    const KEEP_DELETED = ${KEEP_DELETED};
     let currentStatus = '';
     let selectedChatId = null;
     let selectedChatPhone = null;
@@ -1817,43 +1800,11 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
 
-    function findWrap(msgId) {
-      for (const el of msgList.children) {
-        if (el.dataset.msgid === msgId) return el;
-      }
-      return null;
-    }
-    function markWrapDeleted(wrap, timestamp) {
-      const bub = wrap.querySelector('.bubble');
-      if (bub && !bub.querySelector('.bubble-deleted')) {
-        bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(timestamp) + '</span>';
-        wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
-      }
-    }
-
     function renderMessages(msgs, chatId) {
       if (chatId !== selectedChatId) return;
       if (!msgs.length) return;
       const noMsg = msgList.querySelector('.empty-msg');
       if (noMsg) noMsg.remove();
-
-      // Update lastMsgTime with deletedAt so polls don't repeat the same deleted msg
-      msgs.forEach(m => {
-        if (m.deletedAt && m.deletedAt > (lastMsgTime[chatId] || 0)) lastMsgTime[chatId] = m.deletedAt;
-      });
-
-      // Update existing deleted bubbles in place instead of appending duplicates
-      msgs = msgs.filter(m => {
-        if (!m.deleted) return true;
-        const wrap = findWrap(m.id);
-        if (wrap) {
-          if (KEEP_DELETED) markWrapDeleted(wrap, m.timestamp);
-          else wrap.remove();
-          return false;
-        }
-        return KEEP_DELETED; // only render new deleted bubble when KEEP_DELETED=true
-      });
-      if (!msgs.length) return;
 
       let lastDate = msgList.querySelector('.date-sep:last-of-type')?.textContent || null;
 
@@ -1869,7 +1820,6 @@ app.get('/', (req, res) => {
         const wrap = document.createElement('div');
         wrap.className = 'bubble-wrap ' + (m.fromMe ? 'out' : 'in');
         wrap.dataset.msgid = m.id;
-        wrap.dataset.ts = m.timestamp;
         if (!m.fromMe && m.contact) {
           const n = document.createElement('div');
           n.className = 'contact-name';
@@ -1926,14 +1876,12 @@ app.get('/', (req, res) => {
         reactBtn.title = t('ttReact');
         reactBtn.textContent = '😊';
         reactBtn.dataset.msgid = m.id;
-        if (m.deleted) reactBtn.style.display = 'none';
         bri.appendChild(reactBtn);
         const fwdBtn = document.createElement('button');
         fwdBtn.className = 'fwd-btn';
         fwdBtn.title = t('ttForward');
         fwdBtn.textContent = '↪';
         fwdBtn.dataset.msgid = m.id;
-        if (m.deleted) fwdBtn.style.display = 'none';
         bri.appendChild(fwdBtn);
         const replyBtn = document.createElement('button');
         replyBtn.className = 'reply-btn';
@@ -1942,7 +1890,6 @@ app.get('/', (req, res) => {
         replyBtn.dataset.msgid = m.id;
         replyBtn.dataset.contact = m.fromMe ? t('me') : (m.contact || '');
         replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? t('photo') : t('mediaGeneric'))).slice(0, 60);
-        if (m.deleted) replyBtn.style.display = 'none';
         bri.appendChild(replyBtn);
         wrap.appendChild(bri);
         // Reaktions-Badges werden ausschließlich von updateReactionsInDOM gesetzt
@@ -2234,14 +2181,16 @@ app.get('/', (req, res) => {
       try {
         const r = await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
         if (!r.ok) return;
-        const data = await r.json();
-        const wrap = findWrap(msgId);
-        if (!wrap) return;
-        if (data.keepDeleted) {
-          const ts = parseInt(wrap.dataset.ts || '0');
-          markWrapDeleted(wrap, ts);
-        } else {
-          wrap.remove();
+        for (const bri of msgList.querySelectorAll('.bubble-row-inner')) {
+          const btn = bri.querySelector('.del-btn');
+          if (btn?.dataset?.msgid === msgId) {
+            const bub = bri.querySelector('.bubble');
+            if (bub) {
+              bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + bub.querySelector('.time')?.textContent + '</span>';
+            }
+            btn.style.display = 'none';
+            break;
+          }
         }
       } catch(e) {}
     }
