@@ -13,7 +13,7 @@ configuration:
     description: "Number of most recently active chats loaded on startup. Chats not in this list are loaded dynamically when first opened. Recommended: 20–50."
   initial_messages:
     name: Initial Messages per Chat
-    description: "Messages fetched per chat on startup from WhatsApp history. Higher values slow down startup. Recommended: 20–50. Maximum from WhatsApp: ~999."
+    description: "Messages fetched per chat on startup from WhatsApp history. Note: WhatsApp Web only caches the most recent messages per chat — in practice rarely more than 20–50 are available regardless of this setting. Higher values slow down startup without benefit."
   max_messages_per_chat:
     name: Max Messages per Chat (Memory)
     description: "Maximum messages kept in RAM per chat during runtime. Older messages are discarded when the limit is reached. Does not affect startup speed. Recommended: 200–500."

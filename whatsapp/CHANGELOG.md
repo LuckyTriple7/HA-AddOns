@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.30] - 2026-05-24
+- Neu: Nachrichten-Persistenz — Chats und Nachrichten werden in `/config/chats.json` und `/config/messages.json` gespeichert und überleben Neustarts
+- Fix: `initial_messages`-Hinweis in Translations ergänzt (WhatsApp Web Cache-Begrenzung)
+
 ## [1.3.29] - 2026-05-24
 - Neu: `max_messages_per_chat` konfigurierbar (Standard 200) — maximale Nachrichten im RAM-Puffer pro Chat
 

@@ -41,7 +41,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 
 Die drei Optionen steuern gemeinsam, wie viele Nachrichten wann geladen und gehalten werden:
 
-- **`initial_messages`** — Beim Start öffnet das Add-on die letzten N Nachrichten pro Chat aus der WhatsApp-History. Höhere Werte verlangsamen den Start, da alle Chats sequentiell geladen werden. Empfehlung: 20–50.
+- **`initial_messages`** — Beim Start öffnet das Add-on die letzten N Nachrichten pro Chat aus der WhatsApp-History. **Hinweis:** WhatsApp Web cached pro Chat nur die neuesten Nachrichten — in der Praxis sind selten mehr als 20–50 verfügbar, unabhängig von diesem Wert. Höhere Werte verlangsamen den Start ohne Nutzen. Empfehlung: 20–50.
 - **`max_messages_per_chat`** — Während des Betriebs eingehende Nachrichten werden bis zu diesem Limit im RAM gehalten. Überschreitet ein Chat das Limit, werden die ältesten Nachrichten verworfen. Das Laden passiert **nicht** beim Start, sondern im laufenden Betrieb — hohe Werte sind also kein Startproblem. Empfehlung: 200–500.
 - **`initial_chats`** — Nur die N zuletzt aktiven Chats werden beim Start berücksichtigt. Nicht gelistete Chats werden beim ersten Öffnen dynamisch nachgeladen.
 
@@ -224,7 +224,7 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 
 The three options together control how many messages are loaded and retained:
 
-- **`initial_messages`** — On startup, the add-on fetches the last N messages per chat from WhatsApp history. Higher values slow down startup since all chats are loaded sequentially. Recommended: 20–50.
+- **`initial_messages`** — On startup, the add-on fetches the last N messages per chat from WhatsApp history. **Note:** WhatsApp Web only caches the most recent messages per chat — in practice rarely more than 20–50 are available regardless of this setting. Higher values slow down startup without benefit. Recommended: 20–50.
 - **`max_messages_per_chat`** — During operation, incoming messages are kept in RAM up to this limit. When a chat exceeds the limit, the oldest messages are discarded. This does **not** affect startup time — it only applies during runtime. Recommended: 200–500.
 - **`initial_chats`** — Only the N most recently active chats are loaded on startup. Chats not in that list are loaded dynamically when first opened.
 

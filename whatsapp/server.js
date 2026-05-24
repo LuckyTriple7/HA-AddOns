@@ -75,8 +75,8 @@ const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, las
 const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();
 
-// Reaktionen separat persistieren (Nachrichten werden bei jedem Start neu von WA geladen,
-// die Reaktions-Daten gehen dabei verloren)
+const CHATS_FILE = '/config/chats.json';
+const MESSAGES_FILE = '/config/messages.json';
 const REACTIONS_FILE = '/config/reactions.json';
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
@@ -113,6 +113,28 @@ try {
   }
 } catch (e) { console.error('[ERROR] loadOwnReactions:', e.message); }
 
+try {
+  if (existsSync(CHATS_FILE)) {
+    const data = JSON.parse(fs.readFileSync(CHATS_FILE, 'utf8'));
+    for (const chat of data) chatMap.set(chat.id, chat);
+    console.log(`[INFO] Loaded ${chatMap.size} chats from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadChats:', e.message); }
+
+try {
+  if (existsSync(MESSAGES_FILE)) {
+    const data = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8'));
+    let total = 0;
+    for (const [chatId, msgs] of Object.entries(data)) {
+      const trimmed = msgs.slice(-MAX_MSGS_PER_CHAT);
+      messagesByChatId.set(chatId, trimmed);
+      for (const m of trimmed) seenIds.add(m.id);
+      total += trimmed.length;
+    }
+    console.log(`[INFO] Loaded ${total} messages from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadMessages:', e.message); }
+
 let reactionsSaveTimer = null;
 function saveReactions() {
   if (reactionsSaveTimer) clearTimeout(reactionsSaveTimer);
@@ -121,6 +143,19 @@ function saveReactions() {
       fs.writeFileSync(REACTIONS_FILE, JSON.stringify(Object.fromEntries(reactionsCache)));
       fs.writeFileSync(OWN_REACTIONS_FILE, JSON.stringify(Object.fromEntries(myReactions)));
     } catch (e) { console.error('[ERROR] saveReactions:', e.message); }
+  }, 3000);
+}
+
+let msgsSaveTimer = null;
+function saveMsgs() {
+  if (msgsSaveTimer) clearTimeout(msgsSaveTimer);
+  msgsSaveTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(CHATS_FILE, JSON.stringify([...chatMap.values()]));
+      const msgsObj = {};
+      for (const [chatId, msgs] of messagesByChatId.entries()) msgsObj[chatId] = msgs;
+      fs.writeFileSync(MESSAGES_FILE, JSON.stringify(msgsObj));
+    } catch (e) { console.error('[ERROR] saveMsgs:', e.message); }
   }, 3000);
 }
 
@@ -164,6 +199,7 @@ function addMsg(chatId, msg) {
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
   }
+  saveMsgs();
   return true;
 }
 
@@ -283,6 +319,7 @@ client.on('ready', async () => {
     }
     const total = [...messagesByChatId.values()].reduce((s, a) => s + a.length, 0);
     console.log(`[INFO] Loaded ${total} messages from ${recent.length} chats`);
+    saveMsgs();
 
     if (DOWNLOAD_MEDIA) {
       (async () => {
