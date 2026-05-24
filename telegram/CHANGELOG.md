@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.18] - 2026-05-24
+- Neu: Filter-Tabs „Alle / Privat / Gruppen / Kanäle / Bots" in der Chat-Sidebar
+- Neu: Typ-Avatare — 👥 Gruppen, 📢 Kanäle, 🤖 Bots (privat weiterhin farbige Initialen)
+
 ## [1.1.17] - 2026-05-24
 - Fix: Nachrichtenblasen breiter (max-width 65% → 80%) — verhindert zu frühe Zeilenumbrüche
 

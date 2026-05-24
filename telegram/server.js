@@ -118,6 +118,14 @@ function getEntityId(entity) {
   return String(entity.id);
 }
 
+function getEntityType(entity) {
+  if (!entity) return 'private';
+  if (entity.bot === true) return 'bot';
+  if (entity.className === 'Chat') return 'group';
+  if (entity.className === 'Channel') return entity.megagroup ? 'group' : 'channel';
+  return 'private';
+}
+
 function addMsg(chatId, msg) {
   if (seenMsgIds.has(msg.id)) { dbg(`addMsg: duplicate skipped ${msg.id}`); return false; }
   seenMsgIds.add(msg.id);
@@ -282,15 +290,18 @@ async function loadDialogs() {
       const name = getEntityName(entity);
       peerMap.set(chatId, entity);
       const isBot = entity.bot === true;
+      const chatType = getEntityType(entity);
       if (!chatMap.has(chatId) || !chatMap.get(chatId).lastTime) {
         chatMap.set(chatId, {
           id: chatId, name, phone: '',
           lastMsg: dialog.message?.message || '',
           lastTime: (dialog.message?.date || 0) * 1000,
-          isBot,
+          isBot, chatType,
         });
       } else {
-        chatMap.get(chatId).isBot = isBot;
+        const c = chatMap.get(chatId);
+        c.isBot = isBot;
+        c.chatType = chatType;
       }
     }
     scheduleSave();
@@ -351,7 +362,11 @@ async function startClient() {
         const chatId = getEntityId(chat);
         const chatName = getEntityName(chat);
         if (!peerMap.has(chatId)) peerMap.set(chatId, chat);
-        if (chatMap.has(chatId)) chatMap.get(chatId).isBot = chat.bot === true;
+        if (chatMap.has(chatId)) {
+          const c = chatMap.get(chatId);
+          c.isBot = chat.bot === true;
+          c.chatType = getEntityType(chat);
+        }
         await processMessage(msg, chatId, chatName, 'NewMessage');
       } catch (e) { dbg(`NewMessage handler error: ${e.message}`); }
     }, new NewMessage({}));
@@ -692,6 +707,19 @@ html.light #sidebar { background: #fff; border-right: 1px solid #e0e0e0; }
 #search-wrap { padding: 8px 12px; }
 html.dark #search-wrap { border-bottom: 1px solid #1A2432; }
 html.light #search-wrap { border-bottom: 1px solid #e0e0e0; }
+#chat-filter { display:flex; padding:4px 8px; gap:4px; flex-shrink:0; }
+html.dark #chat-filter { background:#232E3C; border-bottom:1px solid #1A2432; }
+html.light #chat-filter { background:#fff; border-bottom:1px solid #e0e0e0; }
+.filter-tab { flex:1; background:none; border:none; border-radius:16px; padding:5px 4px; font-size:11px; cursor:pointer; transition:background 0.12s,color 0.12s; white-space:nowrap; }
+html.dark .filter-tab { color:#6B7B8D; }
+html.light .filter-tab { color:#999; }
+html.dark .filter-tab:hover { background:rgba(255,255,255,0.06); color:#C1C9D4; }
+html.light .filter-tab:hover { background:rgba(0,0,0,0.05); color:#222; }
+html.dark .filter-tab.active { background:#17212B; color:#C1C9D4; font-weight:500; }
+html.light .filter-tab.active { background:#e8f0fe; color:#2563eb; font-weight:500; }
+.avatar.type-group { font-size:22px; }
+.avatar.type-channel { font-size:22px; }
+.avatar.type-bot { font-size:22px; }
 #search-input { width: 100%; padding: 8px 12px; border-radius: 20px; border: none; font-size: 14px; outline: none; font-family: inherit; }
 html.dark #search-input { background: #17212B; color: #C1C9D4; }
 html.dark #search-input::placeholder { color: #6B7B8D; }
@@ -875,6 +903,13 @@ html.light #emoji-toggle { color: #888; }
     <div id="search-wrap">
       <input id="search-input" type="text" placeholder="Suchen…" data-i18n-pl="searchPlaceholder" oninput="filterChats()">
     </div>
+    <div id="chat-filter">
+      <button class="filter-tab active" data-filter="all" onclick="setFilter('all')" data-i18n="filterAll">Alle</button>
+      <button class="filter-tab" data-filter="private" onclick="setFilter('private')" data-i18n="filterPrivate">Privat</button>
+      <button class="filter-tab" data-filter="group" onclick="setFilter('group')" data-i18n="filterGroups">Gruppen</button>
+      <button class="filter-tab" data-filter="channel" onclick="setFilter('channel')" data-i18n="filterChannels">Kanäle</button>
+      <button class="filter-tab" data-filter="bot" onclick="setFilter('bot')" data-i18n="filterBots">Bots</button>
+    </div>
     <div id="chat-list"></div>
   </div>
   <div id="chat-panel">
@@ -910,6 +945,7 @@ const LANG = {
     photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten',
+    filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
     btnLogout: 'Abmelden', searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
     emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…',
@@ -928,6 +964,7 @@ const LANG = {
     photosOn: 'Photos ON', photosOff: 'Photos OFF',
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down',
+    filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
     btnLogout: 'Log out', searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
     emojiTitle: 'Emoji', msgPlaceholder: 'Message…',
@@ -1120,12 +1157,32 @@ async function loadChats() {
 }
 setInterval(loadChats, 5000);
 
+let currentFilter = 'all';
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === f));
+  renderChats(allChats);
+}
+
+function chatAvatar(c) {
+  const type = c.chatType || (c.isBot ? 'bot' : 'private');
+  if (type === 'group')   return '<div class="avatar type-group" style="background:#2b5278">👥</div>';
+  if (type === 'channel') return '<div class="avatar type-channel" style="background:#1e6b8c">📢</div>';
+  if (type === 'bot')     return '<div class="avatar type-bot" style="background:#4a3f8c">🤖</div>';
+  return \`<div class="avatar" style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
+}
+
 function renderChats(chats) {
   const q = document.getElementById('search-input').value.toLowerCase();
-  const filtered = q ? chats.filter(c=>(c.name||'').toLowerCase().includes(q)) : chats;
+  const filtered = chats.filter(c => {
+    if (q && !(c.name||'').toLowerCase().includes(q)) return false;
+    const type = c.chatType || (c.isBot ? 'bot' : 'private');
+    if (currentFilter !== 'all' && type !== currentFilter) return false;
+    return true;
+  });
   document.getElementById('chat-list').innerHTML = filtered.map(c => \`
     <div class="chat-item\${c.id===selectedChatId?' active':''}" data-id="\${escHtml(c.id)}" onclick="openChatById(this.dataset.id)">
-      <div class="avatar" style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>
+      \${chatAvatar(c)}
       <div class="chat-info">
         <div class="chat-name">\${escHtml(c.name||c.id)}</div>
         <div class="chat-preview">\${escHtml(c.lastMsg||'')}</div>
@@ -1154,8 +1211,11 @@ function openChat(chat) {
   document.getElementById('refresh-btn').style.display = 'inline-block';
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   const av = document.getElementById('ch-avatar');
-  av.textContent = avatarInitial(chat.name||chat.id);
-  av.style.background = avatarColor(chat.name||chat.id);
+  const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
+  if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; }
+  else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; }
+  else if (type === 'bot')     { av.textContent = '🤖'; av.style.background = '#4a3f8c'; av.style.fontSize = '22px'; }
+  else { av.textContent = avatarInitial(chat.name||chat.id); av.style.background = avatarColor(chat.name||chat.id); av.style.fontSize = ''; }
   renderChats(allChats);
   loadMessages(chat.id);
 }
