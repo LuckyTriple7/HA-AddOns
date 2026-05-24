@@ -1,5 +1,5 @@
 ﻿name: Claude Code
-description: Run Claude Code AI assistant inside Home Assistant to create automations, debug issues, and manage your smart home configuration
+description: KI-Coding-Assistent Claude Code direkt in Home Assistant – Automationen erstellen, Konfiguration verwalten und Fehler beheben
 version: "1.0.8"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
