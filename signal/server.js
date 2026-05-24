@@ -514,9 +514,27 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
     });
     const result = await r.json();
     if (!r.ok) return res.status(500).json({ error: result });
-    if (mimetype.startsWith('image/') && DOWNLOAD_MEDIA) {
-      const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-      fs.writeFileSync(`${MEDIA_DIR}${Date.now()}_${safeName}`, buffer);
+
+    const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const isImg = mimetype.startsWith('image/');
+    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const msgId = `${PHONE_NUMBER}_${signalTs}`;
+    if (!seenMsgIds.has(msgId)) {
+      seenMsgIds.add(msgId);
+      let mediaFile = null;
+      if (isImg && DOWNLOAD_MEDIA) {
+        const fname = `${signalTs}_${safeName}`;
+        fs.writeFileSync(`${MEDIA_DIR}${fname}`, buffer);
+        mediaFile = fname;
+      }
+      const msg = { id: msgId, from: PHONE_NUMBER, body: caption || (isImg ? '' : safeName), timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile };
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push(msg);
+      if (chatMap.has(to)) {
+        chatMap.get(to).lastMsg = caption || (isImg ? '📷 Foto' : safeName);
+        chatMap.get(to).lastTime = signalTs;
+      }
+      scheduleSave();
     }
     res.json({ success: true });
   } catch (e) {
@@ -801,8 +819,8 @@ html.dark .filter-tab:hover { background: #202c33; }
     <div id="input-bar">
       <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
       <input type="file" id="file-input" onchange="onFileSelected(this)">
-      <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">📎</button>
       <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">😊</button>
+      <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">📎</button>
       <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>

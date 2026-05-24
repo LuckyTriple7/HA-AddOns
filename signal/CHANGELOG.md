@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.12] - 2026-05-24
+- Fix: 📎-Button steht jetzt nach dem 😊-Button (wie bei WhatsApp)
+- Fix: Gesendete Bilder erscheinen sofort als Vorschau im Chat (Message-Store wird nach Senden befüllt)
+
 ## [1.1.11] - 2026-05-24
 - Neu: Datei-Upload über 📎-Button — Bilder und Dokumente direkt aus dem Browser senden (max. 64 MB)
 - Übertragung via signal-cli base64_attachments; Dateien nur im RAM, kein Temp-Ordner
