@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.19] - 2026-05-24
+- Neu: Datei-Upload über 📎-Button — Bilder und Dokumente direkt aus dem Browser senden (max. 64 MB)
+- Dateien werden nur im RAM gehalten, kein Temp-Ordner; Bilder optional in /config/media gespeichert
+
 ## [1.1.18] - 2026-05-24
 - Neu: Filter-Tabs „Alle / Privat / Gruppen / Kanäle / Bots" in der Chat-Sidebar
 - Neu: Typ-Avatare — 👥 Gruppen, 📢 Kanäle, 🤖 Bots (privat weiterhin farbige Initialen)

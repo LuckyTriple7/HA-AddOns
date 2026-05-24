@@ -21,7 +21,10 @@ const http = require('http');
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { NewMessage, Raw } = require('telegram/events');
+const { CustomFile } = require('telegram/client/uploads');
 const fs = require('fs');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
 const app = express();
 app.use(express.json());
@@ -507,6 +510,35 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+app.post('/api/send-media', upload.single('file'), async (req, res) => {
+  const { to, caption } = req.body;
+  if (!to || !req.file) return res.status(400).json({ error: 'to und file erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    let entity = peerMap.get(to);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(to); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+
+    const { originalname, mimetype, buffer } = req.file;
+    const isImg = mimetype.startsWith('image/');
+    const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    await client.sendFile(entity, {
+      file: new CustomFile(safeName, buffer.length, '', buffer),
+      caption: caption || '',
+      forceDocument: !isImg,
+    });
+
+    if (isImg && DOWNLOAD_MEDIA) {
+      fs.writeFileSync(`${MEDIA_DIR}/${Date.now()}_${safeName}`, buffer);
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
   if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
@@ -837,6 +869,17 @@ html.light #input-bar .emoji-btn:hover { background: #F1F1F1; }
 #emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; width: auto; height: auto; line-height: 1; }
 html.dark #emoji-toggle { color: #6B7B8D; }
 html.light #emoji-toggle { color: #888; }
+#input-bar #attach-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; width: auto; height: auto; line-height: 1; }
+html.dark #input-bar #attach-btn { color: #6B7B8D; }
+html.light #input-bar #attach-btn { color: #888; }
+#input-bar #attach-btn:hover { background: rgba(0,0,0,0.08); }
+#attach-bar { display: none; align-items: center; gap: 10px; padding: 6px 16px; font-size: 13px; border-top: 1px solid transparent; }
+#attach-bar.visible { display: flex; }
+html.dark #attach-bar { background: #1A2432; border-color: #1A2432; color: #C1C9D4; }
+html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333; }
+#attach-bar .attach-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#attach-bar .attach-clear { background: none; border: none; cursor: pointer; font-size: 16px; color: #e74c3c; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+#file-input { display: none; }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
@@ -922,8 +965,15 @@ html.light #emoji-toggle { color: #888; }
       </div>
     </div>
     <div id="messages"></div>
+    <div id="attach-bar">
+      <span>📎</span>
+      <span class="attach-name" id="attach-name"></span>
+      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">✕</button>
+    </div>
     <div id="input-bar">
       <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
+      <input type="file" id="file-input" onchange="onFileSelected(this)">
+      <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">📎</button>
       <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">😊</button>
       <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
@@ -948,7 +998,7 @@ const LANG = {
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
     btnLogout: 'Abmelden', searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
@@ -967,7 +1017,7 @@ const LANG = {
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
     btnLogout: 'Log out', searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
-    emojiTitle: 'Emoji', msgPlaceholder: 'Message…',
+    emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file',
     btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
@@ -1209,6 +1259,7 @@ function openChat(chat) {
   document.getElementById('messages').style.display = 'flex';
   document.getElementById('input-bar').style.display = 'flex';
   document.getElementById('refresh-btn').style.display = 'inline-block';
+  clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   const av = document.getElementById('ch-avatar');
   const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
@@ -1228,6 +1279,7 @@ function closeChat() {
   document.getElementById('messages').style.display = 'none';
   document.getElementById('input-bar').style.display = 'none';
   document.getElementById('refresh-btn').style.display = 'none';
+  clearAttach();
 }
 
 async function refreshChat() {
@@ -1279,10 +1331,51 @@ function renderMessages(msgs) {
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
 
+let _attachFile = null;
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function onFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _attachFile = file;
+  document.getElementById('attach-name').textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+  document.getElementById('attach-bar').classList.add('visible');
+  input.value = '';
+}
+
+function clearAttach() {
+  _attachFile = null;
+  document.getElementById('attach-bar').classList.remove('visible');
+  document.getElementById('attach-name').textContent = '';
+}
+
+async function sendFile(chatId, caption) {
+  const fd = new FormData();
+  fd.append('to', chatId);
+  fd.append('caption', caption || '');
+  fd.append('file', _attachFile, _attachFile.name);
+  clearAttach();
+  await fetch(api('/api/send-media'), { method: 'POST', body: fd });
+}
+
 async function sendMsg() {
   if (!selectedChatId) return;
   const inp = document.getElementById('msg-input');
   const text = inp.value.trim();
+  if (_attachFile) {
+    inp.value = ''; inp.style.height = '';
+    try {
+      await sendFile(selectedChatId, text);
+      await loadMessages(selectedChatId);
+      await loadChats();
+    } catch(e) {}
+    return;
+  }
   if (!text) return;
   inp.value=''; inp.style.height='';
   try {
