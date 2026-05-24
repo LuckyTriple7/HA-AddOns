@@ -484,6 +484,45 @@ app.get('/api/messages/:chatId', async (req, res) => {
   res.json(existing);
 });
 
+app.get('/api/export/:chatId', (req, res) => {
+  const chatId = decodeURIComponent(req.params.chatId);
+  const chat = chatMap.get(chatId);
+  const msgs = messagesByChatId.get(chatId) || [];
+  const chatName = chat ? (chat.name || chatId) : chatId;
+  const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const exportDate = new Date().toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  let lastDate = '';
+  const msgsHtml = msgs.map(m => {
+    const d = new Date(m.timestamp);
+    const dateStr = d.toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    const time = d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+    let sep = '';
+    if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
+    let content = '';
+    if (m.type === 'photo' && m.mediaFile) {
+      const fp = `${MEDIA_DIR}/${m.mediaFile}`;
+      if (fs.existsSync(fp)) {
+        const ext = m.mediaFile.split('.').pop().toLowerCase();
+        const mime = ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
+        content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
+      } else { content = '📷 Foto'; }
+      if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else if (m.type === 'document' && m.filename) {
+      content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
+      if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else {
+      content = escH(m.body||'').replace(/\n/g,'<br>');
+    }
+    const sender = m.fromMe ? 'Du' : escH(chatName);
+    return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
+  }).join('\n');
+  const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a2633;min-height:100vh;padding:16px;color:#e0e0e0}h1{text-align:center;font-size:18px;color:#fff;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#8696a0;background:rgba(255,255,255,.06);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#232e3c;border-bottom-left-radius:2px}.msg.out .bubble{background:#2b5278;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#2AABEE}.msg.out .sender{color:#6ec6f5}.time{color:#8696a0;flex-shrink:0}@media print{body{background:#fff;color:#000}.msg.in .bubble{background:#f0f0f0}.msg.out .bubble{background:#d6eaf8}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">Exportiert am ${exportDate} &bull; ${msgs.length} Nachrichten</p>${msgsHtml}</body></html>`;
+  const fname = `telegram_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
+  res.send(html);
+});
+
 app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to und message erforderlich' });
@@ -741,6 +780,8 @@ html.light #topbar { background: #517DA2; color: #fff; }
 .scroll-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
 #refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
+#export-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+#export-btn:hover { border-color: #fff; color: #fff; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .photo-placeholder { display: none; }
@@ -984,6 +1025,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
       <div style="flex:1;overflow:hidden">
         <div id="ch-name">–</div>
       </div>
+      <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
     </div>
     <div id="messages"></div>
     <div id="attach-bar">
@@ -1015,7 +1057,7 @@ const LANG = {
     unknownError: 'Unbekannter Fehler',
     photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
-    btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten',
+    btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
     btnLogout: 'Abmelden', searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
@@ -1034,7 +1076,7 @@ const LANG = {
     unknownError: 'Unknown error',
     photosOn: 'Photos ON', photosOff: 'Photos OFF',
     cleanupTitle: 'Delete orphaned media files',
-    btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down',
+    btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
     btnLogout: 'Log out', searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
@@ -1301,6 +1343,11 @@ function closeChat() {
   document.getElementById('input-bar').style.display = 'none';
   document.getElementById('refresh-btn').style.display = 'none';
   clearAttach();
+}
+
+function exportChat() {
+  if (!selectedChatId) return;
+  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId));
 }
 
 async function refreshChat() {

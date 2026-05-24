@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.22] - 2026-05-24
+- Neu: Chat-Export als HTML — 💾 Button im Chat-Header; Bilder inline eingebettet, Dokumente als 📄-Eintrag
+
 ## [1.1.21] - 2026-05-24
 - Fix: Gesendete Dokumente (PDF etc.) zeigen jetzt 📄-Icon + Dateiname im Chat statt leerem Bubble
 

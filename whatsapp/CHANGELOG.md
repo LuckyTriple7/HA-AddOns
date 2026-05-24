@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.27] - 2026-05-24
+- Neu: Chat-Export als HTML — 💾 Export-Button im Chat-Header; Bilder werden inline eingebettet (base64)
+
 ## [1.3.26] - 2026-05-24
 - Fix: Gruppen-Avatar war zu dunkel (#2a3942 → #25D366 WhatsApp-Grün)
 
