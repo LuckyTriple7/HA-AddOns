@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.35] - 2026-05-24
+- Fix: keep_deleted — Client liest keepDeleted-Flag aus Server-Response statt eingebetteter JS-Konstante (verhindert Stale-Cache-Bug)
+- Fix: CSS.escape() für message IDs mit @lid-Format in querySelector
+- Fix: Startup-Log und markDeleted-Log zeigen KEEP_DELETED-Wert zur Diagnose
+- Fix: "Nachricht wurde gelöscht" Text besser lesbar (höherer Kontrast, Light-Mode-Unterstützung)
+
 ## [1.3.34] - 2026-05-24
 - Fix: keep_deleted Standard auf false geändert
 - Fix: Bei gelöschten Nachrichten werden Emoji-, Weiterleiten- und Antworten-Buttons ebenfalls ausgeblendet

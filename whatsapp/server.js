@@ -68,6 +68,7 @@ const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
+console.log(`[INFO] KEEP_DELETED=${KEEP_DELETED}`);
 const MEDIA_DIR = '/config/media';
 const MAX_MSGS_PER_CHAT = parseInt(process.env.MAX_MESSAGES_PER_CHAT || '200', 10);
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
@@ -502,6 +503,7 @@ function markDeleted(msgId) {
   for (const [, msgs] of messagesByChatId.entries()) {
     const idx = msgs.findIndex(m => m.id === msgId);
     if (idx !== -1) {
+      console.log(`[INFO] markDeleted: ${msgId} KEEP_DELETED=${KEEP_DELETED}`);
       if (KEEP_DELETED) {
         msgs[idx].deleted = true;
         msgs[idx].body = '';
@@ -1145,8 +1147,9 @@ app.get('/', (req, res) => {
     #attach-cancel:hover { color:#e9edef; }
     #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
     #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
-    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.45); font-size:13px; padding:2px 0; }
-    .bubble-deleted .del-icon { margin-right:5px; }
+    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
+    .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
+    html.light .bubble-deleted { color:rgba(0,0,0,0.55); }
     .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
     .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
     .bubble-document .doc-info { flex:1; min-width:0; }
@@ -1823,8 +1826,8 @@ app.get('/', (req, res) => {
       // Update existing deleted bubbles in place instead of appending duplicates
       msgs = msgs.filter(m => {
         if (!m.deleted) return true;
-        const existing = msgList.querySelector('[data-msgid="' + m.id + '"] .bubble, .bubble-wrap[data-msgid="' + m.id + '"] .bubble');
-        const wrap = msgList.querySelector('[data-msgid="' + m.id + '"]');
+        const existing = msgList.querySelector('[data-msgid="' + CSS.escape(m.id) + '"] .bubble');
+        const wrap = msgList.querySelector('[data-msgid="' + CSS.escape(m.id) + '"]');
         if (wrap) {
           const bub = wrap.querySelector('.bubble');
           if (bub && !bub.querySelector('.bubble-deleted')) {
@@ -2214,9 +2217,10 @@ app.get('/', (req, res) => {
       try {
         const r = await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
         if (!r.ok) return;
-        const wrap = msgList.querySelector('[data-msgid="' + msgId + '"]');
+        const data = await r.json();
+        const wrap = msgList.querySelector('[data-msgid="' + CSS.escape(msgId) + '"]');
         if (!wrap) return;
-        if (KEEP_DELETED) {
+        if (data.keepDeleted) {
           const bub = wrap.querySelector('.bubble');
           if (bub) bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + (wrap.querySelector('.time')?.textContent || '') + '</span>';
           wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
