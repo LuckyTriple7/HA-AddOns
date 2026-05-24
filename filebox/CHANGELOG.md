@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.5] - 2026-05-24
+- Ingress entfernt — direkter Port-Zugriff (17771) ist zuverlässiger (FileBrowser hat bekannte Ingress-Inkompatibilität)
+
 ## [1.2.4] - 2026-05-24
 - Fix: Ingress funktioniert jetzt — baseurl auf "/" gesetzt (INGRESS_PATH-Ansatz war falsch)
 
