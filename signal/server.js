@@ -20,6 +20,8 @@ const express = require('express');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
 const app = express();
 app.use(express.json());
@@ -498,6 +500,30 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+app.post('/api/send-media', upload.single('file'), async (req, res) => {
+  const { to, caption } = req.body;
+  if (!to || !req.file) return res.status(400).json({ error: 'Missing to/file' });
+  try {
+    const { mimetype, buffer, originalname } = req.file;
+    const dataUri = `data:${mimetype};filename=${encodeURIComponent(originalname)};base64,${buffer.toString('base64')}`;
+    const r = await fetch(`${SIGNAL_API}/v2/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: caption || '', number: PHONE_NUMBER, recipients: [to], base64_attachments: [dataUri] }),
+      timeout: 30000,
+    });
+    const result = await r.json();
+    if (!r.ok) return res.status(500).json({ error: result });
+    if (mimetype.startsWith('image/') && DOWNLOAD_MEDIA) {
+      const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      fs.writeFileSync(`${MEDIA_DIR}${Date.now()}_${safeName}`, buffer);
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
 app.post('/api/qr/refresh', (req, res) => {
   qrSvg = null;
   qrUri = null;
@@ -663,6 +689,15 @@ html.dark .ack-3 { color: #53bdeb; }
 .emoji-btn:hover { background: #f0f2f5; }
 #emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; }
 #emoji-toggle:hover { background: rgba(0,0,0,0.08); }
+#input-bar #attach-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; color: #888; }
+#input-bar #attach-btn:hover { background: rgba(0,0,0,0.08); }
+#attach-bar { display: none; align-items: center; gap: 10px; padding: 6px 16px; font-size: 13px; background: #e8eef4; border-top: 1px solid #d0d8e0; color: #333; }
+#attach-bar.visible { display: flex; }
+#attach-bar .attach-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#attach-bar .attach-clear { background: none; border: none; cursor: pointer; font-size: 16px; color: #e74c3c; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+#file-input { display: none; }
+html.dark #input-bar #attach-btn { color: #8696a0; }
+html.dark #attach-bar { background: #1a2533; border-color: #2a3942; color: #c1c9d4; }
 #msg-input { flex: 1; padding: 10px 14px; border-radius: 20px; border: none; background: #fff; font-size: 14px; outline: none; resize: none; max-height: 120px; overflow-y: auto; font-family: inherit; }
 #send-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: #3a76f8; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #send-btn:hover { background: #2960d6; }
@@ -758,8 +793,15 @@ html.dark .filter-tab:hover { background: #202c33; }
       ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
     </div>
     <div id="messages"><div id="no-chat" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div></div>
+    <div id="attach-bar">
+      <span>📎</span>
+      <span class="attach-name" id="attach-name"></span>
+      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">✕</button>
+    </div>
     <div id="input-bar">
       <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
+      <input type="file" id="file-input" onchange="onFileSelected(this)">
+      <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">📎</button>
       <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">😊</button>
       <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
@@ -786,7 +828,7 @@ const LANG = {
     btnFetchMedia: '📥 Fotos nachladen', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', emojiTitle: 'Emoji',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen',
     errSend: (e) => 'Fehler: ' + e,
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
@@ -808,7 +850,7 @@ const LANG = {
     btnFetchMedia: '📥 Load photos', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', emojiTitle: 'Emoji',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', emojiTitle: 'Emoji', attachTitle: 'Attach file',
     errSend: (e) => 'Error: ' + e,
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
@@ -1030,6 +1072,7 @@ function openChat(chat) {
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
   localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
   document.body.classList.add('chat-open');
+  clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   const ph = chat.phone || '';
   document.getElementById('ch-phone').textContent = /^\\+?\\d{7,15}$/.test(ph) ? ph : '';
@@ -1050,6 +1093,7 @@ function openChat(chat) {
 function closeChat() {
   document.body.classList.remove('chat-open');
   selectedChatId = null;
+  clearAttach();
 }
 
 async function loadMessages(chatId) {
@@ -1088,10 +1132,52 @@ function renderMessages(msgs) {
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
+let _attachFile = null;
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function onFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _attachFile = file;
+  document.getElementById('attach-name').textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+  document.getElementById('attach-bar').classList.add('visible');
+  input.value = '';
+}
+
+function clearAttach() {
+  _attachFile = null;
+  document.getElementById('attach-bar').classList.remove('visible');
+  document.getElementById('attach-name').textContent = '';
+}
+
+async function sendFile(chatId, caption) {
+  const fd = new FormData();
+  fd.append('to', chatId);
+  fd.append('caption', caption || '');
+  fd.append('file', _attachFile, _attachFile.name);
+  clearAttach();
+  await fetch(api('/api/send-media'), { method: 'POST', body: fd });
+}
+
 async function sendMsg() {
   if (!selectedChatId) return;
   const inp = document.getElementById('msg-input');
   const text = inp.value.trim();
+  if (_attachFile) {
+    inp.value = ''; inp.style.height = '';
+    try {
+      await sendFile(selectedChatId, text);
+      fetch(api('/api/poll'), { method: 'POST' });
+      await loadMessages(selectedChatId);
+      await loadChats();
+    } catch (e) { alert(tf('errSend', e.message)); }
+    return;
+  }
   if (!text) return;
   inp.value = '';
   inp.style.height = '';

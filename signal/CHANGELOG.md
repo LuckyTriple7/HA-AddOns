@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.11] - 2026-05-24
+- Neu: Datei-Upload über 📎-Button — Bilder und Dokumente direkt aus dem Browser senden (max. 64 MB)
+- Übertragung via signal-cli base64_attachments; Dateien nur im RAM, kein Temp-Ordner
+
 ## [1.1.10] - 2026-05-24
 
 ### Neu
