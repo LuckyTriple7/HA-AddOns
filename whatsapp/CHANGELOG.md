@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.23] - 2026-05-24
+- Neu: Datei-Upload über 📎-Klammer-Button — Bilder und Dokumente (PDF, Word usw.) direkt aus dem Browser an WhatsApp-Chats senden
+- Neu: Eingehende Dokument-Nachrichten werden mit Dateiname angezeigt
+- Abhängigkeit multer für Multipart-Upload hinzugefügt
+
 ## [1.3.22] - 2026-05-23
 - Fix: Chromium-Cache auf 50 MB begrenzt (--disk-cache-size) — verhindert unbegrenztes Speicherwachstum
 - Fix: Cache-Verzeichnisse (Cache, Cache2, Code Cache, GPUCache) werden beim Start bereinigt

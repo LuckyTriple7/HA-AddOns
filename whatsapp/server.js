@@ -17,7 +17,9 @@
   });
 })();
 
-const { Client, NoAuth } = require('whatsapp-web.js');
+const { Client, NoAuth, MessageMedia } = require('whatsapp-web.js');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 const path = require('path');
 const express = require('express');
 const qrcode = require('qrcode');
@@ -158,7 +160,7 @@ function addMsg(chatId, msg) {
   if (msgs.length > MAX_MSGS_PER_CHAT) msgs.splice(0, msgs.length - MAX_MSGS_PER_CHAT);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : '[Medien]');
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? `📄 ${msg.filename || 'Dokument'}` : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
   }
@@ -329,8 +331,9 @@ client.on('message', async (msg) => {
   if (msg.isStatus || isFilteredChat(msg.from || '')) { dbg('Skipping status/newsletter update'); return; }
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
-  if (!isText && !isImage) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
-  if (!msg.body && !isImage) return;
+  const isDocument = msg.type === 'document';
+  if (!isText && !isImage && !isDocument) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
+  if (!msg.body && !isImage && !isDocument) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
   const chatId = chat.id._serialized;
@@ -338,10 +341,13 @@ client.on('message', async (msg) => {
   const contact = await msg.getContact().catch(() => null);
   const contactName = contact?.pushname || contact?.name || msg.from.replace('@c.us', '');
   upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
-  let type = 'text', mediaFile = null;
+  let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+  } else if (isDocument) {
+    type = 'document';
+    filename = msg._data?.filename || msg.filename || 'Dokument';
   }
   let quotedMsgData = null;
   if (msg.hasQuotedMsg) {
@@ -357,7 +363,7 @@ client.on('message', async (msg) => {
   const added = addMsg(chatId, {
     id: msg.id._serialized,
     body: msg.body || '',
-    type, mediaFile,
+    type, mediaFile, filename,
     timestamp: msg.timestamp * 1000,
     fromMe: false,
     contact: contactName,
@@ -380,17 +386,21 @@ client.on('message_create', async (msg) => {
   if (msg.isStatus || isFilteredChat(msg.from || '')) return;
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
-  if (!isText && !isImage) { dbg(`message_create: skipping type=${msg.type}`); return; }
+  const isDocument = msg.type === 'document';
+  if (!isText && !isImage && !isDocument) { dbg(`message_create: skipping type=${msg.type}`); return; }
   if (msg.__logged) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
   const chatId = chat.id._serialized;
   if (isFilteredChat(chatId)) return;
   upsertChat(chatId, { name: chat.name || msg.to.replace('@c.us', ''), phone: chat.id.user, isGroup: chat.isGroup });
-  let type = 'text', mediaFile = null;
+  let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+  } else if (isDocument) {
+    type = 'document';
+    filename = msg._data?.filename || msg.filename || 'Dokument';
   }
   let quotedMsgDataOut = null;
   if (msg.hasQuotedMsg) {
@@ -406,7 +416,7 @@ client.on('message_create', async (msg) => {
   addMsg(chatId, {
     id: msg.id._serialized,
     body: msg.body || '',
-    type, mediaFile,
+    type, mediaFile, filename,
     timestamp: msg.timestamp * 1000,
     fromMe: true,
     contact: 'Ich',
@@ -582,6 +592,47 @@ app.post('/api/send', async (req, res) => {
     addMsg(targetChatId, {
       id: result.id._serialized,
       body: message,
+      timestamp: Date.now(),
+      fromMe: true,
+      contact: 'Ich',
+      ack: 1,
+    });
+    res.json({ success: true, id: result.id._serialized });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/send-media', upload.single('file'), async (req, res) => {
+  const { to, caption } = req.body;
+  if (!to || !req.file) return res.status(400).json({ error: 'to and file required' });
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  try {
+    const jid = formatNumber(to);
+    const mime = req.file.mimetype;
+    const origName = req.file.originalname;
+    const data = req.file.buffer.toString('base64');
+    const media = new MessageMedia(mime, data, origName);
+    const isImg = mime.startsWith('image/');
+    const result = await client.sendMessage(jid, media, caption ? { caption } : {});
+    result.__logged = true;
+    let mediaFile = null;
+    if (isImg) {
+      const safeId = result.id._serialized.replace(/[^a-zA-Z0-9]/g, '_');
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+      const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+      fs.writeFileSync(filePath, req.file.buffer);
+      mediaFile = `${safeId}.${ext}`;
+    }
+    if (!chatMap.has(jid)) {
+      upsertChat(jid, { name: to.replace(/@[cg]\.us$/, ''), phone: to.replace(/@[cg]\.us$/, '') });
+    }
+    addMsg(jid, {
+      id: result.id._serialized,
+      body: caption || '',
+      type: isImg ? 'photo' : 'document',
+      mediaFile,
+      filename: isImg ? null : origName,
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
@@ -962,6 +1013,23 @@ app.get('/', (req, res) => {
     .quoted-text { font-size:12px; color:rgba(233,237,239,0.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     #reply-bar { display:none; background:#1a2530; border-left:3px solid #3cdb7c; border-top:1px solid #2a3942; padding:6px 16px; align-items:center; gap:10px; flex-shrink:0; }
     #reply-bar.active { display:flex; }
+    #attach-bar { display:none; background:#1a2530; border-top:1px solid #2a3942; padding:8px 16px; align-items:center; gap:10px; flex-shrink:0; }
+    #attach-bar.active { display:flex; }
+    .attach-preview { display:flex; align-items:center; gap:10px; flex:1; min-width:0; overflow:hidden; }
+    #attach-thumb { width:48px; height:48px; object-fit:cover; border-radius:6px; flex-shrink:0; display:none; }
+    .attach-info { flex:1; min-width:0; }
+    #attach-name { font-size:13px; color:#e9edef; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+    #attach-size { font-size:11px; color:#8696a0; }
+    #attach-icon { font-size:28px; flex-shrink:0; }
+    #attach-cancel { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
+    #attach-cancel:hover { color:#e9edef; }
+    #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
+    #attach-btn:hover { background:rgba(255,255,255,0.08); }
+    .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
+    .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
+    .bubble-document .doc-info { flex:1; min-width:0; }
+    .bubble-document .doc-name { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+    .bubble-document .doc-caption { font-size:12px; color:rgba(233,237,239,0.7); margin-top:2px; }
     .reply-bar-content { flex:1; overflow:hidden; }
     #reply-bar-sender { font-size:11px; font-weight:600; color:#3cdb7c; }
     #reply-bar-text { font-size:12px; color:#8696a0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1210,9 +1278,22 @@ app.get('/', (req, res) => {
         </div>
         <button id="reply-close" onclick="clearReply()">✕</button>
       </div>
+      <div id="attach-bar">
+        <div class="attach-preview">
+          <img id="attach-thumb" alt="">
+          <span id="attach-icon">📄</span>
+          <div class="attach-info">
+            <span id="attach-name"></span>
+            <span id="attach-size"></span>
+          </div>
+        </div>
+        <button id="attach-cancel" onclick="clearAttach()">✕</button>
+      </div>
       <div id="send-bar" style="display:none;">
+        <input type="file" id="file-input" style="display:none;" onchange="onFileSelected(event)">
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
         <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
+        <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>
@@ -1254,7 +1335,7 @@ app.get('/', (req, res) => {
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück', ttFetchMedia:'Letzte 20 Fotos herunterladen', btnFetchMedia:'📥 Fotos nachladen',
         ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🗑️ Spam löschen',
-        btnEmoji:'Emoji', msgInput:'Nachricht…', btnSend:'Senden',
+        btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
         today:'Heute', yesterday:'Gestern',
@@ -1283,7 +1364,7 @@ app.get('/', (req, res) => {
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back', ttFetchMedia:'Download last 20 photos', btnFetchMedia:'📥 Load Photos',
         ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🗑️ Delete Spam',
-        btnEmoji:'Emoji', msgInput:'Message…', btnSend:'Send',
+        btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
         today:'Today', yesterday:'Yesterday',
@@ -1600,7 +1681,9 @@ app.get('/', (req, res) => {
         const bub = document.createElement('div');
         bub.className = 'bubble';
         const ack = m.fromMe ? ackMark(m.ack || 0) : '';
-        if (m.type === 'photo' && m.mediaFile) {
+        if (m.type === 'document') {
+          bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
+        } else if (m.type === 'photo' && m.mediaFile) {
           bub.classList.add('bubble-photo');
           if (m.isForwarded) {
             const fwdEl = document.createElement('span');
@@ -1849,8 +1932,70 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
 
+    let _attachFile = null;
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function onFileSelected(evt) {
+      const file = evt.target.files[0];
+      if (!file) return;
+      _attachFile = file;
+      const isImg = file.type.startsWith('image/');
+      const icon = document.getElementById('attach-icon');
+      const thumb = document.getElementById('attach-thumb');
+      icon.style.display = isImg ? 'none' : 'block';
+      if (isImg) {
+        const reader = new FileReader();
+        reader.onload = e => { thumb.src = e.target.result; thumb.style.display = 'block'; };
+        reader.readAsDataURL(file);
+      } else {
+        thumb.style.display = 'none';
+      }
+      document.getElementById('attach-name').textContent = file.name;
+      document.getElementById('attach-size').textContent = formatFileSize(file.size);
+      document.getElementById('attach-bar').classList.add('active');
+      document.getElementById('msg-input').placeholder = t('attachCaption');
+      document.getElementById('msg-input').focus();
+      evt.target.value = '';
+    }
+
+    function clearAttach() {
+      _attachFile = null;
+      document.getElementById('attach-bar').classList.remove('active');
+      document.getElementById('attach-thumb').style.display = 'none';
+      document.getElementById('attach-name').textContent = '';
+      document.getElementById('attach-size').textContent = '';
+      document.getElementById('msg-input').placeholder = t('msgInput');
+    }
+
+    async function sendFile() {
+      if (!_attachFile || !selectedChatId) return;
+      const caption = document.getElementById('msg-input').value.trim();
+      const formData = new FormData();
+      formData.append('to', selectedChatId);
+      if (caption) formData.append('caption', caption);
+      formData.append('file', _attachFile);
+      clearAttach();
+      document.getElementById('msg-input').value = '';
+      document.getElementById('msg-input').style.height = 'auto';
+      atBottom = true;
+      try {
+        const r = await fetch('api/send-media', { method: 'POST', body: formData }).then(r => r.json());
+        if (r.success) {
+          await pollMessages();
+        } else {
+          alert(tf('errSend', r.error));
+        }
+      } catch(e) { alert(t('errNetwork')); }
+    }
+
     async function sendMsg() {
       if (!selectedChatId) return;
+      if (_attachFile) { await sendFile(); return; }
       const txt = document.getElementById('msg-input').value.trim();
       if (!txt) return;
       const quotedMsgId = _replyMsgId;
