@@ -17,6 +17,9 @@ configuration:
   max_messages_per_chat:
     name: Max. Nachrichten pro Chat (Arbeitsspeicher)
     description: "Maximale Anzahl Nachrichten die pro Chat im RAM gehalten werden. Ältere Nachrichten werden verworfen wenn das Limit erreicht ist. Kein Einfluss auf die Startgeschwindigkeit. Empfehlung: 200–500."
+  keep_deleted:
+    name: Gelöschte Nachrichten behalten
+    description: "true = Gelöschte Nachrichten bleiben als 🚫 sichtbar. false = Gelöschte Nachrichten werden aus dem Chat entfernt (ursprüngliches Verhalten)."
   debug_mode:
     name: Debug-Modus
     description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.

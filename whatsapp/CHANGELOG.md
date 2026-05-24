@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.33] - 2026-05-24
+- Neu: Option `keep_deleted` (Standard: true) — gelöschte Nachrichten als 🚫 anzeigen oder entfernen
+- Fix: Gelöschte Nachrichten werden im laufenden Poll erkannt und sofort in der UI aktualisiert (kein Chat-Wechsel nötig)
+- Fix: Existierende Bubbles werden bei Löschung in-place aktualisiert statt dupliziert
+
 ## [1.3.32] - 2026-05-24
 - Fix: Eigene gelöschte Nachrichten werden jetzt sofort als "🚫 gelöscht" in der UI markiert (vorher blieben sie sichtbar wenn delete(true) fehlschlug)
 - Fix: message_revoke_everyone Handler robuster + immer geloggt; message_revoke_me als Fallback ergänzt

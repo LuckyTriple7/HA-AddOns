@@ -17,6 +17,9 @@ configuration:
   max_messages_per_chat:
     name: Max Messages per Chat (Memory)
     description: "Maximum messages kept in RAM per chat during runtime. Older messages are discarded when the limit is reached. Does not affect startup speed. Recommended: 200–500."
+  keep_deleted:
+    name: Keep Deleted Messages
+    description: "true = Deleted messages remain visible marked with 🚫. false = Deleted messages are removed from the chat (original behavior)."
   debug_mode:
     name: Debug Mode
     description: Enable verbose logging including detailed request logs. Useful for troubleshooting.
