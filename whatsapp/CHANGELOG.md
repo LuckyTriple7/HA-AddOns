@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.1] - 2026-05-25
+- Neu: Option `keep_deleted` (Standard: false) — bei true wird das Lösch-Event ignoriert, Nachricht bleibt unverändert sichtbar (kein 🚫, alle Buttons bleiben aktiv)
+
 ## [1.4.0] - 2026-05-25
 - Fix: "Nachricht wurde gelöscht" Text besser lesbar (Kontrast 0.45 → 0.75, Light-Mode-Unterstützung)
 - Fix: MAX_MESSAGES_PER_CHAT fehlte in run.sh → Option wurde ignoriert

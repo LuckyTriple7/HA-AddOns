@@ -19,7 +19,7 @@ configuration:
     description: "Maximum messages kept in RAM per chat during runtime. Older messages are discarded when the limit is reached. Does not affect startup speed. Recommended: 200–500."
   keep_deleted:
     name: Keep Deleted Messages
-    description: "true = Deleted messages remain visible marked with 🚫. false = Deleted messages are removed from the chat (original behavior)."
+    description: "true = When someone deletes a message, it stays visible unchanged in the add-on (no 🚫 marker, reply/react still work). false = Deleted messages are marked with 🚫 (default)."
   debug_mode:
     name: Debug Mode
     description: Enable verbose logging including detailed request logs. Useful for troubleshooting.

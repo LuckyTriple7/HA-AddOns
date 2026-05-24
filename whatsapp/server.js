@@ -62,6 +62,7 @@ let lastError = null;
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
@@ -506,6 +507,7 @@ function markDeleted(msgId) {
 }
 
 client.on('message_revoke_everyone', (msg, revokedMsg) => {
+  if (KEEP_DELETED) return; // Nachricht bleibt unverändert sichtbar
   const idA = revokedMsg?.id?._serialized;
   const idB = msg?.id?._serialized;
   console.log(`[INFO] message_revoke_everyone: msg=${idB} revokedMsg=${idA}`);
@@ -514,6 +516,7 @@ client.on('message_revoke_everyone', (msg, revokedMsg) => {
 });
 
 client.on('message_revoke_me', (msg) => {
+  if (KEEP_DELETED) return; // Nachricht bleibt unverändert sichtbar
   const msgId = msg?.id?._serialized;
   console.log(`[INFO] message_revoke_me: msg=${msgId}`);
   const found = markDeleted(msgId);
