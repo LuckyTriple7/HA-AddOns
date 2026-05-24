@@ -12,6 +12,9 @@ Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-
 - **MTProto-Login**: Telefonnummer + SMS/App-Code, 2FA unterstützt
 - **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
 - **Fotos**: Empfangene Bilder anzeigen (optional, siehe `download_media`)
+- **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
+- **Chat-Filter**: Tabs „Alle / Privat / Gruppen / Kanäle / Bots" in der Sidebar; Typ-Avatare 👥 📢 🤖
+- **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
 - **Nachrichten löschen**: Nachricht für alle entfernen (Hover → ✕)
 - **Lesebestätigungen**: ✓ gesendet (grau), ✓✓ gelesen (blau) bei eigenen Nachrichten
 - **Ungelesene-Badge**: Blauer Punkt in der Sidebar bei neuen Nachrichten
@@ -66,6 +69,8 @@ GET  /api/status                     → { status, name, id }
 GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
 GET  /api/messages/:chatId           → [ { id, body, type, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
+POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
+GET  /api/export/:chatId             → Chat als HTML-Datei herunterladen
 DELETE /api/messages/:chatId/:msgId  → Nachricht für alle löschen
 POST /api/submit-code                → { code } — Login-Code einreichen
 POST /api/submit-password            → { password } — 2FA-Passwort einreichen
@@ -201,6 +206,9 @@ Telegram as a full client directly in Home Assistant — with chat UI, REST API 
 - **MTProto login**: Phone number + SMS/app code, 2FA supported
 - **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
 - **Photos**: Display received images (optional, see `download_media`)
+- **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
+- **Chat filter**: Tabs "All / Private / Groups / Channels / Bots" in the sidebar; type avatars 👥 📢 🤖
+- **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
 - **Delete messages**: Remove a message for everyone (hover → ✕)
 - **Read receipts**: ✓ sent (grey), ✓✓ read (blue) on outgoing messages
 - **Unread badge**: Blue dot in the sidebar for new messages
@@ -255,6 +263,8 @@ GET  /api/status                     → { status, name, id }
 GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
 GET  /api/messages/:chatId           → [ { id, body, type, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
+POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
+GET  /api/export/:chatId             → Download chat as HTML file
 DELETE /api/messages/:chatId/:msgId  → Delete message for everyone
 POST /api/submit-code                → { code } — Submit login code
 POST /api/submit-password            → { password } — Submit 2FA password
