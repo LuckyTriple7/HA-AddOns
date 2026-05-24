@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.26] - 2026-05-24
+- Fix: Gruppen-Avatar war zu dunkel (#2a3942 → #25D366 WhatsApp-Grün)
+
 ## [1.3.25] - 2026-05-24
 - Neu: Filter-Tabs „Alle / Privat / Gruppen" in der Chat-Liste
 - Neu: Gruppen-Chats zeigen 👥-Avatar statt Initialen

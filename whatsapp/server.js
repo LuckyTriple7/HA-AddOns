@@ -949,7 +949,7 @@ app.get('/', (req, res) => {
     html.light .filter-tab { color:#999; }
     html.light .filter-tab:hover { background:rgba(0,0,0,0.06); color:#111; }
     html.light .filter-tab.active { background:#e0e0e0; color:#111; }
-    .avatar.group-avatar { background:#2a3942 !important; font-size:22px; }
+    .avatar.group-avatar { background:#25D366 !important; font-size:22px; }
     #search {
       width: 100%; background: #2a3942; border: none; border-radius: 8px;
       padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none;
