@@ -527,7 +527,9 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
         fs.writeFileSync(`${MEDIA_DIR}${fname}`, buffer);
         mediaFile = fname;
       }
-      const msg = { id: msgId, from: PHONE_NUMBER, body: caption || (isImg ? '' : safeName), timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile };
+      const msg = isImg
+        ? { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'photo', timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile }
+        : { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'document', filename: safeName, timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile: null };
       if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
       messagesByChatId.get(to).push(msg);
       if (chatMap.has(to)) {
@@ -649,6 +651,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #logout-btn:hover { color: #f15c5c; }
 .msg-img { max-width: 250px; max-height: 250px; border-radius: 8px; cursor: zoom-in; display: block; object-fit: cover; margin-top: 4px; }
 .photo-placeholder { color: #3a76f8; }
+.bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.bubble-doc .doc-icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 
 #main { display: none; flex: 1; overflow: hidden; }
 
@@ -1142,6 +1147,9 @@ function renderMessages(msgs) {
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
+    } else if (m.type === 'document' && m.filename) {
+      content = \`<div class="bubble-doc"><span class="doc-icon">📄</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
+      if (m.body) content += \`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else {
       content = formatText(m.body || '');
     }
