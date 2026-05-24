@@ -62,7 +62,7 @@ let lastError = null;
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
-const KEEP_DELETED = process.env.KEEP_DELETED !== 'false';
+const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
@@ -1829,8 +1829,7 @@ app.get('/', (req, res) => {
           const bub = wrap.querySelector('.bubble');
           if (bub && !bub.querySelector('.bubble-deleted')) {
             bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
-            const btn = wrap.querySelector('.del-btn');
-            if (btn) btn.style.display = 'none';
+            wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
           }
           return false;
         }
@@ -1908,12 +1907,14 @@ app.get('/', (req, res) => {
         reactBtn.title = t('ttReact');
         reactBtn.textContent = '😊';
         reactBtn.dataset.msgid = m.id;
+        if (m.deleted) reactBtn.style.display = 'none';
         bri.appendChild(reactBtn);
         const fwdBtn = document.createElement('button');
         fwdBtn.className = 'fwd-btn';
         fwdBtn.title = t('ttForward');
         fwdBtn.textContent = '↪';
         fwdBtn.dataset.msgid = m.id;
+        if (m.deleted) fwdBtn.style.display = 'none';
         bri.appendChild(fwdBtn);
         const replyBtn = document.createElement('button');
         replyBtn.className = 'reply-btn';
@@ -2218,8 +2219,7 @@ app.get('/', (req, res) => {
         if (KEEP_DELETED) {
           const bub = wrap.querySelector('.bubble');
           if (bub) bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + (wrap.querySelector('.time')?.textContent || '') + '</span>';
-          const btn = wrap.querySelector('.del-btn');
-          if (btn) btn.style.display = 'none';
+          wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
         } else {
           wrap.remove();
         }

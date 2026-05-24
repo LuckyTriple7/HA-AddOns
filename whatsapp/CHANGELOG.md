@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.34] - 2026-05-24
+- Fix: keep_deleted Standard auf false geändert
+- Fix: Bei gelöschten Nachrichten werden Emoji-, Weiterleiten- und Antworten-Buttons ebenfalls ausgeblendet
+
 ## [1.3.33] - 2026-05-24
 - Neu: Option `keep_deleted` (Standard: true) — gelöschte Nachrichten als 🚫 anzeigen oder entfernen
 - Fix: Gelöschte Nachrichten werden im laufenden Poll erkannt und sofort in der UI aktualisiert (kein Chat-Wechsel nötig)
