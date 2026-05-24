@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.24] - 2026-05-24
+- Fix: Klammer-Button hatte ungewollten grünen Kreis (CSS-Spezifität korrigiert)
+
 ## [1.3.23] - 2026-05-24
 - Neu: Datei-Upload über 📎-Klammer-Button — Bilder und Dokumente (PDF, Word usw.) direkt aus dem Browser an WhatsApp-Chats senden
 - Neu: Eingehende Dokument-Nachrichten werden mit Dateiname angezeigt
