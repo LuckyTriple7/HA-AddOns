@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.25] - 2026-05-24
+- Neu: Filter-Tabs „Alle / Privat / Gruppen" in der Chat-Liste
+- Neu: Gruppen-Chats zeigen 👥-Avatar statt Initialen
+
 ## [1.3.24] - 2026-05-24
 - Fix: Klammer-Button hatte ungewollten grünen Kreis (CSS-Spezifität korrigiert)
 

@@ -941,6 +941,15 @@ app.get('/', (req, res) => {
       padding: 8px 12px; background: #202c33;
       border-bottom: 1px solid #2a3942; flex-shrink: 0;
     }
+    #chat-filter { display:flex; background:#202c33; border-bottom:1px solid #2a3942; padding:4px 8px; gap:4px; flex-shrink:0; }
+    .filter-tab { flex:1; background:none; border:none; border-radius:16px; padding:5px 6px; font-size:12px; color:#8696a0; cursor:pointer; transition:background 0.12s,color 0.12s; white-space:nowrap; }
+    .filter-tab:hover { background:rgba(134,150,160,0.15); color:#e9edef; }
+    .filter-tab.active { background:#2a3942; color:#e9edef; font-weight:500; }
+    html.light #chat-filter { background:#f0f2f5; border-color:#e0e0e0; }
+    html.light .filter-tab { color:#999; }
+    html.light .filter-tab:hover { background:rgba(0,0,0,0.06); color:#111; }
+    html.light .filter-tab.active { background:#e0e0e0; color:#111; }
+    .avatar.group-avatar { background:#2a3942 !important; font-size:22px; }
     #search {
       width: 100%; background: #2a3942; border: none; border-radius: 8px;
       padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none;
@@ -1252,6 +1261,11 @@ app.get('/', (req, res) => {
       <div id="sidebar-header">
         <input type="text" id="search" data-i18n-pl="searchChats" placeholder="🔍  Chats durchsuchen…" oninput="filterChats()">
       </div>
+      <div id="chat-filter">
+        <button class="filter-tab active" data-filter="all" onclick="setFilter('all')" data-i18n="filterAll">Alle</button>
+        <button class="filter-tab" data-filter="private" onclick="setFilter('private')" data-i18n="filterPrivate">Privat</button>
+        <button class="filter-tab" data-filter="groups" onclick="setFilter('groups')" data-i18n="filterGroups">Gruppen</button>
+      </div>
       <div id="chat-list"><div class="no-chats" data-i18n="loadingChats">Lade Chats…</div></div>
     </div>
 
@@ -1331,6 +1345,7 @@ app.get('/', (req, res) => {
         statusInit:'Starte…', statusDisc:'Getrennt', statusAuthFail:'Auth-Fehler', statusError:'Fehler',
         photosOn:'Fotos AN', photosOff:'Fotos AUS', btnCleanup:'Verwaiste Mediendateien löschen',
         btnScrollUp:'Nach oben', btnScrollDown:'Nach unten', btnLogout:'Abmelden',
+        filterAll:'Alle', filterPrivate:'Privat', filterGroups:'Gruppen',
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück', ttFetchMedia:'Letzte 20 Fotos herunterladen', btnFetchMedia:'📥 Fotos nachladen',
@@ -1360,6 +1375,7 @@ app.get('/', (req, res) => {
         statusInit:'Starting…', statusDisc:'Disconnected', statusAuthFail:'Auth error', statusError:'Error',
         photosOn:'Photos ON', photosOff:'Photos OFF', btnCleanup:'Delete orphaned media files',
         btnScrollUp:'Scroll up', btnScrollDown:'Scroll down', btnLogout:'Logout',
+        filterAll:'All', filterPrivate:'Private', filterGroups:'Groups',
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back', ttFetchMedia:'Download last 20 photos', btnFetchMedia:'📥 Load Photos',
@@ -1561,10 +1577,22 @@ app.get('/', (req, res) => {
       }
     });
 
+    let currentFilter = 'all';
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === f));
+      renderChatList(allChats);
+    }
+
     function renderChatList(chats) {
       const list = document.getElementById('chat-list');
       const q = document.getElementById('search').value.toLowerCase();
-      const filtered = q ? chats.filter(c => c.name.toLowerCase().includes(q)) : chats;
+      const filtered = chats.filter(c => {
+        if (q && !c.name.toLowerCase().includes(q)) return false;
+        if (currentFilter === 'private') return !c.isGroup;
+        if (currentFilter === 'groups') return !!c.isGroup;
+        return true;
+      });
       if (!filtered.length) {
         list.innerHTML = '<div class="no-chats">' + t('noChats') + '</div>';
         return;
@@ -1577,9 +1605,14 @@ app.get('/', (req, res) => {
         item.onclick = () => openChat(chat);
 
         const av = document.createElement('div');
-        av.className = 'avatar';
-        av.style.background = avatarColor(chat.name);
-        av.textContent = avatarInitials(chat.name);
+        if (chat.isGroup) {
+          av.className = 'avatar group-avatar';
+          av.textContent = '👥';
+        } else {
+          av.className = 'avatar';
+          av.style.background = avatarColor(chat.name);
+          av.textContent = avatarInitials(chat.name);
+        }
 
         const info = document.createElement('div');
         info.className = 'chat-info';
@@ -1620,8 +1653,15 @@ app.get('/', (req, res) => {
       document.body.classList.add('chat-open'); // mobile: show chat panel
 
       const av = document.getElementById('ch-avatar');
-      av.style.background = avatarColor(chat.name);
-      av.textContent = avatarInitials(chat.name);
+      if (chat.isGroup) {
+        av.className = 'avatar group-avatar';
+        av.textContent = '👥';
+        av.style.background = '';
+      } else {
+        av.className = 'avatar';
+        av.style.background = avatarColor(chat.name);
+        av.textContent = avatarInitials(chat.name);
+      }
       document.getElementById('ch-name').textContent = chat.name;
       const ph = chat.phone || '';
       document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
