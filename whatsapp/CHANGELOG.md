@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.38] - 2026-05-25
+- Fix: Bei KEEP_DELETED=false wurden Löschungen dem Client nicht signalisiert — Bubble blieb bis Chat-Wechsel sichtbar
+- Fix: Gelöschte Nachrichten bleiben jetzt 30s im Speicher (nicht auf Disk), damit der Poll die Bubble entfernen kann; danach Bereinigung aus dem Speicher
+- Fix: saveMsgs filtert gelöschte Nachrichten aus der JSON wenn KEEP_DELETED=false (verhindert Wiedererscheinen nach Neustart)
+- Fix: Reply-Button wurde bei gelöschten Nachrichten nicht ausgeblendet
+
 ## [1.3.37] - 2026-05-25
 - Fix: deleteMsg verwendete timeEl.dataset.ts (nie gesetzt) — stattdessen wrap.dataset.ts beim Rendern gesetzt und ausgelesen
 

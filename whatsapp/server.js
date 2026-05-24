@@ -155,7 +155,11 @@ function saveMsgs() {
     try {
       fs.writeFileSync(CHATS_FILE, JSON.stringify([...chatMap.values()]));
       const msgsObj = {};
-      for (const [chatId, msgs] of messagesByChatId.entries()) msgsObj[chatId] = msgs;
+      for (const [chatId, msgs] of messagesByChatId.entries()) {
+        // When KEEP_DELETED=false, deleted messages are not persisted to disk
+        const toSave = KEEP_DELETED ? msgs : msgs.filter(m => !m.deleted);
+        if (toSave.length) msgsObj[chatId] = toSave;
+      }
       fs.writeFileSync(MESSAGES_FILE, JSON.stringify(msgsObj));
     } catch (e) { console.error('[ERROR] saveMsgs:', e.message); }
   }, 3000);
@@ -500,19 +504,26 @@ client.on('message_reaction', (reaction) => {
 
 function markDeleted(msgId) {
   if (!msgId) return false;
-  for (const [, msgs] of messagesByChatId.entries()) {
-    const idx = msgs.findIndex(m => m.id === msgId);
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    // Skip already-deleted messages to avoid double-processing
+    const idx = msgs.findIndex(m => m.id === msgId && !m.deleted);
     if (idx !== -1) {
       console.log(`[INFO] markDeleted: ${msgId} KEEP_DELETED=${KEEP_DELETED}`);
-      if (KEEP_DELETED) {
-        msgs[idx].deleted = true;
-        msgs[idx].body = '';
-        msgs[idx].deletedAt = Date.now();
-      } else {
-        seenIds.delete(msgId);
-        msgs.splice(idx, 1);
+      msgs[idx].deleted = true;
+      msgs[idx].body = '';
+      msgs[idx].deletedAt = Date.now();
+      saveMsgs(); // saveMsgs filters deleted msgs from disk when KEEP_DELETED=false
+      if (!KEEP_DELETED) {
+        // Keep in memory 30s so clients can poll the deletion signal and remove the bubble,
+        // then purge from memory. Disk is already clean via saveMsgs filter above.
+        setTimeout(() => {
+          const list = messagesByChatId.get(chatId);
+          if (list) {
+            const i = list.findIndex(m => m.id === msgId);
+            if (i !== -1) { list.splice(i, 1); seenIds.delete(msgId); }
+          }
+        }, 30000);
       }
-      saveMsgs();
       return true;
     }
   }
@@ -1841,8 +1852,12 @@ app.get('/', (req, res) => {
       msgs = msgs.filter(m => {
         if (!m.deleted) return true;
         const wrap = findWrap(m.id);
-        if (wrap) { markWrapDeleted(wrap, m.timestamp); return false; }
-        return true;
+        if (wrap) {
+          if (KEEP_DELETED) markWrapDeleted(wrap, m.timestamp);
+          else wrap.remove();
+          return false;
+        }
+        return KEEP_DELETED; // only render new deleted bubble when KEEP_DELETED=true
       });
       if (!msgs.length) return;
 
@@ -1933,6 +1948,7 @@ app.get('/', (req, res) => {
         replyBtn.dataset.msgid = m.id;
         replyBtn.dataset.contact = m.fromMe ? t('me') : (m.contact || '');
         replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? t('photo') : t('mediaGeneric'))).slice(0, 60);
+        if (m.deleted) replyBtn.style.display = 'none';
         bri.appendChild(replyBtn);
         wrap.appendChild(bri);
         // Reaktions-Badges werden ausschließlich von updateReactionsInDOM gesetzt
