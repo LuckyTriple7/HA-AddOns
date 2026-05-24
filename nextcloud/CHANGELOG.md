@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.43
+- Option `run_db_indices` entfernt — Befehl `occ db:add-missing-indices` bei Bedarf manuell im Web-Terminal ausführen
+
 ## 0.0.42
 - Doku: Log-Datei leeren in occ-Befehlsreferenz ergänzt
 
