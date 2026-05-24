@@ -1,9 +1,266 @@
-﻿# Claude Code for Home Assistant
+# Claude Code für Home Assistant
 
 ![GitHub Stars](https://img.shields.io/github/stars/LuckyTriple7/HA-AddOns?style=flat-square)
 ![Commits](https://img.shields.io/github/commit-activity/t/LuckyTriple7/HA-AddOns?style=flat-square&label=commits)
 ![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?path=claudecode&style=flat-square)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
+
+> **Basiert auf [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix-hass-addons/tree/main/claudecode)**,
+> welches wiederum auf [robsonfelix/robsonfelix-hass-addons](https://github.com/robsonfelix/robsonfelix-hass-addons) basiert.
+> Dieser Fork ergänzt einen socat-basierten Port-Forward-Fix für den Playwright MCP CDP-Endpunkt.
+
+Führe [Claude Code](https://docs.anthropic.com/en/docs/claude-code), den KI-gestützten Coding-Assistenten von Anthropic, direkt in der Home Assistant Seitenleiste aus – mit vollem Zugriff auf deine Konfiguration.
+
+## Schnellstart
+
+```bash
+claude "Liste alle meine Automationen auf"
+claude "Schalte alle Lichter im Wohnzimmer aus"
+claude "Erstelle eine Automation, die bei Sonnenuntergang das Licht einschaltet"
+claude "Warum funktioniert meine Bewegungsmelder-Automation nicht?"
+```
+
+## Voraussetzungen
+
+- Home Assistant OS oder Supervised-Installation
+- [Anthropic-Konto](https://console.anthropic.com/) (Authentifizierung erfolgt im Terminal)
+
+## Funktionen
+
+- **Web-Terminal**: Zugriff auf Claude Code über ein browserbasiertes Terminal
+- **Konfigurationszugriff**: Lesen und Schreiben von Home Assistant Konfigurationsdateien
+- **hass-mcp Integration**: Direkte Steuerung von HA-Entitäten und Diensten
+- **Sitzungserhaltung**: Optionale tmux-Integration, damit Sitzungen nach einem Browser-Reload erhalten bleiben
+- **Anpassbares Design**: Dunkles oder helles Terminal-Theme wählbar
+- **Claude Auto-Start**: Claude startet optional automatisch beim Öffnen des Terminals
+- **Multi-Architektur**: Unterstützt amd64, aarch64, armv7, armhf und i386
+- **Sichere Authentifizierung**: Claude Code verwaltet die Authentifizierung selbst
+
+## Einrichtung
+
+### 1. Add-on installieren
+
+1. Repository zu Home Assistant hinzufügen
+2. Das Add-on „Claude Code" installieren
+3. Add-on starten
+4. Web-UI über die Seitenleiste öffnen
+
+### 2. Mit Claude Code authentifizieren
+
+Beim ersten Start wird Claude Code zur Authentifizierung auffordern:
+
+1. Terminal über die HA-Seitenleiste öffnen
+2. `claude` eingeben, um zu starten (oder `claude_autostart` aktivieren)
+3. Den Anweisungen zur Authentifizierung folgen
+4. Die Anmeldedaten werden sicher von Claude Code gespeichert
+
+**Hinweis**: Das Add-on erfordert **keine** API-Schlüssel in der Konfiguration. Claude Code verwaltet die Authentifizierung selbst und speichert die Zugangsdaten sicher in einem eigenen Verzeichnis – sicherer als das Hinterlegen von Schlüsseln in der HA-Add-on-Konfiguration.
+
+## Claude Code verwenden
+
+### Grundlegende Nutzung
+
+Nach der Authentifizierung hilft Claude Code bei:
+
+- Bearbeiten von Home Assistant YAML-Konfigurationen
+- Erstellen von Automationen und Skripten
+- Debuggen von Konfigurationsproblemen
+- Schreiben von Custom Integrations
+
+### Home Assistant Integration
+
+Mit aktiviertem hass-mcp kann Claude:
+
+- Entitätszustände abfragen: „Wie warm ist es im Wohnzimmer?"
+- Geräte steuern: „Schalte alle Lichter im Schlafzimmer aus"
+- Dienste auflisten: „Welche Dienste stehen für die Klimasteuerung zur Verfügung?"
+- Automationen debuggen: „Warum hat meine Morgenroutine nicht ausgelöst?"
+
+### Beispielbefehle
+
+```bash
+# Interaktive Sitzung starten
+claude
+
+# Einzelbefehle
+claude "Erstelle eine neue Automation, die das Terrassenlich bei Sonnenuntergang einschaltet"
+claude "Prüfe meine configuration.yaml auf Fehler"
+claude "Liste alle nicht verfügbaren Entitäten auf"
+
+# Vorherige Unterhaltung fortsetzen
+claude --continue
+```
+
+### Tastenkürzel
+
+| Kürzel | Befehl |
+|--------|--------|
+| `c` | `claude` |
+| `cc` | `claude --continue` |
+| `ha-config` | Zum Konfigurationsverzeichnis wechseln |
+| `ha-logs` | Home Assistant Logs anzeigen |
+
+## Konfigurationsoptionen
+
+| Option | Beschreibung | Standard |
+|--------|-------------|---------|
+| `enable_mcp` | HA-Integration aktivieren | true |
+| `terminal_font_size` | Schriftgröße (10–24) | 14 |
+| `terminal_theme` | dark oder light | dark |
+| `working_directory` | Startverzeichnis | /homeassistant |
+| `session_persistence` | tmux für persistente Sitzungen verwenden | true |
+| `claude_autostart` | Claude beim Öffnen des Terminals automatisch starten | false |
+| `auto_update_claude` | Claude Code beim Start automatisch aktualisieren | true |
+| `model` | Zu verwendendes Claude-Modell | claude-sonnet-4-6 |
+
+### Modellauswahl
+
+Es stehen drei Modelle zur Verfügung:
+
+| Modell | Am besten für |
+|--------|--------------|
+| `claude-sonnet-4-6` | Beste Balance aus Geschwindigkeit und Leistung (Standard) |
+| `claude-opus-4-7` | Leistungsstärkstes Modell, für komplexe Aufgaben |
+| `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
+
+`auto_update_claude` aktivieren, damit neue Modelle automatisch verfügbar werden, sobald Anthropic sie veröffentlicht – ohne Update des Add-ons.
+
+## Update-Benachrichtigungen
+
+Wenn `auto_update_claude` aktiviert ist, prüft das Add-on stündlich im Hintergrund auf neuere Versionen von Claude Code. Ist ein Update verfügbar:
+
+- Eine **persistente Benachrichtigung** erscheint in der HA-UI-Benachrichtigungsglocke mit dem Titel „Claude Code Update Available"
+- Ein **gelbes Banner** wird bei jeder neuen Terminal-Sitzung angezeigt
+
+Beide werden automatisch entfernt, sobald das Add-on neu gestartet und die neueste Version installiert wurde.
+
+## Dateipfade
+
+| Pfad | Beschreibung | Zugriff |
+|------|-------------|---------|
+| `/homeassistant` | HA-Konfigurationsverzeichnis | Lesen/Schreiben |
+| `/share` | Freigegebener Ordner | Lesen/Schreiben |
+| `/media` | Medienordner | Lesen/Schreiben |
+| `/ssl` | SSL-Zertifikate | Nur Lesen |
+| `/backup` | Backups | Nur Lesen |
+
+## Sitzungserhaltung
+
+Wenn `session_persistence` aktiviert ist, verwendet das Add-on tmux, um die Terminal-Sitzung zu erhalten. Das bedeutet:
+
+- Die Sitzung überlebt Browser-Neuladen
+- Trennen und erneut Verbinden ohne Kontextverlust
+- Claude Code-Unterhaltungen bleiben erhalten
+
+### tmux-Befehle
+
+Für tmux-Einsteiger:
+
+| Taste | Aktion |
+|-------|--------|
+| `Ctrl+b d` | Sitzung trennen (läuft im Hintergrund weiter) |
+| `Ctrl+b [` | Scroll-/Kopiermodus (Pfeiltasten zum Scrollen) |
+| Mausrad | Rauf/runter scrollen (aktiviert Kopiermodus automatisch) |
+| `q` | Scroll-/Kopiermodus beenden |
+
+### Kopieren und Einfügen in tmux
+
+Da tmux Mausereignisse abfängt, funktioniert Kopieren/Einfügen etwas anders:
+
+| Aktion | Wie es geht |
+|--------|-------------|
+| **Kopieren** | `Ctrl+Shift` gedrückt halten und Text mit der Maus markieren |
+| **Einfügen** | `Shift+Einfg` oder mittlere Maustaste |
+| **Alternativ einfügen** | `Ctrl+Shift+V` (browserabhängig) |
+
+**Hinweis**: Normales Rechtsklick-Einfügen und einfache Mausmarkierung funktionieren nicht, da tmux diese Ereignisse für das Scrollen abfängt.
+
+#### Claude Code authentifizieren (Erststart)
+
+Die Authentifizierungs-URL wird in einer einzelnen Zeile angezeigt, damit sie leicht anklickbar ist.
+
+1. **Link anklicken** – öffnet sich in einem neuen Tab
+2. Authentifizierung im Browser abschließen und **Auth-Code kopieren**
+3. Zurück ins Terminal klicken und mit `Shift+Einfg` oder `Ctrl+Shift+V` **einfügen**
+
+Falls der Link sich nicht direkt anklicken lässt: `Ctrl+Shift` gedrückt halten und die URL mit der Maus markieren, dann in die Adressleiste des Browsers einfügen.
+
+### Vor- und Nachteile von Sitzungserhaltung
+
+**Mit tmux (`session_persistence: true`):**
+- ✅ Sitzung überlebt Browser-Reload/Trennung
+- ✅ Trennen und wieder verbinden bei laufenden Sitzungen möglich
+- ✅ Lange Claude-Aufgaben laufen im Hintergrund weiter
+- ✅ Mausrad-Scrollen funktioniert (aktiviert Kopiermodus automatisch)
+- ✅ 20.000 Zeilen Scrollback-Puffer
+- ⚠️ Mittlere Maustaste oder Shift+Einfg zum Einfügen verwenden (Rechtsklick-Einfügen funktioniert ggf. nicht)
+
+**Ohne tmux (`session_persistence: false`):**
+- ✅ Natives Browser-Scrollen
+- ✅ Einfacheres Terminal-Verhalten
+- ✅ Standard Kopieren/Einfügen
+- ❌ Sitzung geht bei Browser-Reload verloren
+- ❌ Sitzung geht bei Add-on-Neustart verloren
+
+**Empfehlung:**
+- `session_persistence: true` (Standard) verwenden, wenn lange Aufgaben laufen oder Verbindungsabbrüche toleriert werden sollen
+- `session_persistence: false` verwenden, wenn Standard-Kopieren/Einfügen benötigt wird
+
+## Sicherheit
+
+### Authentifizierung
+- **Keine API-Schlüssel in der Add-on-Konfiguration**: Claude Code verwaltet die Authentifizierung selbst
+- Zugangsdaten werden sicher im Verzeichnis von Claude Code gespeichert (`~/.claude/`)
+- Sicherer als das Hinterlegen von Schlüsseln in der Home Assistant Konfiguration
+
+### Container-Sicherheit
+- Das Supervisor-Token wird automatisch verwaltet und nicht exponiert
+- Dateizugriff ist auf gemappte Verzeichnisse beschränkt
+- Das Add-on läuft in einem isolierten Container
+
+## Fehlerbehebung
+
+### Authentifizierungsprobleme
+
+Claude Code verwaltet seine eigene Authentifizierung. Bei Problemen:
+1. `claude` eingeben, um den Authentifizierungsablauf zu starten
+2. Den Anweisungen zum Einloggen oder zur API-Key-Eingabe folgen
+3. Zugangsdaten werden automatisch für zukünftige Sitzungen gespeichert
+
+**URL lässt sich nicht kopieren oder Auth-Code nicht einfügen?** Das Terminal verwendet tmux, was das Kopieren/Einfügen verändert. Siehe [Kopieren und Einfügen in tmux](#kopieren-und-einf%C3%BCgen-in-tmux).
+
+### hass-mcp funktioniert nicht
+
+1. Sicherstellen, dass `enable_mcp` in der Konfiguration auf true gesetzt ist
+2. Add-on-Logs auf Verbindungsfehler prüfen
+3. Add-on nach Konfigurationsänderungen neu starten
+
+### Terminal lädt nicht
+
+1. Prüfen, ob das Add-on läuft (grüner Indikator)
+2. Seite neu laden
+3. Browser-Konsole auf Fehler prüfen
+4. Add-on-Logs auf ttyd-Fehler prüfen
+
+### Sitzung bleibt nicht erhalten
+
+1. Sicherstellen, dass `session_persistence` auf true gesetzt ist
+2. Die Sitzung heißt „claude" – sie wird beim erneuten Verbinden automatisch wiederhergestellt
+
+### Konfigurationsänderungen werden nicht übernommen
+
+Nach Konfigurationsänderungen:
+1. Konfiguration speichern
+2. Add-on vollständig neu starten
+
+## Support
+
+- [GitHub Issues](https://github.com/LuckyTriple7/HA-AddOns/issues)
+- [Home Assistant Community](https://community.home-assistant.io/)
+
+---
+
+# Claude Code for Home Assistant
 
 > **Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix-hass-addons/tree/main/claudecode)**,
 > which itself is based on [robsonfelix/robsonfelix-hass-addons](https://github.com/robsonfelix/robsonfelix-hass-addons).
@@ -32,6 +289,7 @@ claude "Why isn't my motion sensor automation working?"
 - **hass-mcp Integration**: Direct control of HA entities and services
 - **Session Persistence**: Optional tmux integration to preserve sessions across page refreshes
 - **Customizable Theme**: Choose between dark and light terminal themes
+- **Claude Auto-Start**: Claude starts automatically when the terminal opens (optional)
 - **Multi-Architecture**: Supports amd64, aarch64, armv7, armhf, and i386
 - **Secure Authentication**: Claude Code handles its own authentication securely
 
@@ -49,7 +307,7 @@ claude "Why isn't my motion sensor automation working?"
 On first launch, Claude Code will prompt you to authenticate:
 
 1. Open the terminal from the HA sidebar
-2. Type `claude` to start
+2. Type `claude` to start (or enable `claude_autostart`)
 3. Follow the authentication prompts
 4. Your credentials are stored securely by Claude Code
 
@@ -108,6 +366,7 @@ claude --continue
 | `terminal_theme` | dark or light | dark |
 | `working_directory` | Start directory | /homeassistant |
 | `session_persistence` | Use tmux for persistent sessions | true |
+| `claude_autostart` | Auto-start Claude when terminal opens | false |
 | `auto_update_claude` | Auto-update Claude Code on startup | true |
 | `model` | Claude model to use | claude-sonnet-4-6 |
 
@@ -118,7 +377,7 @@ Three models are available:
 | Model | Best for |
 |-------|----------|
 | `claude-sonnet-4-6` | Best balance of speed and capability (default) |
-| `claude-opus-4-6` | Most powerful, for complex tasks |
+| `claude-opus-4-7` | Most powerful, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
 
 Enable `auto_update_claude` to ensure new models become available as Anthropic releases them, without needing an add-on update.
@@ -255,4 +514,3 @@ After changing configuration:
 
 - [GitHub Issues](https://github.com/LuckyTriple7/HA-AddOns/issues)
 - [Home Assistant Community](https://community.home-assistant.io/)
-
