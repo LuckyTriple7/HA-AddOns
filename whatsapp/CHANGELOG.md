@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.0] - 2026-05-25
+- Fix: "Nachricht wurde gelöscht" Text besser lesbar (Kontrast 0.45 → 0.75, Light-Mode-Unterstützung)
+- Fix: MAX_MESSAGES_PER_CHAT fehlte in run.sh → Option wurde ignoriert
+
 ## [1.3.32] - 2026-05-24
 - Fix: Eigene gelöschte Nachrichten werden jetzt sofort als "🚫 gelöscht" in der UI markiert (vorher blieben sie sichtbar wenn delete(true) fehlschlug)
 - Fix: message_revoke_everyone Handler robuster + immer geloggt; message_revoke_me als Fallback ergänzt

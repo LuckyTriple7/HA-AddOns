@@ -1137,8 +1137,9 @@ app.get('/', (req, res) => {
     #attach-cancel:hover { color:#e9edef; }
     #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
     #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
-    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.45); font-size:13px; padding:2px 0; }
-    .bubble-deleted .del-icon { margin-right:5px; }
+    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
+    .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
+    html.light .bubble-deleted { color:rgba(0,0,0,0.55); }
     .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
     .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
     .bubble-document .doc-info { flex:1; min-width:0; }
