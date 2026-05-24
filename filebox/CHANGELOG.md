@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.4] - 2026-05-24
+- Fix: Ingress funktioniert jetzt — baseurl auf "/" gesetzt (INGRESS_PATH-Ansatz war falsch)
+
 ## [1.2.3] - 2026-05-22
 
 ### Geändert
