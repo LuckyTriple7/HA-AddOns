@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.32] - 2026-05-24
+- Fix: Eigene gelöschte Nachrichten werden jetzt sofort als "🚫 gelöscht" in der UI markiert (vorher blieben sie sichtbar wenn delete(true) fehlschlug)
+- Fix: message_revoke_everyone Handler robuster + immer geloggt; message_revoke_me als Fallback ergänzt
+- Fix: Server-seitiges delete(true) schlägt nicht mehr fehl wenn Nachricht nicht mehr in WA-Cache
+
 ## [1.3.31] - 2026-05-24
 - Neu: Gelöschte Nachrichten werden als „🚫 Diese Nachricht wurde gelöscht" angezeigt statt entfernt (funktioniert für eingehende und eigene gelöschte Nachrichten)
 

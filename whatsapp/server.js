@@ -496,14 +496,28 @@ client.on('message_reaction', (reaction) => {
   }
 });
 
-client.on('message_revoke_everyone', (msg, revokedMsg) => {
-  const msgId = (revokedMsg || msg)?.id?._serialized;
-  if (!msgId) return;
+function markDeleted(msgId) {
+  if (!msgId) return false;
   for (const msgs of messagesByChatId.values()) {
     const stored = msgs.find(m => m.id === msgId);
-    if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); break; }
+    if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); return true; }
   }
-  dbg(`message_revoke_everyone: marked ${msgId} as deleted`);
+  return false;
+}
+
+client.on('message_revoke_everyone', (msg, revokedMsg) => {
+  const idA = revokedMsg?.id?._serialized;
+  const idB = msg?.id?._serialized;
+  console.log(`[INFO] message_revoke_everyone: msg=${idB} revokedMsg=${idA}`);
+  const found = markDeleted(idA) || markDeleted(idB);
+  if (!found) console.log(`[WARN] message_revoke_everyone: no stored message matched`);
+});
+
+client.on('message_revoke_me', (msg) => {
+  const msgId = msg?.id?._serialized;
+  console.log(`[INFO] message_revoke_me: msg=${msgId}`);
+  const found = markDeleted(msgId);
+  if (!found) console.log(`[WARN] message_revoke_me: no stored message matched`);
 });
 
 client.on('message_ack', (msg, ack) => {
@@ -878,8 +892,8 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   try {
     dbg(`Deleting message ${msgId} in chat ${chatId}`);
-    const msg = await client.getMessageById(msgId);
-    await msg.delete(true);
+    const msg = await client.getMessageById(msgId).catch(() => null);
+    if (msg) await msg.delete(true).catch(e => console.log(`[WARN] delete(true) failed: ${e.message}`));
     const msgs = messagesByChatId.get(chatId);
     if (msgs) {
       const stored = msgs.find(m => m.id === msgId);
@@ -2165,10 +2179,16 @@ app.get('/', (req, res) => {
 
     async function deleteMsg(chatId, msgId) {
       try {
-        await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
+        const r = await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
+        if (!r.ok) return;
         for (const bri of msgList.querySelectorAll('.bubble-row-inner')) {
-          if (bri.querySelector('.del-btn')?.dataset?.msgid === msgId) {
-            bri.closest('.bubble-wrap')?.remove();
+          const btn = bri.querySelector('.del-btn');
+          if (btn?.dataset?.msgid === msgId) {
+            const bub = bri.querySelector('.bubble');
+            if (bub) {
+              bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + bub.querySelector('.time')?.textContent + '</span>';
+            }
+            btn.style.display = 'none';
             break;
           }
         }
