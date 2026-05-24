@@ -88,6 +88,7 @@ ALLOW_ROOT=1 php /app/www/public/occ <befehl>
 | `occ user:resetpassword <user>` | Passwort zurücksetzen |
 | `occ log:tail` | Live-Log anzeigen |
 | `occ list` | Alle verfügbaren Befehle anzeigen |
+| `> /config/data/nextcloud.log` | Log-Datei leeren |
 
 ## SMB-Netzwerkspeicher
 
@@ -212,6 +213,7 @@ ALLOW_ROOT=1 php /app/www/public/occ <command>
 | `occ user:resetpassword <user>` | Reset user password |
 | `occ log:tail` | Show live log |
 | `occ list` | Show all available commands |
+| `> /config/data/nextcloud.log` | Clear the log file |
 
 ## SMB Network Storage
 

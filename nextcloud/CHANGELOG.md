@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 0.0.42
+- Doku: Log-Datei leeren in occ-Befehlsreferenz ergänzt
+
 ## 0.0.41
 - Doku: README um Web-Terminal-Sektion mit occ-Befehlsübersicht erweitert
 
