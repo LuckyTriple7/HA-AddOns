@@ -1,0 +1,28 @@
+configuration:
+  dark_mode:
+    name: Dark Mode
+    description: Enable dark theme in the Web UI.
+  native_mode:
+    name: Native Mode
+    description: "Use the native signal-cli binary (low CPU usage). Disable for Java mode — only needed on unsupported hardware. Recommended: enabled."
+  download_media:
+    name: Download Media
+    description: Automatically download and display received photos. Only works reliably for newly incoming messages, not for historical ones.
+  phone_number:
+    name: Phone Number
+    description: Your Signal phone number including country code (e.g. +4917612345678). Optional — detected automatically after linking.
+  webhook_incoming:
+    name: Webhook URL
+    description: URL to forward incoming messages to (e.g. http://homeassistant:8123/api/webhook/signal).
+  debug_mode:
+    name: Debug Mode
+    description: Enable verbose logging including GIN access logs. Useful for troubleshooting.
+  ha_notifications:
+    name: HA Notifications
+    description: Show a persistent HA notification for each new incoming message (one per chat, overwritten by newer messages).
+  ha_notifications_privacy:
+    name: HA Notifications Privacy Mode
+    description: When enabled, notifications only show "Signal / New message" — no sender name or message content.
+  ha_token:
+    name: HA Long-Lived Access Token
+    description: Required for HA notifications. Create one in your HA user profile under Long-lived access tokens.

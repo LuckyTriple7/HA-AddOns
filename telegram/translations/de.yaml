@@ -1,0 +1,37 @@
+configuration:
+  api_id:
+    name: API ID
+    description: Numerische API-ID von my.telegram.org → API development tools. Erforderlich für die Verbindung mit Telegram.
+  api_hash:
+    name: API Hash
+    description: API-Hash von my.telegram.org → API development tools. Erforderlich für die Verbindung mit Telegram.
+  phone_number:
+    name: Telefonnummer
+    description: Deine Telegram-Telefonnummer mit Ländervorwahl (z.B. +4917612345678).
+  dark_mode:
+    name: Dunkles Theme
+    description: Dunkles Theme in der Web-UI aktivieren.
+  download_media:
+    name: Medien herunterladen
+    description: Empfangene Fotos automatisch herunterladen und anzeigen. Funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten.
+  fetch_messages_limit:
+    name: Nachrichten pro Chat
+    description: "Anzahl Nachrichten die beim ersten Öffnen eines Chats geladen werden. Empfehlung: 50. Maximum: 300."
+  webhook_incoming:
+    name: Webhook-URL
+    description: URL für eingehende Nachrichten (z.B. http://homeassistant:8123/api/webhook/telegram).
+  debug_mode:
+    name: Debug-Modus
+    description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.
+  ha_notifications:
+    name: HA-Benachrichtigungen
+    description: Persistente HA-Benachrichtigung bei neuen Nachrichten (eine pro Chat, wird von neueren Nachrichten überschrieben).
+  ha_notifications_privacy:
+    name: HA-Benachrichtigungen Datenschutzmodus
+    description: Zeigt nur „Telegram / Neue Nachricht" an — kein Absendername, kein Nachrichteninhalt.
+  ha_notifications_skip_bots:
+    name: Bot-Benachrichtigungen überspringen
+    description: Keine HA-Benachrichtigung für Nachrichten von Bots anzeigen.
+  ha_token:
+    name: HA Long-Lived Access Token
+    description: Erforderlich für HA-Benachrichtigungen. Im HA-Benutzerprofil unter „Langlebige Zugangstokens" erstellen.
