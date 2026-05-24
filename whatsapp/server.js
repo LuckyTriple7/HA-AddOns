@@ -1023,8 +1023,8 @@ app.get('/', (req, res) => {
     #attach-icon { font-size:28px; flex-shrink:0; }
     #attach-cancel { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
     #attach-cancel:hover { color:#e9edef; }
-    #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
-    #attach-btn:hover { background:rgba(255,255,255,0.08); }
+    #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
+    #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
     .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
     .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
     .bubble-document .doc-info { flex:1; min-width:0; }
