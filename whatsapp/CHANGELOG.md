@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.29] - 2026-05-24
+- Neu: `max_messages_per_chat` konfigurierbar (Standard 200) — maximale Nachrichten im RAM-Puffer pro Chat
+
 ## [1.3.28] - 2026-05-24
 - Fix: Export-Button funktionierte nicht (undefinierte `api()`-Funktion; relativer Pfad verwendet)
 

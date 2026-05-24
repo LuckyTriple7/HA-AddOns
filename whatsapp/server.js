@@ -68,7 +68,7 @@ const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
-const MAX_MSGS_PER_CHAT = 200;
+const MAX_MSGS_PER_CHAT = parseInt(process.env.MAX_MESSAGES_PER_CHAT || '200', 10);
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
 const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }

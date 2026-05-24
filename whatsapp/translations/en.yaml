@@ -1,0 +1,31 @@
+configuration:
+  dark_mode:
+    name: Dark Mode
+    description: Enable dark theme in the Web UI.
+  download_media:
+    name: Download Media
+    description: Automatically download and display received photos. Only works reliably for newly incoming messages, not for historical ones.
+  webhook_incoming:
+    name: Webhook URL
+    description: URL to forward incoming messages to (e.g. http://homeassistant:8123/api/webhook/whatsapp).
+  initial_chats:
+    name: Initial Chats
+    description: "Number of most recently active chats loaded on startup. Chats not in this list are loaded dynamically when first opened. Recommended: 20–50."
+  initial_messages:
+    name: Initial Messages per Chat
+    description: "Messages fetched per chat on startup from WhatsApp history. Higher values slow down startup. Recommended: 20–50. Maximum from WhatsApp: ~999."
+  max_messages_per_chat:
+    name: Max Messages per Chat (Memory)
+    description: "Maximum messages kept in RAM per chat during runtime. Older messages are discarded when the limit is reached. Does not affect startup speed. Recommended: 200–500."
+  debug_mode:
+    name: Debug Mode
+    description: Enable verbose logging including detailed request logs. Useful for troubleshooting.
+  ha_notifications:
+    name: HA Notifications
+    description: Show a persistent HA notification for each new incoming message (one per chat, overwritten by newer messages).
+  ha_notifications_privacy:
+    name: HA Notifications Privacy Mode
+    description: When enabled, notifications only show "WhatsApp / New message" — no sender name or message content.
+  ha_token:
+    name: HA Long-Lived Access Token
+    description: Required for HA notifications. Create one in your HA user profile under Long-lived access tokens.
