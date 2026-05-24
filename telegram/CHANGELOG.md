@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.21] - 2026-05-24
+- Fix: Gesendete Dokumente (PDF etc.) zeigen jetzt 📄-Icon + Dateiname im Chat statt leerem Bubble
+
 ## [1.1.20] - 2026-05-24
 - Fix: 📎-Button steht jetzt nach dem 😊-Button (wie bei WhatsApp)
 - Fix: Gesendete Bilder/Dokumente erscheinen sofort als Vorschau im Chat (Message-Store wird nach Senden befüllt)

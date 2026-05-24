@@ -842,6 +842,9 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble.photo-bubble { padding: 0; overflow: hidden; position: relative; }
 .bubble.photo-bubble .bubble-time { position: absolute; bottom: 3px; right: 5px; background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.95) !important; border-radius: 8px; padding: 0 5px; float: none; margin: 0; }
 .bubble.photo-bubble .msg-ack { color: rgba(255,255,255,0.95) !important; }
+.bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.bubble-doc .doc-icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
 .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .del-btn { display: block; }
@@ -1335,9 +1338,13 @@ function renderMessages(msgs) {
     const time=d.toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'});
     let content='';
     const isPhoto = m.type==='photo'&&m.mediaFile;
+    const isDoc = m.type==='document'&&m.filename;
     if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
+    } else if(isDoc){
+      content=\`<div class="bubble-doc"><span class="doc-icon">📄</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
+      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else {
       content=formatText(m.body);
     }
