@@ -696,6 +696,16 @@ html.dark #msg-input { background: #2a3942; color: #e9edef; }
 html.dark #emoji-picker { background: #202c33; border-color: #2a3942; }
 html.dark .emoji-btn:hover { background: #2a3942; }
 html.dark #emoji-toggle { color: #8696a0; }
+
+#chat-filter { display: flex; border-bottom: 1px solid #e0e0e0; background: #fff; }
+.filter-tab { flex: 1; padding: 8px 4px; font-size: 12px; text-align: center; cursor: pointer; border: none; background: none; color: #666; border-bottom: 2px solid transparent; transition: all 0.15s; }
+.filter-tab.active { color: #3a76f8; border-bottom-color: #3a76f8; font-weight: 600; }
+.filter-tab:hover { background: #f5f5f5; }
+html.dark #chat-filter { background: #111b21; border-color: #2a3942; }
+html.dark .filter-tab { color: #8696a0; }
+html.dark .filter-tab.active { color: #3a76f8; border-bottom-color: #3a76f8; }
+html.dark .filter-tab:hover { background: #202c33; }
+.avatar.type-group { font-size: 20px; }
 </style>
 </head>
 <body>
@@ -729,6 +739,11 @@ html.dark #emoji-toggle { color: #8696a0; }
   <div id="sidebar">
     <div id="search-wrap">
       <input id="search-input" type="text" placeholder="Suchen…" data-i18n-pl="searchPlaceholder" oninput="filterChats(this.value)">
+    </div>
+    <div id="chat-filter">
+      <button class="filter-tab active" onclick="setFilter('all')" data-filter="all" data-i18n="filterAll">Alle</button>
+      <button class="filter-tab" onclick="setFilter('private')" data-filter="private" data-i18n="filterPrivate">Privat</button>
+      <button class="filter-tab" onclick="setFilter('group')" data-filter="group" data-i18n="filterGroups">Gruppen</button>
     </div>
     <div id="chat-list"></div>
   </div>
@@ -776,6 +791,7 @@ const LANG = {
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
+    filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen',
   },
   en: {
     spinnerStart: 'Starting Signal…', spinnerConnect: 'Connecting…', spinnerLogout: 'Logging out…',
@@ -797,6 +813,7 @@ const LANG = {
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
+    filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups',
   },
 };
 let lang = localStorage.getItem('signal_lang') || 'de';
@@ -824,6 +841,7 @@ const BASE = location.pathname.replace(/\\/$/, '');
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
+let currentFilter = 'all';
 let lastSeenTime = JSON.parse(localStorage.getItem('signal_last_seen') || '{}');
 let showPhotos = ${DOWNLOAD_MEDIA} && localStorage.getItem('signal_show_photos') !== 'false';
 
@@ -963,16 +981,29 @@ async function loadChats() {
 }
 setInterval(loadChats, 5000);
 
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === f));
+  renderChats(allChats);
+}
+
+function chatAvatar(c) {
+  if (c.isGroup) return \`<div class="avatar type-group" style="background:#3a76f0">👥</div>\`;
+  return \`<div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}</div>\`;
+}
+
 function renderChats(chats) {
   const q = document.getElementById('search-input').value.toLowerCase();
-  const filtered = q ? chats.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : chats;
+  let filtered = q ? chats.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)) : chats;
+  if (currentFilter === 'group') filtered = filtered.filter(c => c.isGroup);
+  if (currentFilter === 'private') filtered = filtered.filter(c => !c.isGroup);
   const el = document.getElementById('chat-list');
   el.innerHTML = filtered.map(c => {
     if (c.id === selectedChatId) lastSeenTime[c.id] = Math.max(lastSeenTime[c.id] || 0, c.lastTime || 0);
     const hasUnread = c.id !== selectedChatId && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
     return \`
     <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
-      <div class="avatar" style="background:\${avatarColor(c.name || c.id)}">\${avatarInitial(c.name || c.id)}</div>
+      \${chatAvatar(c)}
       <div class="chat-info">
         <div class="chat-name">\${escHtml(c.name || c.id)}</div>
         <div class="chat-preview">\${escHtml(c.lastMsg || '')}</div>
@@ -1003,8 +1034,15 @@ function openChat(chat) {
   const ph = chat.phone || '';
   document.getElementById('ch-phone').textContent = /^\\+?\\d{7,15}$/.test(ph) ? ph : '';
   const av = document.getElementById('ch-avatar');
-  av.textContent = avatarInitial(chat.name || chat.id);
-  av.style.background = avatarColor(chat.name || chat.id);
+  if (chat.isGroup) {
+    av.textContent = '👥';
+    av.style.background = '#3a76f0';
+    av.style.fontSize = '18px';
+  } else {
+    av.textContent = avatarInitial(chat.name || chat.id);
+    av.style.background = avatarColor(chat.name || chat.id);
+    av.style.fontSize = '14px';
+  }
   renderChats(allChats);
   loadMessages(chat.id);
 }

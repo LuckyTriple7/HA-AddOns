@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.10] - 2026-05-24
+
+### Neu
+- **Chat-Filter-Tabs** — Sidebar zeigt jetzt drei Tabs: *Alle*, *Privat*, *Gruppen*
+- **Gruppen-Avatar** — Gruppen-Chats erhalten ein 👥-Icon auf Signal-Blau (#3a76f0) statt farbiger Initiale
+
 ## [1.1.9] - 2026-05-23
 
 ### Geändert
