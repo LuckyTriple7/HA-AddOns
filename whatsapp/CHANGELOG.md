@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.36] - 2026-05-24
+- Fix: KEEP_DELETED und MAX_MESSAGES_PER_CHAT fehlten in run.sh → Optionen wurden ignoriert
+
 ## [1.3.35] - 2026-05-24
 - Fix: keep_deleted — Client liest keepDeleted-Flag aus Server-Response statt eingebetteter JS-Konstante (verhindert Stale-Cache-Bug)
 - Fix: CSS.escape() für message IDs mit @lid-Format in querySelector
