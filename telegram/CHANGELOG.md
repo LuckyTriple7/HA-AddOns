@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.20] - 2026-05-24
+- Fix: 📎-Button steht jetzt nach dem 😊-Button (wie bei WhatsApp)
+- Fix: Gesendete Bilder/Dokumente erscheinen sofort als Vorschau im Chat (Message-Store wird nach Senden befüllt)
+
 ## [1.1.19] - 2026-05-24
 - Neu: Datei-Upload über 📎-Button — Bilder und Dokumente direkt aus dem Browser senden (max. 64 MB)
 - Dateien werden nur im RAM gehalten, kein Temp-Ordner; Bilder optional in /config/media gespeichert
