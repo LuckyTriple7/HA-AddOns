@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.39] - 2026-05-25
+- Fix: markDeleted vereinfacht — kein 30s-Timer, keine Fallunterscheidung; Nachricht bleibt immer mit deleted=true im Speicher (wie v1.3.31), Client entscheidet 🚫 oder Bubble entfernen
+- Fix: /api/messages filtert beim initialen Load (since=0) gelöschte Nachrichten bei KEEP_DELETED=false heraus
+
 ## [1.3.38] - 2026-05-25
 - Fix: Bei KEEP_DELETED=false wurden Löschungen dem Client nicht signalisiert — Bubble blieb bis Chat-Wechsel sichtbar
 - Fix: Gelöschte Nachrichten bleiben jetzt 30s im Speicher (nicht auf Disk), damit der Poll die Bubble entfernen kann; danach Bereinigung aus dem Speicher

@@ -504,26 +504,15 @@ client.on('message_reaction', (reaction) => {
 
 function markDeleted(msgId) {
   if (!msgId) return false;
-  for (const [chatId, msgs] of messagesByChatId.entries()) {
-    // Skip already-deleted messages to avoid double-processing
-    const idx = msgs.findIndex(m => m.id === msgId && !m.deleted);
+  for (const [, msgs] of messagesByChatId.entries()) {
+    const idx = msgs.findIndex(m => m.id === msgId);
     if (idx !== -1) {
+      if (msgs[idx].deleted) return true; // already handled, skip double-processing
       console.log(`[INFO] markDeleted: ${msgId} KEEP_DELETED=${KEEP_DELETED}`);
       msgs[idx].deleted = true;
       msgs[idx].body = '';
       msgs[idx].deletedAt = Date.now();
       saveMsgs(); // saveMsgs filters deleted msgs from disk when KEEP_DELETED=false
-      if (!KEEP_DELETED) {
-        // Keep in memory 30s so clients can poll the deletion signal and remove the bubble,
-        // then purge from memory. Disk is already clean via saveMsgs filter above.
-        setTimeout(() => {
-          const list = messagesByChatId.get(chatId);
-          if (list) {
-            const i = list.findIndex(m => m.id === msgId);
-            if (i !== -1) { list.splice(i, 1); seenIds.delete(msgId); }
-          }
-        }, 30000);
-      }
       return true;
     }
   }
@@ -659,7 +648,12 @@ app.get('/api/messages', (req, res) => {
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts)) : msgs);
+  if (since_ts) {
+    res.json(msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts)));
+  } else {
+    // Initial load: when KEEP_DELETED=false, don't send deleted messages (client has no wrap to remove anyway)
+    res.json(KEEP_DELETED ? msgs : msgs.filter(m => !m.deleted));
+  }
 });
 
 app.post('/api/send', async (req, res) => {
