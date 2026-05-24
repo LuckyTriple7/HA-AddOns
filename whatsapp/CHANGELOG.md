@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.31] - 2026-05-24
+- Neu: Gelöschte Nachrichten werden als „🚫 Diese Nachricht wurde gelöscht" angezeigt statt entfernt (funktioniert für eingehende und eigene gelöschte Nachrichten)
+
 ## [1.3.30] - 2026-05-24
 - Neu: Nachrichten-Persistenz — Chats und Nachrichten werden in `/config/chats.json` und `/config/messages.json` gespeichert und überleben Neustarts
 - Fix: `initial_messages`-Hinweis in Translations ergänzt (WhatsApp Web Cache-Begrenzung)

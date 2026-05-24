@@ -496,6 +496,16 @@ client.on('message_reaction', (reaction) => {
   }
 });
 
+client.on('message_revoke_everyone', (msg, revokedMsg) => {
+  const msgId = (revokedMsg || msg)?.id?._serialized;
+  if (!msgId) return;
+  for (const msgs of messagesByChatId.values()) {
+    const stored = msgs.find(m => m.id === msgId);
+    if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); break; }
+  }
+  dbg(`message_revoke_everyone: marked ${msgId} as deleted`);
+});
+
 client.on('message_ack', (msg, ack) => {
   dbg(`message_ack: ${msg.id._serialized} ack=${ack}`);
   const msgs = messagesByChatId.get(msg.to);
@@ -872,8 +882,8 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
     await msg.delete(true);
     const msgs = messagesByChatId.get(chatId);
     if (msgs) {
-      const idx = msgs.findIndex(m => m.id === msgId);
-      if (idx !== -1) { msgs.splice(idx, 1); seenIds.delete(msgId); }
+      const stored = msgs.find(m => m.id === msgId);
+      if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); }
     }
     res.json({ success: true });
   } catch (e) {
@@ -1113,6 +1123,8 @@ app.get('/', (req, res) => {
     #attach-cancel:hover { color:#e9edef; }
     #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
     #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
+    .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.45); font-size:13px; padding:2px 0; }
+    .bubble-deleted .del-icon { margin-right:5px; }
     .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
     .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
     .bubble-document .doc-info { flex:1; min-width:0; }
@@ -1436,6 +1448,7 @@ app.get('/', (req, res) => {
         today:'Heute', yesterday:'Gestern',
         photo:'📷 Foto', voiceMsg:'🎵 Sprachnachricht', mediaGeneric:'📎', media:'[Medien]', me:'Ich',
         forwarded:'↪ Weitergeleitet', frequentForwarded:'↪↪ Häufig weitergeleitet',
+        msgDeleted:'Diese Nachricht wurde gelöscht',
         ttDelete:'Löschen', ttReact:'Reagieren', ttForward:'Weiterleiten', ttReply:'Antworten',
         ttRemoveReaction:'Klicken zum Entfernen', ttAddReaction:'Klicken zum Reagieren',
         cleanupConfirm:'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
@@ -1466,6 +1479,7 @@ app.get('/', (req, res) => {
         today:'Today', yesterday:'Yesterday',
         photo:'📷 Photo', voiceMsg:'🎵 Voice message', mediaGeneric:'📎', media:'[Media]', me:'Me',
         forwarded:'↪ Forwarded', frequentForwarded:'↪↪ Frequently forwarded',
+        msgDeleted:'This message was deleted',
         ttDelete:'Delete', ttReact:'React', ttForward:'Forward', ttReply:'Reply',
         ttRemoveReaction:'Click to remove', ttAddReaction:'Click to react',
         cleanupConfirm:'Delete orphaned media files (photos no longer referenced)?',
@@ -1801,7 +1815,9 @@ app.get('/', (req, res) => {
         const bub = document.createElement('div');
         bub.className = 'bubble';
         const ack = m.fromMe ? ackMark(m.ack || 0) : '';
-        if (m.type === 'document') {
+        if (m.deleted) {
+          bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
+        } else if (m.type === 'document') {
           bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'photo' && m.mediaFile) {
           bub.classList.add('bubble-photo');
@@ -1839,6 +1855,7 @@ app.get('/', (req, res) => {
         delBtn.title = t('ttDelete');
         delBtn.textContent = '✕';
         delBtn.dataset.msgid = m.id;
+        if (m.deleted) delBtn.style.display = 'none';
         bri.appendChild(delBtn);
         const reactBtn = document.createElement('button');
         reactBtn.className = 'react-btn';
