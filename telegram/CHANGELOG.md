@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.17] - 2026-05-24
+- Fix: Nachrichtenblasen breiter (max-width 65% → 80%) — verhindert zu frühe Zeilenumbrüche
+
 ## [1.1.16] - 2026-05-23
 
 ### Geändert

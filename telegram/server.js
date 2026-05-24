@@ -733,7 +733,7 @@ html.light #chat-header { background: #517DA2; }
 .bubble { max-width: 100%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
 .bubble.in { border-bottom-left-radius: 2px; }
 .bubble.out { border-bottom-right-radius: 2px; }
-.bubble-stack { display: flex; flex-direction: column; max-width: 65%; }
+.bubble-stack { display: flex; flex-direction: column; max-width: 80%; }
 .bubble-row { display: flex; }
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
