@@ -1848,7 +1848,7 @@ app.get('/', (req, res) => {
 
     function exportChat() {
       if (!selectedChatId) return;
-      window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId));
+      window.location.href = 'api/export/' + encodeURIComponent(selectedChatId);
     }
 
     async function fetchMedia() {

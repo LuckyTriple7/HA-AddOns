@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.28] - 2026-05-24
+- Fix: Export-Button funktionierte nicht (undefinierte `api()`-Funktion; relativer Pfad verwendet)
+
 ## [1.3.27] - 2026-05-24
 - Neu: Chat-Export als HTML — 💾 Export-Button im Chat-Header; Bilder werden inline eingebettet (base64)
 

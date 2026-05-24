@@ -13,6 +13,9 @@ Signal Messenger direkt in Home Assistant — bestehendes Signal-Konto verknüpf
 - **Web-UI**: Chat-Liste, Konversationen, Nachrichten senden/empfangen direkt in der HA-Sidebar
 - **Nachrichten löschen**: Lokal sofort entfernt; platform-seitiges "Für alle löschen" wird im Hintergrund versucht (erfordert aktuelle signal-cli-rest-api)
 - **Ungelesene-Badge**: Grüner Punkt in der Sidebar bei neuen Nachrichten
+- **Datei-Upload**: 📎-Button zum Senden von Bildern und Dokumenten aus dem Browser (max. 64 MB)
+- **Chat-Filter**: Tabs „Alle / Privat / Gruppen" in der Sidebar; Gruppen mit 👥-Avatar
+- **Chat-Export**: 💾-Button im Chat-Header — exportiert alle Nachrichten als HTML-Datei (Bilder inline eingebettet)
 - **Emoji-Tastatur**: 😊-Button in der Eingabe
 - **Sprachauswahl**: 🌐 DE / 🌐 EN Button in der Topbar — Sprache wird im Browser gespeichert
 - **Persistente Session**: Kein erneutes Verknüpfen nach Neustart
@@ -48,6 +51,8 @@ GET  /api/status                     → { status, phone }
 GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
 GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
+POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
+GET  /api/export/:chatId             → Chat als HTML-Datei herunterladen
 DELETE /api/messages/:chatId/:msgId  → Nachricht lokal löschen (+ Versuch "Für alle")
 POST /api/logout                     → Abmelden
 ```
@@ -182,6 +187,9 @@ Signal Messenger directly in Home Assistant — link your existing Signal accoun
 - **Web UI**: Chat list, conversations, send/receive messages directly in the HA sidebar
 - **Delete messages**: Removed locally immediately; platform-side "delete for everyone" is attempted in the background (requires a recent signal-cli-rest-api)
 - **Unread badge**: Green dot in the sidebar for new messages
+- **File upload**: 📎 button to send images and documents from the browser (max. 64 MB)
+- **Chat filter**: Tabs "All / Private / Groups" in the sidebar; groups with 👥 avatar
+- **Chat export**: 💾 button in the chat header — exports all messages as an HTML file (images embedded inline)
 - **Emoji keyboard**: 😊 button in the input field
 - **Language switcher**: 🌐 DE / 🌐 EN button in the topbar — language is saved in the browser
 - **Persistent session**: No re-linking after restart
@@ -217,6 +225,8 @@ GET  /api/status                     → { status, phone }
 GET  /api/chats                      → [ { id, name, lastMsg, lastTime } ]
 GET  /api/messages/:chatId           → [ { id, body, timestamp, fromMe } ]
 POST /api/send                       → { to, message }
+POST /api/send-media                 → multipart/form-data: file, to, caption (optional)
+GET  /api/export/:chatId             → Download chat as HTML file
 DELETE /api/messages/:chatId/:msgId  → Delete message locally (+ attempt "for everyone")
 POST /api/logout                     → Log out
 ```
