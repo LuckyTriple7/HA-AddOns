@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8] - 2026-05-24
+
+### Neu
+- Option `claude_autostart`: Claude Code startet automatisch beim Öffnen des Terminals; nach dem Beenden öffnet sich eine normale Bash-Shell
+
 ## [1.0.7] - 2026-05-23
 
 ### Changed

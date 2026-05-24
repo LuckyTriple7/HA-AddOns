@@ -37,6 +37,12 @@
     description: >-
       Enable tmux session persistence. When enabled, your terminal session
       survives browser refreshes and disconnects. Recommended for long-running tasks.
+  claude_autostart:
+    name: Auto-start Claude
+    description: >-
+      Automatically start Claude Code when the terminal opens.
+      After exiting Claude, a normal bash shell is opened.
+      Disabled: terminal opens a bash shell directly without starting Claude.
   auto_update_claude:
     name: Auto-update Claude Code
     description: >-

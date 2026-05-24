@@ -39,6 +39,12 @@ configuration:
       Tmux-Sitzungserhaltung aktivieren. Bei aktivierter Option überlebt die
       Terminal-Sitzung Browser-Aktualisierungen und Verbindungsabbrüche.
       Empfohlen für länger laufende Aufgaben.
+  claude_autostart:
+    name: Claude automatisch starten
+    description: >-
+      Claude Code beim Öffnen des Terminals automatisch starten.
+      Nach dem Beenden von Claude wird eine normale Bash-Shell geöffnet.
+      Deaktiviert: Terminal öffnet direkt eine Bash-Shell ohne Claude zu starten.
   auto_update_claude:
     name: Claude Code automatisch aktualisieren
     description: >-

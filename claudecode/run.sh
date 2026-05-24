@@ -95,6 +95,7 @@ fi
 FONT_SIZE=$(jq -r '.terminal_font_size // 14' /data/options.json)
 THEME=$(jq -r --arg d dark '.terminal_theme // $d' /data/options.json)
 SESSION_PERSIST=$(jq -r '.session_persistence // true' /data/options.json)
+CLAUDE_AUTOSTART=$(jq -r '.claude_autostart // false' /data/options.json)
 ENABLE_MCP=$(jq -r '.enable_mcp // true' /data/options.json)
 ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
 PLAYWRIGHT_HOST=$(jq -r --arg d '' '.playwright_cdp_host // $d' /data/options.json)
@@ -195,11 +196,25 @@ else
     COLORS='background=#eff1f5,foreground=#4c4f69,cursor=#dc8a78'
 fi
 
-# Set shell command based on session persistence setting
-if [ "$SESSION_PERSIST" = "true" ]; then
-    SHELL_CMD='tmux new-session -A -s claude'
+# Set shell command based on session persistence and autostart settings
+if [ "$CLAUDE_AUTOSTART" = "true" ]; then
+    cat > /tmp/claude-start.sh << 'EOF'
+#!/bin/bash
+claude
+exec bash --login
+EOF
+    chmod +x /tmp/claude-start.sh
+    if [ "$SESSION_PERSIST" = "true" ]; then
+        SHELL_CMD='tmux new-session -A -s claude /tmp/claude-start.sh'
+    else
+        SHELL_CMD='/tmp/claude-start.sh'
+    fi
 else
-    SHELL_CMD='bash --login'
+    if [ "$SESSION_PERSIST" = "true" ]; then
+        SHELL_CMD='tmux new-session -A -s claude'
+    else
+        SHELL_CMD='bash --login'
+    fi
 fi
 
 # Background update checker — runs hourly, posts HA notification when update is available
