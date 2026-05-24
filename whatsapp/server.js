@@ -1812,6 +1812,20 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
 
+    function findWrap(msgId) {
+      for (const el of msgList.children) {
+        if (el.dataset.msgid === msgId) return el;
+      }
+      return null;
+    }
+    function markWrapDeleted(wrap, timestamp) {
+      const bub = wrap.querySelector('.bubble');
+      if (bub && !bub.querySelector('.bubble-deleted')) {
+        bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(timestamp) + '</span>';
+        wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
+      }
+    }
+
     function renderMessages(msgs, chatId) {
       if (chatId !== selectedChatId) return;
       if (!msgs.length) return;
@@ -1826,16 +1840,8 @@ app.get('/', (req, res) => {
       // Update existing deleted bubbles in place instead of appending duplicates
       msgs = msgs.filter(m => {
         if (!m.deleted) return true;
-        const existing = msgList.querySelector('[data-msgid="' + CSS.escape(m.id) + '"] .bubble');
-        const wrap = msgList.querySelector('[data-msgid="' + CSS.escape(m.id) + '"]');
-        if (wrap) {
-          const bub = wrap.querySelector('.bubble');
-          if (bub && !bub.querySelector('.bubble-deleted')) {
-            bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
-            wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
-          }
-          return false;
-        }
+        const wrap = findWrap(m.id);
+        if (wrap) { markWrapDeleted(wrap, m.timestamp); return false; }
         return true;
       });
       if (!msgs.length) return;
@@ -1854,6 +1860,7 @@ app.get('/', (req, res) => {
         const wrap = document.createElement('div');
         wrap.className = 'bubble-wrap ' + (m.fromMe ? 'out' : 'in');
         wrap.dataset.msgid = m.id;
+        wrap.dataset.ts = m.timestamp;
         if (!m.fromMe && m.contact) {
           const n = document.createElement('div');
           n.className = 'contact-name';
@@ -2218,12 +2225,11 @@ app.get('/', (req, res) => {
         const r = await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(msgId), {method:'DELETE'});
         if (!r.ok) return;
         const data = await r.json();
-        const wrap = msgList.querySelector('[data-msgid="' + CSS.escape(msgId) + '"]');
+        const wrap = findWrap(msgId);
         if (!wrap) return;
         if (data.keepDeleted) {
-          const bub = wrap.querySelector('.bubble');
-          if (bub) bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + (wrap.querySelector('.time')?.textContent || '') + '</span>';
-          wrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
+          const ts = parseInt(wrap.dataset.ts || '0');
+          markWrapDeleted(wrap, ts);
         } else {
           wrap.remove();
         }

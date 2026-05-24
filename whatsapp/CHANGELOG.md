@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.3.37] - 2026-05-25
+- Fix: deleteMsg verwendete timeEl.dataset.ts (nie gesetzt) — stattdessen wrap.dataset.ts beim Rendern gesetzt und ausgelesen
+
 ## [1.3.36] - 2026-05-24
 - Fix: KEEP_DELETED und MAX_MESSAGES_PER_CHAT fehlten in run.sh → Optionen wurden ignoriert
 
