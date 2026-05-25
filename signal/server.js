@@ -880,8 +880,8 @@ html.dark .filter-tab:hover { background: #202c33; }
         <div id="ch-phone"></div>
         <div id="ch-stats"></div>
       </div>
-      ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
-      <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾 Export</button>
+      ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">📥</button>' : ''}
+      <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
     </div>
     <div id="messages"><div id="no-chat" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div></div>
     <div id="attach-bar">

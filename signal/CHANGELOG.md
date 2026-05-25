@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.18] - 2026-05-25
+- Header-Buttons: nur noch Icon, kein Text (mobile-freundlich)
+
 ## [1.1.17] - 2026-05-25
 - Fix: Konfig-Log "Konfiguration", "gesetzt"/"nicht gesetzt" auf Englisch
 
