@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.10] - 2026-05-25
+
+### Neu
+- Option `export_memory_interval`: zeitgesteuerter Memory-Export im Hintergrund (in Minuten). 0 = nur beim Start, Standard: 60 (stündlich). Nur aktiv wenn `export_memory` aktiviert ist.
+
 ## [1.0.9] - 2026-05-25
 
 ### Neu

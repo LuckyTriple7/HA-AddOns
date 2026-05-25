@@ -61,6 +61,12 @@
       On startup, copy memory files, memory index, and custom commands to the
       add-on config folder (/config/memory/ and /config/commands/).
       Enables easy access and backup of Claude's memories. Default: disabled.
+  export_memory_interval:
+    name: Memory Export Interval (minutes)
+    description: >-
+      Schedule for automatic memory export in minutes (only active when
+      "Export Memory" is enabled). 0 = no scheduled export, startup only.
+      Examples: 60 = hourly, 1440 = daily. Default: 60.
 
 network:
   7681/tcp: Web Terminal (ttyd)

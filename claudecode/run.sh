@@ -138,9 +138,9 @@ echo "[INFO] Using Claude model: $MODEL"
 
 # Export memory + custom commands to addon config folder
 EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
-if [ "$EXPORT_MEMORY" = "true" ]; then
-    echo "[INFO] Exporting Claude memory and commands to /config/..."
-    # Memory files (project-specific)
+EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
+
+do_memory_export() {
     MEMORY_SRC="$PERSIST_DIR/projects/-homeassistant/memory"
     if [ -d "$MEMORY_SRC" ]; then
         mkdir -p /config/memory
@@ -149,7 +149,6 @@ if [ "$EXPORT_MEMORY" = "true" ]; then
     else
         echo "[INFO] No memory directory found at $MEMORY_SRC — skipping"
     fi
-    # Custom commands
     COMMANDS_SRC="$PERSIST_DIR/commands"
     if [ -d "$COMMANDS_SRC" ] && [ -n "$(ls -A "$COMMANDS_SRC" 2>/dev/null)" ]; then
         mkdir -p /config/commands
@@ -157,6 +156,19 @@ if [ "$EXPORT_MEMORY" = "true" ]; then
         echo "[INFO] Commands exported: $(ls /config/commands/ 2>/dev/null | wc -l) file(s) → /config/commands/"
     else
         echo "[INFO] No custom commands found — skipping"
+    fi
+}
+
+if [ "$EXPORT_MEMORY" = "true" ]; then
+    echo "[INFO] Exporting Claude memory and commands to /config/..."
+    do_memory_export
+    if [ "$EXPORT_MEMORY_INTERVAL" -gt 0 ] 2>/dev/null; then
+        (while true; do
+            sleep $(( EXPORT_MEMORY_INTERVAL * 60 ))
+            echo "[INFO] Scheduled memory export..."
+            do_memory_export
+        done) &
+        echo "[INFO] Memory export scheduled every ${EXPORT_MEMORY_INTERVAL} minute(s)"
     fi
 else
     echo "[INFO] Memory export disabled"

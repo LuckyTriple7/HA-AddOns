@@ -1,6 +1,6 @@
 ﻿name: Claude Code
 description: KI-Coding-Assistent Claude Code direkt in Home Assistant – Automationen erstellen, Konfiguration verwalten und Fehler beheben
-version: "1.0.9"
+version: "1.0.10"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
 arch:
@@ -43,6 +43,7 @@ options:
   auto_update_claude: true
   model: claude-sonnet-4-6
   export_memory: false
+  export_memory_interval: 60
 schema:
   enable_mcp: bool
   enable_playwright_mcp: bool
@@ -55,6 +56,7 @@ schema:
   auto_update_claude: bool
   model: list(claude-opus-4-7|claude-sonnet-4-6|claude-haiku-4-5-20251001)
   export_memory: bool
+  export_memory_interval: int(0,1440)
 environment:
   TERM: xterm-256color
 

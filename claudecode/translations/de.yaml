@@ -64,6 +64,12 @@ configuration:
       Add-on-Konfigurationsordner kopieren (/config/memory/ und /config/commands/).
       Ermöglicht einfachen Zugriff und Sicherung der Claude-Erinnerungen.
       Standard: deaktiviert.
+  export_memory_interval:
+    name: Memory-Export-Intervall (Minuten)
+    description: >-
+      Zeitplan für den automatischen Memory-Export in Minuten (nur aktiv wenn
+      "Memory exportieren" aktiviert ist). 0 = kein geplanter Export, nur beim Start.
+      Beispiele: 60 = stündlich, 1440 = täglich. Standard: 60.
 
 network:
   7681/tcp: Web-Terminal (ttyd)
