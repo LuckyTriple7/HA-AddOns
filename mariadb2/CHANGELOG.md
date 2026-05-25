@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.0.3] - 2026-05-25
+- Hostname wird beim Start im LOG ausgegeben (wird für Nextcloud-Migration benötigt)
+
 ## [0.0.2] - 2026-05-25
 - Zugangsdaten werden zusätzlich in `addon_config/nextcloud_db_credentials.txt` gespeichert (im HA-Dateibrowser einsehbar)
 

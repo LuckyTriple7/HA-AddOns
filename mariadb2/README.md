@@ -51,6 +51,38 @@ Datenbankhost:      <Hostname der MariaDB-2-App>:3306
 | Port (intern) | `3306` |
 | Port (Host) | `3307` |
 
+## Migration: Nextcloud von SQLite auf MariaDB 2
+
+### Vorbereitung
+
+1. **MariaDB 2** installieren, `create_nextcloud_db: true` setzen, starten
+2. Passwort aus `addon_config/nextcloud_db_credentials.txt` notieren
+3. Im **MariaDB 2 LOG** den Hostname ablesen:
+   ```
+   [INFO] Hostname (für Nextcloud-Migration): abc123-mariadb2
+   ```
+
+### Migration (im Nextcloud Web-Terminal)
+
+```sh
+# 1. Wartungsmodus aktivieren
+ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --on
+
+# 2. Datenbank migrieren (Passwort aus nextcloud_db_credentials.txt)
+ALLOW_ROOT=1 php /app/www/public/occ db:convert-type \
+  --all-apps \
+  --password=PASSWORT_HIER \
+  mysql \
+  nextcloud \
+  HOSTNAME_HIER:3306 \
+  nextcloud
+
+# 3. Wartungsmodus deaktivieren
+ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --off
+```
+
+> **Hinweis:** Die Migration kann je nach Datenmenge einige Minuten dauern. Danach verwendet Nextcloud MariaDB 2 — die SQLite-Datei bleibt erhalten, wird aber nicht mehr genutzt.
+
 → [Changelog](CHANGELOG.md)
 
 ---
@@ -96,5 +128,37 @@ Database password: <from /data/nextcloud_db_password.txt>
 Database name:     nextcloud
 Database host:     <MariaDB 2 app hostname>:3306
 ```
+
+## Migration: Nextcloud from SQLite to MariaDB 2
+
+### Preparation
+
+1. Install **MariaDB 2**, set `create_nextcloud_db: true`, start it
+2. Note the password from `addon_config/nextcloud_db_credentials.txt`
+3. Read the hostname from the **MariaDB 2 log**:
+   ```
+   [INFO] Hostname (for Nextcloud migration): abc123-mariadb2
+   ```
+
+### Migration (in Nextcloud Web Terminal)
+
+```sh
+# 1. Enable maintenance mode
+ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --on
+
+# 2. Convert database (password from nextcloud_db_credentials.txt)
+ALLOW_ROOT=1 php /app/www/public/occ db:convert-type \
+  --all-apps \
+  --password=YOUR_PASSWORD \
+  mysql \
+  nextcloud \
+  YOUR_HOSTNAME:3306 \
+  nextcloud
+
+# 3. Disable maintenance mode
+ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --off
+```
+
+> **Note:** Migration may take a few minutes depending on data size. After completion, Nextcloud uses MariaDB 2 — the SQLite file is kept but no longer used.
 
 → [Changelog](CHANGELOG.md)

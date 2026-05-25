@@ -99,6 +99,7 @@ rm -f "$SOCKET"
 
 # Start MariaDB in foreground on port 3306
 echo "[INFO] MariaDB 2 listening on port 3306 (host: 3307)"
+echo "[INFO] Hostname (für Nextcloud-Migration): $(hostname)"
 exec mysqld --user=root \
     --datadir="$DATA_DIR" \
     --socket="$SOCKET" \
