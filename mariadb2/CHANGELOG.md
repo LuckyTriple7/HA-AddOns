@@ -1,5 +1,9 @@
 # Changelog — MariaDB 2
 
+## [0.0.7] - 2026-05-25
+- Fix: Emoji/4-Byte-UTF8-Zeichen in Kalender-Einträgen führten zu Fehler bei Migration — `--skip-character-set-client-handshake` erzwingt utf8mb4 für alle Verbindungen
+- Nextcloud-empfohlene InnoDB-Settings: `innodb-default-row-format=dynamic`, `transaction-isolation=READ-COMMITTED`
+
 ## [0.0.6] - 2026-05-25
 - Fix: MariaDB hörte nicht auf TCP Port 3306 — Alpine Default-Config (skip-networking) wird jetzt im Dockerfile entfernt, --no-defaults verhindert Überschreiben der Port-Einstellung
 

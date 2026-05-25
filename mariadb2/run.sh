@@ -88,4 +88,7 @@ exec mariadbd --no-defaults --user=root \
     --bind-address=0.0.0.0 \
     --character-set-server=utf8mb4 \
     --collation-server=utf8mb4_unicode_ci \
+    --skip-character-set-client-handshake \
+    --innodb-default-row-format=dynamic \
+    --transaction-isolation=READ-COMMITTED \
     --log-warnings=0
