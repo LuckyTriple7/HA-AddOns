@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.26] - 2026-05-25
+- Fix: Konfig-Log "Konfiguration", "gesetzt"/"nicht gesetzt" auf Englisch
+
 ## [1.1.25] - 2026-05-25
 - UX: Emoji-Picker-Button (😊) wird ausgeblendet wenn bereits Reaktions-Badges vorhanden sind — Reaktion per Badge-Klick reicht aus; Button erscheint wieder wenn alle Reaktionen entfernt wurden
 

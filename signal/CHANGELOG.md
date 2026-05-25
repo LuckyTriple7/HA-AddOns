@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.17] - 2026-05-25
+- Fix: Konfig-Log "Konfiguration", "gesetzt"/"nicht gesetzt" auf Englisch
+
 ## [1.1.16] - 2026-05-25
 - Neu: Chat-Statistik im Header — Gesamtnachrichten, ↑ gesendet, ↓ empfangen, 📷 Fotos, seit Datum (zweisprachig DE/EN)
 

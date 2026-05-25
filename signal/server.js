@@ -38,16 +38,16 @@ const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_TOKEN = process.env.HA_TOKEN || '';
 const MEDIA_DIR = '/config/media/';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
-console.log('[INFO] ── Konfiguration ──────────────────────────────────');
-console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log('[INFO] ── Configuration ──────────────────────────────────');
+console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'set' : 'not set'}`);
 console.log(`[INFO]   signal_api_url         = ${SIGNAL_API}`);
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
-console.log(`[INFO]   ha_token               = ${HA_TOKEN ? 'gesetzt' : 'nicht gesetzt'}`);
-console.log(`[INFO]   webhook_incoming       = ${WEBHOOK_INCOMING ? WEBHOOK_INCOMING : 'nicht gesetzt'}`);
+console.log(`[INFO]   ha_token               = ${HA_TOKEN ? 'set' : 'not set'}`);
+console.log(`[INFO]   webhook_incoming       = ${WEBHOOK_INCOMING ? WEBHOOK_INCOMING : 'not set'}`);
 console.log('[INFO] ─────────────────────────────────────────────────────');
 
 let status = 'starting'; // starting | not-linked | linked | error
@@ -339,7 +339,7 @@ function updateMsgMedia(msgId, filename) {
 
 function sendHANotification(senderName, body) {
   if (!HA_NOTIFY || !HA_TOKEN) {
-    if (HA_NOTIFY && !HA_TOKEN) console.warn('[WARN] HA_NOTIFICATIONS: ha_token in der Add-on-Konfiguration setzen');
+    if (HA_NOTIFY && !HA_TOKEN) console.warn('[WARN] HA_NOTIFICATIONS: ha_token not set in add-on configuration');
     return;
   }
   const preview = (body || '').length > 200 ? body.slice(0, 200) + '…' : (body || '');

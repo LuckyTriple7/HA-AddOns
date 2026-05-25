@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.11] - 2026-05-25
+- Fix: Konfig-Log "Konfiguration", "gesetzt"/"nicht gesetzt" auf Englisch
+
 ## [1.4.10] - 2026-05-25
 - Fix: Alle Log-Meldungen auf Englisch vereinheitlicht
 

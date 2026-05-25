@@ -45,19 +45,19 @@ function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 const GRAMJS_VERSION = require('./node_modules/telegram/package.json').version;
 console.log(`[INFO] GramJS (telegram) v${GRAMJS_VERSION}`);
-console.log('[INFO] ── Konfiguration ──────────────────────────────────');
-console.log(`[INFO]   api_id                 = ${API_ID ? 'gesetzt' : 'nicht gesetzt'}`);
-console.log(`[INFO]   api_hash               = ${API_HASH ? 'gesetzt' : 'nicht gesetzt'}`);
-console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log('[INFO] ── Configuration ──────────────────────────────────');
+console.log(`[INFO]   api_id                 = ${API_ID ? 'set' : 'not set'}`);
+console.log(`[INFO]   api_hash               = ${API_HASH ? 'set' : 'not set'}`);
+console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'set' : 'not set'}`);
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
 console.log(`[INFO]   ha_notify_skip_bots    = ${HA_NOTIFY_SKIP_BOTS}`);
-console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'set' : 'not set'}`);
 console.log(`[INFO]   fetch_limit            = ${FETCH_LIMIT}`);
-console.log(`[INFO]   webhook_incoming       = ${WEBHOOK_INCOMING ? WEBHOOK_INCOMING : 'nicht gesetzt'}`);
+console.log(`[INFO]   webhook_incoming       = ${WEBHOOK_INCOMING ? WEBHOOK_INCOMING : 'not set'}`);
 console.log('[INFO] ─────────────────────────────────────────────────────');
 
 const SESSION_FILE = '/config/session.txt';
@@ -181,7 +181,7 @@ function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
   const token = process.env.HA_TOKEN;
   if (!token) {
-    console.warn('[WARN] HA_NOTIFICATIONS: ha_token in der Add-on-Konfiguration setzen');
+    console.warn('[WARN] HA_NOTIFICATIONS: ha_token not set in add-on configuration');
     return;
   }
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
@@ -335,7 +335,7 @@ async function fetchMessages(chatId, limit = FETCH_LIMIT) {
 async function startClient() {
   if (!API_ID || !API_HASH || !PHONE_NUMBER) {
     status = 'error';
-    lastError = 'Bitte api_id, api_hash und phone_number in der Add-on-Konfiguration setzen';
+    lastError = 'Please set api_id, api_hash and phone_number in the add-on configuration';
     return;
   }
   try {
