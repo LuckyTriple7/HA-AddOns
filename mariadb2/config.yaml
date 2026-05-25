@@ -1,6 +1,6 @@
 name: MariaDB 2
 description: Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App betreibbar
-version: "0.0.3"
+version: "0.0.4"
 slug: mariadb2
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -32,8 +32,6 @@ options:
   rights:
     - database: nextcloud
       username: nextcloud
-  create_nextcloud_db: false
-
 schema:
   databases:
     - str
@@ -43,4 +41,4 @@ schema:
   rights:
     - database: str
       username: str
-  create_nextcloud_db: bool
+

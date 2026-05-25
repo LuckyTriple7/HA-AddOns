@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.0.4] - 2026-05-25
+- Option `create_nextcloud_db` entfernt — Passwort wird direkt in den App-Optionen gesetzt, einfacher und übersichtlicher
+
 ## [0.0.3] - 2026-05-25
 - Hostname wird beim Start im LOG ausgegeben (wird für Nextcloud-Migration benötigt)
 

@@ -5,15 +5,13 @@ DATA_DIR=/data/databases
 SOCKET=/run/mysqld/mysqld.sock
 
 # Read options
-CREATE_NEXTCLOUD_DB=$(jq -r '.create_nextcloud_db // false' /data/options.json)
 DBS=$(jq -r '.databases // [] | join(", ")' /data/options.json)
 USERS=$(jq -r '.logins // [] | map(.username) | join(", ")' /data/options.json)
 
 # Log configuration
 echo "[INFO] Configuration:"
-echo "[INFO]   databases            : ${DBS:-none}"
-echo "[INFO]   logins               : ${USERS:-none}"
-echo "[INFO]   create_nextcloud_db  : $CREATE_NEXTCLOUD_DB"
+echo "[INFO]   databases : ${DBS:-none}"
+echo "[INFO]   logins    : ${USERS:-none}"
 
 mkdir -p /run/mysqld "$DATA_DIR"
 
@@ -71,24 +69,6 @@ jq -c '.rights // [] | .[]' /data/options.json | while read -r RIGHT; do
     mysql --socket="$SOCKET" -e "GRANT ALL PRIVILEGES ON \`${DB}\`.* TO '${USER}'@'%';"
 done
 
-# Optional: auto-create Nextcloud database with random password
-if [ "$CREATE_NEXTCLOUD_DB" = "true" ]; then
-    NC_PASS_FILE=/data/nextcloud_db_password.txt
-    if mysql --socket="$SOCKET" -e "SHOW DATABASES LIKE 'nextcloud';" | grep -q nextcloud; then
-        echo "[INFO] Nextcloud database already exists — skipping"
-    else
-        NC_PASS=$(pwgen 32 1)
-        echo "[INFO] Creating Nextcloud database and user..."
-        mysql --socket="$SOCKET" -e "CREATE DATABASE IF NOT EXISTS nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-        mysql --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS 'nextcloud'@'%' IDENTIFIED BY '${NC_PASS}';"
-        mysql --socket="$SOCKET" -e "GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'%';"
-        echo "$NC_PASS" > "$NC_PASS_FILE"
-        printf 'nextcloud_db_user=nextcloud\nnextcloud_db_password=%s\nnextcloud_db_name=nextcloud\n' "$NC_PASS" > /config/nextcloud_db_credentials.txt
-        echo "[INFO] Nextcloud DB created — credentials saved to addon_config/nextcloud_db_credentials.txt"
-        echo "[INFO] Nextcloud DB user: nextcloud | password: ${NC_PASS}"
-    fi
-fi
-
 mysql --socket="$SOCKET" -e "FLUSH PRIVILEGES;"
 
 # Stop temp instance
@@ -99,7 +79,7 @@ rm -f "$SOCKET"
 
 # Start MariaDB in foreground on port 3306
 echo "[INFO] MariaDB 2 listening on port 3306 (host: 3307)"
-echo "[INFO] Hostname (für Nextcloud-Migration): $(hostname)"
+echo "[INFO] Hostname (for Nextcloud migration): $(hostname)"
 exec mysqld --user=root \
     --datadir="$DATA_DIR" \
     --socket="$SOCKET" \

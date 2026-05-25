@@ -8,12 +8,6 @@ configuration:
   rights:
     name: Rights
     description: Which user gets access to which database (ALL PRIVILEGES).
-  create_nextcloud_db:
-    name: Create Nextcloud Database
-    description: >-
-      Automatically creates the "nextcloud" database with a random password on
-      first start. The password is shown in the log and saved to
-      addon_config/nextcloud_db_credentials.txt (accessible via HA file browser). Default: disabled.
 
 network:
   3306/tcp: MariaDB 2 (accessible on host port 3307)

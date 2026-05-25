@@ -8,12 +8,6 @@ configuration:
   rights:
     name: Berechtigungen
     description: Welcher Benutzer hat Zugriff auf welche Datenbank (ALL PRIVILEGES).
-  create_nextcloud_db:
-    name: Nextcloud-Datenbank anlegen
-    description: >-
-      Legt beim ersten Start automatisch die Datenbank "nextcloud" mit einem
-      zufälligen Passwort an. Das Passwort wird im LOG und in
-      addon_config/nextcloud_db_credentials.txt gespeichert (im HA-Dateibrowser einsehbar). Standard: deaktiviert.
 
 network:
   3306/tcp: MariaDB 2 (erreichbar auf Host-Port 3307)
