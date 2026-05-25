@@ -69,4 +69,22 @@ for IDX in 1 2 3; do
     do_mount "$SERVER" "$SHARE" "$USER" "$PASS" "/mnt/smb${IDX}"
 done
 
+# Nginx security headers
+cat > /config/nginx/security-headers.conf << 'HEADERS'
+add_header Strict-Transport-Security "max-age=15552000; includeSubDomains; preload" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header Referrer-Policy "no-referrer" always;
+add_header X-Permitted-Cross-Domain-Policies "none" always;
+add_header X-XSS-Protection "1; mode=block" always;
+HEADERS
+
+NGINX_CONF=/config/nginx/site-confs/default.conf
+if [ -f "$NGINX_CONF" ] && ! grep -q "security-headers.conf" "$NGINX_CONF"; then
+    sed -i '/^server {/a\    include /config/nginx/security-headers.conf;' "$NGINX_CONF"
+    echo "[ha-init] Nginx security headers: eingebunden"
+else
+    echo "[ha-init] Nginx security headers: bereits konfiguriert"
+fi
+
 echo "[ha-init] done"

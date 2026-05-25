@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.1
+- Nginx Security Headers automatisch gesetzt: HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection
+
 ## 1.0.0
 - Version auf 1.0.0 angehoben — Add-on läuft stabil
 - README: Credits-Abschnitt mit Hinweis auf Inspiration durch alexbelgium/hassio-addons und eigene Verbesserungen ergänzt
