@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.11] - 2026-05-25
+
+### Fix
+- Background-Update-Checker läuft jetzt nur noch wenn `auto_update_claude` aktiviert ist; war bisher immer aktiv und schickte HA-Benachrichtigungen auch bei deaktiviertem Auto-Update
+
 ## [1.0.10] - 2026-05-25
 
 ### Neu

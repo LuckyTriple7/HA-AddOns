@@ -256,27 +256,31 @@ else
 fi
 
 # Background update checker — runs hourly, posts HA notification when update is available
-(while true; do
-    IV=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    LV=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
-    if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
-        echo "$LV" > "$PERSIST_DIR/.update_notice"
-        echo "[INFO] Claude Code update available: $LV (installed: $IV)"
-        printf '{"title":"Claude Code Update Available","message":"Version %s is available (installed: %s). Restart the add-on to update.","notification_id":"claude_code_update"}' "$LV" "$IV" \
-            | curl -sf -X POST \
-              -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d @- http://supervisor/core/api/services/persistent_notification/create 2>/dev/null || true
-    else
-        rm -f "$PERSIST_DIR/.update_notice" 2>/dev/null
-        printf '{"notification_id":"claude_code_update"}' \
-            | curl -sf -X POST \
-              -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d @- http://supervisor/core/api/services/persistent_notification/dismiss 2>/dev/null || true
-    fi
-    sleep 3600
-done) &
+if [ "$AUTO_UPDATE" = "true" ]; then
+    (while true; do
+        IV=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        LV=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
+        if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
+            echo "$LV" > "$PERSIST_DIR/.update_notice"
+            echo "[INFO] Claude Code update available: $LV (installed: $IV)"
+            printf '{"title":"Claude Code Update Available","message":"Version %s is available (installed: %s). Restart the add-on to update.","notification_id":"claude_code_update"}' "$LV" "$IV" \
+                | curl -sf -X POST \
+                  -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d @- http://supervisor/core/api/services/persistent_notification/create 2>/dev/null || true
+        else
+            rm -f "$PERSIST_DIR/.update_notice" 2>/dev/null
+            printf '{"notification_id":"claude_code_update"}' \
+                | curl -sf -X POST \
+                  -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d @- http://supervisor/core/api/services/persistent_notification/dismiss 2>/dev/null || true
+        fi
+        sleep 3600
+    done) &
+else
+    echo "[INFO] Auto-update disabled — update checker not started"
+fi
 
 # Start web terminal
 cd /homeassistant
