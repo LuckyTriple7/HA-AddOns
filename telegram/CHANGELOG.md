@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.25] - 2026-05-25
+- UX: Emoji-Picker-Button (😊) wird ausgeblendet wenn bereits Reaktions-Badges vorhanden sind — Reaktion per Badge-Klick reicht aus; Button erscheint wieder wenn alle Reaktionen entfernt wurden
+
 ## [1.1.24] - 2026-05-25
 - Neu: Chat-Statistik im Header — Gesamtnachrichten, ↑ gesendet, ↓ empfangen, 📷 Fotos, seit Datum (zweisprachig DE/EN)
 - Entfernt: Hardcoded Nachrichten-Limit von 300 — Nachrichten werden unbegrenzt auf Disk gespeichert

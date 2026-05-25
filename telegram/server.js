@@ -1436,7 +1436,7 @@ function renderMessages(msgs) {
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn" title="\${t('btnReact')}">😊</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
@@ -1615,7 +1615,12 @@ document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.t
       const msgId = row.dataset.msgid;
       const entry = map[msgId];
       let bar = row.querySelector('.reactions-bar');
-      if (!entry || !Object.keys(entry.reactions).length) { if (bar) bar.remove(); continue; }
+      const reactBtn = row.querySelector('.react-btn');
+      if (!entry || !Object.keys(entry.reactions).length) {
+        if (bar) bar.remove();
+        if (reactBtn) reactBtn.style.display = '';
+        continue;
+      }
       if (!bar) { bar = document.createElement('div'); bar.className = 'reactions-bar'; (row.querySelector('.bubble-stack') || row).appendChild(bar); }
       bar.innerHTML = '';
       for (const [emoji, count] of Object.entries(entry.reactions)) {
@@ -1628,6 +1633,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('#emoji-picker')&&e.t
         badge.onclick = () => window.toggleReaction(msgId, emoji, isOwn);
         bar.appendChild(badge);
       }
+      if (reactBtn) reactBtn.style.display = 'none';
     }
   }
 })();
