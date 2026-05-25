@@ -120,6 +120,17 @@ Signal Messenger als verknüpftes Gerät direkt in Home Assistant — mit Chat-U
 
 → [Dokumentation & Changelog](signal/README.md)
 
+### [MariaDB 2](mariadb2/)
+
+Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App betreibbar, ohne Konflikte.
+
+- Vollständig isoliert (eigener Container, Port 3307, eigene Daten)
+- Gleiche Konfigurationsstruktur wie die offizielle MariaDB-App
+- Option: Nextcloud-Datenbank automatisch anlegen
+- Ideal als dedizierte Datenbank für Nextcloud
+
+→ [Dokumentation & Changelog](mariadb2/README.md)
+
 ### [Nextcloud](nextcloud/)
 
 Nextcloud direkt in Home Assistant — private Cloud mit Web-UI und SMB-Netzwerkspeicher-Unterstützung.
@@ -256,6 +267,17 @@ Signal Messenger as a linked device directly in Home Assistant — with chat UI,
 - Responsive design for desktop and mobile
 
 → [Documentation & Changelog](signal/README.md)
+
+### [MariaDB 2](mariadb2/)
+
+A second independent MariaDB instance — runs alongside the official MariaDB app without any conflicts.
+
+- Fully isolated (own container, port 3307, own data)
+- Same configuration structure as the official MariaDB app
+- Option: auto-create Nextcloud database
+- Ideal as a dedicated database for Nextcloud
+
+→ [Documentation & Changelog](mariadb2/README.md)
 
 ### [Nextcloud](nextcloud/)
 

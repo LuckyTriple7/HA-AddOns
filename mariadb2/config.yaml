@@ -1,0 +1,43 @@
+name: MariaDB 2
+description: Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App betreibbar
+version: "0.0.1"
+slug: mariadb2
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+arch:
+  - amd64
+  - aarch64
+
+startup: system
+boot: manual
+init: false
+
+image: "ghcr.io/luckytriple7/mariadb2"
+
+ports:
+  3306/tcp: 3307
+
+ports_description:
+  3306/tcp: MariaDB 2 (Host-Port 3307)
+
+options:
+  databases:
+    - nextcloud
+  logins:
+    - username: nextcloud
+      password: ""
+  rights:
+    - database: nextcloud
+      username: nextcloud
+  create_nextcloud_db: false
+
+schema:
+  databases:
+    - str
+  logins:
+    - username: str
+      password: str
+  rights:
+    - database: str
+      username: str
+  create_nextcloud_db: bool

@@ -1,0 +1,19 @@
+configuration:
+  databases:
+    name: Datenbanken
+    description: Liste der anzulegenden Datenbanken.
+  logins:
+    name: Zugangsdaten
+    description: Benutzername und Passwort für den Datenbankzugang.
+  rights:
+    name: Berechtigungen
+    description: Welcher Benutzer hat Zugriff auf welche Datenbank (ALL PRIVILEGES).
+  create_nextcloud_db:
+    name: Nextcloud-Datenbank anlegen
+    description: >-
+      Legt beim ersten Start automatisch die Datenbank "nextcloud" mit einem
+      zufälligen Passwort an. Das Passwort wird im LOG und in
+      /data/nextcloud_db_password.txt gespeichert. Standard: deaktiviert.
+
+network:
+  3306/tcp: MariaDB 2 (erreichbar auf Host-Port 3307)
