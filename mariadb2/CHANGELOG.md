@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.0.8] - 2026-05-25
+- Fix: `--init-connect='SET NAMES utf8mb4'` erzwingt utf8mb4 auf Verbindungsebene, auch wenn PHP/PDO utf8 anfordert
+
 ## [0.0.7] - 2026-05-25
 - Fix: Emoji/4-Byte-UTF8-Zeichen in Kalender-Einträgen führten zu Fehler bei Migration — `--skip-character-set-client-handshake` erzwingt utf8mb4 für alle Verbindungen
 - Nextcloud-empfohlene InnoDB-Settings: `innodb-default-row-format=dynamic`, `transaction-isolation=READ-COMMITTED`
