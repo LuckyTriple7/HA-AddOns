@@ -1,5 +1,9 @@
 # Changelog — Nextcloud
 
+## 1.0.0
+- Version auf 1.0.0 angehoben — Add-on läuft stabil
+- README: Credits-Abschnitt mit Hinweis auf Inspiration durch alexbelgium/hassio-addons und eigene Verbesserungen ergänzt
+
 ## 0.0.43
 - Option `run_db_indices` entfernt — Befehl `occ db:add-missing-indices` bei Bedarf manuell im Web-Terminal ausführen
 

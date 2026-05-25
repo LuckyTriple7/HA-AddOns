@@ -124,6 +124,16 @@ Ein GitHub Actions Workflow prüft täglich auf neue Nextcloud-Versionen (linuxs
 
 → [Changelog](CHANGELOG.md)
 
+## Credits
+
+Dieses Add-on wurde von [alexbelgium/hassio-addons](https://github.com/alexbelgium/hassio-addons) inspiriert. Gegenüber dem Original wurden folgende Verbesserungen eingebaut:
+
+- **SMB-Netzwerkspeicher**: Bis zu 3 Shares direkt in der HA-Konfiguration — kein manuelles Mounten erforderlich
+- **Web-Terminal**: occ-Befehle direkt im Browser über HA Ingress ausführbar
+- **Automatische Updates**: GitHub Actions Workflow prüft täglich auf neue Nextcloud-Versionen und baut das Image automatisch neu
+- **MariaDB Auto-Discovery**: Erkennt das HA MariaDB Add-on automatisch
+- **Vereinfachte Ersteinrichtung**: Web-Installer-Ansatz ohne manuelle Datenbankanbindung
+
 ---
 
 # Nextcloud (English)
@@ -248,3 +258,13 @@ Data is preserved across add-on updates, restarts, and reinstallations.
 A GitHub Actions workflow checks daily for new Nextcloud versions (linuxserver.io image) and automatically builds a new image when needed. To update in HA: **Settings → Add-ons → Nextcloud → Update**.
 
 → [Changelog](CHANGELOG.md)
+
+## Credits
+
+This add-on was inspired by [alexbelgium/hassio-addons](https://github.com/alexbelgium/hassio-addons). Compared to the original, the following improvements have been added:
+
+- **SMB network storage**: Up to 3 shares configured directly in HA — no manual mounting required
+- **Web terminal**: Run occ commands directly in the browser via HA Ingress
+- **Automatic updates**: GitHub Actions workflow checks daily for new Nextcloud versions and rebuilds the image automatically
+- **MariaDB auto-discovery**: Automatically detects the HA MariaDB add-on
+- **Simplified first setup**: Web installer approach without manual database configuration
