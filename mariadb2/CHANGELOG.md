@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.1.0] - 2026-05-25
+- Fix: FK-Constraint-Fehler bei `occ db:convert-type` — `--init-connect` deaktiviert FK-Checks pro Session, da die Migration Tabellen nicht in FK-Abhängigkeitsreihenfolge befüllt
+
 ## [0.0.9] - 2026-05-25
 - Aufräumen: `--skip-character-set-client-handshake` und `--init-connect` entfernt — nicht nötig, da Nextcloud via `mysql.utf8mb4`-Config selbst utf8mb4-Tabellen anlegt
 
