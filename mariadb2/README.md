@@ -51,26 +51,40 @@ Datenbankhost:      <Hostname aus MariaDB 2 LOG>:3306
 
 ### Vorbereitung
 
-1. **MariaDB 2** installieren, Datenbank/Benutzer/Passwort in den Optionen setzen, starten
-2. Im **MariaDB 2 LOG** den Hostname ablesen:
+1. **MariaDB 2** installieren, Datenbank/Benutzer/Passwort in den Optionen setzen
+2. Option `disable_foreign_key_checks: true` setzen — verhindert FK-Fehler während der Migration (s.u.)
+3. MariaDB 2 starten, **Hostname aus dem LOG ablesen:**
    ```
-   [INFO] Hostname (für Nextcloud-Migration): abc123-mariadb2
+   [INFO] Hostname (for Nextcloud migration): abc123-mariadb2
    ```
 
 ### Migration (im Nextcloud Web-Terminal)
 
 ```sh
-# Alias setzen — erspart den langen Präfix bei jedem Befehl
 alias occ='ALLOW_ROOT=1 php /app/www/public/occ'
 
-# 1. Wartungsmodus aktivieren
+# 1. Verwaiste Datenbank-Referenzen in SQLite bereinigen
+#    (verhindert FK-Fehler bei Mail-Tabellen)
+DATA=$(occ config:system:get datadirectory)
+php -r "
+\$db = new SQLite3('\$DATA/nextcloud.db');
+\$db->exec('UPDATE oc_mail_accounts SET drafts_mailbox_id = NULL WHERE drafts_mailbox_id IS NOT NULL AND drafts_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+\$db->exec('UPDATE oc_mail_accounts SET sent_mailbox_id = NULL WHERE sent_mailbox_id IS NOT NULL AND sent_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+\$db->exec('UPDATE oc_mail_accounts SET trash_mailbox_id = NULL WHERE trash_mailbox_id IS NOT NULL AND trash_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+\$db->exec('UPDATE oc_mail_accounts SET archive_mailbox_id = NULL WHERE archive_mailbox_id IS NOT NULL AND archive_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+echo 'Fertig' . PHP_EOL;
+"
+
+# 2. utf8mb4 aktivieren — verhindert Emoji-Fehler bei Kalender-Einträgen
+occ config:system:set mysql.utf8mb4 --type boolean --value="true"
+
+# 3. Wartungsmodus aktivieren
 occ maintenance:mode --on
 
-# 2. Datenbank migrieren
+# 4. Datenbank migrieren
 #    Hostname: aus MariaDB 2 LOG (z.B. c4d39aca-mariadb2)
 #    Port:     3306 (interner Container-Port, NICHT 3307)
-#    Passwort: wie in den MariaDB 2 Optionen gesetzt
-#    Wichtig: Passwort in einfache Anführungszeichen — Sonderzeichen wie & $ @ sonst Shell-Fehler
+#    Passwort in EINFACHEN Anführungszeichen — Sonderzeichen wie & $ @ sonst Shell-Fehler
 occ db:convert-type \
   --all-apps \
   --password='PASSWORT_HIER' \
@@ -79,9 +93,13 @@ occ db:convert-type \
   HOSTNAME_HIER:3306 \
   nextcloud
 
-# 3. Wartungsmodus deaktivieren
+# 5. Wartungsmodus deaktivieren
 occ maintenance:mode --off
 ```
+
+### Nach der Migration
+
+In den **MariaDB 2 Optionen** `disable_foreign_key_checks` wieder auf `false` setzen und das Add-on neu starten — danach sind FK-Constraints wieder aktiv.
 
 > **Hinweis:** Die Migration kann je nach Datenmenge einige Minuten dauern. Danach verwendet Nextcloud MariaDB 2 — die SQLite-Datei bleibt erhalten, wird aber nicht mehr genutzt.
 
@@ -114,21 +132,35 @@ The official MariaDB app is used by Home Assistant and other apps (e.g. as the c
 | `logins` | `[{username: nextcloud, password: ""}]` | Login credentials |
 | `rights` | `[{database: nextcloud, username: nextcloud}]` | Permissions (ALL PRIVILEGES) |
 | `disable_foreign_key_checks` | `false` | Disable FK checks — enable only for migration, then set back to `false` |
+
+## Setting up the Nextcloud database
+
+Set database, user and password directly in the add-on options — MariaDB 2 creates everything automatically on startup.
+
 In the Nextcloud web installer, enter:
 ```
 Database user:     nextcloud
-Database password: <from /data/nextcloud_db_password.txt>
+Database password: <as set in options>
 Database name:     nextcloud
-Database host:     <MariaDB 2 app hostname>:3306
+Database host:     <hostname from MariaDB 2 log>:3306
 ```
+
+## Connection details
+
+| | Value |
+|---|---|
+| Host (internal, add-on to add-on) | Hostname from HA Supervisor |
+| Host (external, from host system) | `<HA-IP>:3307` |
+| Port (internal) | `3306` |
+| Port (host) | `3307` |
 
 ## Migration: Nextcloud from SQLite to MariaDB 2
 
 ### Preparation
 
-1. Install **MariaDB 2**, set `create_nextcloud_db: true`, start it
-2. Note the password from `addon_config/nextcloud_db_credentials.txt`
-3. Read the hostname from the **MariaDB 2 log**:
+1. Install **MariaDB 2**, set database/user/password in the options
+2. Set option `disable_foreign_key_checks: true` — prevents FK errors during migration (see below)
+3. Start MariaDB 2 and **read the hostname from the log:**
    ```
    [INFO] Hostname (for Nextcloud migration): abc123-mariadb2
    ```
@@ -136,17 +168,30 @@ Database host:     <MariaDB 2 app hostname>:3306
 ### Migration (in Nextcloud Web Terminal)
 
 ```sh
-# Set alias — saves typing the long prefix for every command
 alias occ='ALLOW_ROOT=1 php /app/www/public/occ'
 
-# 1. Enable maintenance mode
+# 1. Clean up orphaned database references in SQLite
+#    (prevents FK constraint errors on mail tables)
+DATA=$(occ config:system:get datadirectory)
+php -r "
+\$db = new SQLite3('\$DATA/nextcloud.db');
+\$db->exec('UPDATE oc_mail_accounts SET drafts_mailbox_id = NULL WHERE drafts_mailbox_id IS NOT NULL AND drafts_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+\$db->exec('UPDATE oc_mail_accounts SET sent_mailbox_id = NULL WHERE sent_mailbox_id IS NOT NULL AND sent_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+\$db->exec('UPDATE oc_mail_accounts SET trash_mailbox_id = NULL WHERE trash_mailbox_id IS NOT NULL AND trash_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+\$db->exec('UPDATE oc_mail_accounts SET archive_mailbox_id = NULL WHERE archive_mailbox_id IS NOT NULL AND archive_mailbox_id NOT IN (SELECT id FROM oc_mail_mailboxes)');
+echo 'Done' . PHP_EOL;
+"
+
+# 2. Enable utf8mb4 — prevents emoji errors in calendar entries
+occ config:system:set mysql.utf8mb4 --type boolean --value="true"
+
+# 3. Enable maintenance mode
 occ maintenance:mode --on
 
-# 2. Convert database
+# 4. Convert database
 #    Hostname: from MariaDB 2 log (e.g. c4d39aca-mariadb2)
 #    Port:     3306 (internal container port, NOT 3307)
-#    Password: as set in MariaDB 2 options
-#    Important: wrap password in single quotes — special chars like & $ @ cause shell errors
+#    Password: wrap in SINGLE quotes — special chars like & $ @ cause shell errors otherwise
 occ db:convert-type \
   --all-apps \
   --password='YOUR_PASSWORD' \
@@ -155,9 +200,13 @@ occ db:convert-type \
   YOUR_HOSTNAME:3306 \
   nextcloud
 
-# 3. Disable maintenance mode
+# 5. Disable maintenance mode
 occ maintenance:mode --off
 ```
+
+### After migration
+
+In the **MariaDB 2 options**, set `disable_foreign_key_checks` back to `false` and restart the add-on — FK constraints will then be active again.
 
 > **Note:** Migration may take a few minutes depending on data size. After completion, Nextcloud uses MariaDB 2 — the SQLite file is kept but no longer used.
 
