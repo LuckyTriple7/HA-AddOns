@@ -650,6 +650,17 @@ app.get('/api/chats', (req, res) => {
   res.json(list);
 });
 
+app.get('/api/stats', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (!chatId) return res.json({});
+  const msgs = getChatMsgs(chatId);
+  const sent = msgs.filter(m => m.fromMe).length;
+  const received = msgs.filter(m => !m.fromMe).length;
+  const photos = msgs.filter(m => m.type === 'photo').length;
+  const first = msgs.length ? Math.min(...msgs.map(m => m.timestamp)) : null;
+  res.json({ total: msgs.length, sent, received, photos, first });
+});
+
 app.get('/api/messages', (req, res) => {
   const { chat: chatId, since } = req.query;
   if (!chatId) return res.json([]);
@@ -1117,6 +1128,7 @@ app.get('/', (req, res) => {
     #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
+    #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
     #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
     #fetch-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
@@ -1335,6 +1347,7 @@ app.get('/', (req, res) => {
     html.light #chat-header { background: #075e54; border-color: #075e54; }
     html.light #ch-name { color: #fff; }
     html.light #ch-phone { color: rgba(255,255,255,0.75); }
+    html.light #ch-stats { color: rgba(255,255,255,0.65); }
     html.light #welcome { color: #555; }
     html.light .bubble-wrap.in .bubble { background: #fff; color: #111; }
     html.light .bubble-wrap.out .bubble { background: #dcf8c6; color: #111; }
@@ -1409,6 +1422,7 @@ app.get('/', (req, res) => {
         <div>
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
+          <div id="ch-stats"></div>
         </div>
         ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="ttFetchMedia" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾 Export</button>
@@ -1805,7 +1819,19 @@ app.get('/', (req, res) => {
       msgList.innerHTML = '';
       lastMsgTime[chat.id] = 0;
       atBottom = true;
+      document.getElementById('ch-stats').textContent = '';
       await loadMessages(chat.id);
+    }
+
+    async function updateChatStats(chatId) {
+      if (chatId !== selectedChatId) return;
+      try {
+        const s = await fetch('api/stats?chat=' + encodeURIComponent(chatId)).then(r => r.json());
+        const sinceStr = s.first ? fmtDate(s.first) : '';
+        const photoStr = s.photos ? '  📷 ' + s.photos : '';
+        document.getElementById('ch-stats').textContent =
+          s.total + ' Nachrichten  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  seit ' + sinceStr : '');
+      } catch(e) {}
     }
 
     function closeChat() {
@@ -1823,6 +1849,7 @@ app.get('/', (req, res) => {
         const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&since=' + since)
           .then(r => r.json());
         if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
+        updateChatStats(chatId);
       } catch(e) {}
     }
 

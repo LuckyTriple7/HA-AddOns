@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.4] - 2026-05-25
+- Neu: Chat-Statistik im Header — Gesamtnachrichten, ↑ gesendet, ↓ empfangen, 📷 Fotos, seit [Datum der ersten Nachricht]
+
 ## [1.4.3] - 2026-05-25
 - Neu: Beim Start werden alle konfigurierten Optionen im Log ausgegeben (HA-Token wird nur als "gesetzt"/"nicht gesetzt" angezeigt)
 
