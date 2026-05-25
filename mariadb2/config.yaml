@@ -1,6 +1,6 @@
 name: MariaDB 2
 description: Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App betreibbar
-version: "0.0.1"
+version: "0.0.2"
 slug: mariadb2
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -13,6 +13,9 @@ boot: manual
 init: false
 
 image: "ghcr.io/luckytriple7/mariadb2"
+
+map:
+  - addon_config:rw
 
 ports:
   3306/tcp: 3307

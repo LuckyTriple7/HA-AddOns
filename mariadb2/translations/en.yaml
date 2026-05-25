@@ -13,7 +13,7 @@ configuration:
     description: >-
       Automatically creates the "nextcloud" database with a random password on
       first start. The password is shown in the log and saved to
-      /data/nextcloud_db_password.txt. Default: disabled.
+      addon_config/nextcloud_db_credentials.txt (accessible via HA file browser). Default: disabled.
 
 network:
   3306/tcp: MariaDB 2 (accessible on host port 3307)

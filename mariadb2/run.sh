@@ -83,7 +83,8 @@ if [ "$CREATE_NEXTCLOUD_DB" = "true" ]; then
         mysql --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS 'nextcloud'@'%' IDENTIFIED BY '${NC_PASS}';"
         mysql --socket="$SOCKET" -e "GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'%';"
         echo "$NC_PASS" > "$NC_PASS_FILE"
-        echo "[INFO] Nextcloud DB created — password saved to /data/nextcloud_db_password.txt"
+        printf 'nextcloud_db_user=nextcloud\nnextcloud_db_password=%s\nnextcloud_db_name=nextcloud\n' "$NC_PASS" > /config/nextcloud_db_credentials.txt
+        echo "[INFO] Nextcloud DB created — credentials saved to addon_config/nextcloud_db_credentials.txt"
         echo "[INFO] Nextcloud DB user: nextcloud | password: ${NC_PASS}"
     fi
 fi

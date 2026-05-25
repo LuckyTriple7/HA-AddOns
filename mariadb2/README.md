@@ -31,7 +31,8 @@ Die offizielle MariaDB-App wird von Home Assistant und anderen Apps (z.B. als Co
 Option `create_nextcloud_db: true` aktivieren. Beim ersten Start wird:
 - Datenbank `nextcloud` angelegt (UTF-8, unicode_ci)
 - Benutzer `nextcloud` mit Zufallspasswort erstellt
-- Passwort im LOG ausgegeben und in `/data/nextcloud_db_password.txt` gespeichert
+- Zugangsdaten im Add-on-LOG ausgegeben
+- Datei `nextcloud_db_credentials.txt` im Add-on-Konfigurationsordner gespeichert → in HA unter **Einstellungen → System → Speicher → Add-on-Konfigurationsordner** einsehbar
 
 Beim Nextcloud-Webinstaller dann folgende Werte eintragen:
 ```
@@ -85,7 +86,8 @@ The official MariaDB app is used by Home Assistant and other apps (e.g. as the c
 Enable `create_nextcloud_db: true`. On first start:
 - Database `nextcloud` is created (UTF-8, unicode_ci)
 - User `nextcloud` is created with a random password
-- Password is shown in the log and saved to `/data/nextcloud_db_password.txt`
+- Credentials shown in the add-on log
+- File `nextcloud_db_credentials.txt` saved in the add-on config folder → accessible in HA under **Settings → System → Storage → Add-on config folder**
 
 In the Nextcloud web installer, enter:
 ```
