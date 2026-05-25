@@ -24,7 +24,7 @@ Die offizielle MariaDB-App wird von Home Assistant und anderen Apps (z.B. als Co
 | `databases` | `[nextcloud]` | Liste der anzulegenden Datenbanken |
 | `logins` | `[{username: nextcloud, password: ""}]` | Zugangsdaten |
 | `rights` | `[{database: nextcloud, username: nextcloud}]` | Berechtigungen (ALL PRIVILEGES) |
-| `create_nextcloud_db` | `false` | Nextcloud-Datenbank automatisch anlegen (Zufallspasswort) |
+| `disable_foreign_key_checks` | `false` | FK-Checks deaktivieren — nur für Migration aktivieren, danach wieder auf `false` |
 
 ## Nextcloud-Datenbank einrichten
 
@@ -113,6 +113,7 @@ The official MariaDB app is used by Home Assistant and other apps (e.g. as the c
 | `databases` | `[nextcloud]` | List of databases to create |
 | `logins` | `[{username: nextcloud, password: ""}]` | Login credentials |
 | `rights` | `[{database: nextcloud, username: nextcloud}]` | Permissions (ALL PRIVILEGES) |
+| `disable_foreign_key_checks` | `false` | Disable FK checks — enable only for migration, then set back to `false` |
 In the Nextcloud web installer, enter:
 ```
 Database user:     nextcloud

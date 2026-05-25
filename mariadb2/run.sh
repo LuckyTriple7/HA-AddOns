@@ -7,11 +7,13 @@ SOCKET=/run/mysqld/mysqld.sock
 # Read options
 DBS=$(jq -r '.databases // [] | join(", ")' /data/options.json)
 USERS=$(jq -r '.logins // [] | map(.username) | join(", ")' /data/options.json)
+DISABLE_FK=$(jq -r '.disable_foreign_key_checks // false' /data/options.json)
 
 # Log configuration
 echo "[INFO] Configuration:"
-echo "[INFO]   databases : ${DBS:-none}"
-echo "[INFO]   logins    : ${USERS:-none}"
+echo "[INFO]   databases                   : ${DBS:-none}"
+echo "[INFO]   logins                      : ${USERS:-none}"
+echo "[INFO]   disable_foreign_key_checks  : $DISABLE_FK"
 
 mkdir -p /run/mysqld "$DATA_DIR"
 
@@ -78,6 +80,13 @@ kill "$MYSQL_PID"
 wait "$MYSQL_PID" 2>/dev/null || true
 rm -f "$SOCKET"
 
+# Build optional args
+EXTRA_ARGS=()
+if [ "$DISABLE_FK" = "true" ]; then
+    echo "[INFO] Foreign key checks DISABLED (migration mode)"
+    EXTRA_ARGS+=("--init-connect=SET foreign_key_checks=0")
+fi
+
 # Start MariaDB in foreground on port 3306
 echo "[INFO] MariaDB 2 listening on port 3306 (host: 3307)"
 echo "[INFO] Hostname (for Nextcloud migration): $(hostname)"
@@ -90,4 +99,5 @@ exec mariadbd --no-defaults --user=root \
     --collation-server=utf8mb4_unicode_ci \
     --innodb-default-row-format=dynamic \
     --transaction-isolation=READ-COMMITTED \
+    "${EXTRA_ARGS[@]}" \
     --log-warnings=0

@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.1.2] - 2026-05-25
+- Option `disable_foreign_key_checks` — für SQLite→MariaDB-Migration aktivieren, danach wieder deaktivieren
+
 ## [0.1.1] - 2026-05-25
 - `--init-connect` (FK-Checks deaktiviert) nach erfolgreicher Migration wieder entfernt — FK-Enforcement läuft wieder normal
 
