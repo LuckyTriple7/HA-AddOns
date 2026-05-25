@@ -14,9 +14,6 @@ configuration:
   initial_messages:
     name: Nachrichten pro Chat beim Start
     description: "Nachrichten die beim Start pro Chat aus der WhatsApp-History geladen werden. Hinweis: WhatsApp Web cached pro Chat nur die neuesten Nachrichten — in der Praxis sind selten mehr als 20–50 verfügbar, unabhängig von diesem Wert. Höhere Werte verlangsamen den Start ohne Nutzen."
-  max_messages_per_chat:
-    name: Max. Nachrichten pro Chat (Arbeitsspeicher)
-    description: "Maximale Anzahl Nachrichten die pro Chat im RAM gehalten werden. Ältere Nachrichten werden verworfen wenn das Limit erreicht ist. Kein Einfluss auf die Startgeschwindigkeit. Empfehlung: 200–500."
   keep_deleted:
     name: Gelöschte Nachrichten behalten
     description: "true = Originaler Nachrichteninhalt bleibt sichtbar, darunter erscheint ein kleines 🚫-Badge; Weiterleiten/Reaktion/Antworten-Buttons werden ausgeblendet. false = Nachricht wird durch eine 🚫-Meldung ersetzt (Standard)."

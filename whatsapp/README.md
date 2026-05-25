@@ -31,7 +31,6 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `initial_chats` | `30` | Anzahl Chats die beim Start geladen werden |
 | `initial_messages` | `20` | Nachrichten pro Chat die beim Start geladen werden |
-| `max_messages_per_chat` | `200` | Maximale Nachrichten pro Chat im Arbeitsspeicher (ältere werden verworfen) |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 | `ha_notifications_privacy` | `false` | Nur „WhatsApp / Neue Nachricht" anzeigen — kein Absender, kein Inhalt |
@@ -39,13 +38,10 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 
 ### Nachrichten-Speicher verstehen
 
-Die drei Optionen steuern gemeinsam, wie viele Nachrichten wann geladen und gehalten werden:
-
-- **`initial_messages`** — Beim Start öffnet das Add-on die letzten N Nachrichten pro Chat aus der WhatsApp-History. **Hinweis:** WhatsApp Web cached pro Chat nur die neuesten Nachrichten — in der Praxis sind selten mehr als 20–50 verfügbar, unabhängig von diesem Wert. Höhere Werte verlangsamen den Start ohne Nutzen. Empfehlung: 20–50.
-- **`max_messages_per_chat`** — Während des Betriebs eingehende Nachrichten werden bis zu diesem Limit im RAM gehalten. Überschreitet ein Chat das Limit, werden die ältesten Nachrichten verworfen. Das Laden passiert **nicht** beim Start, sondern im laufenden Betrieb — hohe Werte sind also kein Startproblem. Empfehlung: 200–500.
 - **`initial_chats`** — Nur die N zuletzt aktiven Chats werden beim Start berücksichtigt. Nicht gelistete Chats werden beim ersten Öffnen dynamisch nachgeladen.
+- **`initial_messages`** — Beim Start öffnet das Add-on die letzten N Nachrichten pro Chat aus der WhatsApp-History. **Hinweis:** WhatsApp Web cached pro Chat nur die neuesten Nachrichten — in der Praxis sind selten mehr als 20–50 verfügbar, unabhängig von diesem Wert. Höhere Werte verlangsamen den Start ohne Nutzen. Empfehlung: 20–50.
 
-**Beispiel:** `initial_messages: 30`, `max_messages_per_chat: 500` lädt beim Start 30 Nachrichten, hält aber bis zu 500 im laufenden Betrieb vor.
+Alle Nachrichten werden dauerhaft auf Disk gespeichert (`/config/messages.json`) und überleben Neustarts. Es gibt kein RAM-Limit — alle geladenen Nachrichten bleiben im Speicher.
 
 ### HA-Benachrichtigungen einrichten
 
@@ -214,7 +210,6 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `initial_chats` | `30` | Number of chats loaded on startup |
 | `initial_messages` | `20` | Messages per chat loaded on startup |
-| `max_messages_per_chat` | `200` | Maximum messages per chat kept in memory (older ones are discarded) |
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 | `ha_notifications_privacy` | `false` | Show only "WhatsApp / New message" — no sender name, no content |
@@ -222,13 +217,10 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 
 ### Understanding the message storage options
 
-The three options together control how many messages are loaded and retained:
-
-- **`initial_messages`** — On startup, the add-on fetches the last N messages per chat from WhatsApp history. **Note:** WhatsApp Web only caches the most recent messages per chat — in practice rarely more than 20–50 are available regardless of this setting. Higher values slow down startup without benefit. Recommended: 20–50.
-- **`max_messages_per_chat`** — During operation, incoming messages are kept in RAM up to this limit. When a chat exceeds the limit, the oldest messages are discarded. This does **not** affect startup time — it only applies during runtime. Recommended: 200–500.
 - **`initial_chats`** — Only the N most recently active chats are loaded on startup. Chats not in that list are loaded dynamically when first opened.
+- **`initial_messages`** — On startup, the add-on fetches the last N messages per chat from WhatsApp history. **Note:** WhatsApp Web only caches the most recent messages per chat — in practice rarely more than 20–50 are available regardless of this setting. Higher values slow down startup without benefit. Recommended: 20–50.
 
-**Example:** `initial_messages: 30`, `max_messages_per_chat: 500` loads 30 messages at startup but keeps up to 500 during runtime.
+All messages are stored persistently on disk (`/config/messages.json`) and survive restarts. There is no RAM limit — all loaded messages remain in memory.
 
 ### Setting up HA notifications
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.6] - 2026-05-25
+- Entfernt: Option `max_messages_per_chat` — Nachrichten werden unbegrenzt auf Disk gespeichert und überleben Neustarts; kein RAM-Limit mehr nötig
+
 ## [1.4.5] - 2026-05-25
 - Fix: Chat-Statistik jetzt zweisprachig (DE/EN) über i18n-System
 

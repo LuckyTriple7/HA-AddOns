@@ -69,7 +69,6 @@ const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
-const MAX_MSGS_PER_CHAT = parseInt(process.env.MAX_MESSAGES_PER_CHAT || '200', 10);
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
 const WEBHOOK = process.env.WEBHOOK_INCOMING || '';
@@ -83,7 +82,6 @@ console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
 console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'gesetzt' : 'nicht gesetzt'}`);
 console.log(`[INFO]   initial_chats          = ${INITIAL_CHATS}`);
 console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
-console.log(`[INFO]   max_messages_per_chat  = ${MAX_MSGS_PER_CHAT}`);
 console.log(`[INFO]   webhook_incoming       = ${WEBHOOK ? WEBHOOK : 'nicht gesetzt'}`);
 console.log('[INFO] ─────────────────────────────────────────────────────');
 const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }
@@ -141,9 +139,8 @@ try {
     const data = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8'));
     let total = 0;
     for (const [chatId, msgs] of Object.entries(data)) {
-      const trimmed = msgs.slice(-MAX_MSGS_PER_CHAT);
-      messagesByChatId.set(chatId, trimmed);
-      for (const m of trimmed) seenIds.add(m.id);
+      messagesByChatId.set(chatId, msgs);
+      for (const m of msgs) seenIds.add(m.id);
       total += trimmed.length;
     }
     console.log(`[INFO] Loaded ${total} messages from disk`);
@@ -207,7 +204,6 @@ function addMsg(chatId, msg) {
   applyReactionsToMsg(msg);
   msgs.push(msg);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
-  if (msgs.length > MAX_MSGS_PER_CHAT) msgs.splice(0, msgs.length - MAX_MSGS_PER_CHAT);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
     const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? `📄 ${msg.filename || 'Dokument'}` : '[Medien]');
