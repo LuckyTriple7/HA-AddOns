@@ -65,11 +65,14 @@ Datenbankhost:      <Hostname der MariaDB-2-App>:3306
 ### Migration (im Nextcloud Web-Terminal)
 
 ```sh
+# Alias setzen — erspart den langen Präfix bei jedem Befehl
+alias occ='ALLOW_ROOT=1 php /app/www/public/occ'
+
 # 1. Wartungsmodus aktivieren
-ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --on
+occ maintenance:mode --on
 
 # 2. Datenbank migrieren (Passwort aus nextcloud_db_credentials.txt)
-ALLOW_ROOT=1 php /app/www/public/occ db:convert-type \
+occ db:convert-type \
   --all-apps \
   --password=PASSWORT_HIER \
   mysql \
@@ -78,7 +81,7 @@ ALLOW_ROOT=1 php /app/www/public/occ db:convert-type \
   nextcloud
 
 # 3. Wartungsmodus deaktivieren
-ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --off
+occ maintenance:mode --off
 ```
 
 > **Hinweis:** Die Migration kann je nach Datenmenge einige Minuten dauern. Danach verwendet Nextcloud MariaDB 2 — die SQLite-Datei bleibt erhalten, wird aber nicht mehr genutzt.
@@ -143,11 +146,14 @@ Database host:     <MariaDB 2 app hostname>:3306
 ### Migration (in Nextcloud Web Terminal)
 
 ```sh
+# Set alias — saves typing the long prefix for every command
+alias occ='ALLOW_ROOT=1 php /app/www/public/occ'
+
 # 1. Enable maintenance mode
-ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --on
+occ maintenance:mode --on
 
 # 2. Convert database (password from nextcloud_db_credentials.txt)
-ALLOW_ROOT=1 php /app/www/public/occ db:convert-type \
+occ db:convert-type \
   --all-apps \
   --password=YOUR_PASSWORD \
   mysql \
@@ -156,7 +162,7 @@ ALLOW_ROOT=1 php /app/www/public/occ db:convert-type \
   nextcloud
 
 # 3. Disable maintenance mode
-ALLOW_ROOT=1 php /app/www/public/occ maintenance:mode --off
+occ maintenance:mode --off
 ```
 
 > **Note:** Migration may take a few minutes depending on data size. After completion, Nextcloud uses MariaDB 2 — the SQLite file is kept but no longer used.
