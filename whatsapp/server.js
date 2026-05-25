@@ -1122,11 +1122,13 @@ app.get('/', (req, res) => {
     .bubble-row-inner:hover .reply-btn { display:block; }
     html.light .reply-btn { color:rgba(0,0,0,0.4); }
     .reply-btn:hover { color:#3cdb7c !important; }
-    .quoted-block { border-left:3px solid #3cdb7c; background:rgba(0,0,0,0.15); border-radius:4px; padding:4px 8px; margin-bottom:6px; overflow:hidden; }
-    .bubble-wrap.out .quoted-block { border-left-color:rgba(255,255,255,0.3); }
+    .quoted-block { border-left:3px solid #3cdb7c; background:rgba(0,0,0,0.25); border-radius:4px; padding:4px 8px; margin-bottom:6px; overflow:hidden; }
+    .bubble-wrap.out .quoted-block { border-left-color:rgba(255,255,255,0.4); background:rgba(0,0,0,0.2); }
     .quoted-sender { font-size:11px; font-weight:600; color:#3cdb7c; margin-bottom:1px; }
     .bubble-wrap.out .quoted-sender { color:rgba(255,255,255,0.85); }
-    .quoted-text { font-size:12px; color:rgba(233,237,239,0.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .quoted-text { font-size:12px; color:rgba(233,237,239,0.88); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    html.light .quoted-text { color:rgba(0,0,0,0.65); }
+    html.light .quoted-block { background:rgba(0,0,0,0.08); }
     #reply-bar { display:none; background:#1a2530; border-left:3px solid #3cdb7c; border-top:1px solid #2a3942; padding:6px 16px; align-items:center; gap:10px; flex-shrink:0; }
     #reply-bar.active { display:flex; }
     #attach-bar { display:none; background:#1a2530; border-top:1px solid #2a3942; padding:8px 16px; align-items:center; gap:10px; flex-shrink:0; }

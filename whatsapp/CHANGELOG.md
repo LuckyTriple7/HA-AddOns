@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.13] - 2026-05-25
+- Fix: Zitat-Text in Chatblasen besser lesbar (höherer Kontrast, dunklerer Hintergrund)
+
 ## [1.4.12] - 2026-05-25
 - Entfernt: "Fotos nachladen"-Button — Auto-Download beim Start mit Disk-Persistenz macht ihn überflüssig
 
