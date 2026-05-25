@@ -852,32 +852,6 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
-app.post('/api/fetch-media/:chatId', async (req, res) => {
-  const { chatId } = req.params;
-  const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
-  if (!DOWNLOAD_MEDIA) return res.status(400).json({ error: 'download_media not enabled' });
-  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
-  const msgs = getChatMsgs(chatId);
-  const pending = msgs.filter(m => m.type === 'photo' && !m.mediaFile).slice(-limit);
-  res.json({ total: pending.length });
-  if (!pending.length) return;
-  (async () => {
-    let count = 0;
-    for (const stored of pending) {
-      try {
-        const fullMsg = await client.getMessageById(stored.id);
-        if (fullMsg) {
-          const file = await downloadWAMedia(fullMsg, stored.id);
-          if (file) { stored.mediaFile = file; count++; }
-        }
-      } catch (e) {
-        dbg(`fetch-media: error for ${stored.id}: ${e.message}`);
-      }
-      await new Promise(r => setTimeout(r, 600));
-    }
-    console.log(`[INFO] fetch-media: ${count}/${pending.length} Fotos geladen für ${chatId}`);
-  })();
-});
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
@@ -1129,11 +1103,9 @@ app.get('/', (req, res) => {
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
-    #fetch-media-btn, #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; }
-    #fetch-media-btn { margin-left: auto; }
-    #export-btn { ${DOWNLOAD_MEDIA ? '' : 'margin-left: auto;'} }
-    #fetch-media-btn:hover, #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
-    #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
+    #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; }
+    #export-btn { margin-left: auto; }
+    #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
     #spam-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
@@ -1423,7 +1395,6 @@ app.get('/', (req, res) => {
           <div id="ch-phone"></div>
           <div id="ch-stats"></div>
         </div>
-        ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="ttFetchMedia" title="Letzte 20 Fotos herunterladen">📥</button>' : ''}
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🗑️</button>
       </div>
@@ -1491,7 +1462,7 @@ app.get('/', (req, res) => {
         filterAll:'Alle', filterPrivate:'Privat', filterGroups:'Gruppen',
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
-        btnBack:'Zurück', ttFetchMedia:'Letzte 20 Fotos herunterladen', btnFetchMedia:'📥 Fotos nachladen',
+        btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🗑️ Spam löschen',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
@@ -1509,7 +1480,6 @@ app.get('/', (req, res) => {
         spamModal:(n)=>'In diesem Chat wurden '+n+' Nachricht'+(n===1?'':'en')+' häufig weitergeleitet. Soll ich diese jetzt löschen?',
         spinnerRestart:'Starte neu…', spinnerLogout:'Abgemeldet — lade QR-Code…',
         spinnerReset:'Session gelöscht — lade QR-Code…', spinnerDisconnect:'Abgemeldet — starte neu…',
-        fetchLoading:'⏳ Lade…', fetchDone:'✓ Alle geladen', fetchProgress:(n)=>'⏳ '+n+' Fotos…',
         spamDeleting:'⏳ Lösche…', spamDeleted:(n)=>'✓ '+n+' gelöscht',
         spamError:'✗ Fehler', spamNone:'✓ Kein Spam',
         errSend:(e)=>'Fehler: '+e, errNetwork:'Netzwerkfehler', locale:'de-DE',
@@ -1524,7 +1494,7 @@ app.get('/', (req, res) => {
         filterAll:'All', filterPrivate:'Private', filterGroups:'Groups',
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
-        btnBack:'Back', ttFetchMedia:'Download last 20 photos', btnFetchMedia:'📥 Load Photos',
+        btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🗑️ Delete Spam',
         btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
@@ -1542,7 +1512,6 @@ app.get('/', (req, res) => {
         spamModal:(n)=>n+' message'+(n===1?'':'s')+' in this chat '+(n===1?'was':'were')+' frequently forwarded. Delete '+(n===1?'it':'them')+' now?',
         spinnerRestart:'Restarting…', spinnerLogout:'Logged out — loading QR code…',
         spinnerReset:'Session deleted — loading QR code…', spinnerDisconnect:'Disconnected — restarting…',
-        fetchLoading:'⏳ Loading…', fetchDone:'✓ All loaded', fetchProgress:(n)=>'⏳ '+n+' photos…',
         spamDeleting:'⏳ Deleting…', spamDeleted:(n)=>'✓ '+n+' deleted',
         spamError:'✗ Error', spamNone:'✓ No spam',
         errSend:(e)=>'Error: '+e, errNetwork:'Network error', locale:'en-US',
@@ -2004,34 +1973,6 @@ app.get('/', (req, res) => {
       window.location.href = 'api/export/' + encodeURIComponent(selectedChatId);
     }
 
-    async function fetchMedia() {
-      const btn = document.getElementById('fetch-media-btn');
-      if (!btn || !selectedChatId) return;
-      btn.disabled = true;
-      btn.textContent = t('fetchLoading');
-      try {
-        const d = await fetch('api/fetch-media/' + encodeURIComponent(selectedChatId), { method: 'POST' }).then(r => r.json());
-        if (!d.total) {
-          btn.textContent = t('fetchDone');
-          setTimeout(() => { btn.disabled = false; btn.textContent = t('btnFetchMedia'); }, 2500);
-          return;
-        }
-        btn.textContent = tf('fetchProgress', d.total);
-        let polls = 0;
-        const iv = setInterval(async () => {
-          polls++;
-          await reloadMessages(selectedChatId);
-          if (polls >= 20) {
-            clearInterval(iv);
-            btn.disabled = false;
-            btn.textContent = t('btnFetchMedia');
-          }
-        }, 2000);
-      } catch(e) {
-        btn.disabled = false;
-        btn.textContent = t('btnFetchMedia');
-      }
-    }
 
     let _replyMsgId = null;
 

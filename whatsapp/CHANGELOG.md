@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.12] - 2026-05-25
+- Entfernt: "Fotos nachladen"-Button — Auto-Download beim Start mit Disk-Persistenz macht ihn überflüssig
+
 ## [1.4.11] - 2026-05-25
 - Fix: Konfig-Log "Konfiguration", "gesetzt"/"nicht gesetzt" auf Englisch
 
