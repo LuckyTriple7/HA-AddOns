@@ -2,24 +2,15 @@
 
 ## Unterstützte Versionen
 
-Sicherheitsupdates werden immer nur für die **jeweils aktuelle Version** jedes Add-ons bereitgestellt. Ältere Versionen werden nicht mehr aktiv gepflegt.
-
-| Add-on | Aktuelle Version | Unterstützt |
-|--------|-----------------|-------------|
-| Nextcloud | 1.0.1 | ✅ |
-| MariaDB 2 | 0.1.2 | ✅ |
-| Signal | 1.2.0 | ✅ |
-| Telegram | 1.2.0 | ✅ |
-| WhatsApp | aktuell | ✅ |
-| Claude Code | aktuell | ✅ |
+Alle aktuell veröffentlichten Add-ons werden aktiv gepflegt und erhalten Sicherheitsupdates.
 
 ## Sicherheitslücke melden
 
 **Bitte melde Sicherheitslücken NICHT öffentlich über GitHub Issues.**
 
-Stattdessen bitte eine E-Mail an:
+Nutze stattdessen die **vertrauliche Meldung** direkt auf GitHub:
 
-📧 **luckytriple7@gmail.com**
+👉 [Sicherheitslücke melden](https://github.com/LuckyTriple7/HA-AddOns/security/advisories/new)
 
 **Bitte folgende Informationen mitschicken:**
 
@@ -44,24 +35,15 @@ Vielen Dank für deinen Beitrag zur Sicherheit dieses Projekts!
 
 ## Supported versions
 
-Security updates are only provided for the **latest version** of each add-on. Older versions are no longer actively maintained.
-
-| Add-on | Current version | Supported |
-|--------|----------------|-----------|
-| Nextcloud | 1.0.1 | ✅ |
-| MariaDB 2 | 0.1.2 | ✅ |
-| Signal | 1.2.0 | ✅ |
-| Telegram | 1.2.0 | ✅ |
-| WhatsApp | current | ✅ |
-| Claude Code | current | ✅ |
+All currently published add-ons are actively maintained and receive security updates.
 
 ## Reporting a vulnerability
 
 **Please do NOT report security vulnerabilities publicly via GitHub Issues.**
 
-Instead, please send an email to:
+Instead, use the **confidential report** directly on GitHub:
 
-📧 **luckytriple7@gmail.com**
+👉 [Report a vulnerability](https://github.com/LuckyTriple7/HA-AddOns/security/advisories/new)
 
 **Please include the following information:**
 
