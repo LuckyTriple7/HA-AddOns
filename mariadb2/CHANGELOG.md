@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.0.6] - 2026-05-25
+- Fix: MariaDB hörte nicht auf TCP Port 3306 — Alpine Default-Config (skip-networking) wird jetzt im Dockerfile entfernt, --no-defaults verhindert Überschreiben der Port-Einstellung
+
 ## [0.0.5] - 2026-05-25
 - `mysqld`/`mysql` durch `mariadbd`/`mariadb` ersetzt (keine Deprecated-Warnings mehr)
 - MariaDB `[Note]`-Logs unterdrückt — LOG zeigt nur noch relevante `[INFO]`-Zeilen

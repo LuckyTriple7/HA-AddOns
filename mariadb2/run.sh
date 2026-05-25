@@ -24,7 +24,7 @@ fi
 
 # Start MariaDB temporarily without networking for setup
 echo "[INFO] Starting MariaDB for setup..."
-mariadbd --user=root --datadir="$DATA_DIR" --socket="$SOCKET" --skip-networking \
+mariadbd --no-defaults --user=root --datadir="$DATA_DIR" --socket="$SOCKET" --skip-networking \
     --log-warnings=0 --silent-startup 2>/dev/null &
 MYSQL_PID=$!
 
@@ -81,7 +81,7 @@ rm -f "$SOCKET"
 # Start MariaDB in foreground on port 3306
 echo "[INFO] MariaDB 2 listening on port 3306 (host: 3307)"
 echo "[INFO] Hostname (for Nextcloud migration): $(hostname)"
-exec mariadbd --user=root \
+exec mariadbd --no-defaults --user=root \
     --datadir="$DATA_DIR" \
     --socket="$SOCKET" \
     --port=3306 \
