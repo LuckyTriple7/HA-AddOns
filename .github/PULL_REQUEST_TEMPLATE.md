@@ -6,9 +6,16 @@
 
 <!-- z.B. MariaDB 2, Nextcloud, ... / e.g. MariaDB 2, Nextcloud, ... -->
 
+- [ ] Signal
+- [ ] WhatsApp
+- [ ] Telegram
+- [ ] Webtop
+- [ ] Filebox
+- [ ] Firefox
+- [ ] Playwright Browser
+- [ ] Claude Code
 - [ ] MariaDB 2
 - [ ] Nextcloud
-- [ ] Webtop
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change
