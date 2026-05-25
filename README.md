@@ -1,22 +1,22 @@
 # HA-AddOns
 
-Eigene Home Assistant Add-ons von [LuckyTriple7](https://github.com/LuckyTriple7).
+Eigene Home Assistant Apps von [LuckyTriple7](https://github.com/LuckyTriple7).
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
-> Ich bin kein klassischer Programmierer — aber mit Claude Code als KI-Assistenten entwickle und pflege ich diese Add-ons selbst. Feedback und Fragen gerne als [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
+> Ich bin kein klassischer Programmierer — aber mit Claude Code als KI-Assistenten entwickle und pflege ich diese Apps selbst. Feedback und Fragen gerne als [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
 
 ## Installation
 
 Repository in Home Assistant hinzufügen:
 
-**Einstellungen → Add-ons → Add-on Store → ⋮ → Repositories**
+**Einstellungen → Apps → App-Store → ⋮ → Repositories**
 
 ```
 https://github.com/LuckyTriple7/HA-AddOns
 ```
 
-## Add-ons
+## Apps
 
 ### [Claude Code](claudecode/)
 
@@ -31,10 +31,10 @@ KI-Assistent direkt in Home Assistant — zum Erstellen von Automatisierungen, D
 
 ### [Playwright Browser](playwright-browser/)
 
-Headless-Chromium-Browser mit CDP-Endpoint für Browser-Automatisierung. Wird vom **Claude Code Add-on** verwendet, um Websites aufzurufen und zu steuern.
+Headless-Chromium-Browser mit CDP-Endpoint für Browser-Automatisierung. Wird von der **Claude Code App** verwendet, um Websites aufzurufen und zu steuern.
 
 - Chrome DevTools Protocol (CDP) auf Port 9222
-- Automatisch erkannt vom Claude Code Add-on
+- Automatisch erkannt von der Claude Code App
 - Unterstützung für amd64 und aarch64
 
 → [Dokumentation & Changelog](playwright-browser/README.md)
@@ -46,7 +46,7 @@ Web-Oberfläche zum Hoch- und Herunterladen von Dateien direkt in Home Assistant
 - Dateien hochladen, herunterladen und verwalten
 - Standardmäßig Zugriff auf `/share/filebox`
 - Optionaler Zugriff auf `/media`, `/config`, `/backup`
-- Konfigurierbarer Benutzername und Passwort (werden aus den Add-on-Optionen übernommen)
+- Konfigurierbarer Benutzername und Passwort (werden aus den App-Optionen übernommen)
 - Deutsche Benutzeroberfläche, weitere Benutzer im UI anlegbar
 
 → [Dokumentation & Changelog](filebox/README.md)
@@ -120,27 +120,40 @@ Signal Messenger als verknüpftes Gerät direkt in Home Assistant — mit Chat-U
 
 → [Dokumentation & Changelog](signal/README.md)
 
+### [Nextcloud](nextcloud/)
+
+Nextcloud direkt in Home Assistant — private Cloud mit Web-UI und SMB-Netzwerkspeicher-Unterstützung.
+
+- Vollständige Nextcloud-Instanz auf Basis des linuxserver.io-Images
+- Zugriff über HTTPS (`https://<HA-IP>:7443`)
+- SMB-Netzwerklaufwerke direkt in der Konfiguration einbindbar (bis zu 3 Shares)
+- Web-Terminal für occ-Befehle direkt in der HA-Sidebar
+- Automatische Updates via GitHub Actions
+- MariaDB Auto-Discovery (alternativ SQLite)
+
+→ [Dokumentation & Changelog](nextcloud/README.md)
+
 ---
 
 # HA-AddOns (English)
 
-Custom Home Assistant add-ons by [LuckyTriple7](https://github.com/LuckyTriple7).
+Custom Home Assistant apps by [LuckyTriple7](https://github.com/LuckyTriple7).
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
-> I'm not a traditional programmer — but with Claude Code as my AI assistant I develop and maintain these add-ons myself. Feedback and questions welcome as a [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
+> I'm not a traditional programmer — but with Claude Code as my AI assistant I develop and maintain these apps myself. Feedback and questions welcome as a [GitHub Issue](https://github.com/LuckyTriple7/HA-AddOns/issues).
 
 ## Installation
 
 Add the repository in Home Assistant:
 
-**Settings → Add-ons → Add-on Store → ⋮ → Repositories**
+**Settings → Apps → App Store → ⋮ → Repositories**
 
 ```
 https://github.com/LuckyTriple7/HA-AddOns
 ```
 
-## Add-ons
+## Apps
 
 ### [Claude Code](claudecode/)
 
@@ -155,10 +168,10 @@ AI assistant directly in Home Assistant — for creating automations, debugging 
 
 ### [Playwright Browser](playwright-browser/)
 
-Headless Chromium browser with CDP endpoint for browser automation. Used by the **Claude Code add-on** to browse and control websites.
+Headless Chromium browser with CDP endpoint for browser automation. Used by the **Claude Code app** to browse and control websites.
 
 - Chrome DevTools Protocol (CDP) on port 9222
-- Automatically detected by the Claude Code add-on
+- Automatically detected by the Claude Code app
 - Supports amd64 and aarch64
 
 → [Documentation & Changelog](playwright-browser/README.md)
@@ -170,7 +183,7 @@ Web UI for uploading and downloading files directly in Home Assistant.
 - Upload, download and manage files
 - Default access to `/share/filebox`
 - Optional access to `/media`, `/config`, `/backup`
-- Configurable username and password (always taken from add-on options)
+- Configurable username and password (always taken from app options)
 - German UI, additional users can be created in the UI
 
 → [Documentation & Changelog](filebox/README.md)
@@ -243,3 +256,16 @@ Signal Messenger as a linked device directly in Home Assistant — with chat UI,
 - Responsive design for desktop and mobile
 
 → [Documentation & Changelog](signal/README.md)
+
+### [Nextcloud](nextcloud/)
+
+Nextcloud directly in Home Assistant — private cloud with web UI and SMB network storage support.
+
+- Full Nextcloud instance based on the linuxserver.io image
+- Access via HTTPS (`https://<HA-IP>:7443`)
+- SMB network drives configurable directly in the app settings (up to 3 shares)
+- Web terminal for occ commands directly in the HA sidebar
+- Automatic updates via GitHub Actions
+- MariaDB auto-discovery (alternatively SQLite)
+
+→ [Documentation & Changelog](nextcloud/README.md)
