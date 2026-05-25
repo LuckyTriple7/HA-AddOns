@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.9] - 2026-05-25
+
+### Neu
+- Option `export_memory`: kopiert beim Add-on-Start Memory-Dateien, Memory-Index und eigene Befehle in den Add-on-Konfigurationsordner (`/config/memory/` und `/config/commands/`). Standard: deaktiviert.
+
 ## [1.0.8] - 2026-05-24
 
 ### Neu

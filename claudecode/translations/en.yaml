@@ -55,6 +55,12 @@
       and capability. claude-opus-4-6 is the most powerful. claude-haiku-4-5-20251001
       is the fastest. Auto-update Claude Code (above) ensures new models become
       available without an add-on update.
+  export_memory:
+    name: Export Memory
+    description: >-
+      On startup, copy memory files, memory index, and custom commands to the
+      add-on config folder (/config/memory/ and /config/commands/).
+      Enables easy access and backup of Claude's memories. Default: disabled.
 
 network:
   7681/tcp: Web Terminal (ttyd)

@@ -57,6 +57,13 @@ configuration:
       aus Geschwindigkeit und Leistung. claude-opus-4-7 ist das leistungsstärkste
       Modell. claude-haiku-4-5-20251001 ist das schnellste. Mit aktiviertem
       Auto-Update stehen neue Modelle ohne Add-on-Update zur Verfügung.
+  export_memory:
+    name: Memory exportieren
+    description: >-
+      Beim Start Memory-Dateien, Memory-Index und eigene Befehle in den
+      Add-on-Konfigurationsordner kopieren (/config/memory/ und /config/commands/).
+      Ermöglicht einfachen Zugriff und Sicherung der Claude-Erinnerungen.
+      Standard: deaktiviert.
 
 network:
   7681/tcp: Web-Terminal (ttyd)

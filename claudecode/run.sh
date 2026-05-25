@@ -136,6 +136,32 @@ MODEL=$(jq -r --arg d claude-sonnet-4-6 '.model // $d' /data/options.json)
 export ANTHROPIC_MODEL="$MODEL"
 echo "[INFO] Using Claude model: $MODEL"
 
+# Export memory + custom commands to addon config folder
+EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
+if [ "$EXPORT_MEMORY" = "true" ]; then
+    echo "[INFO] Exporting Claude memory and commands to /config/..."
+    # Memory files (project-specific)
+    MEMORY_SRC="$PERSIST_DIR/projects/-homeassistant/memory"
+    if [ -d "$MEMORY_SRC" ]; then
+        mkdir -p /config/memory
+        cp -a "$MEMORY_SRC/." /config/memory/
+        echo "[INFO] Memory exported: $(ls /config/memory/*.md 2>/dev/null | wc -l) file(s) → /config/memory/"
+    else
+        echo "[INFO] No memory directory found at $MEMORY_SRC — skipping"
+    fi
+    # Custom commands
+    COMMANDS_SRC="$PERSIST_DIR/commands"
+    if [ -d "$COMMANDS_SRC" ] && [ -n "$(ls -A "$COMMANDS_SRC" 2>/dev/null)" ]; then
+        mkdir -p /config/commands
+        cp -a "$COMMANDS_SRC/." /config/commands/
+        echo "[INFO] Commands exported: $(ls /config/commands/ 2>/dev/null | wc -l) file(s) → /config/commands/"
+    else
+        echo "[INFO] No custom commands found — skipping"
+    fi
+else
+    echo "[INFO] Memory export disabled"
+fi
+
 # Configure MCP servers
 claude mcp remove homeassistant -s user 2>/dev/null || true
 claude mcp remove playwright -s user 2>/dev/null || true
