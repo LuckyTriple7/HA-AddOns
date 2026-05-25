@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.8] - 2026-05-25
+- Fix: Heruntergeladene Foto-Pfade (mediaFile) wurden nach dem Auto-Download beim Start nicht auf Disk gespeichert — Fotos wurden bei jedem Neustart erneut heruntergeladen
+
 ## [1.4.7] - 2026-05-25
 - Fix: Kritischer Bug — Disk-Loading schlug beim Start lautlos fehl (ReferenceError: trimmed is not defined), alle Nachrichten gingen bei jedem Neustart verloren
 

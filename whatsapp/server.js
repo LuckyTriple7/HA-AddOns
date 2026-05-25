@@ -354,6 +354,7 @@ client.on('ready', async () => {
           await new Promise(r => setTimeout(r, 600));
         }
         console.log(`[INFO] Auto-download complete: ${count}/${pending.length} Fotos geladen`);
+        if (count) saveMsgs();
       })();
     }
   } catch (err) {
