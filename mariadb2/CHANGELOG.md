@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.1.1] - 2026-05-25
+- `--init-connect` (FK-Checks deaktiviert) nach erfolgreicher Migration wieder entfernt — FK-Enforcement läuft wieder normal
+
 ## [0.1.0] - 2026-05-25
 - Fix: FK-Constraint-Fehler bei `occ db:convert-type` — `--init-connect` deaktiviert FK-Checks pro Session, da die Migration Tabellen nicht in FK-Abhängigkeitsreihenfolge befüllt
 

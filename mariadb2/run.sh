@@ -90,5 +90,4 @@ exec mariadbd --no-defaults --user=root \
     --collation-server=utf8mb4_unicode_ci \
     --innodb-default-row-format=dynamic \
     --transaction-isolation=READ-COMMITTED \
-    "--init-connect=SET foreign_key_checks=0" \
     --log-warnings=0
