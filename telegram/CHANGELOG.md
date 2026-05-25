@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.24] - 2026-05-25
+- Neu: Chat-Statistik im Header — Gesamtnachrichten, ↑ gesendet, ↓ empfangen, 📷 Fotos, seit Datum (zweisprachig DE/EN)
+- Entfernt: Hardcoded Nachrichten-Limit von 300 — Nachrichten werden unbegrenzt auf Disk gespeichert
+
 ## [1.1.23] - 2026-05-25
 - Neu: Beim Start werden alle konfigurierten Optionen im Log ausgegeben (API-Credentials und HA-Token werden nur als "gesetzt"/"nicht gesetzt" angezeigt)
 

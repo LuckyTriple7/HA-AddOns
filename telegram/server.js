@@ -64,8 +64,6 @@ const SESSION_FILE = '/config/session.txt';
 const CHATS_FILE = '/config/chats.json';
 const MESSAGES_FILE = '/config/messages.json';
 const MEDIA_DIR = '/config/media';
-const MAX_MSGS = 300;
-
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
@@ -151,7 +149,6 @@ function addMsg(chatId, msg) {
   const msgs = messagesByChatId.get(chatId);
   msgs.push(msg);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
-  if (msgs.length > MAX_MSGS) msgs.splice(0, msgs.length - MAX_MSGS);
   return true;
 }
 
@@ -268,7 +265,6 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
-  if (msgs.length > MAX_MSGS) msgs.splice(0, msgs.length - MAX_MSGS);
 
   if (!chatMap.has(chatId)) {
     chatMap.set(chatId, { id: chatId, name: chatName, phone: '', lastMsg: preview, lastTime: ts });
@@ -472,6 +468,17 @@ app.post('/api/reconnect', async (req, res) => {
 app.get('/api/chats', (req, res) => {
   const chats = Array.from(chatMap.values()).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(chats);
+});
+
+app.get('/api/stats', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (!chatId) return res.json({});
+  const msgs = messagesByChatId.get(chatId) || [];
+  const sent = msgs.filter(m => m.fromMe).length;
+  const received = msgs.filter(m => !m.fromMe).length;
+  const photos = msgs.filter(m => m.type === 'photo').length;
+  const first = msgs.length ? Math.min(...msgs.map(m => m.timestamp)) : null;
+  res.json({ total: msgs.length, sent, received, photos, first });
 });
 
 app.get('/api/messages/:chatId', async (req, res) => {
@@ -861,7 +868,8 @@ html.light #no-chat-wrap { color: #888; }
 html.dark #chat-header { background: #232E3C; border-bottom: 1px solid #1A2432; }
 html.light #chat-header { background: #517DA2; }
 #back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 4px 8px 4px 0; }
-#ch-name { font-size: 16px; font-weight: 600; color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ch-name { font-size: 16px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ch-stats { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; display: none; }
 .bubble { max-width: 100%; padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-word; }
 .bubble.in { border-bottom-left-radius: 2px; }
@@ -1038,6 +1046,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
       <div class="avatar" id="ch-avatar" style="width:36px;height:36px;font-size:14px;background:#2AABEE">?</div>
       <div style="flex:1;overflow:hidden">
         <div id="ch-name">–</div>
+        <div id="ch-stats"></div>
       </div>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
     </div>
@@ -1080,6 +1089,7 @@ const LANG = {
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
+    statsMsg: 'Nachrichten', statsSince: 'seit',
   },
   en: {
     spinnerConnect: 'Connecting to Telegram…', spinnerLogout: 'Logging out…',
@@ -1099,6 +1109,7 @@ const LANG = {
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
+    statsMsg: 'messages', statsSince: 'since',
   },
 };
 let lang = localStorage.getItem('tg_lang') || 'de';
@@ -1338,6 +1349,7 @@ function openChat(chat) {
   document.getElementById('refresh-btn').style.display = 'inline-block';
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
+  document.getElementById('ch-stats').textContent = '';
   const av = document.getElementById('ch-avatar');
   const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
   if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; }
@@ -1381,6 +1393,18 @@ async function loadMessages(chatId) {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
     renderMessages(msgs);
     if (window.pollReactions) window.pollReactions();
+    updateChatStats(chatId);
+  } catch(e) {}
+}
+
+async function updateChatStats(chatId) {
+  if (chatId !== selectedChatId) return;
+  try {
+    const s = await fetch(api('/api/stats?chat='+encodeURIComponent(chatId))).then(r=>r.json());
+    const sinceStr = s.first ? new Date(s.first).toLocaleDateString(locale()) : '';
+    const photoStr = s.photos ? '  📷 ' + s.photos : '';
+    document.getElementById('ch-stats').textContent =
+      s.total + ' ' + t('statsMsg') + '  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  ' + t('statsSince') + ' ' + sinceStr : '');
   } catch(e) {}
 }
 

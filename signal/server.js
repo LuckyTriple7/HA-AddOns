@@ -402,6 +402,17 @@ app.get('/api/chats', (req, res) => {
   res.json(chats);
 });
 
+app.get('/api/stats', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (!chatId) return res.json({});
+  const msgs = messagesByChatId.get(chatId) || [];
+  const sent = msgs.filter(m => m.fromMe).length;
+  const received = msgs.filter(m => !m.fromMe).length;
+  const photos = msgs.filter(m => m.type === 'photo').length;
+  const first = msgs.length ? Math.min(...msgs.map(m => m.timestamp)) : null;
+  res.json({ total: msgs.length, sent, received, photos, first });
+});
+
 app.get('/api/messages/:chatId', (req, res) => {
   res.json(messagesByChatId.get(req.params.chatId) || []);
 });
@@ -728,8 +739,9 @@ html.dark .unread-dot { background: #3cdb7c; }
 #chat-panel { flex: 1; display: flex; flex-direction: column; background: #e5ddd5; }
 #chat-header { background: #1b1b21; color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 #back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 0 8px 0 0; line-height: 1; }
-#ch-name { font-weight: 600; font-size: 16px; flex: 1; }
+#ch-name { font-weight: 600; font-size: 16px; }
 #ch-phone { font-size: 12px; color: #aaa; }
+#ch-stats { font-size: 11px; color: rgba(255,255,255,0.55); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
 #fetch-media-btn:hover { border-color: #fff; color: #fff; }
 #fetch-media-btn:disabled { opacity: 0.4; cursor: default; }
@@ -866,6 +878,7 @@ html.dark .filter-tab:hover { background: #202c33; }
       <div style="flex:1;overflow:hidden">
         <div id="ch-name" data-i18n="noChatSelected">Kein Chat ausgewählt</div>
         <div id="ch-phone"></div>
+        <div id="ch-stats"></div>
       </div>
       ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="fetchMediaTitle" title="Fehlende Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾 Export</button>
@@ -908,6 +921,7 @@ const LANG = {
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
     msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     errSend: (e) => 'Fehler: ' + e,
+    statsMsg: 'Nachrichten', statsSince: 'seit',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -930,6 +944,7 @@ const LANG = {
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
     msgPlaceholder: 'Message…', btnDelete: 'Delete', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     errSend: (e) => 'Error: ' + e,
+    statsMsg: 'messages', statsSince: 'since',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -1157,6 +1172,7 @@ function openChat(chat) {
   document.body.classList.add('chat-open');
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
+  document.getElementById('ch-stats').textContent = '';
   const ph = chat.phone || '';
   document.getElementById('ch-phone').textContent = /^\\+?\\d{7,15}$/.test(ph) ? ph : '';
   const av = document.getElementById('ch-avatar');
@@ -1184,7 +1200,19 @@ async function loadMessages(chatId) {
   try {
     const msgs = await fetch(api('/api/messages/' + encodeURIComponent(chatId))).then(r => r.json());
     renderMessages(msgs);
+    updateChatStats(chatId);
   } catch (e) {}
+}
+
+async function updateChatStats(chatId) {
+  if (chatId !== selectedChatId) return;
+  try {
+    const s = await fetch(api('/api/stats?chat=' + encodeURIComponent(chatId))).then(r => r.json());
+    const sinceStr = s.first ? new Date(s.first).toLocaleDateString(locale()) : '';
+    const photoStr = s.photos ? '  📷 ' + s.photos : '';
+    document.getElementById('ch-stats').textContent =
+      s.total + ' ' + t('statsMsg') + '  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  ' + t('statsSince') + ' ' + sinceStr : '');
+  } catch(e) {}
 }
 
 function renderMessages(msgs) {
