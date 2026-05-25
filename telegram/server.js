@@ -45,6 +45,20 @@ function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
 const GRAMJS_VERSION = require('./node_modules/telegram/package.json').version;
 console.log(`[INFO] GramJS (telegram) v${GRAMJS_VERSION}`);
+console.log('[INFO] ── Konfiguration ──────────────────────────────────');
+console.log(`[INFO]   api_id                 = ${API_ID ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   api_hash               = ${API_HASH ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
+console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   debug_mode             = ${DEBUG}`);
+console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
+console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
+console.log(`[INFO]   ha_notify_skip_bots    = ${HA_NOTIFY_SKIP_BOTS}`);
+console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   fetch_limit            = ${FETCH_LIMIT}`);
+console.log(`[INFO]   webhook_incoming       = ${WEBHOOK_INCOMING ? WEBHOOK_INCOMING : 'nicht gesetzt'}`);
+console.log('[INFO] ─────────────────────────────────────────────────────');
 
 const SESSION_FILE = '/config/session.txt';
 const CHATS_FILE = '/config/chats.json';

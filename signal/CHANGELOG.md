@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.15] - 2026-05-25
+- Neu: Beim Start werden alle konfigurierten Optionen im Log ausgegeben (Telefonnummer und HA-Token werden nur als "gesetzt"/"nicht gesetzt" angezeigt)
+
 ## [1.1.14] - 2026-05-24
 - Neu: Chat-Export als HTML — 💾 Export-Button im Chat-Header; Bilder inline eingebettet, Dokumente als 📄-Eintrag
 

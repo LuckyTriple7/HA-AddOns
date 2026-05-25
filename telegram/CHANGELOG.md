@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.23] - 2026-05-25
+- Neu: Beim Start werden alle konfigurierten Optionen im Log ausgegeben (API-Credentials und HA-Token werden nur als "gesetzt"/"nicht gesetzt" angezeigt)
+
 ## [1.1.22] - 2026-05-24
 - Neu: Chat-Export als HTML — 💾 Button im Chat-Header; Bilder inline eingebettet, Dokumente als 📄-Eintrag
 

@@ -38,6 +38,17 @@ const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_TOKEN = process.env.HA_TOKEN || '';
 const MEDIA_DIR = '/config/media/';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
+console.log('[INFO] ── Konfiguration ──────────────────────────────────');
+console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   signal_api_url         = ${SIGNAL_API}`);
+console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
+console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   debug_mode             = ${DEBUG}`);
+console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
+console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
+console.log(`[INFO]   ha_token               = ${HA_TOKEN ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   webhook_incoming       = ${WEBHOOK_INCOMING ? WEBHOOK_INCOMING : 'nicht gesetzt'}`);
+console.log('[INFO] ─────────────────────────────────────────────────────');
 
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';

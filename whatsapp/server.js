@@ -72,6 +72,20 @@ const MEDIA_DIR = '/config/media';
 const MAX_MSGS_PER_CHAT = parseInt(process.env.MAX_MESSAGES_PER_CHAT || '200', 10);
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
+const WEBHOOK = process.env.WEBHOOK_INCOMING || '';
+console.log('[INFO] ── Konfiguration ──────────────────────────────────');
+console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
+console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
+console.log(`[INFO]   debug_mode             = ${DEBUG}`);
+console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
+console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
+console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'gesetzt' : 'nicht gesetzt'}`);
+console.log(`[INFO]   initial_chats          = ${INITIAL_CHATS}`);
+console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
+console.log(`[INFO]   max_messages_per_chat  = ${MAX_MSGS_PER_CHAT}`);
+console.log(`[INFO]   webhook_incoming       = ${WEBHOOK ? WEBHOOK : 'nicht gesetzt'}`);
+console.log('[INFO] ─────────────────────────────────────────────────────');
 const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }
 const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();

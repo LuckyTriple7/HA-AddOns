@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.3] - 2026-05-25
+- Neu: Beim Start werden alle konfigurierten Optionen im Log ausgegeben (HA-Token wird nur als "gesetzt"/"nicht gesetzt" angezeigt)
+
 ## [1.4.2] - 2026-05-25
 - Neu: `keep_deleted=true` zeigt originalen Nachrichteninhalt + kleines 🚫-Badge — Antworten/Weiterleiten/Emoji-Buttons werden ausgeblendet
 - Fix: Gelöschte Nachrichten in Echtzeit in der UI aktualisiert (Poll-Endpoint liefert deletedAt-Nachrichten; vorhandener Bubble wird in-place ersetzt statt dupliziert)
