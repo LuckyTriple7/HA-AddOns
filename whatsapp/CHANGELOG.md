@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.10] - 2026-05-25
+- Fix: Alle Log-Meldungen auf Englisch vereinheitlicht
+
 ## [1.4.9] - 2026-05-25
 - UX: Header-Buttons (📥 💾 🗑️) zeigen nur Icon — Text entfällt, Tooltip bleibt per Mouseover sichtbar; passt jetzt auch in der mobilen Ansicht
 - Neu: Log beim Start zeigt wie viele Fotos bereits auf Disk sind und kein Download nötig ist

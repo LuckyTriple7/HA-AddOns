@@ -342,7 +342,7 @@ client.on('ready', async () => {
             else pending.push({ chatId, m });
           }
         }
-        if (cached) console.log(`[INFO] ${cached} Foto(s) bereits auf Disk — kein Download nötig`);
+        if (cached) console.log(`[INFO] ${cached} photo(s) already on disk — no download needed`);
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} photo message(s) in background…`);
         let count = 0;
@@ -356,7 +356,7 @@ client.on('ready', async () => {
           } catch (e) { dbg(`auto-media: error for ${m.id}: ${e.message}`); }
           await new Promise(r => setTimeout(r, 600));
         }
-        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} Fotos geladen`);
+        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} photo(s) downloaded`);
         if (count) saveMsgs();
       })();
     }
@@ -576,7 +576,7 @@ function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
   const token = process.env.HA_TOKEN;
   if (!token) {
-    console.warn('[WARN] HA_NOTIFICATIONS: ha_token in der Add-on-Konfiguration setzen');
+    console.warn('[WARN] HA_NOTIFICATIONS: ha_token not set in add-on configuration');
     return;
   }
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
