@@ -18,13 +18,14 @@ mkdir -p /run/mysqld "$DATA_DIR"
 # First run: initialize data directory
 if [ ! -d "$DATA_DIR/mysql" ]; then
     echo "[INFO] First run — initializing MariaDB data directory..."
-    mariadb-install-db --user=root --datadir="$DATA_DIR" --skip-test-db > /dev/null
+    mariadb-install-db --user=root --datadir="$DATA_DIR" --skip-test-db > /dev/null 2>&1
     echo "[INFO] Database initialized"
 fi
 
 # Start MariaDB temporarily without networking for setup
 echo "[INFO] Starting MariaDB for setup..."
-mysqld --user=root --datadir="$DATA_DIR" --socket="$SOCKET" --skip-networking &
+mariadbd --user=root --datadir="$DATA_DIR" --socket="$SOCKET" --skip-networking \
+    --log-warnings=0 --silent-startup 2>/dev/null &
 MYSQL_PID=$!
 
 # Wait for socket (max 30s)
@@ -42,7 +43,7 @@ echo "[INFO] MariaDB ready for setup"
 jq -r '.databases // [] | .[]' /data/options.json | while read -r DB; do
     [ -z "$DB" ] && continue
     echo "[INFO] Creating database: $DB"
-    mysql --socket="$SOCKET" -e "CREATE DATABASE IF NOT EXISTS \`${DB}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    mariadb --socket="$SOCKET" -e "CREATE DATABASE IF NOT EXISTS \`${DB}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null
 done
 
 # Create logins
@@ -52,11 +53,11 @@ jq -c '.logins // [] | .[]' /data/options.json | while read -r LOGIN; do
     [ -z "$USER" ] && continue
     if [ -n "$PASS" ]; then
         echo "[INFO] Creating/updating user: $USER"
-        mysql --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS '${USER}'@'%' IDENTIFIED BY '${PASS}';"
-        mysql --socket="$SOCKET" -e "ALTER USER '${USER}'@'%' IDENTIFIED BY '${PASS}';"
+        mariadb --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS '${USER}'@'%' IDENTIFIED BY '${PASS}';" 2>/dev/null
+        mariadb --socket="$SOCKET" -e "ALTER USER '${USER}'@'%' IDENTIFIED BY '${PASS}';" 2>/dev/null
     else
         echo "[INFO] Creating user (no password): $USER"
-        mysql --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS '${USER}'@'%';"
+        mariadb --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS '${USER}'@'%';" 2>/dev/null
     fi
 done
 
@@ -66,10 +67,10 @@ jq -c '.rights // [] | .[]' /data/options.json | while read -r RIGHT; do
     DB=$(echo "$RIGHT" | jq -r '.database')
     [ -z "$USER" ] || [ -z "$DB" ] && continue
     echo "[INFO] Granting ALL PRIVILEGES: $USER → $DB"
-    mysql --socket="$SOCKET" -e "GRANT ALL PRIVILEGES ON \`${DB}\`.* TO '${USER}'@'%';"
+    mariadb --socket="$SOCKET" -e "GRANT ALL PRIVILEGES ON \`${DB}\`.* TO '${USER}'@'%';" 2>/dev/null
 done
 
-mysql --socket="$SOCKET" -e "FLUSH PRIVILEGES;"
+mariadb --socket="$SOCKET" -e "FLUSH PRIVILEGES;" 2>/dev/null
 
 # Stop temp instance
 echo "[INFO] Setup complete — starting MariaDB with network access..."
@@ -80,10 +81,11 @@ rm -f "$SOCKET"
 # Start MariaDB in foreground on port 3306
 echo "[INFO] MariaDB 2 listening on port 3306 (host: 3307)"
 echo "[INFO] Hostname (for Nextcloud migration): $(hostname)"
-exec mysqld --user=root \
+exec mariadbd --user=root \
     --datadir="$DATA_DIR" \
     --socket="$SOCKET" \
     --port=3306 \
     --bind-address=0.0.0.0 \
     --character-set-server=utf8mb4 \
-    --collation-server=utf8mb4_unicode_ci
+    --collation-server=utf8mb4_unicode_ci \
+    --log-warnings=0

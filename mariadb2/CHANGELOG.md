@@ -1,5 +1,9 @@
 # Changelog — MariaDB 2
 
+## [0.0.5] - 2026-05-25
+- `mysqld`/`mysql` durch `mariadbd`/`mariadb` ersetzt (keine Deprecated-Warnings mehr)
+- MariaDB `[Note]`-Logs unterdrückt — LOG zeigt nur noch relevante `[INFO]`-Zeilen
+
 ## [0.0.4] - 2026-05-25
 - Option `create_nextcloud_db` entfernt — Passwort wird direkt in den App-Optionen gesetzt, einfacher und übersichtlicher
 
