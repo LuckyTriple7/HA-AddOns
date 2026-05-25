@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.12] - 2026-05-25
+
+### Changed
+- Konfigurationsblock beim Start ins LOG: alle gesetzten Optionen auf einen Blick
+- Update-Checker loggt Start und jeden stündlichen Check-Vorgang
+- Memory-Backup loggt Start und jeden geplanten Backup-Lauf
+- Alle Options-Reads zusammengeführt (saubere Struktur in run.sh)
+
 ## [1.0.11] - 2026-05-25
 
 ### Fix

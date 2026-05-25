@@ -91,7 +91,7 @@ if [ -f "$NPM_GLOBAL_DIR/bin/claude" ]; then
     echo "[INFO] Using npm-updated Claude Code: $(claude --version 2>/dev/null)"
 fi
 
-# Read options from HA config
+# Read all options from HA config
 FONT_SIZE=$(jq -r '.terminal_font_size // 14' /data/options.json)
 THEME=$(jq -r --arg d dark '.terminal_theme // $d' /data/options.json)
 SESSION_PERSIST=$(jq -r '.session_persistence // true' /data/options.json)
@@ -99,6 +99,24 @@ CLAUDE_AUTOSTART=$(jq -r '.claude_autostart // false' /data/options.json)
 ENABLE_MCP=$(jq -r '.enable_mcp // true' /data/options.json)
 ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
 PLAYWRIGHT_HOST=$(jq -r --arg d '' '.playwright_cdp_host // $d' /data/options.json)
+AUTO_UPDATE=$(jq -r '.auto_update_claude // true' /data/options.json)
+MODEL=$(jq -r --arg d claude-sonnet-4-6 '.model // $d' /data/options.json)
+EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
+EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
+
+# Log configuration
+echo "[INFO] Configuration:"
+echo "[INFO]   model                  : $MODEL"
+echo "[INFO]   enable_mcp             : $ENABLE_MCP"
+echo "[INFO]   enable_playwright_mcp  : $ENABLE_PLAYWRIGHT"
+echo "[INFO]   playwright_cdp_host    : ${PLAYWRIGHT_HOST:-auto-detect}"
+echo "[INFO]   terminal_font_size     : $FONT_SIZE"
+echo "[INFO]   terminal_theme         : $THEME"
+echo "[INFO]   session_persistence    : $SESSION_PERSIST"
+echo "[INFO]   claude_autostart       : $CLAUDE_AUTOSTART"
+echo "[INFO]   auto_update_claude     : $AUTO_UPDATE"
+echo "[INFO]   export_memory          : $EXPORT_MEMORY"
+echo "[INFO]   export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 
 # Auto-detect Playwright Browser hostname if not explicitly set
 if [ -z "$PLAYWRIGHT_HOST" ] && [ "$ENABLE_PLAYWRIGHT" = "true" ]; then
@@ -115,7 +133,6 @@ if [ -z "$PLAYWRIGHT_HOST" ] && [ "$ENABLE_PLAYWRIGHT" = "true" ]; then
 fi
 
 # Auto-update Claude Code on startup if enabled
-AUTO_UPDATE=$(jq -r '.auto_update_claude // true' /data/options.json)
 if [ "$AUTO_UPDATE" = "true" ]; then
     CURRENT_VER=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     LATEST_VER=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
@@ -132,13 +149,9 @@ if [ "$AUTO_UPDATE" = "true" ]; then
 fi
 
 # Set Claude model
-MODEL=$(jq -r --arg d claude-sonnet-4-6 '.model // $d' /data/options.json)
 export ANTHROPIC_MODEL="$MODEL"
-echo "[INFO] Using Claude model: $MODEL"
 
 # Export memory + custom commands to addon config folder
-EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
-EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
 
 do_memory_export() {
     MEMORY_SRC="$PERSIST_DIR/projects/-homeassistant/memory"
@@ -163,12 +176,12 @@ if [ "$EXPORT_MEMORY" = "true" ]; then
     echo "[INFO] Exporting Claude memory and commands to /config/..."
     do_memory_export
     if [ "$EXPORT_MEMORY_INTERVAL" -gt 0 ] 2>/dev/null; then
+        echo "[INFO] Memory backup started (interval: ${EXPORT_MEMORY_INTERVAL} min)"
         (while true; do
             sleep $(( EXPORT_MEMORY_INTERVAL * 60 ))
-            echo "[INFO] Scheduled memory export..."
+            echo "[INFO] Running scheduled memory backup..."
             do_memory_export
         done) &
-        echo "[INFO] Memory export scheduled every ${EXPORT_MEMORY_INTERVAL} minute(s)"
     fi
 else
     echo "[INFO] Memory export disabled"
@@ -257,12 +270,15 @@ fi
 
 # Background update checker — runs hourly, posts HA notification when update is available
 if [ "$AUTO_UPDATE" = "true" ]; then
+    echo "[INFO] Update checker started (interval: 1h)"
     (while true; do
+        sleep 3600
+        echo "[INFO] Checking for Claude Code updates..."
         IV=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
         LV=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
         if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
             echo "$LV" > "$PERSIST_DIR/.update_notice"
-            echo "[INFO] Claude Code update available: $LV (installed: $IV)"
+            echo "[INFO] Update available: $LV (installed: $IV)"
             printf '{"title":"Claude Code Update Available","message":"Version %s is available (installed: %s). Restart the add-on to update.","notification_id":"claude_code_update"}' "$LV" "$IV" \
                 | curl -sf -X POST \
                   -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
@@ -270,13 +286,13 @@ if [ "$AUTO_UPDATE" = "true" ]; then
                   -d @- http://supervisor/core/api/services/persistent_notification/create 2>/dev/null || true
         else
             rm -f "$PERSIST_DIR/.update_notice" 2>/dev/null
+            echo "[INFO] Claude Code $IV is up to date"
             printf '{"notification_id":"claude_code_update"}' \
                 | curl -sf -X POST \
                   -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
                   -H "Content-Type: application/json" \
                   -d @- http://supervisor/core/api/services/persistent_notification/dismiss 2>/dev/null || true
         fi
-        sleep 3600
     done) &
 else
     echo "[INFO] Auto-update disabled — update checker not started"
