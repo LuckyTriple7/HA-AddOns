@@ -1,6 +1,6 @@
 name: MariaDB 2
 description: Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App betreibbar
-version: "0.0.8"
+version: "0.0.9"
 slug: mariadb2
 url: https://github.com/LuckyTriple7/HA-AddOns
 

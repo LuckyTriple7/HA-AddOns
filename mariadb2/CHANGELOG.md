@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.0.9] - 2026-05-25
+- Aufräumen: `--skip-character-set-client-handshake` und `--init-connect` entfernt — nicht nötig, da Nextcloud via `mysql.utf8mb4`-Config selbst utf8mb4-Tabellen anlegt
+
 ## [0.0.8] - 2026-05-25
 - Fix: `--init-connect='SET NAMES utf8mb4'` erzwingt utf8mb4 auf Verbindungsebene, auch wenn PHP/PDO utf8 anfordert
 
