@@ -501,13 +501,18 @@ function markDeleted(msgId) {
   if (!msgId) return false;
   for (const msgs of messagesByChatId.values()) {
     const stored = msgs.find(m => m.id === msgId);
-    if (stored) { stored.deleted = true; stored.body = ''; saveMsgs(); return true; }
+    if (stored && !stored.deleted) {
+      stored.deleted = true;
+      stored.deletedAt = Date.now();
+      if (!KEEP_DELETED) stored.body = ''; // body erhalten wenn KEEP_DELETED=true
+      saveMsgs();
+      return true;
+    }
   }
   return false;
 }
 
 client.on('message_revoke_everyone', (msg, revokedMsg) => {
-  if (KEEP_DELETED) return; // Nachricht bleibt unverändert sichtbar
   const idA = revokedMsg?.id?._serialized;
   const idB = msg?.id?._serialized;
   console.log(`[INFO] message_revoke_everyone: msg=${idB} revokedMsg=${idA}`);
@@ -516,7 +521,6 @@ client.on('message_revoke_everyone', (msg, revokedMsg) => {
 });
 
 client.on('message_revoke_me', (msg) => {
-  if (KEEP_DELETED) return; // Nachricht bleibt unverändert sichtbar
   const msgId = msg?.id?._serialized;
   console.log(`[INFO] message_revoke_me: msg=${msgId}`);
   const found = markDeleted(msgId);
@@ -637,7 +641,7 @@ app.get('/api/messages', (req, res) => {
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts) : msgs);
+  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts)) : msgs);
 });
 
 app.post('/api/send', async (req, res) => {
@@ -1143,6 +1147,8 @@ app.get('/', (req, res) => {
     .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
     .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
     html.light .bubble-deleted { color:rgba(0,0,0,0.55); }
+    .deleted-notice { display:block; font-size:11px; font-style:italic; color:rgba(233,237,239,0.6); margin-top:5px; padding-top:4px; border-top:1px solid rgba(233,237,239,0.12); }
+    html.light .deleted-notice { color:rgba(0,0,0,0.45); border-top-color:rgba(0,0,0,0.1); }
     .bubble-document { display:flex; align-items:center; gap:10px; padding:6px 10px 8px; }
     .bubble-document .doc-icon { font-size:26px; flex-shrink:0; }
     .bubble-document .doc-info { flex:1; min-width:0; }
@@ -1467,6 +1473,7 @@ app.get('/', (req, res) => {
         photo:'📷 Foto', voiceMsg:'🎵 Sprachnachricht', mediaGeneric:'📎', media:'[Medien]', me:'Ich',
         forwarded:'↪ Weitergeleitet', frequentForwarded:'↪↪ Häufig weitergeleitet',
         msgDeleted:'Diese Nachricht wurde gelöscht',
+        msgDeletedNotice:'🚫 Nachricht gelöscht',
         ttDelete:'Löschen', ttReact:'Reagieren', ttForward:'Weiterleiten', ttReply:'Antworten',
         ttRemoveReaction:'Klicken zum Entfernen', ttAddReaction:'Klicken zum Reagieren',
         cleanupConfirm:'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
@@ -1498,6 +1505,7 @@ app.get('/', (req, res) => {
         photo:'📷 Photo', voiceMsg:'🎵 Voice message', mediaGeneric:'📎', media:'[Media]', me:'Me',
         forwarded:'↪ Forwarded', frequentForwarded:'↪↪ Frequently forwarded',
         msgDeleted:'This message was deleted',
+        msgDeletedNotice:'🚫 Message deleted',
         ttDelete:'Delete', ttReact:'React', ttForward:'Forward', ttReply:'Reply',
         ttRemoveReaction:'Click to remove', ttAddReaction:'Click to react',
         cleanupConfirm:'Delete orphaned media files (photos no longer referenced)?',
@@ -1813,6 +1821,30 @@ app.get('/', (req, res) => {
       let lastDate = msgList.querySelector('.date-sep:last-of-type')?.textContent || null;
 
       msgs.forEach(m => {
+        // lastMsgTime mit deletedAt aktualisieren (deletedAt kann neuer sein als timestamp)
+        const effectiveTs = (m.deleted && m.deletedAt) ? Math.max(m.timestamp, m.deletedAt) : m.timestamp;
+        if (effectiveTs > (lastMsgTime[selectedChatId] || 0)) lastMsgTime[selectedChatId] = effectiveTs;
+
+        // Gelöschte Nachrichten: vorhandenen Wrap in-place aktualisieren statt neu erstellen
+        if (m.deleted) {
+          const existingWrap = msgList.querySelector('.bubble-wrap[data-msgid="' + m.id + '"]');
+          if (existingWrap) {
+            const bub = existingWrap.querySelector('.bubble');
+            if (bub && !bub.querySelector('.deleted-notice') && !bub.querySelector('.bubble-deleted')) {
+              if (m.body) {
+                const notice = document.createElement('span');
+                notice.className = 'deleted-notice';
+                notice.textContent = t('msgDeletedNotice');
+                bub.appendChild(notice);
+              } else {
+                bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
+              }
+              existingWrap.querySelectorAll('.del-btn,.react-btn,.fwd-btn,.reply-btn').forEach(b => b.style.display = 'none');
+            }
+            return;
+          }
+        }
+
         const date = fmtDate(m.timestamp);
         if (date !== lastDate) {
           lastDate = date;
@@ -1833,7 +1865,8 @@ app.get('/', (req, res) => {
         const bub = document.createElement('div');
         bub.className = 'bubble';
         const ack = m.fromMe ? ackMark(m.ack || 0) : '';
-        if (m.deleted) {
+        if (m.deleted && !m.body) {
+          // Standard: Body ersetzt durch 🚫-Text (KEEP_DELETED=false)
           bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
         } else if (m.type === 'document') {
           bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
@@ -1865,6 +1898,13 @@ app.get('/', (req, res) => {
           const quotedHtml = m.quotedMsg ? renderQuotedBlock(m.quotedMsg) : '';
           bub.innerHTML = fwdHtml + quotedHtml + formatText(m.body || (m.type === 'photo' ? t('photo') : '')) + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         }
+        // KEEP_DELETED-Modus: Badge unter dem originalen Inhalt
+        if (m.deleted && m.body) {
+          const notice = document.createElement('span');
+          notice.className = 'deleted-notice';
+          notice.textContent = t('msgDeletedNotice');
+          bub.appendChild(notice);
+        }
         const bri = document.createElement('div');
         bri.className = 'bubble-row-inner';
         bri.appendChild(bub);
@@ -1880,12 +1920,14 @@ app.get('/', (req, res) => {
         reactBtn.title = t('ttReact');
         reactBtn.textContent = '😊';
         reactBtn.dataset.msgid = m.id;
+        if (m.deleted) reactBtn.style.display = 'none';
         bri.appendChild(reactBtn);
         const fwdBtn = document.createElement('button');
         fwdBtn.className = 'fwd-btn';
         fwdBtn.title = t('ttForward');
         fwdBtn.textContent = '↪';
         fwdBtn.dataset.msgid = m.id;
+        if (m.deleted) fwdBtn.style.display = 'none';
         bri.appendChild(fwdBtn);
         const replyBtn = document.createElement('button');
         replyBtn.className = 'reply-btn';
@@ -1894,6 +1936,7 @@ app.get('/', (req, res) => {
         replyBtn.dataset.msgid = m.id;
         replyBtn.dataset.contact = m.fromMe ? t('me') : (m.contact || '');
         replyBtn.dataset.preview = (m.body || (m.type === 'photo' ? t('photo') : t('mediaGeneric'))).slice(0, 60);
+        if (m.deleted) replyBtn.style.display = 'none';
         bri.appendChild(replyBtn);
         wrap.appendChild(bri);
         // Reaktions-Badges werden ausschließlich von updateReactionsInDOM gesetzt

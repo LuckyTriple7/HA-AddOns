@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.2] - 2026-05-25
+- Neu: `keep_deleted=true` zeigt originalen Nachrichteninhalt + kleines 🚫-Badge — Antworten/Weiterleiten/Emoji-Buttons werden ausgeblendet
+- Fix: Gelöschte Nachrichten in Echtzeit in der UI aktualisiert (Poll-Endpoint liefert deletedAt-Nachrichten; vorhandener Bubble wird in-place ersetzt statt dupliziert)
+- Fix: Translations aktualisiert — `keep_deleted`-Beschreibung angepasst (beide Modi erklärt)
+
 ## [1.4.1] - 2026-05-25
 - Neu: Option `keep_deleted` (Standard: false) — bei true wird das Lösch-Event ignoriert, Nachricht bleibt unverändert sichtbar (kein 🚫, alle Buttons bleiben aktiv)
 

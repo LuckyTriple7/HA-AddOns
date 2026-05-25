@@ -19,7 +19,7 @@ configuration:
     description: "Maximale Anzahl Nachrichten die pro Chat im RAM gehalten werden. Ältere Nachrichten werden verworfen wenn das Limit erreicht ist. Kein Einfluss auf die Startgeschwindigkeit. Empfehlung: 200–500."
   keep_deleted:
     name: Gelöschte Nachrichten behalten
-    description: "true = Wenn jemand eine Nachricht löscht, bleibt sie im Add-on unverändert sichtbar (kein 🚫, Antworten/Reagieren weiterhin möglich). false = Gelöschte Nachrichten werden mit 🚫 gekennzeichnet (Standard)."
+    description: "true = Originaler Nachrichteninhalt bleibt sichtbar, darunter erscheint ein kleines 🚫-Badge; Weiterleiten/Reaktion/Antworten-Buttons werden ausgeblendet. false = Nachricht wird durch eine 🚫-Meldung ersetzt (Standard)."
   debug_mode:
     name: Debug-Modus
     description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.
