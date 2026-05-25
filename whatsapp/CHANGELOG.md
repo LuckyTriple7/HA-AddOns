@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.9] - 2026-05-25
+- UX: Header-Buttons (📥 💾 🗑️) zeigen nur Icon — Text entfällt, Tooltip bleibt per Mouseover sichtbar; passt jetzt auch in der mobilen Ansicht
+- Neu: Log beim Start zeigt wie viele Fotos bereits auf Disk sind und kein Download nötig ist
+
 ## [1.4.8] - 2026-05-25
 - Fix: Heruntergeladene Foto-Pfade (mediaFile) wurden nach dem Auto-Download beim Start nicht auf Disk gespeichert — Fotos wurden bei jedem Neustart erneut heruntergeladen
 

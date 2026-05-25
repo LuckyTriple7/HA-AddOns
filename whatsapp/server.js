@@ -335,11 +335,14 @@ client.on('ready', async () => {
     if (DOWNLOAD_MEDIA) {
       (async () => {
         const pending = [];
+        let cached = 0;
         for (const [chatId, msgs] of messagesByChatId) {
-          for (const m of msgs.filter(m => m.type === 'photo' && !m.mediaFile)) {
-            pending.push({ chatId, m });
+          for (const m of msgs.filter(m => m.type === 'photo')) {
+            if (m.mediaFile) cached++;
+            else pending.push({ chatId, m });
           }
         }
+        if (cached) console.log(`[INFO] ${cached} Foto(s) bereits auf Disk — kein Download nötig`);
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} photo message(s) in background…`);
         let count = 0;
@@ -1126,12 +1129,11 @@ app.get('/', (req, res) => {
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
-    #fetch-media-btn { margin-left: auto; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
-    #fetch-media-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
+    #fetch-media-btn, #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; }
+    #fetch-media-btn { margin-left: auto; }
+    #export-btn { ${DOWNLOAD_MEDIA ? '' : 'margin-left: auto;'} }
+    #fetch-media-btn:hover, #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #fetch-media-btn:disabled { opacity: 0.4; cursor: default; border-color: rgba(134,150,160,0.3); color: #8696a0; }
-    #export-btn { ${DOWNLOAD_MEDIA ? '' : 'margin-left: auto;'} background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
-    #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
-    #spam-delete-btn { margin-left: 8px; background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
     #spam-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
@@ -1421,9 +1423,9 @@ app.get('/', (req, res) => {
           <div id="ch-phone"></div>
           <div id="ch-stats"></div>
         </div>
-        ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="ttFetchMedia" title="Letzte 20 Fotos herunterladen">📥 Fotos nachladen</button>' : ''}
-        <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾 Export</button>
-        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🗑️ Spam löschen</button>
+        ${DOWNLOAD_MEDIA ? '<button id="fetch-media-btn" onclick="fetchMedia()" data-i18n-title="ttFetchMedia" title="Letzte 20 Fotos herunterladen">📥</button>' : ''}
+        <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
+        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🗑️</button>
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="reply-bar">
@@ -1556,10 +1558,6 @@ app.get('/', (req, res) => {
       document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
       const lb = document.getElementById('lang-btn');
       if (lb) lb.textContent = lang === 'de' ? '🌐 DE' : '🌐 EN';
-      const fmb = document.getElementById('fetch-media-btn');
-      if (fmb && !fmb.disabled) fmb.textContent = t('btnFetchMedia');
-      const sdb = document.getElementById('spam-delete-btn');
-      if (sdb && !sdb.disabled) sdb.textContent = t('btnSpamDelete');
       const ptb = document.getElementById('photo-toggle');
       if (ptb) ptb.title = document.body.classList.contains('hide-photos') ? t('photosOff') : t('photosOn');
     }
