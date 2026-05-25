@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.7] - 2026-05-25
+- Fix: Kritischer Bug — Disk-Loading schlug beim Start lautlos fehl (ReferenceError: trimmed is not defined), alle Nachrichten gingen bei jedem Neustart verloren
+
 ## [1.4.6] - 2026-05-25
 - Entfernt: Option `max_messages_per_chat` — Nachrichten werden unbegrenzt auf Disk gespeichert und überleben Neustarts; kein RAM-Limit mehr nötig
 

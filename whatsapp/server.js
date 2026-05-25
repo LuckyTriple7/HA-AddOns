@@ -141,7 +141,7 @@ try {
     for (const [chatId, msgs] of Object.entries(data)) {
       messagesByChatId.set(chatId, msgs);
       for (const m of msgs) seenIds.add(m.id);
-      total += trimmed.length;
+      total += msgs.length;
     }
     console.log(`[INFO] Loaded ${total} messages from disk`);
   }
