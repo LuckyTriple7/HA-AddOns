@@ -15,6 +15,7 @@ body:
         - Firefox
         - Playwright Browser
         - Claude Code
+        - MariaDB 2
         - Nextcloud
         - Alle / Allgemein
     validations:
