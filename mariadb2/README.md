@@ -70,9 +70,10 @@ occ maintenance:mode --on
 #    Hostname: aus MariaDB 2 LOG (z.B. c4d39aca-mariadb2)
 #    Port:     3306 (interner Container-Port, NICHT 3307)
 #    Passwort: wie in den MariaDB 2 Optionen gesetzt
+#    Wichtig: Passwort in einfache Anführungszeichen — Sonderzeichen wie & $ @ sonst Shell-Fehler
 occ db:convert-type \
   --all-apps \
-  --password=PASSWORT_HIER \
+  --password='PASSWORT_HIER' \
   mysql \
   nextcloud \
   HOSTNAME_HIER:3306 \
@@ -144,9 +145,10 @@ occ maintenance:mode --on
 #    Hostname: from MariaDB 2 log (e.g. c4d39aca-mariadb2)
 #    Port:     3306 (internal container port, NOT 3307)
 #    Password: as set in MariaDB 2 options
+#    Important: wrap password in single quotes — special chars like & $ @ cause shell errors
 occ db:convert-type \
   --all-apps \
-  --password=YOUR_PASSWORD \
+  --password='YOUR_PASSWORD' \
   mysql \
   nextcloud \
   YOUR_HOSTNAME:3306 \
