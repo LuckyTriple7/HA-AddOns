@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.19] - 2026-05-25
+- Fix: Fotos-nachladen-Button zeigte nach JS-Reset wieder Text — i18n-Key auf Icon-only korrigiert
+
 ## [1.1.18] - 2026-05-25
 - Header-Buttons: nur noch Icon, kein Text (mobile-freundlich)
 
