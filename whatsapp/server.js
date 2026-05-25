@@ -1514,6 +1514,7 @@ app.get('/', (req, res) => {
         spamDeleting:'⏳ Lösche…', spamDeleted:(n)=>'✓ '+n+' gelöscht',
         spamError:'✗ Fehler', spamNone:'✓ Kein Spam',
         errSend:(e)=>'Fehler: '+e, errNetwork:'Netzwerkfehler', locale:'de-DE',
+        statsMsg:'Nachrichten', statsSince:'seit',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -1546,6 +1547,7 @@ app.get('/', (req, res) => {
         spamDeleting:'⏳ Deleting…', spamDeleted:(n)=>'✓ '+n+' deleted',
         spamError:'✗ Error', spamNone:'✓ No spam',
         errSend:(e)=>'Error: '+e, errNetwork:'Network error', locale:'en-US',
+        statsMsg:'messages', statsSince:'since',
       },
     };
     let lang = localStorage.getItem('wa_lang') || 'de';
@@ -1830,7 +1832,7 @@ app.get('/', (req, res) => {
         const sinceStr = s.first ? fmtDate(s.first) : '';
         const photoStr = s.photos ? '  📷 ' + s.photos : '';
         document.getElementById('ch-stats').textContent =
-          s.total + ' Nachrichten  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  seit ' + sinceStr : '');
+          s.total + ' ' + t('statsMsg') + '  ↑ ' + s.sent + '  ↓ ' + s.received + photoStr + (sinceStr ? '  ' + t('statsSince') + ' ' + sinceStr : '');
       } catch(e) {}
     }
 

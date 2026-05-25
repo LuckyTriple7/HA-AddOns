@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.5] - 2026-05-25
+- Fix: Chat-Statistik jetzt zweisprachig (DE/EN) über i18n-System
+
 ## [1.4.4] - 2026-05-25
 - Neu: Chat-Statistik im Header — Gesamtnachrichten, ↑ gesendet, ↓ empfangen, 📷 Fotos, seit [Datum der ersten Nachricht]
 
