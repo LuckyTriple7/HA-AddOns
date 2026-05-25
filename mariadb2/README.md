@@ -66,7 +66,10 @@ alias occ='ALLOW_ROOT=1 php /app/www/public/occ'
 # 1. Wartungsmodus aktivieren
 occ maintenance:mode --on
 
-# 2. Datenbank migrieren (Passwort aus nextcloud_db_credentials.txt)
+# 2. Datenbank migrieren
+#    Hostname: aus MariaDB 2 LOG (z.B. c4d39aca-mariadb2)
+#    Port:     3306 (interner Container-Port, NICHT 3307)
+#    Passwort: wie in den MariaDB 2 Optionen gesetzt
 occ db:convert-type \
   --all-apps \
   --password=PASSWORT_HIER \
@@ -137,7 +140,10 @@ alias occ='ALLOW_ROOT=1 php /app/www/public/occ'
 # 1. Enable maintenance mode
 occ maintenance:mode --on
 
-# 2. Convert database (password from nextcloud_db_credentials.txt)
+# 2. Convert database
+#    Hostname: from MariaDB 2 log (e.g. c4d39aca-mariadb2)
+#    Port:     3306 (internal container port, NOT 3307)
+#    Password: as set in MariaDB 2 options
 occ db:convert-type \
   --all-apps \
   --password=YOUR_PASSWORD \
