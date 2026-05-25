@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.0] - 2026-05-25
+- Version auf 1.2.0 angehoben — stabile Version
+
 ## [1.1.26] - 2026-05-25
 - Fix: Konfig-Log "Konfiguration", "gesetzt"/"nicht gesetzt" auf Englisch
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.0] - 2026-05-25
+- Version auf 1.2.0 angehoben — stabile Version
+
 ## [1.1.19] - 2026-05-25
 - Fix: Fotos-nachladen-Button zeigte nach JS-Reset wieder Text — i18n-Key auf Icon-only korrigiert
 
