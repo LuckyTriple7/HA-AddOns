@@ -133,6 +133,17 @@ Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App bet
 
 → [Dokumentation & Changelog](mariadb2/README.md)
 
+### [Collabora Online](collabora/)
+
+Office-Server für Nextcloud — öffne und bearbeite Dokumente direkt im Browser, ohne Download.
+
+- Bearbeite `.docx`, `.xlsx`, `.pptx` und ODF-Dateien direkt in Nextcloud
+- Kollaboratives Bearbeiten mit mehreren Nutzern gleichzeitig
+- Kein separater Cloud-Dienst nötig — läuft lokal auf dem NUC
+- Einfache Einrichtung: URL eintragen, fertig
+
+→ [Dokumentation & Changelog](collabora/README.md)
+
 ### [Nextcloud](nextcloud/)
 
 Nextcloud direkt in Home Assistant — private Cloud mit Web-UI und SMB-Netzwerkspeicher-Unterstützung.
@@ -282,6 +293,17 @@ A second independent MariaDB instance — runs alongside the official MariaDB ap
 - Ideal as a dedicated database for Nextcloud
 
 → [Documentation & Changelog](mariadb2/README.md)
+
+### [Collabora Online](collabora/)
+
+Office server for Nextcloud — open and edit documents directly in the browser, without downloading.
+
+- Edit `.docx`, `.xlsx`, `.pptx` and ODF files directly in Nextcloud
+- Collaborative editing with multiple users simultaneously
+- No external cloud service needed — runs locally on the NUC
+- Easy setup: enter URL, done
+
+→ [Documentation & Changelog](collabora/README.md)
 
 ### [Nextcloud](nextcloud/)
 
