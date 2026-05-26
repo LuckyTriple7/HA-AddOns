@@ -8,11 +8,15 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq gosu \
+    && apt-get install -y --no-install-recommends jq \
     && rm -rf /var/lib/apt/lists/*
+
+# cool user braucht Schreibrecht auf /etc/coolwsd (coolwsd.xml Symlink)
+RUN chown -R cool:cool /etc/coolwsd
 
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-# run.sh läuft als root, wechselt via gosu zu cool (uid 1001) — wie alexbelgium
+USER cool
+
 CMD ["/run.sh"]

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.11] - 2026-05-26
+- Fix: gosu funktioniert nicht im HA-Kontext — zurück zu USER cool (wie v0.0.5)
+- Add: coolwsd.xml wird nach /config persistiert + Symlink (wie alexbelgium)
+- Fix: export username/password für coolwsd --use-env-vars
+
 ## [0.0.10] - 2026-05-26
 - Fix: Init läuft jetzt als root, Wechsel zu cool via gosu — exakt wie alexbelgium
 - Fix: coolwsd.xml wird nach /config persistiert und per Symlink eingebunden
