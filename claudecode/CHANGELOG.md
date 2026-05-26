@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.13] - 2026-05-26
+
+### Fixed
+- `claude update` wird abgefangen und via npm ausgeführt (verhindert Fehler auf read-only Docker-Layern)
+
 ## [1.0.12] - 2026-05-25
 
 ### Changed
