@@ -14,4 +14,7 @@ RUN apt-get update \
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
+# Restore cool user — newer Collabora images expect to run as cool, not root
+USER cool
+
 CMD ["/run.sh"]

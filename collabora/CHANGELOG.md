@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.5] - 2026-05-26
+- Fix: USER cool in Dockerfile gesetzt — neuere Collabora-Images erwarten cool, nicht root
+
 ## [0.0.4] - 2026-05-26
 - Fix: gosu statt su für Privilege-Dropping (su funktioniert in Docker nicht zuverlässig)
 
