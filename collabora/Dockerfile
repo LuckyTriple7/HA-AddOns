@@ -8,8 +8,11 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq gosu \
+    && apt-get install -y --no-install-recommends jq \
     && rm -rf /var/lib/apt/lists/*
+
+# Allow cool user to write credentials into coolwsd.xml at startup
+RUN chown -R cool:cool /etc/coolwsd
 
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

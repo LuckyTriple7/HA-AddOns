@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.6] - 2026-05-26
+- Fix: chown /etc/coolwsd auf cool im Dockerfile — Startup-Script kann Credentials jetzt in coolwsd.xml schreiben
+
 ## [0.0.5] - 2026-05-26
 - Fix: USER cool in Dockerfile gesetzt — neuere Collabora-Images erwarten cool, nicht root
 
