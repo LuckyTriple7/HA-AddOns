@@ -33,9 +33,9 @@ COPY server.js .
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-EXPOSE 3000
+EXPOSE 17776
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -sf http://localhost:3000/api/status || exit 1
+    CMD curl -sf http://localhost:17776/api/status || exit 1
 
 CMD ["/run.sh"]

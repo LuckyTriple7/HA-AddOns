@@ -13,7 +13,7 @@ export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
 export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
 export SESSION_DIR=/config/session
-export PORT=3000
+export PORT=17776
 
 mkdir -p "$SESSION_DIR"
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.15] - 2026-05-26
+- Fix: Port 3000 war in run.sh und Dockerfile noch hardcoded (17776 funktioniert jetzt vollständig)
+
 ## [1.4.14] - 2026-05-26
 - Change: Standard-Port von 3000 auf 17776 geändert (Konflikt mit anderem Add-on vermieden)
 
