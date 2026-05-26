@@ -19,21 +19,23 @@ else
 fi
 
 export domain="$DOMAIN"
-export username="$ADMIN_USER"
-export password="$ADMIN_PASSWORD"
-export extra_params="${EXTRA_PARAMS:---o:ssl.enable=false --o:net.proto=IPv4}"
 
 # domain1 = Collabora's own public hostname (server_name), needed for reverse proxy
 if [ -n "$DOMAIN1" ]; then
     export server_name="$DOMAIN1"
 fi
 
-# Set admin credentials directly via coolconfig (more reliable than env vars)
-if [ -n "$ADMIN_USER" ] && [ -n "$ADMIN_PASSWORD" ]; then
-    coolconfig set admin_console.username "$ADMIN_USER" 2>/dev/null || true
-    coolconfig set-sensitive admin_console.password "$ADMIN_PASSWORD" 2>/dev/null || true
-    echo "[INFO] Admin credentials set for: $ADMIN_USER"
+# Build extra_params — pass admin credentials as --o: command-line overrides to coolwsd
+# This bypasses coolwsd.xml entirely and works regardless of file permissions
+PARAMS="${EXTRA_PARAMS:---o:ssl.enable=false --o:net.proto=IPv4}"
+if [ -n "$ADMIN_USER" ]; then
+    PARAMS="${PARAMS} --o:admin_console.username=${ADMIN_USER}"
 fi
+if [ -n "$ADMIN_PASSWORD" ]; then
+    PARAMS="${PARAMS} --o:admin_console.password=${ADMIN_PASSWORD}"
+fi
+export extra_params="$PARAMS"
+echo "[INFO] Admin credentials configured for: $ADMIN_USER"
 
 echo "[INFO] Starting Collabora Online..."
 echo "[INFO] Allowed domain: $DOMAIN"

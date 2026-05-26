@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.8] - 2026-05-26
+- Fix: Admin-Credentials via --o: Command-Line-Parameter an coolwsd übergeben (umgeht coolwsd.xml-Schreibprobleme)
+- Remove: coolconfig-Aufrufe entfernt (liefen als cool-User ins Leere)
+
 ## [0.0.7] - 2026-05-26
 - Fix: Admin-Credentials werden jetzt via coolconfig direkt in coolwsd.xml geschrieben
 
