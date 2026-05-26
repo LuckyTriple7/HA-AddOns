@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# Read HA options
 NEXTCLOUD_URL=$(jq -r '.nextcloud_url // ""' /data/options.json)
 ALIASGROUP1=$(jq -r '.aliasgroup1 // ""' /data/options.json)
 DOMAIN1=$(jq -r '.domain1 // ""' /data/options.json)
@@ -27,8 +28,35 @@ if [ -n "$DOMAIN1" ]; then
     export server_name="$DOMAIN1"
 fi
 
+# Persist coolwsd.xml config across container rebuilds
+COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
+CONFIG_DEST="/config/coolwsd.xml"
+mkdir -p /config
+if [ ! -e "${CONFIG_DEST}" ]; then
+    mv "${COOL_CONFIG}" "${CONFIG_DEST}" 2>/dev/null || true
+    chown root:root "${CONFIG_DEST}" 2>/dev/null || true
+    chmod 644 "${CONFIG_DEST}"
+else
+    rm -f "${COOL_CONFIG}"
+fi
+ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
+
+# Update network files in systemplate chroot
+SYSTEMPLATE_DIR="/opt/cool/systemplate/etc"
+if [ -d "${SYSTEMPLATE_DIR}" ]; then
+    cp /etc/hosts "${SYSTEMPLATE_DIR}/hosts"
+    cp /etc/hostname "${SYSTEMPLATE_DIR}/hostname" 2>/dev/null || true
+    cp /etc/resolv.conf "${SYSTEMPLATE_DIR}/resolv.conf"
+fi
+
+# Set correct ownership for cool user (uid 1001)
+chown -R 1001 /opt/cool/systemplate 2>/dev/null || true
+chown -R 1001 /etc/coolwsd 2>/dev/null || true
+chmod -R 755 /opt/cool/systemplate 2>/dev/null || true
+
 echo "[INFO] Starting Collabora Online..."
 echo "[INFO] Allowed domain: $DOMAIN"
 [ -n "$DOMAIN1" ] && echo "[INFO] Server name: $DOMAIN1"
 
-exec /start-collabora-online.sh
+# Drop from root to cool user (uid 1001) — coolwsd refuses to run as root
+exec su -p -s /bin/bash "$(getent passwd 1001 | cut -d: -f1)" -c "/start-collabora-online.sh"
