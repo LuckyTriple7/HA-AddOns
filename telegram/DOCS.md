@@ -1,0 +1,202 @@
+# Telegram
+
+Telegram als vollwertiger Client direkt in Home Assistant — mit Chat-UI, REST-API und Webhook-Support.
+
+## Einrichtung
+
+### 1. API-Credentials besorgen
+
+1. Auf [my.telegram.org](https://my.telegram.org) einloggen
+2. → **API development tools** → App erstellen
+3. **App api_id** und **App api_hash** notieren
+
+### 2. Add-on konfigurieren und starten
+
+Nach dem Start erscheint ein Code-Eingabefeld in der Web-UI. Den Code aus der Telegram-App oder SMS eingeben. Bei aktivierter 2FA wird danach das Cloud-Passwort abgefragt.
+
+## Konfiguration
+
+| Option | Standard | Beschreibung |
+|--------|----------|--------------|
+| `api_id` | — | Numerische API-ID von my.telegram.org |
+| `api_hash` | — | API-Hash von my.telegram.org |
+| `phone_number` | — | Telefonnummer mit Ländervorwahl (z.B. `+4917612345678`) |
+| `dark_mode` | `true` | `true` = dunkles Theme, `false` = helles Theme |
+| `download_media` | `false` | Empfangene Fotos automatisch herunterladen und anzeigen |
+| `fetch_messages_limit` | `50` | Nachrichten beim ersten Öffnen eines Chats (max. 300) |
+| `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
+| `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
+| `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten |
+| `ha_notifications_privacy` | `false` | Nur „Telegram / Neue Nachricht" — kein Absender, kein Inhalt |
+| `ha_notifications_skip_bots` | `false` | Keine HA-Benachrichtigung für Bot-Nachrichten |
+| `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen |
+
+### HA-Benachrichtigungen einrichten
+
+1. HA-Benutzerprofil öffnen (Benutzerbild unten links)
+2. Ganz nach unten → **Langlebige Zugangstokens** → Token erstellen
+3. Token unter `ha_token` eintragen
+
+## REST-API
+
+Das Add-on ist über Port 17778 erreichbar (`http://<HA-IP>:17778`).
+
+```
+GET  /api/status          → Verbindungsstatus
+GET  /api/chats           → Liste aller Chats
+GET  /api/messages/:id    → Nachrichten eines Chats
+POST /api/send            → Nachricht senden  { to, message }
+POST /api/send-media      → Bild/Dokument senden
+GET  /api/export/:id      → Chat als HTML exportieren
+POST /api/logout          → Abmelden
+```
+
+### Nachricht senden
+
+```bash
+curl -X POST http://<HA-IP>:17778/api/send \
+  -H "Content-Type: application/json" \
+  -d '{"to": "123456789", "message": "Hallo aus HA!"}'
+```
+
+`to` ist die numerische Chat-ID (aus `/api/chats` → Feld `id`).
+
+## Webhook (eingehende Nachrichten)
+
+**Add-on konfigurieren:**
+```
+webhook_incoming: http://homeassistant:8123/api/webhook/telegram
+```
+
+**Automatisierung in HA** (`local_only: false` ist wichtig):
+```yaml
+alias: Telegram eingehend
+triggers:
+  - trigger: webhook
+    webhook_id: telegram
+    allowed_methods: [POST]
+    local_only: false
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Telegram von {{ trigger.json.name }}"
+      message: "{{ trigger.json.message }}"
+```
+
+**Webhook-Variablen:**
+
+| Variable | Inhalt |
+|----------|--------|
+| `trigger.json.from` | Absender (Chat-ID) |
+| `trigger.json.name` | Name des Absenders |
+| `trigger.json.message` | Nachrichtentext |
+| `trigger.json.timestamp` | Unix-Zeitstempel (ms) |
+
+## HA-Automatisierung
+
+`configuration.yaml`:
+```yaml
+rest_command:
+  telegram_send:
+    url: http://localhost:17778/api/send
+    method: POST
+    content_type: application/json
+    payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
+```
+
+## Updates
+
+Falls Telegram nach einem Update nicht mehr funktioniert:
+**Einstellungen → Add-ons → Telegram → Neu aufbauen**
+
+---
+
+# Telegram (English)
+
+Telegram as a full client directly in Home Assistant — with chat UI, REST API and webhook support.
+
+## Setup
+
+### 1. Get API Credentials
+
+1. Log in at [my.telegram.org](https://my.telegram.org)
+2. → **API development tools** → Create an app
+3. Note the **App api_id** and **App api_hash**
+
+### 2. Configure and Start the Add-on
+
+After starting, a code input field appears in the Web UI. Enter the code from the Telegram app or SMS. If 2FA is enabled, the cloud password will be requested afterwards.
+
+## Configuration
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `api_id` | — | Numeric API ID from my.telegram.org |
+| `api_hash` | — | API hash from my.telegram.org |
+| `phone_number` | — | Phone number with country code (e.g. `+4917612345678`) |
+| `dark_mode` | `true` | `true` = dark theme, `false` = light theme |
+| `download_media` | `false` | Automatically download and display received photos |
+| `fetch_messages_limit` | `50` | Messages loaded when first opening a chat (max. 300) |
+| `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
+| `debug_mode` | `false` | Verbose logging for troubleshooting |
+| `ha_notifications` | `false` | Persistent HA notification for new incoming messages |
+| `ha_notifications_privacy` | `false` | Show only "Telegram / New message" — no sender, no content |
+| `ha_notifications_skip_bots` | `false` | Skip HA notifications for bot messages |
+| `ha_token` | — | Long-lived access token for HA notifications |
+
+### Setting up HA Notifications
+
+1. Open your HA user profile (user icon, bottom left)
+2. Scroll to the bottom → **Long-lived access tokens** → Create token
+3. Enter the token under `ha_token`
+
+## REST API
+
+The add-on is available on port 17778 (`http://<HA-IP>:17778`).
+
+```
+GET  /api/status          → Connection status
+GET  /api/chats           → List of all chats
+GET  /api/messages/:id    → Messages of a chat
+POST /api/send            → Send a message  { to, message }
+POST /api/send-media      → Send image/document
+GET  /api/export/:id      → Export chat as HTML
+POST /api/logout          → Log out
+```
+
+### Send a Message
+
+```bash
+curl -X POST http://<HA-IP>:17778/api/send \
+  -H "Content-Type: application/json" \
+  -d '{"to": "123456789", "message": "Hello from HA!"}'
+```
+
+`to` is the numeric chat ID (from `/api/chats` → field `id`).
+
+## Webhook (Incoming Messages)
+
+**Configure the add-on:**
+```
+webhook_incoming: http://homeassistant:8123/api/webhook/telegram
+```
+
+**Automation in HA** (`local_only: false` is required):
+```yaml
+alias: Telegram incoming
+triggers:
+  - trigger: webhook
+    webhook_id: telegram
+    allowed_methods: [POST]
+    local_only: false
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Telegram from {{ trigger.json.name }}"
+      message: "{{ trigger.json.message }}"
+```
+
+## Updates
+
+If Telegram stops working after an update:
+**Settings → Add-ons → Telegram → Rebuild**
