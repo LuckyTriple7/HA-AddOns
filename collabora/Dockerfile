@@ -8,16 +8,11 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq \
+    && apt-get install -y --no-install-recommends jq gosu \
     && rm -rf /var/lib/apt/lists/*
-
-# Allow cool user to write credentials into coolwsd.xml at startup
-RUN chown -R cool:cool /etc/coolwsd
 
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-# Restore cool user — newer Collabora images expect to run as cool, not root
-USER cool
-
+# run.sh läuft als root, wechselt via gosu zu cool (uid 1001) — wie alexbelgium
 CMD ["/run.sh"]

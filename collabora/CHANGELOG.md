@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.10] - 2026-05-26
+- Fix: Init läuft jetzt als root, Wechsel zu cool via gosu — exakt wie alexbelgium
+- Fix: coolwsd.xml wird nach /config persistiert und per Symlink eingebunden
+- Fix: USER cool aus Dockerfile entfernt (gosu übernimmt den User-Wechsel)
+
 ## [0.0.9] - 2026-05-26
 - Fix: Admin-Credentials doppelt abgesichert — export username/password (coolwsd --use-env-vars) UND --o: Params
 - Fix: v0.0.8 hatte export username/password fälschlicherweise entfernt
