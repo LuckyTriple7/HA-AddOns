@@ -1,3 +1,8 @@
+## [1.8.16] - 2026-05-26
+
+### Neu
+- Claude Desktop installiert (inoffizielles Linux-Paket via aaddrick/claude-desktop-debian)
+
 ## [1.8.15] - 2026-05-24
 
 ### Aktualisiert

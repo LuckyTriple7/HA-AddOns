@@ -209,6 +209,29 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Claude Desktop (Electron, inoffizielles Debian-Paket von aaddrick/claude-desktop-debian)
+# --no-sandbox Wrapper: Chrome-Sandbox braucht Kernel-Namespaces (in HA nicht verfügbar)
+RUN curl -fsSL https://pkg.claude-desktop-debian.dev/KEY.gpg \
+        | gpg --dearmor -o /usr/share/keyrings/claude-desktop.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/claude-desktop.gpg arch=amd64,arm64] https://pkg.claude-desktop-debian.dev stable main" \
+        > /etc/apt/sources.list.d/claude-desktop.list \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        claude-desktop \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && CLAUDE_BIN=$(find /opt /usr/lib /usr/bin -name "claude-desktop" -type f 2>/dev/null | head -1) \
+    && if [ -n "$CLAUDE_BIN" ] && [ "$CLAUDE_BIN" != "/usr/bin/claude-desktop" ]; then \
+        printf '#!/bin/sh\nexec "%s" --no-sandbox --disable-gpu "$@"\n' "$CLAUDE_BIN" > /usr/bin/claude-desktop \
+        && chmod +x /usr/bin/claude-desktop; \
+    else \
+        mv /usr/bin/claude-desktop /usr/bin/claude-desktop.orig 2>/dev/null || true \
+        && printf '#!/bin/sh\nexec /usr/bin/claude-desktop.orig --no-sandbox --disable-gpu "$@"\n' > /usr/bin/claude-desktop \
+        && chmod +x /usr/bin/claude-desktop; \
+    fi \
+    && sed -i 's|^Exec=.*claude-desktop.*|Exec=/usr/bin/claude-desktop %U|' \
+        /usr/share/applications/claude-desktop.desktop 2>/dev/null || true
+
 # Totem als Standard-Videoplayer für alle gängigen Formate setzen
 RUN printf '[Default Applications]\nvideo/mp4=org.gnome.Totem.desktop\nvideo/x-msvideo=org.gnome.Totem.desktop\nvideo/x-matroska=org.gnome.Totem.desktop\nvideo/quicktime=org.gnome.Totem.desktop\nvideo/mpeg=org.gnome.Totem.desktop\nvideo/webm=org.gnome.Totem.desktop\nvideo/x-m4v=org.gnome.Totem.desktop\nvideo/3gpp=org.gnome.Totem.desktop\nvideo/x-flv=org.gnome.Totem.desktop\nvideo/x-ms-wmv=org.gnome.Totem.desktop\n' \
     > /usr/share/applications/mimeapps.list

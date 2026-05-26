@@ -36,14 +36,17 @@ jobs:
             | jq -r '.LATEST_THUNDERBIRD_VERSION')
           RCLONE=$(curl -s "https://api.github.com/repos/rclone/rclone/releases/latest" \
             | jq -r '.tag_name' | sed 's/^v//')
-          echo "bitwarden=${BW}"       >> $GITHUB_OUTPUT
-          echo "ipscan=${IPSCAN}"      >> $GITHUB_OUTPUT
-          echo "vscode=${VSCODE}"      >> $GITHUB_OUTPUT
-          echo "ghcli=${GHCLI}"        >> $GITHUB_OUTPUT
-          echo "firefox=${FIREFOX}"    >> $GITHUB_OUTPUT
-          echo "thunderbird=${THUNDERBIRD}" >> $GITHUB_OUTPUT
-          echo "rclone=${RCLONE}"      >> $GITHUB_OUTPUT
-          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE}"
+          CLAUDE_DESKTOP=$(curl -s "https://api.github.com/repos/aaddrick/claude-desktop-debian/releases/latest" \
+            | jq -r '.tag_name' | sed 's/^v//')
+          echo "bitwarden=${BW}"              >> $GITHUB_OUTPUT
+          echo "ipscan=${IPSCAN}"             >> $GITHUB_OUTPUT
+          echo "vscode=${VSCODE}"             >> $GITHUB_OUTPUT
+          echo "ghcli=${GHCLI}"               >> $GITHUB_OUTPUT
+          echo "firefox=${FIREFOX}"           >> $GITHUB_OUTPUT
+          echo "thunderbird=${THUNDERBIRD}"   >> $GITHUB_OUTPUT
+          echo "rclone=${RCLONE}"             >> $GITHUB_OUTPUT
+          echo "claude_desktop=${CLAUDE_DESKTOP}" >> $GITHUB_OUTPUT
+          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE} | Claude Desktop: ${CLAUDE_DESKTOP}"
 
       - name: Getrackte Versionen lesen
         id: tracked
@@ -55,6 +58,7 @@ jobs:
           echo "firefox=$(cat .webtop-firefox-version       2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "thunderbird=$(cat .webtop-thunderbird-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "rclone=$(cat .webtop-rclone-version         2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "claude_desktop=$(cat .webtop-claude-desktop-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
 
       - name: Änderungen prüfen
         id: check
@@ -67,7 +71,8 @@ jobs:
           if [ "${{ steps.latest.outputs.ghcli }}"        != "${{ steps.tracked.outputs.ghcli }}" ];        then CHANGED=true; CHANGES="${CHANGES}\n- GitHub CLI: ${{ steps.tracked.outputs.ghcli }} → ${{ steps.latest.outputs.ghcli }}"; fi
           if [ "${{ steps.latest.outputs.firefox }}"      != "${{ steps.tracked.outputs.firefox }}" ];      then CHANGED=true; CHANGES="${CHANGES}\n- Firefox: ${{ steps.tracked.outputs.firefox }} → ${{ steps.latest.outputs.firefox }}"; fi
           if [ "${{ steps.latest.outputs.thunderbird }}"  != "${{ steps.tracked.outputs.thunderbird }}" ];  then CHANGED=true; CHANGES="${CHANGES}\n- Thunderbird: ${{ steps.tracked.outputs.thunderbird }} → ${{ steps.latest.outputs.thunderbird }}"; fi
-          if [ "${{ steps.latest.outputs.rclone }}"       != "${{ steps.tracked.outputs.rclone }}" ];       then CHANGED=true; CHANGES="${CHANGES}\n- rclone: ${{ steps.tracked.outputs.rclone }} → ${{ steps.latest.outputs.rclone }}"; fi
+          if [ "${{ steps.latest.outputs.rclone }}"         != "${{ steps.tracked.outputs.rclone }}" ];         then CHANGED=true; CHANGES="${CHANGES}\n- rclone: ${{ steps.tracked.outputs.rclone }} → ${{ steps.latest.outputs.rclone }}"; fi
+          if [ "${{ steps.latest.outputs.claude_desktop }}" != "${{ steps.tracked.outputs.claude_desktop }}" ]; then CHANGED=true; CHANGES="${CHANGES}\n- Claude Desktop: ${{ steps.tracked.outputs.claude_desktop }} → ${{ steps.latest.outputs.claude_desktop }}"; fi
           echo "changed=${CHANGED}" >> $GITHUB_OUTPUT
           echo "changes=${CHANGES}" >> $GITHUB_OUTPUT
           if [ "$CHANGED" = "false" ]; then echo "Alle Webtop-Pakete aktuell — nichts zu tun."; fi
@@ -83,6 +88,7 @@ jobs:
           FF_VER:   ${{ steps.latest.outputs.firefox }}
           TB_VER:   ${{ steps.latest.outputs.thunderbird }}
           RC_VER:   ${{ steps.latest.outputs.rclone }}
+          CD_VER:   ${{ steps.latest.outputs.claude_desktop }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -116,6 +122,7 @@ jobs:
           echo "$FF_VER" > .webtop-firefox-version
           echo "$TB_VER" > .webtop-thunderbird-version
           echo "$RC_VER" > .webtop-rclone-version
+          echo "$CD_VER" > .webtop-claude-desktop-version
 
           # Add-on Version bumpen
           ADDON_VER=$(grep '^version:' ubuntu-webtop/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
@@ -137,7 +144,7 @@ jobs:
           git add ubuntu-webtop/Dockerfile ubuntu-webtop/config.yaml ubuntu-webtop/CHANGELOG.md \
                   .webtop-bitwarden-version .webtop-ipscan-version .webtop-vscode-version \
                   .webtop-ghcli-version .webtop-firefox-version .webtop-thunderbird-version \
-                  .webtop-rclone-version
+                  .webtop-rclone-version .webtop-claude-desktop-version
           git commit -m "Webtop v${NEW_ADDON_VER}: Paket-Updates ${DATE}"
           git push origin "$BRANCH"
 
