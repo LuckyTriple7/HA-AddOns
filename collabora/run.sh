@@ -28,6 +28,13 @@ if [ -n "$DOMAIN1" ]; then
     export server_name="$DOMAIN1"
 fi
 
+# Set admin credentials directly via coolconfig (more reliable than env vars)
+if [ -n "$ADMIN_USER" ] && [ -n "$ADMIN_PASSWORD" ]; then
+    coolconfig set admin_console.username "$ADMIN_USER" 2>/dev/null || true
+    coolconfig set-sensitive admin_console.password "$ADMIN_PASSWORD" 2>/dev/null || true
+    echo "[INFO] Admin credentials set for: $ADMIN_USER"
+fi
+
 echo "[INFO] Starting Collabora Online..."
 echo "[INFO] Allowed domain: $DOMAIN"
 [ -n "$DOMAIN1" ] && echo "[INFO] Server name: $DOMAIN1"

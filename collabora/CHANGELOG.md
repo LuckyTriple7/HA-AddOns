@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.7] - 2026-05-26
+- Fix: Admin-Credentials werden jetzt via coolconfig direkt in coolwsd.xml geschrieben
+
 ## [0.0.6] - 2026-05-26
 - Fix: chown /etc/coolwsd auf cool im Dockerfile — Startup-Script kann Credentials jetzt in coolwsd.xml schreiben
 
