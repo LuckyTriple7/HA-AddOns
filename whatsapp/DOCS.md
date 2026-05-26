@@ -32,7 +32,7 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 
 ## REST-API
 
-Das Add-on ist über Port 3000 erreichbar (`http://<HA-IP>:3000`).
+Das Add-on ist über Port 3000 erreichbar (`http://<HA-IP>:17776`).
 
 ```
 GET  /api/status                     → Verbindungsstatus
@@ -49,7 +49,7 @@ POST /api/reset                      → Session zurücksetzen (neuer QR-Code)
 ### Nachricht senden
 
 ```bash
-curl -X POST http://<HA-IP>:3000/api/send \
+curl -X POST http://<HA-IP>:17776/api/send \
   -H "Content-Type: application/json" \
   -d '{"to": "4915123456789", "message": "Hallo aus HA!"}'
 ```
@@ -62,7 +62,7 @@ curl -X POST http://<HA-IP>:3000/api/send \
 ```yaml
 rest_command:
   whatsapp_send:
-    url: http://localhost:3000/api/send
+    url: http://localhost:17776/api/send
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'
@@ -156,7 +156,7 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 
 ## REST API
 
-The add-on is available on port 3000 (`http://<HA-IP>:3000`).
+The add-on is available on port 3000 (`http://<HA-IP>:17776`).
 
 ```
 GET  /api/status                     → Connection status
@@ -173,7 +173,7 @@ POST /api/reset                      → Reset session (new QR code)
 ### Send a message
 
 ```bash
-curl -X POST http://<HA-IP>:3000/api/send \
+curl -X POST http://<HA-IP>:17776/api/send \
   -H "Content-Type: application/json" \
   -d '{"to": "4915123456789", "message": "Hello from HA!"}'
 ```
@@ -186,7 +186,7 @@ curl -X POST http://<HA-IP>:3000/api/send \
 ```yaml
 rest_command:
   whatsapp_send:
-    url: http://localhost:3000/api/send
+    url: http://localhost:17776/api/send
     method: POST
     content_type: application/json
     payload: '{"to": "{{ to }}", "message": "{{ message }}"}'

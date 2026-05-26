@@ -2413,5 +2413,5 @@ app.get('/', (req, res) => {
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '17776', 10);
 app.listen(PORT, () => console.log(`[INFO] Web UI running on port ${PORT}`));

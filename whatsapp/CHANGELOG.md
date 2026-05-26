@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.14] - 2026-05-26
+- Change: Standard-Port von 3000 auf 17776 geändert (Konflikt mit anderem Add-on vermieden)
+
 ## [1.4.13] - 2026-05-25
 - Fix: Zitat-Text in Chatblasen besser lesbar (höherer Kontrast, dunklerer Hintergrund)
 
