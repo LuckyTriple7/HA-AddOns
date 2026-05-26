@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.9] - 2026-05-26
+- Fix: Admin-Credentials doppelt abgesichert — export username/password (coolwsd --use-env-vars) UND --o: Params
+- Fix: v0.0.8 hatte export username/password fälschlicherweise entfernt
+
 ## [0.0.8] - 2026-05-26
 - Fix: Admin-Credentials via --o: Command-Line-Parameter an coolwsd übergeben (umgeht coolwsd.xml-Schreibprobleme)
 - Remove: coolconfig-Aufrufe entfernt (liefen als cool-User ins Leere)
