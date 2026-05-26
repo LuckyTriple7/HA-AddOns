@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.14] - 2026-05-26
+- Remove: ssl/enable wird nicht mehr via xmlstarlet überschrieben — SSL-Konfiguration bleibt wie im Image (Office läuft bereits)
+
 ## [0.0.13] - 2026-05-26
 - Fix: Admin-Credentials und ssl/enable direkt via xmlstarlet in coolwsd.xml schreiben (XML-Werte überschreiben sonst alles)
 - Add: xmlstarlet im Dockerfile installiert

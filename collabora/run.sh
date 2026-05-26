@@ -34,15 +34,12 @@ echo "[DEBUG] Setze Credentials und SSL in /config/coolwsd.xml via xmlstarlet...
 xmlstarlet ed -L \
     -u "//admin_console/username" -v "$ADMIN_USER" \
     -u "//admin_console/password" -v "$ADMIN_PASSWORD" \
-    -u "//ssl/enable" -v "false" \
     /config/coolwsd.xml
 echo "[DEBUG] coolwsd.xml aktualisiert"
 
 # Verify: Werte aus XML auslesen und loggen
 XML_USER=$(xmlstarlet sel -t -v "//admin_console/username" /config/coolwsd.xml 2>/dev/null || echo "FEHLER")
-XML_SSL=$(xmlstarlet sel -t -v "//ssl/enable" /config/coolwsd.xml 2>/dev/null || echo "FEHLER")
 echo "[DEBUG] XML admin_console/username='${XML_USER}'"
-echo "[DEBUG] XML ssl/enable='${XML_SSL}'"
 
 # Symlink /etc/coolwsd/coolwsd.xml -> /config/coolwsd.xml
 ln -sf /config/coolwsd.xml /etc/coolwsd/coolwsd.xml
