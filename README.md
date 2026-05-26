@@ -8,7 +8,9 @@ Eigene Home Assistant Apps von [LuckyTriple7](https://github.com/LuckyTriple7).
 
 ## Installation
 
-Repository in Home Assistant hinzufügen:
+[![Add repository to my HA](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FLuckyTriple7%2FHA-AddOns)
+
+Oder manuell in Home Assistant:
 
 **Einstellungen → Apps → App-Store → ⋮ → Repositories**
 
@@ -156,7 +158,9 @@ Custom Home Assistant apps by [LuckyTriple7](https://github.com/LuckyTriple7).
 
 ## Installation
 
-Add the repository in Home Assistant:
+[![Add repository to my HA](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FLuckyTriple7%2FHA-AddOns)
+
+Or manually in Home Assistant:
 
 **Settings → Apps → App Store → ⋮ → Repositories**
 
