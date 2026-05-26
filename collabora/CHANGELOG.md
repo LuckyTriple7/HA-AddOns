@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.12] - 2026-05-26
+- Fix: Admin-Credentials via `$@` direkt an coolwsd übergeben — unabhängig vom `extra_params`-Env-Var-Mechanismus
+- Fix: `extra_params` wird im aktuellen Image nicht an coolwsd weitergereicht (SSL bleibt aktiv trotz --o:ssl.enable=false)
+
 ## [0.0.11] - 2026-05-26
 - Fix: gosu funktioniert nicht im HA-Kontext — zurück zu USER cool (wie v0.0.5)
 - Add: coolwsd.xml wird nach /config persistiert + Symlink (wie alexbelgium)
