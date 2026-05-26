@@ -59,4 +59,5 @@ echo "[INFO] Allowed domain: $DOMAIN"
 [ -n "$DOMAIN1" ] && echo "[INFO] Server name: $DOMAIN1"
 
 # Drop from root to cool user (uid 1001) — coolwsd refuses to run as root
-exec su -p -s /bin/bash "$(getent passwd 1001 | cut -d: -f1)" -c "/start-collabora-online.sh"
+# gosu is the Docker-native way to properly drop privileges (unlike su)
+exec gosu 1001 /start-collabora-online.sh

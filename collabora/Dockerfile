@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq \
+    && apt-get install -y --no-install-recommends jq gosu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run.sh /run.sh
