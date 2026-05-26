@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.13] - 2026-05-26
+- Fix: Admin-Credentials und ssl/enable direkt via xmlstarlet in coolwsd.xml schreiben (XML-Werte überschreiben sonst alles)
+- Add: xmlstarlet im Dockerfile installiert
+- Add: Debug-Logs in run.sh — zeigt User, Credentials-Status, XML-Werte nach dem Schreiben
+- Fix: Verify-Schritt liest Werte aus XML zurück und loggt sie
+
 ## [0.0.12] - 2026-05-26
 - Fix: Admin-Credentials via `$@` direkt an coolwsd übergeben — unabhängig vom `extra_params`-Env-Var-Mechanismus
 - Fix: `extra_params` wird im aktuellen Image nicht an coolwsd weitergereicht (SSL bleibt aktiv trotz --o:ssl.enable=false)
