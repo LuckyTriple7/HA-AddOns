@@ -21,12 +21,16 @@ ports_description:
 
 options:
   nextcloud_url: ""
+  aliasgroup1: ""
+  domain1: ""
   admin_user: admin
   admin_password: ""
   extra_params: ""
 
 schema:
-  nextcloud_url: str
+  nextcloud_url: str?
+  aliasgroup1: str?
+  domain1: str?
   admin_user: str
   admin_password: password
   extra_params: str?
