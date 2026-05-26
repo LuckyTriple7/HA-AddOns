@@ -4,6 +4,8 @@ version: "0.0.1"
 slug: collabora
 url: https://github.com/LuckyTriple7/HA-AddOns
 
+image: "ghcr.io/luckytriple7/collabora"
+
 arch:
   - amd64
 
