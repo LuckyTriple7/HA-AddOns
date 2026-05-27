@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.19] - 2026-05-27
+- Fix: Passwort wird jetzt via `coolconfig set-admin-password` gesetzt (hasht korrekt) — xmlstarlet schrieb Klartext, coolwsd erwartet gehashtes Passwort → Login schlug immer fehl
+
 ## [0.0.18] - 2026-05-27
 - Fix: Credentials via --o: Args in $@ übergeben (erscheinen in coolwsd non-default log)
 - Add: XML-Diagnostik zeigt admin_console Sektion vor/nach xmlstarlet
