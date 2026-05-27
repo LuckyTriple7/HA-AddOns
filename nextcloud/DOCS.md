@@ -62,6 +62,8 @@ ALLOW_ROOT=1 php /app/www/public/occ <befehl>
 | `occ user:resetpassword <user>` | Passwort zurücksetzen |
 | `occ security:bruteforce:reset <IP>` | IP-Sperre aufheben |
 | `occ log:tail` | Live-Log anzeigen |
+| `occ files_external:list` | Externe Mounts mit IDs anzeigen |
+| `occ files_external:option <ID> enable_sharing true` | Teilen für externen Mount aktivieren |
 
 ## Datenspeicherort
 
@@ -138,6 +140,8 @@ ALLOW_ROOT=1 php /app/www/public/occ <command>
 | `occ user:resetpassword <user>` | Reset password |
 | `occ security:bruteforce:reset <IP>` | Remove brute-force block |
 | `occ log:tail` | Show live log |
+| `occ files_external:list` | Show external mounts with IDs |
+| `occ files_external:option <ID> enable_sharing true` | Enable sharing for an external mount |
 
 ## Data Location
 
