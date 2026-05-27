@@ -77,4 +77,17 @@ else
 fi
 
 echo "[INFO] Starting Collabora Online..."
-exec su -p -s /bin/sh cool -c "exec /start-collabora-online.sh"
+
+# SIGTERM-Handler: sauber beenden statt exit 143
+_term() {
+    echo "[INFO] SIGTERM empfangen, stoppe Collabora..."
+    kill -TERM "$COOLWSD_PID" 2>/dev/null || true
+    kill -TERM "$TTYD_PID"    2>/dev/null || true
+    wait "$COOLWSD_PID" 2>/dev/null || true
+    exit 0
+}
+trap _term SIGTERM SIGINT
+
+su -p -s /bin/sh cool -c "exec /start-collabora-online.sh" &
+COOLWSD_PID=$!
+wait $COOLWSD_PID

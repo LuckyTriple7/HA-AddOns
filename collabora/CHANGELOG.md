@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.30] - 2026-05-27
+- Fix: SIGTERM-Handler in run.sh — sauberes Herunterfahren statt exit 143 (Supervisor-Warnung behoben)
+
 ## [0.0.29] - 2026-05-27
 - Fix: /etc/timezone auch in systemplate kopieren → eliminiert letzten WRN-Spam
 
