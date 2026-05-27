@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.27] - 2026-05-27
+- Fix: /etc/hosts + resolv.conf in systemplate kopieren → eliminiert WRN-Spam "systemplate is read-only"
+- Fix: WOPI proof key beim Start generieren falls nicht vorhanden (coolconfig generate-proof-key)
+- Neu: `TZ` Option (Standard: `Europe/Berlin`) — setzt /etc/timezone und TZ-Env-Var für coolwsd
+
 ## [0.0.26] - 2026-05-27
 - Fix: mount_jail_tree=false in coolwsd.xml via sed gesetzt — Container hat keine Bind-Mount-Rechte, coolwsd empfiehlt diesen Eintrag selbst im Log; eliminiert ERR/WRN-Flut beim Start
 

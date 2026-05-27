@@ -30,6 +30,7 @@ ports_description:
   7682/tcp: Web-Terminal
 
 options:
+  TZ: "Europe/Berlin"
   nextcloud_url: ""
   aliasgroup1: ""
   domain1: ""
@@ -38,6 +39,7 @@ options:
   extra_params: ""
 
 schema:
+  TZ: str?
   nextcloud_url: str?
   aliasgroup1: str?
   domain1: str?

@@ -8,6 +8,7 @@ NEXTCLOUD_URL=$(jq -r '.nextcloud_url // ""' /data/options.json)
 ALIASGROUP1=$(jq -r '.aliasgroup1 // ""' /data/options.json)
 DOMAIN1=$(jq -r '.domain1 // ""' /data/options.json)
 EXTRA_PARAMS=$(jq -r '.extra_params // ""' /data/options.json)
+TZ=$(jq -r '.TZ // "Europe/Berlin"' /data/options.json)
 
 echo "[INFO] admin_user='${ADMIN_USER}' password_set=$([ -n "$ADMIN_PASSWORD" ] && echo yes || echo NO)"
 
@@ -27,6 +28,21 @@ if [ ! -f "${CONFIG_DEST}" ]; then
     cp "${COOL_CONFIG}" "${CONFIG_DEST}"
 fi
 ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
+
+# systemplate DNS-Dateien kopieren → eliminiert WRN-Spam ("systemplate is read-only")
+cp /etc/hosts /opt/cool/systemplate/etc/hosts 2>/dev/null || true
+cp /etc/resolv.conf /opt/cool/systemplate/etc/resolv.conf 2>/dev/null || true
+
+# WOPI proof key generieren falls nicht vorhanden
+if [ ! -f /etc/coolwsd/proof_key ]; then
+    echo "[INFO] Generating WOPI proof key..."
+    coolconfig generate-proof-key 2>/dev/null || echo "[WARN] proof key generation failed"
+fi
+
+# Zeitzone setzen
+echo "[INFO] Timezone: ${TZ}"
+echo "$TZ" > /etc/timezone
+export TZ
 
 # Bind-Mount im Container nicht möglich → mount_jail_tree dauerhaft deaktivieren
 sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>false</mount_jail_tree>|' "${CONFIG_DEST}" \
