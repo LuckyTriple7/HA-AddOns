@@ -1,0 +1,96 @@
+name: Check Collabora Update
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hole aktuellen collabora/code Digest
+        id: remote
+        run: |
+          DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/collabora/code/tags/latest" \
+            | jq -r '.digest')
+          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
+            echo "Konnte Digest nicht ermitteln — API-Fehler?"
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+          echo "Aktueller collabora/code Digest: ${DIGEST}"
+
+      - name: Hole gespeicherten Digest
+        id: local
+        run: |
+          if [ -f .collabora-digest ]; then
+            echo "digest=$(cat .collabora-digest)" >> $GITHUB_OUTPUT
+            echo "Gespeicherter Digest: $(cat .collabora-digest)"
+          else
+            echo "digest=unknown" >> $GITHUB_OUTPUT
+            echo "Noch keine Digest-Datei vorhanden — erster Lauf"
+          fi
+
+      - name: Vergleiche Digests
+        id: compare
+        run: |
+          REMOTE="${{ steps.remote.outputs.digest }}"
+          LOCAL="${{ steps.local.outputs.digest }}"
+          echo "Remote: ${REMOTE} | Lokal: ${LOCAL}"
+          if [ "$REMOTE" != "$LOCAL" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "Neues Image verfügbar — Rebuild wird gestartet"
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "Kein Update notwendig"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push updated image
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: collabora
+          platforms: linux/amd64
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/luckytriple7/collabora:latest
+
+      - name: Digest-Datei + config.yaml aktualisieren
+        if: steps.compare.outputs.rebuild == 'true'
+        run: |
+          echo "${{ steps.remote.outputs.digest }}" > .collabora-digest
+          CURRENT=$(grep '^version:' collabora/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" collabora/config.yaml
+          echo "Version: ${CURRENT} → ${NEW_VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .collabora-digest collabora/config.yaml
+          git commit -m "Collabora: Auto-Update auf neues collabora/code Image (v${NEW_VERSION})"
+          git push
