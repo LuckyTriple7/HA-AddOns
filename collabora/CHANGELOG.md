@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.28] - 2026-05-27
+- CI: build-collabora.yml triggert jetzt automatisch bei Push auf collabora/**
+
 ## [0.0.27] - 2026-05-27
 - Fix: /etc/hosts + resolv.conf in systemplate kopieren → eliminiert WRN-Spam "systemplate is read-only"
 - Fix: WOPI proof key beim Start generieren falls nicht vorhanden (coolconfig generate-proof-key)
