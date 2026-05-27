@@ -1,6 +1,6 @@
 name: Check Collabora Update
 
-on:
+on: # täglich + manuell
   schedule:
     - cron: '0 5 * * *'
   workflow_dispatch:
