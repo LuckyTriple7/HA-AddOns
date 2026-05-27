@@ -21,36 +21,34 @@ fi
 
 echo "[DEBUG] domain='${DOMAIN}'"
 
-# Runtime-Berechtigungen setzen (wie alexbelgium — läuft als root)
-chown -R 1001 /opt/cool/systemplate
-chown -R 1001 /etc/coolwsd
-
-# Netzwerk-Dateien in Systemplate aktualisieren (wie alexbelgium)
-if [ -d "/opt/cool/systemplate/etc" ]; then
-    cp /etc/hosts /opt/cool/systemplate/etc/hosts
-    cp /etc/resolv.conf /opt/cool/systemplate/etc/resolv.conf
-    cp /etc/hostname /opt/cool/systemplate/etc/hostname 2>/dev/null || true
-fi
-
-# coolwsd.xml nach /config persistieren (wie alexbelgium: mv + symlink)
+# coolwsd.xml nach /config persistieren (mv + symlink wie alexbelgium)
 COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
 CONFIG_DEST="/config/coolwsd.xml"
 if [ ! -f "${CONFIG_DEST}" ]; then
-    mv "${COOL_CONFIG}" "${CONFIG_DEST}"
-else
-    rm -f "${COOL_CONFIG}"
+    echo "[DEBUG] Kopiere coolwsd.xml nach /config..."
+    cp "${COOL_CONFIG}" "${CONFIG_DEST}"
 fi
 ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
 
-# Env-Vars setzen — exakt wie docker run -e domain=... -e username=... -e password=...
+# Credentials direkt in coolwsd.xml schreiben — garantiert zuverlässig
+echo "[DEBUG] Schreibe Credentials in coolwsd.xml..."
+xmlstarlet ed -L \
+    -u "//admin_console/username" -v "$ADMIN_USER" \
+    -u "//admin_console/password" -v "$ADMIN_PASSWORD" \
+    "${CONFIG_DEST}"
+
+# Verifikation — muss im HA Add-on Log erscheinen
+XML_USER=$(xmlstarlet sel -t -v "//admin_console/username" "${CONFIG_DEST}" 2>/dev/null || echo "FEHLER")
+XML_PASS_SET=$(xmlstarlet sel -t -v "//admin_console/password" "${CONFIG_DEST}" 2>/dev/null | grep -q . && echo "ja" || echo "NEIN")
+echo "[DEBUG] XML username='${XML_USER}' password_gesetzt=${XML_PASS_SET}"
+
+# Env-Vars zusätzlich setzen (offizielle Methode, Fallback)
 export domain="$DOMAIN"
 export username="$ADMIN_USER"
 export password="$ADMIN_PASSWORD"
 [ -n "$DOMAIN1" ] && export server_name="$DOMAIN1"
 [ -n "$EXTRA_PARAMS" ] && export extra_params="$EXTRA_PARAMS"
 
-echo "[DEBUG] domain='${domain}' username='${username}' password_gesetzt=$([ -n "$password" ] && echo ja || echo NEIN)"
 echo "[INFO] Starte Collabora Online..."
 
-# su -p: preserve env-vars beim Wechsel zu cool (uid 1001) — wie alexbelgium
-su -p -s /bin/bash "$(getent passwd 1001 | cut -d: -f1)" -c "/start-collabora-online.sh"
+exec /start-collabora-online.sh

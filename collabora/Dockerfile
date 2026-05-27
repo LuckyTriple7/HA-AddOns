@@ -17,4 +17,6 @@ RUN chown -R cool:cool /etc/coolwsd
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
+USER cool
+
 CMD ["/run.sh"]

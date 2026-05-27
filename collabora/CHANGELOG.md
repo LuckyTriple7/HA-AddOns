@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.17] - 2026-05-27
+- Fix: USER cool (collabora/code verweigert root-Start — su/gosu funktionieren nicht)
+- Fix: xmlstarlet schreibt Credentials direkt in coolwsd.xml + Env-Vars als Fallback
+- Add: Verifikations-Log zeigt XML-Wert nach dem Schreiben
+
 ## [0.0.16] - 2026-05-27
 - Fix: USER root in Dockerfile, su -p statt gosu/exec (wie alexbelgium)
 - Add: chown -R 1001 /opt/cool/systemplate + /etc/coolwsd zur Laufzeit
