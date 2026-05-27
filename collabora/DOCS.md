@@ -25,13 +25,19 @@ Collabora Online Office-Server für Nextcloud — öffne und bearbeite `.docx`, 
 
 ### 3. WOPI-Allowlist setzen (empfohlen)
 
-Nextcloud zeigt sonst eine Sicherheitswarnung, dass WOPI-Anfragen nicht eingeschränkt sind. Im **Nextcloud-Terminal** ausführen:
+Nextcloud zeigt sonst eine Sicherheitswarnung, dass WOPI-Anfragen nicht eingeschränkt sind.
+
+**Empfohlen — automatisch via Nextcloud Add-on:**
+
+Im Nextcloud Add-on `update_wopi_ip: true` aktivieren. Das Add-on erkennt die externe IP automatisch und hält die WOPI-Allowlist aktuell (wichtig bei dynamischer ISP-IP hinter Reverse-Proxy).
+
+**Alternativ — manuell im Nextcloud-Terminal:**
 
 ```sh
-ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
+ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="<externe-IP>"
 ```
 
-Der Bereich `172.30.0.0/16` umfasst alle HA-Add-on-Container und ist damit zukunftssicher, da sich Container-IPs bei Neustarts ändern können.
+> Hinweis: Es muss die **externe IP** eingetragen werden (die IP, über die Nextcloud von außen erreichbar ist), nicht die interne Docker-IP.
 
 ## Admin-Panel
 
@@ -85,13 +91,19 @@ Collabora Online office server for Nextcloud — open and edit `.docx`, `.xlsx`,
 
 ### 3. Set WOPI Allowlist (recommended)
 
-Without this, Nextcloud shows a security warning that WOPI requests are unrestricted. Run in the **Nextcloud Terminal**:
+Without this, Nextcloud shows a security warning that WOPI requests are unrestricted.
+
+**Recommended — automatic via Nextcloud add-on:**
+
+Enable `update_wopi_ip: true` in the Nextcloud add-on. It automatically detects the external IP and keeps the WOPI allowlist up to date (important when using a dynamic ISP IP behind a reverse proxy).
+
+**Alternative — manual via Nextcloud Terminal:**
 
 ```sh
-ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
+ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="<external-IP>"
 ```
 
-The range `172.30.0.0/16` covers all HA add-on containers and is future-proof since container IPs can change on restart.
+> Note: Enter the **external IP** (the IP via which Nextcloud is reachable from the internet), not the internal Docker IP.
 
 ## Admin Panel
 

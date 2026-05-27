@@ -32,12 +32,17 @@ Nach dem Start erreichbar unter: **`https://<HA-IP>:7443`**
 | `disable_updates` | `false` | Nextcloud-Webupdate deaktivieren |
 | `maintenance_window_start` | `1` | Startzeit Wartungsfenster in UTC (0–23) |
 | `loglevel` | `3` | Log-Level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
+| `update_wopi_ip` | `false` | Externe IP automatisch in die WOPI-Allowlist eintragen (für Collabora hinter Reverse-Proxy mit dynamischer ISP-IP) |
 | `mariadb_discovery` | `false` | HA MariaDB Add-on automatisch erkennen (aus = SQLite) |
 | `smb_1_server` | — | IP/Hostname des SMB-Servers (Slot 1) |
 | `smb_1_share` | — | Name des SMB-Shares (Slot 1) |
 | `smb_1_user` | — | Benutzername (Slot 1) |
 | `smb_1_password` | — | Passwort (Slot 1) |
 | `smb_2_*` / `smb_3_*` | — | SMB-Slots 2 und 3 (analog zu Slot 1) |
+
+## Collabora Online Integration
+
+Wenn du das **Collabora Add-on** mit einem Reverse-Proxy nutzt und deine ISP-IP dynamisch ist, aktiviere `update_wopi_ip: true`. Das Add-on prüft dann alle 150 Sekunden die externe IP und trägt sie automatisch in die WOPI-Allowlist ein — kein manuelles `occ`-Kommando nötig.
 
 ## Web-Terminal (occ-Befehle)
 
@@ -103,12 +108,17 @@ After startup, available at: **`https://<HA-IP>:7443`**
 | `disable_updates` | `false` | Disable Nextcloud web update |
 | `maintenance_window_start` | `1` | Maintenance window start in UTC (0–23) |
 | `loglevel` | `3` | Log level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal |
+| `update_wopi_ip` | `false` | Automatically update the WOPI allowlist with the current external IP (for Collabora behind a reverse proxy with dynamic ISP IP) |
 | `mariadb_discovery` | `false` | Auto-detect HA MariaDB add-on (off = SQLite) |
 | `smb_1_server` | — | IP/hostname of SMB server (slot 1) |
 | `smb_1_share` | — | Share name (slot 1) |
 | `smb_1_user` | — | Username (slot 1) |
 | `smb_1_password` | — | Password (slot 1) |
 | `smb_2_*` / `smb_3_*` | — | SMB slots 2 and 3 (same as slot 1) |
+
+## Collabora Online Integration
+
+If you use the **Collabora add-on** with a reverse proxy and your ISP IP is dynamic, enable `update_wopi_ip: true`. The add-on then checks the external IP every 150 seconds and automatically updates the WOPI allowlist — no manual `occ` command needed.
 
 ## Web Terminal (occ Commands)
 

@@ -1,0 +1,39 @@
+#!/bin/sh
+OPTIONS=/data/options.json
+OCC=/app/www/public/occ
+CONFIG_PHP=/config/www/nextcloud/config/config.php
+
+UPDATE=$(jq -r '.update_wopi_ip // false' "$OPTIONS" 2>/dev/null || echo false)
+if [ "$UPDATE" != "true" ]; then
+    exec sleep 2147483647
+fi
+
+echo "[wopi-updater] enabled — waiting for Nextcloud..."
+until grep -q "'installed' => true" "$CONFIG_PHP" 2>/dev/null; do
+    sleep 10
+done
+echo "[wopi-updater] Nextcloud ready"
+
+LAST_IP=""
+while true; do
+    IP=$(curl -sf --max-time 10 "https://checkip.dyndns.org" 2>/dev/null \
+        | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    if [ -z "$IP" ]; then
+        IP=$(curl -sf --max-time 10 "https://ifconfig.me" 2>/dev/null \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    fi
+
+    if [ -z "$IP" ]; then
+        echo "[wopi-updater] WARN: could not determine external IP"
+    elif [ "$IP" != "$LAST_IP" ]; then
+        echo "[wopi-updater] external IP changed: ${LAST_IP:-none} → ${IP}"
+        if ALLOW_ROOT=1 php "$OCC" config:app:set richdocuments wopi_allowlist --value="$IP" 2>&1; then
+            echo "[wopi-updater] OK: wopi_allowlist=${IP}"
+            LAST_IP="$IP"
+        else
+            echo "[wopi-updater] WARN: occ failed — will retry next cycle"
+        fi
+    fi
+
+    sleep 150
+done

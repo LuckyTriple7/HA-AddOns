@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.2
+- Neu: `update_wopi_ip` Option — aktualisiert die WOPI-Allowlist in Nextcloud automatisch wenn sich die externe IP ändert (nützlich für dynamische ISP-IPs bei Collabora hinter Reverse-Proxy); prüft alle 150 Sekunden via checkip.dyndns.org mit Fallback auf ifconfig.me
+
 ## 1.0.1
 - Nginx Security Headers automatisch gesetzt: HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection
 

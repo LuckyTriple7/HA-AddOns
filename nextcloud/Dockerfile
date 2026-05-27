@@ -16,7 +16,7 @@ RUN curl -L https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64
     chmod +x /usr/local/bin/ttyd
 
 COPY rootfs/ /
-RUN chmod +x /ha-config.sh /etc/cont-init.d/30-ha-init.sh /etc/s6-overlay/s6-rc.d/svc-ttyd/run
+RUN chmod +x /ha-config.sh /etc/cont-init.d/30-ha-init.sh /etc/s6-overlay/s6-rc.d/svc-ttyd/run /etc/s6-overlay/s6-rc.d/svc-wopi-updater/run
 
 # ha-config.sh am Ende von linuxservers Nextcloud-Init ausführen
 # (genau wie alexbelgium: nach occ-Init, vor nginx-Start)
