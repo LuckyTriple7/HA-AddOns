@@ -1,6 +1,10 @@
 name: Build Collabora Image
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'collabora/**'
   workflow_dispatch:
 
 permissions:
