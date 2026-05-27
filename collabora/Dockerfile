@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq xmlstarlet curl \
+    && apt-get install -y --no-install-recommends jq curl \
     && rm -rf /var/lib/apt/lists/*
 
 # ttyd für Web-Terminal (Ingress)

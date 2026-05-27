@@ -34,7 +34,7 @@ if [ -n "$ADMIN_PASSWORD" ]; then
     echo "[INFO] Setting admin credentials via coolconfig..."
     printf '\n%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | coolconfig set-admin-password "$ADMIN_USER" \
         && echo "[INFO] coolconfig: credentials set OK" \
-        || echo "[WARN] coolconfig failed — falling back to env vars"
+        || echo "[WARN] coolconfig failed"
 fi
 
 # Env-Vars für domain (offizielle Docker-Methode)

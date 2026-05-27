@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.25] - 2026-05-27
+- Cleanup: `xmlstarlet` aus Dockerfile entfernt — seit 0.0.19 nicht mehr verwendet (coolconfig ersetzt xmlstarlet)
+- Cleanup: Irreführenden "falling back to env vars"-Kommentar entfernt — Env-Vars werden ohnehin immer gesetzt
+
 ## [0.0.24] - 2026-05-27
 - Fix: coolconfig — leere Zeile vor Passwort, damit Username-Prompt den Default (Arg) nimmt statt das Passwort zu konsumieren
 - Fix: `exec su -p -s /bin/sh cool -c "exec /start-collabora-online.sh"` — coolwsd verweigert Root-Start
