@@ -8,8 +8,12 @@ LABEL org.opencontainers.image.licenses="MIT"
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends jq xmlstarlet \
+    && apt-get install -y --no-install-recommends jq xmlstarlet curl \
     && rm -rf /var/lib/apt/lists/*
+
+# ttyd für Web-Terminal (Ingress)
+RUN curl -L https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
+    -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
 
 # cool user braucht Schreibrecht auf /etc/coolwsd (coolwsd.xml Symlink)
 RUN chown -R cool:cool /etc/coolwsd

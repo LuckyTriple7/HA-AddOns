@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.20] - 2026-05-27
+- Neu: Web-Terminal (ttyd) in der HA-Sidebar — `coolconfig set-admin-password admin` direkt ausführen möglich
+
 ## [0.0.19] - 2026-05-27
 - Fix: Passwort wird jetzt via `coolconfig set-admin-password` gesetzt (hasht korrekt) — xmlstarlet schrieb Klartext, coolwsd erwartet gehashtes Passwort → Login schlug immer fehl
 

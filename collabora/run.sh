@@ -43,5 +43,8 @@ export password="$ADMIN_PASSWORD"
 [ -n "$DOMAIN1" ] && export server_name="$DOMAIN1"
 [ -n "$EXTRA_PARAMS" ] && export extra_params="$EXTRA_PARAMS"
 
+# ttyd Web-Terminal im Hintergrund starten (Ingress)
+/usr/local/bin/ttyd --port 7682 --interface 0.0.0.0 --writable --ping-interval 30 bash &
+
 echo "[INFO] Starting Collabora Online..."
 exec /start-collabora-online.sh
