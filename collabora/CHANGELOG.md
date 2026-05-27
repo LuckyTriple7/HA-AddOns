@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.23] - 2026-05-27
+- Fix: USER cool entfernt — run.sh läuft jetzt als root (kann /data/options.json lesen); /start-collabora-online.sh wechselt intern zu cool
+
 ## [0.0.22] - 2026-05-27
 - Fix: ENTRYPOINT statt CMD im Dockerfile — collabora/code Base-Image hat eigenen ENTRYPOINT, CMD wurde als Argument übergeben statt ausgeführt → run.sh lief nie
 
