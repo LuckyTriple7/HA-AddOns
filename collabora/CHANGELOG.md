@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.26] - 2026-05-27
+- Fix: mount_jail_tree=false in coolwsd.xml via sed gesetzt — Container hat keine Bind-Mount-Rechte, coolwsd empfiehlt diesen Eintrag selbst im Log; eliminiert ERR/WRN-Flut beim Start
+
 ## [0.0.25] - 2026-05-27
 - Cleanup: `xmlstarlet` aus Dockerfile entfernt — seit 0.0.19 nicht mehr verwendet (coolconfig ersetzt xmlstarlet)
 - Cleanup: Irreführenden "falling back to env vars"-Kommentar entfernt — Env-Vars werden ohnehin immer gesetzt

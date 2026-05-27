@@ -28,6 +28,11 @@ if [ ! -f "${CONFIG_DEST}" ]; then
 fi
 ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
 
+# Bind-Mount im Container nicht möglich → mount_jail_tree dauerhaft deaktivieren
+sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>false</mount_jail_tree>|' "${CONFIG_DEST}" \
+    && echo "[INFO] mount_jail_tree=false" \
+    || echo "[WARN] mount_jail_tree konnte nicht gesetzt werden"
+
 # Admin-Passwort via coolconfig setzen — hasht das Passwort korrekt (Klartext funktioniert nicht)
 # Username-Prompt konsumiert erste Zeile → leere Zeile voranstellen damit Default (arg) genommen wird
 if [ -n "$ADMIN_PASSWORD" ]; then
