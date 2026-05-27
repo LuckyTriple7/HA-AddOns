@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.16] - 2026-05-27
+- Fix: USER root in Dockerfile, su -p statt gosu/exec (wie alexbelgium)
+- Add: chown -R 1001 /opt/cool/systemplate + /etc/coolwsd zur Laufzeit
+- Add: /etc/hosts + resolv.conf in Systemplate kopieren (wie alexbelgium)
+- Fix: coolwsd.xml via mv statt cp (wie alexbelgium)
+
 ## [0.0.15] - 2026-05-27
 - Fix: run.sh auf offizielle Collabora-Methode reduziert — nur Env-Vars (domain, username, password) wie docker run -e
 
