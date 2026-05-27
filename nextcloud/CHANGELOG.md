@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.3
+- Neu: `enable_thumbnails` setzt jetzt auch `enabledPreviewProviders` in config.php (TXT, PDF, Office, Bild, Video u.a.)
+
 ## 1.0.2
 - Neu: `update_wopi_ip` Option — aktualisiert die WOPI-Allowlist in Nextcloud automatisch wenn sich die externe IP ändert (nützlich für dynamische ISP-IPs bei Collabora hinter Reverse-Proxy); prüft alle 150 Sekunden via checkip.dyndns.org mit Fallback auf ifconfig.me
 
