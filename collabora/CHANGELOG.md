@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.15] - 2026-05-27
+- Fix: run.sh auf offizielle Collabora-Methode reduziert — nur Env-Vars (domain, username, password) wie docker run -e
+
 ## [0.0.14] - 2026-05-26
 - Remove: ssl/enable wird nicht mehr via xmlstarlet überschrieben — SSL-Konfiguration bleibt wie im Image (Office läuft bereits)
 
