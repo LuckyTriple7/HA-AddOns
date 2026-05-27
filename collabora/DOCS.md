@@ -23,6 +23,16 @@ Collabora Online Office-Server für Nextcloud — öffne und bearbeite `.docx`, 
 4. URL eintragen: `http://<HA-IP>:9980`
 5. Speichern — der grüne Haken bestätigt die Verbindung
 
+### 3. WOPI-Allowlist setzen (empfohlen)
+
+Nextcloud zeigt sonst eine Sicherheitswarnung, dass WOPI-Anfragen nicht eingeschränkt sind. Im **Nextcloud-Terminal** ausführen:
+
+```sh
+ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
+```
+
+Der Bereich `172.30.0.0/16` umfasst alle HA-Add-on-Container und ist damit zukunftssicher, da sich Container-IPs bei Neustarts ändern können.
+
 ## Admin-Panel
 
 Erreichbar unter: `http://<HA-IP>:9980/browser/dist/admin/admin.html`
@@ -72,6 +82,16 @@ Collabora Online office server for Nextcloud — open and edit `.docx`, `.xlsx`,
 3. Select **"Use your own server"**
 4. Enter URL: `http://<HA-IP>:9980`
 5. Save — a green checkmark confirms the connection
+
+### 3. Set WOPI Allowlist (recommended)
+
+Without this, Nextcloud shows a security warning that WOPI requests are unrestricted. Run in the **Nextcloud Terminal**:
+
+```sh
+ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
+```
+
+The range `172.30.0.0/16` covers all HA add-on containers and is future-proof since container IPs can change on restart.
 
 ## Admin Panel
 

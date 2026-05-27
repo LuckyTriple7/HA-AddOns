@@ -42,6 +42,10 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 3. In Nextcloud: **Apps → Office & Text → Nextcloud Office** installieren
 4. **Einstellungen → Verwaltung → Nextcloud Office → Eigenen Server verwenden**
 5. URL eintragen: `http://<HA-IP>:9980` — grüner Haken bestätigt die Verbindung
+6. WOPI-Allowlist im Nextcloud-Terminal setzen:
+   ```sh
+   ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
+   ```
 
 ## Web-Terminal
 
@@ -107,6 +111,10 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 3. In Nextcloud: **Apps → Office & Text → Nextcloud Office** install
 4. **Settings → Administration → Nextcloud Office → Use your own server**
 5. Enter URL: `http://<HA-IP>:9980` — green checkmark confirms the connection
+6. Set the WOPI allowlist in the Nextcloud Terminal:
+   ```sh
+   ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
+   ```
 
 ## Web Terminal
 
