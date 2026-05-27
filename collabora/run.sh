@@ -21,7 +21,7 @@ fi
 
 echo "[DEBUG] domain='${DOMAIN}'"
 
-# coolwsd.xml nach /config persistieren (mv + symlink wie alexbelgium)
+# coolwsd.xml nach /config persistieren
 COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
 CONFIG_DEST="/config/coolwsd.xml"
 if [ ! -f "${CONFIG_DEST}" ]; then
@@ -30,25 +30,28 @@ if [ ! -f "${CONFIG_DEST}" ]; then
 fi
 ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
 
-# Credentials direkt in coolwsd.xml schreiben — garantiert zuverlässig
-echo "[DEBUG] Schreibe Credentials in coolwsd.xml..."
+# Diagnostik: admin_console Sektion zeigen
+echo "[DEBUG] admin_console in XML (vor Update):"
+xmlstarlet sel -t -c "//admin_console" "${CONFIG_DEST}" 2>/dev/null || echo "  [xmlstarlet: //admin_console nicht gefunden — Fallback grep:]" && grep -A6 "admin_console" "${CONFIG_DEST}" 2>/dev/null | head -10 || true
+
+# Credentials via xmlstarlet in XML schreiben
 xmlstarlet ed -L \
     -u "//admin_console/username" -v "$ADMIN_USER" \
     -u "//admin_console/password" -v "$ADMIN_PASSWORD" \
-    "${CONFIG_DEST}"
+    "${CONFIG_DEST}" 2>/dev/null && echo "[DEBUG] xmlstarlet OK" || echo "[DEBUG] xmlstarlet FEHLER"
 
-# Verifikation — muss im HA Add-on Log erscheinen
-XML_USER=$(xmlstarlet sel -t -v "//admin_console/username" "${CONFIG_DEST}" 2>/dev/null || echo "FEHLER")
-XML_PASS_SET=$(xmlstarlet sel -t -v "//admin_console/password" "${CONFIG_DEST}" 2>/dev/null | grep -q . && echo "ja" || echo "NEIN")
-echo "[DEBUG] XML username='${XML_USER}' password_gesetzt=${XML_PASS_SET}"
+echo "[DEBUG] admin_console/username nach Update: '$(xmlstarlet sel -t -v "//admin_console/username" "${CONFIG_DEST}" 2>/dev/null)'"
 
-# Env-Vars zusätzlich setzen (offizielle Methode, Fallback)
+# Env-Vars (offizielle Methode, Fallback)
 export domain="$DOMAIN"
 export username="$ADMIN_USER"
 export password="$ADMIN_PASSWORD"
 [ -n "$DOMAIN1" ] && export server_name="$DOMAIN1"
 [ -n "$EXTRA_PARAMS" ] && export extra_params="$EXTRA_PARAMS"
 
-echo "[INFO] Starte Collabora Online..."
+echo "[INFO] Starte Collabora Online mit --o:admin_console.username=${ADMIN_USER}"
 
-exec /start-collabora-online.sh
+# --o: Args via $@ → erscheinen garantiert in coolwsd (non-default values) Log
+exec /start-collabora-online.sh \
+    --o:admin_console.username="$ADMIN_USER" \
+    --o:admin_console.password="$ADMIN_PASSWORD"

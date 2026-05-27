@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.18] - 2026-05-27
+- Fix: Credentials via --o: Args in $@ übergeben (erscheinen in coolwsd non-default log)
+- Add: XML-Diagnostik zeigt admin_console Sektion vor/nach xmlstarlet
+- Fix: xmlstarlet + env vars + --o: alle drei Mechanismen kombiniert
+
 ## [0.0.17] - 2026-05-27
 - Fix: USER cool (collabora/code verweigert root-Start — su/gosu funktionieren nicht)
 - Fix: xmlstarlet schreibt Credentials direkt in coolwsd.xml + Env-Vars als Fallback
