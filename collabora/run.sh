@@ -29,9 +29,10 @@ fi
 ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
 
 # Admin-Passwort via coolconfig setzen — hasht das Passwort korrekt (Klartext funktioniert nicht)
+# Username-Prompt konsumiert erste Zeile → leere Zeile voranstellen damit Default (arg) genommen wird
 if [ -n "$ADMIN_PASSWORD" ]; then
     echo "[INFO] Setting admin credentials via coolconfig..."
-    printf '%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | coolconfig set-admin-password "$ADMIN_USER" \
+    printf '\n%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | coolconfig set-admin-password "$ADMIN_USER" \
         && echo "[INFO] coolconfig: credentials set OK" \
         || echo "[WARN] coolconfig failed — falling back to env vars"
 fi
@@ -54,4 +55,4 @@ else
 fi
 
 echo "[INFO] Starting Collabora Online..."
-exec /start-collabora-online.sh
+exec su -p -s /bin/sh cool -c "exec /start-collabora-online.sh"

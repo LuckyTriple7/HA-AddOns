@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.24] - 2026-05-27
+- Fix: coolconfig — leere Zeile vor Passwort, damit Username-Prompt den Default (Arg) nimmt statt das Passwort zu konsumieren
+- Fix: `exec su -p -s /bin/sh cool -c "exec /start-collabora-online.sh"` — coolwsd verweigert Root-Start
+
 ## [0.0.23] - 2026-05-27
 - Fix: USER cool entfernt — run.sh läuft jetzt als root (kann /data/options.json lesen); /start-collabora-online.sh wechselt intern zu cool
 
