@@ -44,7 +44,14 @@ export password="$ADMIN_PASSWORD"
 [ -n "$EXTRA_PARAMS" ] && export extra_params="$EXTRA_PARAMS"
 
 # ttyd Web-Terminal im Hintergrund starten (Ingress)
-/usr/local/bin/ttyd --port 7682 --interface 0.0.0.0 --writable --ping-interval 30 bash &
+/usr/local/bin/ttyd --port 7682 --writable --ping-interval 30 sh &
+TTYD_PID=$!
+sleep 1
+if kill -0 $TTYD_PID 2>/dev/null; then
+    echo "[INFO] ttyd gestartet (PID $TTYD_PID)"
+else
+    echo "[WARN] ttyd konnte nicht gestartet werden"
+fi
 
 echo "[INFO] Starting Collabora Online..."
 exec /start-collabora-online.sh

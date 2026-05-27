@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.21] - 2026-05-27
+- Fix: ttyd startete nicht — `--interface 0.0.0.0` ist kein gültiger Interface-Name; Flag entfernt (ttyd lauscht jetzt auf allen Interfaces); `bash` → `sh`
+
 ## [0.0.20] - 2026-05-27
 - Neu: Web-Terminal (ttyd) in der HA-Sidebar — `coolconfig set-admin-password admin` direkt ausführen möglich
 
