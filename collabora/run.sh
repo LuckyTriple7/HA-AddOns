@@ -39,10 +39,11 @@ if [ ! -f /etc/coolwsd/proof_key ]; then
     coolconfig generate-proof-key 2>/dev/null || echo "[WARN] proof key generation failed"
 fi
 
-# Zeitzone setzen
+# Zeitzone setzen und in systemplate kopieren
 echo "[INFO] Timezone: ${TZ}"
 echo "$TZ" > /etc/timezone
 export TZ
+cp /etc/timezone /opt/cool/systemplate/etc/timezone 2>/dev/null || true
 
 # Bind-Mount im Container nicht möglich → mount_jail_tree dauerhaft deaktivieren
 sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>false</mount_jail_tree>|' "${CONFIG_DEST}" \

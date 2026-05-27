@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.29] - 2026-05-27
+- Fix: /etc/timezone auch in systemplate kopieren → eliminiert letzten WRN-Spam
+
 ## [0.0.28] - 2026-05-27
 - CI: build-collabora.yml triggert jetzt automatisch bei Push auf collabora/**
 
