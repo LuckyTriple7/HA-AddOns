@@ -300,7 +300,7 @@ client.on('ready', async () => {
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
-          contactName = c?.pushname || c?.name || msg.author?.replace('@c.us', '') || contactName;
+          contactName = c?.name || c?.pushname || msg.author?.replace('@c.us', '') || contactName;
         }
         let quotedMsg = null;
         if (msg.hasQuotedMsg) {
@@ -391,7 +391,7 @@ client.on('message', async (msg) => {
   const chatId = chat.id._serialized;
   if (isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
   const contact = await msg.getContact().catch(() => null);
-  const contactName = contact?.pushname || contact?.name || msg.from.replace('@c.us', '');
+  const contactName = contact?.name || contact?.pushname || msg.from.replace('@c.us', '');
   upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {

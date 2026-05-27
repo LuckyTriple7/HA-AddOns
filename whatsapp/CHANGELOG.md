@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.16] - 2026-05-27
+- Fix: Absendername zeigt Adressbuch-Name (name) statt WhatsApp-Profilname (pushname) — pushname nur als Fallback wenn kein Adressbucheintrag
+
 ## [1.4.15] - 2026-05-26
 - Fix: Port 3000 war in run.sh und Dockerfile noch hardcoded (17776 funktioniert jetzt vollständig)
 
