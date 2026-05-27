@@ -23,4 +23,4 @@ RUN chmod +x /run.sh
 
 USER cool
 
-CMD ["/run.sh"]
+ENTRYPOINT ["/run.sh"]

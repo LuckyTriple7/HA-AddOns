@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.0.22] - 2026-05-27
+- Fix: ENTRYPOINT statt CMD im Dockerfile — collabora/code Base-Image hat eigenen ENTRYPOINT, CMD wurde als Argument übergeben statt ausgeführt → run.sh lief nie
+
 ## [0.0.21] - 2026-05-27
 - Fix: ttyd startete nicht — `--interface 0.0.0.0` ist kein gültiger Interface-Name; Flag entfernt (ttyd lauscht jetzt auf allen Interfaces); `bash` → `sh`
 
