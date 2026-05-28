@@ -254,6 +254,7 @@
     </div>
     <div class="header-right">
       <span class="clock" id="clock"></span>
+      <button class="btn-hdr" id="btn-lang" onclick="toggleLang()" title="Sprache / Language"></button>
       <button class="btn-hdr" id="btn-reload" title="Aktualisieren"><span class="icon">↻</span></button>
       <button class="btn-hdr" id="btn-theme" title="Theme">☀</button>
       <a href="logout" class="btn-hdr" id="btn-logout">Abmelden</a>
@@ -528,7 +529,8 @@
       },
     };
 
-    const lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+    const stored = localStorage.getItem('cb_admin_lang');
+    const lang = stored || ((navigator.language || 'de').startsWith('de') ? 'de' : 'en');
     const t = i18n[lang];
     document.getElementById('html-root').lang = lang;
 
@@ -778,6 +780,13 @@
         document.getElementById('footer-failed').textContent   = fmt(d.last_failed,  t.footerFailed);
         document.getElementById('footer-failed-24h').textContent = t.footerFailed24h(d.failed_24h ?? 0);
       } catch {}
+    }
+
+    /* ── Language toggle ─── */
+    document.getElementById('btn-lang').textContent = lang === 'de' ? '🇩🇪 DE' : '🇬🇧 EN';
+    function toggleLang() {
+      localStorage.setItem('cb_admin_lang', lang === 'de' ? 'en' : 'de');
+      location.reload();
     }
 
     /* ── Theme ─── */

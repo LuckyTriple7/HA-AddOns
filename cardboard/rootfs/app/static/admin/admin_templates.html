@@ -429,6 +429,7 @@
     </div>
     <div class="header-right">
       <span class="clock" id="clock"></span>
+      <button class="btn-hdr" id="btn-lang" onclick="toggleLang()" title="Sprache / Language"></button>
       <button class="btn-hdr" id="btn-reload" title="Aktualisieren"><span class="icon">↻</span></button>
       <button class="btn-hdr" id="btn-theme" title="Theme">☀</button>
       <a href="../" class="btn-hdr" id="btn-back">← <span id="lbl-back">Admin Panel</span></a>
@@ -557,7 +558,8 @@
         footerNone:     '—',
       },
     };
-    const lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+    const stored = localStorage.getItem('cb_admin_lang');
+    const lang = stored || ((navigator.language || 'de').startsWith('de') ? 'de' : 'en');
     const t = i18n[lang];
     document.getElementById('html-root').lang = lang;
 
@@ -577,6 +579,13 @@
     document.getElementById('dm-title').textContent       = t.dmTitle;
     document.getElementById('dm-cancel').textContent      = t.dmCancel;
     document.getElementById('dm-confirm').textContent     = t.dmConfirm;
+
+    /* ── Language toggle ── */
+    document.getElementById('btn-lang').textContent = lang === 'de' ? '🇩🇪 DE' : '🇬🇧 EN';
+    function toggleLang() {
+      localStorage.setItem('cb_admin_lang', lang === 'de' ? 'en' : 'de');
+      location.reload();
+    }
 
     /* ── Theme ── */
     const btnTheme = document.getElementById('btn-theme');
