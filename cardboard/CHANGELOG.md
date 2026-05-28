@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.11
+- Passwort-Ändern-Funktion für eingeloggte Benutzer (/change-password)
+- Altes Passwort, neues Passwort, Bestätigung — neues Passwort wird als SHA-256 in users.yaml gespeichert
+- Fehlermeldungen: falsches Passwort, Passwörter stimmen nicht überein, leeres Passwort
+- 🔑-Button im Header der View-Seite, respektiert Dark/Light-Mode und Sprache
+
 ## 0.0.10
 - Persistente HA-Benachrichtigung bei fehlgeschlagenem Login (Benutzername, IP, Zeitstempel)
 - Option `notify_failed_login` (bool, Default: `true`) zum Ein-/Ausschalten

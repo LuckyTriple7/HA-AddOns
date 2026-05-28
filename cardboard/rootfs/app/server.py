@@ -50,9 +50,18 @@ def load_users() -> list:
     users_file = CONFIG_DIR / "users.yaml"
     if not users_file.exists():
         return []
-    with open(users_file) as f:
+    with open(users_file, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("users", []) if data else []
+
+
+def write_users(yaml_data: dict):
+    """Schreibt users.yaml atomar (via tmp-Datei)."""
+    users_file = CONFIG_DIR / "users.yaml"
+    tmp = users_file.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        yaml.dump(yaml_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    tmp.replace(users_file)
 
 
 def get_serializer() -> URLSafeTimedSerializer:
@@ -246,6 +255,49 @@ async def logout():
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie(COOKIE_NAME)
     return response
+
+
+@app.get("/change-password", response_class=HTMLResponse)
+async def change_password_page(request: Request):
+    if not get_current_user(request):
+        return RedirectResponse("/login")
+    return (STATIC_DIR / "change_password.html").read_text(encoding="utf-8")
+
+
+@app.post("/api/change-password")
+async def api_change_password(request: Request):
+    username = get_current_user(request)
+    if not username:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+
+    old_pw  = body.get("old_password", "")
+    new_pw  = body.get("new_password", "")
+    conf_pw = body.get("confirm_password", "")
+
+    if not new_pw:
+        return JSONResponse({"error": "password_empty"}, status_code=400)
+    if new_pw != conf_pw:
+        return JSONResponse({"error": "passwords_mismatch"}, status_code=400)
+
+    users_file = CONFIG_DIR / "users.yaml"
+    with open(users_file, encoding="utf-8") as f:
+        yaml_data = yaml.safe_load(f) or {}
+
+    users = yaml_data.get("users", [])
+    user  = next((u for u in users if (u.get("username") or "").lower() == username), None)
+
+    if not user or not check_password(old_pw, user.get("password", "")):
+        return JSONResponse({"error": "wrong_password"}, status_code=400)
+
+    user["password"] = hashlib.sha256(new_pw.encode()).hexdigest()
+    write_users(yaml_data)
+    log.info("Passwort für Benutzer '%s' geändert", username)
+    return JSONResponse({"success": True})
 
 
 @app.get("/view", response_class=HTMLResponse)

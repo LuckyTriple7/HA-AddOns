@@ -281,6 +281,7 @@
         <span class="icon">↻</span>
       </button>
       <button class="btn btn-theme" id="btn-theme" title="Theme wechseln">☀</button>
+      <a href="/change-password" class="btn" id="change-pw-btn">🔑</a>
       <a href="/logout" class="btn" id="logout-btn">Abmelden</a>
     </div>
   </header>
@@ -305,20 +306,22 @@
     /* ── i18n ────────────────────────────────────────── */
     const i18n = {
       de: {
-        hello:   name => `Hallo ${name}`,
-        logout:  'Abmelden',
-        loading: 'Daten werden geladen…',
-        updated: time => `Aktualisiert: ${time}`,
-        refresh: n    => `Refresh in ${n}s`,
-        locale:  'de-DE',
+        hello:    name => `Hallo ${name}`,
+        logout:   'Abmelden',
+        changePw: 'Passwort ändern',
+        loading:  'Daten werden geladen…',
+        updated:  time => `Aktualisiert: ${time}`,
+        refresh:  n    => `Refresh in ${n}s`,
+        locale:   'de-DE',
       },
       en: {
-        hello:   name => `Hello ${name}`,
-        logout:  'Logout',
-        loading: 'Loading data…',
-        updated: time => `Updated: ${time}`,
-        refresh: n    => `Refresh in ${n}s`,
-        locale:  'en-GB',
+        hello:    name => `Hello ${name}`,
+        logout:   'Logout',
+        changePw: 'Change Password',
+        loading:  'Loading data…',
+        updated:  time => `Updated: ${time}`,
+        refresh:  n    => `Refresh in ${n}s`,
+        locale:   'en-GB',
       },
     };
     let t = i18n.de;
@@ -453,8 +456,9 @@
 
       refreshInterval = config.refresh_interval || 30;
       document.getElementById('username-badge').textContent = config.username;
-      document.getElementById('welcome-msg').textContent = t.hello(config.display_name);
-      document.getElementById('logout-btn').textContent = t.logout;
+      document.getElementById('welcome-msg').textContent    = t.hello(config.display_name);
+      document.getElementById('logout-btn').textContent     = t.logout;
+      document.getElementById('change-pw-btn').title        = t.changePw;
       document.getElementById('cards').innerHTML =
         `<div style="color:var(--text-dim);padding:40px;width:100%;text-align:center;font-family:sans-serif;">${t.loading}</div>`;
 
