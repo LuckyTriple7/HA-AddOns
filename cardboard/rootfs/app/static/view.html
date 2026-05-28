@@ -374,7 +374,7 @@
 
     async function loadConfig() {
       const r = await fetch('/api/config');
-      if (r.status === 401) { location.href = '/login'; return null; }
+      if (r.status === 401) { location.href = '/login?reason=expired'; return null; }
       return r.json();
     }
 
@@ -389,7 +389,7 @@
         _showReconnecting();
         return;
       }
-      if (r.status === 401) { location.href = '/login'; return; }
+      if (r.status === 401) { location.href = '/login?reason=expired'; return; }
       if (!r.ok) {
         _showReconnecting();
         return;

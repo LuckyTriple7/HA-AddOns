@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.32
+- Login-Seite: Hinweis "Sitzung abgelaufen" wenn Session durch Timeout beendet wurde (grünes Info-Banner statt roter Fehler)
+- View-Seite: Redirect bei 401 verwendet `?reason=expired` statt `?error=1`
+
 ## 0.0.31
 - PWA (Progressive Web App): CardBoard kann auf Android/iOS als App installiert werden
 - `manifest.json` mit App-Name, Icons und Vollbild-Modus (`standalone`)

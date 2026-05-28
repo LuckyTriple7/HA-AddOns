@@ -194,6 +194,7 @@
         submit:    'Anmelden',
         error:     'Ungültiger Benutzername oder Passwort.',
         locked:    'Zu viele fehlgeschlagene Versuche. Bitte 15 Minuten warten.',
+        expired:   'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
       },
       en: {
         subtitle:  'Home Assistant Dashboard',
@@ -202,6 +203,7 @@
         submit:    'Sign in',
         error:     'Invalid username or password.',
         locked:    'Too many failed attempts. Please wait 15 minutes.',
+        expired:   'Your session has expired. Please sign in again.',
       },
     };
 
@@ -213,10 +215,19 @@
     document.getElementById('label-password').textContent = t.password;
     document.getElementById('btn-submit').textContent     = t.submit;
 
-    const errParam = new URLSearchParams(window.location.search).get('error');
-    if (errParam) {
+    const params = new URLSearchParams(window.location.search);
+    const errParam    = params.get('error');
+    const reasonParam = params.get('reason');
+    if (errParam || reasonParam) {
       const el = document.getElementById('error-msg');
-      el.textContent = errParam === 'locked' ? t.locked : t.error;
+      if (reasonParam === 'expired') {
+        el.textContent = t.expired;
+        el.style.background = '#1c3a2a';
+        el.style.borderColor = '#22c55e';
+        el.style.color = '#86efac';
+      } else {
+        el.textContent = errParam === 'locked' ? t.locked : t.error;
+      }
       el.classList.add('visible');
     }
 
