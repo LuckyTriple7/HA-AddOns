@@ -50,6 +50,21 @@
       padding: 2px 9px;
       color: var(--text-muted);
     }
+    .btn-reload {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      color: var(--text-muted);
+      font-size: 1rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-reload:hover { border-color: var(--text-muted); color: var(--text); }
+    .btn-reload .icon { display: inline-block; transition: transform 0.4s; }
+    .btn-reload.spinning .icon { transform: rotate(360deg); }
+
     .btn-logout {
       background: transparent;
       border: 1px solid var(--border);
@@ -206,6 +221,7 @@
       <h1>CardBoard</h1>
       <span class="badge">Admin</span>
     </div>
+    <button class="btn-reload" id="btn-reload" title="Aktualisieren"><span class="icon">↻</span></button>
     <a href="logout" class="btn-logout" id="btn-logout">Abmelden</a>
   </header>
 
@@ -682,6 +698,14 @@
     /* ── Close on overlay click ─── */
     document.querySelectorAll('.overlay').forEach(o => {
       o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+    });
+
+    /* ── Reload button ─── */
+    const btnReload = document.getElementById('btn-reload');
+    btnReload.addEventListener('click', () => {
+      btnReload.classList.add('spinning');
+      setTimeout(() => btnReload.classList.remove('spinning'), 400);
+      loadUsers();
     });
 
     /* ── Init ─── */
