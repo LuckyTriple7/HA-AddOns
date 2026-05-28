@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.9
+- Option `session_lifetime` (Tage, Default: 7) für die Gültigkeit des Login-Cookies
+
 ## 0.0.8
 - HA-Startzeit aus `sensor.uptime` (konfigurierbar via Option `uptime_sensor`, Default: `sensor.uptime`)
 - Timestamp wird im Browser in lokaler Zeitzone formatiert

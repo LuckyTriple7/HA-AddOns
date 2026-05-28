@@ -29,7 +29,14 @@ OPTIONS_FILE = DATA_DIR / "options.json"
 STATIC_DIR = Path("/app/static")
 DB_PATH = DATA_DIR / "cardboard.db"
 COOKIE_NAME = "cb_session"
-SESSION_MAX_AGE = 7 * 24 * 3600
+
+
+def session_max_age() -> int:
+    try:
+        days = int(load_options().get("session_lifetime", 7))
+        return max(1, days) * 24 * 3600
+    except Exception:
+        return 7 * 24 * 3600
 
 
 # ── Config & Users ────────────────────────────────────────────────────────────
@@ -111,7 +118,7 @@ def get_current_user(request: Request) -> str | None:
     if not token:
         return None
     try:
-        data = get_serializer().loads(token, max_age=SESSION_MAX_AGE)
+        data = get_serializer().loads(token, max_age=session_max_age())
         return data.get("username")
     except (BadSignature, SignatureExpired):
         return None
@@ -203,7 +210,7 @@ async def do_login(request: Request):
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
-        max_age=SESSION_MAX_AGE,
+        max_age=session_max_age(),
         httponly=True,
         samesite="lax",
         secure=is_https(request),

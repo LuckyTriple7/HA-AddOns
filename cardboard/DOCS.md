@@ -15,6 +15,7 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 | `refresh_interval` | Automatische Aktualisierung in Sekunden | `30` |
 | `login_message` | Persönliche Begrüßung auf der Login-Seite (optional) | – |
 | `uptime_sensor` | Entity-ID des HA-Uptime-Sensors (optional) | `sensor.uptime` |
+| `session_lifetime` | Gültigkeit des Login-Cookies in Tagen (optional) | `7` |
 
 Der Uptime-Sensor wird für die „online seit"-Anzeige auf der Login- und View-Seite verwendet. Er muss über die **Uptime-Integration** eingerichtet sein: <https://www.home-assistant.io/integrations/uptime/>  
 Wird kein Wert geliefert (Sensor nicht vorhanden oder `unavailable`), wird die Anzeige einfach weggelassen.

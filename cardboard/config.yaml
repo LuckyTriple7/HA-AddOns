@@ -1,6 +1,6 @@
 name: CardBoard
 description: Zeigt HA-Sensordaten als gerenderte Markdown-Karten im Browser an
-version: "0.0.8"
+version: "0.0.9"
 slug: cardboard
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -35,6 +35,7 @@ options:
   refresh_interval: 30
   login_message: ""
   uptime_sensor: "sensor.uptime"
+  session_lifetime: 7
 
 schema:
   ha_token: str
@@ -42,3 +43,4 @@ schema:
   refresh_interval: int
   login_message: str
   uptime_sensor: str?
+  session_lifetime: int?
