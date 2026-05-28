@@ -270,11 +270,94 @@ def client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
+# ── PWA Icon Generator ────────────────────────────────────────────────────────
+
+def _generate_icon_png(size: int) -> bytes:
+    """Erzeugt ein CardBoard-Icon als PNG (pure stdlib, keine Dependencies)."""
+    import struct, zlib
+
+    BG  = bytes([17,  24,  39])   # #111827
+    SRF = bytes([31,  41,  55])   # #1f2937
+    ACC = bytes([59,  130, 246])  # #3b82f6
+    DOC = bytes([229, 231, 235])  # #e5e7eb
+    LN  = bytes([55,  65,  81])   # #374151
+
+    px = bytearray(BG * (size * size))
+
+    def set_px(x, y, c):
+        if 0 <= x < size and 0 <= y < size:
+            i = (y * size + x) * 3
+            px[i:i + 3] = c
+
+    def fill_rect(x0, y0, x1, y1, c):
+        for y in range(max(0, y0), min(size, y1)):
+            xs, xe = max(0, x0), min(size, x1)
+            if xe > xs:
+                i = (y * size + xs) * 3
+                px[i:i + (xe - xs) * 3] = c * (xe - xs)
+
+    def fill_circle(cx, cy, r, c):
+        for dy in range(-r, r + 1):
+            for dx in range(-r, r + 1):
+                if dx * dx + dy * dy <= r * r:
+                    set_px(cx + dx, cy + dy, c)
+
+    def rounded_rect(x0, y0, x1, y1, r, c):
+        fill_rect(x0 + r, y0, x1 - r, y1, c)
+        fill_rect(x0, y0 + r, x1, y1 - r, c)
+        fill_circle(x0 + r,     y0 + r,     r, c)
+        fill_circle(x1 - r - 1, y0 + r,     r, c)
+        fill_circle(x0 + r,     y1 - r - 1, r, c)
+        fill_circle(x1 - r - 1, y1 - r - 1, r, c)
+
+    s = size / 512
+    rounded_rect(int(32*s),  int(32*s),  int(480*s), int(480*s), int(48*s), SRF)
+    rounded_rect(int(128*s), int(152*s), int(384*s), int(424*s), int(16*s), DOC)
+    rounded_rect(int(192*s), int(112*s), int(320*s), int(196*s), int(16*s), ACC)
+    for y_b in [234, 272, 310]:
+        fill_rect(int(160*s), int(y_b*s), int(352*s), int((y_b + 20)*s), LN)
+    fill_rect(int(160*s), int(348*s), int(272*s), int(368*s), LN)
+
+    raw = bytearray()
+    for y in range(size):
+        raw += b'\x00'
+        raw += px[y * size * 3:(y + 1) * size * 3]
+
+    def chunk(tag, data):
+        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', crc)
+
+    return (b'\x89PNG\r\n\x1a\n'
+            + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(bytes(raw), 6))
+            + chunk(b'IEND', b''))
+
+
+def init_pwa():
+    for size in (192, 512):
+        path = STATIC_DIR / f"icon-{size}.png"
+        if not path.exists():
+            log.info("PWA: Generiere icon-%d.png …", size)
+            path.write_bytes(_generate_icon_png(size))
+
+
 # ── Main app ──────────────────────────────────────────────────────────────────
 
 @app.get("/")
 async def root():
     return RedirectResponse("/view")
+
+
+@app.get("/sw.js")
+async def service_worker():
+    content = (STATIC_DIR / "sw.js").read_text(encoding="utf-8")
+    return Response(content, media_type="application/javascript")
+
+
+@app.get("/manifest.json")
+async def pwa_manifest():
+    content = (STATIC_DIR / "manifest.json").read_text(encoding="utf-8")
+    return Response(content, media_type="application/manifest+json")
 
 
 @app.get("/api/public/config")
@@ -1381,6 +1464,7 @@ if __name__ == "__main__":
     ingress_port = 17774
 
     init_db()
+    init_pwa()
     log.info("CardBoard startet — Web-UI: %s  Admin-API: %s  Ingress: %s", port, admin_port, ingress_port)
 
     async def serve():

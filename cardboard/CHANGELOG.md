@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.31
+- PWA (Progressive Web App): CardBoard kann auf Android/iOS als App installiert werden
+- `manifest.json` mit App-Name, Icons und Vollbild-Modus (`standalone`)
+- Service Worker (`sw.js`): ermöglicht Install-Prompt, kein Caching von HA-Daten
+- Icons (192×192, 512×512): werden beim ersten Start automatisch generiert (pure Python)
+- Theme-Color der Statusleiste wechselt mit Dark/Light-Mode
+- iOS: "Teilen → Zum Homebildschirm" funktioniert sofort
+- Android/Chrome: Install-Banner erscheint automatisch (setzt HTTPS voraus)
+
 ## 0.0.30
 - Rate Limiting: Lokale/private IPs (LAN) sind von der Sperre ausgenommen — kein versehentliches Aussperren von Admins
 - Admin-Panel: Neue Sektion "Gesperrte IPs" zeigt aktuell gesperrte IPs mit verbleibender Sperrzeit und Versuchen

@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CardBoard</title>
   <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="theme-color" content="#1f2937" id="meta-theme-color">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CardBoard">
   <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
   <style>
     /* ── Theme-Variablen ─────────────────────────────── */
@@ -335,10 +342,12 @@
         root.classList.add('light');
         btnTheme.textContent = '🌙';
         btnTheme.title = 'Dark Mode';
+        document.getElementById('meta-theme-color').content = '#f3f4f6';
       } else {
         root.classList.remove('light');
         btnTheme.textContent = '☀';
         btnTheme.title = 'Light Mode';
+        document.getElementById('meta-theme-color').content = '#1f2937';
       }
     }
 
@@ -499,6 +508,10 @@
     }
 
     init();
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   </script>
 </body>
 </html>
