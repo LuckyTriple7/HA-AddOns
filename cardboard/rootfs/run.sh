@@ -28,18 +28,24 @@ users:
     display_name: Demo User
     lang: de
     templates:
-      - file: overview.j2
+      - file: card1.j2
         title: Übersicht
+      - file: card2.j2
+        title: Klima
+      - file: card3.j2
+        title: Status
 YAML
     echo "[INFO] users.yaml angelegt unter ${USERS_FILE}"
 fi
 
-DEMO_TEMPLATE=/config/addons_config/cardboard/demo/overview.j2
-if [ ! -f "$DEMO_TEMPLATE" ]; then
-    echo "[INFO] Demo-Template wird angelegt ..."
-    mkdir -p /config/addons_config/cardboard/demo
-    cp /app/demo_templates/demo/overview.j2 "$DEMO_TEMPLATE"
-    echo "[INFO] Demo-Template angelegt unter ${DEMO_TEMPLATE}"
+DEMO_DIR=/config/addons_config/cardboard/demo
+if [ ! -d "$DEMO_DIR" ]; then
+    echo "[INFO] Demo-Templates werden angelegt ..."
+    mkdir -p "$DEMO_DIR"
+    cp /app/demo_templates/demo/card1.j2 "$DEMO_DIR/card1.j2"
+    cp /app/demo_templates/demo/card2.j2 "$DEMO_DIR/card2.j2"
+    cp /app/demo_templates/demo/card3.j2 "$DEMO_DIR/card3.j2"
+    echo "[INFO] Demo-Templates angelegt unter ${DEMO_DIR}"
 fi
 
 echo "[INFO] Starte CardBoard — Web: ${PORT}  Admin-API: ${ADMIN_PORT} ..."

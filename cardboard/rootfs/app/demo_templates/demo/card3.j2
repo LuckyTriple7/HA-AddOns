@@ -1,0 +1,22 @@
+{%- set licht    = states('binary_sensor.dein_lichtsensor')     -%}
+{%- set bewegung = states('binary_sensor.dein_bewegungsmelder') -%}
+{%- set fenster  = states('binary_sensor.dein_fenstersensor')   -%}
+{%- set tuer     = states('binary_sensor.dein_tuersensor')      -%}
+{%- macro status(s) -%}
+  {%- if s == 'on' %}🟢 An / Offen / Aktiv
+  {%- elif s == 'off' %}⚫ Aus / Zu / Inaktiv
+  {%- else %}– nicht konfiguriert
+  {%- endif -%}
+{%- endmacro -%}
+
+## 🔌 Status
+
+  Licht:    {{ status(licht) }}
+  Bewegung: {{ status(bewegung) }}
+  Fenster:  {{ status(fenster) }}
+  Tür:      {{ status(tuer) }}
+
+---
+
+_Karte 3 von 3 — Sensornamen anpassen in:_
+`cardboard/demo/card3.j2`

@@ -1,0 +1,20 @@
+{%- set date    = now().strftime('%d.%m.%Y') -%}
+{%- set time    = now().strftime('%H:%M') -%}
+{%- set weekday = now().strftime('%A') -%}
+{%- set version = states('sensor.current_version') | default('–') -%}
+
+## 🏠 Übersicht
+
+  Datum:    {{ weekday }}, {{ date }}
+  Uhrzeit:  {{ time }} Uhr
+
+---
+
+## ⚙️ Home Assistant
+
+  Version:  {{ version }}
+
+---
+
+_Karte 1 von 3 — passe diese Datei an:_
+`cardboard/demo/card1.j2`

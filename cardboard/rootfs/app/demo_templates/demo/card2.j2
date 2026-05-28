@@ -1,0 +1,16 @@
+{%- set temp_in  = states('sensor.dein_temperatursensor_innen')  | default('–') -%}
+{%- set temp_out = states('sensor.dein_temperatursensor_aussen') | default('–') -%}
+{%- set humid    = states('sensor.deine_luftfeuchtigkeit')       | default('–') -%}
+{%- set pressure = states('sensor.dein_luftdruck')               | default('–') -%}
+
+## 🌡️ Klima
+
+  Innen:          {{ temp_in }} °C
+  Außen:          {{ temp_out }} °C
+  Luftfeuchtigkeit: {{ humid }} %
+  Luftdruck:      {{ pressure }} hPa
+
+---
+
+_Karte 2 von 3 — Sensornamen anpassen in:_
+`cardboard/demo/card2.j2`
