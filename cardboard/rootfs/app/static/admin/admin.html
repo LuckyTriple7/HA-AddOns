@@ -485,6 +485,7 @@
     }
 
     let pwConfig = { pw_min_length: 8, pw_require_special: true };
+    let usersCache = [];
 
     async function loadConfig() {
       try {
@@ -501,13 +502,13 @@
     async function loadUsers() {
       const r = await fetch('api/users');
       if (r.status === 401 || r.status === 403) { location.href = 'login'; return; }
-      const users = await r.json();
+      usersCache = await r.json();
       const tbody = document.getElementById('user-tbody');
-      if (!users.length) {
+      if (!usersCache.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="empty">${t.noUsers}</td></tr>`;
         return;
       }
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = usersCache.map((u, i) => `
         <tr>
           <td><strong>${esc(u.username)}</strong></td>
           <td>${esc(u.display_name || '—')}</td>
@@ -518,7 +519,7 @@
             : `<span class="tag tag-ok">${t.tagOk}</span>`}</td>
           <td>
             <div class="actions">
-              <button class="btn btn-ghost btn-sm" onclick="openEditModal(${JSON.stringify(u)})">${t.btnEdit}</button>
+              <button class="btn btn-ghost btn-sm" onclick="openEditModal(${i})">${t.btnEdit}</button>
               <button class="btn btn-ghost btn-sm" onclick="openResetModal('${esc(u.username)}')">${t.btnReset}</button>
               <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${esc(u.username)}')">${t.btnDelete}</button>
             </div>
@@ -553,7 +554,8 @@
       setTimeout(() => document.getElementById('c-username').focus(), 50);
     }
 
-    function openEditModal(u) {
+    function openEditModal(idx) {
+      const u = usersCache[idx];
       clearError('edit-error');
       document.getElementById('e-username').value   = u.username;
       document.getElementById('e-display').value    = u.display_name || '';
