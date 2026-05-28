@@ -219,7 +219,15 @@ Prüft die Verbindung zur HA-API.
 
 Die Admin-API lässt sich direkt als HA-Sensor einbinden, um Login-Statistiken im Dashboard anzuzeigen oder bei verdächtigen Logins eine Benachrichtigung zu erhalten.
 
-Da HA und CardBoard auf demselben Host laufen, ist die Admin-API intern über `http://localhost:17773` erreichbar.
+Da HA und CardBoard auf demselben physischen Host laufen, die Ports aber auf den Host gemappt sind, ist die Admin-API über den Hostnamen der HA-Instanz erreichbar — **nicht** über `localhost` (HA läuft in einem eigenen Docker-Container).
+
+Verwende denselben Hostnamen wie in der `ha_url`-Option, aber mit Port 17773:
+
+```
+http://homeassistant.local:17773
+```
+
+Oder die direkte IP-Adresse des HA-Hosts, z. B. `http://192.168.1.100:17773`.
 
 ### REST-Sensoren (`configuration.yaml`)
 
@@ -228,7 +236,7 @@ sensor:
   - platform: rest
     name: "CardBoard Logins gesamt"
     unique_id: cardboard_total_logins
-    resource: http://localhost:17773/api/admin/stats
+    resource: http://homeassistant.local:17773/api/admin/stats
     value_template: "{{ value_json.total_logins }}"
     scan_interval: 300
     icon: mdi:account-key
@@ -236,7 +244,7 @@ sensor:
   - platform: rest
     name: "CardBoard Erfolgreiche Logins"
     unique_id: cardboard_successful_logins
-    resource: http://localhost:17773/api/admin/stats
+    resource: http://homeassistant.local:17773/api/admin/stats
     value_template: "{{ value_json.successful_logins }}"
     scan_interval: 300
     icon: mdi:account-check
@@ -244,7 +252,7 @@ sensor:
   - platform: rest
     name: "CardBoard Fehlgeschlagene Logins"
     unique_id: cardboard_failed_logins
-    resource: http://localhost:17773/api/admin/stats
+    resource: http://homeassistant.local:17773/api/admin/stats
     value_template: "{{ value_json.failed_logins }}"
     scan_interval: 300
     icon: mdi:account-alert
@@ -252,7 +260,7 @@ sensor:
   - platform: rest
     name: "CardBoard Fehlgeschlagene Logins 24h"
     unique_id: cardboard_failed_logins_24h
-    resource: http://localhost:17773/api/admin/stats
+    resource: http://homeassistant.local:17773/api/admin/stats
     value_template: "{{ value_json.last_24h.failed }}"
     scan_interval: 300
     icon: mdi:account-alert-outline
@@ -260,7 +268,7 @@ sensor:
   - platform: rest
     name: "CardBoard HA API Status"
     unique_id: cardboard_ha_api_status
-    resource: http://localhost:17773/api/admin/health
+    resource: http://homeassistant.local:17773/api/admin/health
     value_template: "{{ value_json.status }}"
     scan_interval: 60
     icon: mdi:api
@@ -275,7 +283,7 @@ sensor:
   - platform: rest
     name: "CardBoard Letzter fehlgeschlagener Login"
     unique_id: cardboard_last_failed_login
-    resource: "http://localhost:17773/api/admin/logins?status=failed&limit=1"
+    resource: "http://homeassistant.local:17773/api/admin/logins?status=failed&limit=1"
     value_template: >
       {% if value_json.events | length > 0 %}
         {{ value_json.events[0].timestamp }} ({{ value_json.events[0].ip }})
