@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.2
+- Demo-User mit drei Beispiel-Karten (Übersicht, Klima, Status)
+- users.yaml und Demo-Templates werden beim ersten Start automatisch angelegt
+
 ## 0.0.1
 - Erste Version
 - Jinja2-Templates werden via HA `/api/template` gerendert
