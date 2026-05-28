@@ -233,10 +233,12 @@ async def do_login(request: Request):
 
     if not user or not check_password(password, user.get("password", "")):
         db_log_login(username or "?", False, ip)
+        log.warning("Login fehlgeschlagen: user='%s' ip='%s'", username or "?", ip or "?")
         asyncio.create_task(_notify_failed_login(username or "?", ip))
         return RedirectResponse("/login?error=1", status_code=303)
 
     db_log_login(username, True, ip)
+    log.info("Login erfolgreich: user='%s' ip='%s'", username, ip or "?")
     token = get_serializer().dumps({"username": username})
     response = RedirectResponse("/view", status_code=303)
     response.set_cookie(
@@ -251,7 +253,10 @@ async def do_login(request: Request):
 
 
 @app.get("/logout")
-async def logout():
+async def logout(request: Request):
+    username = get_current_user(request)
+    if username:
+        log.info("Logout: user='%s'", username)
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie(COOKIE_NAME)
     return response
@@ -402,9 +407,17 @@ def is_private_ip(request: Request) -> bool:
         return False
 
 
+def admin_allowed(request: Request) -> bool:
+    if is_private_ip(request):
+        return True
+    ip = request.client.host if request.client else "?"
+    log.warning("Admin-API Zugriff verweigert: ip='%s' path='%s'", ip, request.url.path)
+    return False
+
+
 @admin_app.get("/api/admin/stats")
 async def admin_stats(request: Request):
-    if not is_private_ip(request):
+    if not admin_allowed(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -442,7 +455,7 @@ async def admin_logins(
     username: Filter auf einen bestimmten Benutzernamen (optional)
     limit: max. 500
     """
-    if not is_private_ip(request):
+    if not admin_allowed(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
     limit = min(max(limit, 1), 500)
@@ -481,7 +494,7 @@ async def admin_logins(
 
 @admin_app.get("/api/admin/health")
 async def admin_health(request: Request):
-    if not is_private_ip(request):
+    if not admin_allowed(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
     opts = load_options()

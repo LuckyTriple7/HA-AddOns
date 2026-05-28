@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.12
+- Login erfolgreich im Log: user, IP (INFO)
+- Login fehlgeschlagen im Log: user, IP (WARNING)
+- Logout im Log: user (INFO)
+- Admin-API Zugriff verweigert im Log: IP, Pfad (WARNING)
+- Passwörter erscheinen in keiner Log-Ausgabe
+
 ## 0.0.11
 - Passwort-Ändern-Funktion für eingeloggte Benutzer (/change-password)
 - Altes Passwort, neues Passwort, Bestätigung — neues Passwort wird als SHA-256 in users.yaml gespeichert
