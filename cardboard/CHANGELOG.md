@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4
+- Persönliche Begrüßungsnachricht auf der Login-Seite (Add-on Option `login_message`)
+- Default HA-URL auf `homeassistant.local:8123` geändert
+- Port-Konfiguration aus den Optionen entfernt (Supervisor übernimmt Mapping)
+- `/api/public/config` Endpunkt für öffentliche Login-Seiten-Daten
+
 ## 0.0.3
 - Dark/Light-Mode Toggle mit localStorage-Persistenz
 - Manueller Refresh-Button mit Dreh-Animation

@@ -120,6 +120,7 @@
       <span class="logo-icon">📋</span>
       <h1>CardBoard</h1>
       <p id="subtitle">Home Assistant Dashboard</p>
+      <p id="login-message" style="display:none; margin-top:10px; font-size:0.9rem; color:#9ca3af;"></p>
     </div>
 
     <div class="error" id="error-msg"></div>
@@ -181,6 +182,17 @@
       el.textContent = t.error;
       el.classList.add('visible');
     }
+
+    fetch('/api/public/config')
+      .then(r => r.json())
+      .then(data => {
+        if (data.login_message) {
+          const el = document.getElementById('login-message');
+          el.textContent = data.login_message;
+          el.style.display = 'block';
+        }
+      })
+      .catch(() => {});
   </script>
 </body>
 </html>

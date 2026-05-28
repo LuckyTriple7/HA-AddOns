@@ -126,6 +126,13 @@ async def root():
     return RedirectResponse("/view")
 
 
+@app.get("/api/public/config")
+async def public_config():
+    """Öffentlicher Endpunkt für die Login-Seite — kein Auth erforderlich."""
+    opts = load_options()
+    return {"login_message": opts.get("login_message") or ""}
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
     return (STATIC_DIR / "login.html").read_text(encoding="utf-8")
@@ -217,7 +224,7 @@ async def api_render(request: Request):
     if not user:
         return JSONResponse({"error": "Benutzer nicht gefunden"}, status_code=404)
 
-    ha_url = (opts.get("ha_url") or "http://homeassistant:8123").rstrip("/")
+    ha_url = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
     ha_token = opts.get("ha_token") or ""
     templates = (user.get("templates") or [])[:3]
 
@@ -351,7 +358,7 @@ async def admin_health(request: Request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
     opts = load_options()
-    ha_url   = (opts.get("ha_url") or "http://homeassistant:8123").rstrip("/")
+    ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
     ha_token = opts.get("ha_token") or ""
 
     try:
@@ -375,9 +382,8 @@ async def admin_health(request: Request):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    opts = load_options()
-    port       = int(opts.get("port", 17772))
-    admin_port = int(opts.get("admin_port", 17773))
+    port       = 17772
+    admin_port = 17773
 
     init_db()
     log.info("CardBoard startet — Web-UI: %s  Admin-API: %s", port, admin_port)

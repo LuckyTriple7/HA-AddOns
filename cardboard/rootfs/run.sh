@@ -6,9 +6,9 @@ jq 'to_entries | map(if .key == "ha_token" then .value = "***" else . end) | fro
     /data/options.json 2>/dev/null || echo "FEHLER: /data/options.json nicht gefunden"
 echo "=========================="
 
-PORT=$(jq -r '.port // 17772' /data/options.json 2>/dev/null || echo 17772)
-ADMIN_PORT=$(jq -r '.admin_port // 17773' /data/options.json 2>/dev/null || echo 17773)
-HA_URL=$(jq -r '.ha_url // "http://homeassistant:8123"' /data/options.json 2>/dev/null || echo "http://homeassistant:8123")
+PORT=17772
+ADMIN_PORT=17773
+HA_URL=$(jq -r '.ha_url // "http://homeassistant.local:8123"' /data/options.json 2>/dev/null || echo "http://homeassistant.local:8123")
 HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json 2>/dev/null || echo "")
 
 echo "[INFO] Prüfe HA Token ..."

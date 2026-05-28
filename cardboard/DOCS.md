@@ -13,8 +13,9 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 | `port` | TCP-Port der Web-Oberfläche | `17772` |
 | `admin_port` | TCP-Port der Admin-API (nur LAN) | `17773` |
 | `ha_token` | HA Long-Lived Access Token | – |
-| `ha_url` | URL der HA-Instanz (intern) | `http://homeassistant:8123` |
+| `ha_url` | URL der HA-Instanz | `http://homeassistant.local:8123` |
 | `refresh_interval` | Automatische Aktualisierung in Sekunden | `30` |
+| `login_message` | Persönliche Begrüßung auf der Login-Seite (optional) | – |
 
 Den Long-Lived Access Token erstellst du in HA unter:  
 **Profil → Sicherheit → Langlebige Zugangstoken → Token erstellen**
