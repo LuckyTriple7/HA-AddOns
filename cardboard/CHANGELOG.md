@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.21
+- Admin-Panel: Letzter Login (Zeitstempel + IP) pro Benutzer in der Übersicht
+- Admin-Panel: Reload-Button mit Dreh-Animation
+- Admin-Panel: Dark/Light-Mode Toggle (teilt Theme-Einstellung mit der View-Seite)
+- Admin-Panel: i18n DE/EN (Browsersprache)
+- Bugfix: Edit-Button im Admin-Panel funktioniert jetzt korrekt
+- Bugfix: Ingress-Redirect und Root-Redirect auf Port 17773
+
 ## 0.0.20
 - Admin-Panel: Benutzerverwaltung (anlegen, bearbeiten, löschen, Passwort zurücksetzen)
 - Admin-Panel über HA Ingress erreichbar (Sidebar) und direkt auf Port 17773 (/admin/)
