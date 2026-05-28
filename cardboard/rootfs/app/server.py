@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 app = FastAPI()
 admin_app = FastAPI()
 
+_ha_status_cache: dict = {"reachable": False, "version": None, "since": None, "checked_at": None}
+
 DATA_DIR = Path("/data")
 CONFIG_DIR = Path("/config/addons_config/cardboard")
 OPTIONS_FILE = DATA_DIR / "options.json"
@@ -131,6 +133,38 @@ async def public_config():
     """Öffentlicher Endpunkt für die Login-Seite — kein Auth erforderlich."""
     opts = load_options()
     return {"login_message": opts.get("login_message") or ""}
+
+
+@app.get("/api/public/ha-status")
+async def public_ha_status():
+    """HA-Erreichbarkeit und Version — kein Auth erforderlich, Cache 30 s."""
+    global _ha_status_cache
+    now = datetime.utcnow()
+    last_check = _ha_status_cache.get("checked_at")
+    if last_check is None or (now - last_check).total_seconds() > 30:
+        opts = load_options()
+        ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
+        ha_token = opts.get("ha_token") or ""
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"{ha_url}/api/config",
+                    headers={"Authorization": f"Bearer {ha_token}"},
+                )
+            if resp.status_code == 200:
+                version = resp.json().get("version", "")
+                if not _ha_status_cache.get("reachable"):
+                    _ha_status_cache["since"] = now.strftime("%d.%m.%Y %H:%M")
+                _ha_status_cache.update({"reachable": True, "version": version, "checked_at": now})
+            else:
+                _ha_status_cache.update({"reachable": False, "checked_at": now})
+        except Exception:
+            _ha_status_cache.update({"reachable": False, "checked_at": now})
+    return {
+        "reachable":    _ha_status_cache.get("reachable", False),
+        "version":      _ha_status_cache.get("version"),
+        "online_since": _ha_status_cache.get("since"),
+    }
 
 
 @app.get("/login", response_class=HTMLResponse)

@@ -112,6 +112,27 @@
     }
 
     .error.visible { display: block; }
+
+    .ha-status {
+      margin-top: 24px;
+      padding-top: 14px;
+      border-top: 1px solid #374151;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      color: #6b7280;
+    }
+
+    .ha-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #374151;
+    }
+    .ha-status.online .dot  { background: #22c55e; }
+    .ha-status.offline .dot { background: #ef4444; }
   </style>
 </head>
 <body>
@@ -124,6 +145,7 @@
     </div>
 
     <div class="error" id="error-msg"></div>
+
 
     <form method="post" action="/login">
       <div class="form-group">
@@ -149,6 +171,11 @@
       </div>
       <button type="submit" id="btn-submit">Anmelden</button>
     </form>
+
+    <div class="ha-status" id="ha-status">
+      <span class="dot"></span>
+      <span id="ha-status-text">Home Assistant …</span>
+    </div>
   </div>
 
   <script>
@@ -193,6 +220,26 @@
         }
       })
       .catch(() => {});
+
+    fetch('/api/public/ha-status')
+      .then(r => r.json())
+      .then(data => {
+        const wrap = document.getElementById('ha-status');
+        const txt  = document.getElementById('ha-status-text');
+        if (data.reachable) {
+          wrap.classList.add('online');
+          let label = 'Home Assistant';
+          if (data.version) label += ` ${data.version}`;
+          if (data.online_since) label += ` — online seit ${data.online_since}`;
+          txt.textContent = label;
+        } else {
+          wrap.classList.add('offline');
+          txt.textContent = 'Home Assistant nicht erreichbar';
+        }
+      })
+      .catch(() => {
+        document.getElementById('ha-status-text').textContent = 'Home Assistant Status unbekannt';
+      });
   </script>
 </body>
 </html>

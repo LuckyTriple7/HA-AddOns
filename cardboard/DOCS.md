@@ -29,12 +29,12 @@ Alle Benutzer-Konfigurationen liegen unter `/config/addons_config/cardboard/`:
 ```
 /config/addons_config/cardboard/
 ├── users.yaml
-├── andy/
+├── user1/
 │   ├── solar.j2
 │   ├── temps.j2
 │   └── netz.j2
-└── mika/
-    └── uebersicht.j2
+└── user2/
+    └── overview.j2
 ```
 
 ---
@@ -43,9 +43,9 @@ Alle Benutzer-Konfigurationen liegen unter `/config/addons_config/cardboard/`:
 
 ```yaml
 users:
-  - username: andy
+  - username: user1
     password: geheim123
-    display_name: Andreas Mustermann
+    display_name: Max Mustermann
     lang: de
     templates:
       - file: solar.j2
@@ -54,12 +54,12 @@ users:
         title: Temperaturen
       - file: netz.j2
         title: Netzverbrauch
-  - username: mika
+  - username: user2
     password: anderes_passwort
-    display_name: Mika Musterfrau
+    display_name: Jane Doe
     lang: en
     templates:
-      - uebersicht.j2        # Kurzform ohne Titel ist weiterhin gültig
+      - overview.j2        # Kurzform ohne Titel ist weiterhin gültig
 ```
 
 - `username` wird kleingeschrieben verglichen (Groß-/Kleinschreibung egal beim Login)
@@ -103,7 +103,7 @@ Das Ergebnis (nur die 64 Hex-Zeichen, ohne das abschließende ` -`) wird als `pa
 
 ```yaml
 users:
-  - username: andy
+  - username: user1
     password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
 ```
 
@@ -165,7 +165,7 @@ Query-Parameter:
 
 ```sh
 curl http://<HA-IP>:17773/api/admin/logins?status=failed
-curl http://<HA-IP>:17773/api/admin/logins?username=andy&limit=20
+curl http://<HA-IP>:17773/api/admin/logins?username=user1&limit=20
 ```
 
 ```json
@@ -174,7 +174,7 @@ curl http://<HA-IP>:17773/api/admin/logins?username=andy&limit=20
   "limit": 100,
   "offset": 0,
   "events": [
-    { "timestamp": "2025-05-28T14:22:01", "username": "andy", "success": false, "ip": "192.168.1.42" }
+    { "timestamp": "2025-05-28T14:22:01", "username": "user1", "success": false, "ip": "192.168.1.42" }
   ]
 }
 ```

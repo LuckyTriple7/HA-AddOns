@@ -242,6 +242,22 @@
       flex-shrink: 0;
     }
 
+    .ha-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .ha-status-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-ftr);
+      flex-shrink: 0;
+    }
+    .ha-status-badge.online .dot  { background: #22c55e; }
+    .ha-status-badge.offline .dot { background: #ef4444; }
+
     /* ── Responsive ──────────────────────────────────── */
     @media (max-width: 800px) {
       .cards-container { flex-direction: column; }
@@ -277,7 +293,10 @@
 
   <footer>
     <span id="last-update"></span>
-    <span>CardBoard</span>
+    <span class="ha-status-badge" id="ha-status-badge">
+      <span class="dot"></span>
+      <span id="ha-status-text">Home Assistant</span>
+    </span>
   </footer>
 
   <script>
@@ -397,6 +416,29 @@
       renderCards().then(startCountdown);
     });
 
+    /* ── HA Status ───────────────────────────────────── */
+    async function updateHaStatus() {
+      try {
+        const r = await fetch('/api/public/ha-status');
+        const data = await r.json();
+        const badge = document.getElementById('ha-status-badge');
+        const txt   = document.getElementById('ha-status-text');
+        badge.classList.remove('online', 'offline');
+        if (data.reachable) {
+          badge.classList.add('online');
+          let label = 'Home Assistant';
+          if (data.version) label += ` ${data.version}`;
+          if (data.online_since) label += ` — online seit ${data.online_since}`;
+          txt.textContent = label;
+        } else {
+          badge.classList.add('offline');
+          txt.textContent = 'Home Assistant nicht erreichbar';
+        }
+      } catch {
+        /* ignorieren */
+      }
+    }
+
     /* ── Init ────────────────────────────────────────── */
     async function init() {
       const config = await loadConfig();
@@ -413,6 +455,8 @@
 
       await renderCards();
       startCountdown();
+      updateHaStatus();
+      setInterval(updateHaStatus, 60_000);
     }
 
     init();

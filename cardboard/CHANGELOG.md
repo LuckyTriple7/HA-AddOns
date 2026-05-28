@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+- HA-Status-Anzeige auf der Login-Seite (🟢/🔴 Punkt, Version, online seit)
+- HA-Status-Badge im Footer der View-Seite (wird jede Minute aktualisiert)
+- Neuer öffentlicher Endpunkt `/api/public/ha-status` (kein Login erforderlich, Cache 30 s)
+
 ## 0.0.5
 - port/admin_port vollständig aus Schema entfernt (verhindert doppelte Anzeige in HA UI)
 
