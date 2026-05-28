@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.27
+- Template-Editor: Live-Vorschau (Toggle-Button, automatische Aktualisierung 600ms nach Eingabe)
+- Vorschau rendert das Template über die HA-API und zeigt die Karte im selben Look wie die View-Seite
+
 ## 0.0.26
 - Admin-Panel: Template-Editor (neue Seite /admin/templates/{username})
 - Templates anlegen, bearbeiten und löschen direkt im Browser

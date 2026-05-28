@@ -653,6 +653,13 @@ async def ingress_admin_panel(request: Request):
     return _serve_admin_html("admin.html")
 
 
+@ingress_app.post("/admin/api/preview")
+async def ingress_preview(request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_preview(request)
+
+
 @ingress_app.get("/admin/api/recent-logins")
 async def ingress_admin_recent_logins(request: Request):
     if not admin_panel_allowed(request):
@@ -749,6 +756,13 @@ async def admin_panel_direct(request: Request):
     if expected and not get_admin_session(request):
         return _admin_login_redirect()
     return _serve_admin_html("admin.html")
+
+
+@admin_app.post("/admin/api/preview")
+async def admin_preview_direct(request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_preview(request)
 
 
 @admin_app.get("/admin/api/recent-logins")
@@ -880,6 +894,29 @@ async def admin_delete_template(username: str, filename: str, request: Request):
 
 
 # ── Admin business logic (shared) ────────────────────────────────────────────
+
+async def _admin_preview(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+    content = body.get("template", "")
+    opts = load_options()
+    ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
+    ha_token = opts.get("ha_token") or ""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{ha_url}/api/template",
+                headers={"Authorization": f"Bearer {ha_token}", "Content-Type": "application/json"},
+                json={"template": content},
+            )
+        if resp.status_code == 200:
+            return JSONResponse({"rendered": resp.text})
+        return JSONResponse({"error": f"HA {resp.status_code}", "detail": resp.text[:500]})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=503)
+
 
 def _admin_recent_logins():
     with sqlite3.connect(DB_PATH) as conn:

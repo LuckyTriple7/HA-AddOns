@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CardBoard Admin – Templates</title>
   <link rel="icon" type="image/png" href="/static/favicon.png">
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
   <style>
     :root {
       --bg:         #111827;
@@ -322,10 +323,100 @@
     .modal p  { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; }
     .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
 
+    /* Editor / Preview split */
+    .editor-split { display: flex; flex: 1; overflow: hidden; }
+    .editor-split .editor-body { flex: 1; min-width: 0; border-right: 1px solid var(--border); }
+    .preview-pane {
+      flex: 1;
+      min-width: 0;
+      overflow-y: auto;
+      padding: 16px 20px;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .preview-pane.hidden { display: none; }
+    .preview-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    /* Card (same look as view.html) */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      font-family: ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+    .card p   { margin: 0; }
+    .card h1, .card h2, .card h3 {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--c-heading, #60a5fa);
+      white-space: normal;
+      margin: 0.5em 0 0.2em;
+    }
+    :root.light .card h1,
+    :root.light .card h2,
+    :root.light .card h3 { color: #1d4ed8; }
+    .card h1 { font-size: 1.1rem; }
+    .card h2 { font-size: 1rem; }
+    .card h3 { font-size: 0.93rem; }
+    .card strong { color: #fbbf24; font-weight: 700; }
+    :root.light .card strong { color: #b45309; }
+    .card em { color: #a78bfa; font-style: italic; }
+    :root.light .card em { color: #6d28d9; }
+    .card a  { color: var(--accent); text-decoration: none; }
+    .card a:hover { text-decoration: underline; }
+    .card code {
+      background: var(--bg-deep);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.85em;
+    }
+    .card pre {
+      background: var(--bg-deep);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 0.4em 0;
+    }
+    .card pre code { background: none; padding: 0; }
+    .card table { border-collapse: collapse; width: 100%; margin: 0.4em 0; white-space: normal; font-family: inherit; }
+    .card th, .card td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+    .card th { background: var(--bg-deep); color: var(--text-muted); font-weight: 600; }
+    .card hr { border: none; border-top: 1px solid var(--border); margin: 0.6em 0; }
+    .card ul, .card ol { padding-left: 1.4em; white-space: normal; }
+    .preview-error {
+      color: var(--danger);
+      font-size: 0.8rem;
+      font-family: monospace;
+      padding: 10px 14px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+    }
+    .preview-spinner {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-align: center;
+      padding: 20px;
+    }
+
     /* Responsive */
     @media (max-width: 720px) {
       main { flex-direction: column; }
       .panel-left { width: 100%; height: 220px; border-right: none; border-bottom: 1px solid var(--border); }
+      .editor-split { flex-direction: column; }
     }
   </style>
 </head>
@@ -415,6 +506,10 @@
         labelContent: 'Inhalt',
         save:         'Speichern',
         cancel:       'Abbrechen',
+        preview:      'Vorschau',
+        previewOff:   'Vorschau aus',
+        previewLabel: 'Vorschau',
+        previewHint:  'Vorschau wird geladen…',
         dmTitle:      'Template löschen',
         dmText:       f => `Template "${f}" wirklich löschen? Die Datei wird entfernt.`,
         dmCancel:     'Abbrechen',
@@ -442,6 +537,10 @@
         labelContent: 'Content',
         save:         'Save',
         cancel:       'Cancel',
+        preview:      'Preview',
+        previewOff:   'Hide preview',
+        previewLabel: 'Preview',
+        previewHint:  'Loading preview…',
         dmTitle:      'Delete template',
         dmText:       f => `Really delete template "${f}"? The file will be removed.`,
         dmCancel:     'Cancel',
@@ -535,11 +634,17 @@
     }
 
     /* ── Editor ── */
+    let previewVisible = false;
+    let previewDebounce = null;
+
     function showEditor(filename, title, content, isNew) {
       const pr = document.getElementById('panel-right');
       pr.innerHTML = `
         <div class="editor-header">
           <h2 id="editor-title">${isNew ? t.newTemplate : esc(filename)}</h2>
+          <button class="btn btn-ghost btn-sm" id="btn-preview-toggle" onclick="togglePreview()">
+            👁 ${t.preview}
+          </button>
         </div>
         <div class="editor-fields">
           <div class="field-group">
@@ -552,15 +657,64 @@
             <input type="text" id="field-title" value="${esc(title)}" placeholder="${t.labelTitle}">
           </div>
         </div>
-        <div class="editor-body">
-          <textarea id="editor" spellcheck="false">${esc(content)}</textarea>
+        <div class="editor-split">
+          <div class="editor-body">
+            <textarea id="editor" spellcheck="false">${esc(content)}</textarea>
+          </div>
+          <div class="preview-pane hidden" id="preview-pane">
+            <div class="preview-label">${t.previewLabel}</div>
+            <div class="card" id="preview-card"><span style="color:var(--text-muted);font-size:0.8rem">${t.previewHint}</span></div>
+          </div>
         </div>
         <div class="editor-footer-bar">
           <button class="btn btn-primary" onclick="saveTemplate(${isNew})">${t.save}</button>
           <button class="btn btn-ghost" onclick="cancelEdit()">${t.cancel}</button>
         </div>
       `;
-      document.getElementById('editor').addEventListener('input', () => { isDirty = true; });
+      const editor = document.getElementById('editor');
+      editor.addEventListener('input', () => {
+        isDirty = true;
+        if (previewVisible) schedulePreview();
+      });
+      if (previewVisible) renderPreview();
+    }
+
+    function togglePreview() {
+      previewVisible = !previewVisible;
+      const pane = document.getElementById('preview-pane');
+      const btn  = document.getElementById('btn-preview-toggle');
+      if (!pane || !btn) return;
+      pane.classList.toggle('hidden', !previewVisible);
+      btn.innerHTML = previewVisible ? `👁 ${t.previewOff}` : `👁 ${t.preview}`;
+      if (previewVisible) renderPreview();
+    }
+
+    function schedulePreview() {
+      clearTimeout(previewDebounce);
+      previewDebounce = setTimeout(renderPreview, 600);
+    }
+
+    async function renderPreview() {
+      const content = document.getElementById('editor')?.value || '';
+      const card    = document.getElementById('preview-card');
+      if (!card) return;
+      card.innerHTML = `<span style="color:var(--text-muted);font-size:0.8rem">${t.previewHint}</span>`;
+      try {
+        const r = await fetch('../api/preview', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ template: content }),
+        });
+        const d = await r.json();
+        if (d.rendered !== undefined) {
+          marked.use({ breaks: true, gfm: true });
+          card.innerHTML = marked.parse(d.rendered);
+        } else {
+          card.innerHTML = `<div class="preview-error">⚠ ${esc(d.error || 'Fehler')}\n${esc(d.detail || '')}</div>`;
+        }
+      } catch (e) {
+        card.innerHTML = `<div class="preview-error">⚠ ${esc(String(e))}</div>`;
+      }
     }
 
     async function selectTemplate(filename) {
