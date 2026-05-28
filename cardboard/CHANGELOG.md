@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.23
+- Admin-Panel: Uhr im Header (live, Sekundenanzeige)
+- Admin-Panel: Header-Buttons (Reload, Theme, Abmelden) einheitlich wie in der View-Seite
+
 ## 0.0.22
 - Admin-Panel: Footer mit letztem erfolgreichen und fehlgeschlagenen Login (Benutzer, Zeitstempel, IP)
 

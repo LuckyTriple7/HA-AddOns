@@ -66,33 +66,32 @@
       padding: 2px 9px;
       color: var(--text-muted);
     }
-    .btn-reload {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 5px 10px;
-      color: var(--text-muted);
-      font-size: 1rem;
-      cursor: pointer;
-      line-height: 1;
-      transition: border-color 0.2s, color 0.2s;
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .clock {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
     }
-    .btn-reload:hover { border-color: var(--text-muted); color: var(--text); }
-    .btn-reload .icon { display: inline-block; transition: transform 0.4s; }
-    .btn-reload.spinning .icon { transform: rotate(360deg); }
-
-    .btn-logout {
-      background: transparent;
+    .btn-hdr {
+      background: var(--bg-deep);
+      color: var(--text);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 5px 14px;
-      color: var(--text-muted);
+      padding: 6px 12px;
       font-size: 0.8rem;
       cursor: pointer;
       text-decoration: none;
-      transition: border-color 0.2s, color 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.2s, border-color 0.2s;
+      white-space: nowrap;
     }
-    .btn-logout:hover { border-color: var(--text-muted); color: var(--text); }
+    .btn-hdr:hover { background: var(--border); }
+    .btn-hdr .icon { display: inline-block; transition: transform 0.4s; }
+    .btn-hdr.spinning .icon { transform: rotate(360deg); }
 
     /* Main */
     main { padding: 24px; flex: 1; }
@@ -253,9 +252,12 @@
       <h1>CardBoard</h1>
       <span class="badge">Admin</span>
     </div>
-    <button class="btn-reload" id="btn-theme" title="Theme">☀</button>
-    <button class="btn-reload" id="btn-reload" title="Aktualisieren"><span class="icon">↻</span></button>
-    <a href="logout" class="btn-logout" id="btn-logout">Abmelden</a>
+    <div class="header-right">
+      <span class="clock" id="clock"></span>
+      <button class="btn-hdr" id="btn-reload" title="Aktualisieren"><span class="icon">↻</span></button>
+      <button class="btn-hdr" id="btn-theme" title="Theme">☀</button>
+      <a href="logout" class="btn-hdr" id="btn-logout">Abmelden</a>
+    </div>
   </header>
 
   <main>
@@ -786,12 +788,22 @@
       applyTheme(next);
     });
 
+    /* ── Clock ─── */
+    function updateClock() {
+      const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+      document.getElementById('clock').textContent =
+        new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
     /* ── Reload button ─── */
     const btnReload = document.getElementById('btn-reload');
     btnReload.addEventListener('click', () => {
       btnReload.classList.add('spinning');
       setTimeout(() => btnReload.classList.remove('spinning'), 400);
       loadUsers();
+      loadFooter();
     });
 
     /* ── Init ─── */
