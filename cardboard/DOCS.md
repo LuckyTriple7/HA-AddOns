@@ -133,7 +133,19 @@ Für Leerzeichen-ausgerichteten Text (wie in HA Markdown-Karten üblich) wird de
 
 ## Admin-API
 
-Die Admin-API läuft auf einem separaten Port (Standard: **17773**) und ist ausschließlich aus dem lokalen Netzwerk (RFC-1918-Adressen) erreichbar. Anfragen von öffentlichen IPs werden mit `403 Forbidden` abgewiesen.
+Die Admin-API läuft auf einem separaten Port (Standard: **17773**) und ist ausschließlich aus dem lokalen Netzwerk erreichbar. Anfragen von öffentlichen IPs werden mit `403 Forbidden` abgewiesen.
+
+Zugelassene IP-Bereiche:
+
+| Bereich | Beschreibung |
+|---|---|
+| `10.0.0.0/8` | Private IPv4 (RFC-1918) |
+| `172.16.0.0/12` | Private IPv4 (RFC-1918) |
+| `192.168.0.0/16` | Private IPv4 (RFC-1918) |
+| `127.0.0.0/8` | Loopback IPv4 |
+| `::1` | Loopback IPv6 |
+| `169.254.0.0/16` | Link-Local IPv4 |
+| `fe80::/10` | Link-Local IPv6 |
 
 > **nginx**: Port 17773 **nicht** in der nginx-Konfiguration eintragen — nur Port 17772 proxyen.
 

@@ -131,7 +131,19 @@ For space-aligned text (as commonly used in HA Markdown cards), content is displ
 
 ## Admin API
 
-The Admin API runs on a separate port (default: **17773**) and is accessible exclusively from the local network (RFC-1918 addresses). Requests from public IPs are rejected with `403 Forbidden`.
+The Admin API runs on a separate port (default: **17773**) and is accessible exclusively from the local network. Requests from public IPs are rejected with `403 Forbidden`.
+
+Accepted IP ranges:
+
+| Range | Description |
+|---|---|
+| `10.0.0.0/8` | Private IPv4 (RFC-1918) |
+| `172.16.0.0/12` | Private IPv4 (RFC-1918) |
+| `192.168.0.0/16` | Private IPv4 (RFC-1918) |
+| `127.0.0.0/8` | Loopback IPv4 |
+| `::1` | Loopback IPv6 |
+| `169.254.0.0/16` | Link-Local IPv4 |
+| `fe80::/10` | Link-Local IPv6 |
 
 > **nginx**: Do **not** include port 17773 in the nginx configuration — only proxy port 17772.
 
