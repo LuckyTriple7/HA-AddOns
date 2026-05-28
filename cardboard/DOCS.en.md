@@ -17,6 +17,8 @@ CardBoard renders Jinja2 templates directly via the HA Template API and displays
 | `uptime_sensor` | Entity ID of the HA uptime sensor (optional) | `sensor.uptime` |
 | `session_lifetime` | Login cookie lifetime in days (optional) | `7` |
 | `notify_failed_login` | Send a persistent HA notification on failed login (optional) | `true` |
+| `pw_min_length` | Minimum length for new passwords (optional) | `8` |
+| `pw_require_special` | Password must contain at least one number or special character (optional) | `true` |
 
 The uptime sensor is used for the "online since" indicator on the login and view pages. It requires the **Uptime integration** to be set up: <https://www.home-assistant.io/integrations/uptime/>  
 If no value is available (sensor missing or `unavailable`), the indicator is simply omitted.

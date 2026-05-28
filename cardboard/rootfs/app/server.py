@@ -55,6 +55,16 @@ def load_users() -> list:
     return data.get("users", []) if data else []
 
 
+def validate_new_password(password: str, opts: dict) -> str | None:
+    min_len = max(1, int(opts.get("pw_min_length") or 8))
+    if len(password) < min_len:
+        return "password_too_short"
+    if opts.get("pw_require_special", True):
+        if not any(c.isdigit() or not c.isalnum() for c in password):
+            return "password_no_special"
+    return None
+
+
 def write_users(yaml_data: dict):
     """Schreibt users.yaml atomar (via tmp-Datei)."""
     users_file = CONFIG_DIR / "users.yaml"
@@ -292,6 +302,11 @@ async def api_change_password(request: Request):
     if new_pw != conf_pw:
         return JSONResponse({"error": "passwords_mismatch"}, status_code=400)
 
+    opts = load_options()
+    err = validate_new_password(new_pw, opts)
+    if err:
+        return JSONResponse({"error": err, "pw_min_length": int(opts.get("pw_min_length") or 8)}, status_code=400)
+
     users_file = CONFIG_DIR / "users.yaml"
     with open(users_file, encoding="utf-8") as f:
         yaml_data = yaml.safe_load(f) or {}
@@ -331,11 +346,13 @@ async def api_config(request: Request):
         lang = "de"
 
     return {
-        "username": username,
-        "display_name": display_name,
-        "lang": lang,
+        "username":         username,
+        "display_name":     display_name,
+        "lang":             lang,
         "refresh_interval": opts.get("refresh_interval", 30),
-        "card_count": min(len(templates), 3),
+        "card_count":       min(len(templates), 3),
+        "pw_min_length":    int(opts.get("pw_min_length") or 8),
+        "pw_require_special": bool(opts.get("pw_require_special", True)),
     }
 
 

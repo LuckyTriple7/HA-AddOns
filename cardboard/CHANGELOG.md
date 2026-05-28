@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.14
+- Option `pw_min_length` (int, Default: 8) — Mindestlänge für neue Passwörter
+- Option `pw_require_special` (bool, Default: true) — Zahl oder Sonderzeichen erforderlich
+- Passwort-Anforderungen werden im Ändern-Dialog unterhalb des Feldes angezeigt
+- Validierung client- und serverseitig
+
 ## 0.0.13
 - client_ip() liest X-Forwarded-For Header aus — echte Client-IP statt Docker-Netzwerk-IP hinter nginx
 
