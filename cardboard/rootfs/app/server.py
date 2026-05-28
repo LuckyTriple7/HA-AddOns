@@ -804,6 +804,81 @@ async def admin_reset_password_direct(username: str, request: Request):
 admin_app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static_admin")
 
 
+# ── Template page routes ─────────────────────────────────────────────────────
+
+@ingress_app.get("/admin/templates/{username}", response_class=HTMLResponse)
+async def ingress_templates_page(username: str, request: Request):
+    if not admin_panel_allowed(request):
+        return Response(status_code=302, headers={"Location": "../login"})
+    return _serve_admin_html("admin_templates.html")
+
+
+@ingress_app.get("/admin/api/users/{username}/templates")
+async def ingress_list_templates(username: str, request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_templates(username)
+
+
+@ingress_app.get("/admin/api/users/{username}/templates/{filename}")
+async def ingress_get_template(username: str, filename: str, request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_template_content(username, filename)
+
+
+@ingress_app.put("/admin/api/users/{username}/templates/{filename}")
+async def ingress_save_template(username: str, filename: str, request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_save_template(username, filename, request)
+
+
+@ingress_app.delete("/admin/api/users/{username}/templates/{filename}")
+async def ingress_delete_template(username: str, filename: str, request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_delete_template(username, filename)
+
+
+@admin_app.get("/admin/templates/{username}", response_class=HTMLResponse)
+async def admin_templates_page(username: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    opts = load_options()
+    if (opts.get("admin_password") or "").strip() and not get_admin_session(request):
+        return Response(status_code=302, headers={"Location": "../login"})
+    return _serve_admin_html("admin_templates.html")
+
+
+@admin_app.get("/admin/api/users/{username}/templates")
+async def admin_list_templates(username: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_templates(username)
+
+
+@admin_app.get("/admin/api/users/{username}/templates/{filename}")
+async def admin_get_template(username: str, filename: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_template_content(username, filename)
+
+
+@admin_app.put("/admin/api/users/{username}/templates/{filename}")
+async def admin_save_template(username: str, filename: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_save_template(username, filename, request)
+
+
+@admin_app.delete("/admin/api/users/{username}/templates/{filename}")
+async def admin_delete_template(username: str, filename: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_delete_template(username, filename)
+
+
 # ── Admin business logic (shared) ────────────────────────────────────────────
 
 def _admin_recent_logins():
@@ -819,6 +894,99 @@ def _admin_recent_logins():
             "AND timestamp >= datetime('now', '-24 hours')"
         ).fetchone()[0]
     return JSONResponse({"last_success": last(1), "last_failed": last(0), "failed_24h": failed_24h})
+
+
+def _normalize_templates(templates: list) -> list:
+    result = []
+    for e in (templates or []):
+        result.append({"file": e.get("file", ""), "title": e.get("title") or ""} if isinstance(e, dict) else {"file": str(e), "title": ""})
+    return result
+
+
+def _admin_get_templates(username: str):
+    username = username.lower()
+    users = load_users()
+    user = next((u for u in users if (u.get("username") or "").lower() == username), None)
+    if not user:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    result = []
+    for t in _normalize_templates(user.get("templates")):
+        path = safe_child(CONFIG_DIR / username, t["file"]) if t["file"] else None
+        result.append({**t, "exists": bool(path and path.exists())})
+    return JSONResponse(result)
+
+
+def _admin_get_template_content(username: str, filename: str):
+    username = username.lower()
+    path = safe_child(CONFIG_DIR / username, filename)
+    if not path:
+        return JSONResponse({"error": "invalid_path"}, status_code=400)
+    if not path.exists():
+        return JSONResponse({"content": ""})
+    return JSONResponse({"content": path.read_text(encoding="utf-8")})
+
+
+async def _admin_save_template(username: str, filename: str, request: Request):
+    username = username.lower()
+    if not re.match(r'^[a-zA-Z0-9_\-]+\.j2$', filename):
+        return JSONResponse({"error": "invalid_filename"}, status_code=400)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+    content = body.get("content", "")
+    title   = body.get("title", "")
+
+    path = safe_child(CONFIG_DIR / username, filename)
+    if not path:
+        return JSONResponse({"error": "invalid_path"}, status_code=400)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+    users_file = CONFIG_DIR / "users.yaml"
+    if not users_file.exists():
+        return JSONResponse({"error": "users_file_missing"}, status_code=500)
+    with open(users_file, encoding="utf-8") as f:
+        yaml_data = yaml.safe_load(f) or {}
+    users = yaml_data.get("users") or []
+    user  = next((u for u in users if (u.get("username") or "").lower() == username), None)
+    if not user:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+
+    normalized = _normalize_templates(user.get("templates"))
+    entry = next((t for t in normalized if t["file"] == filename), None)
+    if entry:
+        entry["title"] = title
+    else:
+        normalized.append({"file": filename, "title": title})
+    user["templates"] = [{"file": t["file"], "title": t["title"]} if t["title"] else t["file"] for t in normalized]
+    write_users(yaml_data)
+    log.info("Admin: Template '%s' für '%s' gespeichert", filename, username)
+    return JSONResponse({"success": True})
+
+
+def _admin_delete_template(username: str, filename: str):
+    username = username.lower()
+    path = safe_child(CONFIG_DIR / username, filename)
+    if not path:
+        return JSONResponse({"error": "invalid_path"}, status_code=400)
+
+    users_file = CONFIG_DIR / "users.yaml"
+    if users_file.exists():
+        with open(users_file, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f) or {}
+        users = yaml_data.get("users") or []
+        user  = next((u for u in users if (u.get("username") or "").lower() == username), None)
+        if user:
+            normalized = _normalize_templates(user.get("templates"))
+            normalized = [t for t in normalized if t["file"] != filename]
+            user["templates"] = [{"file": t["file"], "title": t["title"]} if t["title"] else t["file"] for t in normalized]
+            write_users(yaml_data)
+
+    if path.exists():
+        path.unlink()
+    log.info("Admin: Template '%s' für '%s' gelöscht", filename, username)
+    return JSONResponse({"success": True})
 
 
 def _admin_list_users():

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.26
+- Admin-Panel: Template-Editor (neue Seite /admin/templates/{username})
+- Templates anlegen, bearbeiten und löschen direkt im Browser
+- Split-Layout: Templateliste links, Editor rechts
+- Titel pro Template einstellbar
+- Fehlende Template-Dateien werden in der Liste markiert
+- 📝-Button in der Benutzertabelle öffnet den Template-Editor
+
 ## 0.0.25
 - Admin-Panel: Footer zeigt zusätzlich die Anzahl fehlgeschlagener Logins der letzten 24h
 

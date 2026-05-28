@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="de" id="html-root">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CardBoard Admin – Templates</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <style>
+    :root {
+      --bg:         #111827;
+      --bg-surface: #1f2937;
+      --bg-deep:    #0d1117;
+      --border:     #374151;
+      --text:       #e5e7eb;
+      --text-muted: #9ca3af;
+      --accent:     #3b82f6;
+      --danger:     #ef4444;
+      --success:    #22c55e;
+      --warn:       #f59e0b;
+    }
+    :root.light {
+      --bg:         #f3f4f6;
+      --bg-surface: #ffffff;
+      --bg-deep:    #f3f4f6;
+      --border:     #e5e7eb;
+      --text:       #111827;
+      --text-muted: #6b7280;
+      --accent:     #2563eb;
+      --danger:     #dc2626;
+      --success:    #16a34a;
+      --warn:       #d97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 0.9rem;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* Header */
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 11px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 1rem; font-weight: 700; }
+    .badge {
+      font-size: 0.7rem;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px 9px;
+      color: var(--text-muted);
+    }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .clock {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+    }
+    .btn-hdr {
+      background: var(--bg-deep);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    }
+    .btn-hdr:hover { background: var(--border); }
+    .btn-hdr .icon { display: inline-block; transition: transform 0.4s; }
+    .btn-hdr.spinning .icon { transform: rotate(360deg); }
+
+    /* Breadcrumb */
+    .breadcrumb {
+      padding: 10px 24px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    /* Main split layout */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Left panel — template list */
+    .panel-left {
+      width: 280px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+    .panel-header h2 { font-size: 0.85rem; font-weight: 600; }
+    .tpl-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    .tpl-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-left: 3px solid transparent;
+    }
+    .tpl-item:hover   { background: rgba(255,255,255,0.04); }
+    .tpl-item.active  { background: rgba(59,130,246,0.1); border-left-color: var(--accent); }
+    .tpl-item-info    { flex: 1; min-width: 0; }
+    .tpl-filename     { font-size: 0.82rem; font-weight: 600; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tpl-title        { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tpl-missing      { font-size: 0.65rem; color: var(--warn); }
+    .tpl-actions      { display: flex; gap: 4px; flex-shrink: 0; }
+    .btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .btn-icon:hover         { background: var(--border); color: var(--text); }
+    .btn-icon.del:hover     { color: var(--danger); }
+    .empty-list { padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+
+    /* Right panel — editor */
+    .panel-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .editor-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .editor-header h2 { font-size: 0.85rem; font-weight: 600; }
+    .editor-fields {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      background: var(--bg-surface);
+    }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-group label { font-size: 0.72rem; color: var(--text-muted); }
+    .field-group input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .field-group input:focus { border-color: var(--accent); }
+    .field-group input:disabled { opacity: 0.5; cursor: not-allowed; }
+    #field-filename { font-family: monospace; width: 180px; }
+    #field-title    { width: 220px; }
+
+    .editor-body {
+      flex: 1;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #editor {
+      flex: 1;
+      background: var(--bg-deep);
+      color: var(--text);
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 16px 20px;
+      font-family: ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.7;
+      tab-size: 2;
+    }
+    .editor-footer-bar {
+      padding: 10px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-surface);
+    }
+    .editor-placeholder {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .btn:hover      { opacity: 0.85; }
+    .btn-primary    { background: var(--accent); color: #fff; }
+    .btn-ghost      { background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-danger     { background: var(--danger); color: #fff; }
+    .btn-sm         { padding: 4px 10px; font-size: 0.75rem; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 8px 24px;
+      display: flex;
+      gap: 28px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .footer-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-ok  { background: #22c55e; }
+    .dot-err { background: #ef4444; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 0.83rem;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.ok   { border-color: var(--success); color: var(--success); }
+    #toast.err  { border-color: var(--danger);  color: var(--danger); }
+
+    /* Delete confirm overlay */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .modal h3 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; }
+    .modal p  { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+
+    /* Responsive */
+    @media (max-width: 720px) {
+      main { flex-direction: column; }
+      .panel-left { width: 100%; height: 220px; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <span>📋</span>
+      <h1>CardBoard</h1>
+      <span class="badge">Admin</span>
+    </div>
+    <div class="header-right">
+      <span class="clock" id="clock"></span>
+      <button class="btn-hdr" id="btn-reload" title="Aktualisieren"><span class="icon">↻</span></button>
+      <button class="btn-hdr" id="btn-theme" title="Theme">☀</button>
+      <a href="../" class="btn-hdr" id="btn-back">← <span id="lbl-back">Admin Panel</span></a>
+    </div>
+  </header>
+
+  <div class="breadcrumb">
+    <a href="../" id="bc-admin">Admin Panel</a>
+    <span>›</span>
+    <span id="bc-user"></span>
+    <span>›</span>
+    <span id="bc-templates">Templates</span>
+  </div>
+
+  <main>
+    <!-- Left: Template list -->
+    <div class="panel-left">
+      <div class="panel-header">
+        <h2 id="lbl-templates">Templates</h2>
+        <button class="btn btn-primary btn-sm" id="btn-new" onclick="newTemplate()">+</button>
+      </div>
+      <div class="tpl-list" id="tpl-list">
+        <div class="empty-list" id="lbl-loading">Lade…</div>
+      </div>
+    </div>
+
+    <!-- Right: Editor -->
+    <div class="panel-right" id="panel-right">
+      <div class="editor-placeholder" id="editor-placeholder">
+        <span id="lbl-select">← Template auswählen oder neu anlegen</span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-item">
+      <span class="dot dot-ok"></span>
+      <span id="footer-success">—</span>
+    </div>
+    <div class="footer-item">
+      <span class="dot dot-err"></span>
+      <span id="footer-failed">—</span>
+    </div>
+    <div class="footer-item">
+      <span class="dot dot-err"></span>
+      <span id="footer-failed-24h">—</span>
+    </div>
+  </footer>
+
+  <!-- Delete confirm modal -->
+  <div class="overlay" id="modal-delete">
+    <div class="modal">
+      <h3 id="dm-title">Template löschen</h3>
+      <p id="dm-text"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="dm-cancel" onclick="closeDeleteModal()">Abbrechen</button>
+        <button class="btn btn-danger" id="dm-confirm" onclick="confirmDelete()">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const i18n = {
+      de: {
+        templates:    'Templates',
+        loading:      'Lade…',
+        selectHint:   '← Template auswählen oder neu anlegen',
+        noTemplates:  'Noch keine Templates.',
+        missing:      'Datei fehlt',
+        newTemplate:  'Neues Template',
+        labelFile:    'Dateiname (.j2)',
+        labelTitle:   'Titel (optional)',
+        labelContent: 'Inhalt',
+        save:         'Speichern',
+        cancel:       'Abbrechen',
+        dmTitle:      'Template löschen',
+        dmText:       f => `Template "${f}" wirklich löschen? Die Datei wird entfernt.`,
+        dmCancel:     'Abbrechen',
+        dmConfirm:    'Löschen',
+        back:         'Admin Panel',
+        bcTemplates:  'Templates',
+        toastSaved:   f => `${f} gespeichert.`,
+        toastDeleted: f => `${f} gelöscht.`,
+        toastErr:     'Fehler beim Speichern.',
+        errInvalidFilename: 'Dateiname: nur a–z, 0–9, _ - erlaubt, Endung .j2 erforderlich.',
+        footerSuccess:  (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
+        footerFailed:   (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
+        footerFailed24h: n => `Fehlversuche letzte 24h: ${n}`,
+        footerNone:     '—',
+      },
+      en: {
+        templates:    'Templates',
+        loading:      'Loading…',
+        selectHint:   '← Select a template or create a new one',
+        noTemplates:  'No templates yet.',
+        missing:      'File missing',
+        newTemplate:  'New Template',
+        labelFile:    'Filename (.j2)',
+        labelTitle:   'Title (optional)',
+        labelContent: 'Content',
+        save:         'Save',
+        cancel:       'Cancel',
+        dmTitle:      'Delete template',
+        dmText:       f => `Really delete template "${f}"? The file will be removed.`,
+        dmCancel:     'Cancel',
+        dmConfirm:    'Delete',
+        back:         'Admin Panel',
+        bcTemplates:  'Templates',
+        toastSaved:   f => `${f} saved.`,
+        toastDeleted: f => `${f} deleted.`,
+        toastErr:     'Error saving.',
+        errInvalidFilename: 'Filename: only a–z, 0–9, _ - allowed, must end with .j2.',
+        footerSuccess:  (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
+        footerFailed:   (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
+        footerFailed24h: n => `Failed attempts last 24h: ${n}`,
+        footerNone:     '—',
+      },
+    };
+    const lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+    const t = i18n[lang];
+    document.getElementById('html-root').lang = lang;
+
+    /* ── Detect username from URL ── */
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    const username  = pathParts[pathParts.length - 1] || '';
+    const apiBase   = '../api/users/' + username + '/templates';
+
+    /* ── Apply i18n ── */
+    document.getElementById('lbl-templates').textContent  = t.templates;
+    document.getElementById('lbl-loading').textContent    = t.loading;
+    document.getElementById('lbl-select').textContent     = t.selectHint;
+    document.getElementById('lbl-back').textContent       = t.back;
+    document.getElementById('bc-admin').textContent       = t.back;
+    document.getElementById('bc-user').textContent        = username;
+    document.getElementById('bc-templates').textContent   = t.bcTemplates;
+    document.getElementById('dm-title').textContent       = t.dmTitle;
+    document.getElementById('dm-cancel').textContent      = t.dmCancel;
+    document.getElementById('dm-confirm').textContent     = t.dmConfirm;
+
+    /* ── Theme ── */
+    const btnTheme = document.getElementById('btn-theme');
+    function applyTheme(theme) {
+      document.getElementById('html-root').classList.toggle('light', theme === 'light');
+      btnTheme.textContent = theme === 'light' ? '🌙' : '☀';
+      btnTheme.title = theme === 'light' ? 'Dark Mode' : 'Light Mode';
+    }
+    applyTheme(localStorage.getItem('cb_theme') || 'dark');
+    btnTheme.addEventListener('click', () => {
+      const next = document.getElementById('html-root').classList.contains('light') ? 'dark' : 'light';
+      localStorage.setItem('cb_theme', next);
+      applyTheme(next);
+    });
+
+    /* ── Clock ── */
+    const locale = lang === 'de' ? 'de-DE' : 'en-GB';
+    function updateClock() {
+      document.getElementById('clock').textContent =
+        new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    /* ── Template list ── */
+    let templates   = [];
+    let activeFile  = null;
+    let isDirty     = false;
+
+    async function loadTemplates() {
+      const r = await fetch(apiBase);
+      if (r.status === 401 || r.status === 403) { location.href = '../login'; return; }
+      templates = await r.json();
+      renderList();
+    }
+
+    function renderList() {
+      const el = document.getElementById('tpl-list');
+      if (!templates.length) {
+        el.innerHTML = `<div class="empty-list">${t.noTemplates}</div>`;
+        return;
+      }
+      el.innerHTML = templates.map(tpl => `
+        <div class="tpl-item${activeFile === tpl.file ? ' active' : ''}" onclick="selectTemplate('${esc(tpl.file)}')">
+          <div class="tpl-item-info">
+            <div class="tpl-filename">${esc(tpl.file)}</div>
+            ${tpl.title ? `<div class="tpl-title">${esc(tpl.title)}</div>` : ''}
+            ${!tpl.exists ? `<div class="tpl-missing">⚠ ${t.missing}</div>` : ''}
+          </div>
+          <div class="tpl-actions">
+            <button class="btn-icon del" onclick="event.stopPropagation();askDelete('${esc(tpl.file)}')" title="${t.dmConfirm}">🗑</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /* ── Editor ── */
+    function showEditor(filename, title, content, isNew) {
+      const pr = document.getElementById('panel-right');
+      pr.innerHTML = `
+        <div class="editor-header">
+          <h2 id="editor-title">${isNew ? t.newTemplate : esc(filename)}</h2>
+        </div>
+        <div class="editor-fields">
+          <div class="field-group">
+            <label>${t.labelFile}</label>
+            <input type="text" id="field-filename" value="${esc(filename)}" ${isNew ? '' : 'disabled'}
+                   placeholder="mein_template.j2" spellcheck="false">
+          </div>
+          <div class="field-group">
+            <label>${t.labelTitle}</label>
+            <input type="text" id="field-title" value="${esc(title)}" placeholder="${t.labelTitle}">
+          </div>
+        </div>
+        <div class="editor-body">
+          <textarea id="editor" spellcheck="false">${esc(content)}</textarea>
+        </div>
+        <div class="editor-footer-bar">
+          <button class="btn btn-primary" onclick="saveTemplate(${isNew})">${t.save}</button>
+          <button class="btn btn-ghost" onclick="cancelEdit()">${t.cancel}</button>
+        </div>
+      `;
+      document.getElementById('editor').addEventListener('input', () => { isDirty = true; });
+    }
+
+    async function selectTemplate(filename) {
+      if (isDirty && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+      isDirty = false;
+      activeFile = filename;
+      renderList();
+      const tpl = templates.find(t => t.file === filename);
+      const r = await fetch(`${apiBase}/${encodeURIComponent(filename)}`);
+      const data = await r.json();
+      showEditor(filename, tpl?.title || '', data.content || '', false);
+    }
+
+    function newTemplate() {
+      if (isDirty && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+      isDirty    = false;
+      activeFile = null;
+      renderList();
+      showEditor('', '', '', true);
+      setTimeout(() => document.getElementById('field-filename')?.focus(), 50);
+    }
+
+    function cancelEdit() {
+      isDirty    = false;
+      activeFile = null;
+      renderList();
+      document.getElementById('panel-right').innerHTML =
+        `<div class="editor-placeholder"><span>${t.selectHint}</span></div>`;
+    }
+
+    async function saveTemplate(isNew) {
+      const filename = (document.getElementById('field-filename')?.value || '').trim();
+      const title    = (document.getElementById('field-title')?.value    || '').trim();
+      const content  = document.getElementById('editor')?.value || '';
+
+      if (!/^[a-zA-Z0-9_\-]+\.j2$/.test(filename)) {
+        toast(t.errInvalidFilename, 'err');
+        return;
+      }
+
+      const r = await fetch(`${apiBase}/${encodeURIComponent(filename)}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content, title }),
+      });
+
+      if (!r.ok) { toast(t.toastErr, 'err'); return; }
+
+      isDirty    = false;
+      activeFile = filename;
+      toast(t.toastSaved(filename), 'ok');
+      await loadTemplates();
+      const tpl = templates.find(tp => tp.file === filename);
+      showEditor(filename, tpl?.title || title, content, false);
+    }
+
+    /* ── Delete ── */
+    let deleteTarget = null;
+    function askDelete(filename) {
+      deleteTarget = filename;
+      document.getElementById('dm-text').textContent = t.dmText(filename);
+      document.getElementById('modal-delete').classList.add('open');
+    }
+    function closeDeleteModal() {
+      document.getElementById('modal-delete').classList.remove('open');
+      deleteTarget = null;
+    }
+    async function confirmDelete() {
+      if (!deleteTarget) return;
+      const filename = deleteTarget;
+      closeDeleteModal();
+      await fetch(`${apiBase}/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      if (activeFile === filename) cancelEdit();
+      toast(t.toastDeleted(filename), 'ok');
+      await loadTemplates();
+    }
+
+    /* ── Reload ── */
+    const btnReload = document.getElementById('btn-reload');
+    btnReload.addEventListener('click', () => {
+      btnReload.classList.add('spinning');
+      setTimeout(() => btnReload.classList.remove('spinning'), 400);
+      loadTemplates();
+      loadFooter();
+    });
+
+    /* ── Footer ── */
+    async function loadFooter() {
+      try {
+        const r = await fetch('../api/recent-logins');
+        if (!r.ok) return;
+        const d = await r.json();
+        function fmt(entry, fn) {
+          if (!entry) return t.footerNone;
+          return fn(entry.username, entry.timestamp.replace('T',' ').slice(0,16), entry.ip || '?');
+        }
+        document.getElementById('footer-success').textContent  = fmt(d.last_success, t.footerSuccess);
+        document.getElementById('footer-failed').textContent   = fmt(d.last_failed,  t.footerFailed);
+        document.getElementById('footer-failed-24h').textContent = t.footerFailed24h(d.failed_24h ?? 0);
+      } catch {}
+    }
+
+    /* ── Helpers ── */
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    let toastTimer;
+    function toast(msg, type = 'ok') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `show ${type}`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.className = '', 3000);
+    }
+
+    /* ── Init ── */
+    loadTemplates();
+    loadFooter();
+  </script>
+</body>
+</html>

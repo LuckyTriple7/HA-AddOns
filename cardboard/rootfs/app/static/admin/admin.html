@@ -416,6 +416,7 @@
         noUsers:      'Keine Benutzer vorhanden.',
         tagPwChange:  'PW ändern',
         tagOk:        'OK',
+        btnTemplates: 'Templates bearbeiten',
         btnEdit:      'Bearbeiten',
         btnReset:     'PW reset',
         btnDelete:    'Löschen',
@@ -478,6 +479,7 @@
         noUsers:      'No users found.',
         tagPwChange:  'PW change',
         tagOk:        'OK',
+        btnTemplates: 'Edit templates',
         btnEdit:      'Edit',
         btnReset:     'PW reset',
         btnDelete:    'Delete',
@@ -595,7 +597,10 @@
           <td><strong>${esc(u.username)}</strong></td>
           <td>${esc(u.display_name || '—')}</td>
           <td>${esc(u.lang || 'de')}</td>
-          <td>${u.template_count}</td>
+          <td>
+            ${u.template_count}
+            <a href="templates/${esc(u.username)}" class="btn btn-ghost btn-sm" style="margin-left:6px" title="${t.btnTemplates}">📝</a>
+          </td>
           <td>${u.force_pw_change
             ? `<span class="tag tag-warn">${t.tagPwChange}</span>`
             : `<span class="tag tag-ok">${t.tagOk}</span>`}</td>
