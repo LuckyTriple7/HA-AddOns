@@ -12,7 +12,7 @@ import httpx
 import uvicorn
 import yaml
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
@@ -615,6 +615,11 @@ def _ingress_base(request: Request) -> str:
 
 # ── Ingress app (Port 17774, HA Ingress) ─────────────────────────────────────
 
+@ingress_app.get("/")
+async def ingress_root():
+    return Response(status_code=302, headers={"Location": "admin/"})
+
+
 @ingress_app.get("/admin/login", response_class=HTMLResponse)
 async def ingress_admin_login_page():
     return _serve_admin_html("admin_login.html")
@@ -694,6 +699,11 @@ async def ingress_admin_reset_password(username: str, request: Request):
 ingress_app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # ── Admin Panel routes on admin_app (Port 17773) ─────────────────────────────
+
+@admin_app.get("/")
+async def admin_root():
+    return Response(status_code=302, headers={"Location": "admin/"})
+
 
 @admin_app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page_direct():
