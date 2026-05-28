@@ -794,16 +794,28 @@ admin_app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static_
 
 def _admin_list_users():
     users = load_users()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT username, timestamp, ip_address FROM login_events "
+            "WHERE success = 1 AND id IN ("
+            "  SELECT MAX(id) FROM login_events WHERE success = 1 GROUP BY username"
+            ")"
+        ).fetchall()
+    last_logins = {r[0]: {"ts": r[1], "ip": r[2]} for r in rows}
+
     result = []
     for u in users:
         uname = (u.get("username") or "").lower()
-        templates = u.get("templates") or []
+        ll = last_logins.get(uname)
         result.append({
-            "username":       uname,
-            "display_name":   u.get("display_name") or "",
-            "lang":           u.get("lang") or "de",
-            "template_count": len(templates),
+            "username":        uname,
+            "display_name":    u.get("display_name") or "",
+            "lang":            u.get("lang") or "de",
+            "template_count":  len(u.get("templates") or []),
             "force_pw_change": bool(u.get("force_pw_change")),
+            "last_login_at":   ll["ts"] if ll else None,
+            "last_login_ip":   ll["ip"] if ll else None,
         })
     return JSONResponse(result)
 

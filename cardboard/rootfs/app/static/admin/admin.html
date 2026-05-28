@@ -223,11 +223,13 @@
             <th id="th-lang">Sprache</th>
             <th id="th-tpl">Templates</th>
             <th id="th-status">Status</th>
+            <th id="th-lastlogin">Letzter Login</th>
+            <th id="th-lastip">IP</th>
             <th id="th-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody id="user-tbody">
-          <tr><td colspan="6" class="empty" id="td-loading">Lade…</td></tr>
+          <tr><td colspan="8" class="empty" id="td-loading">Lade…</td></tr>
         </tbody>
       </table>
     </div>
@@ -341,6 +343,8 @@
         thLang:       'Sprache',
         thTpl:        'Templates',
         thStatus:     'Status',
+        thLastLogin:  'Letzter Login',
+        thLastIp:     'IP',
         thActions:    'Aktionen',
         loading:      'Lade…',
         noUsers:      'Keine Benutzer vorhanden.',
@@ -397,6 +401,8 @@
         thLang:       'Language',
         thTpl:        'Templates',
         thStatus:     'Status',
+        thLastLogin:  'Last Login',
+        thLastIp:     'IP',
         thActions:    'Actions',
         loading:      'Loading…',
         noUsers:      'No users found.',
@@ -459,7 +465,9 @@
       document.getElementById('th-lang').textContent     = t.thLang;
       document.getElementById('th-tpl').textContent      = t.thTpl;
       document.getElementById('th-status').textContent   = t.thStatus;
-      document.getElementById('th-actions').textContent  = t.thActions;
+      document.getElementById('th-lastlogin').textContent = t.thLastLogin;
+      document.getElementById('th-lastip').textContent    = t.thLastIp;
+      document.getElementById('th-actions').textContent   = t.thActions;
       document.getElementById('td-loading').textContent  = t.loading;
       document.getElementById('cm-title').textContent    = t.cmTitle;
       document.getElementById('cm-l-user').textContent   = t.cmLUser;
@@ -505,7 +513,7 @@
       usersCache = await r.json();
       const tbody = document.getElementById('user-tbody');
       if (!usersCache.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty">${t.noUsers}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="empty">${t.noUsers}</td></tr>`;
         return;
       }
       tbody.innerHTML = usersCache.map((u, i) => `
@@ -517,6 +525,8 @@
           <td>${u.force_pw_change
             ? `<span class="tag tag-warn">${t.tagPwChange}</span>`
             : `<span class="tag tag-ok">${t.tagOk}</span>`}</td>
+          <td style="font-variant-numeric:tabular-nums;white-space:nowrap">${u.last_login_at ? esc(u.last_login_at.replace('T',' ').slice(0,16)) : '<span style="color:var(--text-muted)">—</span>'}</td>
+          <td style="font-family:monospace;font-size:0.8rem">${u.last_login_ip ? esc(u.last_login_ip) : '<span style="color:var(--text-muted)">—</span>'}</td>
           <td>
             <div class="actions">
               <button class="btn btn-ghost btn-sm" onclick="openEditModal(${i})">${t.btnEdit}</button>
