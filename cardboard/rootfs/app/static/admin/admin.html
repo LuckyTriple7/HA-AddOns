@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CardBoard Admin</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <style>
+    :root {
+      --bg:         #111827;
+      --bg-surface: #1f2937;
+      --bg-deep:    #0d1117;
+      --border:     #374151;
+      --text:       #e5e7eb;
+      --text-muted: #9ca3af;
+      --accent:     #3b82f6;
+      --accent-h:   #2563eb;
+      --danger:     #ef4444;
+      --danger-h:   #dc2626;
+      --success:    #22c55e;
+      --warn:       #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 0.9rem;
+    }
+
+    /* Header */
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 1rem; font-weight: 700; }
+    .badge {
+      font-size: 0.7rem;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px 9px;
+      color: var(--text-muted);
+    }
+    .btn-logout {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 14px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-logout:hover { border-color: var(--text-muted); color: var(--text); }
+
+    /* Main */
+    main { padding: 24px; flex: 1; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-header h2 { font-size: 0.95rem; font-weight: 600; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary  { background: var(--accent);  color: #fff; }
+    .btn-danger   { background: var(--danger);  color: #fff; }
+    .btn-ghost {
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      background: var(--bg-surface);
+    }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .actions { display: flex; gap: 6px; }
+    .tag {
+      display: inline-block;
+      font-size: 0.68rem;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-weight: 600;
+    }
+    .tag-warn { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .tag-ok   { background: rgba(34,197,94,0.12);  color: var(--success); }
+
+    /* Modal */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 440px;
+    }
+    .modal h3 { font-size: 1rem; font-weight: 700; margin-bottom: 20px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .modal-error {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid var(--danger);
+      border-radius: 7px;
+      padding: 9px 12px;
+      font-size: 0.8rem;
+      color: var(--danger);
+      margin-bottom: 12px;
+      display: none;
+    }
+    .modal-error.visible { display: block; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 0.83rem;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.ok   { border-color: var(--success); color: var(--success); }
+    #toast.err  { border-color: var(--danger);  color: var(--danger); }
+
+    /* PW hint */
+    .pw-hint { font-size: 0.73rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* empty state */
+    .empty { padding: 40px; text-align: center; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <span>📋</span>
+      <h1>CardBoard</h1>
+      <span class="badge">Admin</span>
+    </div>
+    <a href="logout" class="btn-logout">Abmelden</a>
+  </header>
+
+  <main>
+    <div class="section-header">
+      <h2>Benutzer</h2>
+      <button class="btn btn-primary" onclick="openCreateModal()">+ Benutzer anlegen</button>
+    </div>
+    <div class="table-wrap">
+      <table id="user-table">
+        <thead>
+          <tr>
+            <th>Benutzername</th>
+            <th>Anzeigename</th>
+            <th>Sprache</th>
+            <th>Templates</th>
+            <th>Status</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="user-tbody">
+          <tr><td colspan="6" class="empty">Lade…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Create Modal -->
+  <div class="overlay" id="modal-create">
+    <div class="modal">
+      <h3>Neuen Benutzer anlegen</h3>
+      <div class="modal-error" id="create-error"></div>
+      <div class="form-group">
+        <label>Benutzername <span style="color:#9ca3af">(a–z, 0–9, _ -)</span></label>
+        <input type="text" id="c-username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Anzeigename (optional)</label>
+        <input type="text" id="c-display">
+      </div>
+      <div class="form-group">
+        <label>Sprache</label>
+        <select id="c-lang">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Initiales Passwort</label>
+        <input type="password" id="c-password" autocomplete="new-password">
+        <div class="pw-hint" id="c-pw-hint"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-create')">Abbrechen</button>
+        <button class="btn btn-primary" onclick="doCreateUser()">Anlegen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="overlay" id="modal-edit">
+    <div class="modal">
+      <h3>Benutzer bearbeiten</h3>
+      <div class="modal-error" id="edit-error"></div>
+      <input type="hidden" id="e-username">
+      <div class="form-group">
+        <label>Anzeigename</label>
+        <input type="text" id="e-display">
+      </div>
+      <div class="form-group">
+        <label>Sprache</label>
+        <select id="e-lang">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="e-force-pw" style="width:auto;">
+        <label for="e-force-pw" style="margin:0;">Passwortänderung erzwingen</label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-edit')">Abbrechen</button>
+        <button class="btn btn-primary" onclick="doEditUser()">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Password Modal -->
+  <div class="overlay" id="modal-reset">
+    <div class="modal">
+      <h3>Passwort zurücksetzen</h3>
+      <div class="modal-error" id="reset-error"></div>
+      <input type="hidden" id="r-username">
+      <div class="form-group">
+        <label>Neues Passwort für <strong id="r-username-label"></strong></label>
+        <input type="password" id="r-password" autocomplete="new-password">
+        <div class="pw-hint" id="r-pw-hint"></div>
+      </div>
+      <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">
+        Der Benutzer wird beim nächsten Login zur Passwortänderung aufgefordert.
+      </p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-reset')">Abbrechen</button>
+        <button class="btn btn-primary" onclick="doResetPassword()">Zurücksetzen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="overlay" id="modal-delete">
+    <div class="modal">
+      <h3>Benutzer löschen</h3>
+      <input type="hidden" id="d-username">
+      <p>Benutzer <strong id="d-username-label"></strong> wirklich löschen?<br>
+         <span style="font-size:0.8rem;color:var(--text-muted)">Das Benutzerverzeichnis bleibt erhalten.</span></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-delete')">Abbrechen</button>
+        <button class="btn btn-danger" onclick="doDeleteUser()">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    let pwConfig = { pw_min_length: 8, pw_require_special: true };
+
+    async function loadConfig() {
+      try {
+        const r = await fetch('api/pw-config');
+        if (r.ok) pwConfig = await r.json();
+      } catch {}
+    }
+
+    function pwHintText() {
+      const parts = [`Mindestens ${pwConfig.pw_min_length} Zeichen`];
+      if (pwConfig.pw_require_special) parts.push('mind. eine Zahl oder ein Sonderzeichen');
+      return parts.join(', ') + '.';
+    }
+
+    /* ── Users ─── */
+    async function loadUsers() {
+      const r = await fetch('api/users');
+      if (r.status === 401 || r.status === 403) { location.href = 'login'; return; }
+      const users = await r.json();
+      const tbody = document.getElementById('user-tbody');
+      if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Keine Benutzer vorhanden.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td><strong>${esc(u.username)}</strong></td>
+          <td>${esc(u.display_name || '—')}</td>
+          <td>${esc(u.lang || 'de')}</td>
+          <td>${u.template_count}</td>
+          <td>${u.force_pw_change
+            ? '<span class="tag tag-warn">PW ändern</span>'
+            : '<span class="tag tag-ok">OK</span>'}</td>
+          <td>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" onclick="openEditModal(${JSON.stringify(u)})">Bearbeiten</button>
+              <button class="btn btn-ghost btn-sm" onclick="openResetModal('${esc(u.username)}')">PW reset</button>
+              <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${esc(u.username)}')">Löschen</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    /* ── Modals ─── */
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    function openModal(id)  { document.getElementById(id).classList.add('open'); }
+
+    function clearError(id) {
+      const el = document.getElementById(id);
+      el.textContent = '';
+      el.classList.remove('visible');
+    }
+    function showError(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function openCreateModal() {
+      clearError('create-error');
+      document.getElementById('c-username').value  = '';
+      document.getElementById('c-display').value   = '';
+      document.getElementById('c-lang').value       = 'de';
+      document.getElementById('c-password').value  = '';
+      document.getElementById('c-pw-hint').textContent = pwHintText();
+      openModal('modal-create');
+      setTimeout(() => document.getElementById('c-username').focus(), 50);
+    }
+
+    function openEditModal(u) {
+      clearError('edit-error');
+      document.getElementById('e-username').value   = u.username;
+      document.getElementById('e-display').value    = u.display_name || '';
+      document.getElementById('e-lang').value       = u.lang || 'de';
+      document.getElementById('e-force-pw').checked = u.force_pw_change || false;
+      openModal('modal-edit');
+    }
+
+    function openResetModal(username) {
+      clearError('reset-error');
+      document.getElementById('r-username').value       = username;
+      document.getElementById('r-username-label').textContent = username;
+      document.getElementById('r-password').value      = '';
+      document.getElementById('r-pw-hint').textContent = pwHintText();
+      openModal('modal-reset');
+      setTimeout(() => document.getElementById('r-password').focus(), 50);
+    }
+
+    function openDeleteModal(username) {
+      document.getElementById('d-username').value            = username;
+      document.getElementById('d-username-label').textContent = username;
+      openModal('modal-delete');
+    }
+
+    /* ── CRUD ─── */
+    function errMsg(code, pwMin) {
+      const map = {
+        username_empty:   'Benutzername darf nicht leer sein.',
+        username_invalid: 'Benutzername: nur a–z, 0–9, _ und - erlaubt (max. 32 Zeichen).',
+        username_exists:  'Benutzername bereits vergeben.',
+        password_empty:   'Passwort darf nicht leer sein.',
+        password_too_short: `Passwort muss mindestens ${pwMin || pwConfig.pw_min_length} Zeichen lang sein.`,
+        password_no_special: 'Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten.',
+        not_found:        'Benutzer nicht gefunden.',
+      };
+      return map[code] || `Fehler: ${code}`;
+    }
+
+    async function doCreateUser() {
+      clearError('create-error');
+      const body = {
+        username:     document.getElementById('c-username').value.trim(),
+        display_name: document.getElementById('c-display').value.trim(),
+        lang:         document.getElementById('c-lang').value,
+        password:     document.getElementById('c-password').value,
+      };
+      const r = await fetch('api/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) { showError('create-error', errMsg(data.error, data.pw_min_length)); return; }
+      closeModal('modal-create');
+      toast(`Benutzer ${body.username} angelegt.`, 'ok');
+      loadUsers();
+    }
+
+    async function doEditUser() {
+      clearError('edit-error');
+      const username = document.getElementById('e-username').value;
+      const body = {
+        display_name:   document.getElementById('e-display').value.trim(),
+        lang:           document.getElementById('e-lang').value,
+        force_pw_change: document.getElementById('e-force-pw').checked,
+      };
+      const r = await fetch(`api/users/${username}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) { showError('edit-error', errMsg(data.error)); return; }
+      closeModal('modal-edit');
+      toast('Änderungen gespeichert.', 'ok');
+      loadUsers();
+    }
+
+    async function doResetPassword() {
+      clearError('reset-error');
+      const username = document.getElementById('r-username').value;
+      const password = document.getElementById('r-password').value;
+      const r = await fetch(`api/users/${username}/reset-password`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ password }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showError('reset-error', errMsg(data.error, data.pw_min_length)); return; }
+      closeModal('modal-reset');
+      toast(`Passwort für ${username} zurückgesetzt.`, 'ok');
+      loadUsers();
+    }
+
+    async function doDeleteUser() {
+      const username = document.getElementById('d-username').value;
+      const r = await fetch(`api/users/${username}`, { method: 'DELETE' });
+      closeModal('modal-delete');
+      if (r.ok) { toast(`Benutzer ${username} gelöscht.`, 'ok'); }
+      else      { toast('Löschen fehlgeschlagen.', 'err'); }
+      loadUsers();
+    }
+
+    /* ── Toast ─── */
+    let toastTimer;
+    function toast(msg, type='ok') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `show ${type}`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.className = '', 3000);
+    }
+
+    /* ── Escape ─── */
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /* ── Close on overlay click ─── */
+    document.querySelectorAll('.overlay').forEach(o => {
+      o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+    });
+
+    /* ── Init ─── */
+    loadConfig().then(loadUsers);
+  </script>
+</body>
+</html>

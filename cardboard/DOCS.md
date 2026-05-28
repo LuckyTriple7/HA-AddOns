@@ -19,6 +19,7 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 | `notify_failed_login` | Persistente HA-Benachrichtigung bei fehlgeschlagenem Login (optional) | `true` |
 | `pw_min_length` | Mindestlänge für neue Passwörter (optional) | `8` |
 | `pw_require_special` | Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten (optional) | `true` |
+| `admin_password` | Passwort für das Admin-Panel (optional). Leer = Admin-Panel ohne Passwort aus dem LAN erreichbar | – |
 
 Der Uptime-Sensor wird für die „online seit"-Anzeige auf der Login- und View-Seite verwendet. Er muss über die **Uptime-Integration** eingerichtet sein: <https://www.home-assistant.io/integrations/uptime/>  
 Wird kein Wert geliefert (Sensor nicht vorhanden oder `unavailable`), wird die Anzeige einfach weggelassen.
@@ -143,6 +144,31 @@ Regen: {% if regen == 'on' %}🌧️ Ja{% else %}☀️ Nein{% endif %}
 ### Hinweis zur Ausrichtung
 
 Für Leerzeichen-ausgerichteten Text (wie in HA Markdown-Karten üblich) wird der Inhalt in einer Monospace-Schrift dargestellt und Leerzeichen bleiben erhalten. Standard-Markdown-Syntax wie `**fett**`, `## Überschrift` oder Tabellen wird ebenfalls gerendert.
+
+---
+
+## Admin-Panel
+
+Das Admin-Panel ermöglicht die Verwaltung von Benutzern direkt im Browser — ohne manuelle Bearbeitung der `users.yaml`.
+
+### Zugang
+
+| Weg | URL |
+|---|---|
+| HA Sidebar (Ingress) | Über den CardBoard-Eintrag in der HA-Seitenleiste → `/admin/` |
+| Direkt (LAN) | `http://<HA-IP>:17773/admin/` |
+
+Ist `admin_password` gesetzt, erscheint beim ersten Aufruf eine Login-Seite. Die Admin-Session ist 4 Stunden gültig.  
+Ist kein Passwort gesetzt, ist das Admin-Panel ohne Login aus dem LAN erreichbar.
+
+> **nginx**: Port 17773 und Port 17774 (Ingress) **nicht** in nginx eintragen.
+
+### Funktionen
+
+- **Benutzer anlegen** – Benutzername, Anzeigename, Sprache, initiales Passwort (wird gehasht gespeichert). Das Benutzerverzeichnis (`/config/addons_config/cardboard/<username>/`) wird automatisch angelegt. `force_pw_change` wird gesetzt — der Benutzer muss das Passwort beim ersten Login ändern.
+- **Benutzer bearbeiten** – Anzeigename, Sprache und `force_pw_change`-Flag anpassen.
+- **Passwort zurücksetzen** – Neues Passwort setzen; `force_pw_change` wird automatisch aktiviert.
+- **Benutzer löschen** – Entfernt den Eintrag aus `users.yaml`. Das Verzeichnis mit den Templates bleibt erhalten.
 
 ---
 

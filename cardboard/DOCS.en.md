@@ -19,6 +19,7 @@ CardBoard renders Jinja2 templates directly via the HA Template API and displays
 | `notify_failed_login` | Send a persistent HA notification on failed login (optional) | `true` |
 | `pw_min_length` | Minimum length for new passwords (optional) | `8` |
 | `pw_require_special` | Password must contain at least one number or special character (optional) | `true` |
+| `admin_password` | Password for the Admin Panel (optional). If empty, the Admin Panel is accessible without login from the LAN | – |
 
 The uptime sensor is used for the "online since" indicator on the login and view pages. It requires the **Uptime integration** to be set up: <https://www.home-assistant.io/integrations/uptime/>  
 If no value is available (sensor missing or `unavailable`), the indicator is simply omitted.
@@ -143,6 +144,31 @@ Rain: {% if rain == 'on' %}🌧️ Yes{% else %}☀️ No{% endif %}
 ### Note on Alignment
 
 For space-aligned text (as commonly used in HA Markdown cards), content is displayed in a monospace font and spaces are preserved. Standard Markdown syntax like `**bold**`, `## Heading`, or tables is also rendered.
+
+---
+
+## Admin Panel
+
+The Admin Panel allows managing users directly in the browser — no manual editing of `users.yaml` required.
+
+### Access
+
+| Method | URL |
+|---|---|
+| HA Sidebar (Ingress) | Via the CardBoard entry in the HA sidebar → `/admin/` |
+| Direct (LAN) | `http://<HA-IP>:17773/admin/` |
+
+If `admin_password` is set, a login page appears on first access. The admin session is valid for 4 hours.  
+If no password is set, the Admin Panel is accessible without login from the local network.
+
+> **nginx**: Do **not** include port 17773 or port 17774 (Ingress) in nginx.
+
+### Features
+
+- **Create user** – Username, display name, language, initial password (stored as SHA-256 hash). The user directory (`/config/addons_config/cardboard/<username>/`) is created automatically. `force_pw_change` is set — the user must change their password on first login.
+- **Edit user** – Change display name, language, and the `force_pw_change` flag.
+- **Reset password** – Set a new password; `force_pw_change` is automatically enabled.
+- **Delete user** – Removes the entry from `users.yaml`. The template directory is preserved.
 
 ---
 

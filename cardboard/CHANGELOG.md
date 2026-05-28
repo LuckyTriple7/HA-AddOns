@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.20
+- Admin-Panel: Benutzerverwaltung (anlegen, bearbeiten, löschen, Passwort zurücksetzen)
+- Admin-Panel über HA Ingress erreichbar (Sidebar) und direkt auf Port 17773 (/admin/)
+- Option `admin_password` (optional) — schützt das Admin-Panel mit Passwort
+- Beim Anlegen eines Benutzers wird das Benutzerverzeichnis automatisch erstellt
+- `force_pw_change: true` wird beim Anlegen und bei Passwort-Reset automatisch gesetzt
+- Dritter uvicorn-Server auf Port 17774 für HA Ingress
+
 ## 0.0.19
 - Doku: REST-Sensor für letzten erfolgreichen Login (username, Zeitstempel, IP)
 - Doku: REST-Sensor für letzten fehlgeschlagenen Login um Username ergänzt

@@ -1,6 +1,6 @@
 name: CardBoard
 description: Zeigt HA-Sensordaten als gerenderte Markdown-Karten im Browser an
-version: "0.0.19"
+version: "0.0.20"
 slug: cardboard
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -17,6 +17,10 @@ image: "ghcr.io/luckytriple7/cardboard"
 panel_icon: mdi:card-text
 panel_title: CardBoard
 webui: http://[HOST]:[PORT:17772]
+
+ingress: true
+ingress_port: 17774
+ingress_stream: false
 
 ports:
   17772/tcp: 17772
@@ -39,6 +43,7 @@ options:
   notify_failed_login: true
   pw_min_length: 8
   pw_require_special: true
+  admin_password: ""
 
 schema:
   ha_token: str
@@ -50,3 +55,4 @@ schema:
   notify_failed_login: bool?
   pw_min_length: int?
   pw_require_special: bool?
+  admin_password: str?
