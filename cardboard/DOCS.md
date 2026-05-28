@@ -10,12 +10,14 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 
 | Option | Beschreibung | Standard |
 |---|---|---|
-| `port` | TCP-Port der Web-Oberfläche | `17772` |
-| `admin_port` | TCP-Port der Admin-API (nur LAN) | `17773` |
 | `ha_token` | HA Long-Lived Access Token | – |
 | `ha_url` | URL der HA-Instanz | `http://homeassistant.local:8123` |
 | `refresh_interval` | Automatische Aktualisierung in Sekunden | `30` |
 | `login_message` | Persönliche Begrüßung auf der Login-Seite (optional) | – |
+| `uptime_sensor` | Entity-ID des HA-Uptime-Sensors (optional) | `sensor.uptime` |
+
+Der Uptime-Sensor wird für die „online seit"-Anzeige auf der Login- und View-Seite verwendet. Er muss über die **Uptime-Integration** eingerichtet sein: <https://www.home-assistant.io/integrations/uptime/>  
+Wird kein Wert geliefert (Sensor nicht vorhanden oder `unavailable`), wird die Anzeige einfach weggelassen.
 
 Den Long-Lived Access Token erstellst du in HA unter:  
 **Profil → Sicherheit → Langlebige Zugangstoken → Token erstellen**

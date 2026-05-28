@@ -14,6 +14,10 @@ CardBoard renders Jinja2 templates directly via the HA Template API and displays
 | `ha_url` | URL of the HA instance | `http://homeassistant.local:8123` |
 | `refresh_interval` | Auto-refresh interval in seconds | `30` |
 | `login_message` | Personal greeting on the login page (optional) | – |
+| `uptime_sensor` | Entity ID of the HA uptime sensor (optional) | `sensor.uptime` |
+
+The uptime sensor is used for the "online since" indicator on the login and view pages. It requires the **Uptime integration** to be set up: <https://www.home-assistant.io/integrations/uptime/>  
+If no value is available (sensor missing or `unavailable`), the indicator is simply omitted.
 
 Create a Long-Lived Access Token in HA under:  
 **Profile → Security → Long-lived access tokens → Create token**

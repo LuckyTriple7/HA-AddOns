@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 app = FastAPI()
 admin_app = FastAPI()
 
-_ha_status_cache: dict = {"reachable": False, "version": None, "since": None, "checked_at": None, "initialized": False}
+_ha_status_cache: dict = {"reachable": False, "version": None, "since": None, "checked_at": None}
 
 DATA_DIR = Path("/data")
 CONFIG_DIR = Path("/config/addons_config/cardboard")
@@ -145,22 +145,32 @@ async def public_ha_status():
         opts = load_options()
         ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
         ha_token = opts.get("ha_token") or ""
+        uptime_entity = (opts.get("uptime_sensor") or "sensor.uptime").strip()
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
                     f"{ha_url}/api/config",
                     headers={"Authorization": f"Bearer {ha_token}"},
                 )
-            if resp.status_code == 200:
-                version = resp.json().get("version", "")
-                was_offline = _ha_status_cache["initialized"] and not _ha_status_cache.get("reachable")
-                if was_offline:
-                    _ha_status_cache["since"] = now.strftime("%d.%m.%Y %H:%M")
-                _ha_status_cache.update({"reachable": True, "version": version, "checked_at": now, "initialized": True})
-            else:
-                _ha_status_cache.update({"reachable": False, "checked_at": now, "initialized": True})
+                if resp.status_code == 200:
+                    version = resp.json().get("version", "")
+                    since = None
+                    try:
+                        up = await client.get(
+                            f"{ha_url}/api/states/{uptime_entity}",
+                            headers={"Authorization": f"Bearer {ha_token}"},
+                        )
+                        if up.status_code == 200:
+                            state = up.json().get("state", "")
+                            if state and state not in ("unavailable", "unknown", ""):
+                                since = state
+                    except Exception:
+                        pass
+                    _ha_status_cache.update({"reachable": True, "version": version, "since": since, "checked_at": now})
+                else:
+                    _ha_status_cache.update({"reachable": False, "checked_at": now})
         except Exception:
-            _ha_status_cache.update({"reachable": False, "checked_at": now, "initialized": True})
+            _ha_status_cache.update({"reachable": False, "checked_at": now})
     return {
         "reachable":    _ha_status_cache.get("reachable", False),
         "version":      _ha_status_cache.get("version"),

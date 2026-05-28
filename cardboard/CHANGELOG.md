@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.8
+- HA-Startzeit aus `sensor.uptime` (konfigurierbar via Option `uptime_sensor`, Default: `sensor.uptime`)
+- Timestamp wird im Browser in lokaler Zeitzone formatiert
+- Kein falscher Timestamp mehr wenn der Sensor nicht vorhanden oder `unavailable` ist
+
 ## 0.0.7
 - HA-Status: `online seit` wird nur noch angezeigt wenn CardBoard tatsächlich einen Ausfall → Wiederkommen-Übergang beobachtet hat (kein falscher Timestamp beim ersten Start)
 

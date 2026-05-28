@@ -230,15 +230,21 @@
           wrap.classList.add('online');
           let label = 'Home Assistant';
           if (data.version) label += ` ${data.version}`;
-          if (data.online_since) label += ` — online seit ${data.online_since}`;
+          if (data.online_since) {
+            const dt = new Date(data.online_since);
+            const locale = lang === 'en' ? 'en-GB' : 'de-DE';
+            const sinceStr = dt.toLocaleDateString(locale, {day:'2-digit', month:'2-digit', year:'numeric'})
+                           + ' ' + dt.toLocaleTimeString(locale, {hour:'2-digit', minute:'2-digit'});
+            label += lang === 'en' ? ` — online since ${sinceStr}` : ` — online seit ${sinceStr}`;
+          }
           txt.textContent = label;
         } else {
           wrap.classList.add('offline');
-          txt.textContent = 'Home Assistant nicht erreichbar';
+          txt.textContent = lang === 'en' ? 'Home Assistant unreachable' : 'Home Assistant nicht erreichbar';
         }
       })
       .catch(() => {
-        document.getElementById('ha-status-text').textContent = 'Home Assistant Status unbekannt';
+        document.getElementById('ha-status-text').textContent = 'Home Assistant …';
       });
   </script>
 </body>

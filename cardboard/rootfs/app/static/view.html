@@ -428,11 +428,16 @@
           badge.classList.add('online');
           let label = 'Home Assistant';
           if (data.version) label += ` ${data.version}`;
-          if (data.online_since) label += ` — online seit ${data.online_since}`;
+          if (data.online_since) {
+            const dt = new Date(data.online_since);
+            const sinceStr = dt.toLocaleDateString(t.locale, {day:'2-digit', month:'2-digit', year:'numeric'})
+                           + ' ' + dt.toLocaleTimeString(t.locale, {hour:'2-digit', minute:'2-digit'});
+            label += t.locale === 'en-GB' ? ` — online since ${sinceStr}` : ` — online seit ${sinceStr}`;
+          }
           txt.textContent = label;
         } else {
           badge.classList.add('offline');
-          txt.textContent = 'Home Assistant nicht erreichbar';
+          txt.textContent = t.locale === 'en-GB' ? 'Home Assistant unreachable' : 'Home Assistant nicht erreichbar';
         }
       } catch {
         /* ignorieren */
