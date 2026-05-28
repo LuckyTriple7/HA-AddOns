@@ -228,6 +228,22 @@
 
     /* empty state */
     .empty { padding: 40px; text-align: center; color: var(--text-muted); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 8px 24px;
+      display: flex;
+      gap: 28px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .footer-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-ok  { background: #22c55e; }
+    .dot-err { background: #ef4444; }
   </style>
 </head>
 <body>
@@ -363,6 +379,17 @@
     </div>
   </div>
 
+  <footer>
+    <div class="footer-item">
+      <span class="dot dot-ok"></span>
+      <span id="footer-success">—</span>
+    </div>
+    <div class="footer-item">
+      <span class="dot dot-err"></span>
+      <span id="footer-failed">—</span>
+    </div>
+  </footer>
+
   <div id="toast"></div>
 
   <script>
@@ -415,6 +442,9 @@
         toastReset:   u => `Passwort für ${u} zurückgesetzt.`,
         toastDeleted: u => `Benutzer ${u} gelöscht.`,
         toastDelErr:  'Löschen fehlgeschlagen.',
+        footerSuccess: (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
+        footerFailed:  (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
+        footerNone:    '—',
         errMap: {
           username_empty:      'Benutzername darf nicht leer sein.',
           username_invalid:    'Benutzername: nur a–z, 0–9, _ und - erlaubt (max. 32 Zeichen).',
@@ -473,6 +503,9 @@
         toastReset:   u => `Password for ${u} reset.`,
         toastDeleted: u => `User ${u} deleted.`,
         toastDelErr:  'Delete failed.',
+        footerSuccess: (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
+        footerFailed:  (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
+        footerNone:    '—',
         errMap: {
           username_empty:      'Username must not be empty.',
           username_invalid:    'Username: only a–z, 0–9, _ and - allowed (max. 32 characters).',
@@ -717,6 +750,22 @@
       o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
     });
 
+    /* ── Footer ─── */
+    async function loadFooter() {
+      try {
+        const r = await fetch('api/recent-logins');
+        if (!r.ok) return;
+        const d = await r.json();
+        function fmt(entry, fn) {
+          if (!entry) return t.footerNone;
+          const ts = entry.timestamp.replace('T', ' ').slice(0, 16);
+          return fn(entry.username, ts, entry.ip || '?');
+        }
+        document.getElementById('footer-success').textContent = fmt(d.last_success, t.footerSuccess);
+        document.getElementById('footer-failed').textContent  = fmt(d.last_failed,  t.footerFailed);
+      } catch {}
+    }
+
     /* ── Theme ─── */
     const btnTheme = document.getElementById('btn-theme');
     function applyTheme(theme) {
@@ -748,6 +797,7 @@
     /* ── Init ─── */
     applyI18n();
     loadConfig().then(loadUsers);
+    loadFooter();
   </script>
 </body>
 </html>

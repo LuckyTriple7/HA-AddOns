@@ -653,6 +653,13 @@ async def ingress_admin_panel(request: Request):
     return _serve_admin_html("admin.html")
 
 
+@ingress_app.get("/admin/api/recent-logins")
+async def ingress_admin_recent_logins(request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_recent_logins()
+
+
 @ingress_app.get("/admin/api/pw-config")
 async def ingress_admin_pw_config(request: Request):
     if not admin_panel_allowed(request):
@@ -744,6 +751,13 @@ async def admin_panel_direct(request: Request):
     return _serve_admin_html("admin.html")
 
 
+@admin_app.get("/admin/api/recent-logins")
+async def admin_recent_logins_direct(request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_recent_logins()
+
+
 @admin_app.get("/admin/api/pw-config")
 async def admin_pw_config_direct(request: Request):
     if not admin_allowed(request):
@@ -791,6 +805,17 @@ admin_app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static_
 
 
 # ── Admin business logic (shared) ────────────────────────────────────────────
+
+def _admin_recent_logins():
+    with sqlite3.connect(DB_PATH) as conn:
+        def last(success: int):
+            row = conn.execute(
+                "SELECT timestamp, username, ip_address FROM login_events "
+                "WHERE success = ? ORDER BY id DESC LIMIT 1", (success,)
+            ).fetchone()
+            return {"timestamp": row[0], "username": row[1], "ip": row[2]} if row else None
+        return JSONResponse({"last_success": last(1), "last_failed": last(0)})
+
 
 def _admin_list_users():
     users = load_users()

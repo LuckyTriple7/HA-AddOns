@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.22
+- Admin-Panel: Footer mit letztem erfolgreichen und fehlgeschlagenen Login (Benutzer, Zeitstempel, IP)
+
 ## 0.0.21
 - Admin-Panel: Letzter Login (Zeitstempel + IP) pro Benutzer in der Übersicht
 - Admin-Panel: Reload-Button mit Dreh-Animation
