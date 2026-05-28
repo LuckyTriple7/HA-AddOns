@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.16
+- nginx Reverse-Proxy Dokumentation (DE + EN) mit Beispielkonfiguration
+- Footer-Schrift im Light Mode dunkler (#6b7280)
+
 ## 0.0.15
 - Initiales Passwort ändern: `force_pw_change: true` in users.yaml erzwingt Passwortänderung beim ersten Login
 - /view gesperrt solange Flag gesetzt — direkter Zugriff leitet zur Passwortänderung um
