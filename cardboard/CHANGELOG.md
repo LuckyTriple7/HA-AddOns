@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.25
+- Admin-Panel: Footer zeigt zusätzlich die Anzahl fehlgeschlagener Logins der letzten 24h
+
 ## 0.0.24
 - Bugfix: Logout, Login-Fehler und Panel-Redirect im Ingress verwenden relative URLs (kein 404 mehr nach Abmelden)
 

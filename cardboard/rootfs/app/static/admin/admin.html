@@ -390,6 +390,10 @@
       <span class="dot dot-err"></span>
       <span id="footer-failed">—</span>
     </div>
+    <div class="footer-item">
+      <span class="dot dot-err"></span>
+      <span id="footer-failed-24h">—</span>
+    </div>
   </footer>
 
   <div id="toast"></div>
@@ -444,9 +448,10 @@
         toastReset:   u => `Passwort für ${u} zurückgesetzt.`,
         toastDeleted: u => `Benutzer ${u} gelöscht.`,
         toastDelErr:  'Löschen fehlgeschlagen.',
-        footerSuccess: (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
-        footerFailed:  (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
-        footerNone:    '—',
+        footerSuccess:  (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
+        footerFailed:   (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
+        footerFailed24h: n => `Fehlversuche letzte 24h: ${n}`,
+        footerNone:     '—',
         errMap: {
           username_empty:      'Benutzername darf nicht leer sein.',
           username_invalid:    'Benutzername: nur a–z, 0–9, _ und - erlaubt (max. 32 Zeichen).',
@@ -505,9 +510,10 @@
         toastReset:   u => `Password for ${u} reset.`,
         toastDeleted: u => `User ${u} deleted.`,
         toastDelErr:  'Delete failed.',
-        footerSuccess: (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
-        footerFailed:  (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
-        footerNone:    '—',
+        footerSuccess:  (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
+        footerFailed:   (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
+        footerFailed24h: n => `Failed attempts last 24h: ${n}`,
+        footerNone:     '—',
         errMap: {
           username_empty:      'Username must not be empty.',
           username_invalid:    'Username: only a–z, 0–9, _ and - allowed (max. 32 characters).',
@@ -763,8 +769,9 @@
           const ts = entry.timestamp.replace('T', ' ').slice(0, 16);
           return fn(entry.username, ts, entry.ip || '?');
         }
-        document.getElementById('footer-success').textContent = fmt(d.last_success, t.footerSuccess);
-        document.getElementById('footer-failed').textContent  = fmt(d.last_failed,  t.footerFailed);
+        document.getElementById('footer-success').textContent  = fmt(d.last_success, t.footerSuccess);
+        document.getElementById('footer-failed').textContent   = fmt(d.last_failed,  t.footerFailed);
+        document.getElementById('footer-failed-24h').textContent = t.footerFailed24h(d.failed_24h ?? 0);
       } catch {}
     }
 

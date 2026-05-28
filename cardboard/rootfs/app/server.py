@@ -814,7 +814,11 @@ def _admin_recent_logins():
                 "WHERE success = ? ORDER BY id DESC LIMIT 1", (success,)
             ).fetchone()
             return {"timestamp": row[0], "username": row[1], "ip": row[2]} if row else None
-        return JSONResponse({"last_success": last(1), "last_failed": last(0)})
+        failed_24h = conn.execute(
+            "SELECT COUNT(*) FROM login_events WHERE success = 0 "
+            "AND timestamp >= datetime('now', '-24 hours')"
+        ).fetchone()[0]
+    return JSONResponse({"last_success": last(1), "last_failed": last(0), "failed_24h": failed_24h})
 
 
 def _admin_list_users():
