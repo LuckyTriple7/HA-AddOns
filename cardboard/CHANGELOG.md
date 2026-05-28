@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.17
+- Footer-Schrift im Dark Mode heller (#9ca3af)
+
 ## 0.0.16
 - nginx Reverse-Proxy Dokumentation (DE + EN) mit Beispielkonfiguration
 - Footer-Schrift im Light Mode dunkler (#6b7280)
