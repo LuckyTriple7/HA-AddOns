@@ -2,7 +2,7 @@
 
 ## Übersicht
 
-CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt die Ergebnisse als Markdown-Karten im Browser dar. Mehrere Benutzer können gleichzeitig ihre eigenen Ansichten nutzen.
+CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt die Ergebnisse als Markdown-Karten im Browser dar. Mehrere Benutzer können gleichzeitig ihre eigenen Ansichten nutzen. Benutzer und Templates werden über das integrierte Admin-Panel verwaltet.
 
 ---
 
@@ -20,12 +20,62 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 | `pw_min_length` | Mindestlänge für neue Passwörter (optional) | `8` |
 | `pw_require_special` | Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten (optional) | `true` |
 | `admin_password` | Passwort für das Admin-Panel (optional). Leer = Admin-Panel ohne Passwort aus dem LAN erreichbar | – |
-
-Der Uptime-Sensor wird für die „online seit"-Anzeige auf der Login- und View-Seite verwendet. Er muss über die **Uptime-Integration** eingerichtet sein: <https://www.home-assistant.io/integrations/uptime/>  
-Wird kein Wert geliefert (Sensor nicht vorhanden oder `unavailable`), wird die Anzeige einfach weggelassen.
+| `max_cards` | Maximale Anzahl gleichzeitig angezeigter Karten pro Benutzer (optional) | `3` |
 
 Den Long-Lived Access Token erstellst du in HA unter:  
 **Profil → Sicherheit → Langlebige Zugangstoken → Token erstellen**
+
+Der Uptime-Sensor wird für die „online seit"-Anzeige auf der Login- und View-Seite verwendet. Er muss über die **Uptime-Integration** eingerichtet sein: <https://www.home-assistant.io/integrations/uptime/>
+
+---
+
+## Admin-Panel
+
+Das Admin-Panel ist die zentrale Verwaltungsoberfläche für Benutzer und Templates — ohne manuelle Bearbeitung von Dateien.
+
+### Zugang
+
+| Weg | URL |
+|---|---|
+| HA Sidebar (Ingress) | Über den CardBoard-Eintrag in der HA-Seitenleiste |
+| Direkt (LAN) | `http://<HA-IP>:17773/admin/` |
+
+Ist `admin_password` gesetzt, erscheint beim ersten Aufruf eine Login-Seite. Die Admin-Session ist 4 Stunden gültig.  
+Ist kein Passwort gesetzt, ist das Admin-Panel ohne Login aus dem LAN erreichbar.
+
+> **nginx**: Port 17773 und Port 17774 (Ingress) **nicht** in nginx eintragen — nur Port 17772 proxyen.
+
+### Benutzerverwaltung
+
+| Funktion | Beschreibung |
+|---|---|
+| **Benutzer anlegen** | Benutzername, Anzeigename, Sprache, initiales Passwort. Das Benutzerverzeichnis wird automatisch angelegt. `force_pw_change` wird gesetzt — Benutzer muss Passwort beim ersten Login ändern. |
+| **Benutzer bearbeiten** | Anzeigename, Sprache und `force_pw_change`-Flag anpassen. |
+| **Passwort zurücksetzen** | Neues Passwort setzen; `force_pw_change` wird automatisch aktiviert. |
+| **Benutzer löschen** | Entfernt den Eintrag aus `users.yaml`. Das Verzeichnis mit den Templates bleibt erhalten. |
+| **Login-Verlauf** | 📊-Button pro Benutzer zeigt die letzten 50 Login-Ereignisse (Zeitpunkt, Ergebnis, IP). |
+
+### Template-Editor
+
+Der Template-Editor ist über den 📝-Button in der Benutzertabelle erreichbar.
+
+| Funktion | Beschreibung |
+|---|---|
+| **Templates anlegen** | Dateiname (`.j2`), optionaler Titel, Inhalt direkt im Browser eingeben. |
+| **Templates bearbeiten** | Klick auf ein Template in der Liste öffnet es im Editor. |
+| **Reihenfolge ändern** | ↑/↓-Buttons bestimmen die Anzeigereihenfolge der Karten. |
+| **Live-Vorschau** | 👁-Button rendert das Template über die HA-API und zeigt die Karte in Echtzeit. |
+| **Speichern** | Button oder **Ctrl+S** (Cmd+S auf Mac). |
+| **Template löschen** | 🗑-Button pro Template, mit Bestätigungsdialog. |
+
+> Sind mehr als `max_cards` Templates vorhanden, erscheint ein Hinweis — nur die ersten `max_cards` Templates werden in der View-Ansicht angezeigt.
+
+### Gesperrte IPs (Rate Limiting)
+
+Im unteren Bereich des Admin-Panels wird eine Liste aktuell gesperrter IPs angezeigt. Eine IP wird nach 5 fehlgeschlagenen Login-Versuchen innerhalb von 10 Minuten für 15 Minuten gesperrt.
+
+- Lokale/private IPs (LAN) sind von der Sperre **ausgenommen**
+- Gesperrte IPs können per **Entsperren**-Button manuell freigegeben werden
 
 ---
 
@@ -48,6 +98,8 @@ Alle Benutzer-Konfigurationen liegen unter `/config/addons_config/cardboard/`:
 
 ## users.yaml
 
+Die `users.yaml` wird normalerweise über das Admin-Panel verwaltet. Zur manuellen Bearbeitung:
+
 ```yaml
 users:
   - username: user1
@@ -69,36 +121,22 @@ users:
       - overview.j2        # Kurzform ohne Titel ist weiterhin gültig
 ```
 
-- `force_pw_change` (optional) – wenn `true`, wird der Benutzer beim ersten Login direkt zur Passwortänderung gezwungen. Das Feld wird nach erfolgreicher Änderung automatisch entfernt.
-
-```yaml
-users:
-  - username: user1
-    password: initiales_passwort
-    force_pw_change: true
-```
-
 - `username` wird kleingeschrieben verglichen (Groß-/Kleinschreibung egal beim Login)
-- `display_name` (optional) – wird als Begrüßung angezeigt ("Hallo …"). Fehlt das Feld, wird der `username` verwendet
-- `lang` (optional) – Anzeigesprache: `de` (Standard) oder `en`. Betrifft alle UI-Texte und das Zeitformat
-- `password` – Klartext oder SHA-256-Hash (64 Hex-Zeichen). Für externen Zugriff wird ein Hash empfohlen
-- `templates` bestimmt die Anzahl der Karten (max. 3); Reihenfolge = Reihenfolge im Browser
-- Template-Dateien liegen im Unterordner mit dem Benutzernamen
+- `display_name` (optional) – wird als Begrüßung angezeigt. Fehlt das Feld, wird der `username` verwendet
+- `lang` (optional) – Anzeigesprache: `de` (Standard) oder `en`
+- `password` – Klartext oder SHA-256-Hash (64 Hex-Zeichen)
+- `templates` – Reihenfolge = Reihenfolge im Browser; max. `max_cards` Karten werden angezeigt
+- `force_pw_change: true` – Benutzer wird beim nächsten Login zur Passwortänderung gezwungen
 
 ---
 
 ## Passwort hashen
 
-Statt eines Klartextpassworts kann ein SHA-256-Hash in `users.yaml` hinterlegt werden. Der Hash ist 64 Hex-Zeichen lang und ersetzt das Klartext-Passwort direkt.
+Statt eines Klartextpassworts kann ein SHA-256-Hash in `users.yaml` hinterlegt werden.
 
-**Linux / macOS (Terminal):**
+**Linux / macOS:**
 ```sh
 echo -n "MeinPasswort" | sha256sum
-```
-
-**macOS alternativ:**
-```sh
-echo -n "MeinPasswort" | shasum -a 256
 ```
 
 **Windows (PowerShell):**
@@ -110,26 +148,13 @@ echo -n "MeinPasswort" | shasum -a 256
 ).Replace("-","").ToLower()
 ```
 
-**Home Assistant Terminal Add-on:**
-```sh
-echo -n "MeinPasswort" | sha256sum
-```
-
-Das Ergebnis (nur die 64 Hex-Zeichen, ohne das abschließende ` -`) wird als `password`-Wert eingetragen:
-
-```yaml
-users:
-  - username: user1
-    password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
-```
-
-> **Wichtig:** `echo -n` verwenden — ohne `-n` wird ein Zeilenumbruch mit gehasht und der Hash stimmt nicht.
+> **Wichtig:** `echo -n` verwenden — ohne `-n` wird ein Zeilenumbruch mit gehasht.
 
 ---
 
 ## Template-Dateien (.j2)
 
-Templates verwenden die vollständige HA-Jinja2-Syntax. Alle Funktionen die auch in der HA Markdown-Karte verfügbar sind, funktionieren hier:
+Templates verwenden die vollständige HA-Jinja2-Syntax:
 
 ```jinja2
 {%- set temp = states('sensor.wohnzimmer_temperature') | float(0) -%}
@@ -141,54 +166,29 @@ Temperatur: **{{ temp | round(1) }}°C**
 Regen: {% if regen == 'on' %}🌧️ Ja{% else %}☀️ Nein{% endif %}
 ```
 
-### Hinweis zur Ausrichtung
-
-Für Leerzeichen-ausgerichteten Text (wie in HA Markdown-Karten üblich) wird der Inhalt in einer Monospace-Schrift dargestellt und Leerzeichen bleiben erhalten. Standard-Markdown-Syntax wie `**fett**`, `## Überschrift` oder Tabellen wird ebenfalls gerendert.
+Inhalte werden in einer Monospace-Schrift dargestellt, Leerzeichen-Ausrichtung bleibt erhalten. Standard-Markdown-Syntax wie `**fett**`, `## Überschrift` oder Tabellen wird vollständig gerendert.
 
 ---
 
-## Admin-Panel
+## PWA – Als App installieren
 
-Das Admin-Panel ermöglicht die Verwaltung von Benutzern direkt im Browser — ohne manuelle Bearbeitung der `users.yaml`.
+CardBoard unterstützt die Installation als Progressive Web App (PWA).
 
-### Zugang
+| Gerät | Voraussetzung | Vorgehen |
+|---|---|---|
+| **iPhone / iPad** | beliebiger Browser | Safari: Teilen (📤) → „Zum Home-Bildschirm" |
+| **Android** | HTTPS | Chrome: Menü → „Zum Startbildschirm hinzufügen" oder automatischer Banner |
+| **Desktop** | HTTPS | Chrome/Edge: Installieren-Symbol in der Adressleiste |
 
-| Weg | URL |
-|---|---|
-| HA Sidebar (Ingress) | Über den CardBoard-Eintrag in der HA-Seitenleiste → `/admin/` |
-| Direkt (LAN) | `http://<HA-IP>:17773/admin/` |
+Nach der Installation öffnet sich CardBoard ohne Browser-Chrome als eigenständige App. Die Statusleiste folgt dem gewählten Dark/Light-Theme.
 
-Ist `admin_password` gesetzt, erscheint beim ersten Aufruf eine Login-Seite. Die Admin-Session ist 4 Stunden gültig.  
-Ist kein Passwort gesetzt, ist das Admin-Panel ohne Login aus dem LAN erreichbar.
-
-> **nginx**: Port 17773 und Port 17774 (Ingress) **nicht** in nginx eintragen.
-
-### Funktionen
-
-- **Benutzer anlegen** – Benutzername, Anzeigename, Sprache, initiales Passwort (wird gehasht gespeichert). Das Benutzerverzeichnis (`/config/addons_config/cardboard/<username>/`) wird automatisch angelegt. `force_pw_change` wird gesetzt — der Benutzer muss das Passwort beim ersten Login ändern.
-- **Benutzer bearbeiten** – Anzeigename, Sprache und `force_pw_change`-Flag anpassen.
-- **Passwort zurücksetzen** – Neues Passwort setzen; `force_pw_change` wird automatisch aktiviert.
-- **Benutzer löschen** – Entfernt den Eintrag aus `users.yaml`. Das Verzeichnis mit den Templates bleibt erhalten.
+> Für Android/Desktop ist HTTPS erforderlich (z. B. via nginx mit Let's Encrypt).
 
 ---
 
 ## Admin-API
 
-Die Admin-API läuft auf einem separaten Port (Standard: **17773**) und ist ausschließlich aus dem lokalen Netzwerk erreichbar. Anfragen von öffentlichen IPs werden mit `403 Forbidden` abgewiesen.
-
-Zugelassene IP-Bereiche:
-
-| Bereich | Beschreibung |
-|---|---|
-| `10.0.0.0/8` | Private IPv4 (RFC-1918) |
-| `172.16.0.0/12` | Private IPv4 (RFC-1918) |
-| `192.168.0.0/16` | Private IPv4 (RFC-1918) |
-| `127.0.0.0/8` | Loopback IPv4 |
-| `::1` | Loopback IPv6 |
-| `169.254.0.0/16` | Link-Local IPv4 |
-| `fe80::/10` | Link-Local IPv6 |
-
-> **nginx**: Port 17773 **nicht** in der nginx-Konfiguration eintragen — nur Port 17772 proxyen.
+Die Admin-API läuft auf Port **17773** und ist ausschließlich aus dem lokalen Netzwerk erreichbar.
 
 ### Endpunkte
 
@@ -207,8 +207,6 @@ Gesamt-Statistik aller Login-Ereignisse.
 #### `GET /api/admin/logins`
 Login-Ereignisse, neueste zuerst.
 
-Query-Parameter:
-
 | Parameter | Werte | Standard |
 |---|---|---|
 | `status` | `all` / `success` / `failed` | `all` |
@@ -219,17 +217,6 @@ Query-Parameter:
 ```sh
 curl http://<HA-IP>:17773/api/admin/logins?status=failed
 curl http://<HA-IP>:17773/api/admin/logins?username=user1&limit=20
-```
-
-```json
-{
-  "total": 4,
-  "limit": 100,
-  "offset": 0,
-  "events": [
-    { "timestamp": "2025-05-28T14:22:01", "username": "user1", "success": false, "ip": "192.168.1.42" }
-  ]
-}
 ```
 
 #### `GET /api/admin/health`
@@ -243,17 +230,11 @@ Prüft die Verbindung zur HA-API.
 
 ## Admin-API in Home Assistant einbinden
 
-Die Admin-API lässt sich direkt als HA-Sensor einbinden, um Login-Statistiken im Dashboard anzuzeigen oder bei verdächtigen Logins eine Benachrichtigung zu erhalten.
-
-Da HA und CardBoard auf demselben physischen Host laufen, die Ports aber auf den Host gemappt sind, ist die Admin-API über den Hostnamen der HA-Instanz erreichbar — **nicht** über `localhost` (HA läuft in einem eigenen Docker-Container).
-
-Verwende denselben Hostnamen wie in der `ha_url`-Option, aber mit Port 17773:
+Da HA und CardBoard auf demselben physischen Host laufen, die Ports aber auf den Host gemappt sind, ist die Admin-API über den Hostnamen der HA-Instanz erreichbar — **nicht** über `localhost`.
 
 ```
 http://homeassistant.local:17773
 ```
-
-Oder die direkte IP-Adresse des HA-Hosts, z. B. `http://192.168.1.100:17773`.
 
 ### REST-Sensoren (`configuration.yaml`)
 
@@ -268,22 +249,6 @@ sensor:
     icon: mdi:account-key
 
   - platform: rest
-    name: "CardBoard Erfolgreiche Logins"
-    unique_id: cardboard_successful_logins
-    resource: http://homeassistant.local:17773/api/admin/stats
-    value_template: "{{ value_json.successful_logins }}"
-    scan_interval: 300
-    icon: mdi:account-check
-
-  - platform: rest
-    name: "CardBoard Fehlgeschlagene Logins"
-    unique_id: cardboard_failed_logins
-    resource: http://homeassistant.local:17773/api/admin/stats
-    value_template: "{{ value_json.failed_logins }}"
-    scan_interval: 300
-    icon: mdi:account-alert
-
-  - platform: rest
     name: "CardBoard Fehlgeschlagene Logins 24h"
     unique_id: cardboard_failed_logins_24h
     resource: http://homeassistant.local:17773/api/admin/stats
@@ -292,30 +257,13 @@ sensor:
     icon: mdi:account-alert-outline
 
   - platform: rest
-    name: "CardBoard HA API Status"
-    unique_id: cardboard_ha_api_status
-    resource: http://homeassistant.local:17773/api/admin/health
-    value_template: "{{ value_json.status }}"
-    scan_interval: 60
-    icon: mdi:api
-```
-
-### Sensoren für letzte Logins
-
-Diese Sensoren zeigen Benutzername, Zeitpunkt und IP-Adresse des jeweils letzten erfolgreichen bzw. fehlgeschlagenen Logins:
-
-```yaml
-sensor:
-  - platform: rest
     name: "CardBoard Letzter erfolgreicher Login"
     unique_id: cardboard_last_successful_login
     resource: "http://homeassistant.local:17773/api/admin/logins?status=success&limit=1"
     value_template: >
       {% if value_json.events | length > 0 %}
         {{ value_json.events[0].username }} — {{ value_json.events[0].timestamp[:16].replace('T',' ') }} ({{ value_json.events[0].ip }})
-      {% else %}
-        -
-      {% endif %}
+      {% else %}-{% endif %}
     scan_interval: 300
     icon: mdi:account-check
 
@@ -326,21 +274,24 @@ sensor:
     value_template: >
       {% if value_json.events | length > 0 %}
         {{ value_json.events[0].username }} — {{ value_json.events[0].timestamp[:16].replace('T',' ') }} ({{ value_json.events[0].ip }})
-      {% else %}
-        -
-      {% endif %}
+      {% else %}-{% endif %}
     scan_interval: 300
     icon: mdi:shield-alert
-```
 
-Beispielausgabe: `user1 — 2025-05-28 14:22 (192.168.1.42)`
+  - platform: rest
+    name: "CardBoard HA API Status"
+    unique_id: cardboard_ha_api_status
+    resource: http://homeassistant.local:17773/api/admin/health
+    value_template: "{{ value_json.status }}"
+    scan_interval: 60
+    icon: mdi:api
+```
 
 ### Automation: Benachrichtigung bei fehlgeschlagenem Login
 
 ```yaml
 automation:
   - alias: "CardBoard Login Fehlversuch"
-    description: "Benachrichtigung wenn jemand falsche Zugangsdaten eingibt"
     triggers:
       - trigger: state
         entity_id: sensor.cardboard_fehlgeschlagene_logins_24h
@@ -382,38 +333,30 @@ automation:
 
 ## nginx als Reverse-Proxy
 
-CardBoard selbst spricht nur HTTP. Für den Zugriff von außen sollte nginx als HTTPS-Reverse-Proxy davor geschaltet werden. Port **17773** (Admin-API) darf dabei **nicht** proxied werden — er bleibt ausschließlich intern erreichbar.
+CardBoard selbst spricht nur HTTP. Für externen Zugriff nginx als HTTPS-Reverse-Proxy davor schalten. Port **17773** (Admin-API) darf dabei **nicht** proxied werden.
 
 ### Wichtige Header
-
-CardBoard wertet zwei Header aus:
 
 | Header | Zweck |
 |---|---|
 | `X-Forwarded-For` | Echte Client-IP (für Login-Log und Benachrichtigungen) |
 | `X-Forwarded-Proto` | Setzt das `Secure`-Flag am Session-Cookie bei HTTPS |
 
-Beide müssen von nginx gesetzt werden (siehe Beispiel unten).
-
 ### Beispiel-Konfiguration
 
 ```nginx
-# HTTP → HTTPS Weiterleitung
 server {
     listen 80;
     server_name cardboard.example.com;
     return 301 https://$host$request_uri;
 }
 
-# HTTPS Reverse-Proxy
 server {
     listen 443 ssl;
     server_name cardboard.example.com;
 
     ssl_certificate     /etc/letsencrypt/live/cardboard.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/cardboard.example.com/privkey.pem;
-
-    # Empfohlene SSL-Einstellungen
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
@@ -427,14 +370,15 @@ server {
 }
 ```
 
-> **Wichtig:** Port `17773` (Admin-API) **nicht** in nginx eintragen.  
-> Das SSL-Zertifikat kann z. B. mit [Let's Encrypt](https://letsencrypt.org/) und Certbot ausgestellt werden.
+> Port `17773` (Admin-API) **nicht** in nginx eintragen.  
+> SSL-Zertifikat z. B. mit [Let's Encrypt](https://letsencrypt.org/) und Certbot.
 
 ---
 
 ## Anmeldung
 
-- Die Web-Oberfläche ist über `http://<HA-IP>:17772` erreichbar (intern) bzw. über die nginx-URL (extern)
-- Nach erfolgreichem Login wird eine Cookie-Session gespeichert (konfigurierbar, Standard: 7 Tage)
+- Web-Oberfläche: `http://<HA-IP>:17772` (intern) oder nginx-URL (extern)
+- Nach erfolgreichem Login: Cookie-Session (konfigurierbar, Standard: 7 Tage)
 - Das Session-Cookie erhält das `Secure`-Flag automatisch wenn HTTPS erkannt wird
+- Bei abgelaufener Session: automatische Weiterleitung zur Login-Seite mit Hinweismeldung
 - Benutzer können nur die Ansicht lesen, keine Konfiguration ändern

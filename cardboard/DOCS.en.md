@@ -2,7 +2,7 @@
 
 ## Overview
 
-CardBoard renders Jinja2 templates directly via the HA Template API and displays the results as Markdown cards in the browser. Multiple users can use their own views simultaneously.
+CardBoard renders Jinja2 templates directly via the HA Template API and displays the results as Markdown cards in the browser. Multiple users can use their own views simultaneously. Users and templates are managed via the built-in Admin Panel.
 
 ---
 
@@ -20,12 +20,62 @@ CardBoard renders Jinja2 templates directly via the HA Template API and displays
 | `pw_min_length` | Minimum length for new passwords (optional) | `8` |
 | `pw_require_special` | Password must contain at least one number or special character (optional) | `true` |
 | `admin_password` | Password for the Admin Panel (optional). If empty, the Admin Panel is accessible without login from the LAN | – |
-
-The uptime sensor is used for the "online since" indicator on the login and view pages. It requires the **Uptime integration** to be set up: <https://www.home-assistant.io/integrations/uptime/>  
-If no value is available (sensor missing or `unavailable`), the indicator is simply omitted.
+| `max_cards` | Maximum number of cards shown per user (optional) | `3` |
 
 Create a Long-Lived Access Token in HA under:  
 **Profile → Security → Long-lived access tokens → Create token**
+
+The uptime sensor is used for the "online since" indicator. It requires the **Uptime integration**: <https://www.home-assistant.io/integrations/uptime/>
+
+---
+
+## Admin Panel
+
+The Admin Panel is the central management interface for users and templates — no manual file editing required.
+
+### Access
+
+| Method | URL |
+|---|---|
+| HA Sidebar (Ingress) | Via the CardBoard entry in the HA sidebar |
+| Direct (LAN) | `http://<HA-IP>:17773/admin/` |
+
+If `admin_password` is set, a login page appears on first access. The admin session is valid for 4 hours.  
+If no password is set, the Admin Panel is accessible without login from the local network.
+
+> **nginx**: Do **not** include port 17773 or port 17774 (Ingress) in nginx — only proxy port 17772.
+
+### User Management
+
+| Function | Description |
+|---|---|
+| **Create user** | Username, display name, language, initial password. The user directory is created automatically. `force_pw_change` is set — the user must change their password on first login. |
+| **Edit user** | Change display name, language and the `force_pw_change` flag. |
+| **Reset password** | Set a new password; `force_pw_change` is automatically enabled. |
+| **Delete user** | Removes the entry from `users.yaml`. The template directory is preserved. |
+| **Login history** | The 📊 button per user shows the last 50 login events (timestamp, result, IP). |
+
+### Template Editor
+
+The template editor is accessible via the 📝 button in the user table.
+
+| Function | Description |
+|---|---|
+| **Create templates** | Enter filename (`.j2`), optional title and content directly in the browser. |
+| **Edit templates** | Click a template in the list to open it in the editor. |
+| **Reorder** | ↑/↓ buttons control the display order of the cards. |
+| **Live preview** | The 👁 button renders the template via the HA API and shows the card in real time. |
+| **Save** | Button or **Ctrl+S** (Cmd+S on Mac). |
+| **Delete template** | 🗑 button per template, with confirmation dialog. |
+
+> If more than `max_cards` templates exist, a warning appears — only the first `max_cards` templates are shown in the view.
+
+### Blocked IPs (Rate Limiting)
+
+The lower section of the Admin Panel shows a list of currently blocked IPs. An IP is blocked for 15 minutes after 5 failed login attempts within 10 minutes.
+
+- Local/private IPs (LAN) are **exempt** from blocking
+- Blocked IPs can be manually unblocked with the **Unblock** button
 
 ---
 
@@ -48,6 +98,8 @@ All user configurations are stored under `/config/addons_config/cardboard/`:
 
 ## users.yaml
 
+`users.yaml` is normally managed via the Admin Panel. For manual editing:
+
 ```yaml
 users:
   - username: user1
@@ -69,36 +121,22 @@ users:
       - overview.j2        # Short form without title is also valid
 ```
 
-- `force_pw_change` (optional) – if `true`, the user is redirected to the password change page on first login. The field is automatically removed after a successful change.
-
-```yaml
-users:
-  - username: user1
-    password: initial_password
-    force_pw_change: true
-```
-
-- `username` is compared case-insensitively (capitalization does not matter at login)
-- `display_name` (optional) – shown as greeting ("Hello …"). If omitted, `username` is used
-- `lang` (optional) – display language: `de` (default) or `en`. Affects all UI text and time format
-- `password` – plaintext or SHA-256 hash (64 hex characters). A hash is recommended for external access
-- `templates` determines the number of cards (max. 3); order = display order in the browser
-- Template files are located in the subfolder named after the username
+- `username` is compared case-insensitively
+- `display_name` (optional) – shown as greeting. If omitted, `username` is used
+- `lang` (optional) – display language: `de` (default) or `en`
+- `password` – plaintext or SHA-256 hash (64 hex characters)
+- `templates` – order = display order; max. `max_cards` cards are shown
+- `force_pw_change: true` – user is forced to change password on next login
 
 ---
 
 ## Hashing Passwords
 
-Instead of a plaintext password, a SHA-256 hash can be stored in `users.yaml`. The hash is 64 hex characters long and replaces the plaintext password directly.
+Instead of a plaintext password, a SHA-256 hash can be stored in `users.yaml`.
 
-**Linux / macOS (Terminal):**
+**Linux / macOS:**
 ```sh
 echo -n "MyPassword" | sha256sum
-```
-
-**macOS alternative:**
-```sh
-echo -n "MyPassword" | shasum -a 256
 ```
 
 **Windows (PowerShell):**
@@ -110,26 +148,13 @@ echo -n "MyPassword" | shasum -a 256
 ).Replace("-","").ToLower()
 ```
 
-**Home Assistant Terminal Add-on:**
-```sh
-echo -n "MyPassword" | sha256sum
-```
-
-The result (only the 64 hex characters, without the trailing ` -`) is entered as the `password` value:
-
-```yaml
-users:
-  - username: user1
-    password: a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
-```
-
 > **Important:** Use `echo -n` — without `-n` a newline is included in the hash and the result will be incorrect.
 
 ---
 
 ## Template Files (.j2)
 
-Templates use the full HA Jinja2 syntax. All functions available in the HA Markdown card work here too:
+Templates use the full HA Jinja2 syntax:
 
 ```jinja2
 {%- set temp = states('sensor.living_room_temperature') | float(0) -%}
@@ -141,54 +166,29 @@ Temperature: **{{ temp | round(1) }}°C**
 Rain: {% if rain == 'on' %}🌧️ Yes{% else %}☀️ No{% endif %}
 ```
 
-### Note on Alignment
-
-For space-aligned text (as commonly used in HA Markdown cards), content is displayed in a monospace font and spaces are preserved. Standard Markdown syntax like `**bold**`, `## Heading`, or tables is also rendered.
+Content is displayed in a monospace font with whitespace alignment preserved. Standard Markdown syntax like `**bold**`, `## Heading`, or tables is fully rendered.
 
 ---
 
-## Admin Panel
+## PWA – Install as App
 
-The Admin Panel allows managing users directly in the browser — no manual editing of `users.yaml` required.
+CardBoard supports installation as a Progressive Web App (PWA).
 
-### Access
+| Device | Requirement | How to install |
+|---|---|---|
+| **iPhone / iPad** | any browser | Safari: Share (📤) → "Add to Home Screen" |
+| **Android** | HTTPS | Chrome: Menu → "Add to Home Screen" or automatic banner |
+| **Desktop** | HTTPS | Chrome/Edge: Install icon in the address bar |
 
-| Method | URL |
-|---|---|
-| HA Sidebar (Ingress) | Via the CardBoard entry in the HA sidebar → `/admin/` |
-| Direct (LAN) | `http://<HA-IP>:17773/admin/` |
+After installation, CardBoard opens as a standalone app without browser chrome. The status bar follows the selected Dark/Light theme.
 
-If `admin_password` is set, a login page appears on first access. The admin session is valid for 4 hours.  
-If no password is set, the Admin Panel is accessible without login from the local network.
-
-> **nginx**: Do **not** include port 17773 or port 17774 (Ingress) in nginx.
-
-### Features
-
-- **Create user** – Username, display name, language, initial password (stored as SHA-256 hash). The user directory (`/config/addons_config/cardboard/<username>/`) is created automatically. `force_pw_change` is set — the user must change their password on first login.
-- **Edit user** – Change display name, language, and the `force_pw_change` flag.
-- **Reset password** – Set a new password; `force_pw_change` is automatically enabled.
-- **Delete user** – Removes the entry from `users.yaml`. The template directory is preserved.
+> HTTPS is required for Android/Desktop (e.g. via nginx with Let's Encrypt).
 
 ---
 
 ## Admin API
 
-The Admin API runs on a separate port (default: **17773**) and is accessible exclusively from the local network. Requests from public IPs are rejected with `403 Forbidden`.
-
-Accepted IP ranges:
-
-| Range | Description |
-|---|---|
-| `10.0.0.0/8` | Private IPv4 (RFC-1918) |
-| `172.16.0.0/12` | Private IPv4 (RFC-1918) |
-| `192.168.0.0/16` | Private IPv4 (RFC-1918) |
-| `127.0.0.0/8` | Loopback IPv4 |
-| `::1` | Loopback IPv6 |
-| `169.254.0.0/16` | Link-Local IPv4 |
-| `fe80::/10` | Link-Local IPv6 |
-
-> **nginx**: Do **not** include port 17773 in the nginx configuration — only proxy port 17772.
+The Admin API runs on port **17773** and is accessible from the local network only.
 
 ### Endpoints
 
@@ -207,8 +207,6 @@ Overall statistics of all login events.
 #### `GET /api/admin/logins`
 Login events, newest first.
 
-Query parameters:
-
 | Parameter | Values | Default |
 |---|---|---|
 | `status` | `all` / `success` / `failed` | `all` |
@@ -219,17 +217,6 @@ Query parameters:
 ```sh
 curl http://<HA-IP>:17773/api/admin/logins?status=failed
 curl http://<HA-IP>:17773/api/admin/logins?username=user1&limit=20
-```
-
-```json
-{
-  "total": 4,
-  "limit": 100,
-  "offset": 0,
-  "events": [
-    { "timestamp": "2025-05-28T14:22:01", "username": "user1", "success": false, "ip": "192.168.1.42" }
-  ]
-}
 ```
 
 #### `GET /api/admin/health`
@@ -243,17 +230,11 @@ Checks the connection to the HA API.
 
 ## Integrating the Admin API in Home Assistant
 
-The Admin API can be integrated directly as an HA sensor to display login statistics on the dashboard or to receive notifications on suspicious logins.
-
-Since HA and CardBoard run on the same physical host but in separate Docker containers, `localhost` does not work — HA cannot reach CardBoard via localhost from within its own container.
-
-Use the same hostname as configured in the `ha_url` option, but with port 17773:
+Since HA and CardBoard run on the same physical host but in separate Docker containers, `localhost` does not work — use the HA hostname with port 17773:
 
 ```
 http://homeassistant.local:17773
 ```
-
-Or the direct IP address of the HA host, e.g. `http://192.168.1.100:17773`.
 
 ### REST Sensors (`configuration.yaml`)
 
@@ -268,22 +249,6 @@ sensor:
     icon: mdi:account-key
 
   - platform: rest
-    name: "CardBoard Successful Logins"
-    unique_id: cardboard_successful_logins
-    resource: http://homeassistant.local:17773/api/admin/stats
-    value_template: "{{ value_json.successful_logins }}"
-    scan_interval: 300
-    icon: mdi:account-check
-
-  - platform: rest
-    name: "CardBoard Failed Logins"
-    unique_id: cardboard_failed_logins
-    resource: http://homeassistant.local:17773/api/admin/stats
-    value_template: "{{ value_json.failed_logins }}"
-    scan_interval: 300
-    icon: mdi:account-alert
-
-  - platform: rest
     name: "CardBoard Failed Logins 24h"
     unique_id: cardboard_failed_logins_24h
     resource: http://homeassistant.local:17773/api/admin/stats
@@ -292,30 +257,13 @@ sensor:
     icon: mdi:account-alert-outline
 
   - platform: rest
-    name: "CardBoard HA API Status"
-    unique_id: cardboard_ha_api_status
-    resource: http://homeassistant.local:17773/api/admin/health
-    value_template: "{{ value_json.status }}"
-    scan_interval: 60
-    icon: mdi:api
-```
-
-### Sensors for Last Logins
-
-These sensors show the username, timestamp, and IP address of the most recent successful and failed login:
-
-```yaml
-sensor:
-  - platform: rest
     name: "CardBoard Last Successful Login"
     unique_id: cardboard_last_successful_login
     resource: "http://homeassistant.local:17773/api/admin/logins?status=success&limit=1"
     value_template: >
       {% if value_json.events | length > 0 %}
         {{ value_json.events[0].username }} — {{ value_json.events[0].timestamp[:16].replace('T',' ') }} ({{ value_json.events[0].ip }})
-      {% else %}
-        -
-      {% endif %}
+      {% else %}-{% endif %}
     scan_interval: 300
     icon: mdi:account-check
 
@@ -326,21 +274,24 @@ sensor:
     value_template: >
       {% if value_json.events | length > 0 %}
         {{ value_json.events[0].username }} — {{ value_json.events[0].timestamp[:16].replace('T',' ') }} ({{ value_json.events[0].ip }})
-      {% else %}
-        -
-      {% endif %}
+      {% else %}-{% endif %}
     scan_interval: 300
     icon: mdi:shield-alert
-```
 
-Example output: `user1 — 2025-05-28 14:22 (192.168.1.42)`
+  - platform: rest
+    name: "CardBoard HA API Status"
+    unique_id: cardboard_ha_api_status
+    resource: http://homeassistant.local:17773/api/admin/health
+    value_template: "{{ value_json.status }}"
+    scan_interval: 60
+    icon: mdi:api
+```
 
 ### Automation: Notification on Failed Login
 
 ```yaml
 automation:
   - alias: "CardBoard Login Failed Attempt"
-    description: "Notification when someone enters incorrect credentials"
     triggers:
       - trigger: state
         entity_id: sensor.cardboard_failed_logins_24h
@@ -382,38 +333,30 @@ automation:
 
 ## nginx as Reverse Proxy
 
-CardBoard itself only speaks HTTP. For external access, nginx should be placed in front as an HTTPS reverse proxy. Port **17773** (Admin API) must **not** be proxied — it remains accessible from the local network only.
+CardBoard itself only speaks HTTP. For external access, place nginx in front as an HTTPS reverse proxy. Port **17773** (Admin API) must **not** be proxied.
 
 ### Important Headers
-
-CardBoard evaluates two headers:
 
 | Header | Purpose |
 |---|---|
 | `X-Forwarded-For` | Real client IP (for login log and notifications) |
 | `X-Forwarded-Proto` | Sets the `Secure` flag on the session cookie when using HTTPS |
 
-Both must be set by nginx (see example below).
-
 ### Example Configuration
 
 ```nginx
-# HTTP → HTTPS redirect
 server {
     listen 80;
     server_name cardboard.example.com;
     return 301 https://$host$request_uri;
 }
 
-# HTTPS reverse proxy
 server {
     listen 443 ssl;
     server_name cardboard.example.com;
 
     ssl_certificate     /etc/letsencrypt/live/cardboard.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/cardboard.example.com/privkey.pem;
-
-    # Recommended SSL settings
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
@@ -427,14 +370,15 @@ server {
 }
 ```
 
-> **Important:** Do **not** include port `17773` (Admin API) in nginx.  
+> Do **not** include port `17773` (Admin API) in nginx.  
 > SSL certificates can be obtained for free using [Let's Encrypt](https://letsencrypt.org/) and Certbot.
 
 ---
 
 ## Login
 
-- The web interface is accessible at `http://<HA-IP>:17772` (internal) or via the nginx URL (external)
-- After a successful login, a cookie session is stored (configurable, default: 7 days)
+- Web interface: `http://<HA-IP>:17772` (internal) or nginx URL (external)
+- After successful login: cookie session (configurable, default: 7 days)
 - The session cookie automatically receives the `Secure` flag when HTTPS is detected
+- When the session expires: automatic redirect to the login page with an info message
 - Users can only view their dashboard, not change any configuration
