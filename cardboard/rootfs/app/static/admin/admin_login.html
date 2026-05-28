@@ -80,13 +80,24 @@
     <div class="logo">📋 CardBoard</div>
     <div class="sub">Admin-Panel</div>
     <form method="post">
-      <label for="pw">Admin-Passwort</label>
+      <label for="pw" id="label-pw">Admin-Passwort</label>
       <input type="password" id="pw" name="password" autofocus autocomplete="current-password">
-      <button class="btn" type="submit">Anmelden</button>
+      <button class="btn" type="submit" id="btn-login">Anmelden</button>
     </form>
     <div class="error-msg" id="err">Falsches Passwort.</div>
   </div>
   <script>
+    const i18n = {
+      de: { label: 'Admin-Passwort', btn: 'Anmelden',  err: 'Falsches Passwort.' },
+      en: { label: 'Admin Password', btn: 'Sign in',   err: 'Incorrect password.' },
+    };
+    const lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+    const t = i18n[lang];
+    document.documentElement.lang = lang;
+    document.getElementById('label-pw').textContent = t.label;
+    document.getElementById('btn-login').textContent = t.btn;
+    document.getElementById('err').textContent = t.err;
+
     if (new URLSearchParams(location.search).get('error')) {
       document.getElementById('err').classList.add('visible');
     }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" id="html-root">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -206,28 +206,28 @@
       <h1>CardBoard</h1>
       <span class="badge">Admin</span>
     </div>
-    <a href="logout" class="btn-logout">Abmelden</a>
+    <a href="logout" class="btn-logout" id="btn-logout">Abmelden</a>
   </header>
 
   <main>
     <div class="section-header">
-      <h2>Benutzer</h2>
-      <button class="btn btn-primary" onclick="openCreateModal()">+ Benutzer anlegen</button>
+      <h2 id="h-users">Benutzer</h2>
+      <button class="btn btn-primary" id="btn-create" onclick="openCreateModal()">+ Benutzer anlegen</button>
     </div>
     <div class="table-wrap">
       <table id="user-table">
         <thead>
           <tr>
-            <th>Benutzername</th>
-            <th>Anzeigename</th>
-            <th>Sprache</th>
-            <th>Templates</th>
-            <th>Status</th>
-            <th>Aktionen</th>
+            <th id="th-username">Benutzername</th>
+            <th id="th-display">Anzeigename</th>
+            <th id="th-lang">Sprache</th>
+            <th id="th-tpl">Templates</th>
+            <th id="th-status">Status</th>
+            <th id="th-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody id="user-tbody">
-          <tr><td colspan="6" class="empty">Lade…</td></tr>
+          <tr><td colspan="6" class="empty" id="td-loading">Lade…</td></tr>
         </tbody>
       </table>
     </div>
@@ -236,31 +236,31 @@
   <!-- Create Modal -->
   <div class="overlay" id="modal-create">
     <div class="modal">
-      <h3>Neuen Benutzer anlegen</h3>
+      <h3 id="cm-title">Neuen Benutzer anlegen</h3>
       <div class="modal-error" id="create-error"></div>
       <div class="form-group">
-        <label>Benutzername <span style="color:#9ca3af">(a–z, 0–9, _ -)</span></label>
+        <label id="cm-l-user">Benutzername <span style="color:#9ca3af">(a–z, 0–9, _ -)</span></label>
         <input type="text" id="c-username" autocomplete="off">
       </div>
       <div class="form-group">
-        <label>Anzeigename (optional)</label>
+        <label id="cm-l-display">Anzeigename (optional)</label>
         <input type="text" id="c-display">
       </div>
       <div class="form-group">
-        <label>Sprache</label>
+        <label id="cm-l-lang">Sprache</label>
         <select id="c-lang">
           <option value="de">Deutsch</option>
           <option value="en">English</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Initiales Passwort</label>
+        <label id="cm-l-pw">Initiales Passwort</label>
         <input type="password" id="c-password" autocomplete="new-password">
         <div class="pw-hint" id="c-pw-hint"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('modal-create')">Abbrechen</button>
-        <button class="btn btn-primary" onclick="doCreateUser()">Anlegen</button>
+        <button class="btn btn-ghost" id="cm-cancel" onclick="closeModal('modal-create')">Abbrechen</button>
+        <button class="btn btn-primary" id="cm-submit" onclick="doCreateUser()">Anlegen</button>
       </div>
     </div>
   </div>
@@ -268,15 +268,15 @@
   <!-- Edit Modal -->
   <div class="overlay" id="modal-edit">
     <div class="modal">
-      <h3>Benutzer bearbeiten</h3>
+      <h3 id="em-title">Benutzer bearbeiten</h3>
       <div class="modal-error" id="edit-error"></div>
       <input type="hidden" id="e-username">
       <div class="form-group">
-        <label>Anzeigename</label>
+        <label id="em-l-display">Anzeigename</label>
         <input type="text" id="e-display">
       </div>
       <div class="form-group">
-        <label>Sprache</label>
+        <label id="em-l-lang">Sprache</label>
         <select id="e-lang">
           <option value="de">Deutsch</option>
           <option value="en">English</option>
@@ -284,11 +284,11 @@
       </div>
       <div class="form-group" style="display:flex;align-items:center;gap:10px;">
         <input type="checkbox" id="e-force-pw" style="width:auto;">
-        <label for="e-force-pw" style="margin:0;">Passwortänderung erzwingen</label>
+        <label for="e-force-pw" id="em-l-force" style="margin:0;">Passwortänderung erzwingen</label>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('modal-edit')">Abbrechen</button>
-        <button class="btn btn-primary" onclick="doEditUser()">Speichern</button>
+        <button class="btn btn-ghost" id="em-cancel" onclick="closeModal('modal-edit')">Abbrechen</button>
+        <button class="btn btn-primary" id="em-submit" onclick="doEditUser()">Speichern</button>
       </div>
     </div>
   </div>
@@ -296,20 +296,20 @@
   <!-- Reset Password Modal -->
   <div class="overlay" id="modal-reset">
     <div class="modal">
-      <h3>Passwort zurücksetzen</h3>
+      <h3 id="rm-title">Passwort zurücksetzen</h3>
       <div class="modal-error" id="reset-error"></div>
       <input type="hidden" id="r-username">
       <div class="form-group">
-        <label>Neues Passwort für <strong id="r-username-label"></strong></label>
+        <label id="rm-l-pw">Neues Passwort für <strong id="r-username-label"></strong></label>
         <input type="password" id="r-password" autocomplete="new-password">
         <div class="pw-hint" id="r-pw-hint"></div>
       </div>
-      <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">
+      <p id="rm-hint" style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">
         Der Benutzer wird beim nächsten Login zur Passwortänderung aufgefordert.
       </p>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('modal-reset')">Abbrechen</button>
-        <button class="btn btn-primary" onclick="doResetPassword()">Zurücksetzen</button>
+        <button class="btn btn-ghost" id="rm-cancel" onclick="closeModal('modal-reset')">Abbrechen</button>
+        <button class="btn btn-primary" id="rm-submit" onclick="doResetPassword()">Zurücksetzen</button>
       </div>
     </div>
   </div>
@@ -317,13 +317,13 @@
   <!-- Delete Modal -->
   <div class="overlay" id="modal-delete">
     <div class="modal">
-      <h3>Benutzer löschen</h3>
+      <h3 id="dm-title">Benutzer löschen</h3>
       <input type="hidden" id="d-username">
-      <p>Benutzer <strong id="d-username-label"></strong> wirklich löschen?<br>
-         <span style="font-size:0.8rem;color:var(--text-muted)">Das Benutzerverzeichnis bleibt erhalten.</span></p>
+      <p id="dm-text">Benutzer <strong id="d-username-label"></strong> wirklich löschen?<br>
+         <span id="dm-sub" style="font-size:0.8rem;color:var(--text-muted)">Das Benutzerverzeichnis bleibt erhalten.</span></p>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('modal-delete')">Abbrechen</button>
-        <button class="btn btn-danger" onclick="doDeleteUser()">Löschen</button>
+        <button class="btn btn-ghost" id="dm-cancel" onclick="closeModal('modal-delete')">Abbrechen</button>
+        <button class="btn btn-danger" id="dm-submit" onclick="doDeleteUser()">Löschen</button>
       </div>
     </div>
   </div>
@@ -331,6 +331,159 @@
   <div id="toast"></div>
 
   <script>
+    const i18n = {
+      de: {
+        logout:       'Abmelden',
+        users:        'Benutzer',
+        btnCreate:    '+ Benutzer anlegen',
+        thUsername:   'Benutzername',
+        thDisplay:    'Anzeigename',
+        thLang:       'Sprache',
+        thTpl:        'Templates',
+        thStatus:     'Status',
+        thActions:    'Aktionen',
+        loading:      'Lade…',
+        noUsers:      'Keine Benutzer vorhanden.',
+        tagPwChange:  'PW ändern',
+        tagOk:        'OK',
+        btnEdit:      'Bearbeiten',
+        btnReset:     'PW reset',
+        btnDelete:    'Löschen',
+        cmTitle:      'Neuen Benutzer anlegen',
+        cmLUser:      'Benutzername (a–z, 0–9, _ -)',
+        cmLDisplay:   'Anzeigename (optional)',
+        cmLLang:      'Sprache',
+        cmLPw:        'Initiales Passwort',
+        cmCancel:     'Abbrechen',
+        cmSubmit:     'Anlegen',
+        emTitle:      'Benutzer bearbeiten',
+        emLDisplay:   'Anzeigename',
+        emLLang:      'Sprache',
+        emLForce:     'Passwortänderung erzwingen',
+        emCancel:     'Abbrechen',
+        emSubmit:     'Speichern',
+        rmTitle:      'Passwort zurücksetzen',
+        rmLPw:        'Neues Passwort für',
+        rmHint:       'Der Benutzer wird beim nächsten Login zur Passwortänderung aufgefordert.',
+        rmCancel:     'Abbrechen',
+        rmSubmit:     'Zurücksetzen',
+        dmTitle:      'Benutzer löschen',
+        dmText:       u => `Benutzer wirklich löschen?`,
+        dmSub:        'Das Benutzerverzeichnis bleibt erhalten.',
+        dmCancel:     'Abbrechen',
+        dmSubmit:     'Löschen',
+        pwHint:       (n, special) => `Mindestens ${n} Zeichen${special ? ', mind. eine Zahl oder ein Sonderzeichen' : ''}.`,
+        toastCreated: u => `Benutzer ${u} angelegt.`,
+        toastSaved:   'Änderungen gespeichert.',
+        toastReset:   u => `Passwort für ${u} zurückgesetzt.`,
+        toastDeleted: u => `Benutzer ${u} gelöscht.`,
+        toastDelErr:  'Löschen fehlgeschlagen.',
+        errMap: {
+          username_empty:      'Benutzername darf nicht leer sein.',
+          username_invalid:    'Benutzername: nur a–z, 0–9, _ und - erlaubt (max. 32 Zeichen).',
+          username_exists:     'Benutzername bereits vergeben.',
+          password_empty:      'Passwort darf nicht leer sein.',
+          password_too_short:  n => `Passwort muss mindestens ${n} Zeichen lang sein.`,
+          password_no_special: 'Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten.',
+          not_found:           'Benutzer nicht gefunden.',
+        },
+      },
+      en: {
+        logout:       'Sign out',
+        users:        'Users',
+        btnCreate:    '+ Add user',
+        thUsername:   'Username',
+        thDisplay:    'Display name',
+        thLang:       'Language',
+        thTpl:        'Templates',
+        thStatus:     'Status',
+        thActions:    'Actions',
+        loading:      'Loading…',
+        noUsers:      'No users found.',
+        tagPwChange:  'PW change',
+        tagOk:        'OK',
+        btnEdit:      'Edit',
+        btnReset:     'PW reset',
+        btnDelete:    'Delete',
+        cmTitle:      'Add new user',
+        cmLUser:      'Username (a–z, 0–9, _ -)',
+        cmLDisplay:   'Display name (optional)',
+        cmLLang:      'Language',
+        cmLPw:        'Initial password',
+        cmCancel:     'Cancel',
+        cmSubmit:     'Create',
+        emTitle:      'Edit user',
+        emLDisplay:   'Display name',
+        emLLang:      'Language',
+        emLForce:     'Force password change',
+        emCancel:     'Cancel',
+        emSubmit:     'Save',
+        rmTitle:      'Reset password',
+        rmLPw:        'New password for',
+        rmHint:       'The user will be prompted to change their password on next login.',
+        rmCancel:     'Cancel',
+        rmSubmit:     'Reset',
+        dmTitle:      'Delete user',
+        dmText:       u => `Really delete user?`,
+        dmSub:        'The user directory will be preserved.',
+        dmCancel:     'Cancel',
+        dmSubmit:     'Delete',
+        pwHint:       (n, special) => `At least ${n} characters${special ? ', at least one number or special character' : ''}.`,
+        toastCreated: u => `User ${u} created.`,
+        toastSaved:   'Changes saved.',
+        toastReset:   u => `Password for ${u} reset.`,
+        toastDeleted: u => `User ${u} deleted.`,
+        toastDelErr:  'Delete failed.',
+        errMap: {
+          username_empty:      'Username must not be empty.',
+          username_invalid:    'Username: only a–z, 0–9, _ and - allowed (max. 32 characters).',
+          username_exists:     'Username already taken.',
+          password_empty:      'Password must not be empty.',
+          password_too_short:  n => `Password must be at least ${n} characters long.`,
+          password_no_special: 'Password must contain at least one number or special character.',
+          not_found:           'User not found.',
+        },
+      },
+    };
+
+    const lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+    const t = i18n[lang];
+    document.getElementById('html-root').lang = lang;
+
+    function applyI18n() {
+      document.getElementById('btn-logout').textContent  = t.logout;
+      document.getElementById('h-users').textContent     = t.users;
+      document.getElementById('btn-create').textContent  = t.btnCreate;
+      document.getElementById('th-username').textContent = t.thUsername;
+      document.getElementById('th-display').textContent  = t.thDisplay;
+      document.getElementById('th-lang').textContent     = t.thLang;
+      document.getElementById('th-tpl').textContent      = t.thTpl;
+      document.getElementById('th-status').textContent   = t.thStatus;
+      document.getElementById('th-actions').textContent  = t.thActions;
+      document.getElementById('td-loading').textContent  = t.loading;
+      document.getElementById('cm-title').textContent    = t.cmTitle;
+      document.getElementById('cm-l-user').textContent   = t.cmLUser;
+      document.getElementById('cm-l-display').textContent = t.cmLDisplay;
+      document.getElementById('cm-l-lang').textContent   = t.cmLLang;
+      document.getElementById('cm-l-pw').textContent     = t.cmLPw;
+      document.getElementById('cm-cancel').textContent   = t.cmCancel;
+      document.getElementById('cm-submit').textContent   = t.cmSubmit;
+      document.getElementById('em-title').textContent    = t.emTitle;
+      document.getElementById('em-l-display').textContent = t.emLDisplay;
+      document.getElementById('em-l-lang').textContent   = t.emLLang;
+      document.getElementById('em-l-force').textContent  = t.emLForce;
+      document.getElementById('em-cancel').textContent   = t.emCancel;
+      document.getElementById('em-submit').textContent   = t.emSubmit;
+      document.getElementById('rm-title').textContent    = t.rmTitle;
+      document.getElementById('rm-cancel').textContent   = t.rmCancel;
+      document.getElementById('rm-submit').textContent   = t.rmSubmit;
+      document.getElementById('rm-hint').textContent     = t.rmHint;
+      document.getElementById('dm-title').textContent    = t.dmTitle;
+      document.getElementById('dm-sub').textContent      = t.dmSub;
+      document.getElementById('dm-cancel').textContent   = t.dmCancel;
+      document.getElementById('dm-submit').textContent   = t.dmSubmit;
+    }
+
     let pwConfig = { pw_min_length: 8, pw_require_special: true };
 
     async function loadConfig() {
@@ -341,9 +494,7 @@
     }
 
     function pwHintText() {
-      const parts = [`Mindestens ${pwConfig.pw_min_length} Zeichen`];
-      if (pwConfig.pw_require_special) parts.push('mind. eine Zahl oder ein Sonderzeichen');
-      return parts.join(', ') + '.';
+      return t.pwHint(pwConfig.pw_min_length, pwConfig.pw_require_special);
     }
 
     /* ── Users ─── */
@@ -353,7 +504,7 @@
       const users = await r.json();
       const tbody = document.getElementById('user-tbody');
       if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">Keine Benutzer vorhanden.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">${t.noUsers}</td></tr>`;
         return;
       }
       tbody.innerHTML = users.map(u => `
@@ -363,13 +514,13 @@
           <td>${esc(u.lang || 'de')}</td>
           <td>${u.template_count}</td>
           <td>${u.force_pw_change
-            ? '<span class="tag tag-warn">PW ändern</span>'
-            : '<span class="tag tag-ok">OK</span>'}</td>
+            ? `<span class="tag tag-warn">${t.tagPwChange}</span>`
+            : `<span class="tag tag-ok">${t.tagOk}</span>`}</td>
           <td>
             <div class="actions">
-              <button class="btn btn-ghost btn-sm" onclick="openEditModal(${JSON.stringify(u)})">Bearbeiten</button>
-              <button class="btn btn-ghost btn-sm" onclick="openResetModal('${esc(u.username)}')">PW reset</button>
-              <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${esc(u.username)}')">Löschen</button>
+              <button class="btn btn-ghost btn-sm" onclick="openEditModal(${JSON.stringify(u)})">${t.btnEdit}</button>
+              <button class="btn btn-ghost btn-sm" onclick="openResetModal('${esc(u.username)}')">${t.btnReset}</button>
+              <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${esc(u.username)}')">${t.btnDelete}</button>
             </div>
           </td>
         </tr>
@@ -415,6 +566,7 @@
       clearError('reset-error');
       document.getElementById('r-username').value       = username;
       document.getElementById('r-username-label').textContent = username;
+      document.getElementById('rm-l-pw').innerHTML = `${t.rmLPw} <strong id="r-username-label">${esc(username)}</strong>`;
       document.getElementById('r-password').value      = '';
       document.getElementById('r-pw-hint').textContent = pwHintText();
       openModal('modal-reset');
@@ -429,16 +581,10 @@
 
     /* ── CRUD ─── */
     function errMsg(code, pwMin) {
-      const map = {
-        username_empty:   'Benutzername darf nicht leer sein.',
-        username_invalid: 'Benutzername: nur a–z, 0–9, _ und - erlaubt (max. 32 Zeichen).',
-        username_exists:  'Benutzername bereits vergeben.',
-        password_empty:   'Passwort darf nicht leer sein.',
-        password_too_short: `Passwort muss mindestens ${pwMin || pwConfig.pw_min_length} Zeichen lang sein.`,
-        password_no_special: 'Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten.',
-        not_found:        'Benutzer nicht gefunden.',
-      };
-      return map[code] || `Fehler: ${code}`;
+      const entry = t.errMap[code];
+      if (!entry) return `Error: ${code}`;
+      if (typeof entry === 'function') return entry(pwMin || pwConfig.pw_min_length);
+      return entry;
     }
 
     async function doCreateUser() {
@@ -457,7 +603,7 @@
       const data = await r.json();
       if (!r.ok) { showError('create-error', errMsg(data.error, data.pw_min_length)); return; }
       closeModal('modal-create');
-      toast(`Benutzer ${body.username} angelegt.`, 'ok');
+      toast(t.toastCreated(body.username), 'ok');
       loadUsers();
     }
 
@@ -477,7 +623,7 @@
       const data = await r.json();
       if (!r.ok) { showError('edit-error', errMsg(data.error)); return; }
       closeModal('modal-edit');
-      toast('Änderungen gespeichert.', 'ok');
+      toast(t.toastSaved, 'ok');
       loadUsers();
     }
 
@@ -493,7 +639,7 @@
       const data = await r.json();
       if (!r.ok) { showError('reset-error', errMsg(data.error, data.pw_min_length)); return; }
       closeModal('modal-reset');
-      toast(`Passwort für ${username} zurückgesetzt.`, 'ok');
+      toast(t.toastReset(username), 'ok');
       loadUsers();
     }
 
@@ -501,8 +647,8 @@
       const username = document.getElementById('d-username').value;
       const r = await fetch(`api/users/${username}`, { method: 'DELETE' });
       closeModal('modal-delete');
-      if (r.ok) { toast(`Benutzer ${username} gelöscht.`, 'ok'); }
-      else      { toast('Löschen fehlgeschlagen.', 'err'); }
+      if (r.ok) { toast(t.toastDeleted(username), 'ok'); }
+      else      { toast(t.toastDelErr, 'err'); }
       loadUsers();
     }
 
@@ -527,6 +673,7 @@
     });
 
     /* ── Init ─── */
+    applyI18n();
     loadConfig().then(loadUsers);
   </script>
 </body>
