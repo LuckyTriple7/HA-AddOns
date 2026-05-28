@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CardBoard – Anmelden</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #111827;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #e5e7eb;
+    }
+
+    .card {
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 16px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      font-size: 52px;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .logo h1 {
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: #f9fafb;
+      letter-spacing: -0.5px;
+    }
+
+    .logo p {
+      font-size: 0.82rem;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #9ca3af;
+      margin-bottom: 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    input {
+      width: 100%;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: #f9fafb;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button[type="submit"]:hover { background: #2563eb; }
+    button[type="submit"]:active { transform: scale(0.98); }
+
+    .error {
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      margin-bottom: 18px;
+      display: none;
+    }
+
+    .error.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <span class="logo-icon">📋</span>
+      <h1>CardBoard</h1>
+      <p id="subtitle">Home Assistant Dashboard</p>
+    </div>
+
+    <div class="error" id="error-msg"></div>
+
+    <form method="post" action="/login">
+      <div class="form-group">
+        <label for="username" id="label-username">Benutzername</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          autocomplete="username"
+          autofocus
+          required
+        >
+      </div>
+      <div class="form-group">
+        <label for="password" id="label-password">Passwort</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+      <button type="submit" id="btn-submit">Anmelden</button>
+    </form>
+  </div>
+
+  <script>
+    const i18n = {
+      de: {
+        subtitle:  'Home Assistant Dashboard',
+        username:  'Benutzername',
+        password:  'Passwort',
+        submit:    'Anmelden',
+        error:     'Ungültiger Benutzername oder Passwort.',
+      },
+      en: {
+        subtitle:  'Home Assistant Dashboard',
+        username:  'Username',
+        password:  'Password',
+        submit:    'Sign in',
+        error:     'Invalid username or password.',
+      },
+    };
+
+    const lang = navigator.language && navigator.language.toLowerCase().startsWith('en') ? 'en' : 'de';
+    const t = i18n[lang];
+
+    document.getElementById('subtitle').textContent      = t.subtitle;
+    document.getElementById('label-username').textContent = t.username;
+    document.getElementById('label-password').textContent = t.password;
+    document.getElementById('btn-submit').textContent     = t.submit;
+
+    if (new URLSearchParams(window.location.search).get('error')) {
+      const el = document.getElementById('error-msg');
+      el.textContent = t.error;
+      el.classList.add('visible');
+    }
+  </script>
+</body>
+</html>

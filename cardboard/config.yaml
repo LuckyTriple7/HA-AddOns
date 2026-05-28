@@ -1,0 +1,44 @@
+name: CardBoard
+description: Zeigt HA-Sensordaten als gerenderte Markdown-Karten im Browser an
+version: "0.0.1"
+slug: cardboard
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: false
+
+image: "ghcr.io/luckytriple7/cardboard"
+
+panel_icon: mdi:card-text
+panel_title: CardBoard
+webui: http://[HOST]:[PORT:17772]
+
+ports:
+  17772/tcp: 17772
+  17773/tcp: 17773
+
+ports_description:
+  17772/tcp: CardBoard Web-UI
+  17773/tcp: CardBoard Admin-API (nur LAN)
+
+map:
+  - config:rw
+
+options:
+  port: 17772
+  admin_port: 17773
+  ha_token: ""
+  ha_url: "http://homeassistant:8123"
+  refresh_interval: 30
+
+schema:
+  port: int
+  admin_port: int
+  ha_token: str
+  ha_url: str
+  refresh_interval: int
