@@ -632,16 +632,16 @@ async def ingress_admin_login(request: Request):
     opts = load_options()
     expected = (opts.get("admin_password") or "").strip()
     if expected and not check_password(password, expected):
-        return RedirectResponse("/admin/login?error=1", status_code=303)
+        return Response(status_code=303, headers={"Location": "login?error=1"})
     token = get_admin_serializer().dumps({"admin": True})
-    response = RedirectResponse("/admin/", status_code=303)
+    response = Response(status_code=303, headers={"Location": "."})
     response.set_cookie(ADMIN_COOKIE_NAME, token, max_age=ADMIN_SESSION_AGE, httponly=True, samesite="lax")
     return response
 
 
 @ingress_app.get("/admin/logout")
 async def ingress_admin_logout():
-    response = RedirectResponse("/admin/login", status_code=303)
+    response = Response(status_code=303, headers={"Location": "login"})
     response.delete_cookie(ADMIN_COOKIE_NAME)
     return response
 
@@ -649,7 +649,7 @@ async def ingress_admin_logout():
 @ingress_app.get("/admin/", response_class=HTMLResponse)
 async def ingress_admin_panel(request: Request):
     if not admin_panel_allowed(request):
-        return _admin_login_redirect()
+        return Response(status_code=302, headers={"Location": "login"})
     return _serve_admin_html("admin.html")
 
 

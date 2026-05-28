@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.24
+- Bugfix: Logout, Login-Fehler und Panel-Redirect im Ingress verwenden relative URLs (kein 404 mehr nach Abmelden)
+
 ## 0.0.23
 - Admin-Panel: Uhr im Header (live, Sekundenanzeige)
 - Admin-Panel: Header-Buttons (Reload, Theme, Abmelden) einheitlich wie in der View-Seite
