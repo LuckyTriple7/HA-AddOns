@@ -1,3 +1,10 @@
+## [1.8.18] - 2026-05-28
+
+### Aktualisiert
+
+- GitHub CLI: 2.92.0 → 2.93.0
+- Claude Desktop: 2.0.14+claude1.8555.2 → 2.0.16+claude1.9255.2
+
 ## [1.8.17] - 2026-05-27
 
 ### Aktualisiert
