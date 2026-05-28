@@ -331,8 +331,61 @@ automation:
 
 ---
 
+## nginx als Reverse-Proxy
+
+CardBoard selbst spricht nur HTTP. Für den Zugriff von außen sollte nginx als HTTPS-Reverse-Proxy davor geschaltet werden. Port **17773** (Admin-API) darf dabei **nicht** proxied werden — er bleibt ausschließlich intern erreichbar.
+
+### Wichtige Header
+
+CardBoard wertet zwei Header aus:
+
+| Header | Zweck |
+|---|---|
+| `X-Forwarded-For` | Echte Client-IP (für Login-Log und Benachrichtigungen) |
+| `X-Forwarded-Proto` | Setzt das `Secure`-Flag am Session-Cookie bei HTTPS |
+
+Beide müssen von nginx gesetzt werden (siehe Beispiel unten).
+
+### Beispiel-Konfiguration
+
+```nginx
+# HTTP → HTTPS Weiterleitung
+server {
+    listen 80;
+    server_name cardboard.example.com;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS Reverse-Proxy
+server {
+    listen 443 ssl;
+    server_name cardboard.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/cardboard.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cardboard.example.com/privkey.pem;
+
+    # Empfohlene SSL-Einstellungen
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass         http://localhost:17772;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+> **Wichtig:** Port `17773` (Admin-API) **nicht** in nginx eintragen.  
+> Das SSL-Zertifikat kann z. B. mit [Let's Encrypt](https://letsencrypt.org/) und Certbot ausgestellt werden.
+
+---
+
 ## Anmeldung
 
-- Die Web-Oberfläche ist über `http://<HA-IP>:17772` erreichbar
-- Nach erfolgreichem Login wird eine Cookie-Session für 7 Tage gespeichert
+- Die Web-Oberfläche ist über `http://<HA-IP>:17772` erreichbar (intern) bzw. über die nginx-URL (extern)
+- Nach erfolgreichem Login wird eine Cookie-Session gespeichert (konfigurierbar, Standard: 7 Tage)
+- Das Session-Cookie erhält das `Secure`-Flag automatisch wenn HTTPS erkannt wird
 - Benutzer können nur die Ansicht lesen, keine Konfiguration ändern

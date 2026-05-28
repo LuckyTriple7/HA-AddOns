@@ -331,8 +331,61 @@ automation:
 
 ---
 
+## nginx as Reverse Proxy
+
+CardBoard itself only speaks HTTP. For external access, nginx should be placed in front as an HTTPS reverse proxy. Port **17773** (Admin API) must **not** be proxied — it remains accessible from the local network only.
+
+### Important Headers
+
+CardBoard evaluates two headers:
+
+| Header | Purpose |
+|---|---|
+| `X-Forwarded-For` | Real client IP (for login log and notifications) |
+| `X-Forwarded-Proto` | Sets the `Secure` flag on the session cookie when using HTTPS |
+
+Both must be set by nginx (see example below).
+
+### Example Configuration
+
+```nginx
+# HTTP → HTTPS redirect
+server {
+    listen 80;
+    server_name cardboard.example.com;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS reverse proxy
+server {
+    listen 443 ssl;
+    server_name cardboard.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/cardboard.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cardboard.example.com/privkey.pem;
+
+    # Recommended SSL settings
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass         http://localhost:17772;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+> **Important:** Do **not** include port `17773` (Admin API) in nginx.  
+> SSL certificates can be obtained for free using [Let's Encrypt](https://letsencrypt.org/) and Certbot.
+
+---
+
 ## Login
 
-- The web interface is accessible at `http://<HA-IP>:17772`
-- After a successful login, a cookie session is stored for 7 days
+- The web interface is accessible at `http://<HA-IP>:17772` (internal) or via the nginx URL (external)
+- After a successful login, a cookie session is stored (configurable, default: 7 days)
+- The session cookie automatically receives the `Secure` flag when HTTPS is detected
 - Users can only view their dashboard, not change any configuration
