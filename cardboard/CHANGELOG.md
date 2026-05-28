@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.13
+- client_ip() liest X-Forwarded-For Header aus — echte Client-IP statt Docker-Netzwerk-IP hinter nginx
+
 ## 0.0.12
 - Login erfolgreich im Log: user, IP (INFO)
 - Login fehlgeschlagen im Log: user, IP (WARNING)
