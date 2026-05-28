@@ -274,25 +274,40 @@ sensor:
     icon: mdi:api
 ```
 
-### Template-Sensor für letzten fehlgeschlagenen Login
+### Sensoren für letzte Logins
 
-Dieser Sensor zeigt Zeitpunkt und IP-Adresse des letzten fehlgeschlagenen Login-Versuchs:
+Diese Sensoren zeigen Benutzername, Zeitpunkt und IP-Adresse des jeweils letzten erfolgreichen bzw. fehlgeschlagenen Logins:
 
 ```yaml
 sensor:
+  - platform: rest
+    name: "CardBoard Letzter erfolgreicher Login"
+    unique_id: cardboard_last_successful_login
+    resource: "http://homeassistant.local:17773/api/admin/logins?status=success&limit=1"
+    value_template: >
+      {% if value_json.events | length > 0 %}
+        {{ value_json.events[0].username }} — {{ value_json.events[0].timestamp[:16].replace('T',' ') }} ({{ value_json.events[0].ip }})
+      {% else %}
+        -
+      {% endif %}
+    scan_interval: 300
+    icon: mdi:account-check
+
   - platform: rest
     name: "CardBoard Letzter fehlgeschlagener Login"
     unique_id: cardboard_last_failed_login
     resource: "http://homeassistant.local:17773/api/admin/logins?status=failed&limit=1"
     value_template: >
       {% if value_json.events | length > 0 %}
-        {{ value_json.events[0].timestamp }} ({{ value_json.events[0].ip }})
+        {{ value_json.events[0].username }} — {{ value_json.events[0].timestamp[:16].replace('T',' ') }} ({{ value_json.events[0].ip }})
       {% else %}
-        Keine
+        -
       {% endif %}
     scan_interval: 300
     icon: mdi:shield-alert
 ```
+
+Beispielausgabe: `user1 — 2025-05-28 14:22 (192.168.1.42)`
 
 ### Automation: Benachrichtigung bei fehlgeschlagenem Login
 

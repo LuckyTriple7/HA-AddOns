@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.19
+- Doku: REST-Sensor für letzten erfolgreichen Login (username, Zeitstempel, IP)
+- Doku: REST-Sensor für letzten fehlgeschlagenen Login um Username ergänzt
+
 ## 0.0.18
 - Doku: localhost:17773 durch homeassistant.local:17773 ersetzt (HA läuft in eigenem Docker-Container)
 - Erklärung warum localhost nicht funktioniert und welche Adresse stattdessen zu verwenden ist

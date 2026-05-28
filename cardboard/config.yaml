@@ -1,6 +1,6 @@
 name: CardBoard
 description: Zeigt HA-Sensordaten als gerenderte Markdown-Karten im Browser an
-version: "0.0.18"
+version: "0.0.19"
 slug: cardboard
 url: https://github.com/LuckyTriple7/HA-AddOns
 
