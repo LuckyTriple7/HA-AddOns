@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 app = FastAPI()
 admin_app = FastAPI()
 
-_ha_status_cache: dict = {"reachable": False, "version": None, "since": None, "checked_at": None}
+_ha_status_cache: dict = {"reachable": False, "version": None, "since": None, "checked_at": None, "initialized": False}
 
 DATA_DIR = Path("/data")
 CONFIG_DIR = Path("/config/addons_config/cardboard")
@@ -153,13 +153,14 @@ async def public_ha_status():
                 )
             if resp.status_code == 200:
                 version = resp.json().get("version", "")
-                if not _ha_status_cache.get("reachable"):
+                was_offline = _ha_status_cache["initialized"] and not _ha_status_cache.get("reachable")
+                if was_offline:
                     _ha_status_cache["since"] = now.strftime("%d.%m.%Y %H:%M")
-                _ha_status_cache.update({"reachable": True, "version": version, "checked_at": now})
+                _ha_status_cache.update({"reachable": True, "version": version, "checked_at": now, "initialized": True})
             else:
-                _ha_status_cache.update({"reachable": False, "checked_at": now})
+                _ha_status_cache.update({"reachable": False, "checked_at": now, "initialized": True})
         except Exception:
-            _ha_status_cache.update({"reachable": False, "checked_at": now})
+            _ha_status_cache.update({"reachable": False, "checked_at": now, "initialized": True})
     return {
         "reachable":    _ha_status_cache.get("reachable", False),
         "version":      _ha_status_cache.get("version"),

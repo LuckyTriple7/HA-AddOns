@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.7
+- HA-Status: `online seit` wird nur noch angezeigt wenn CardBoard tatsächlich einen Ausfall → Wiederkommen-Übergang beobachtet hat (kein falscher Timestamp beim ersten Start)
+
 ## 0.0.6
 - HA-Status-Anzeige auf der Login-Seite (🟢/🔴 Punkt, Version, online seit)
 - HA-Status-Badge im Footer der View-Seite (wird jede Minute aktualisiert)
