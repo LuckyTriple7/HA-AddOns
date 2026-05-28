@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.10
+- Persistente HA-Benachrichtigung bei fehlgeschlagenem Login (Benutzername, IP, Zeitstempel)
+- Option `notify_failed_login` (bool, Default: `true`) zum Ein-/Ausschalten
+- Benachrichtigung wird asynchron gesendet — kein Einfluss auf Login-Geschwindigkeit
+- Verwendet den vorhandenen `ha_token` und `ha_url` — kein separater Token nötig
+
 ## 0.0.9
 - Option `session_lifetime` (Tage, Default: 7) für die Gültigkeit des Login-Cookies
 

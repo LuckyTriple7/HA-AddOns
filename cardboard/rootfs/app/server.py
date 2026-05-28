@@ -185,6 +185,28 @@ async def public_ha_status():
     }
 
 
+async def _notify_failed_login(username: str, ip: str | None):
+    opts = load_options()
+    if not opts.get("notify_failed_login", True):
+        return
+    ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
+    ha_token = opts.get("ha_token") or ""
+    timestamp = datetime.utcnow().strftime("%d.%m.%Y %H:%M:%S")
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{ha_url}/api/services/persistent_notification/create",
+                headers={"Authorization": f"Bearer {ha_token}"},
+                json={
+                    "title": "⚠️ CardBoard: Login fehlgeschlagen",
+                    "message": f"Benutzer: **{username}**\nIP: {ip or 'unbekannt'}\nZeit: {timestamp} UTC",
+                    "notification_id": "cardboard_failed_login",
+                },
+            )
+    except Exception:
+        log.debug("HA-Benachrichtigung für fehlgeschlagenen Login konnte nicht gesendet werden")
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
     return (STATIC_DIR / "login.html").read_text(encoding="utf-8")
@@ -202,6 +224,7 @@ async def do_login(request: Request):
 
     if not user or not check_password(password, user.get("password", "")):
         db_log_login(username or "?", False, ip)
+        asyncio.create_task(_notify_failed_login(username or "?", ip))
         return RedirectResponse("/login?error=1", status_code=303)
 
     db_log_login(username, True, ip)
