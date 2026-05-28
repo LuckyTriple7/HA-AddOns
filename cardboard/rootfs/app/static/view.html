@@ -7,27 +7,60 @@
   <link rel="icon" type="image/png" href="/static/favicon.png">
   <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
   <style>
+    /* ── Theme-Variablen ─────────────────────────────── */
+    :root {
+      --bg:         #111827;
+      --bg-surface: #1f2937;
+      --bg-deep:    #111827;
+      --border:     #374151;
+      --text:       #e5e7eb;
+      --text-muted: #6b7280;
+      --text-dim:   #4b5563;
+      --text-ftr:   #374151;
+      --accent:     #3b82f6;
+      --c-heading:  #60a5fa;
+      --c-bold:     #fbbf24;
+      --c-em:       #a78bfa;
+    }
+
+    :root.light {
+      --bg:         #f3f4f6;
+      --bg-surface: #ffffff;
+      --bg-deep:    #f3f4f6;
+      --border:     #e5e7eb;
+      --text:       #111827;
+      --text-muted: #6b7280;
+      --text-dim:   #9ca3af;
+      --text-ftr:   #d1d5db;
+      --accent:     #2563eb;
+      --c-heading:  #1d4ed8;
+      --c-bold:     #b45309;
+      --c-em:       #6d28d9;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      background: #111827;
-      color: #e5e7eb;
+      background: var(--bg);
+      color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: background 0.2s, color 0.2s;
     }
 
     /* ── Header ──────────────────────────────────────── */
     header {
-      background: #1f2937;
-      border-bottom: 1px solid #374151;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
       padding: 11px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       flex-shrink: 0;
+      transition: background 0.2s, border-color 0.2s;
     }
 
     .header-left {
@@ -39,56 +72,64 @@
     header h1 {
       font-size: 1.05rem;
       font-weight: 700;
-      color: #f9fafb;
+      color: var(--text);
     }
 
     .user-badge {
       font-size: 0.72rem;
-      color: #6b7280;
-      background: #111827;
+      color: var(--text-muted);
+      background: var(--bg-deep);
       border-radius: 20px;
       padding: 3px 10px;
-      border: 1px solid #374151;
+      border: 1px solid var(--border);
+      transition: background 0.2s, border-color 0.2s;
     }
 
     .welcome-msg {
       font-size: 0.82rem;
-      color: #9ca3af;
+      color: var(--text-muted);
     }
 
     .header-right {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 10px;
     }
 
     .clock {
       font-size: 0.88rem;
       font-weight: 600;
-      color: #d1d5db;
+      color: var(--text);
       font-variant-numeric: tabular-nums;
       letter-spacing: 0.5px;
     }
 
     .refresh-info {
       font-size: 0.75rem;
-      color: #4b5563;
+      color: var(--text-dim);
     }
 
-    .logout-btn {
-      background: #374151;
-      color: #d1d5db;
-      border: none;
+    /* ── Buttons ─────────────────────────────────────── */
+    .btn {
+      background: var(--bg-deep);
+      color: var(--text);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 6px 14px;
+      padding: 6px 12px;
       font-size: 0.8rem;
       cursor: pointer;
       text-decoration: none;
-      display: inline-block;
-      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.2s, border-color 0.2s;
+      white-space: nowrap;
     }
 
-    .logout-btn:hover { background: #4b5563; color: #f9fafb; }
+    .btn:hover { background: var(--border); }
+
+    .btn-refresh .icon { display: inline-block; transition: transform 0.4s; }
+    .btn-refresh.spinning .icon { transform: rotate(360deg); }
 
     /* ── Cards ───────────────────────────────────────── */
     .cards-container {
@@ -100,31 +141,30 @@
     }
 
     .card {
-      background: #1f2937;
-      border: 1px solid #374151;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 20px 24px;
       flex: 1;
       min-width: 0;
-      /* Monospace + pre-wrap: sorgt dafür dass Leerzeichen-Ausrichtung erhalten bleibt */
       font-family: ui-monospace, "Cascadia Code", "Fira Mono", Consolas, monospace;
       font-size: 0.875rem;
       line-height: 1.7;
       white-space: pre-wrap;
       overflow-wrap: break-word;
+      transition: background 0.2s, border-color 0.2s;
     }
 
-    /* Markdown-Elemente innerhalb der Karte */
     .card-title {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 0.72rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: #6b7280;
+      color: var(--text-muted);
       margin-bottom: 12px;
       padding-bottom: 8px;
-      border-bottom: 1px solid #374151;
+      border-bottom: 1px solid var(--border);
     }
 
     .card p   { margin: 0; }
@@ -132,35 +172,36 @@
 
     .card h1, .card h2, .card h3 {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: #60a5fa;
+      color: var(--c-heading);
       white-space: normal;
       margin: 0.5em 0 0.2em;
     }
     .card h1 { font-size: 1.1rem; }
-    .card h2 { font-size: 1rem;   }
+    .card h2 { font-size: 1rem; }
     .card h3 { font-size: 0.93rem; }
 
-    .card strong { color: #fbbf24; font-weight: 700; }
-    .card em     { color: #a78bfa; font-style: italic; }
-
-    .card a          { color: #3b82f6; text-decoration: none; }
-    .card a:hover    { text-decoration: underline; }
+    .card strong { color: var(--c-bold); font-weight: 700; }
+    .card em     { color: var(--c-em); font-style: italic; }
+    .card a      { color: var(--accent); text-decoration: none; }
+    .card a:hover { text-decoration: underline; }
 
     .card code {
-      background: #111827;
+      background: var(--bg-deep);
       border-radius: 4px;
       padding: 1px 5px;
       font-size: 0.85em;
       font-family: inherit;
+      transition: background 0.2s;
     }
 
     .card pre {
-      background: #111827;
+      background: var(--bg-deep);
       border-radius: 8px;
       padding: 12px;
       overflow-x: auto;
       white-space: pre;
       margin: 0.4em 0;
+      transition: background 0.2s;
     }
     .card pre code { background: none; padding: 0; }
 
@@ -172,15 +213,15 @@
       font-family: inherit;
     }
     .card th, .card td {
-      border: 1px solid #374151;
+      border: 1px solid var(--border);
       padding: 5px 10px;
       text-align: left;
     }
-    .card th { background: #111827; color: #9ca3af; font-weight: 600; }
+    .card th { background: var(--bg-deep); color: var(--text-muted); font-weight: 600; }
 
     .card hr {
       border: none;
-      border-top: 1px solid #374151;
+      border-top: 1px solid var(--border);
       margin: 0.6em 0;
     }
 
@@ -191,13 +232,13 @@
 
     /* ── Footer ──────────────────────────────────────── */
     footer {
-      border-top: 1px solid #1f2937;
+      border-top: 1px solid var(--bg-surface);
       padding: 7px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-size: 0.72rem;
-      color: #374151;
+      color: var(--text-ftr);
       flex-shrink: 0;
     }
 
@@ -205,6 +246,7 @@
     @media (max-width: 800px) {
       .cards-container { flex-direction: column; }
       .refresh-info    { display: none; }
+      .welcome-msg     { display: none; }
     }
   </style>
 </head>
@@ -219,12 +261,16 @@
     <div class="header-right">
       <span class="clock" id="clock"></span>
       <span class="refresh-info" id="refresh-info"></span>
-      <a href="/logout" class="logout-btn" id="logout-btn">Abmelden</a>
+      <button class="btn btn-refresh" id="btn-refresh" title="Jetzt aktualisieren">
+        <span class="icon">↻</span>
+      </button>
+      <button class="btn btn-theme" id="btn-theme" title="Theme wechseln">☀</button>
+      <a href="/logout" class="btn" id="logout-btn">Abmelden</a>
     </div>
   </header>
 
   <div class="cards-container" id="cards">
-    <div style="color:#4b5563; padding:40px; width:100%; text-align:center; font-family:sans-serif;">
+    <div style="color:var(--text-dim);padding:40px;width:100%;text-align:center;font-family:sans-serif;">
       Daten werden geladen…
     </div>
   </div>
@@ -237,6 +283,7 @@
   <script>
     marked.use({ breaks: true, gfm: true });
 
+    /* ── i18n ────────────────────────────────────────── */
     const i18n = {
       de: {
         hello:   name => `Hallo ${name}`,
@@ -255,9 +302,33 @@
         locale:  'en-GB',
       },
     };
-
     let t = i18n.de;
 
+    /* ── Theme ───────────────────────────────────────── */
+    const root    = document.documentElement;
+    const btnTheme = document.getElementById('btn-theme');
+
+    function applyTheme(theme) {
+      if (theme === 'light') {
+        root.classList.add('light');
+        btnTheme.textContent = '🌙';
+        btnTheme.title = 'Dark Mode';
+      } else {
+        root.classList.remove('light');
+        btnTheme.textContent = '☀';
+        btnTheme.title = 'Light Mode';
+      }
+    }
+
+    applyTheme(localStorage.getItem('cb_theme') || 'dark');
+
+    btnTheme.addEventListener('click', () => {
+      const next = root.classList.contains('light') ? 'dark' : 'light';
+      localStorage.setItem('cb_theme', next);
+      applyTheme(next);
+    });
+
+    /* ── Clock ───────────────────────────────────────── */
     function updateClock() {
       document.getElementById('clock').textContent =
         new Date().toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -265,6 +336,7 @@
     updateClock();
     setInterval(updateClock, 1000);
 
+    /* ── Data ────────────────────────────────────────── */
     let refreshInterval = 30;
     let countdown = 0;
     let timer = null;
@@ -306,7 +378,6 @@
       if (timer) clearInterval(timer);
       countdown = refreshInterval;
       const el = document.getElementById('refresh-info');
-
       timer = setInterval(() => {
         el.textContent = t.refresh(countdown);
         countdown--;
@@ -317,6 +388,16 @@
       }, 1000);
     }
 
+    /* ── Refresh Button ──────────────────────────────── */
+    const btnRefresh = document.getElementById('btn-refresh');
+    btnRefresh.addEventListener('click', () => {
+      btnRefresh.classList.add('spinning');
+      setTimeout(() => btnRefresh.classList.remove('spinning'), 400);
+      if (timer) clearInterval(timer);
+      renderCards().then(startCountdown);
+    });
+
+    /* ── Init ────────────────────────────────────────── */
     async function init() {
       const config = await loadConfig();
       if (!config) return;
@@ -328,7 +409,7 @@
       document.getElementById('welcome-msg').textContent = t.hello(config.display_name);
       document.getElementById('logout-btn').textContent = t.logout;
       document.getElementById('cards').innerHTML =
-        `<div style="color:#4b5563;padding:40px;width:100%;text-align:center;font-family:sans-serif;">${t.loading}</div>`;
+        `<div style="color:var(--text-dim);padding:40px;width:100%;text-align:center;font-family:sans-serif;">${t.loading}</div>`;
 
       await renderCards();
       startCountdown();

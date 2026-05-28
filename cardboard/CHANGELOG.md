@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.3
+- Dark/Light-Mode Toggle mit localStorage-Persistenz
+- Manueller Refresh-Button mit Dreh-Animation
+- HA Token-Validierung beim Start im Log
+
 ## 0.0.2
 - Demo-User mit drei Beispiel-Karten (Übersicht, Klima, Status)
 - users.yaml und Demo-Templates werden beim ersten Start automatisch angelegt

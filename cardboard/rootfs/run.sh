@@ -8,6 +8,27 @@ echo "=========================="
 
 PORT=$(jq -r '.port // 17772' /data/options.json 2>/dev/null || echo 17772)
 ADMIN_PORT=$(jq -r '.admin_port // 17773' /data/options.json 2>/dev/null || echo 17773)
+HA_URL=$(jq -r '.ha_url // "http://homeassistant:8123"' /data/options.json 2>/dev/null || echo "http://homeassistant:8123")
+HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json 2>/dev/null || echo "")
+
+echo "[INFO] Prüfe HA Token ..."
+if [ -z "$HA_TOKEN" ]; then
+    echo "[WARN] ha_token ist nicht konfiguriert — bitte in den Add-on Optionen eintragen!"
+else
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+        --max-time 5 \
+        -H "Authorization: Bearer ${HA_TOKEN}" \
+        "${HA_URL}/api/" 2>/dev/null || echo "000")
+    if [ "$HTTP_STATUS" = "200" ]; then
+        echo "[OK]   HA Token ist gültig (${HA_URL})"
+    elif [ "$HTTP_STATUS" = "401" ]; then
+        echo "[WARN] HA Token ungültig oder abgelaufen — HTTP 401"
+    elif [ "$HTTP_STATUS" = "000" ]; then
+        echo "[WARN] HA nicht erreichbar unter ${HA_URL} — Timeout oder Verbindungsfehler"
+    else
+        echo "[WARN] HA Token-Prüfung: unerwarteter HTTP-Status ${HTTP_STATUS}"
+    fi
+fi
 
 mkdir -p /config/addons_config/cardboard
 
