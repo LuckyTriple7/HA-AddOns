@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.5
+- port/admin_port vollständig aus Schema entfernt (verhindert doppelte Anzeige in HA UI)
+
 ## 0.0.4
 - Persönliche Begrüßungsnachricht auf der Login-Seite (Add-on Option `login_message`)
 - Default HA-URL auf `homeassistant.local:8123` geändert
