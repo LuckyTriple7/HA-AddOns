@@ -68,6 +68,15 @@ users:
       - overview.j2        # Short form without title is also valid
 ```
 
+- `force_pw_change` (optional) – if `true`, the user is redirected to the password change page on first login. The field is automatically removed after a successful change.
+
+```yaml
+users:
+  - username: user1
+    password: initial_password
+    force_pw_change: true
+```
+
 - `username` is compared case-insensitively (capitalization does not matter at login)
 - `display_name` (optional) – shown as greeting ("Hello …"). If omitted, `username` is used
 - `lang` (optional) – display language: `de` (default) or `en`. Affects all UI text and time format

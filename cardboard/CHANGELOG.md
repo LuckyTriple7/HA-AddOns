@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.15
+- Initiales Passwort ändern: `force_pw_change: true` in users.yaml erzwingt Passwortänderung beim ersten Login
+- /view gesperrt solange Flag gesetzt — direkter Zugriff leitet zur Passwortänderung um
+- Hinweismeldung im Dialog, kein "Zurück"-Link, Weiterleitung nach Erfolg
+- force_pw_change wird nach Änderung automatisch aus users.yaml entfernt
+
 ## 0.0.14
 - Option `pw_min_length` (int, Default: 8) — Mindestlänge für neue Passwörter
 - Option `pw_require_special` (bool, Default: true) — Zahl oder Sonderzeichen erforderlich

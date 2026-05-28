@@ -68,6 +68,15 @@ users:
       - overview.j2        # Kurzform ohne Titel ist weiterhin gültig
 ```
 
+- `force_pw_change` (optional) – wenn `true`, wird der Benutzer beim ersten Login direkt zur Passwortänderung gezwungen. Das Feld wird nach erfolgreicher Änderung automatisch entfernt.
+
+```yaml
+users:
+  - username: user1
+    password: initiales_passwort
+    force_pw_change: true
+```
+
 - `username` wird kleingeschrieben verglichen (Groß-/Kleinschreibung egal beim Login)
 - `display_name` (optional) – wird als Begrüßung angezeigt ("Hallo …"). Fehlt das Feld, wird der `username` verwendet
 - `lang` (optional) – Anzeigesprache: `de` (Standard) oder `en`. Betrifft alle UI-Texte und das Zeitformat

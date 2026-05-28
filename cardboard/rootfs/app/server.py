@@ -55,6 +55,12 @@ def load_users() -> list:
     return data.get("users", []) if data else []
 
 
+def user_must_change_password(username: str) -> bool:
+    users = load_users()
+    user = next((u for u in users if (u.get("username") or "").lower() == username), None)
+    return bool(user and user.get("force_pw_change"))
+
+
 def validate_new_password(password: str, opts: dict) -> str | None:
     min_len = max(1, int(opts.get("pw_min_length") or 8))
     if len(password) < min_len:
@@ -253,7 +259,8 @@ async def do_login(request: Request):
     db_log_login(username, True, ip)
     log.info("Login erfolgreich: user='%s' ip='%s'", username, ip or "?")
     token = get_serializer().dumps({"username": username})
-    response = RedirectResponse("/view", status_code=303)
+    target = "/change-password?forced=1" if user_must_change_password(username) else "/view"
+    response = RedirectResponse(target, status_code=303)
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
@@ -318,15 +325,19 @@ async def api_change_password(request: Request):
         return JSONResponse({"error": "wrong_password"}, status_code=400)
 
     user["password"] = hashlib.sha256(new_pw.encode()).hexdigest()
+    was_forced = bool(user.pop("force_pw_change", False))
     write_users(yaml_data)
-    log.info("Passwort für Benutzer '%s' geändert", username)
-    return JSONResponse({"success": True})
+    log.info("Passwort für Benutzer '%s' geändert%s", username, " (initiales Passwort)" if was_forced else "")
+    return JSONResponse({"success": True, "was_forced": was_forced})
 
 
 @app.get("/view", response_class=HTMLResponse)
 async def view_page(request: Request):
-    if not get_current_user(request):
+    username = get_current_user(request)
+    if not username:
         return RedirectResponse("/login")
+    if user_must_change_password(username):
+        return RedirectResponse("/change-password?forced=1")
     return (STATIC_DIR / "view.html").read_text(encoding="utf-8")
 
 
@@ -351,8 +362,9 @@ async def api_config(request: Request):
         "lang":             lang,
         "refresh_interval": opts.get("refresh_interval", 30),
         "card_count":       min(len(templates), 3),
-        "pw_min_length":    int(opts.get("pw_min_length") or 8),
+        "pw_min_length":     int(opts.get("pw_min_length") or 8),
         "pw_require_special": bool(opts.get("pw_require_special", True)),
+        "force_pw_change":   user_must_change_password(username),
     }
 
 
