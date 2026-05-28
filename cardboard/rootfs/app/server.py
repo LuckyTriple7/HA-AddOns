@@ -4,6 +4,8 @@ import json
 import logging
 import re
 import sqlite3
+import time
+from collections import defaultdict
 from datetime import datetime
 from ipaddress import ip_address
 from pathlib import Path
@@ -24,6 +26,38 @@ admin_app  = FastAPI()
 ingress_app = FastAPI()
 
 _ha_status_cache: dict = {"reachable": False, "version": None, "since": None, "checked_at": None}
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+_blocked_ips:     dict[str, float]       = {}
+RATE_LIMIT_MAX    = 5
+RATE_LIMIT_WINDOW = 10 * 60   # 10 min Fenster
+RATE_LIMIT_BLOCK  = 15 * 60   # 15 min Sperre
+
+
+def is_rate_limited(ip: str) -> bool:
+    now = time.time()
+    if ip in _blocked_ips:
+        if now < _blocked_ips[ip]:
+            return True
+        del _blocked_ips[ip]
+    _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    return False
+
+
+def record_failed_attempt(ip: str):
+    now = time.time()
+    _failed_attempts[ip].append(now)
+    recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    _failed_attempts[ip] = recent
+    if len(recent) >= RATE_LIMIT_MAX:
+        _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+        log.warning("IP '%s' für %d Minuten gesperrt (zu viele fehlgeschlagene Logins)", ip, RATE_LIMIT_BLOCK // 60)
+
+
+def clear_failed_attempts(ip: str):
+    _failed_attempts.pop(ip, None)
+    _blocked_ips.pop(ip, None)
 
 DATA_DIR = Path("/data")
 CONFIG_DIR = Path("/config/addons_config/cardboard")
@@ -291,19 +325,25 @@ async def do_login(request: Request):
     form = await request.form()
     username = (form.get("username") or "").strip().lower()
     password = form.get("password") or ""
-    ip = client_ip(request)
+    ip = client_ip(request) or "unknown"
+
+    if is_rate_limited(ip):
+        log.warning("Login blockiert (Rate Limit): ip='%s'", ip)
+        return RedirectResponse("/login?error=locked", status_code=303)
 
     users = load_users()
     user = next((u for u in users if (u.get("username") or "").lower() == username), None)
 
     if not user or not check_password(password, user.get("password", "")):
+        record_failed_attempt(ip)
         db_log_login(username or "?", False, ip)
-        log.warning("Login fehlgeschlagen: user='%s' ip='%s'", username or "?", ip or "?")
+        log.warning("Login fehlgeschlagen: user='%s' ip='%s'", username or "?", ip)
         asyncio.create_task(_notify_failed_login(username or "?", ip))
         return RedirectResponse("/login?error=1", status_code=303)
 
+    clear_failed_attempts(ip)
     db_log_login(username, True, ip)
-    log.info("Login erfolgreich: user='%s' ip='%s'", username, ip or "?")
+    log.info("Login erfolgreich: user='%s' ip='%s'", username, ip)
     token = get_serializer().dumps({"username": username})
     target = "/change-password?forced=1" if user_must_change_password(username) else "/view"
     response = RedirectResponse(target, status_code=303)
@@ -401,13 +441,15 @@ async def api_config(request: Request):
     lang = (user or {}).get("lang", "de").lower()
     if lang not in ("de", "en"):
         lang = "de"
+    max_cards = max(1, int(opts.get("max_cards") or 3))
 
     return {
         "username":         username,
         "display_name":     display_name,
         "lang":             lang,
         "refresh_interval": opts.get("refresh_interval", 30),
-        "card_count":       min(len(templates), 3),
+        "max_cards":        max_cards,
+        "card_count":       min(len(templates), max_cards),
         "pw_min_length":     int(opts.get("pw_min_length") or 8),
         "pw_require_special": bool(opts.get("pw_require_special", True)),
         "force_pw_change":   user_must_change_password(username),
@@ -436,7 +478,8 @@ async def api_render(request: Request):
 
     ha_url = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
     ha_token = opts.get("ha_token") or ""
-    templates = (user.get("templates") or [])[:3]
+    max_cards = max(1, int(opts.get("max_cards") or 3))
+    templates = (user.get("templates") or [])[:max_cards]
 
     cards = []
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -827,6 +870,20 @@ async def ingress_templates_page(username: str, request: Request):
     return _serve_admin_html("admin_templates.html")
 
 
+@ingress_app.get("/admin/api/users/{username}/logins")
+async def ingress_user_logins(username: str, request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_user_logins(username)
+
+
+@ingress_app.post("/admin/api/users/{username}/templates/reorder")
+async def ingress_reorder_templates(username: str, request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_reorder_templates(username, request)
+
+
 @ingress_app.get("/admin/api/users/{username}/templates")
 async def ingress_list_templates(username: str, request: Request):
     if not admin_panel_allowed(request):
@@ -863,6 +920,20 @@ async def admin_templates_page(username: str, request: Request):
     if (opts.get("admin_password") or "").strip() and not get_admin_session(request):
         return Response(status_code=302, headers={"Location": "../login"})
     return _serve_admin_html("admin_templates.html")
+
+
+@admin_app.get("/admin/api/users/{username}/logins")
+async def admin_user_logins(username: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_user_logins(username)
+
+
+@admin_app.post("/admin/api/users/{username}/templates/reorder")
+async def admin_reorder_templates(username: str, request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_reorder_templates(username, request)
 
 
 @admin_app.get("/admin/api/users/{username}/templates")
@@ -931,6 +1002,51 @@ def _admin_recent_logins():
             "AND timestamp >= datetime('now', '-24 hours')"
         ).fetchone()[0]
     return JSONResponse({"last_success": last(1), "last_failed": last(0), "failed_24h": failed_24h})
+
+
+def _admin_user_logins(username: str, limit: int = 50):
+    username = username.lower()
+    users = load_users()
+    if not any((u.get("username") or "").lower() == username for u in users):
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT timestamp, success, ip_address FROM login_events "
+            "WHERE username = ? ORDER BY id DESC LIMIT ?",
+            (username, limit),
+        ).fetchall()
+    return JSONResponse({
+        "username": username,
+        "events": [{"timestamp": r[0], "success": bool(r[1]), "ip": r[2]} for r in rows],
+    })
+
+
+async def _admin_reorder_templates(username: str, request: Request):
+    username = username.lower()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+    order = body.get("order")
+    if not isinstance(order, list):
+        return JSONResponse({"error": "invalid_order"}, status_code=400)
+    users_file = CONFIG_DIR / "users.yaml"
+    if not users_file.exists():
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    with open(users_file, encoding="utf-8") as f:
+        yaml_data = yaml.safe_load(f) or {}
+    users = yaml_data.get("users") or []
+    user = next((u for u in users if (u.get("username") or "").lower() == username), None)
+    if not user:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    normalized = _normalize_templates(user.get("templates"))
+    tpl_map = {t["file"]: t for t in normalized}
+    reordered = [tpl_map[f] for f in order if f in tpl_map]
+    reordered.extend(t for t in normalized if t["file"] not in order)
+    user["templates"] = [{"file": t["file"], "title": t["title"]} if t["title"] else t["file"] for t in reordered]
+    write_users(yaml_data)
+    log.info("Admin: Templates für '%s' umsortiert", username)
+    return JSONResponse({"success": True})
 
 
 def _normalize_templates(templates: list) -> list:

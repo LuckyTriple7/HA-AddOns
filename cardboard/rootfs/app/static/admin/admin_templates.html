@@ -520,7 +520,9 @@
         toastSaved:   f => `${f} gespeichert.`,
         toastDeleted: f => `${f} gelöscht.`,
         toastErr:     'Fehler beim Speichern.',
+        toastReordered: 'Reihenfolge gespeichert.',
         errInvalidFilename: 'Dateiname: nur a–z, 0–9, _ - erlaubt, Endung .j2 erforderlich.',
+        warnMaxCards: n => `⚠ ${n} Templates — nur die ersten 3 werden angezeigt.`,
         footerSuccess:  (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
         footerFailed:   (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
         footerFailed24h: n => `Fehlversuche letzte 24h: ${n}`,
@@ -551,7 +553,9 @@
         toastSaved:   f => `${f} saved.`,
         toastDeleted: f => `${f} deleted.`,
         toastErr:     'Error saving.',
+        toastReordered: 'Order saved.',
         errInvalidFilename: 'Filename: only a–z, 0–9, _ - allowed, must end with .j2.',
+        warnMaxCards: n => `⚠ ${n} templates — only the first 3 will be shown.`,
         footerSuccess:  (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
         footerFailed:   (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
         footerFailed24h: n => `Failed attempts last 24h: ${n}`,
@@ -628,7 +632,10 @@
         el.innerHTML = `<div class="empty-list">${t.noTemplates}</div>`;
         return;
       }
-      el.innerHTML = templates.map(tpl => `
+      const warn = templates.length > 3
+        ? `<div style="margin:8px 12px;padding:7px 10px;background:rgba(245,158,11,0.12);border:1px solid var(--warn);border-radius:7px;font-size:0.75rem;color:var(--warn)">${t.warnMaxCards(templates.length)}</div>`
+        : '';
+      el.innerHTML = warn + templates.map((tpl, idx) => `
         <div class="tpl-item${activeFile === tpl.file ? ' active' : ''}" onclick="selectTemplate('${esc(tpl.file)}')">
           <div class="tpl-item-info">
             <div class="tpl-filename">${esc(tpl.file)}</div>
@@ -636,10 +643,25 @@
             ${!tpl.exists ? `<div class="tpl-missing">⚠ ${t.missing}</div>` : ''}
           </div>
           <div class="tpl-actions">
+            <button class="btn-icon" onclick="event.stopPropagation();moveTemplate(${idx},-1)" ${idx === 0 ? 'disabled style="opacity:0.3"' : ''} title="Nach oben">↑</button>
+            <button class="btn-icon" onclick="event.stopPropagation();moveTemplate(${idx},+1)" ${idx === templates.length-1 ? 'disabled style="opacity:0.3"' : ''} title="Nach unten">↓</button>
             <button class="btn-icon del" onclick="event.stopPropagation();askDelete('${esc(tpl.file)}')" title="${t.dmConfirm}">🗑</button>
           </div>
         </div>
       `).join('');
+    }
+
+    async function moveTemplate(idx, dir) {
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= templates.length) return;
+      [templates[idx], templates[newIdx]] = [templates[newIdx], templates[idx]];
+      renderList();
+      const r = await fetch(`${apiBase}/reorder`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ order: templates.map(t => t.file) }),
+      });
+      if (r.ok) toast(t.toastReordered, 'ok');
     }
 
     /* ── Editor ── */
@@ -684,6 +706,12 @@
       editor.addEventListener('input', () => {
         isDirty = true;
         if (previewVisible) schedulePreview();
+      });
+      editor.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          saveTemplate(isNew);
+        }
       });
       if (previewVisible) renderPreview();
     }

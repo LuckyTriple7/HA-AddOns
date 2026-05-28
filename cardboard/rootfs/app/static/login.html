@@ -186,6 +186,7 @@
         password:  'Passwort',
         submit:    'Anmelden',
         error:     'Ungültiger Benutzername oder Passwort.',
+        locked:    'Zu viele fehlgeschlagene Versuche. Bitte 15 Minuten warten.',
       },
       en: {
         subtitle:  'Home Assistant Dashboard',
@@ -193,6 +194,7 @@
         password:  'Password',
         submit:    'Sign in',
         error:     'Invalid username or password.',
+        locked:    'Too many failed attempts. Please wait 15 minutes.',
       },
     };
 
@@ -204,9 +206,10 @@
     document.getElementById('label-password').textContent = t.password;
     document.getElementById('btn-submit').textContent     = t.submit;
 
-    if (new URLSearchParams(window.location.search).get('error')) {
+    const errParam = new URLSearchParams(window.location.search).get('error');
+    if (errParam) {
       const el = document.getElementById('error-msg');
-      el.textContent = t.error;
+      el.textContent = errParam === 'locked' ? t.locked : t.error;
       el.classList.add('visible');
     }
 

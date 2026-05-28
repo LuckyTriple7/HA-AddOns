@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.29
+- Rate Limiting: IP wird nach 5 fehlgeschlagenen Logins innerhalb von 10 Minuten für 15 Minuten gesperrt
+- Login-Seite zeigt eigene Meldung bei gesperrter IP (`?error=locked`)
+- Admin-Login-Seite: Dark/Light-Mode Toggle + Sprach-Toggle (🇩🇪/🇬🇧)
+- Template-Editor: Ctrl+S speichert das aktuelle Template
+- Template-Liste: ↑/↓-Buttons zum Umsortieren der Karten-Reihenfolge
+- Template-Liste: Warnung wenn mehr als 3 Templates vorhanden (nur erste 3 werden angezeigt)
+- Admin-Panel: 📊-Button pro Benutzer öffnet Login-Verlauf (Modal, letzte 50 Ereignisse)
+- View-Seite: Auto-Reconnect bei Verbindungsfehler (stiller Wiederverbindungsindikator)
+- Neue Option `max_cards` (int, Default: 3) — konfigurierbare maximale Kartenanzahl pro Benutzer
+
 ## 0.0.28
 - Admin-Panel: Sprach-Toggle (🇩🇪 DE / 🇬🇧 EN) im Header — Einstellung wird in localStorage gespeichert
 

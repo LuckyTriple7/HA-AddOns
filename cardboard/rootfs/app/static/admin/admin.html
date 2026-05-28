@@ -368,6 +368,19 @@
     </div>
   </div>
 
+  <!-- Login History Modal -->
+  <div class="overlay" id="modal-history">
+    <div class="modal" style="max-width:560px">
+      <h3 id="hm-title">Login-Verlauf</h3>
+      <div id="hm-content" style="max-height:360px;overflow-y:auto;margin-top:12px;">
+        <div style="color:var(--text-muted);font-size:0.85rem">Lade…</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="hm-close" onclick="closeModal('modal-history')">Schließen</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Delete Modal -->
   <div class="overlay" id="modal-delete">
     <div class="modal">
@@ -450,6 +463,11 @@
         toastReset:   u => `Passwort für ${u} zurückgesetzt.`,
         toastDeleted: u => `Benutzer ${u} gelöscht.`,
         toastDelErr:  'Löschen fehlgeschlagen.',
+        hmTitle:      u => `Login-Verlauf: ${u}`,
+        hmNoEvents:   'Keine Login-Ereignisse gefunden.',
+        hmSuccess:    'Erfolg',
+        hmFailed:     'Fehlgeschlagen',
+        btnHistory:   'Verlauf',
         footerSuccess:  (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
         footerFailed:   (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
         footerFailed24h: n => `Fehlversuche letzte 24h: ${n}`,
@@ -513,6 +531,11 @@
         toastReset:   u => `Password for ${u} reset.`,
         toastDeleted: u => `User ${u} deleted.`,
         toastDelErr:  'Delete failed.',
+        hmTitle:      u => `Login history: ${u}`,
+        hmNoEvents:   'No login events found.',
+        hmSuccess:    'Success',
+        hmFailed:     'Failed',
+        btnHistory:   'History',
         footerSuccess:  (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
         footerFailed:   (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
         footerFailed24h: n => `Failed attempts last 24h: ${n}`,
@@ -568,6 +591,7 @@
       document.getElementById('dm-sub').textContent      = t.dmSub;
       document.getElementById('dm-cancel').textContent   = t.dmCancel;
       document.getElementById('dm-submit').textContent   = t.dmSubmit;
+      document.getElementById('hm-close').textContent    = t.dmCancel;
     }
 
     let pwConfig = { pw_min_length: 8, pw_require_special: true };
@@ -610,6 +634,7 @@
           <td style="font-family:monospace;font-size:0.8rem">${u.last_login_ip ? esc(u.last_login_ip) : '<span style="color:var(--text-muted)">—</span>'}</td>
           <td>
             <div class="actions">
+              <button class="btn btn-ghost btn-sm" onclick="openHistoryModal('${esc(u.username)}')" title="${t.hmTitle(u.username)}">📊</button>
               <button class="btn btn-ghost btn-sm" onclick="openEditModal(${i})">${t.btnEdit}</button>
               <button class="btn btn-ghost btn-sm" onclick="openResetModal('${esc(u.username)}')">${t.btnReset}</button>
               <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${esc(u.username)}')">${t.btnDelete}</button>
@@ -670,6 +695,42 @@
       document.getElementById('d-username').value            = username;
       document.getElementById('d-username-label').textContent = username;
       openModal('modal-delete');
+    }
+
+    async function openHistoryModal(username) {
+      document.getElementById('hm-title').textContent = t.hmTitle(username);
+      document.getElementById('hm-content').innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem">Lade…</div>';
+      openModal('modal-history');
+      try {
+        const r = await fetch(`api/users/${username}/logins`);
+        if (!r.ok) { document.getElementById('hm-content').innerHTML = `<div style="color:var(--danger)">Fehler ${r.status}</div>`; return; }
+        const d = await r.json();
+        if (!d.events || !d.events.length) {
+          document.getElementById('hm-content').innerHTML = `<div style="color:var(--text-muted);font-size:0.85rem">${t.hmNoEvents}</div>`;
+          return;
+        }
+        const rows = d.events.map(e => {
+          const ok = e.success;
+          const ts = (e.timestamp || '').replace('T', ' ').slice(0, 16);
+          const ip = e.ip || '?';
+          return `<tr>
+            <td style="font-variant-numeric:tabular-nums;white-space:nowrap;font-size:0.82rem">${esc(ts)}</td>
+            <td><span class="tag ${ok ? 'tag-ok' : 'tag-warn'}">${ok ? t.hmSuccess : t.hmFailed}</span></td>
+            <td style="font-family:monospace;font-size:0.8rem">${esc(ip)}</td>
+          </tr>`;
+        }).join('');
+        document.getElementById('hm-content').innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+            <thead><tr>
+              <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">Zeit</th>
+              <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">Status</th>
+              <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">IP</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      } catch (e) {
+        document.getElementById('hm-content').innerHTML = `<div style="color:var(--danger);font-size:0.82rem">${esc(String(e))}</div>`;
+      }
     }
 
     /* ── CRUD ─── */

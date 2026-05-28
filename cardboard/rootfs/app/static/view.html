@@ -369,15 +369,33 @@
       return r.json();
     }
 
+    let _lastCards = null;
+    let _reconnecting = false;
+
     async function renderCards() {
-      const r = await fetch('/api/render');
+      let r;
+      try {
+        r = await fetch('/api/render');
+      } catch (e) {
+        _showReconnecting();
+        return;
+      }
       if (r.status === 401) { location.href = '/login'; return; }
+      if (!r.ok) {
+        _showReconnecting();
+        return;
+      }
+      _reconnecting = false;
+      const reconnectEl = document.getElementById('reconnect-banner');
+      if (reconnectEl) reconnectEl.remove();
+
       const data = await r.json();
+      _lastCards = data.cards || [];
 
       const container = document.getElementById('cards');
       container.innerHTML = '';
 
-      (data.cards || []).forEach(({ title, content }) => {
+      _lastCards.forEach(({ title, content }) => {
         const card = document.createElement('div');
         card.className = 'card';
         if (title) {
@@ -394,6 +412,18 @@
 
       document.getElementById('last-update').textContent =
         t.updated(new Date().toLocaleTimeString(t.locale));
+    }
+
+    function _showReconnecting() {
+      if (_reconnecting) return;
+      _reconnecting = true;
+      if (!document.getElementById('reconnect-banner')) {
+        const banner = document.createElement('div');
+        banner.id = 'reconnect-banner';
+        banner.style.cssText = 'position:fixed;bottom:36px;left:50%;transform:translateX(-50%);background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:8px 18px;font-size:0.8rem;color:var(--text-muted);z-index:50;';
+        banner.textContent = '⟳ Verbindung wird hergestellt…';
+        document.body.appendChild(banner);
+      }
     }
 
     function startCountdown() {

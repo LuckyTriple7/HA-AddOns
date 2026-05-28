@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" id="html-root">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,16 +15,45 @@
       --accent:     #3b82f6;
       --error:      #ef4444;
     }
+    :root.light {
+      --bg:         #f3f4f6;
+      --bg-surface: #ffffff;
+      --border:     #e5e7eb;
+      --text:       #111827;
+      --text-muted: #6b7280;
+      --accent:     #2563eb;
+      --error:      #dc2626;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: background 0.2s, color 0.2s;
     }
+    .top-bar {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+    }
+    .btn-top {
+      background: var(--bg-surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 11px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-top:hover { background: var(--border); }
     .card {
       background: var(--bg-surface);
       border: 1px solid var(--border);
@@ -32,6 +61,7 @@
       padding: 36px 40px;
       width: 100%;
       max-width: 380px;
+      transition: background 0.2s, border-color 0.2s;
     }
     .logo { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
     .sub  { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 28px; }
@@ -76,27 +106,52 @@
   </style>
 </head>
 <body>
+  <div class="top-bar">
+    <button class="btn-top" id="btn-lang" onclick="toggleLang()"></button>
+    <button class="btn-top" id="btn-theme" onclick="toggleTheme()">☀</button>
+  </div>
   <div class="card">
     <div class="logo">📋 CardBoard</div>
-    <div class="sub">Admin-Panel</div>
+    <div class="sub" id="lbl-sub">Admin-Panel</div>
     <form method="post">
       <label for="pw" id="label-pw">Admin-Passwort</label>
       <input type="password" id="pw" name="password" autofocus autocomplete="current-password">
       <button class="btn" type="submit" id="btn-login">Anmelden</button>
     </form>
-    <div class="error-msg" id="err">Falsches Passwort.</div>
+    <div class="error-msg" id="err"></div>
   </div>
   <script>
     const i18n = {
-      de: { label: 'Admin-Passwort', btn: 'Anmelden',  err: 'Falsches Passwort.' },
-      en: { label: 'Admin Password', btn: 'Sign in',   err: 'Incorrect password.' },
+      de: { sub: 'Admin-Panel', label: 'Admin-Passwort', btn: 'Anmelden', err: 'Falsches Passwort.' },
+      en: { sub: 'Admin Panel', label: 'Admin Password', btn: 'Sign in',  err: 'Incorrect password.' },
     };
-    const lang = (navigator.language || 'de').startsWith('de') ? 'de' : 'en';
+
+    const stored = localStorage.getItem('cb_admin_lang');
+    const lang = stored || ((navigator.language || 'de').startsWith('de') ? 'de' : 'en');
     const t = i18n[lang];
-    document.documentElement.lang = lang;
-    document.getElementById('label-pw').textContent = t.label;
+    document.getElementById('html-root').lang = lang;
+    document.getElementById('lbl-sub').textContent   = t.sub;
+    document.getElementById('label-pw').textContent  = t.label;
     document.getElementById('btn-login').textContent = t.btn;
-    document.getElementById('err').textContent = t.err;
+    document.getElementById('err').textContent       = t.err;
+    document.getElementById('btn-lang').textContent  = lang === 'de' ? '🇩🇪 DE' : '🇬🇧 EN';
+
+    function toggleLang() {
+      localStorage.setItem('cb_admin_lang', lang === 'de' ? 'en' : 'de');
+      location.reload();
+    }
+
+    const btnTheme = document.getElementById('btn-theme');
+    function applyTheme(theme) {
+      document.getElementById('html-root').classList.toggle('light', theme === 'light');
+      btnTheme.textContent = theme === 'light' ? '🌙' : '☀';
+    }
+    applyTheme(localStorage.getItem('cb_theme') || 'dark');
+    function toggleTheme() {
+      const next = document.getElementById('html-root').classList.contains('light') ? 'dark' : 'light';
+      localStorage.setItem('cb_theme', next);
+      applyTheme(next);
+    }
 
     if (new URLSearchParams(location.search).get('error')) {
       document.getElementById('err').classList.add('visible');
