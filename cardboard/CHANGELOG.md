@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.30
+- Rate Limiting: Lokale/private IPs (LAN) sind von der Sperre ausgenommen — kein versehentliches Aussperren von Admins
+- Admin-Panel: Neue Sektion "Gesperrte IPs" zeigt aktuell gesperrte IPs mit verbleibender Sperrzeit und Versuchen
+- Admin-Panel: "Entsperren"-Button pro IP hebt die Rate-Limit-Sperre sofort auf
+- Neue API-Endpunkte: `GET /admin/api/rate-limits` und `POST /admin/api/rate-limits/unblock`
+
 ## 0.0.29
 - Rate Limiting: IP wird nach 5 fehlgeschlagenen Logins innerhalb von 10 Minuten für 15 Minuten gesperrt
 - Login-Seite zeigt eigene Meldung bei gesperrter IP (`?error=locked`)

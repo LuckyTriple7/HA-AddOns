@@ -59,6 +59,40 @@ def clear_failed_attempts(ip: str):
     _failed_attempts.pop(ip, None)
     _blocked_ips.pop(ip, None)
 
+
+def _is_private_ip_str(ip: str) -> bool:
+    try:
+        addr = ip_address(ip)
+        return addr.is_private or addr.is_loopback
+    except ValueError:
+        return False
+
+
+def _admin_get_rate_limits():
+    now = time.time()
+    to_remove = [ip for ip, until in _blocked_ips.items() if now >= until]
+    for ip in to_remove:
+        del _blocked_ips[ip]
+    blocked = []
+    for ip, until in sorted(_blocked_ips.items(), key=lambda x: x[1]):
+        remaining = max(0, int(until - now))
+        attempts  = len([t for t in _failed_attempts.get(ip, []) if now - t < RATE_LIMIT_WINDOW])
+        blocked.append({"ip": ip, "remaining_seconds": remaining, "attempts": attempts})
+    return JSONResponse({"blocked": blocked})
+
+
+async def _admin_unblock_ip(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+    ip = (body.get("ip") or "").strip()
+    if not ip:
+        return JSONResponse({"error": "ip_empty"}, status_code=400)
+    clear_failed_attempts(ip)
+    log.info("Admin: IP '%s' manuell entsperrt", ip)
+    return JSONResponse({"success": True})
+
 DATA_DIR = Path("/data")
 CONFIG_DIR = Path("/config/addons_config/cardboard")
 OPTIONS_FILE = DATA_DIR / "options.json"
@@ -327,7 +361,7 @@ async def do_login(request: Request):
     password = form.get("password") or ""
     ip = client_ip(request) or "unknown"
 
-    if is_rate_limited(ip):
+    if is_rate_limited(ip) and not _is_private_ip_str(ip):
         log.warning("Login blockiert (Rate Limit): ip='%s'", ip)
         return RedirectResponse("/login?error=locked", status_code=303)
 
@@ -710,6 +744,20 @@ async def ingress_admin_recent_logins(request: Request):
     return _admin_recent_logins()
 
 
+@ingress_app.get("/admin/api/rate-limits")
+async def ingress_get_rate_limits(request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_rate_limits()
+
+
+@ingress_app.post("/admin/api/rate-limits/unblock")
+async def ingress_unblock_ip(request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_unblock_ip(request)
+
+
 @ingress_app.get("/admin/api/pw-config")
 async def ingress_admin_pw_config(request: Request):
     if not admin_panel_allowed(request):
@@ -813,6 +861,20 @@ async def admin_recent_logins_direct(request: Request):
     if not admin_allowed(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
     return _admin_recent_logins()
+
+
+@admin_app.get("/admin/api/rate-limits")
+async def admin_get_rate_limits(request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_rate_limits()
+
+
+@admin_app.post("/admin/api/rate-limits/unblock")
+async def admin_unblock_ip(request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_unblock_ip(request)
 
 
 @admin_app.get("/admin/api/pw-config")
