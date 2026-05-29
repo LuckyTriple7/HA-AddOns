@@ -276,6 +276,7 @@
       .clock           { display: none; }
       .logout-label    { display: none; }
       .header-logo     { display: none; }
+      footer           { flex-direction: column; align-items: flex-start; gap: 3px; }
     }
   </style>
 </head>
@@ -514,6 +515,13 @@
     }
 
     init();
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (timer) clearInterval(timer);
+        renderCards().then(startCountdown);
+      }
+    });
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});

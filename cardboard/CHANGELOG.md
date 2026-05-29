@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.36
+- View-Seite: Footer auf Mobile einzeilig gestapelt (kein unabhängiges Umbrechen beider Seiten)
+- View-Seite: Auto-Reconnect via Page Visibility API — sofortiger Refresh wenn App wieder in den Vordergrund kommt
+
 ## 0.0.35
 - View-Seite: Karten auf Mobile jetzt einheitlich gleich breit (align-items: stretch)
 
