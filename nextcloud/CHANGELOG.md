@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.4
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 33.0.4
+
 ## 1.0.3
 - Neu: `enable_thumbnails` setzt jetzt auch `enabledPreviewProviders` in config.php (TXT, PDF, Office, Bild, Video u.a.)
 

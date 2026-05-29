@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
+  pull-requests: write
 
 jobs:
   check:
@@ -80,10 +81,13 @@ jobs:
           tags: |
             ghcr.io/luckytriple7/nextcloud:latest
 
-      - name: Versionsdatei + config.yaml aktualisieren
+      - name: Versionsdatei, config.yaml und CHANGELOG aktualisieren
+        id: version
         if: steps.compare.outputs.rebuild == 'true'
         run: |
-          echo "${{ steps.remote.outputs.remote }}" > .nextcloud-version
+          NC_VERSION="${{ steps.remote.outputs.remote }}"
+          echo "${NC_VERSION}" > .nextcloud-version
+
           CURRENT=$(grep '^version:' nextcloud/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
@@ -92,8 +96,29 @@ jobs:
           NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
           sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" nextcloud/config.yaml
           echo "Version: ${CURRENT} → ${NEW_VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .nextcloud-version nextcloud/config.yaml
-          git commit -m "Nextcloud: Auto-Update auf Nextcloud ${{ steps.remote.outputs.remote }} (v${NEW_VERSION})"
-          git push
+
+          CHANGELOG_ENTRY="## ${NEW_VERSION}\n- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud ${NC_VERSION}"
+          sed -i "s|# Changelog — Nextcloud|# Changelog — Nextcloud\n\n${CHANGELOG_ENTRY}|" nextcloud/CHANGELOG.md
+
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Pull Request erstellen
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Nextcloud: Update auf linuxserver/nextcloud ${{ steps.remote.outputs.remote }}"
+          branch: "nextcloud-update/${{ steps.remote.outputs.remote }}"
+          delete-branch: true
+          title: "Nextcloud Update: linuxserver/nextcloud ${{ steps.remote.outputs.remote }}"
+          body: |
+            ## Nextcloud Base-Image Update
+
+            | | Version |
+            |---|---|
+            | Nextcloud (linuxserver) | `${{ steps.remote.outputs.remote }}` |
+            | Add-on Version | `${{ steps.version.outputs.new_version }}` |
+
+            Das neue Image wurde bereits gebaut und in die GHCR gepusht.
+            Bitte prüfen und mergen, um das Update zu aktivieren.
+          labels: "auto-update"
