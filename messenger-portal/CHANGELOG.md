@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.24] – 2026-05-29
+
+### Fixed
+- Signal-Icon: Ring-Logo durch korrektes Speech-Bubble-App-Icon ersetzt
+
 ## [0.0.23] – 2026-05-29
 
 ### Fixed
