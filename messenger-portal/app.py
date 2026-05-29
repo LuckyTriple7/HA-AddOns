@@ -267,6 +267,7 @@ def login():
         elif (request.form.get('username') == config.get('username') and
                 request.form.get('password') == config.get('password')):
             clear_failed_attempts(ip)
+            log.info("Login erfolgreich: ip='%s' user='%s'", ip, config.get('username'))
             hours = int(config.get('session_hours', 24))
             token, expires = create_session(hours)
             resp = make_response(redirect(url_for('index')))
@@ -278,7 +279,8 @@ def login():
             return resp
         else:
             record_failed_attempt(ip)
-            error = t.get('error_credentials', 'Invalid credentials.')
+            log.warning("Login fehlgeschlagen: ip='%s' user='%s'",
+                        ip, request.form.get('username', '?'))
 
     return render_template('login.html', t=t, lang=lang, error=error)
 

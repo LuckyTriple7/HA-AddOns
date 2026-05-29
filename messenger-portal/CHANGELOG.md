@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [0.0.12] – 2026-05-29
+
+### Fixed
+- nginx: `text/html` aus `sub_filter_types` entfernt – war bereits Standard, verursachte Duplicate-MIME-Warnungen im Log
+### Added
+- Login-Logging: erfolgreiche Logins als INFO, fehlgeschlagene als WARNING im Add-on-Log
+
 ## [0.0.11] – 2026-05-29
 
 ### Fixed
