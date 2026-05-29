@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.35
+- View-Seite: Karten auf Mobile jetzt einheitlich gleich breit (align-items: stretch)
+
 ## 0.0.34
 - View-Seite: Abmelden-Icon als SVG (war ⏻ Unicode — kein Rendering auf Android)
 - View-Seite: 📋-Logo neben „CardBoard" auf Mobile (≤600px) ausgeblendet
