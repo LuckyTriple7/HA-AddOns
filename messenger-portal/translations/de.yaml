@@ -8,6 +8,9 @@ configuration:
   session_hours:
     name: Session-Dauer (Stunden)
     description: Wie viele Stunden eine Login-Session gültig bleibt, bevor eine erneute Anmeldung nötig ist.
+  poll_interval:
+    name: Abfrageintervall (Sekunden)
+    description: Wie oft der Status und die letzte Nachricht abgefragt werden. Minimum 5 Sekunden, Standard 30 Sekunden.
   internal_host:
     name: Interne Host-IP
     description: IP-Adresse des HA-Hosts im internen Docker-Netzwerk (Standard 172.30.32.2). Wird für den nginx Reverse Proxy zu den Messenger-Ports benötigt.

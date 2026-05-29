@@ -319,7 +319,9 @@ def index():
     messengers = enrich_messengers(
         [m for m in config.get('messengers', []) if m.get('enabled', True)]
     )
-    return render_template('index.html', messengers=messengers, t=t, lang=lang)
+    poll_interval = max(5, int(config.get('poll_interval', 30)))
+    return render_template('index.html', messengers=messengers, t=t, lang=lang,
+                           poll_interval=poll_interval)
 
 
 @app.route('/login', methods=['GET', 'POST'])

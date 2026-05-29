@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.22] – 2026-05-29
+
+### Added
+- Neue Config-Option `poll_interval` (Sekunden, Standard 30, Minimum 5): steuert wie oft Status und letzte Nachricht abgefragt werden
+
 ## [0.0.21] – 2026-05-29
 
 ### Added

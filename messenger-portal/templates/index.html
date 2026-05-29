@@ -443,7 +443,7 @@
     }
 
     updateStatus();
-    setInterval(updateStatus, 30000);
+    setInterval(updateStatus, {{ poll_interval * 1000 }});
 
     // On click: mark as opened, remove glow
     document.querySelectorAll('.card[data-icon]').forEach(card => {
