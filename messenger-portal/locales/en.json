@@ -1,0 +1,22 @@
+{
+  "app_name": "MessengerPortal",
+  "tagline": "Your Messenger Hub",
+  "username": "Username",
+  "password": "Password",
+  "login": "Login",
+  "logout": "Logout",
+  "open": "Open",
+  "error_credentials": "Invalid username or password.",
+  "error_locked": "Too many failed attempts. Please try again in 15 minutes.",
+  "status_online": "Online",
+  "status_offline": "Offline",
+  "status_checking": "Checking...",
+  "no_messengers": "No messengers configured.",
+  "offline_title": "Unreachable",
+  "offline_body": "This messenger is not running or unreachable. Please check if the add-on is started.",
+  "back_to_portal": "Back to Portal",
+  "last_opened_today": "Today",
+  "last_opened_yesterday": "Yesterday",
+  "last_opened_days": "{n} days ago",
+  "last_msg_prefix": "Last message:"
+}

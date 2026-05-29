@@ -68,6 +68,7 @@ const MEDIA_DIR = '/config/media';
 
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
 let lastError = '';
+let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 let myId = '';
 let myName = '';
 let codeResolver = null;
@@ -279,6 +280,14 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     const skipBot = HA_NOTIFY_SKIP_BOTS && isBot;
     dbg(`HA-Notification check [${source}]: msgId=${msgId} isBot=${isBot} skipBot=${skipBot} body="${(body||'').slice(0,60)}"`);
     if (!skipBot) {
+      lastReceivedMsg = {
+        timestamp: ts,
+        iso: new Date(ts).toISOString(),
+        chatId,
+        chatName,
+        contact: chatName,
+        preview: preview,
+      };
       sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
     }
   }
@@ -678,6 +687,25 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
+app.get('/api/last-received', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (chatId) {
+    const msgs = (messagesByChatId.get(chatId) || []).filter(m => !m.fromMe && !m.deleted);
+    if (!msgs.length) return res.json(null);
+    const last = msgs[msgs.length - 1];
+    const chat = chatMap.get(chatId);
+    return res.json({
+      timestamp: last.timestamp,
+      iso: new Date(last.timestamp).toISOString(),
+      chatId,
+      chatName: chat?.name || chatId,
+      contact: chat?.name || chatId,
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'video' ? '📹 Video' : '[Medien]'),
+    });
+  }
+  res.json(lastReceivedMsg);
+});
+
 app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
   try { await client.destroy(); } catch (e) {}
@@ -792,7 +820,7 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #topbar h1 { font-size: 17px; flex: 1; }
 #topbar .uname { font-size: 13px; opacity: 0.7; }
 #storage-info { font-size: 12px; opacity: 0.6; white-space: nowrap; }
-#logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
+#logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #logout-btn:hover { color: #f15c5c; }
 #photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
@@ -972,6 +1000,9 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   #back-btn { display: block; }
   body.chat-open #sidebar { display: none; }
   body.chat-open #chat-panel { display: flex; }
+  #lang-btn { display: none !important; }
+  #topbar { gap: 6px; }
+  #topbar .uname { display: none; }
 }
 </style>
 </head>
@@ -1022,7 +1053,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
   <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden">⏻</button>
+  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 
 <div id="main">
@@ -1112,7 +1143,8 @@ const LANG = {
     statsMsg: 'messages', statsSince: 'since',
   },
 };
-let lang = localStorage.getItem('tg_lang') || 'de';
+const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+let lang = localStorage.getItem('tg_lang') || _browserLang;
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
 function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
@@ -1661,6 +1693,26 @@ process.on('unhandledRejection', (reason) => {
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 loadFromDisk();
+try {
+  let best = null;
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    const chat = chatMap.get(chatId);
+    if (HA_NOTIFY_SKIP_BOTS && chat?.isBot) continue;
+    for (const m of msgs) {
+      if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
+        best = {
+          timestamp: m.timestamp,
+          iso: new Date(m.timestamp).toISOString(),
+          chatId,
+          chatName: chat?.name || chatId,
+          contact: chat?.name || chatId,
+          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'video' ? '📹 Video' : '[Medien]'),
+        };
+      }
+    }
+  }
+  if (best) lastReceivedMsg = best;
+} catch (e) { console.error('[ERROR] lastReceivedMsg init:', e.message); }
 if (!DOWNLOAD_MEDIA) {
   try {
     const files = fs.readdirSync(MEDIA_DIR);

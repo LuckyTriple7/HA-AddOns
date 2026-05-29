@@ -16,6 +16,9 @@
 - [ ] Claude Code
 - [ ] MariaDB 2
 - [ ] Nextcloud
+- [ ] Collabora
+- [ ] CardBoard
+- [ ] Messenger Portal
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change

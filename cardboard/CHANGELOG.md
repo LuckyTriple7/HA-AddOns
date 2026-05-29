@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.0
+- Erste stabile Produktivversion
+
 ## 0.0.41
 - Admin-Panel: Login-Verlauf-Modal breiter (780px statt 560px)
 

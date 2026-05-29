@@ -122,6 +122,17 @@ Signal Messenger als verknüpftes Gerät direkt in Home Assistant — mit Chat-U
 
 → [Dokumentation & Changelog](signal/README.md)
 
+### [Messenger Portal](messenger-portal/)
+
+Zentrale, passwortgeschützte Startseite für WhatsApp, Telegram und Signal — alle Messenger auf einen Blick.
+
+- Übersicht aller Messenger mit Online-/Offline-Status und letzter Nachricht
+- Neue-Nachricht-Badge mit pulsierendem Farbrand
+- Messenger öffnen direkt im Portal (nginx-Proxy — externe Ports nicht nötig)
+- PWA — als App auf Android/iOS installierbar
+
+→ [Dokumentation & Changelog](messenger-portal/README.md)
+
 ### [MariaDB 2](mariadb2/)
 
 Zweite unabhängige MariaDB-Instanz — parallel zur offiziellen MariaDB-App betreibbar, ohne Konflikte.
@@ -156,6 +167,18 @@ Nextcloud direkt in Home Assistant — private Cloud mit Web-UI und SMB-Netzwerk
 - MariaDB Auto-Discovery (alternativ SQLite)
 
 → [Dokumentation & Changelog](nextcloud/README.md)
+
+### [CardBoard](cardboard/)
+
+Jinja2-Templates mit HA-Sensordaten als gerenderte Markdown-Karten im Browser — Multi-User-Dashboard direkt in Home Assistant.
+
+- Jinja2-Templates werden via HA `/api/template` gerendert und als Markdown-Karten angezeigt
+- Multi-User-Unterstützung mit Login-System, Passwortänderung und Admin-Panel
+- Admin-Panel: Benutzerverwaltung, Template-Editor mit Live-Vorschau, Login-Verlauf
+- PWA — als App auf Android/iOS installierbar (Vollbildmodus, kein Browser-Tab)
+- Dark/Light-Mode, mehrsprachig (DE/EN), responsives Design
+
+→ [Dokumentation & Changelog](cardboard/README.md)
 
 ---
 
@@ -283,6 +306,17 @@ Signal Messenger as a linked device directly in Home Assistant — with chat UI,
 
 → [Documentation & Changelog](signal/README.md)
 
+### [Messenger Portal](messenger-portal/)
+
+Central, password-protected start page for WhatsApp, Telegram and Signal — all messengers at a glance.
+
+- Overview of all messengers with online/offline status and latest message
+- New message badge with pulsing color border
+- Messengers open directly in the portal (nginx proxy — no external ports needed)
+- PWA — installable as an app on Android/iOS
+
+→ [Documentation & Changelog](messenger-portal/README.md)
+
 ### [MariaDB 2](mariadb2/)
 
 A second independent MariaDB instance — runs alongside the official MariaDB app without any conflicts.
@@ -317,3 +351,15 @@ Nextcloud directly in Home Assistant — private cloud with web UI and SMB netwo
 - MariaDB auto-discovery (alternatively SQLite)
 
 → [Documentation & Changelog](nextcloud/README.md)
+
+### [CardBoard](cardboard/)
+
+Jinja2 templates with HA sensor data rendered as Markdown cards in the browser — multi-user dashboard directly in Home Assistant.
+
+- Jinja2 templates rendered via HA `/api/template` and displayed as Markdown cards
+- Multi-user support with login system, password change, and admin panel
+- Admin panel: user management, template editor with live preview, login history
+- PWA — installable as an app on Android/iOS (fullscreen mode, no browser tab)
+- Dark/light mode, multilingual (DE/EN), responsive design
+
+→ [Documentation & Changelog](cardboard/README.md)

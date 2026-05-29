@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.4] - 2026-05-29
+- Fix: Telefonnummer im Topbar auf Mobile ausgeblendet
+
+## [1.2.3] - 2026-05-29
+- Fix: Logout-Button ersetzt ⏻ Unicode durch SVG-Icon — rendert auf allen Mobile-Browsern korrekt (identisch mit CardBoard-Fix)
+
+## [1.2.2] - 2026-05-29
+- Neu: Sprache wird automatisch anhand der Browsersprache erkannt (DE/EN) — kein manuelles Umschalten mehr nötig beim ersten Start
+- Fix: Sprach-Umschalter (🌐) in der mobilen Ansicht ausgeblendet, bleibt in der Desktop-Ansicht sichtbar
+- Fix: Logout-Button auf Mobile korrekt dargestellt (flex-shrink verhindert Quetschen, kleinerer Gap im Topbar)
+
+## [1.2.1] - 2026-05-29
+- Neu: REST-Endpoint `GET /api/last-received` — liefert Zeitpunkt, Chat, Kontakt und Vorschau der zuletzt empfangenen Nachricht; optional mit `?chat=<chatId>` für einen bestimmten Chat; wird beim Start aus den gespeicherten Nachrichten initialisiert
+- Doku: HA-Sensor-Beispiel für `configuration.yaml` ergänzt
+
 ## [1.2.0] - 2026-05-25
 - Version auf 1.2.0 angehoben — stabile Version
 

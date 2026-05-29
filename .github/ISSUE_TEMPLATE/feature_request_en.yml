@@ -17,6 +17,9 @@ body:
         - Claude Code
         - MariaDB 2
         - Nextcloud
+        - Collabora Online
+        - CardBoard
+        - Messenger Portal
         - All / General
     validations:
       required: true

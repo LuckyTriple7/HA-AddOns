@@ -59,6 +59,7 @@ let qrCodeDataUrl = null;
 let status = 'initializing';
 let connectedPhone = null;
 let lastError = null;
+let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
@@ -146,6 +147,26 @@ try {
     console.log(`[INFO] Loaded ${total} messages from disk`);
   }
 } catch (e) { console.error('[ERROR] loadMessages:', e.message); }
+
+try {
+  let best = null;
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    for (const m of msgs) {
+      if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
+        const chat = chatMap.get(chatId);
+        best = {
+          timestamp: m.timestamp,
+          iso: new Date(m.timestamp).toISOString(),
+          chatId,
+          chatName: chat?.name || chatId,
+          contact: m.contact || '',
+          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'document' ? `📄 ${m.filename || 'Dokument'}` : '[Medien]'),
+        };
+      }
+    }
+  }
+  if (best) lastReceivedMsg = best;
+} catch (e) { console.error('[ERROR] lastReceivedMsg init:', e.message); }
 
 let reactionsSaveTimer = null;
 function saveReactions() {
@@ -424,6 +445,15 @@ client.on('message', async (msg) => {
     quotedMsg: quotedMsgData,
   });
   if (added) {
+    const _ci = chatMap.get(chatId);
+    lastReceivedMsg = {
+      timestamp: msg.timestamp * 1000,
+      iso: new Date(msg.timestamp * 1000).toISOString(),
+      chatId,
+      chatName: _ci?.name || chatId,
+      contact: contactName,
+      preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
+    };
     sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
   }
   if (process.env.WEBHOOK_INCOMING) {
@@ -853,6 +883,26 @@ app.get('/api/reactions/:chatId', (req, res) => {
 });
 
 
+app.get('/api/last-received', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (chatId) {
+    const msgs = getChatMsgs(chatId);
+    const received = msgs.filter(m => !m.fromMe && !m.deleted);
+    if (!received.length) return res.json(null);
+    const last = received[received.length - 1];
+    const chat = chatMap.get(chatId);
+    return res.json({
+      timestamp: last.timestamp,
+      iso: new Date(last.timestamp).toISOString(),
+      chatId,
+      chatName: chat?.name || chatId,
+      contact: last.contact || '',
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'document' ? `📄 ${last.filename || 'Dokument'}` : '[Medien]'),
+    });
+  }
+  res.json(lastReceivedMsg);
+});
+
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
   const chat = chatMap.get(chatId);
@@ -1020,7 +1070,8 @@ app.get('/', (req, res) => {
     .storage-info { font-size: 12px; color: #8696a0; white-space: nowrap; }
     .logout-btn {
       background: none; border: none; color: #8696a0;
-      font-size: 20px; cursor: pointer; padding: 4px; line-height: 1;
+      cursor: pointer; padding: 6px; line-height: 1;
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     .logout-btn:hover { color: #f15c5c; }
     .photo-toggle-btn {
@@ -1287,9 +1338,10 @@ app.get('/', (req, res) => {
       #sidebar { width: 100%; max-width: 100%; border-right: none; }
       #chat-panel { display: none; }
       #back-btn { display: block; }
-      /* When a chat is open: hide sidebar, show chat panel */
       body.chat-open #sidebar { display: none; }
       body.chat-open #chat-panel { display: flex; }
+      #lang-btn { display: none !important; }
+      .topbar { gap: 6px; }
     }
 
     /* Overlays */
@@ -1367,7 +1419,7 @@ app.get('/', (req, res) => {
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()">⏻</button>
+    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
   <div id="main" style="display:none;">
@@ -1520,7 +1572,8 @@ app.get('/', (req, res) => {
         statsMsg:'messages', statsSince:'since',
       },
     };
-    let lang = localStorage.getItem('wa_lang') || 'de';
+    const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+    let lang = localStorage.getItem('wa_lang') || _browserLang;
     function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
     function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
     function applyLang() {

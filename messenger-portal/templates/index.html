@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" id="theme-color-meta" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="{{ t.app_name }}">
+  <title>{{ t.app_name }}</title>
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-hover: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #7d8590;
+      --accent: #58a6ff;
+      --shadow: 0 4px 16px rgba(0,0,0,0.35);
+      --card-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      --radius: 16px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    [data-theme="light"] {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface-hover: #f6f8fa;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #636c76;
+      --accent: #0969da;
+      --shadow: 0 4px 16px rgba(0,0,0,0.08);
+      --card-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+
+    html, body {
+      min-height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      transition: background .25s, color .25s;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      padding: .75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      transition: background .25s, border-color .25s;
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .header-logo-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #25D366 0%, #2AABEE 50%, #3A76F0 100%);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-logo-icon svg { width: 18px; height: 18px; fill: #fff; }
+    .header-title { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: .35rem .55rem;
+      cursor: pointer;
+      display: flex; align-items: center; gap: .3rem;
+      font-size: .78rem;
+      font-family: var(--font);
+      text-decoration: none;
+      transition: color .15s, border-color .15s, background .15s;
+    }
+    .icon-btn:hover {
+      color: var(--text);
+      border-color: var(--text-muted);
+      background: var(--surface-hover);
+    }
+    .icon-btn svg { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
+    .btn-label { display: none; }
+    @media (min-width: 480px) { .btn-label { display: inline; } }
+
+    .lang-switch { display: flex; gap: .3rem; }
+    .lang-btn {
+      padding: .3rem .5rem;
+      border-radius: 6px;
+      font-size: .78rem;
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      transition: border-color .15s, color .15s;
+    }
+    .lang-btn:hover, .lang-btn.active {
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .lang-btn.active { font-weight: 700; }
+
+    .icon-moon { display: block; }
+    .icon-sun  { display: none; }
+    [data-theme="light"] .icon-moon { display: none; }
+    [data-theme="light"] .icon-sun  { display: block; }
+
+    /* ── Main ────────────────────────────────────────────── */
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: calc(100svh - 57px);
+      padding: 2.5rem 1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 760px;
+    }
+
+    /* ── Messenger Card ──────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--card-shadow);
+      padding: 2rem 1.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.1rem;
+      cursor: pointer;
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--brand-color, #888);
+      opacity: 0;
+      transition: opacity .18s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 48px rgba(0,0,0,.35),
+                  0 0 0 2px var(--brand-color, #888);
+    }
+    .card:hover::before { opacity: .06; }
+    .card:active { transform: translateY(-1px); }
+
+    /* ── New message glow ────────────────────────────────── */
+    .card.has-new {
+      animation: card-glow 2s ease-in-out infinite;
+    }
+    @keyframes card-glow {
+      0%, 100% {
+        box-shadow: var(--card-shadow),
+                    0 0 0 2px var(--brand-color, #888);
+      }
+      50% {
+        box-shadow: var(--card-shadow),
+                    0 0 0 3px var(--brand-color, #888),
+                    0 0 18px color-mix(in srgb, var(--brand-color, #888) 55%, transparent);
+      }
+    }
+    .card.has-new .card-icon::after {
+      content: '';
+      position: absolute;
+      top: -5px; right: -5px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #ef4444;
+      border: 2px solid var(--surface);
+      animation: badge-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.25); }
+    }
+
+    .card-icon {
+      width: 72px; height: 72px;
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--brand-color, #888);
+      box-shadow: 0 6px 20px color-mix(in srgb, var(--brand-color, #888) 40%, transparent);
+      transition: transform .18s;
+      position: relative;
+    }
+    .card:hover .card-icon { transform: scale(1.06); }
+    .card-icon svg { width: 38px; height: 38px; fill: #fff; }
+
+    .card-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -.2px;
+      color: var(--text);
+      position: relative;
+    }
+
+    .card-open {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+      width: 100%;
+      padding: .6rem 1rem;
+      border-radius: 8px;
+      font-size: .88rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--brand-color, #888);
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+      position: relative;
+      transition: filter .15s, transform .1s;
+    }
+    .card-open:hover  { filter: brightness(1.1); }
+    .card-open:active { transform: scale(.97); }
+    .card-open svg { width: 14px; height: 14px; fill: #fff; }
+
+    /* ── Card body ──────────────────────────────────────────*/
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      gap: .6rem;
+    }
+
+    /* ── Last received ───────────────────────────────────────*/
+    .card-last-msg {
+      font-size: .72rem;
+      color: var(--text-muted);
+      text-align: center;
+      word-break: break-word;
+      overflow: hidden;
+      max-width: 100%;
+      line-height: 1.35;
+    }
+
+    /* ── Status indicator ───────────────────────────────────*/
+    .card-status {
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      font-size: .78rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      position: relative;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background .3s, box-shadow .3s;
+    }
+    .status-dot.online {
+      background: #22c55e;
+      box-shadow: 0 0 6px rgba(34,197,94,.6);
+      animation: pulse-dot 2.5s ease-in-out infinite;
+    }
+    .status-dot.offline { background: #ef4444; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .45; }
+    }
+
+    /* ── Empty state ─────────────────────────────────────── */
+    .empty {
+      text-align: center;
+      color: var(--text-muted);
+      margin-top: 4rem;
+    }
+    .empty svg {
+      width: 56px; height: 56px;
+      fill: var(--border);
+      margin-bottom: 1rem;
+    }
+
+    /* ── Responsive tweaks ───────────────────────────────── */
+    @media (max-width: 479px) {
+      .grid { grid-template-columns: 1fr; max-width: 340px; }
+      .card { flex-direction: row; padding: 1.25rem; text-align: left; }
+      .card-icon { width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0; }
+      .card-icon svg { width: 30px; height: 30px; }
+      .card-body { align-items: flex-start; flex: 1; }
+      .card-last-msg { text-align: left; }
+      .card-name { font-size: 1rem; }
+      .card-open { width: auto; padding: .45rem 1rem; font-size: .83rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="header-logo" href="/">
+      <div class="header-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      </div>
+      <span class="header-title">{{ t.app_name }}</span>
+    </a>
+
+    <div class="header-actions">
+      <div class="lang-switch">
+        <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+      </div>
+
+      <button class="icon-btn" onclick="toggleTheme()" aria-label="Toggle theme">
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 11H1v2h3v-2zm9-9h-2v2.99h2V2zm7.45 3.05l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zM20 11v2h3v-2h-3zm-8-2c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm3 14.45l1.79 1.79 1.41-1.41-1.79-1.79-1.41 1.41zm-12.45 0l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8zM11 20v3h2v-3h-2z"/></svg>
+      </button>
+
+      <a href="/logout" class="icon-btn" aria-label="{{ t.logout }}">
+        <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        <span class="btn-label">{{ t.logout }}</span>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    {% if messengers %}
+    <div class="grid">
+      {% for m in messengers %}
+      {% set proxy_url = '/proxy/' ~ m.icon.lower() ~ '/' %}
+      <a class="card" style="--brand-color: {{ m.color }}"
+         href="{{ proxy_url }}" data-icon="{{ m.icon.lower() }}">
+        <div class="card-icon">
+          <svg viewBox="0 0 24 24">{{ m.svg | safe }}</svg>
+        </div>
+        <div class="card-body">
+          <div class="card-name">{{ m.name }}</div>
+          <div class="card-status" id="status-{{ m.icon.lower() }}">
+            <span class="status-dot"></span>
+            <span class="status-text">{{ t.status_checking }}</span>
+          </div>
+          <div class="card-last-msg" id="last-msg-{{ m.icon.lower() }}"></div>
+          <span class="card-open">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            {{ t.open }}
+          </span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+      <p>{{ t.no_messengers }}</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem('mp-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('theme-color-meta').content =
+        theme === 'dark' ? '#0d1117' : '#f0f2f5';
+    })();
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('mp-theme', next);
+      document.getElementById('theme-color-meta').content =
+        next === 'dark' ? '#0d1117' : '#f0f2f5';
+    }
+
+    const LANG          = {{ lang | tojson }};
+    const T_TODAY       = {{ t.last_opened_today | tojson }};
+    const T_YESTERDAY   = {{ t.last_opened_yesterday | tojson }};
+    const T_DAYS        = {{ t.last_opened_days | tojson }};
+    const T_LAST_MSG    = {{ t.last_msg_prefix | tojson }};
+    const T_ONLINE      = {{ t.status_online | tojson }};
+    const T_OFFLINE  = {{ t.status_offline | tojson }};
+    const T_CHECKING = {{ t.status_checking | tojson }};
+
+    async function updateStatus() {
+      try {
+        const res = await fetch('/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        data.forEach(m => {
+          const el = document.getElementById('status-' + m.icon);
+          if (!el) return;
+          const dot  = el.querySelector('.status-dot');
+          const text = el.querySelector('.status-text');
+          dot.className    = 'status-dot ' + (m.reachable ? 'online' : 'offline');
+          text.textContent = m.reachable ? T_ONLINE : T_OFFLINE;
+
+          const msgEl = document.getElementById('last-msg-' + m.icon);
+          if (!msgEl) return;
+          if (m.last_received && m.last_received.iso) {
+            const date    = new Date(m.last_received.iso);
+            const timeStr = date.toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-US',
+                              { hour: '2-digit', minute: '2-digit' });
+            const diffDays = Math.floor((Date.now() - date) / 86400000);
+            let dateStr;
+            if (diffDays === 0)      dateStr = T_TODAY + ' ' + timeStr;
+            else if (diffDays === 1) dateStr = T_YESTERDAY + ' ' + timeStr;
+            else                     dateStr = T_DAYS.replace('{n}', diffDays);
+            const sender = m.last_received.contact || m.last_received.chatName || '';
+            msgEl.textContent = T_LAST_MSG + ' ' + dateStr + (sender ? ' · ' + sender : '');
+
+            // New message glow: compare last_received vs last_opened
+            const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
+            if (card) {
+              const lastOpened   = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
+              const lastReceived = new Date(m.last_received.iso).getTime();
+              if (lastReceived > lastOpened) card.classList.add('has-new');
+              else                           card.classList.remove('has-new');
+            }
+          } else {
+            msgEl.textContent = '';
+            const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
+            if (card) card.classList.remove('has-new');
+          }
+        });
+      } catch (e) {}
+    }
+
+    updateStatus();
+    setInterval(updateStatus, {{ poll_interval * 1000 }});
+
+    // On click: mark as opened, remove glow
+    document.querySelectorAll('.card[data-icon]').forEach(card => {
+      card.addEventListener('click', () => {
+        localStorage.setItem('mp-last-' + card.dataset.icon, Date.now());
+        card.classList.remove('has-new');
+      });
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(function(){});
+    }
+  </script>
+</body>
+</html>
