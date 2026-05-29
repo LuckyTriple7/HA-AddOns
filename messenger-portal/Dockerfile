@@ -19,7 +19,7 @@ COPY icon-192.png static/icon-192.png
 COPY icon-512.png static/icon-512.png
 COPY locales/ locales/
 COPY run.sh /run.sh
-RUN chmod +x /run.sh
+RUN sed -i 's/\r//' /run.sh && chmod +x /run.sh
 
 EXPOSE 17770
 

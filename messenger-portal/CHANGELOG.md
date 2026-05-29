@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.5] – 2026-05-29
+
+### Fixed
+- run.sh: Shebang auf `#!/bin/sh` geändert (Alpine hat kein bash), CRLF-Stripping im Dockerfile ergänzt
+
 ## [0.0.4] – 2026-05-29
 
 ### Fixed
