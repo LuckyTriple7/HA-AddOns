@@ -222,17 +222,57 @@ def init_db():
                 timestamp   TEXT    NOT NULL,
                 username    TEXT    NOT NULL,
                 success     INTEGER NOT NULL,
-                ip_address  TEXT
+                ip_address  TEXT,
+                user_agent  TEXT
             )
         """)
+        try:
+            conn.execute("ALTER TABLE login_events ADD COLUMN user_agent TEXT")
+        except Exception:
+            pass
         conn.commit()
 
 
-def db_log_login(username: str, success: bool, ip: str | None):
+def _parse_user_agent(ua: str) -> str:
+    if not ua:
+        return "—"
+    u = ua.lower()
+    if "edg/" in u or "edghtml" in u:
+        browser = "Edge"
+    elif "opr/" in u or "opera" in u:
+        browser = "Opera"
+    elif "chrome/" in u:
+        m = re.search(r"chrome/(\d+)", u)
+        browser = f"Chrome {m.group(1)}" if m else "Chrome"
+    elif "firefox/" in u:
+        m = re.search(r"firefox/(\d+)", u)
+        browser = f"Firefox {m.group(1)}" if m else "Firefox"
+    elif "safari/" in u:
+        browser = "Safari"
+    else:
+        browser = "?"
+    if "android" in u:
+        os = "Android"
+    elif "iphone" in u:
+        os = "iPhone"
+    elif "ipad" in u:
+        os = "iPad"
+    elif "windows" in u:
+        os = "Windows"
+    elif "mac os" in u:
+        os = "macOS"
+    elif "linux" in u:
+        os = "Linux"
+    else:
+        os = "?"
+    return f"{browser} · {os}"
+
+
+def db_log_login(username: str, success: bool, ip: str | None, user_agent: str | None = None):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
-            "INSERT INTO login_events (timestamp, username, success, ip_address) VALUES (?, ?, ?, ?)",
-            (datetime.utcnow().isoformat(timespec="seconds"), username, int(success), ip),
+            "INSERT INTO login_events (timestamp, username, success, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)",
+            (datetime.utcnow().isoformat(timespec="seconds"), username, int(success), ip, user_agent),
         )
         conn.commit()
 
@@ -444,6 +484,7 @@ async def do_login(request: Request):
     username = (form.get("username") or "").strip().lower()
     password = form.get("password") or ""
     ip = client_ip(request) or "unknown"
+    ua = request.headers.get("user-agent") or ""
 
     if is_rate_limited(ip) and not _is_private_ip_str(ip):
         log.warning("Login blockiert (Rate Limit): ip='%s'", ip)
@@ -454,13 +495,13 @@ async def do_login(request: Request):
 
     if not user or not check_password(password, user.get("password", "")):
         record_failed_attempt(ip)
-        db_log_login(username or "?", False, ip)
+        db_log_login(username or "?", False, ip, ua)
         log.warning("Login fehlgeschlagen: user='%s' ip='%s'", username or "?", ip)
         asyncio.create_task(_notify_failed_login(username or "?", ip))
         return RedirectResponse("/login?error=1", status_code=303)
 
     clear_failed_attempts(ip)
-    db_log_login(username, True, ip)
+    db_log_login(username, True, ip, ua)
     log.info("Login erfolgreich: user='%s' ip='%s'", username, ip)
     token = get_serializer().dumps({"username": username})
     target = "/change-password?forced=1" if user_must_change_password(username) else "/view"
@@ -1187,13 +1228,13 @@ def _admin_user_logins(username: str, limit: int = 50):
         return JSONResponse({"error": "not_found"}, status_code=404)
     with sqlite3.connect(DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT timestamp, success, ip_address FROM login_events "
+            "SELECT timestamp, success, ip_address, user_agent FROM login_events "
             "WHERE username = ? ORDER BY id DESC LIMIT ?",
             (username, limit),
         ).fetchall()
     return JSONResponse({
         "username": username,
-        "events": [{"timestamp": r[0], "success": bool(r[1]), "ip": r[2]} for r in rows],
+        "events": [{"timestamp": r[0], "success": bool(r[1]), "ip": r[2], "browser": _parse_user_agent(r[3] or "")} for r in rows],
     })
 
 

@@ -774,10 +774,12 @@
           const ok = e.success;
           const ts = (e.timestamp || '').replace('T', ' ').slice(0, 16);
           const ip = e.ip || '?';
+          const br = e.browser || '—';
           return `<tr>
             <td style="font-variant-numeric:tabular-nums;white-space:nowrap;font-size:0.82rem">${esc(ts)}</td>
             <td><span class="tag ${ok ? 'tag-ok' : 'tag-warn'}">${ok ? t.hmSuccess : t.hmFailed}</span></td>
             <td style="font-family:monospace;font-size:0.8rem">${esc(ip)}</td>
+            <td style="font-size:0.8rem;color:var(--text-muted)">${esc(br)}</td>
           </tr>`;
         }).join('');
         document.getElementById('hm-content').innerHTML = `
@@ -786,6 +788,7 @@
               <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">Zeit</th>
               <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">Status</th>
               <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">IP</th>
+              <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-size:0.72rem;border-bottom:1px solid var(--border)">Browser</th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>`;

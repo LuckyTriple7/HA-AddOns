@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.39
+- Login-Verlauf: Browser und OS werden jetzt gespeichert und angezeigt (z.B. „Chrome 124 · Windows")
+- DB-Migration: Spalte `user_agent` wird automatisch zur bestehenden Datenbank hinzugefügt
+- User-Agent-Parser (pure Python, keine externe Bibliothek): erkennt Chrome, Firefox, Safari, Edge, Opera + Windows, macOS, Linux, Android, iPhone, iPad
+
 ## 0.0.38
 - Neue Option `cards_per_row` (1–6, Standard: 3) — steuert wie viele Karten nebeneinander erscheinen
 - View-Seite: Layout auf CSS Grid umgestellt (war Flexbox)
