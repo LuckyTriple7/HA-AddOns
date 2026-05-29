@@ -271,6 +271,11 @@
       .refresh-info    { display: none; }
       .welcome-msg     { display: none; }
     }
+
+    @media (max-width: 600px) {
+      .clock           { display: none; }
+      .logout-label    { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -289,7 +294,7 @@
       </button>
       <button class="btn btn-theme" id="btn-theme" title="Theme wechseln">☀</button>
       <a href="/change-password" class="btn" id="change-pw-btn">🔑</a>
-      <a href="/logout" class="btn" id="logout-btn">Abmelden</a>
+      <a href="/logout" class="btn" id="logout-btn"><span>⏻</span><span class="logout-label">Abmelden</span></a>
     </div>
   </header>
 
@@ -496,7 +501,7 @@
       refreshInterval = config.refresh_interval || 30;
       document.getElementById('username-badge').textContent = config.username;
       document.getElementById('welcome-msg').textContent    = t.hello(config.display_name);
-      document.getElementById('logout-btn').textContent     = t.logout;
+      document.getElementById('logout-btn').querySelector('.logout-label').textContent = t.logout;
       document.getElementById('change-pw-btn').title        = t.changePw;
       document.getElementById('cards').innerHTML =
         `<div style="color:var(--text-dim);padding:40px;width:100%;text-align:center;font-family:sans-serif;">${t.loading}</div>`;

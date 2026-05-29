@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.33
+- View-Seite: Uhrzeit wird bei schmalen Bildschirmen (≤600px) ausgeblendet
+- View-Seite: „Abmelden"-Schaltfläche zeigt auf mobilen Geräten nur das ⏻-Symbol
+- PWA: Eigene Icons (icon-192.png, icon-512.png) werden direkt gebündelt statt generiert
+
 ## 0.0.32
 - Login-Seite: Hinweis "Sitzung abgelaufen" wenn Session durch Timeout beendet wurde (grünes Info-Banner statt roter Fehler)
 - View-Seite: Redirect bei 401 verwendet `?reason=expired` statt `?error=1`
