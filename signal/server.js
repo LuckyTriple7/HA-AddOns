@@ -827,6 +827,7 @@ html.dark #attach-bar { background: #1a2533; border-color: #2a3942; color: #c1c9
   body.chat-open #chat-panel { display: flex; }
   #lang-btn { display: none !important; }
   #topbar { gap: 6px; }
+  #topbar .phone { display: none; }
 }
 
 html.dark body { background: #0b141a; color: #e9edef; }

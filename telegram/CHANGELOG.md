@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.5] - 2026-05-29
+- Fix: Benutzername im Topbar auf Mobile ausgeblendet
+
 ## [1.2.4] - 2026-05-29
 - Fix: Logout-Button ersetzt ⏻ Unicode durch SVG-Icon — rendert auf allen Mobile-Browsern korrekt (identisch mit CardBoard-Fix)
 

@@ -1002,6 +1002,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   body.chat-open #chat-panel { display: flex; }
   #lang-btn { display: none !important; }
   #topbar { gap: 6px; }
+  #topbar .uname { display: none; }
 }
 </style>
 </head>
