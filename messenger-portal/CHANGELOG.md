@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [0.0.21] – 2026-05-29
+
+### Added
+- Neue Nachricht: Karte leuchtet mit pulsierendem Farbrand + rotem Badge auf dem Icon wenn eine neue Nachricht seit dem letzten Öffnen angekommen ist
+- Glow verschwindet beim Klick auf den Messenger (localStorage speichert Öffnungszeitpunkt)
+
 ## [0.0.20] – 2026-05-29
 
 ### Added

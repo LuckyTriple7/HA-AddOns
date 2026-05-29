@@ -177,6 +177,36 @@
     .card:hover::before { opacity: .06; }
     .card:active { transform: translateY(-1px); }
 
+    /* ── New message glow ────────────────────────────────── */
+    .card.has-new {
+      animation: card-glow 2s ease-in-out infinite;
+    }
+    @keyframes card-glow {
+      0%, 100% {
+        box-shadow: var(--card-shadow),
+                    0 0 0 2px var(--brand-color, #888);
+      }
+      50% {
+        box-shadow: var(--card-shadow),
+                    0 0 0 3px var(--brand-color, #888),
+                    0 0 18px color-mix(in srgb, var(--brand-color, #888) 55%, transparent);
+      }
+    }
+    .card.has-new .card-icon::after {
+      content: '';
+      position: absolute;
+      top: -5px; right: -5px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #ef4444;
+      border: 2px solid var(--surface);
+      animation: badge-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes badge-pulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.25); }
+    }
+
     .card-icon {
       width: 72px; height: 72px;
       border-radius: 18px;
@@ -394,8 +424,19 @@
             else                     dateStr = T_DAYS.replace('{n}', diffDays);
             const sender = m.last_received.contact || m.last_received.chatName || '';
             msgEl.textContent = T_LAST_MSG + ' ' + dateStr + (sender ? ' · ' + sender : '');
+
+            // New message glow: compare last_received vs last_opened
+            const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
+            if (card) {
+              const lastOpened   = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
+              const lastReceived = new Date(m.last_received.iso).getTime();
+              if (lastReceived > lastOpened) card.classList.add('has-new');
+              else                           card.classList.remove('has-new');
+            }
           } else {
             msgEl.textContent = '';
+            const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
+            if (card) card.classList.remove('has-new');
           }
         });
       } catch (e) {}
@@ -403,6 +444,14 @@
 
     updateStatus();
     setInterval(updateStatus, 30000);
+
+    // On click: mark as opened, remove glow
+    document.querySelectorAll('.card[data-icon]').forEach(card => {
+      card.addEventListener('click', () => {
+        localStorage.setItem('mp-last-' + card.dataset.icon, Date.now());
+        card.classList.remove('has-new');
+      });
+    });
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(function(){});
