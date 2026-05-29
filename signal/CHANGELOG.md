@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.1] - 2026-05-29
+- Neu: REST-Endpoint `GET /api/last-received` — liefert Zeitpunkt, Chat, Kontakt und Vorschau der zuletzt empfangenen Nachricht; optional mit `?chat=<chatId>` für einen bestimmten Chat; wird beim Start aus den gespeicherten Nachrichten initialisiert
+- Doku: HA-Sensor-Beispiel für `configuration.yaml` ergänzt
+
 ## [1.2.0] - 2026-05-25
 - Version auf 1.2.0 angehoben — stabile Version
 

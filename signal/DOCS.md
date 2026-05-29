@@ -24,13 +24,44 @@ Signal Messenger direkt in Home Assistant — bestehendes Konto verknüpfen, Nac
 Das Add-on ist über Port 17777 erreichbar (`http://<HA-IP>:17777`).
 
 ```
-GET  /api/status          → Verbindungsstatus
-GET  /api/chats           → Liste aller Chats
-GET  /api/messages/:id    → Nachrichten eines Chats
-POST /api/send            → Nachricht senden
-POST /api/send-media      → Bild/Dokument senden
-GET  /api/export/:id      → Chat als HTML exportieren
-POST /api/logout          → Abmelden
+GET  /api/status                  → Verbindungsstatus
+GET  /api/chats                   → Liste aller Chats
+GET  /api/messages/:id            → Nachrichten eines Chats
+GET  /api/last-received           → Zeitpunkt der letzten empfangenen Nachricht
+GET  /api/last-received?chat=<id> → Letzte empfangene Nachricht eines bestimmten Chats
+POST /api/send                    → Nachricht senden
+POST /api/send-media              → Bild/Dokument senden
+GET  /api/export/:id              → Chat als HTML exportieren
+POST /api/logout                  → Abmelden
+```
+
+### HA-Sensor: Letzte empfangene Nachricht
+
+`GET /api/last-received` gibt zurück, wann zuletzt eine Nachricht empfangen wurde:
+
+```json
+{
+  "timestamp": 1748500000000,
+  "iso": "2026-05-29T10:30:00.000Z",
+  "chatId": "+4915123456789",
+  "chatName": "Max Mustermann",
+  "contact": "Max Mustermann",
+  "preview": "Hallo!"
+}
+```
+
+**`configuration.yaml`:**
+```yaml
+sensor:
+  - platform: rest
+    name: Signal letzte Nachricht
+    resource: http://localhost:17777/api/last-received
+    value_template: "{{ value_json.iso }}"
+    json_attributes:
+      - chatName
+      - contact
+      - preview
+    scan_interval: 30
 ```
 
 ### Nachricht senden
@@ -117,13 +148,44 @@ Signal Messenger directly in Home Assistant — link your existing account, send
 The add-on is available on port 17777 (`http://<HA-IP>:17777`).
 
 ```
-GET  /api/status          → Connection status
-GET  /api/chats           → List of all chats
-GET  /api/messages/:id    → Messages of a chat
-POST /api/send            → Send a message
-POST /api/send-media      → Send image/document
-GET  /api/export/:id      → Export chat as HTML
-POST /api/logout          → Log out
+GET  /api/status                  → Connection status
+GET  /api/chats                   → List of all chats
+GET  /api/messages/:id            → Messages of a chat
+GET  /api/last-received           → Timestamp of the last received message
+GET  /api/last-received?chat=<id> → Last received message of a specific chat
+POST /api/send                    → Send a message
+POST /api/send-media              → Send image/document
+GET  /api/export/:id              → Export chat as HTML
+POST /api/logout                  → Log out
+```
+
+### HA Sensor: Last received message
+
+`GET /api/last-received` returns when the last message was received:
+
+```json
+{
+  "timestamp": 1748500000000,
+  "iso": "2026-05-29T10:30:00.000Z",
+  "chatId": "+4915123456789",
+  "chatName": "Max Mustermann",
+  "contact": "Max Mustermann",
+  "preview": "Hello!"
+}
+```
+
+**`configuration.yaml`:**
+```yaml
+sensor:
+  - platform: rest
+    name: Signal Last Message
+    resource: http://localhost:17777/api/last-received
+    value_template: "{{ value_json.iso }}"
+    json_attributes:
+      - chatName
+      - contact
+      - preview
+    scan_interval: 30
 ```
 
 ### Send a Message

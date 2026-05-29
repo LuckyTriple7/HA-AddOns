@@ -68,6 +68,7 @@ const MEDIA_DIR = '/config/media';
 
 let status = 'starting'; // starting | awaiting_code | awaiting_password | connected | error
 let lastError = '';
+let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 let myId = '';
 let myName = '';
 let codeResolver = null;
@@ -275,6 +276,14 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   scheduleSave();
 
   if (!fromMe && source === 'NewMessage') {
+    lastReceivedMsg = {
+      timestamp: ts,
+      iso: new Date(ts).toISOString(),
+      chatId,
+      chatName,
+      contact: chatName,
+      preview: preview,
+    };
     const isBot = chatMap.get(chatId)?.isBot;
     const skipBot = HA_NOTIFY_SKIP_BOTS && isBot;
     dbg(`HA-Notification check [${source}]: msgId=${msgId} isBot=${isBot} skipBot=${skipBot} body="${(body||'').slice(0,60)}"`);
@@ -676,6 +685,25 @@ app.get('/api/reactions/:chatId', (req, res) => {
     }
   }
   res.json(result);
+});
+
+app.get('/api/last-received', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (chatId) {
+    const msgs = (messagesByChatId.get(chatId) || []).filter(m => !m.fromMe && !m.deleted);
+    if (!msgs.length) return res.json(null);
+    const last = msgs[msgs.length - 1];
+    const chat = chatMap.get(chatId);
+    return res.json({
+      timestamp: last.timestamp,
+      iso: new Date(last.timestamp).toISOString(),
+      chatId,
+      chatName: chat?.name || chatId,
+      contact: chat?.name || chatId,
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'video' ? '📹 Video' : '[Medien]'),
+    });
+  }
+  res.json(lastReceivedMsg);
 });
 
 app.post('/api/logout', async (req, res) => {
@@ -1661,6 +1689,25 @@ process.on('unhandledRejection', (reason) => {
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 loadFromDisk();
+try {
+  let best = null;
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    for (const m of msgs) {
+      if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
+        const chat = chatMap.get(chatId);
+        best = {
+          timestamp: m.timestamp,
+          iso: new Date(m.timestamp).toISOString(),
+          chatId,
+          chatName: chat?.name || chatId,
+          contact: chat?.name || chatId,
+          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'video' ? '📹 Video' : '[Medien]'),
+        };
+      }
+    }
+  }
+  if (best) lastReceivedMsg = best;
+} catch (e) { console.error('[ERROR] lastReceivedMsg init:', e.message); }
 if (!DOWNLOAD_MEDIA) {
   try {
     const files = fs.readdirSync(MEDIA_DIR);

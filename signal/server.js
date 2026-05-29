@@ -52,6 +52,7 @@ console.log('[INFO] ────────────────────
 
 let status = 'starting'; // starting | not-linked | linked | error
 let lastError = '';
+let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 let qrSvg = null;      // inline SVG if API returns text URI
 let qrUri = null;      // raw sgnl:// URI (if API returns text)
 let qrDataUrl = null;  // data URL if API returns image directly
@@ -285,6 +286,14 @@ function processEnvelope(envelope) {
   dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
 
   if (!isOwn) {
+    lastReceivedMsg = {
+      timestamp: dm.timestamp,
+      iso: new Date(dm.timestamp).toISOString(),
+      chatId,
+      chatName: chatMap.get(chatId)?.name || senderName,
+      contact: senderName,
+      preview: previewText,
+    };
     sendHANotification(senderName, dm.message || previewText);
   }
 
@@ -415,6 +424,25 @@ app.get('/api/stats', (req, res) => {
 
 app.get('/api/messages/:chatId', (req, res) => {
   res.json(messagesByChatId.get(req.params.chatId) || []);
+});
+
+app.get('/api/last-received', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (chatId) {
+    const msgs = (messagesByChatId.get(chatId) || []).filter(m => !m.fromMe);
+    if (!msgs.length) return res.json(null);
+    const last = msgs[msgs.length - 1];
+    const chat = chatMap.get(chatId);
+    return res.json({
+      timestamp: last.timestamp,
+      iso: new Date(last.timestamp).toISOString(),
+      chatId,
+      chatName: chat?.name || chatId,
+      contact: chat?.name || chatId,
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : '[Medien]'),
+    });
+  }
+  res.json(lastReceivedMsg);
 });
 
 app.get('/api/export/:chatId', (req, res) => {
@@ -1460,6 +1488,25 @@ async function init() {
   console.log('[INFO] Signal UI starting...');
   if (DOWNLOAD_MEDIA) { try { fs.mkdirSync(MEDIA_DIR, { recursive: true }); } catch (e) {} }
   loadFromDisk();
+  try {
+    let best = null;
+    for (const [chatId, msgs] of messagesByChatId.entries()) {
+      for (const m of msgs) {
+        if (!m.fromMe && (!best || m.timestamp > best.timestamp)) {
+          const chat = chatMap.get(chatId);
+          best = {
+            timestamp: m.timestamp,
+            iso: new Date(m.timestamp).toISOString(),
+            chatId,
+            chatName: chat?.name || chatId,
+            contact: chat?.name || chatId,
+            preview: m.body || (m.type === 'photo' ? '📷 Foto' : '[Medien]'),
+          };
+        }
+      }
+    }
+    if (best) lastReceivedMsg = best;
+  } catch (e) { console.error('[ERROR] lastReceivedMsg init:', e.message); }
   let retries = 30;
   while (retries-- > 0) {
     try {
