@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.0] - 2026-05-29
+- Erste stabile Produktivversion
+
 ## [0.0.30] - 2026-05-27
 - Fix: SIGTERM-Handler in run.sh — sauberes Herunterfahren statt exit 143 (Supervisor-Warnung behoben)
 

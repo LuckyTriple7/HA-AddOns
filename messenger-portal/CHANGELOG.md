@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.0.0] – 2026-05-29
+- Erste stabile Produktivversion
+
 ## [0.0.24] – 2026-05-29
 
 ### Fixed
