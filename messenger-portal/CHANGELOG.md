@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.19] – 2026-05-29
+
+### Fixed
+- Doppelte Zeitanzeige entfernt: localStorage "Zuletzt geöffnet" war redundant zur API "Letzte Nachricht" und wurde entfernt
+
 ## [0.0.18] – 2026-05-29
 
 ### Added

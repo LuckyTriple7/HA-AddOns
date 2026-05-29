@@ -217,12 +217,7 @@
     .card-open:active { transform: scale(.97); }
     .card-open svg { width: 14px; height: 14px; fill: #fff; }
 
-    /* ── Last received / Last opened ────────────────────────*/
-    .card-last {
-      font-size: .72rem;
-      color: var(--text-muted);
-      min-height: .9rem;
-    }
+    /* ── Last received ───────────────────────────────────────*/
     .card-last-msg {
       font-size: .72rem;
       color: var(--text-muted);
@@ -329,7 +324,6 @@
             <span class="status-text">{{ t.status_checking }}</span>
           </div>
           <div class="card-last-msg" id="last-msg-{{ m.icon.lower() }}"></div>
-          <div class="card-last" id="last-{{ m.icon.lower() }}"></div>
           <span class="card-open">
             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             {{ t.open }}
@@ -408,29 +402,6 @@
 
     updateStatus();
     setInterval(updateStatus, 30000);
-
-    function formatLastOpened(ts) {
-      const date = new Date(parseInt(ts));
-      const now  = new Date();
-      const diffDays = Math.floor((now - date) / 86400000);
-      const timeStr  = date.toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-US',
-                         { hour: '2-digit', minute: '2-digit' });
-      if (diffDays === 0)  return T_TODAY + ' ' + timeStr;
-      if (diffDays === 1)  return T_YESTERDAY + ' ' + timeStr;
-      return T_DAYS.replace('{n}', diffDays);
-    }
-
-    document.querySelectorAll('.card[data-icon]').forEach(card => {
-      const icon = card.dataset.icon;
-      const ts   = localStorage.getItem('mp-last-' + icon);
-      if (ts) {
-        const el = document.getElementById('last-' + icon);
-        if (el) el.textContent = formatLastOpened(ts);
-      }
-      card.addEventListener('click', () => {
-        localStorage.setItem('mp-last-' + icon, Date.now());
-      });
-    });
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(function(){});
