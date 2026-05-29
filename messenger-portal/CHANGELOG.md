@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [0.0.17] – 2026-05-29
+
+### Fixed
+- PWA über Cloudflare Tunnel: `crossorigin="use-credentials"` auf manifest-Link – Browser sendet jetzt Session-Cookie beim Manifest-Request, Cloudflare leitet nicht mehr zur Login-Seite um
+### Changed
+- Portal-Button ist jetzt frei verschiebbar (Drag & Drop, Maus + Touch); Position wird in localStorage gespeichert
+
 ## [0.0.16] – 2026-05-29
 
 ### Fixed
