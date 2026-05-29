@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.11] – 2026-05-29
+
+### Fixed
+- PWA-Installation: manifest.json und sw.js werden jetzt von `/` serviert statt `/static/` – Service Worker hat damit korrekten Scope und Browser zeigt Install-Symbol
+
 ## [0.0.10] – 2026-05-29
 
 ### Added

@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="{{ t.app_name }}">
   <title>{{ t.app_name }}</title>
-  <link rel="manifest" href="/static/manifest.json">
+  <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -372,7 +372,7 @@
     setInterval(updateStatus, 30000);
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/sw.js').catch(function(){});
+      navigator.serviceWorker.register('/sw.js').catch(function(){});
     }
   </script>
 </body>

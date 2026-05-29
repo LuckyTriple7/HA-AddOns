@@ -9,7 +9,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
-                   url_for, make_response, abort, jsonify)
+                   url_for, make_response, abort, jsonify, send_from_directory)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
@@ -192,6 +192,20 @@ def enrich_messengers(messengers: list) -> list:
             'color': BRAND_COLORS.get(icon_key, '#888'),
         })
     return result
+
+
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('/app/static', 'manifest.json',
+                               mimetype='application/manifest+json')
+
+
+@app.route('/sw.js')
+def sw():
+    resp = send_from_directory('/app/static', 'sw.js',
+                               mimetype='application/javascript')
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
 
 @app.route('/health')
