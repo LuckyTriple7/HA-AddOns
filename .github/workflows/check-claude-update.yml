@@ -80,4 +80,4 @@ jobs:
           gh pr create \
             --title "Update Claude Code ${CLAUDE_VER} (Add-on v${NEW_ADDON_VER})" \
             --body "$(printf '## Claude Code Update\n\nNeue Version **%s** von [@anthropic-ai/claude-code](https://www.npmjs.com/package/@anthropic-ai/claude-code) verfügbar.\n\n### Änderungen\n- Add-on Version: `%s` → `%s`\n- Claude Code Version: `%s`\n\n---\n_Automatisch erstellt von GitHub Actions. Bitte prüfen und mergen._' "$CLAUDE_VER" "$ADDON_VER" "$NEW_ADDON_VER" "$CLAUDE_VER")" \
-            --base main
+            --base dev

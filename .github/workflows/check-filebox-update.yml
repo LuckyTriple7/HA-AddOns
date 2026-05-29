@@ -120,4 +120,4 @@ jobs:
           gh pr create \
             --title "Update FileBrowser ${FB_VER} (Add-on v${NEW_ADDON_VER})" \
             --body "$(printf '## FileBrowser Update\n\nNeue FileBrowser Version **%s** verfügbar.\n\n- Add-on Version: `%s` → `%s`\n- FileBrowser: `%s`\n- Image: `ghcr.io/luckytriple7/filebox:%s`\n\n_Automatisch erstellt von GitHub Actions._' "$FB_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FB_VER" "$NEW_ADDON_VER")" \
-            --base main
+            --base dev
