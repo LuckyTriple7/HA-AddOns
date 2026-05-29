@@ -1,6 +1,10 @@
 name: Build Firefox Image
 
 on:
+  push:
+    branches: [dev]
+    paths:
+      - 'firefox/**'
   workflow_dispatch:
 
 permissions:
