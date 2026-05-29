@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [0.0.23] – 2026-05-29
+
+### Fixed
+- „Letzte Nachricht"-Text bricht jetzt um statt abgeschnitten zu werden
+- „Öffnen"-Button erstreckt sich über die volle Kartenbreite und ist zentriert
+
 ## [0.0.22] – 2026-05-29
 
 ### Added

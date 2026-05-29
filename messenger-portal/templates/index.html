@@ -228,10 +228,12 @@
     }
 
     .card-open {
-      display: inline-flex;
+      display: flex;
       align-items: center;
+      justify-content: center;
       gap: .4rem;
-      padding: .55rem 1.3rem;
+      width: 100%;
+      padding: .6rem 1rem;
       border-radius: 8px;
       font-size: .88rem;
       font-weight: 600;
@@ -247,14 +249,24 @@
     .card-open:active { transform: scale(.97); }
     .card-open svg { width: 14px; height: 14px; fill: #fff; }
 
+    /* ── Card body ──────────────────────────────────────────*/
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      gap: .6rem;
+    }
+
     /* ── Last received ───────────────────────────────────────*/
     .card-last-msg {
       font-size: .72rem;
       color: var(--text-muted);
-      white-space: nowrap;
+      text-align: center;
+      word-break: break-word;
       overflow: hidden;
-      text-overflow: ellipsis;
       max-width: 100%;
+      line-height: 1.35;
     }
 
     /* ── Status indicator ───────────────────────────────────*/
@@ -303,9 +315,10 @@
       .card { flex-direction: row; padding: 1.25rem; text-align: left; }
       .card-icon { width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0; }
       .card-icon svg { width: 30px; height: 30px; }
-      .card-body { display: flex; flex-direction: column; gap: .6rem; flex: 1; }
+      .card-body { align-items: flex-start; flex: 1; }
+      .card-last-msg { text-align: left; }
       .card-name { font-size: 1rem; }
-      .card-open { padding: .45rem 1rem; font-size: .83rem; align-self: flex-start; }
+      .card-open { width: auto; padding: .45rem 1rem; font-size: .83rem; }
     }
   </style>
 </head>
