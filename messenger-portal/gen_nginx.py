@@ -78,7 +78,8 @@ def proxy_block(slug: str, name: str, host: str, port: int) -> str:
     }}
 
     location @offline_{slug} {{
-        proxy_pass         http://127.0.0.1:5000/proxy-offline;
+        rewrite            ^ /proxy-offline break;
+        proxy_pass         http://127.0.0.1:5000;
         proxy_set_header   X-Messenger-Name  "{name}";
         proxy_set_header   X-Messenger-Icon  "{slug}";
         proxy_set_header   Cookie            $http_cookie;

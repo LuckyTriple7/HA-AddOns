@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.16] – 2026-05-29
+
+### Fixed
+- nginx: `proxy_pass` mit URI-Pfad in named location (`@offline_*`) ist nicht erlaubt – auf `rewrite ^ /proxy-offline break` + `proxy_pass` ohne Pfad umgestellt
+
 ## [0.0.15] – 2026-05-29
 
 ### Fixed
