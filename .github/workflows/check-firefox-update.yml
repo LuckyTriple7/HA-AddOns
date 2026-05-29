@@ -114,4 +114,4 @@ jobs:
           gh pr create \
             --title "Update Firefox ESR ${FF_VER} (Add-on v${NEW_ADDON_VER})" \
             --body "$(printf '## Firefox Update\n\nNeue Firefox ESR Version **%s** verfügbar.\n\n- Add-on Version: `%s` → `%s`\n- Firefox ESR: `%s`\n- Image: `ghcr.io/luckytriple7/firefox:%s`\n\n_Automatisch erstellt von GitHub Actions._' "$FF_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FF_VER" "$NEW_ADDON_VER")" \
-            --base main
+            --base dev
