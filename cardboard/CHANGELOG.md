@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.38
+- Neue Option `cards_per_row` (1–6, Standard: 3) — steuert wie viele Karten nebeneinander erscheinen
+- View-Seite: Layout auf CSS Grid umgestellt (war Flexbox)
+- Mobile (≤800px): immer eine Karte pro Zeile, unabhängig von `cards_per_row`
+
 ## 0.0.37
 - Admin-Panel: Neue Sektion „Verwaiste Verzeichnisse" — zeigt Ordner die keinem Benutzer mehr gehören
 - Admin-Panel: Einzeln oder alle verwaisten Verzeichnisse per Klick bereinigen (mit Bestätigungsdialog)

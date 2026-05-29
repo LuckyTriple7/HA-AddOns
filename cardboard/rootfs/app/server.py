@@ -559,7 +559,8 @@ async def api_config(request: Request):
     lang = (user or {}).get("lang", "de").lower()
     if lang not in ("de", "en"):
         lang = "de"
-    max_cards = max(1, int(opts.get("max_cards") or 3))
+    max_cards    = max(1, int(opts.get("max_cards") or 3))
+    cards_per_row = max(1, min(6, int(opts.get("cards_per_row") or 3)))
 
     return {
         "username":         username,
@@ -567,6 +568,7 @@ async def api_config(request: Request):
         "lang":             lang,
         "refresh_interval": opts.get("refresh_interval", 30),
         "max_cards":        max_cards,
+        "cards_per_row":    cards_per_row,
         "card_count":       min(len(templates), max_cards),
         "pw_min_length":     int(opts.get("pw_min_length") or 8),
         "pw_require_special": bool(opts.get("pw_require_special", True)),

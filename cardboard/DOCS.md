@@ -21,6 +21,7 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 | `pw_require_special` | Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten (optional) | `true` |
 | `admin_password` | Passwort für das Admin-Panel (optional). Leer = Admin-Panel ohne Passwort aus dem LAN erreichbar | – |
 | `max_cards` | Maximale Anzahl gleichzeitig angezeigter Karten pro Benutzer (optional) | `3` |
+| `cards_per_row` | Anzahl Karten nebeneinander auf dem Desktop (optional, 1–6). Mobile: immer eine Karte pro Zeile. | `3` |
 
 Den Long-Lived Access Token erstellst du in HA unter:  
 **Profil → Sicherheit → Langlebige Zugangstoken → Token erstellen**

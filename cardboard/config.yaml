@@ -1,6 +1,6 @@
 name: CardBoard
 description: Zeigt HA-Sensordaten als gerenderte Markdown-Karten im Browser an
-version: "0.0.37"
+version: "0.0.38"
 slug: cardboard
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -45,6 +45,7 @@ options:
   pw_require_special: true
   admin_password: ""
   max_cards: 3
+  cards_per_row: 3
 
 schema:
   ha_token: str
@@ -58,3 +59,4 @@ schema:
   pw_require_special: bool?
   admin_password: str?
   max_cards: int?
+  cards_per_row: int?
