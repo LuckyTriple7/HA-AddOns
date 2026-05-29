@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.9] – 2026-05-29
+
+### Changed
+- Messenger öffnen sich im gleichen Fenster statt in einem neuen Tab
+
 ## [0.0.8] – 2026-05-29
 
 ### Changed

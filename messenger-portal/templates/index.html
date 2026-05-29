@@ -275,14 +275,14 @@
       {% for m in messengers %}
       {% set proxy_url = '/proxy/' ~ m.icon.lower() ~ '/' %}
       <a class="card" style="--brand-color: {{ m.color }}"
-         href="{{ proxy_url }}" target="_blank" rel="noopener">
+         href="{{ proxy_url }}">
         <div class="card-icon">
           <svg viewBox="0 0 24 24">{{ m.svg | safe }}</svg>
         </div>
         <div class="card-body">
           <div class="card-name">{{ m.name }}</div>
           <span class="card-open">
-            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             {{ t.open }}
           </span>
         </div>
