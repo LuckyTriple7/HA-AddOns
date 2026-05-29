@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [0.0.10] – 2026-05-29
+
+### Added
+- Status-Anzeige auf jeder Messenger-Karte: grüner Punkt (Online) / roter Punkt (Offline)
+- `/status`-Endpoint prüft per TCP-Socket ob der konfigurierte Port erreichbar ist
+- Automatisches Polling alle 30 Sekunden
+
 ## [0.0.9] – 2026-05-29
 
 ### Changed

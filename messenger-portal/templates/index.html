@@ -217,6 +217,34 @@
     .card-open:active { transform: scale(.97); }
     .card-open svg { width: 14px; height: 14px; fill: #fff; }
 
+    /* ── Status indicator ───────────────────────────────────*/
+    .card-status {
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      font-size: .78rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      position: relative;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background .3s, box-shadow .3s;
+    }
+    .status-dot.online {
+      background: #22c55e;
+      box-shadow: 0 0 6px rgba(34,197,94,.6);
+      animation: pulse-dot 2.5s ease-in-out infinite;
+    }
+    .status-dot.offline { background: #ef4444; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .45; }
+    }
+
     /* ── Empty state ─────────────────────────────────────── */
     .empty {
       text-align: center;
@@ -281,6 +309,10 @@
         </div>
         <div class="card-body">
           <div class="card-name">{{ m.name }}</div>
+          <div class="card-status" id="status-{{ m.icon.lower() }}">
+            <span class="status-dot"></span>
+            <span class="status-text">{{ t.status_checking }}</span>
+          </div>
           <span class="card-open">
             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             {{ t.open }}
@@ -315,6 +347,29 @@
       document.getElementById('theme-color-meta').content =
         next === 'dark' ? '#0d1117' : '#f0f2f5';
     }
+
+    const T_ONLINE   = {{ t.status_online | tojson }};
+    const T_OFFLINE  = {{ t.status_offline | tojson }};
+    const T_CHECKING = {{ t.status_checking | tojson }};
+
+    async function updateStatus() {
+      try {
+        const res = await fetch('/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        data.forEach(m => {
+          const el = document.getElementById('status-' + m.icon);
+          if (!el) return;
+          const dot  = el.querySelector('.status-dot');
+          const text = el.querySelector('.status-text');
+          dot.className  = 'status-dot ' + (m.reachable ? 'online' : 'offline');
+          text.textContent = m.reachable ? T_ONLINE : T_OFFLINE;
+        });
+      } catch (e) {}
+    }
+
+    updateStatus();
+    setInterval(updateStatus, 30000);
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/static/sw.js').catch(function(){});

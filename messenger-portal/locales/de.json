@@ -8,5 +8,8 @@
   "open": "Öffnen",
   "error_credentials": "Ungültiger Benutzername oder Passwort.",
   "error_locked": "Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.",
+  "status_online": "Online",
+  "status_offline": "Offline",
+  "status_checking": "Prüfe...",
   "no_messengers": "Keine Messenger konfiguriert."
 }

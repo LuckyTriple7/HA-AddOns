@@ -3,11 +3,13 @@ import json
 import logging
 import os
 import secrets
+import socket
+import subprocess
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
-                   url_for, make_response, abort)
+                   url_for, make_response, abort, jsonify)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
@@ -157,6 +159,29 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
+def get_internal_host() -> str:
+    configured = load_config().get('internal_host', '').strip()
+    if configured:
+        return configured
+    try:
+        out = subprocess.check_output(['ip', 'route', 'show', 'default'],
+                                      text=True, stderr=subprocess.DEVNULL)
+        for token, value in zip(out.split(), out.split()[1:]):
+            if token == 'via':
+                return value
+    except Exception:
+        pass
+    return '172.30.32.2'
+
+
+def check_port(host: str, port: int, timeout: float = 2.0) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def enrich_messengers(messengers: list) -> list:
     result = []
     for m in messengers:
@@ -172,6 +197,20 @@ def enrich_messengers(messengers: list) -> list:
 @app.route('/health')
 def health():
     return 'ok', 200
+
+
+@app.route('/status')
+def status():
+    if not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
+    config = load_config()
+    host = get_internal_host()
+    result = [
+        {'icon': m['icon'].lower(), 'reachable': check_port(host, m['port'])}
+        for m in config.get('messengers', [])
+        if m.get('enabled', True) and m.get('icon') and m.get('port')
+    ]
+    return jsonify(result)
 
 
 @app.route('/auth-check')
