@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [0.0.8] – 2026-05-29
+
+### Changed
+- `internal_host` wird jetzt automatisch über `ip route` erkannt – kein manuelles Eintragen nötig
+- Manueller Override über die Option `internal_host` weiterhin möglich
+
 ## [0.0.7] – 2026-05-29
 
 ### Changed

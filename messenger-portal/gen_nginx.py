@@ -2,9 +2,24 @@
 """Generates the nginx reverse-proxy config from /data/options.json at startup."""
 import json
 import os
+import subprocess
 
 CONFIG_PATH = '/data/options.json'
 NGINX_CONF   = '/etc/nginx/http.d/messenger-portal.conf'
+
+
+def detect_gateway() -> str:
+    """Read the default gateway from the kernel routing table."""
+    try:
+        out = subprocess.check_output(['ip', 'route', 'show', 'default'],
+                                      text=True, stderr=subprocess.DEVNULL)
+        # e.g. "default via 172.30.32.2 dev eth0"
+        for token, value in zip(out.split(), out.split()[1:]):
+            if token == 'via':
+                return value
+    except Exception:
+        pass
+    return '172.30.32.2'
 
 
 def proxy_block(slug: str, host: str, port: int) -> str:
@@ -56,7 +71,13 @@ def main():
         print(f'[WARN] Could not read {CONFIG_PATH}: {e} – using defaults')
         config = {}
 
-    host       = config.get('internal_host', '172.30.32.2')
+    configured = config.get('internal_host', '').strip()
+    if configured:
+        host = configured
+        print(f'[INFO] internal_host aus Config: {host}')
+    else:
+        host = detect_gateway()
+        print(f'[INFO] internal_host auto-erkannt (Gateway): {host}')
     messengers = [m for m in config.get('messengers', []) if m.get('enabled', True)]
 
     proxy_blocks = ''.join(
