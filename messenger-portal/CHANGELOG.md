@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [1.0.1] – 2026-05-29
+
+### Fixed
+- IP-Erkennung: `CF-Connecting-IP` Header wird bevorzugt (echte öffentliche IP bei Cloudflare Tunnel)
+- Rate-Limiter sperrt nun korrekt pro echte Client-IP statt immer die Docker-Gateway-IP
+
 ## [1.0.0] – 2026-05-29
 - Erste stabile Produktivversion
 

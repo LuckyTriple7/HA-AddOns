@@ -187,6 +187,15 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
+def get_client_ip(req) -> str:
+    # Cloudflare Tunnel sets CF-Connecting-IP with the real public IP
+    cf = req.headers.get('CF-Connecting-IP', '').strip()
+    if cf:
+        return cf
+    # Behind nginx: ProxyFix already resolved X-Forwarded-For into remote_addr
+    return req.remote_addr or 'unknown'
+
+
 def get_internal_host() -> str:
     configured = load_config().get('internal_host', '').strip()
     if configured:
@@ -329,7 +338,7 @@ def login():
     if is_valid_session(request.cookies.get('mp_session')):
         return redirect(url_for('index'))
 
-    ip = request.remote_addr or 'unknown'
+    ip = get_client_ip(request)
 
     if request.method == 'POST':
         if is_rate_limited(ip):
