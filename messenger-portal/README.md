@@ -1,6 +1,6 @@
 # MessengerPortal
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.0.1-blue)](CHANGELOG.md)
 
 Zentrale, passwortgeschützte Startseite für WhatsApp-, Telegram- und Signal-Add-ons.
 

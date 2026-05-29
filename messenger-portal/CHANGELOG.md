@@ -1,6 +1,6 @@
 # Changelog – MessengerPortal
 
-## [1.0.0] – 2026-05-29
+## [0.0.1] – 2026-05-29
 
 ### Added
 - Initiales Release
