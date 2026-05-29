@@ -281,6 +281,7 @@ def login():
             record_failed_attempt(ip)
             log.warning("Login fehlgeschlagen: ip='%s' user='%s'",
                         ip, request.form.get('username', '?'))
+            error = t.get('error_credentials', 'Invalid credentials.')
 
     return render_template('login.html', t=t, lang=lang, error=error)
 

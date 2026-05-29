@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.13] – 2026-05-29
+
+### Fixed
+- Login-Fehlermeldung wurde nach falschem Passwort nicht mehr angezeigt (Regression aus 0.0.12)
+
 ## [0.0.12] – 2026-05-29
 
 ### Fixed
