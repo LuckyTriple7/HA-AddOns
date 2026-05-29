@@ -1,5 +1,17 @@
 # Changelog – MessengerPortal
 
+## [0.0.14] – 2026-05-29
+
+### Added
+- Floating „Zurück zum Portal"-Button wird in jeden proxied Messenger injiziert
+- Eigene 502-Fehlerseite wenn ein Messenger offline ist (statt nginx-Rohfehler)
+- Sessions werden auf Disk gespeichert – bleiben nach Add-on-Neustart erhalten
+- Favicon-Route `/favicon.ico` für das Portal-Icon im Browser-Tab
+- „Zuletzt geöffnet"-Anzeige auf jeder Messenger-Karte (per localStorage)
+### Fixed
+- Health- und Status-Endpoints erzeugen keine Log-Einträge mehr (nginx + werkzeug)
+- `Accept-Encoding: ""` beim Proxy-Pass damit sub_filter auch bei gzip funktioniert
+
 ## [0.0.13] – 2026-05-29
 
 ### Fixed

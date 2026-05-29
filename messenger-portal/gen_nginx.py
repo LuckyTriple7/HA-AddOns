@@ -7,13 +7,25 @@ import subprocess
 CONFIG_PATH = '/data/options.json'
 NGINX_CONF   = '/etc/nginx/http.d/messenger-portal.conf'
 
+# Floating back-to-portal button injected into every proxied page
+BACK_BTN = (
+    '<div id="mp-back" style="position:fixed;bottom:18px;right:18px;'
+    'z-index:2147483647;background:linear-gradient(135deg,#25D366,#2AABEE);'
+    'border-radius:12px;padding:10px 16px;'
+    'box-shadow:0 4px 20px rgba(0,0,0,.45);'
+    'font-family:system-ui,-apple-system,sans-serif">'
+    '<a href="/" style="color:#fff;text-decoration:none;font-size:13px;'
+    'font-weight:600;display:flex;align-items:center;gap:6px">'
+    '<svg width="14" height="14" fill="#fff" viewBox="0 0 24 24">'
+    '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z">'
+    '</path></svg>Portal</a></div></body>'
+)
+
 
 def detect_gateway() -> str:
-    """Read the default gateway from the kernel routing table."""
     try:
         out = subprocess.check_output(['ip', 'route', 'show', 'default'],
                                       text=True, stderr=subprocess.DEVNULL)
-        # e.g. "default via 172.30.32.2 dev eth0"
         for token, value in zip(out.split(), out.split()[1:]):
             if token == 'via':
                 return value
@@ -22,26 +34,28 @@ def detect_gateway() -> str:
     return '172.30.32.2'
 
 
-def proxy_block(slug: str, host: str, port: int) -> str:
+def proxy_block(slug: str, name: str, host: str, port: int) -> str:
     prefix = f'/proxy/{slug}/'
     return f"""
     # ── {slug} ──────────────────────────────────────────
     location {prefix} {{
         auth_request /auth-check;
         error_page 401 = @login_redirect;
+        error_page 502 503 504 = @offline_{slug};
 
-        proxy_pass          http://{host}:{port}/;
-        proxy_http_version  1.1;
-        proxy_set_header    Host              $http_host;
-        proxy_set_header    X-Real-IP         $remote_addr;
-        proxy_set_header    X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header    X-Forwarded-Proto $scheme;
+        proxy_pass              http://{host}:{port}/;
+        proxy_http_version      1.1;
+        proxy_set_header        Host              $http_host;
+        proxy_set_header        X-Real-IP         $remote_addr;
+        proxy_set_header        X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header        X-Forwarded-Proto $scheme;
+        proxy_set_header        Accept-Encoding   "";
 
         # WebSocket
-        proxy_set_header    Upgrade    $http_upgrade;
-        proxy_set_header    Connection $connection_upgrade;
-        proxy_read_timeout  86400s;
-        proxy_send_timeout  86400s;
+        proxy_set_header        Upgrade    $http_upgrade;
+        proxy_set_header        Connection $connection_upgrade;
+        proxy_read_timeout      86400s;
+        proxy_send_timeout      86400s;
 
         # Rewrite absolute paths in HTML/JS responses
         sub_filter_once  off;
@@ -57,8 +71,18 @@ def proxy_block(slug: str, host: str, port: int) -> str:
         sub_filter 'url: "/'   'url: "{prefix}';
         sub_filter "url: '/"   "url: '{prefix}";
 
-        # Cookie path rewrite so session cookies work under the proxy prefix
+        # Inject back-to-portal button
+        sub_filter '</body>' '{BACK_BTN}';
+
         proxy_cookie_path / {prefix};
+    }}
+
+    location @offline_{slug} {{
+        proxy_pass         http://127.0.0.1:5000/proxy-offline;
+        proxy_set_header   X-Messenger-Name  "{name}";
+        proxy_set_header   X-Messenger-Icon  "{slug}";
+        proxy_set_header   Cookie            $http_cookie;
+        proxy_set_header   Host              $host;
     }}
 """
 
@@ -78,10 +102,11 @@ def main():
     else:
         host = detect_gateway()
         print(f'[INFO] internal_host auto-erkannt (Gateway): {host}')
+
     messengers = [m for m in config.get('messengers', []) if m.get('enabled', True)]
 
     proxy_blocks = ''.join(
-        proxy_block(m['icon'].lower(), host, m['port'])
+        proxy_block(m['icon'].lower(), m['name'], host, m['port'])
         for m in messengers
         if m.get('icon') and m.get('port')
     )
@@ -96,7 +121,7 @@ map $http_upgrade $connection_upgrade {{
 server {{
     listen 17770;
 
-    # ── Internal session check ───────────────────────────
+    # ── Internal session check ────────────────────────────
     location = /auth-check {{
         internal;
         proxy_pass              http://127.0.0.1:5000/auth-check;
@@ -110,7 +135,21 @@ server {{
         return 302 /login;
     }}
 
-    # ── Flask app (login, portal, static) ───────────────
+    # ── Suppress logs for polling endpoints ──────────────
+    location = /health {{
+        access_log off;
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_set_header   Host $host;
+    }}
+
+    location = /status {{
+        access_log off;
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_set_header   Host   $host;
+        proxy_set_header   Cookie $http_cookie;
+    }}
+
+    # ── Flask app (login, portal, static) ────────────────
     location / {{
         proxy_pass         http://127.0.0.1:5000;
         proxy_set_header   Host              $host;

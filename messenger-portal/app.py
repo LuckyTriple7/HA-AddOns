@@ -14,6 +14,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
+# Werkzeug HTTP-Access-Logs unterdrücken – nginx übernimmt das
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 app = Flask(__name__,
             template_folder='/app/templates',
@@ -21,12 +23,40 @@ app = Flask(__name__,
 # x_for=1: eine vorgeschaltete Proxy-Ebene (NGINX) vertrauen
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-CONFIG_PATH = '/data/options.json'
-LOCALES_PATH = '/app/locales'
+CONFIG_PATH   = '/data/options.json'
+SESSIONS_PATH = '/data/sessions.json'
+LOCALES_PATH  = '/app/locales'
 
 _config_cache = None
 _config_mtime = 0.0
 sessions: dict[str, float] = {}
+
+
+def save_sessions() -> None:
+    try:
+        now = time.time()
+        with open(SESSIONS_PATH, 'w') as f:
+            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+    except Exception as e:
+        log.warning("Sessions konnten nicht gespeichert werden: %s", e)
+
+
+def load_sessions() -> None:
+    global sessions
+    try:
+        with open(SESSIONS_PATH) as f:
+            data = json.load(f)
+        now = time.time()
+        sessions = {k: v for k, v in data.items() if v > now}
+        if sessions:
+            log.info("Sessions geladen: %d aktive Session(s)", len(sessions))
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("Sessions konnten nicht geladen werden: %s", e)
+
+
+load_sessions()
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -147,6 +177,7 @@ def create_session(hours: int) -> tuple[str, float]:
     token = secrets.token_hex(32)
     expires = time.time() + hours * 3600
     sessions[token] = expires
+    save_sessions()
     return token, expires
 
 
@@ -194,6 +225,11 @@ def enrich_messengers(messengers: list) -> list:
     return result
 
 
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('/app/static', 'icon-192.png', mimetype='image/png')
+
+
 @app.route('/manifest.json')
 def manifest():
     return send_from_directory('/app/static', 'manifest.json',
@@ -225,6 +261,15 @@ def status():
         if m.get('enabled', True) and m.get('icon') and m.get('port')
     ]
     return jsonify(result)
+
+
+@app.route('/proxy-offline')
+def proxy_offline():
+    name = request.headers.get('X-Messenger-Name', 'Messenger')
+    icon = request.headers.get('X-Messenger-Icon', '')
+    lang = detect_language(request)
+    t    = load_translations(lang)
+    return render_template('proxy_offline.html', name=name, icon=icon, t=t, lang=lang), 502
 
 
 @app.route('/auth-check')
@@ -291,6 +336,7 @@ def logout():
     token = request.cookies.get('mp_session')
     if token in sessions:
         del sessions[token]
+        save_sessions()
     resp = make_response(redirect(url_for('login')))
     resp.delete_cookie('mp_session')
     return resp

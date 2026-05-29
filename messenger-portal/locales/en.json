@@ -11,5 +11,11 @@
   "status_online": "Online",
   "status_offline": "Offline",
   "status_checking": "Checking...",
-  "no_messengers": "No messengers configured."
+  "no_messengers": "No messengers configured.",
+  "offline_title": "Unreachable",
+  "offline_body": "This messenger is not running or unreachable. Please check if the add-on is started.",
+  "back_to_portal": "Back to Portal",
+  "last_opened_today": "Today",
+  "last_opened_yesterday": "Yesterday",
+  "last_opened_days": "{n} days ago"
 }

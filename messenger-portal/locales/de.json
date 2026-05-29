@@ -11,5 +11,11 @@
   "status_online": "Online",
   "status_offline": "Offline",
   "status_checking": "Prüfe...",
-  "no_messengers": "Keine Messenger konfiguriert."
+  "no_messengers": "Keine Messenger konfiguriert.",
+  "offline_title": "Nicht erreichbar",
+  "offline_body": "Dieser Messenger läuft gerade nicht oder ist nicht erreichbar. Bitte prüfe ob das Add-on gestartet ist.",
+  "back_to_portal": "Zurück zum Portal",
+  "last_opened_today": "Heute",
+  "last_opened_yesterday": "Gestern",
+  "last_opened_days": "vor {n} Tagen"
 }
