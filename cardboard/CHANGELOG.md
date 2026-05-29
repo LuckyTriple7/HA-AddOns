@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.34
+- View-Seite: Abmelden-Icon als SVG (war ⏻ Unicode — kein Rendering auf Android)
+- View-Seite: 📋-Logo neben „CardBoard" auf Mobile (≤600px) ausgeblendet
+
 ## 0.0.33
 - View-Seite: Uhrzeit wird bei schmalen Bildschirmen (≤600px) ausgeblendet
 - View-Seite: „Abmelden"-Schaltfläche zeigt auf mobilen Geräten nur das ⏻-Symbol
