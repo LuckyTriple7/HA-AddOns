@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.4] – 2026-05-29
+
+### Fixed
+- Dockerfile: HA-spezifisches Base-Image durch `python:3.11-alpine` ersetzt – behebt Multi-Arch-Build-Fehler im GitHub Actions Workflow
+
 ## [0.0.3] – 2026-05-29
 
 ### Added

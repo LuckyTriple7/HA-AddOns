@@ -1,21 +1,16 @@
-ARG BUILD_ARCH=amd64
-FROM ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
+FROM python:3.11-alpine
 
 LABEL org.opencontainers.image.title="MessengerPortal for Home Assistant"
 LABEL org.opencontainers.image.description="Central launcher for Messenger add-ons with login protection"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    curl \
-    jq
+RUN apk add --no-cache curl jq
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY templates/ templates/
