@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [0.0.6] – 2026-05-29
+
+### Changed
+- Dockerfile: unnötiges `sed` entfernt (`.gitattributes` erzwingt bereits LF für `.sh`)
+- run.sh: `python3` → `python` zur Konsistenz mit CardBoard
+
 ## [0.0.5] – 2026-05-29
 
 ### Fixed
