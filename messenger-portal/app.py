@@ -232,15 +232,22 @@ def favicon():
 
 @app.route('/manifest.json')
 def manifest():
-    return send_from_directory('/app/static', 'manifest.json',
+    resp = send_from_directory('/app/static', 'manifest.json',
                                mimetype='application/manifest+json')
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    resp.headers['Expires']       = '0'
+    return resp
 
 
 @app.route('/sw.js')
 def sw():
     resp = send_from_directory('/app/static', 'sw.js',
                                mimetype='application/javascript')
-    resp.headers['Cache-Control'] = 'no-cache'
+    resp.headers['Cache-Control']        = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']               = 'no-cache'
+    resp.headers['Expires']              = '0'
+    resp.headers['Service-Worker-Allowed'] = '/'
     return resp
 
 

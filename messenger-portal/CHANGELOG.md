@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [0.0.15] – 2026-05-29
+
+### Fixed
+- PWA über Cloudflare Tunnel: sw.js und manifest.json erhalten jetzt vollständige No-Cache-Header (`no-cache, no-store, must-revalidate` + `Pragma: no-cache` + `Expires: 0`) damit Cloudflare sie nicht cached
+- `Service-Worker-Allowed: /` Header auf sw.js für korrekten Scope
+
 ## [0.0.14] – 2026-05-29
 
 ### Added
