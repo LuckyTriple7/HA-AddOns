@@ -392,7 +392,8 @@
             if (diffDays === 0)      dateStr = T_TODAY + ' ' + timeStr;
             else if (diffDays === 1) dateStr = T_YESTERDAY + ' ' + timeStr;
             else                     dateStr = T_DAYS.replace('{n}', diffDays);
-            msgEl.textContent = T_LAST_MSG + ' ' + dateStr;
+            const sender = m.last_received.contact || m.last_received.chatName || '';
+            msgEl.textContent = T_LAST_MSG + ' ' + dateStr + (sender ? ' · ' + sender : '');
           } else {
             msgEl.textContent = '';
           }

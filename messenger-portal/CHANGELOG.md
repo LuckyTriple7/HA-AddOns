@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [0.0.20] – 2026-05-29
+
+### Added
+- Absender der letzten Nachricht wird neben dem Zeitpunkt angezeigt (z.B. „Letzte Nachricht: Heute 07:24 · Max Mustermann")
+
 ## [0.0.19] – 2026-05-29
 
 ### Fixed
