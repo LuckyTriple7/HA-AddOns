@@ -1,0 +1,11 @@
+{
+  "app_name": "MessengerPortal",
+  "tagline": "Dein Messenger-Hub",
+  "username": "Benutzername",
+  "password": "Passwort",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "open": "Öffnen",
+  "error_credentials": "Ungültiger Benutzername oder Passwort.",
+  "no_messengers": "Keine Messenger konfiguriert."
+}

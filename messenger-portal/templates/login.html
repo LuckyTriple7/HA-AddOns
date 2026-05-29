@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" id="theme-color-meta" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>{{ t.app_name }} – {{ t.login }}</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #7d8590;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --error-bg: rgba(248,81,73,0.12);
+      --error-border: rgba(248,81,73,0.4);
+      --error-text: #ff7b72;
+      --input-bg: #0d1117;
+      --shadow: 0 16px 48px rgba(0,0,0,0.5);
+      --radius: 14px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    [data-theme="light"] {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #636c76;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --error-bg: rgba(207,34,46,0.08);
+      --error-border: rgba(207,34,46,0.3);
+      --error-text: #cf222e;
+      --input-bg: #f6f8fa;
+      --shadow: 0 16px 48px rgba(0,0,0,0.12);
+    }
+
+    html, body {
+      min-height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      transition: background .25s, color .25s;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100svh;
+      padding: 1rem;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 2.5rem 2rem;
+      transition: background .25s, border-color .25s;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      margin-bottom: 1.75rem;
+    }
+    .logo-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #25D366 0%, #2AABEE 50%, #3A76F0 100%);
+    }
+    .logo-icon svg { width: 26px; height: 26px; fill: #fff; }
+    .logo-text { font-size: 1.4rem; font-weight: 700; letter-spacing: -.3px; }
+
+    h2 {
+      text-align: center;
+      font-size: .9rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-bottom: 1.75rem;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+    label {
+      display: block;
+      font-size: .82rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: .4rem;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: .65rem .9rem;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: .95rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(88,166,255,.15);
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: .75rem;
+      margin-top: 1.5rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: .01em;
+      transition: background .15s, transform .1s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(.98); }
+
+    .error {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
+      border-radius: 8px;
+      color: var(--error-text);
+      font-size: .85rem;
+      padding: .65rem .9rem;
+      margin-bottom: 1rem;
+    }
+    .error svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.75rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    .lang-switch { display: flex; gap: .4rem; }
+    .lang-btn {
+      padding: .3rem .6rem;
+      border-radius: 6px;
+      font-size: .8rem;
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      transition: border-color .15s, color .15s;
+    }
+    .lang-btn:hover, .lang-btn.active {
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .lang-btn.active { font-weight: 700; }
+
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: .3rem .55rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+      font-size: .8rem;
+      transition: color .15s, border-color .15s;
+    }
+    .theme-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    .theme-btn svg { width: 15px; height: 15px; fill: currentColor; }
+    .icon-moon { display: block; }
+    .icon-sun  { display: none; }
+    [data-theme="light"] .icon-moon { display: none; }
+    [data-theme="light"] .icon-sun  { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      </div>
+      <span class="logo-text">{{ t.app_name }}</span>
+    </div>
+    <h2>{{ t.tagline }}</h2>
+
+    {% if error %}
+    <div class="error">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/login" autocomplete="on">
+      <div class="form-group">
+        <label for="username">{{ t.username }}</label>
+        <input type="text" id="username" name="username" autocomplete="username"
+               spellcheck="false" autocapitalize="none" required>
+      </div>
+      <div class="form-group">
+        <label for="password">{{ t.password }}</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn">{{ t.login }}</button>
+    </form>
+
+    <div class="footer">
+      <div class="lang-switch">
+        <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme">
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.79 1.42-1.41zM4 11H1v2h3v-2zm9-9h-2v2.99h2V2zm7.45 3.05l-1.41-1.41-1.79 1.79 1.41 1.41 1.79-1.79zM20 11v2h3v-2h-3zm-8-2c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm3 14.45l1.79 1.79 1.41-1.41-1.79-1.79-1.41 1.41zm-12.45 0l1.41 1.41 1.79-1.8-1.41-1.41-1.79 1.8zM11 20v3h2v-3h-2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem('mp-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('theme-color-meta').content =
+        theme === 'dark' ? '#0d1117' : '#f0f2f5';
+    })();
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('mp-theme', next);
+      document.getElementById('theme-color-meta').content =
+        next === 'dark' ? '#0d1117' : '#f0f2f5';
+    }
+  </script>
+</body>
+</html>

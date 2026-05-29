@@ -1,0 +1,13 @@
+configuration:
+  username:
+    name: Username
+    description: Username for the login.
+  password:
+    name: Password
+    description: Password for the login.
+  session_hours:
+    name: Session Duration (hours)
+    description: How many hours a login session stays valid before requiring re-authentication.
+  messengers:
+    name: Messengers
+    description: List of configured messengers with name, icon type, port and enabled state.
