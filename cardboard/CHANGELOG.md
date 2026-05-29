@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.40
+- run.sh: `admin_password` wird im Startlog ebenfalls als `***` maskiert (war bisher Klartext)
+
 ## 0.0.39
 - Login-Verlauf: Browser und OS werden jetzt gespeichert und angezeigt (z.B. „Chrome 124 · Windows")
 - DB-Migration: Spalte `user_agent` wird automatisch zur bestehenden Datenbank hinzugefügt

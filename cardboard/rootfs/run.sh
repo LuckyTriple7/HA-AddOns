@@ -2,7 +2,7 @@
 set -e
 
 echo "=== CardBoard Optionen ==="
-jq 'to_entries | map(if .key == "ha_token" then .value = "***" else . end) | from_entries' \
+jq 'to_entries | map(if (.key == "ha_token" or .key == "admin_password") and (.value != "") then .value = "***" else . end) | from_entries' \
     /data/options.json 2>/dev/null || echo "FEHLER: /data/options.json nicht gefunden"
 echo "=========================="
 
