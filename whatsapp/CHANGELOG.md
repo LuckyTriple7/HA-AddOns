@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.17] - 2026-05-29
+- Neu: REST-Endpoint `GET /api/last-received` — liefert Zeitpunkt, Chat, Kontakt und Vorschau der zuletzt empfangenen Nachricht; optional mit `?chat=<chatId>` für einen bestimmten Chat; wird beim Start aus den gespeicherten Nachrichten initialisiert
+- Doku: HA-Sensor-Beispiel für `configuration.yaml` und Dashboard-Karte ergänzt
+
 ## [1.4.16] - 2026-05-27
 - Fix: Absendername zeigt Adressbuch-Name (name) statt WhatsApp-Profilname (pushname) — pushname nur als Fallback wenn kein Adressbucheintrag
 

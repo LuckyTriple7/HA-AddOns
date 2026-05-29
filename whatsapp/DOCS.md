@@ -38,6 +38,8 @@ Das Add-on ist über Port 3000 erreichbar (`http://<HA-IP>:17776`).
 GET  /api/status                     → Verbindungsstatus
 GET  /api/chats                      → Liste aller Chats
 GET  /api/messages?chat=<id>         → Nachrichten eines Chats
+GET  /api/last-received              → Zeitpunkt der letzten empfangenen Nachricht
+GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines bestimmten Chats
 POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
 GET  /api/export/:chatId             → Chat als HTML exportieren
@@ -75,6 +77,46 @@ action:
     data:
       to: "4915123456789"
       message: "Bewegung erkannt!"
+```
+
+### HA-Sensor: Letzte empfangene Nachricht
+
+`GET /api/last-received` gibt zurück, wann zuletzt eine Nachricht empfangen wurde — über alle Chats oder für einen bestimmten Chat:
+
+```json
+{
+  "timestamp": 1748500000000,
+  "iso": "2026-05-29T10:30:00.000Z",
+  "chatId": "4915123456789@c.us",
+  "chatName": "Max Mustermann",
+  "contact": "Max Mustermann",
+  "preview": "Hallo!"
+}
+```
+
+`null` wenn noch keine Nachricht empfangen wurde.
+
+**`configuration.yaml` — REST-Sensor:**
+```yaml
+sensor:
+  - platform: rest
+    name: WhatsApp letzte Nachricht
+    resource: http://localhost:17776/api/last-received
+    value_template: "{{ value_json.iso }}"
+    json_attributes:
+      - chatName
+      - contact
+      - preview
+    scan_interval: 30
+```
+
+Attribute im Dashboard anzeigen:
+```yaml
+type: markdown
+content: >
+  **WhatsApp** — {{ state_attr('sensor.whatsapp_letzte_nachricht', 'chatName') }}
+  {{ state_attr('sensor.whatsapp_letzte_nachricht', 'preview') }}
+  _({{ states('sensor.whatsapp_letzte_nachricht') | as_datetime | relative_time }})_
 ```
 
 ## Webhook (eingehende Nachrichten)
@@ -162,6 +204,8 @@ The add-on is available on port 3000 (`http://<HA-IP>:17776`).
 GET  /api/status                     → Connection status
 GET  /api/chats                      → List of all chats
 GET  /api/messages?chat=<id>         → Messages of a chat
+GET  /api/last-received              → Timestamp of the last received message
+GET  /api/last-received?chat=<id>    → Last received message of a specific chat
 POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
 GET  /api/export/:chatId             → Export chat as HTML
@@ -199,6 +243,46 @@ action:
     data:
       to: "4915123456789"
       message: "Motion detected!"
+```
+
+### HA Sensor: Last received message
+
+`GET /api/last-received` returns when the last message was received — across all chats or for a specific chat:
+
+```json
+{
+  "timestamp": 1748500000000,
+  "iso": "2026-05-29T10:30:00.000Z",
+  "chatId": "4915123456789@c.us",
+  "chatName": "Max Mustermann",
+  "contact": "Max Mustermann",
+  "preview": "Hello!"
+}
+```
+
+Returns `null` if no message has been received yet.
+
+**`configuration.yaml` — REST sensor:**
+```yaml
+sensor:
+  - platform: rest
+    name: WhatsApp Last Message
+    resource: http://localhost:17776/api/last-received
+    value_template: "{{ value_json.iso }}"
+    json_attributes:
+      - chatName
+      - contact
+      - preview
+    scan_interval: 30
+```
+
+Show attributes on a dashboard card:
+```yaml
+type: markdown
+content: >
+  **WhatsApp** — {{ state_attr('sensor.whatsapp_last_message', 'chatName') }}
+  {{ state_attr('sensor.whatsapp_last_message', 'preview') }}
+  _({{ states('sensor.whatsapp_last_message') | as_datetime | relative_time }})_
 ```
 
 ## Webhook (incoming messages)

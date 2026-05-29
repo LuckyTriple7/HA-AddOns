@@ -59,6 +59,7 @@ let qrCodeDataUrl = null;
 let status = 'initializing';
 let connectedPhone = null;
 let lastError = null;
+let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
@@ -146,6 +147,26 @@ try {
     console.log(`[INFO] Loaded ${total} messages from disk`);
   }
 } catch (e) { console.error('[ERROR] loadMessages:', e.message); }
+
+try {
+  let best = null;
+  for (const [chatId, msgs] of messagesByChatId.entries()) {
+    for (const m of msgs) {
+      if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
+        const chat = chatMap.get(chatId);
+        best = {
+          timestamp: m.timestamp,
+          iso: new Date(m.timestamp).toISOString(),
+          chatId,
+          chatName: chat?.name || chatId,
+          contact: m.contact || '',
+          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'document' ? `📄 ${m.filename || 'Dokument'}` : '[Medien]'),
+        };
+      }
+    }
+  }
+  if (best) lastReceivedMsg = best;
+} catch (e) { console.error('[ERROR] lastReceivedMsg init:', e.message); }
 
 let reactionsSaveTimer = null;
 function saveReactions() {
@@ -424,6 +445,15 @@ client.on('message', async (msg) => {
     quotedMsg: quotedMsgData,
   });
   if (added) {
+    const _ci = chatMap.get(chatId);
+    lastReceivedMsg = {
+      timestamp: msg.timestamp * 1000,
+      iso: new Date(msg.timestamp * 1000).toISOString(),
+      chatId,
+      chatName: _ci?.name || chatId,
+      contact: contactName,
+      preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
+    };
     sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
   }
   if (process.env.WEBHOOK_INCOMING) {
@@ -852,6 +882,26 @@ app.get('/api/reactions/:chatId', (req, res) => {
   res.json(result);
 });
 
+
+app.get('/api/last-received', (req, res) => {
+  const { chat: chatId } = req.query;
+  if (chatId) {
+    const msgs = getChatMsgs(chatId);
+    const received = msgs.filter(m => !m.fromMe && !m.deleted);
+    if (!received.length) return res.json(null);
+    const last = received[received.length - 1];
+    const chat = chatMap.get(chatId);
+    return res.json({
+      timestamp: last.timestamp,
+      iso: new Date(last.timestamp).toISOString(),
+      chatId,
+      chatName: chat?.name || chatId,
+      contact: last.contact || '',
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'document' ? `📄 ${last.filename || 'Dokument'}` : '[Medien]'),
+    });
+  }
+  res.json(lastReceivedMsg);
+});
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
