@@ -7,5 +7,6 @@
   "logout": "Logout",
   "open": "Open",
   "error_credentials": "Invalid username or password.",
+  "error_locked": "Too many failed attempts. Please try again in 15 minutes.",
   "no_messengers": "No messengers configured."
 }

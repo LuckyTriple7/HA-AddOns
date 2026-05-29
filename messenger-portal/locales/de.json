@@ -7,5 +7,6 @@
   "logout": "Abmelden",
   "open": "Öffnen",
   "error_credentials": "Ungültiger Benutzername oder Passwort.",
+  "error_locked": "Zu viele Fehlversuche. Bitte in 15 Minuten erneut versuchen.",
   "no_messengers": "Keine Messenger konfiguriert."
 }

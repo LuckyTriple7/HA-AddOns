@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [0.0.2] – 2026-05-29
+
+### Added
+- Brute-Force-Schutz: nach 5 Fehlversuchen wird die IP für 15 Minuten gesperrt (Log-Ausgabe)
+- X-Forwarded-For-Unterstützung via ProxyFix – echte Client-IP wird auch hinter NGINX erkannt
+- Fehlermeldung bei gesperrter IP (DE/EN)
+
 ## [0.0.1] – 2026-05-29
 
 ### Added

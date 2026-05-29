@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 import json
+import logging
 import os
 import secrets
 import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort)
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
+log = logging.getLogger(__name__)
 
 app = Flask(__name__,
             template_folder='/app/templates',
             static_folder='/app/static')
+# x_for=1: eine vorgeschaltete Proxy-Ebene (NGINX) vertrauen
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 CONFIG_PATH = '/data/options.json'
 LOCALES_PATH = '/app/locales'
@@ -17,6 +25,38 @@ LOCALES_PATH = '/app/locales'
 _config_cache = None
 _config_mtime = 0.0
 sessions: dict[str, float] = {}
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+_blocked_ips:     dict[str, float]       = {}
+RATE_LIMIT_MAX    = 5
+RATE_LIMIT_WINDOW = 10 * 60   # 10-min-Fenster für Fehlversuche
+RATE_LIMIT_BLOCK  = 15 * 60   # 15 min Sperre
+
+
+def is_rate_limited(ip: str) -> bool:
+    now = time.time()
+    if ip in _blocked_ips:
+        if now < _blocked_ips[ip]:
+            return True
+        del _blocked_ips[ip]
+    _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    return False
+
+
+def record_failed_attempt(ip: str) -> None:
+    now = time.time()
+    _failed_attempts[ip].append(now)
+    recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    _failed_attempts[ip] = recent
+    if len(recent) >= RATE_LIMIT_MAX:
+        _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+        log.warning("IP '%s' für %d Minuten gesperrt (zu viele fehlgeschlagene Logins)", ip, RATE_LIMIT_BLOCK // 60)
+
+
+def clear_failed_attempts(ip: str) -> None:
+    _failed_attempts.pop(ip, None)
+    _blocked_ips.pop(ip, None)
 
 ICON_SVG: dict[str, str] = {
     'whatsapp': (
@@ -157,9 +197,15 @@ def login():
     if is_valid_session(request.cookies.get('mp_session')):
         return redirect(url_for('index'))
 
+    ip = request.remote_addr or 'unknown'
+
     if request.method == 'POST':
-        if (request.form.get('username') == config.get('username') and
+        if is_rate_limited(ip):
+            log.warning("Login blockiert (Rate Limit): ip='%s'", ip)
+            error = t.get('error_locked', 'Too many failed attempts. Please try again later.')
+        elif (request.form.get('username') == config.get('username') and
                 request.form.get('password') == config.get('password')):
+            clear_failed_attempts(ip)
             hours = int(config.get('session_hours', 24))
             token, expires = create_session(hours)
             resp = make_response(redirect(url_for('index')))
@@ -169,7 +215,9 @@ def login():
                 httponly=True, samesite='Lax',
             )
             return resp
-        error = t.get('error_credentials', 'Invalid credentials.')
+        else:
+            record_failed_attempt(ip)
+            error = t.get('error_credentials', 'Invalid credentials.')
 
     return render_template('login.html', t=t, lang=lang, error=error)
 
