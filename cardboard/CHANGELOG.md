@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.41
+- Admin-Panel: Login-Verlauf-Modal breiter (780px statt 560px)
+
 ## 0.0.40
 - run.sh: `admin_password` wird im Startlog ebenfalls als `***` maskiert (war bisher Klartext)
 
