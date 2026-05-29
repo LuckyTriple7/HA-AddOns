@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.3] - 2026-05-29
+- Neu: Sprache wird automatisch anhand der Browsersprache erkannt (DE/EN) — kein manuelles Umschalten mehr nötig beim ersten Start
+- Fix: Sprach-Umschalter (🌐) in der mobilen Ansicht ausgeblendet, bleibt in der Desktop-Ansicht sichtbar
+- Fix: Logout-Button auf Mobile korrekt dargestellt (flex-shrink verhindert Quetschen, kleinerer Gap im Topbar)
+
 ## [1.2.2] - 2026-05-29
 - Fix: `GET /api/last-received` ignoriert jetzt Bot-Nachrichten wenn `ha_notifications_skip_bots` aktiv ist — konsistentes Verhalten mit HA-Benachrichtigungen
 

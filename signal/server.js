@@ -825,6 +825,9 @@ html.dark #attach-bar { background: #1a2533; border-color: #2a3942; color: #c1c9
   #back-btn { display: block; }
   body.chat-open #sidebar { display: none; }
   body.chat-open #chat-panel { display: flex; }
+  #lang-btn { display: none !important; }
+  #topbar { gap: 6px; }
+  #logout-btn { flex-shrink: 0; }
 }
 
 html.dark body { background: #0b141a; color: #e9edef; }
@@ -979,7 +982,8 @@ const LANG = {
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups',
   },
 };
-let lang = localStorage.getItem('signal_lang') || 'de';
+const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+let lang = localStorage.getItem('signal_lang') || _browserLang;
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
 function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }

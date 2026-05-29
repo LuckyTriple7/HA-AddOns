@@ -1000,6 +1000,9 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   #back-btn { display: block; }
   body.chat-open #sidebar { display: none; }
   body.chat-open #chat-panel { display: flex; }
+  #lang-btn { display: none !important; }
+  #topbar { gap: 6px; }
+  #logout-btn { flex-shrink: 0; }
 }
 </style>
 </head>
@@ -1140,7 +1143,8 @@ const LANG = {
     statsMsg: 'messages', statsSince: 'since',
   },
 };
-let lang = localStorage.getItem('tg_lang') || 'de';
+const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+let lang = localStorage.getItem('tg_lang') || _browserLang;
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
 function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }

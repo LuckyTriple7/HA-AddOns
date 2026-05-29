@@ -1337,9 +1337,11 @@ app.get('/', (req, res) => {
       #sidebar { width: 100%; max-width: 100%; border-right: none; }
       #chat-panel { display: none; }
       #back-btn { display: block; }
-      /* When a chat is open: hide sidebar, show chat panel */
       body.chat-open #sidebar { display: none; }
       body.chat-open #chat-panel { display: flex; }
+      #lang-btn { display: none !important; }
+      .topbar { gap: 6px; }
+      .logout-btn { flex-shrink: 0; }
     }
 
     /* Overlays */
@@ -1570,7 +1572,8 @@ app.get('/', (req, res) => {
         statsMsg:'messages', statsSince:'since',
       },
     };
-    let lang = localStorage.getItem('wa_lang') || 'de';
+    const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+    let lang = localStorage.getItem('wa_lang') || _browserLang;
     function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
     function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
     function applyLang() {
