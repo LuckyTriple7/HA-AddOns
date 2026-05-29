@@ -112,6 +112,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
           commit-message: "Nextcloud: Update auf linuxserver/nextcloud ${{ steps.remote.outputs.remote }}"
           branch: "nextcloud-update/${{ steps.remote.outputs.remote }}"
           delete-branch: true
