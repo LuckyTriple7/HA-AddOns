@@ -17,5 +17,6 @@
   "back_to_portal": "Zurück zum Portal",
   "last_opened_today": "Heute",
   "last_opened_yesterday": "Gestern",
-  "last_opened_days": "vor {n} Tagen"
+  "last_opened_days": "vor {n} Tagen",
+  "last_msg_prefix": "Letzte Nachricht:"
 }

@@ -217,12 +217,19 @@
     .card-open:active { transform: scale(.97); }
     .card-open svg { width: 14px; height: 14px; fill: #fff; }
 
-    /* ── Last opened ────────────────────────────────────────*/
+    /* ── Last received / Last opened ────────────────────────*/
     .card-last {
       font-size: .72rem;
       color: var(--text-muted);
       min-height: .9rem;
-      position: relative;
+    }
+    .card-last-msg {
+      font-size: .72rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
 
     /* ── Status indicator ───────────────────────────────────*/
@@ -321,6 +328,7 @@
             <span class="status-dot"></span>
             <span class="status-text">{{ t.status_checking }}</span>
           </div>
+          <div class="card-last-msg" id="last-msg-{{ m.icon.lower() }}"></div>
           <div class="card-last" id="last-{{ m.icon.lower() }}"></div>
           <span class="card-open">
             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -357,11 +365,12 @@
         next === 'dark' ? '#0d1117' : '#f0f2f5';
     }
 
-    const LANG        = {{ lang | tojson }};
-    const T_TODAY     = {{ t.last_opened_today | tojson }};
-    const T_YESTERDAY = {{ t.last_opened_yesterday | tojson }};
-    const T_DAYS      = {{ t.last_opened_days | tojson }};
-    const T_ONLINE   = {{ t.status_online | tojson }};
+    const LANG          = {{ lang | tojson }};
+    const T_TODAY       = {{ t.last_opened_today | tojson }};
+    const T_YESTERDAY   = {{ t.last_opened_yesterday | tojson }};
+    const T_DAYS        = {{ t.last_opened_days | tojson }};
+    const T_LAST_MSG    = {{ t.last_msg_prefix | tojson }};
+    const T_ONLINE      = {{ t.status_online | tojson }};
     const T_OFFLINE  = {{ t.status_offline | tojson }};
     const T_CHECKING = {{ t.status_checking | tojson }};
 
@@ -375,8 +384,24 @@
           if (!el) return;
           const dot  = el.querySelector('.status-dot');
           const text = el.querySelector('.status-text');
-          dot.className  = 'status-dot ' + (m.reachable ? 'online' : 'offline');
+          dot.className    = 'status-dot ' + (m.reachable ? 'online' : 'offline');
           text.textContent = m.reachable ? T_ONLINE : T_OFFLINE;
+
+          const msgEl = document.getElementById('last-msg-' + m.icon);
+          if (!msgEl) return;
+          if (m.last_received && m.last_received.iso) {
+            const date    = new Date(m.last_received.iso);
+            const timeStr = date.toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-US',
+                              { hour: '2-digit', minute: '2-digit' });
+            const diffDays = Math.floor((Date.now() - date) / 86400000);
+            let dateStr;
+            if (diffDays === 0)      dateStr = T_TODAY + ' ' + timeStr;
+            else if (diffDays === 1) dateStr = T_YESTERDAY + ' ' + timeStr;
+            else                     dateStr = T_DAYS.replace('{n}', diffDays);
+            msgEl.textContent = T_LAST_MSG + ' ' + dateStr;
+          } else {
+            msgEl.textContent = '';
+          }
         });
       } catch (e) {}
     }

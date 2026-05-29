@@ -6,7 +6,9 @@ import secrets
 import socket
 import subprocess
 import time
+import urllib.request
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory)
@@ -213,6 +215,27 @@ def check_port(host: str, port: int, timeout: float = 2.0) -> bool:
         return False
 
 
+def fetch_last_received(host: str, port: int, timeout: float = 2.0) -> dict | None:
+    try:
+        url = f'http://{host}:{port}/api/last-received'
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+            return data if data else None
+    except Exception:
+        return None
+
+
+def fetch_messenger_status(host: str, m: dict) -> dict:
+    port      = m['port']
+    reachable = check_port(host, port)
+    last      = fetch_last_received(host, port) if reachable else None
+    return {
+        'icon':      m['icon'].lower(),
+        'reachable': reachable,
+        'last_received': last,
+    }
+
+
 def enrich_messengers(messengers: list) -> list:
     result = []
     for m in messengers:
@@ -262,11 +285,10 @@ def status():
         return '', 401
     config = load_config()
     host = get_internal_host()
-    result = [
-        {'icon': m['icon'].lower(), 'reachable': check_port(host, m['port'])}
-        for m in config.get('messengers', [])
-        if m.get('enabled', True) and m.get('icon') and m.get('port')
-    ]
+    messengers = [m for m in config.get('messengers', [])
+                  if m.get('enabled', True) and m.get('icon') and m.get('port')]
+    with ThreadPoolExecutor(max_workers=len(messengers) or 1) as ex:
+        result = list(ex.map(lambda m: fetch_messenger_status(host, m), messengers))
     return jsonify(result)
 
 

@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [0.0.18] – 2026-05-29
+
+### Added
+- Zeitpunkt der letzten Nachricht je Messenger auf der Karte angezeigt (via `/api/last-received`)
+- Alle drei Messenger-APIs werden parallel abgefragt (ThreadPoolExecutor) – kein sequentielles Warten
+
 ## [0.0.17] – 2026-05-29
 
 ### Fixed
