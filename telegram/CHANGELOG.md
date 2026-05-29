@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.2] - 2026-05-29
+- Fix: `GET /api/last-received` ignoriert jetzt Bot-Nachrichten wenn `ha_notifications_skip_bots` aktiv ist — konsistentes Verhalten mit HA-Benachrichtigungen
+
 ## [1.2.1] - 2026-05-29
 - Neu: REST-Endpoint `GET /api/last-received` — liefert Zeitpunkt, Chat, Kontakt und Vorschau der zuletzt empfangenen Nachricht; optional mit `?chat=<chatId>` für einen bestimmten Chat; wird beim Start aus den gespeicherten Nachrichten initialisiert
 - Doku: HA-Sensor-Beispiel für `configuration.yaml` ergänzt

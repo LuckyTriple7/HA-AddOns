@@ -276,18 +276,18 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   scheduleSave();
 
   if (!fromMe && source === 'NewMessage') {
-    lastReceivedMsg = {
-      timestamp: ts,
-      iso: new Date(ts).toISOString(),
-      chatId,
-      chatName,
-      contact: chatName,
-      preview: preview,
-    };
     const isBot = chatMap.get(chatId)?.isBot;
     const skipBot = HA_NOTIFY_SKIP_BOTS && isBot;
     dbg(`HA-Notification check [${source}]: msgId=${msgId} isBot=${isBot} skipBot=${skipBot} body="${(body||'').slice(0,60)}"`);
     if (!skipBot) {
+      lastReceivedMsg = {
+        timestamp: ts,
+        iso: new Date(ts).toISOString(),
+        chatId,
+        chatName,
+        contact: chatName,
+        preview: preview,
+      };
       sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
     }
   }
@@ -1692,9 +1692,10 @@ loadFromDisk();
 try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
+    const chat = chatMap.get(chatId);
+    if (HA_NOTIFY_SKIP_BOTS && chat?.isBot) continue;
     for (const m of msgs) {
       if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
-        const chat = chatMap.get(chatId);
         best = {
           timestamp: m.timestamp,
           iso: new Date(m.timestamp).toISOString(),
