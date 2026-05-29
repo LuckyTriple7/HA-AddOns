@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.17] - 2026-05-29
+
+### Changed
+- claude-opus-4-7 durch claude-opus-4-8 ersetzt
+
+
 ## [1.0.16] - 2026-05-29
 
 ### Changed
