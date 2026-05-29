@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.37
+- Admin-Panel: Neue Sektion „Verwaiste Verzeichnisse" — zeigt Ordner die keinem Benutzer mehr gehören
+- Admin-Panel: Einzeln oder alle verwaisten Verzeichnisse per Klick bereinigen (mit Bestätigungsdialog)
+- API: `GET /admin/api/orphaned` und `POST /admin/api/orphaned/cleanup` (beide Apps + Ingress)
+
 ## 0.0.36
 - View-Seite: Footer auf Mobile einzeilig gestapelt (kein unabhängiges Umbrechen beider Seiten)
 - View-Seite: Auto-Reconnect via Page Visibility API — sofortiger Refresh wenn App wieder in den Vordergrund kommt

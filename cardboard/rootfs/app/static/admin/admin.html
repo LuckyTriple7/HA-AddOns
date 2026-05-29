@@ -295,6 +295,17 @@
         <div class="empty" style="padding:16px" id="td-rl-loading">Lade…</div>
       </div>
     </div>
+
+    <!-- Orphaned Directories Section -->
+    <div style="margin-top:32px">
+      <div class="section-header" style="margin-bottom:12px">
+        <h2 id="h-orphaned">Verwaiste Verzeichnisse</h2>
+        <button class="btn btn-danger btn-sm" id="btn-cleanup-all" onclick="cleanupAll()" style="display:none"></button>
+      </div>
+      <div id="orphaned-wrap">
+        <div class="empty" style="padding:16px">Lade…</div>
+      </div>
+    </div>
   </main>
 
   <!-- Create Modal -->
@@ -486,6 +497,17 @@
         rlThActions:  'Aktionen',
         rlUnblock:    'Entsperren',
         rlMinutes:    n => `${Math.ceil(n/60)} Min.`,
+        orTitle:      'Verwaiste Verzeichnisse',
+        orNone:       '✓ Keine verwaisten Verzeichnisse',
+        orThDir:      'Verzeichnis',
+        orThFiles:    'Dateien',
+        orThActions:  'Aktionen',
+        orCleanupAll: 'Alle bereinigen',
+        orDelete:     'Löschen',
+        orConfirmOne: name => `Verzeichnis „${name}" und alle enthaltenen Dateien wirklich löschen?`,
+        orConfirmAll: n => `Alle ${n} verwaisten Verzeichnisse wirklich löschen?`,
+        orDeleted:    n => `${n} Verzeichnis${n !== 1 ? 'se' : ''} gelöscht.`,
+        orError:      'Fehler beim Löschen.',
         footerSuccess:  (u, ts, ip) => `Letzter Login: ${u} — ${ts} (${ip})`,
         footerFailed:   (u, ts, ip) => `Letzter Fehlversuch: ${u} — ${ts} (${ip})`,
         footerFailed24h: n => `Fehlversuche letzte 24h: ${n}`,
@@ -562,6 +584,17 @@
         rlThActions:  'Actions',
         rlUnblock:    'Unblock',
         rlMinutes:    n => `${Math.ceil(n/60)} min`,
+        orTitle:      'Orphaned Directories',
+        orNone:       '✓ No orphaned directories',
+        orThDir:      'Directory',
+        orThFiles:    'Files',
+        orThActions:  'Actions',
+        orCleanupAll: 'Clean up all',
+        orDelete:     'Delete',
+        orConfirmOne: name => `Really delete directory "${name}" and all its files?`,
+        orConfirmAll: n => `Really delete all ${n} orphaned directories?`,
+        orDeleted:    n => `${n} director${n !== 1 ? 'ies' : 'y'} deleted.`,
+        orError:      'Error during deletion.',
         footerSuccess:  (u, ts, ip) => `Last login: ${u} — ${ts} (${ip})`,
         footerFailed:   (u, ts, ip) => `Last failed attempt: ${u} — ${ts} (${ip})`,
         footerFailed24h: n => `Failed attempts last 24h: ${n}`,
@@ -619,6 +652,7 @@
       document.getElementById('dm-submit').textContent   = t.dmSubmit;
       document.getElementById('hm-close').textContent    = t.dmCancel;
       document.getElementById('h-ratelimit').textContent  = t.rlTitle;
+      document.getElementById('h-orphaned').textContent   = t.orTitle;
     }
 
     let pwConfig = { pw_min_length: 8, pw_require_special: true };
@@ -912,6 +946,71 @@
       loadRateLimits();
     }
 
+    /* ── Orphaned Directories ─── */
+    let orphanedCache = [];
+
+    async function loadOrphaned() {
+      try {
+        const r = await fetch('api/orphaned');
+        if (!r.ok) return;
+        const d = await r.json();
+        orphanedCache = d.orphaned || [];
+        const wrap = document.getElementById('orphaned-wrap');
+        const btnAll = document.getElementById('btn-cleanup-all');
+        if (!orphanedCache.length) {
+          wrap.innerHTML = `<div style="color:var(--success);font-size:0.85rem;padding:8px 0">${t.orNone}</div>`;
+          btnAll.style.display = 'none';
+          return;
+        }
+        btnAll.textContent = t.orCleanupAll;
+        btnAll.style.display = '';
+        const rows = orphanedCache.map(o => {
+          const fileList = o.j2_files.length
+            ? o.j2_files.map(f => `<span style="font-family:monospace;font-size:0.78rem;background:var(--bg-deep);border-radius:4px;padding:1px 5px">${esc(f)}</span>`).join(' ')
+            : `<span style="color:var(--text-muted);font-size:0.8rem">(${o.total_files} Datei${o.total_files !== 1 ? 'en' : ''})</span>`;
+          return `<tr>
+            <td><strong style="font-family:monospace">${esc(o.dir)}</strong></td>
+            <td style="max-width:320px;white-space:normal;line-height:1.8">${fileList}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="cleanupOne('${esc(o.dir)}')">${t.orDelete}</button></td>
+          </tr>`;
+        }).join('');
+        wrap.innerHTML = `
+          <div class="table-wrap">
+            <table style="width:100%">
+              <thead><tr>
+                <th>${t.orThDir}</th>
+                <th>${t.orThFiles}</th>
+                <th>${t.orThActions}</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      } catch {}
+    }
+
+    async function cleanupOne(dir) {
+      if (!confirm(t.orConfirmOne(dir))) return;
+      await _doCleanup([dir]);
+    }
+
+    async function cleanupAll() {
+      if (!orphanedCache.length) return;
+      if (!confirm(t.orConfirmAll(orphanedCache.length))) return;
+      await _doCleanup(orphanedCache.map(o => o.dir));
+    }
+
+    async function _doCleanup(dirs) {
+      const r = await fetch('api/orphaned/cleanup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ dirs }),
+      });
+      const d = await r.json();
+      if (d.deleted && d.deleted.length) toast(t.orDeleted(d.deleted.length), 'ok');
+      else toast(t.orError, 'err');
+      loadOrphaned();
+    }
+
     /* ── Language toggle ─── */
     document.getElementById('btn-lang').textContent = lang === 'de' ? '🇩🇪 DE' : '🇬🇧 EN';
     function toggleLang() {
@@ -956,6 +1055,7 @@
       loadUsers();
       loadFooter();
       loadRateLimits();
+      loadOrphaned();
     });
 
     /* ── Init ─── */
@@ -963,6 +1063,7 @@
     loadConfig().then(loadUsers);
     loadFooter();
     loadRateLimits();
+    loadOrphaned();
   </script>
 </body>
 </html>

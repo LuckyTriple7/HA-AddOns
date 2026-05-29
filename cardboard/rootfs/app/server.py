@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import re
+import shutil
 import sqlite3
 import time
 from collections import defaultdict
@@ -1057,6 +1058,20 @@ async def ingress_delete_template(username: str, filename: str, request: Request
     return _admin_delete_template(username, filename)
 
 
+@ingress_app.get("/admin/api/orphaned")
+async def ingress_get_orphaned(request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_orphaned()
+
+
+@ingress_app.post("/admin/api/orphaned/cleanup")
+async def ingress_cleanup_orphaned(request: Request):
+    if not admin_panel_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_cleanup_orphaned(request)
+
+
 @admin_app.get("/admin/templates/{username}", response_class=HTMLResponse)
 async def admin_templates_page(username: str, request: Request):
     if not admin_allowed(request):
@@ -1107,6 +1122,20 @@ async def admin_delete_template(username: str, filename: str, request: Request):
     if not admin_allowed(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
     return _admin_delete_template(username, filename)
+
+
+@admin_app.get("/admin/api/orphaned")
+async def admin_get_orphaned(request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return _admin_get_orphaned()
+
+
+@admin_app.post("/admin/api/orphaned/cleanup")
+async def admin_cleanup_orphaned(request: Request):
+    if not admin_allowed(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    return await _admin_cleanup_orphaned(request)
 
 
 # ── Admin business logic (shared) ────────────────────────────────────────────
@@ -1192,6 +1221,49 @@ async def _admin_reorder_templates(username: str, request: Request):
     write_users(yaml_data)
     log.info("Admin: Templates für '%s' umsortiert", username)
     return JSONResponse({"success": True})
+
+
+def _admin_get_orphaned():
+    known = {(u.get("username") or "").lower() for u in load_users()}
+    orphaned = []
+    if CONFIG_DIR.exists():
+        for entry in sorted(CONFIG_DIR.iterdir()):
+            if not entry.is_dir():
+                continue
+            if entry.name.lower() in known:
+                continue
+            files = sorted(f.name for f in entry.iterdir() if f.is_file() and f.suffix == ".j2")
+            total_files = sum(1 for f in entry.iterdir() if f.is_file())
+            orphaned.append({"dir": entry.name, "j2_files": files, "total_files": total_files})
+    return JSONResponse({"orphaned": orphaned})
+
+
+async def _admin_cleanup_orphaned(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_request"}, status_code=400)
+    dirs = body.get("dirs")
+    if not isinstance(dirs, list) or not dirs:
+        return JSONResponse({"error": "dirs_empty"}, status_code=400)
+    known = {(u.get("username") or "").lower() for u in load_users()}
+    deleted, errors = [], []
+    for name in dirs:
+        name = str(name).strip()
+        if not name or name.lower() in known:
+            errors.append({"dir": name, "reason": "active_user"})
+            continue
+        target = CONFIG_DIR / name
+        if not target.exists() or not target.is_dir():
+            errors.append({"dir": name, "reason": "not_found"})
+            continue
+        try:
+            shutil.rmtree(target)
+            log.info("Admin: Verwaistes Verzeichnis '%s' gelöscht", name)
+            deleted.append(name)
+        except Exception as e:
+            errors.append({"dir": name, "reason": str(e)})
+    return JSONResponse({"deleted": deleted, "errors": errors})
 
 
 def _normalize_templates(templates: list) -> list:
