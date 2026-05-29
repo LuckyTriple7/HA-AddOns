@@ -109,6 +109,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
           commit-message: "Collabora: Update auf neues collabora/code Image (v${{ steps.newversion.outputs.new_version }})"
           branch: "collabora-update/${{ steps.newversion.outputs.new_version }}"
           delete-branch: true
