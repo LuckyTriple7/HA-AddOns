@@ -1,5 +1,13 @@
 # Changelog – MessengerPortal
 
+## [0.0.7] – 2026-05-29
+
+### Changed
+- Architektur auf nginx Reverse Proxy umgestellt: Flask läuft intern auf Port 5000, nginx lauscht auf 17770
+- Messenger-Buttons öffnen `/proxy/<icon>/` statt direktem Port – Messenger-Ports müssen von außen nicht erreichbar sein
+- nginx prüft Session via `auth_request` vor dem Proxying (WebSocket-Support inklusive)
+- Neue Option `internal_host` (Standard: `172.30.32.2`): interne IP des HA-Hosts
+
 ## [0.0.6] – 2026-05-29
 
 ### Changed

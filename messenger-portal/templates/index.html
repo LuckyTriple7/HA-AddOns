@@ -273,20 +273,20 @@
     {% if messengers %}
     <div class="grid">
       {% for m in messengers %}
-      <div class="card" style="--brand-color: {{ m.color }}"
-           onclick="openMessenger({{ m.port }})" role="button" tabindex="0"
-           onkeydown="if(event.key==='Enter'||event.key===' ')openMessenger({{ m.port }})">
+      {% set proxy_url = '/proxy/' ~ m.icon.lower() ~ '/' %}
+      <a class="card" style="--brand-color: {{ m.color }}"
+         href="{{ proxy_url }}" target="_blank" rel="noopener">
         <div class="card-icon">
           <svg viewBox="0 0 24 24">{{ m.svg | safe }}</svg>
         </div>
         <div class="card-body">
           <div class="card-name">{{ m.name }}</div>
-          <button class="card-open" onclick="event.stopPropagation(); openMessenger({{ m.port }})">
+          <span class="card-open">
             <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
             {{ t.open }}
-          </button>
+          </span>
         </div>
-      </div>
+      </a>
       {% endfor %}
     </div>
     {% else %}
@@ -314,10 +314,6 @@
       localStorage.setItem('mp-theme', next);
       document.getElementById('theme-color-meta').content =
         next === 'dark' ? '#0d1117' : '#f0f2f5';
-    }
-
-    function openMessenger(port) {
-      window.open('http://' + window.location.hostname + ':' + port, '_blank');
     }
 
     if ('serviceWorker' in navigator) {

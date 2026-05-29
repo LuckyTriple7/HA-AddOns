@@ -8,6 +8,9 @@ configuration:
   session_hours:
     name: Session Duration (hours)
     description: How many hours a login session stays valid before requiring re-authentication.
+  internal_host:
+    name: Internal Host IP
+    description: IP address of the HA host on the internal Docker network (default 172.30.32.2). Used by the nginx reverse proxy to reach the messenger ports.
   messengers:
     name: Messengers
     description: List of configured messengers with name, icon type, port and enabled state.

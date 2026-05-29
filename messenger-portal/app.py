@@ -174,6 +174,14 @@ def health():
     return 'ok', 200
 
 
+@app.route('/auth-check')
+def auth_check():
+    """Called internally by nginx to validate the session cookie."""
+    if is_valid_session(request.cookies.get('mp_session')):
+        return '', 200
+    return '', 401
+
+
 @app.route('/')
 def index():
     if not is_valid_session(request.cookies.get('mp_session')):
@@ -243,4 +251,5 @@ def set_lang(lang: str):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=17770, debug=False)
+    # Flask läuft intern auf 5000; nginx lauscht auf 17770 und proxyt dorthin
+    app.run(host='127.0.0.1', port=5000, debug=False)
