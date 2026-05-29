@@ -820,7 +820,7 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #topbar h1 { font-size: 17px; flex: 1; }
 #topbar .uname { font-size: 13px; opacity: 0.7; }
 #storage-info { font-size: 12px; opacity: 0.6; white-space: nowrap; }
-#logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
+#logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #logout-btn:hover { color: #f15c5c; }
 #photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
@@ -1002,7 +1002,6 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   body.chat-open #chat-panel { display: flex; }
   #lang-btn { display: none !important; }
   #topbar { gap: 6px; }
-  #logout-btn { flex-shrink: 0; }
 }
 </style>
 </head>
@@ -1053,7 +1052,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
   <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden">⏻</button>
+  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 
 <div id="main">

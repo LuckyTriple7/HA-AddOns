@@ -1070,7 +1070,8 @@ app.get('/', (req, res) => {
     .storage-info { font-size: 12px; color: #8696a0; white-space: nowrap; }
     .logout-btn {
       background: none; border: none; color: #8696a0;
-      font-size: 20px; cursor: pointer; padding: 4px; line-height: 1;
+      cursor: pointer; padding: 6px; line-height: 1;
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     .logout-btn:hover { color: #f15c5c; }
     .photo-toggle-btn {
@@ -1341,7 +1342,6 @@ app.get('/', (req, res) => {
       body.chat-open #chat-panel { display: flex; }
       #lang-btn { display: none !important; }
       .topbar { gap: 6px; }
-      .logout-btn { flex-shrink: 0; }
     }
 
     /* Overlays */
@@ -1419,7 +1419,7 @@ app.get('/', (req, res) => {
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()">⏻</button>
+    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
   <div id="main" style="display:none;">
