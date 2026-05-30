@@ -822,12 +822,14 @@ html.dark #attach-bar { background: #1a2533; border-color: #2a3942; color: #c1c9
 @media (max-width: 768px) {
   #sidebar { width: 100%; max-width: 100%; border-right: none; }
   #chat-panel { display: none; }
-  #back-btn { display: block; }
+  #back-btn { display: none !important; }
   body.chat-open #sidebar { display: none; }
   body.chat-open #chat-panel { display: flex; }
   #lang-btn { display: none !important; }
   #topbar { gap: 6px; }
   #topbar .phone { display: none; }
+  #ch-avatar { cursor: pointer; }
+  #ch-stats { white-space: normal; font-size: 10px; overflow: visible; text-overflow: unset; }
 }
 
 html.dark body { background: #0b141a; color: #e9edef; }
@@ -1218,6 +1220,7 @@ function openChat(chat) {
   const ph = chat.phone || '';
   document.getElementById('ch-phone').textContent = /^\\+?\\d{7,15}$/.test(ph) ? ph : '';
   const av = document.getElementById('ch-avatar');
+  av.onclick = function() { if (window.innerWidth <= 768) closeChat(); };
   if (chat.isGroup) {
     av.textContent = '👥';
     av.style.background = '#3a76f0';

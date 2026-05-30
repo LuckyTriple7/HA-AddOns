@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.6] - 2026-05-30
+- Fix: Chat-Header Mobile — Zurück-Pfeil ausgeblendet, Avatar-Klick navigiert zurück zur Chat-Liste
+- Fix: Stats-Zeile bricht auf Mobile um statt abgeschnitten zu werden
+
 ## [1.2.5] - 2026-05-30
 - Fix: visualViewport-JS-Fix + viewport-fit=cover — verhindert dass Android-Navigationsleiste die Eingabeleiste im Vollbildmodus verdeckt
 
