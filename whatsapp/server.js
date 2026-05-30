@@ -408,12 +408,18 @@ client.on('message', async (msg) => {
   if (!isText && !isImage && !isDocument) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
   if (!msg.body && !isImage && !isDocument) return;
   const chat = await msg.getChat().catch(() => null);
-  if (!chat) return;
-  const chatId = chat.id._serialized;
-  if (isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
+  const chatId = chat ? chat.id._serialized : msg.from;
+  if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
+  const cachedChat = chatMap.get(chatId);
+  if (!chat && !cachedChat) { dbg(`getChat() failed and chat unknown: ${chatId} — skipping`); return; }
+  if (!chat) console.warn(`[WARN] getChat() failed for ${chatId} — using cached chat info`);
   const contact = await msg.getContact().catch(() => null);
-  const contactName = contact?.name || contact?.pushname || msg.from.replace('@c.us', '');
-  upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
+  const contactName = contact?.name || contact?.pushname || msg.from.replace(/@[cg]\.us$/, '');
+  upsertChat(chatId, {
+    name: chat?.name || cachedChat?.name || contactName,
+    phone: chat?.id.user || cachedChat?.phone || '',
+    isGroup: chat?.isGroup ?? cachedChat?.isGroup ?? chatId.endsWith('@g.us'),
+  });
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';

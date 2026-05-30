@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.24] - 2026-05-30
+- Fix: Gruppennachrichten lösen jetzt HA-Benachrichtigungen und REST-API-Updates aus — msg.getChat() schlägt für Gruppen oft fehl; Fallback auf chatMap-Cache wenn Chat bekannt ist
+
 ## [1.4.23] - 2026-05-30
 - Fix: Chat-Header Mobile — Zurück-Pfeil ausgeblendet, Avatar-Klick navigiert zurück zur Chat-Liste
 - Fix: Stats-Zeile im Chat-Header bricht auf Mobile um (white-space: normal, 10px) statt abgeschnitten zu werden
