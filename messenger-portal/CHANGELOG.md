@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.1.2] – 2026-05-30
+
+### Fixed
+- Benachrichtigungslogik: Tracking per Timestamp statt Zustandswechsel – Benachrichtigung kommt jetzt auch bei zweiter Nachricht im selben Messenger und nach Seitenneuladen
+
 ## [1.1.1] – 2026-05-30
 
 ### Fixed

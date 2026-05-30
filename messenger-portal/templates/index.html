@@ -497,14 +497,14 @@
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
 
-    let prevHasNew = null; // null = erster Poll noch ausstehend
+    let prevLastReceived = null; // null = erster Poll, danach Map icon→timestamp
 
     async function updateStatus() {
       try {
         const res = await fetch(STATUS_URL);
         if (!res.ok) return;
         const data = await res.json();
-        const currentHasNew = new Set();
+        const currentLastReceived = {};
         data.forEach(m => {
           const el = document.getElementById('status-' + m.icon);
           if (!el) return;
@@ -530,16 +530,20 @@
             const sender = m.last_received.contact || m.last_received.chatName || '';
             msgEl.innerHTML = T_LAST_MSG + ' ' + dateStr + (sender ? '<br>' + sender : '');
 
-            // New message glow + browser notification
+            const lastReceived = date.getTime();
+            currentLastReceived[m.icon] = lastReceived;
+
+            // Benachrichtigung: wenn Timestamp gestiegen und Nachricht ungelesen
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
             if (card) {
-              const lastOpened   = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
-              const lastReceived = new Date(m.last_received.iso).getTime();
+              const lastOpened = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
               const isNew = lastReceived > lastOpened;
               if (isNew) {
-                if (prevHasNew !== null && !prevHasNew.has(m.icon)) fireNotification(m);
+                // Nur benachrichtigen wenn neuer Timestamp als letzter Poll (kein Spam beim Laden)
+                if (prevLastReceived !== null && lastReceived > (prevLastReceived[m.icon] || 0)) {
+                  fireNotification(m);
+                }
                 card.classList.add('has-new');
-                currentHasNew.add(m.icon);
               } else {
                 card.classList.remove('has-new');
               }
@@ -550,7 +554,7 @@
             if (card) card.classList.remove('has-new');
           }
         });
-        prevHasNew = currentHasNew;
+        prevLastReceived = currentLastReceived;
       } catch (e) {}
     }
 
