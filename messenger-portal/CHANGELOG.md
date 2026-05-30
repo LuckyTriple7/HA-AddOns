@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.1.3] – 2026-05-30
+
+### Fixed
+- Benachrichtigungsverzögerung: PAGE_LOAD_TIME tracken – beim ersten Poll wird
+  sofort benachrichtigt wenn die Nachricht nach dem Seitenaufruf ankam, statt
+  erst beim zweiten Poll (ein voller poll_interval später)
+
 ## [1.1.2] – 2026-05-30
 
 ### Fixed

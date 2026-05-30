@@ -497,7 +497,8 @@
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
 
-    let prevLastReceived = null; // null = erster Poll, danach Map icon→timestamp
+    const PAGE_LOAD_TIME  = Date.now();
+    let prevLastReceived  = null; // null = erster Poll, danach Map icon→timestamp
 
     async function updateStatus() {
       try {
@@ -539,10 +540,10 @@
               const lastOpened = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
               const isNew = lastReceived > lastOpened;
               if (isNew) {
-                // Nur benachrichtigen wenn neuer Timestamp als letzter Poll (kein Spam beim Laden)
-                if (prevLastReceived !== null && lastReceived > (prevLastReceived[m.icon] || 0)) {
-                  fireNotification(m);
-                }
+                const shouldNotify = prevLastReceived !== null
+                  ? lastReceived > (prevLastReceived[m.icon] || 0)
+                  : lastReceived > PAGE_LOAD_TIME; // erster Poll: nur wenn Nachricht nach Seitenaufruf kam
+                if (shouldNotify) fireNotification(m);
                 card.classList.add('has-new');
               } else {
                 card.classList.remove('has-new');
