@@ -738,8 +738,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 .scroll-btn:hover { opacity: 1; }
 #photo-toggle-btn { background: none; border: 1px solid rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
 #photo-toggle-btn.active { border-color: #fff; color: #fff; background: rgba(255,255,255,0.15); }
-#logout-btn { background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#logout-btn, #topbar-back { background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #logout-btn:hover { color: #f15c5c; }
+#topbar-back { display: none; }
+#topbar-back:hover { color: rgba(255,255,255,0.9); }
 .msg-img { max-width: 250px; max-height: 250px; border-radius: 8px; cursor: zoom-in; display: block; object-fit: cover; margin-top: 4px; }
 .photo-placeholder { color: #3a76f8; }
 .bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
@@ -828,8 +830,9 @@ html.dark #attach-bar { background: #1a2533; border-color: #2a3942; color: #c1c9
   #lang-btn { display: none !important; }
   #topbar { gap: 6px; }
   #topbar .phone { display: none; }
-  #ch-avatar { cursor: pointer; }
   #ch-stats { white-space: normal; font-size: 10px; overflow: visible; text-overflow: unset; }
+  body.chat-open #topbar h1 { display: none; }
+  body.chat-open #topbar-back { display: inline-flex; }
 }
 
 html.dark body { background: #0b141a; color: #e9edef; }
@@ -894,6 +897,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 </div>
 
 <div id="topbar">
+  <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
   <h1>Signal</h1>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
@@ -1235,7 +1239,7 @@ function openChat(chat) {
   const ph = chat.phone || '';
   document.getElementById('ch-phone').textContent = /^\\+?\\d{7,15}$/.test(ph) ? ph : '';
   const av = document.getElementById('ch-avatar');
-  av.onclick = function() { if (window.innerWidth <= 768) closeChat(); };
+  av.onclick = null;
   if (chat.isGroup) {
     av.textContent = '👥';
     av.style.background = '#3a76f0';

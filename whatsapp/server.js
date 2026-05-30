@@ -1081,12 +1081,14 @@ app.get('/', (req, res) => {
     .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
     .status-dot.initializing { background: #8696a0; }
     .storage-info { font-size: 12px; color: #8696a0; white-space: nowrap; }
-    .logout-btn {
+    .logout-btn, #topbar-back {
       background: none; border: none; color: #8696a0;
       cursor: pointer; padding: 6px; line-height: 1;
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     .logout-btn:hover { color: #f15c5c; }
+    #topbar-back { display: none; }
+    #topbar-back:hover { color: #e9edef; }
     .photo-toggle-btn {
       background: none; border: 1px solid #8696a0; color: #e9edef;
       padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1;
@@ -1356,8 +1358,10 @@ app.get('/', (req, res) => {
       body.chat-open #chat-panel { display: flex; }
       #lang-btn { display: none !important; }
       .topbar { gap: 6px; }
-      #ch-avatar { cursor: pointer; }
       #ch-stats { white-space: normal; font-size: 10px; }
+      body.chat-open .topbar h1 { display: none; }
+      body.chat-open .topbar .status-dot { display: none; }
+      body.chat-open #topbar-back { display: inline-flex; }
     }
 
     /* Overlays */
@@ -1427,6 +1431,7 @@ app.get('/', (req, res) => {
   </div>
 
   <div class="topbar" id="topbar" style="display:none;">
+    <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
     <h1>WhatsApp</h1>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
@@ -1861,7 +1866,7 @@ app.get('/', (req, res) => {
       document.body.classList.add('chat-open'); // mobile: show chat panel
 
       const av = document.getElementById('ch-avatar');
-      av.onclick = function() { if (window.innerWidth <= 768) closeChat(); };
+      av.onclick = null;
       if (chat.isGroup) {
         av.className = 'avatar group-avatar';
         av.textContent = '👥';

@@ -820,8 +820,10 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #topbar h1 { font-size: 17px; flex: 1; }
 #topbar .uname { font-size: 13px; opacity: 0.7; }
 #storage-info { font-size: 12px; opacity: 0.6; white-space: nowrap; }
-#logout-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#logout-btn, #topbar-back { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 6px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #logout-btn:hover { color: #f15c5c; }
+#topbar-back { display: none; }
+#topbar-back:hover { color: rgba(255,255,255,0.9); }
 #photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #photo-toggle.active { opacity: 1; background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.8); }
@@ -1003,8 +1005,9 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   #lang-btn { display: none !important; }
   #topbar { gap: 6px; }
   #topbar .uname { display: none; }
-  #ch-avatar { cursor: pointer; }
   #ch-stats { white-space: normal; font-size: 10px; overflow: visible; text-overflow: unset; }
+  body.chat-open #topbar h1 { display: none; }
+  body.chat-open #topbar-back { display: inline-flex; }
 }
 #logout-modal { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
 #logout-modal.open { display:flex; }
@@ -1059,6 +1062,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 </div>
 
 <div id="topbar">
+  <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
@@ -1418,7 +1422,7 @@ function openChat(chat) {
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
   const av = document.getElementById('ch-avatar');
-  av.onclick = function() { if (window.innerWidth <= 768) closeChat(); };
+  av.onclick = null;
   const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
   if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; }
   else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; }

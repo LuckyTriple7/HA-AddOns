@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.8] - 2026-05-30
+- UX: Mobile Navigation — App-Name im Topbar ausgeblendet wenn Chat offen, stattdessen eleganter Zurück-Pfeil (SVG Chevron); Avatar-Klick-Navigation entfernt
+
 ## [1.2.7] - 2026-05-30
 - Neu: Sicherheitsabfrage beim Abmelden — Popup mit Ja/Nein-Buttons (DE/EN)
 
