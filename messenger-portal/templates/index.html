@@ -430,7 +430,10 @@
             const date    = new Date(m.last_received.iso);
             const timeStr = date.toLocaleTimeString(LANG === 'de' ? 'de-DE' : 'en-US',
                               { hour: '2-digit', minute: '2-digit' });
-            const diffDays = Math.floor((Date.now() - date) / 86400000);
+            const now     = new Date();
+            const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const msgMidnight   = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const diffDays = Math.round((todayMidnight - msgMidnight) / 86400000);
             let dateStr;
             if (diffDays === 0)      dateStr = T_TODAY + ' ' + timeStr;
             else if (diffDays === 1) dateStr = T_YESTERDAY + ' ' + timeStr;

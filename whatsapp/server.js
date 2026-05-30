@@ -1045,14 +1045,14 @@ app.get('/', (req, res) => {
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>WhatsApp</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #111b21; color: #e9edef;
-      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+      height: var(--app-height, 100dvh); display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* Top bar */
@@ -1505,6 +1505,18 @@ app.get('/', (req, res) => {
   </div>
 
   <script>
+    // Fix für Android WebViews: setzt --app-height auf die tatsächlich sichtbare Höhe
+    // (visualViewport.height exkludiert Navigationsleiste und Tastatur)
+    (function() {
+      function setAppHeight() {
+        var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+      window.addEventListener('resize', setAppHeight);
+      setAppHeight();
+    })();
+
     // ── i18n ────────────────────────────────────────────────────────────────────
     const LANG = {
       de: {

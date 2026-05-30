@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.6] - 2026-05-30
+- Fix: visualViewport-JS-Fix + viewport-fit=cover — verhindert dass Android-Navigationsleiste die Eingabeleiste im Vollbildmodus verdeckt
+
 ## [1.2.5] - 2026-05-29
 - Fix: Benutzername im Topbar auf Mobile ausgeblendet
 

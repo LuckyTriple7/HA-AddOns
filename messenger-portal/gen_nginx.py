@@ -10,6 +10,7 @@ NGINX_CONF   = '/etc/nginx/http.d/messenger-portal.conf'
 # Draggable back-to-portal button injected into every proxied page.
 # IMPORTANT: no single quotes allowed (nginx sub_filter uses them as delimiters).
 BACK_BTN = (
+    '<style>@media(max-width:600px){#mp-back{display:none!important}}</style>'
     '<div id="mp-back" style="position:fixed;bottom:18px;right:18px;'
     'z-index:2147483647;background:linear-gradient(135deg,#25D366,#2AABEE);'
     'border-radius:12px;padding:10px 16px;cursor:grab;user-select:none;'

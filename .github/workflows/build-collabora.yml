@@ -2,7 +2,7 @@ name: Build Collabora Image
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
     paths:
       - 'collabora/**'
   workflow_dispatch:

@@ -1,5 +1,21 @@
 # Changelog – MessengerPortal
 
+## [1.0.3] – 2026-05-30
+
+### Fixed
+- Datumsanzeige „Heute/Gestern" basiert jetzt auf Kalendertagen statt 24h-Differenz – Nachrichten vom Vortag werden korrekt als „Gestern" angezeigt
+
+## [1.0.2] – 2026-05-30
+
+### Changed
+- „Zurück zum Portal"-Button wird auf mobilen Geräten (≤ 600px) ausgeblendet
+
+## [1.0.1] – 2026-05-29
+
+### Fixed
+- IP-Erkennung: `CF-Connecting-IP` Header wird bevorzugt (echte öffentliche IP bei Cloudflare Tunnel)
+- Rate-Limiter sperrt nun korrekt pro echte Client-IP statt immer die Docker-Gateway-IP
+
 ## [1.0.0] – 2026-05-29
 - Erste stabile Produktivversion
 

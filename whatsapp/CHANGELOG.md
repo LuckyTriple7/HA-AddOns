@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.22] - 2026-05-30
+- Fix: JavaScript `visualViewport`-Fix für Android WebViews — setzt `--app-height` dynamisch auf die tatsächlich sichtbare Viewport-Höhe; verhindert zuverlässig dass Navigationsleiste die Eingabeleiste verdeckt, auch in Apps die `env(safe-area-inset-bottom)` nicht unterstützen
+
+## [1.4.21] - 2026-05-30
+- Fix: `viewport-fit=cover` + `padding-bottom: env(safe-area-inset-bottom)` auf `#send-bar` — verhindert, dass Android-Navigationsleiste die Eingabeleiste im Vollbildmodus verdeckt
+
+## [1.4.20] - 2026-05-30
+- Fix: `height: 100dvh` statt `100vh` — verhindert auf Android Chrome, dass die Eingabeleiste hinter der Adressleiste verschwindet
+
 ## [1.4.19] - 2026-05-29
 - Fix: Logout-Button ersetzt ⏻ Unicode durch SVG-Icon — rendert auf allen Mobile-Browsern korrekt (identisch mit CardBoard-Fix)
 

@@ -1,6 +1,10 @@
 name: Build Nextcloud Image
 
 on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'nextcloud/**'
   workflow_dispatch:
 
 permissions:

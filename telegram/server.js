@@ -777,11 +777,11 @@ function getHtml() {
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Telegram</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: var(--app-height, 100dvh); display: flex; flex-direction: column; overflow: hidden; }
 
 html.dark body { background: #17212B; color: #C1C9D4; }
 html.light body { background: #fff; color: #222; }
@@ -1101,6 +1101,16 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
 </div>
 
 <script>
+    (function() {
+      function setAppHeight() {
+        var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+      window.addEventListener('resize', setAppHeight);
+      setAppHeight();
+    })();
+
 const LANG = {
   de: {
     spinnerConnect: 'Verbinde mit Telegram…', spinnerLogout: 'Abmelden…',
