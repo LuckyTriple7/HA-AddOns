@@ -1151,6 +1151,7 @@ app.get('/', (req, res) => {
       border-bottom: 1px solid #2a3942; flex-shrink: 0; min-height: 60px;
     }
     #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
+    #ch-info { flex: 1; min-width: 0; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
@@ -1337,11 +1338,13 @@ app.get('/', (req, res) => {
     @media (max-width: 768px) {
       #sidebar { width: 100%; max-width: 100%; border-right: none; }
       #chat-panel { display: none; }
-      #back-btn { display: block; }
+      #back-btn { display: none !important; }
       body.chat-open #sidebar { display: none; }
       body.chat-open #chat-panel { display: flex; }
       #lang-btn { display: none !important; }
       .topbar { gap: 6px; }
+      #ch-avatar { cursor: pointer; }
+      #ch-stats { white-space: normal; font-size: 10px; }
     }
 
     /* Overlays */
@@ -1444,7 +1447,7 @@ app.get('/', (req, res) => {
       <div id="chat-header" style="display:none;">
         <button id="back-btn" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück">&#8592;</button>
         <div class="avatar" id="ch-avatar"></div>
-        <div>
+        <div id="ch-info">
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
           <div id="ch-stats"></div>
@@ -1834,6 +1837,7 @@ app.get('/', (req, res) => {
       document.body.classList.add('chat-open'); // mobile: show chat panel
 
       const av = document.getElementById('ch-avatar');
+      av.onclick = function() { if (window.innerWidth <= 768) closeChat(); };
       if (chat.isGroup) {
         av.className = 'avatar group-avatar';
         av.textContent = '👥';

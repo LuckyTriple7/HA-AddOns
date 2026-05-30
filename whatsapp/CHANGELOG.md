@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.23] - 2026-05-30
+- Fix: Chat-Header Mobile — Zurück-Pfeil ausgeblendet, Avatar-Klick navigiert zurück zur Chat-Liste
+- Fix: Stats-Zeile im Chat-Header bricht auf Mobile um (white-space: normal, 10px) statt abgeschnitten zu werden
+- Fix: #ch-info Wrapper erhält flex:1; min-width:0 damit Stats-Bereich korrekt schrumpft
+
 ## [1.4.22] - 2026-05-30
 - Fix: JavaScript `visualViewport`-Fix für Android WebViews — setzt `--app-height` dynamisch auf die tatsächlich sichtbare Viewport-Höhe; verhindert zuverlässig dass Navigationsleiste die Eingabeleiste verdeckt, auch in Apps die `env(safe-area-inset-bottom)` nicht unterstützen
 
