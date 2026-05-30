@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.0.6] – 2026-05-30
+
+### Fixed
+- Ingress 404: HA Ingress folgt Redirects intern ohne X-Ingress-Path → Login-Redirect schlug fehl
+- Lösung: Requests via Ingress gelten als authentifiziert (HA übernimmt die Authentifizierung)
+- nginx `auth_request` leitet X-Ingress-Path weiter damit auch Proxy-Routen via Ingress funktionieren
+
 ## [1.0.5] – 2026-05-30
 
 ### Fixed

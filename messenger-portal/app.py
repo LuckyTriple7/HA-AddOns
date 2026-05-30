@@ -204,6 +204,15 @@ def handle_ingress_path():
         log.info("Ingress: PATH_INFO=%s (prefix already stripped)", path_info)
 
 
+def is_ingress() -> bool:
+    """True when the request arrives via HA Ingress — HA already authenticated the user."""
+    return bool(request.headers.get('X-Ingress-Path'))
+
+
+def is_authenticated() -> bool:
+    return is_ingress() or is_valid_session(request.cookies.get('mp_session'))
+
+
 def get_client_ip(req) -> str:
     # Cloudflare Tunnel sets CF-Connecting-IP with the real public IP
     cf = req.headers.get('CF-Connecting-IP', '').strip()
@@ -302,7 +311,7 @@ def health():
 
 @app.route('/status')
 def status():
-    if not is_valid_session(request.cookies.get('mp_session')):
+    if not is_authenticated():
         return '', 401
     config = load_config()
     host = get_internal_host()
@@ -325,14 +334,14 @@ def proxy_offline():
 @app.route('/auth-check')
 def auth_check():
     """Called internally by nginx to validate the session cookie."""
-    if is_valid_session(request.cookies.get('mp_session')):
+    if is_authenticated():
         return '', 200
     return '', 401
 
 
 @app.route('/')
 def index():
-    if not is_valid_session(request.cookies.get('mp_session')):
+    if not is_authenticated():
         return redirect(url_for('login'))
     config = load_config()
     lang = detect_language(request)
@@ -352,7 +361,7 @@ def login():
     t = load_translations(lang)
     error = None
 
-    if is_valid_session(request.cookies.get('mp_session')):
+    if is_authenticated():
         return redirect(url_for('index'))
 
     ip = get_client_ip(request)
