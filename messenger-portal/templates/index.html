@@ -320,6 +320,64 @@
       .card-name { font-size: 1rem; }
       .card-open { width: auto; padding: .45rem 1rem; font-size: .83rem; }
     }
+
+    /* ── Notification Panel ─────────────────────────────── */
+    .notif-wrap { position: relative; }
+    .notif-bell.notif-on { color: var(--accent); border-color: var(--accent); }
+    .notif-bell.notif-snoozed { color: var(--text-muted); }
+    .notif-bell.notif-snoozed::after {
+      content: ''; position: absolute; top: 3px; right: 3px;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #f59e0b; border: 1.5px solid var(--surface);
+    }
+    .notif-panel {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      width: 220px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 1rem;
+      z-index: 100;
+      display: flex; flex-direction: column; gap: .7rem;
+    }
+    .notif-panel-title {
+      font-size: .78rem; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px;
+    }
+    .notif-status { font-size: .88rem; font-weight: 600; color: var(--text); }
+    .notif-hint { font-size: .8rem; color: var(--text-muted); line-height: 1.4; }
+    .notif-action {
+      width: 100%; padding: .42rem .75rem;
+      border-radius: 7px; border: none;
+      background: var(--accent); color: #fff;
+      font-size: .82rem; font-weight: 600;
+      cursor: pointer; font-family: var(--font);
+      transition: filter .15s;
+    }
+    .notif-action:hover { filter: brightness(1.12); }
+    .notif-action.secondary {
+      background: none; border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .notif-action.secondary:hover {
+      filter: none; color: var(--text); border-color: var(--text-muted);
+    }
+    .notif-divider { border: none; border-top: 1px solid var(--border); margin: .1rem 0; }
+    .notif-snooze-label { font-size: .78rem; font-weight: 600; color: var(--text-muted); }
+    .notif-snooze-opts { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .notif-snooze-opt {
+      padding: .28rem .55rem;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: none; color: var(--text-muted);
+      font-size: .78rem; font-weight: 500;
+      cursor: pointer; font-family: var(--font);
+      transition: color .15s, border-color .15s, background .15s;
+    }
+    .notif-snooze-opt:hover {
+      color: var(--text); border-color: var(--text-muted);
+      background: var(--surface-hover);
+    }
   </style>
 </head>
 <body>
@@ -336,6 +394,13 @@
       <div class="lang-switch">
         <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
         <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+      </div>
+
+      <div class="notif-wrap" id="notif-wrap" style="display:none">
+        <button class="icon-btn notif-bell" id="notif-bell" onclick="toggleNotifPanel()" aria-label="{{ t.notif_panel_title }}">
+          <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        </button>
+        <div class="notif-panel" id="notif-panel" hidden></div>
       </div>
 
       <button class="icon-btn" onclick="toggleTheme()" aria-label="Toggle theme">
@@ -412,11 +477,33 @@
     const T_CHECKING   = {{ t.status_checking | tojson }};
     const STATUS_URL   = {{ url_for('status') | tojson }};
 
+    // Notification i18n
+    const T_NOTIF_PANEL  = {{ t.notif_panel_title | tojson }};
+    const T_NOTIF_HINT   = {{ t.notif_request_hint | tojson }};
+    const T_NOTIF_ENABLE = {{ t.notif_enable | tojson }};
+    const T_NOTIF_DISABLE= {{ t.notif_disable | tojson }};
+    const T_NOTIF_DENIED = {{ t.notif_denied | tojson }};
+    const T_NOTIF_DENIED_HINT = {{ t.notif_denied_hint | tojson }};
+    const T_NOTIF_ACTIVE = {{ t.notif_status_active | tojson }};
+    const T_NOTIF_SNOOZED= {{ t.notif_status_snoozed | tojson }};
+    const T_NOTIF_OFF    = {{ t.notif_status_off | tojson }};
+    const T_NOTIF_FOR    = {{ t.notif_snooze_for | tojson }};
+    const T_NOTIF_1H     = {{ t.notif_snooze_1h | tojson }};
+    const T_NOTIF_4H     = {{ t.notif_snooze_4h | tojson }};
+    const T_NOTIF_TMR    = {{ t.notif_snooze_tomorrow | tojson }};
+    const T_NOTIF_UNSNOOZE = {{ t.notif_unsnooze | tojson }};
+    const T_NOTIF_TITLE  = {{ t.notif_new_msg_title | tojson }};
+    const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
+    const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
+
+    let prevHasNew = null; // null = erster Poll noch ausstehend
+
     async function updateStatus() {
       try {
         const res = await fetch(STATUS_URL);
         if (!res.ok) return;
         const data = await res.json();
+        const currentHasNew = new Set();
         data.forEach(m => {
           const el = document.getElementById('status-' + m.icon);
           if (!el) return;
@@ -442,13 +529,19 @@
             const sender = m.last_received.contact || m.last_received.chatName || '';
             msgEl.innerHTML = T_LAST_MSG + ' ' + dateStr + (sender ? '<br>' + sender : '');
 
-            // New message glow: compare last_received vs last_opened
+            // New message glow + browser notification
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
             if (card) {
               const lastOpened   = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
               const lastReceived = new Date(m.last_received.iso).getTime();
-              if (lastReceived > lastOpened) card.classList.add('has-new');
-              else                           card.classList.remove('has-new');
+              const isNew = lastReceived > lastOpened;
+              if (isNew) {
+                if (prevHasNew !== null && !prevHasNew.has(m.icon)) fireNotification(m);
+                card.classList.add('has-new');
+                currentHasNew.add(m.icon);
+              } else {
+                card.classList.remove('has-new');
+              }
             }
           } else {
             msgEl.textContent = '';
@@ -456,6 +549,7 @@
             if (card) card.classList.remove('has-new');
           }
         });
+        prevHasNew = currentHasNew;
       } catch (e) {}
     }
 
@@ -469,6 +563,161 @@
         card.classList.remove('has-new');
       });
     });
+
+    // ── Browser Notifications ────────────────────────────────────────────────
+    const NOTIF_ENABLED_KEY = 'mp-notif-enabled';
+    const NOTIF_SNOOZE_KEY  = 'mp-notif-snooze';
+    let notifEnabled = false;
+    let snoozedUntil = 0;
+
+    function notifAllowed() {
+      if (snoozedUntil && Date.now() >= snoozedUntil) {
+        snoozedUntil = 0;
+        localStorage.removeItem(NOTIF_SNOOZE_KEY);
+        updateBellUI();
+      }
+      return notifEnabled
+        && 'Notification' in window
+        && Notification.permission === 'granted'
+        && !snoozedUntil;
+    }
+
+    function initNotifications() {
+      if (!('Notification' in window)) return;
+      document.getElementById('notif-wrap').style.display = '';
+      notifEnabled = localStorage.getItem(NOTIF_ENABLED_KEY) === 'true';
+      const raw = localStorage.getItem(NOTIF_SNOOZE_KEY);
+      snoozedUntil = raw ? parseInt(raw) : 0;
+      if (snoozedUntil && Date.now() >= snoozedUntil) {
+        snoozedUntil = 0;
+        localStorage.removeItem(NOTIF_SNOOZE_KEY);
+      }
+      updateBellUI();
+    }
+
+    function updateBellUI() {
+      const bell = document.getElementById('notif-bell');
+      if (!bell) return;
+      bell.classList.remove('notif-on', 'notif-snoozed');
+      if (!('Notification' in window) || !notifEnabled || Notification.permission !== 'granted') return;
+      if (snoozedUntil && Date.now() < snoozedUntil) {
+        bell.classList.add('notif-snoozed');
+      } else {
+        bell.classList.add('notif-on');
+      }
+    }
+
+    function toggleNotifPanel() {
+      const panel = document.getElementById('notif-panel');
+      if (panel.hidden) {
+        renderNotifPanel();
+        panel.hidden = false;
+        setTimeout(() => document.addEventListener('click', closeNotifOutside, { once: true }), 0);
+      } else {
+        panel.hidden = true;
+      }
+    }
+
+    function closeNotifOutside(e) {
+      const wrap = document.getElementById('notif-wrap');
+      if (wrap && wrap.contains(e.target)) {
+        setTimeout(() => document.addEventListener('click', closeNotifOutside, { once: true }), 0);
+      } else {
+        const panel = document.getElementById('notif-panel');
+        if (panel) panel.hidden = true;
+      }
+    }
+
+    function renderNotifPanel() {
+      const panel = document.getElementById('notif-panel');
+      const perm  = Notification.permission;
+      let body = '';
+      if (perm === 'denied') {
+        body = `<div class="notif-status">${T_NOTIF_DENIED}</div>
+                <div class="notif-hint">${T_NOTIF_DENIED_HINT}</div>`;
+      } else if (perm === 'default') {
+        body = `<div class="notif-hint">${T_NOTIF_HINT}</div>
+                <button class="notif-action" onclick="requestNotifPermission()">${T_NOTIF_ENABLE}</button>`;
+      } else if (!notifEnabled) {
+        body = `<div class="notif-status">${T_NOTIF_OFF}</div>
+                <button class="notif-action" onclick="setNotifEnabled(true)">${T_NOTIF_ENABLE}</button>`;
+      } else {
+        const isSnoozed = snoozedUntil && Date.now() < snoozedUntil;
+        if (isSnoozed) {
+          const timeStr = new Date(snoozedUntil).toLocaleTimeString(
+            LANG === 'de' ? 'de-DE' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+          body = `<div class="notif-status">${T_NOTIF_SNOOZED.replace('{time}', timeStr)}</div>
+                  <button class="notif-action" onclick="clearSnooze()">${T_NOTIF_UNSNOOZE}</button>
+                  <hr class="notif-divider">
+                  <button class="notif-action secondary" onclick="setNotifEnabled(false)">${T_NOTIF_DISABLE}</button>`;
+        } else {
+          body = `<div class="notif-status">${T_NOTIF_ACTIVE}</div>
+                  <div class="notif-snooze-label">${T_NOTIF_FOR}</div>
+                  <div class="notif-snooze-opts">
+                    <button class="notif-snooze-opt" onclick="snoozeNotif(1)">${T_NOTIF_1H}</button>
+                    <button class="notif-snooze-opt" onclick="snoozeNotif(4)">${T_NOTIF_4H}</button>
+                    <button class="notif-snooze-opt" onclick="snoozeUntilTomorrow()">${T_NOTIF_TMR}</button>
+                  </div>
+                  <hr class="notif-divider">
+                  <button class="notif-action secondary" onclick="setNotifEnabled(false)">${T_NOTIF_DISABLE}</button>`;
+        }
+      }
+      panel.innerHTML = `<div class="notif-panel-title">${T_NOTIF_PANEL}</div>${body}`;
+    }
+
+    async function requestNotifPermission() {
+      const result = await Notification.requestPermission();
+      if (result === 'granted') {
+        notifEnabled = true;
+        localStorage.setItem(NOTIF_ENABLED_KEY, 'true');
+      }
+      updateBellUI();
+      renderNotifPanel();
+    }
+
+    function setNotifEnabled(val) {
+      notifEnabled = val;
+      localStorage.setItem(NOTIF_ENABLED_KEY, val ? 'true' : 'false');
+      if (!val) { snoozedUntil = 0; localStorage.removeItem(NOTIF_SNOOZE_KEY); }
+      updateBellUI();
+      renderNotifPanel();
+    }
+
+    function snoozeNotif(hours) {
+      snoozedUntil = Date.now() + hours * 3600000;
+      localStorage.setItem(NOTIF_SNOOZE_KEY, snoozedUntil);
+      updateBellUI();
+      renderNotifPanel();
+    }
+
+    function snoozeUntilTomorrow() {
+      const t = new Date();
+      t.setDate(t.getDate() + 1); t.setHours(8, 0, 0, 0);
+      snoozedUntil = t.getTime();
+      localStorage.setItem(NOTIF_SNOOZE_KEY, snoozedUntil);
+      updateBellUI();
+      renderNotifPanel();
+    }
+
+    function clearSnooze() {
+      snoozedUntil = 0;
+      localStorage.removeItem(NOTIF_SNOOZE_KEY);
+      updateBellUI();
+      renderNotifPanel();
+    }
+
+    function fireNotification(m) {
+      if (!notifAllowed()) return;
+      const sender = m.last_received && (m.last_received.contact || m.last_received.chatName);
+      const body   = sender ? T_NOTIF_FROM.replace('{sender}', sender) : '';
+      try {
+        new Notification(m.name + ' – ' + T_NOTIF_TITLE, {
+          body, icon: ICON_URL, tag: 'mp-' + m.icon
+        });
+      } catch (e) {}
+    }
+
+    initNotifications();
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('{{ url_for("sw") }}').catch(function(){});

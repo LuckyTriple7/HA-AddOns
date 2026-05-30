@@ -1,5 +1,13 @@
 # Changelog – MessengerPortal
 
+## [1.1.0] – 2026-05-30
+
+### Added
+- Browser-Benachrichtigungen: Glocken-Icon im Header zum Aktivieren/Deaktivieren
+- Stummschaltung für 1 Stunde, 4 Stunden oder bis morgen 08:00 Uhr
+- Benachrichtigung erscheint nur wenn eine neue Nachricht *während der Sitzung* eintrifft (kein Spam beim ersten Laden)
+- Glocken-Icon zeigt Zustand: aktiv (blau), stummgeschaltet (gelber Punkt), inaktiv (grau)
+
 ## [1.0.9] – 2026-05-30
 
 ### Changed
