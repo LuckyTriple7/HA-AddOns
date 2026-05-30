@@ -150,4 +150,4 @@ jobs:
           gh pr create \
             --title "Webtop ${NEW_ADDON_VER}: Paket-Updates (${DATE})" \
             --body "$(printf '## Webtop Paket-Updates\n\n### Geänderte Versionen\n%s\n\n### Hinweis\nNach dem Merge: **Update + Neu Aufbauen** in Home Assistant.\nAlle Pakete (inkl. LibreOffice, XFCE, VLC) werden dann auf den neuesten Stand gebracht.\n\n_Automatisch erstellt von GitHub Actions._' "${{ steps.check.outputs.changes }}")" \
-            --base main
+            --base dev
