@@ -1007,7 +1007,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   #topbar .uname { display: none; }
   #ch-stats { white-space: normal; font-size: 10px; overflow: visible; text-overflow: unset; }
   body.chat-open #topbar h1 { display: none; }
-  body.chat-open #topbar-back { display: inline-flex; }
+  body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
 }
 #logout-modal { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
 #logout-modal.open { display:flex; }

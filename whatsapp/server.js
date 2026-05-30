@@ -1361,7 +1361,7 @@ app.get('/', (req, res) => {
       #ch-stats { white-space: normal; font-size: 10px; }
       body.chat-open .topbar h1 { display: none; }
       body.chat-open .topbar .status-dot { display: none; }
-      body.chat-open #topbar-back { display: inline-flex; }
+      body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
     }
 
     /* Overlays */

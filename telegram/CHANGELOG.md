@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.10] - 2026-05-30
+- Fix: Zurück-Pfeil linksbündig, restliche Topbar-Elemente rechtsbündig (margin-right: auto)
+
 ## [1.2.9] - 2026-05-30
 - UX: Mobile Navigation — App-Name im Topbar ausgeblendet wenn Chat offen, stattdessen eleganter Zurück-Pfeil (SVG Chevron); Avatar-Klick-Navigation entfernt
 

@@ -832,7 +832,7 @@ html.dark #attach-bar { background: #1a2533; border-color: #2a3942; color: #c1c9
   #topbar .phone { display: none; }
   #ch-stats { white-space: normal; font-size: 10px; overflow: visible; text-overflow: unset; }
   body.chat-open #topbar h1 { display: none; }
-  body.chat-open #topbar-back { display: inline-flex; }
+  body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
 }
 
 html.dark body { background: #0b141a; color: #e9edef; }
