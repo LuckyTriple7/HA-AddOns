@@ -354,7 +354,7 @@
     {% if messengers %}
     <div class="grid">
       {% for m in messengers %}
-      {% set proxy_url = '/proxy/' ~ m.icon.lower() ~ '/' %}
+      {% set proxy_url = request.script_root ~ '/proxy/' ~ m.icon.lower() ~ '/' %}
       <a class="card" style="--brand-color: {{ m.color }}"
          href="{{ proxy_url }}" data-icon="{{ m.icon.lower() }}">
         <div class="card-icon">
@@ -409,11 +409,12 @@
     const T_LAST_MSG    = {{ t.last_msg_prefix | tojson }};
     const T_ONLINE      = {{ t.status_online | tojson }};
     const T_OFFLINE  = {{ t.status_offline | tojson }};
-    const T_CHECKING = {{ t.status_checking | tojson }};
+    const T_CHECKING   = {{ t.status_checking | tojson }};
+    const STATUS_URL   = {{ url_for('status') | tojson }};
 
     async function updateStatus() {
       try {
-        const res = await fetch('/status');
+        const res = await fetch(STATUS_URL);
         if (!res.ok) return;
         const data = await res.json();
         data.forEach(m => {

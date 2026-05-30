@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.0.7] – 2026-05-30
+
+### Fixed
+- Status-API: JS nutzt jetzt Jinja2 `url_for('status')` statt hardcoded `/status` → funktioniert via Ingress
+- Messenger-Karten: Link-Prefix kommt aus `request.script_root` → korrekte Ingress-URL für Proxy-Routen
+- Zurück-Button: navigiert zu `../../` (relativ) statt `/` → funktioniert für Direkt- und Ingress-Zugriff
+
 ## [1.0.6] – 2026-05-30
 
 ### Fixed
