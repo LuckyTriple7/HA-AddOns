@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.21] - 2026-05-30
+- Fix: `viewport-fit=cover` + `padding-bottom: env(safe-area-inset-bottom)` auf `#send-bar` — verhindert, dass Android-Navigationsleiste die Eingabeleiste im Vollbildmodus verdeckt
+
 ## [1.4.20] - 2026-05-30
 - Fix: `height: 100dvh` statt `100vh` — verhindert auf Android Chrome, dass die Eingabeleiste hinter der Adressleiste verschwindet
 

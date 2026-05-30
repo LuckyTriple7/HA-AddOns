@@ -1045,7 +1045,7 @@ app.get('/', (req, res) => {
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>WhatsApp</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1304,6 +1304,7 @@ app.get('/', (req, res) => {
     /* Send bar */
     #send-bar {
       background: #202c33; padding: 10px 12px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
       display: flex; gap: 8px; align-items: flex-end;
       border-top: 1px solid #2a3942; flex-shrink: 0; position: relative;
     }
