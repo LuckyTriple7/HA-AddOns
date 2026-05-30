@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4
+
+- Bugfix: Icon wird jetzt immer vom Zieldienst geladen (war vorher nur aktiv wenn `icon:` manuell gesetzt)
+- Icon-Fetch robuster: mehr Fallback-Pfade (`apple-touch-icon`, `/favicon.png`, `/favicon.svg`, ...)
+- Icon-Response: direkter `Response(data)` statt `send_file(BytesIO(...))` (stabiler)
+
 ## 0.0.3
 
 - Icons werden automatisch von der Zielseite geladen (Favicon / Apple-Touch-Icon, 1h Cache)

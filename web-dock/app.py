@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import io
 import json
 import logging
 import os
@@ -13,7 +12,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory,
-                   send_file)
+                   Response)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
@@ -34,6 +33,19 @@ ICON_CACHE_TTL = 3600  # seconds
 # {idx: (data: bytes, mimetype: str, fetched_at: float)}
 _icon_cache: dict[int, tuple[bytes, str, float]] = {}
 
+_UA = 'Mozilla/5.0 (compatible; WebDock/1.0)'
+
+# Paths tried in order when HTML parsing yields nothing
+_FALLBACK_ICON_PATHS = [
+    '/apple-touch-icon.png',
+    '/apple-touch-icon-precomposed.png',
+    '/favicon-32x32.png',
+    '/favicon-16x16.png',
+    '/favicon.png',
+    '/favicon.svg',
+    '/favicon.ico',
+]
+
 
 class _IconParser(HTMLParser):
     """Collects <link rel="...icon..."> hrefs from an HTML page."""
@@ -50,54 +62,54 @@ class _IconParser(HTMLParser):
             self.icons.append({'rel': rel, 'href': a['href'], 'sizes': a.get('sizes', '')})
 
 
+def _get_url(base: str, href: str) -> str:
+    if href.startswith('http://') or href.startswith('https://'):
+        return href
+    return base + (href if href.startswith('/') else '/' + href)
+
+
+def _try_url(url: str) -> tuple[bytes, str] | None:
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': _UA})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            if r.status == 200:
+                data = r.read()
+                if data:
+                    ct = r.headers.get_content_type() or 'image/png'
+                    return data, ct
+    except Exception:
+        pass
+    return None
+
+
 def _fetch_remote_icon(host: str, port: int) -> tuple[bytes, str] | None:
     base = f'http://{host}:{port}'
-    icons: list[dict] = []
 
     # Parse HTML root for link[rel*=icon]
+    icons: list[dict] = []
     try:
-        req = urllib.request.Request(f'{base}/', headers={'User-Agent': 'WebDock/1.0'})
+        req = urllib.request.Request(f'{base}/', headers={'User-Agent': _UA})
         with urllib.request.urlopen(req, timeout=3) as r:
             html = r.read(65536).decode('utf-8', errors='ignore')
         parser = _IconParser()
         parser.feed(html)
         icons = parser.icons
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("Icon-HTML-Fetch für %s:%d fehlgeschlagen: %s", host, port, e)
 
-    def _priority(icon: dict) -> int:
-        rel = icon['rel']
-        if 'apple-touch-icon' in rel:
-            return 0
-        return 1
-
-    icons.sort(key=_priority)
+    # apple-touch-icon first (usually higher resolution)
+    icons.sort(key=lambda ic: 0 if 'apple-touch-icon' in ic['rel'] else 1)
 
     for icon in icons:
-        href = icon['href']
-        if href.startswith('http'):
-            url = href
-        elif href.startswith('/'):
-            url = base + href
-        else:
-            url = base + '/' + href
-        try:
-            with urllib.request.urlopen(url, timeout=3) as r:
-                data = r.read()
-                ct = r.headers.get_content_type() or 'image/png'
-                if data:
-                    return data, ct
-        except Exception:
-            continue
+        result = _try_url(_get_url(base, icon['href']))
+        if result:
+            return result
 
-    # Fallback: /favicon.ico
-    try:
-        with urllib.request.urlopen(f'{base}/favicon.ico', timeout=3) as r:
-            data = r.read()
-            if data:
-                return data, 'image/x-icon'
-    except Exception:
-        pass
+    # Fallback: try common paths
+    for path in _FALLBACK_ICON_PATHS:
+        result = _try_url(base + path)
+        if result:
+            return result
 
     return None
 
@@ -122,9 +134,10 @@ def get_site_icon(idx: int, site: dict) -> tuple[bytes, str] | None:
     result = _fetch_remote_icon(site['host'], int(site['port']))
     if result:
         _icon_cache[idx] = (result[0], result[1], time.time())
-        log.info("Icon für Site %d (%s) automatisch geladen (%d bytes)", idx, site.get('name'), len(result[0]))
+        log.info("Icon für Site %d (%s) geladen: %d bytes", idx, site.get('name'), len(result[0]))
         return result[0], result[1]
 
+    log.debug("Kein Icon gefunden für Site %d (%s)", idx, site.get('name'))
     return None
 
 _config_cache = None
@@ -305,7 +318,7 @@ def site_icon(idx: int):
     if not result:
         abort(404)
     data, mimetype = result
-    resp = make_response(send_file(io.BytesIO(data), mimetype=mimetype))
+    resp = Response(data, mimetype=mimetype)
     resp.headers['Cache-Control'] = 'private, max-age=3600'
     return resp
 
