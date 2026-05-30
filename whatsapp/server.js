@@ -1173,8 +1173,8 @@ app.get('/', (req, res) => {
     #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
-    #spam-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
-    #spam-modal.open { display:flex; }
+    #spam-modal, #logout-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
+    #spam-modal.open, #logout-modal.open { display:flex; }
     .spam-modal-box { background:#202c33; border-radius:12px; padding:24px; max-width:360px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
     .spam-modal-box p { color:#e9edef; font-size:14px; line-height:1.6; margin-bottom:20px; }
     .spam-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
@@ -1435,7 +1435,7 @@ app.get('/', (req, res) => {
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="confirmLogout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
   <div id="main" style="display:none;">
@@ -1519,6 +1519,15 @@ app.get('/', (req, res) => {
       </div>
     </div>
   </div>
+  <div id="logout-modal">
+    <div class="spam-modal-box">
+      <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>
+      <div class="spam-modal-actions">
+        <button class="spam-modal-cancel" data-i18n="btnNo" onclick="closeLogoutModal()">Nein</button>
+        <button class="spam-modal-confirm" data-i18n="btnYes" onclick="logout()">Ja</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // Fix für Android WebViews: setzt --app-height auf die tatsächlich sichtbare Höhe
@@ -1549,6 +1558,7 @@ app.get('/', (req, res) => {
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
+        logoutConfirmMsg:'Möchtest du dich wirklich abmelden?', btnYes:'Ja', btnNo:'Nein',
         today:'Heute', yesterday:'Gestern',
         photo:'📷 Foto', voiceMsg:'🎵 Sprachnachricht', mediaGeneric:'📎', media:'[Medien]', me:'Ich',
         forwarded:'↪ Weitergeleitet', frequentForwarded:'↪↪ Häufig weitergeleitet',
@@ -1581,6 +1591,7 @@ app.get('/', (req, res) => {
         btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
+        logoutConfirmMsg:'Do you really want to log out?', btnYes:'Yes', btnNo:'No',
         today:'Today', yesterday:'Yesterday',
         photo:'📷 Photo', voiceMsg:'🎵 Voice message', mediaGeneric:'📎', media:'[Media]', me:'Me',
         forwarded:'↪ Forwarded', frequentForwarded:'↪↪ Frequently forwarded',
@@ -2324,7 +2335,15 @@ app.get('/', (req, res) => {
       currentStatus = ''; // force refresh() to pick up new status
     }
 
+    function confirmLogout() {
+      document.getElementById('logout-modal').classList.add('open');
+      applyI18n();
+    }
+    function closeLogoutModal() {
+      document.getElementById('logout-modal').classList.remove('open');
+    }
     async function logout() {
+      closeLogoutModal();
       showSpinner(t('spinnerLogout'));
       await fetch('api/logout', { method: 'POST' }).catch(() => {});
     }

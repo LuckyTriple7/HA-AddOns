@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.7] - 2026-05-30
+- Neu: Sicherheitsabfrage beim Abmelden — Popup mit Ja/Nein-Buttons (DE/EN)
+
 ## [1.2.6] - 2026-05-30
 - Fix: Chat-Header Mobile — Zurück-Pfeil ausgeblendet, Avatar-Klick navigiert zurück zur Chat-Liste
 - Fix: Stats-Zeile bricht auf Mobile um statt abgeschnitten zu werden

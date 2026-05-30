@@ -1006,6 +1006,19 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   #ch-avatar { cursor: pointer; }
   #ch-stats { white-space: normal; font-size: 10px; overflow: visible; text-overflow: unset; }
 }
+#logout-modal { display:none; position:fixed; inset:0; z-index:500; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
+#logout-modal.open { display:flex; }
+.logout-modal-box { background:#232E3C; border-radius:12px; padding:24px; max-width:360px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+html.light .logout-modal-box { background:#fff; }
+.logout-modal-box p { color:#e9edef; font-size:14px; line-height:1.6; margin-bottom:20px; }
+html.light .logout-modal-box p { color:#111; }
+.logout-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+.logout-modal-actions button { padding:8px 18px; border-radius:8px; border:none; font-size:14px; cursor:pointer; }
+.logout-modal-no { background:#2a3942; color:#e9edef; }
+html.light .logout-modal-no { background:#e0e0e0; color:#111; }
+.logout-modal-no:hover { background:#3d5259; }
+.logout-modal-yes { background:#f15c5c; color:#fff; }
+.logout-modal-yes:hover { background:#d94444; }
 </style>
 </head>
 <body>
@@ -1055,7 +1068,7 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
   <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-  <button id="logout-btn" onclick="logout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+  <button id="logout-btn" onclick="confirmLogout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 
 <div id="main">
@@ -1125,7 +1138,8 @@ const LANG = {
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
-    btnLogout: 'Abmelden', searchPlaceholder: 'Suchen…',
+    btnLogout: 'Abmelden', logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
+    searchPlaceholder: 'Suchen…',
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
     emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
@@ -1145,7 +1159,8 @@ const LANG = {
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
-    btnLogout: 'Log out', searchPlaceholder: 'Search…',
+    btnLogout: 'Log out', logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
+    searchPlaceholder: 'Search…',
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
     emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file',
     btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
@@ -1315,7 +1330,15 @@ async function reconnect() {
   await fetch(api('/api/reconnect'),{method:'POST'}).catch(()=>{});
 }
 
+function confirmLogout() {
+  document.getElementById('logout-modal').classList.add('open');
+  applyLang();
+}
+function closeLogoutModal() {
+  document.getElementById('logout-modal').classList.remove('open');
+}
 async function logout() {
+  closeLogoutModal();
   currentStatus = '';
   document.getElementById('topbar').style.display = 'none';
   document.getElementById('main').style.display = 'none';
@@ -1696,6 +1719,15 @@ applyLang();
   document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
 })();
 </script>
+<div id="logout-modal">
+  <div class="logout-modal-box">
+    <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>
+    <div class="logout-modal-actions">
+      <button class="logout-modal-no" data-i18n="btnNo" onclick="closeLogoutModal()">Nein</button>
+      <button class="logout-modal-yes" data-i18n="btnYes" onclick="logout()">Ja</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>`;
 }
