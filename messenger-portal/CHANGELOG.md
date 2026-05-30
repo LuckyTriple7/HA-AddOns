@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.0.8] – 2026-05-30
+
+### Removed
+- Ingress-Support entfernt (zu komplex für den Nutzen)
+
 ## [1.0.7] – 2026-05-30
 
 ### Fixed

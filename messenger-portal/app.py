@@ -187,32 +187,6 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
-@app.before_request
-def handle_ingress_path():
-    # HA Ingress sets X-Ingress-Path so Flask url_for() generates correct URLs
-    ingress_path = request.headers.get('X-Ingress-Path', '').rstrip('/')
-    if not ingress_path:
-        return
-    path_info = request.environ.get('PATH_INFO', '/')
-    request.environ['SCRIPT_NAME'] = ingress_path
-    # HA may or may not strip the ingress prefix from PATH_INFO — handle both
-    if path_info.startswith(ingress_path + '/') or path_info == ingress_path:
-        request.environ['PATH_INFO'] = path_info[len(ingress_path):] or '/'
-        log.info("Ingress: stripped prefix from PATH_INFO: %s → %s",
-                 path_info, request.environ['PATH_INFO'])
-    else:
-        log.info("Ingress: PATH_INFO=%s (prefix already stripped)", path_info)
-
-
-def is_ingress() -> bool:
-    """True when the request arrives via HA Ingress — HA already authenticated the user."""
-    return bool(request.headers.get('X-Ingress-Path'))
-
-
-def is_authenticated() -> bool:
-    return is_ingress() or is_valid_session(request.cookies.get('mp_session'))
-
-
 def get_client_ip(req) -> str:
     # Cloudflare Tunnel sets CF-Connecting-IP with the real public IP
     cf = req.headers.get('CF-Connecting-IP', '').strip()
@@ -311,7 +285,7 @@ def health():
 
 @app.route('/status')
 def status():
-    if not is_authenticated():
+    if not is_valid_session(request.cookies.get('mp_session')):
         return '', 401
     config = load_config()
     host = get_internal_host()
@@ -334,14 +308,14 @@ def proxy_offline():
 @app.route('/auth-check')
 def auth_check():
     """Called internally by nginx to validate the session cookie."""
-    if is_authenticated():
+    if is_valid_session(request.cookies.get('mp_session')):
         return '', 200
     return '', 401
 
 
 @app.route('/')
 def index():
-    if not is_authenticated():
+    if not is_valid_session(request.cookies.get('mp_session')):
         return redirect(url_for('login'))
     config = load_config()
     lang = detect_language(request)
@@ -361,7 +335,7 @@ def login():
     t = load_translations(lang)
     error = None
 
-    if is_authenticated():
+    if is_valid_session(request.cookies.get('mp_session')):
         return redirect(url_for('index'))
 
     ip = get_client_ip(request)

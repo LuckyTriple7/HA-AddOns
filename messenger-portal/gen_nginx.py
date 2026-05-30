@@ -165,7 +165,6 @@ server {{
         proxy_set_header        Content-Length  "";
         proxy_set_header        Cookie          $http_cookie;
         proxy_set_header        X-Real-IP       $remote_addr;
-        proxy_set_header        X-Ingress-Path  $http_x_ingress_path;
     }}
 
     location @login_redirect {{
