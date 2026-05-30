@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.0.2] – 2026-05-30
+
+### Changed
+- „Zurück zum Portal"-Button wird auf mobilen Geräten (≤ 600px) ausgeblendet
+
 ## [1.0.1] – 2026-05-29
 
 ### Fixed
