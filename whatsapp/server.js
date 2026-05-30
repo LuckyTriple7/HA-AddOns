@@ -1052,7 +1052,7 @@ app.get('/', (req, res) => {
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #111b21; color: #e9edef;
-      height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
+      height: var(--app-height, 100dvh); display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* Top bar */
@@ -1304,7 +1304,6 @@ app.get('/', (req, res) => {
     /* Send bar */
     #send-bar {
       background: #202c33; padding: 10px 12px;
-      padding-bottom: max(10px, env(safe-area-inset-bottom));
       display: flex; gap: 8px; align-items: flex-end;
       border-top: 1px solid #2a3942; flex-shrink: 0; position: relative;
     }
@@ -1506,6 +1505,18 @@ app.get('/', (req, res) => {
   </div>
 
   <script>
+    // Fix für Android WebViews: setzt --app-height auf die tatsächlich sichtbare Höhe
+    // (visualViewport.height exkludiert Navigationsleiste und Tastatur)
+    (function() {
+      function setAppHeight() {
+        var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+      window.addEventListener('resize', setAppHeight);
+      setAppHeight();
+    })();
+
     // ── i18n ────────────────────────────────────────────────────────────────────
     const LANG = {
       de: {
