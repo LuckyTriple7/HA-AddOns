@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.0.3] – 2026-05-30
+
+### Fixed
+- Datumsanzeige „Heute/Gestern" basiert jetzt auf Kalendertagen statt 24h-Differenz – Nachrichten vom Vortag werden korrekt als „Gestern" angezeigt
+
 ## [1.0.2] – 2026-05-30
 
 ### Changed
