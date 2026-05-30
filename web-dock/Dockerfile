@@ -24,9 +24,9 @@ COPY locales/ locales/
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-EXPOSE 17771
+EXPOSE 17780
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -sf http://localhost:17771/health || exit 1
+    CMD curl -sf http://localhost:17780/health || exit 1
 
 CMD ["/run.sh"]

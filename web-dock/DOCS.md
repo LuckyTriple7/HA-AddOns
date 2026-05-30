@@ -54,5 +54,5 @@ Falls kein Icon angegeben oder die Datei nicht gefunden wird, erscheint ein Stan
 
 ## Zugriff
 
-Das Portal ist unter Port **17771** erreichbar.  
+Das Portal ist unter Port **17780** erreichbar.  
 Jeder Dienst wird unter `/proxy/site0/`, `/proxy/site1/`, ... weitergeleitet.

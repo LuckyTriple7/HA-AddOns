@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.2
+
+- Port von 17771 auf 17780 geändert
+
 ## 0.0.1
 
 - Erstveröffentlichung

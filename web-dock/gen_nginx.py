@@ -145,7 +145,7 @@ map $http_upgrade $connection_upgrade {{
 }}
 
 server {{
-    listen 17771;
+    listen 17780;
 
     # ── Internal session check ────────────────────────────
     location = /auth-check {{
