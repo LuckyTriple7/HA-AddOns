@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.25] - 2026-05-30
+- Neu: Option `ha_notifications_skip_groups` (Standard: aus) — unterdrückt HA-Benachrichtigungen und REST-API-Updates für Gruppenchats (analog zu Telegram `ha_notifications_skip_bots`)
+
 ## [1.4.24] - 2026-05-30
 - Fix: Gruppennachrichten lösen jetzt HA-Benachrichtigungen und REST-API-Updates aus — msg.getChat() schlägt für Gruppen oft fehl; Fallback auf chatMap-Cache wenn Chat bekannt ist
 

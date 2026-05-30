@@ -67,6 +67,7 @@ const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
+const HA_NOTIFY_SKIP_GROUPS = process.env.HA_NOTIFICATIONS_SKIP_GROUPS === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
@@ -80,6 +81,7 @@ console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
+console.log(`[INFO]   ha_notify_skip_groups  = ${HA_NOTIFY_SKIP_GROUPS}`);
 console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'set' : 'not set'}`);
 console.log(`[INFO]   initial_chats          = ${INITIAL_CHATS}`);
 console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
@@ -151,9 +153,10 @@ try {
 try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
+    const chat = chatMap.get(chatId);
+    if (HA_NOTIFY_SKIP_GROUPS && chat?.isGroup) continue;
     for (const m of msgs) {
       if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
-        const chat = chatMap.get(chatId);
         best = {
           timestamp: m.timestamp,
           iso: new Date(m.timestamp).toISOString(),
@@ -452,15 +455,19 @@ client.on('message', async (msg) => {
   });
   if (added) {
     const _ci = chatMap.get(chatId);
-    lastReceivedMsg = {
-      timestamp: msg.timestamp * 1000,
-      iso: new Date(msg.timestamp * 1000).toISOString(),
-      chatId,
-      chatName: _ci?.name || chatId,
-      contact: contactName,
-      preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
-    };
-    sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
+    const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
+    const skipGroup = HA_NOTIFY_SKIP_GROUPS && isGroup;
+    if (!skipGroup) {
+      lastReceivedMsg = {
+        timestamp: msg.timestamp * 1000,
+        iso: new Date(msg.timestamp * 1000).toISOString(),
+        chatId,
+        chatName: _ci?.name || chatId,
+        contact: contactName,
+        preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
+      };
+      sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
+    }
   }
   if (process.env.WEBHOOK_INCOMING) {
     dbg(`Firing incoming webhook: ${process.env.WEBHOOK_INCOMING}`);
