@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.0] - 2026-05-30
+- Docs: ha_token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
+
 ## [1.2.10] - 2026-05-30
 - Fix: Zurück-Pfeil linksbündig, restliche Topbar-Elemente rechtsbündig (margin-right: auto)
 
