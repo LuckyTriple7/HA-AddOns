@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.1.1] – 2026-05-30
+
+### Fixed
+- Version-Bump damit HA das Update erkennt
+
 ## [1.1.0] – 2026-05-30
 
 ### Added
