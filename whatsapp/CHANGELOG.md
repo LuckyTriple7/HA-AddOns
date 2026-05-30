@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.26] - 2026-05-30
+- Neu: DE/EN-Übersetzungen für Option `ha_notifications_skip_groups` ergänzt
+
 ## [1.4.25] - 2026-05-30
 - Neu: Option `ha_notifications_skip_groups` (Standard: aus) — unterdrückt HA-Benachrichtigungen und REST-API-Updates für Gruppenchats (analog zu Telegram `ha_notifications_skip_bots`)
 
