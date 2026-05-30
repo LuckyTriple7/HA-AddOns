@@ -1052,7 +1052,7 @@ app.get('/', (req, res) => {
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #111b21; color: #e9edef;
-      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+      height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* Top bar */
