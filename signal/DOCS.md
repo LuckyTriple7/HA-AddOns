@@ -18,6 +18,17 @@ Signal Messenger direkt in Home Assistant — bestehendes Konto verknüpfen, Nac
 | `native_mode` | `true` | `true` = nativer Modus (niedrige CPU-Last), `false` = Java-Modus |
 | `webhook_incoming` | — | URL für eingehende Nachrichten (HA-Webhook-Trigger) |
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
+| `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten |
+| `ha_notifications_privacy` | `false` | Nur „Signal / Neue Nachricht" — kein Absender, kein Inhalt |
+| `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen (kein Admin-Benutzer erforderlich) |
+
+### HA-Benachrichtigungen einrichten
+
+1. HA-Benutzerprofil öffnen (Benutzerbild unten links)
+2. Ganz nach unten → **Langlebige Zugangstokens** → Token erstellen
+3. Token unter `ha_token` eintragen
+
+> Der Token kann von jedem HA-Benutzer stammen — Admin-Rechte sind nicht erforderlich.
 
 ## REST-API
 
@@ -142,6 +153,17 @@ Signal Messenger directly in Home Assistant — link your existing account, send
 | `native_mode` | `true` | `true` = native mode (low CPU), `false` = Java mode |
 | `webhook_incoming` | — | URL for incoming messages (HA webhook trigger) |
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
+| `ha_notifications` | `false` | Persistent HA notification for new incoming messages |
+| `ha_notifications_privacy` | `false` | Show only "Signal / New message" — no sender, no content |
+| `ha_token` | — | Long-lived access token for HA notifications (no admin user required) |
+
+### Setting up HA Notifications
+
+1. Open your HA user profile (user icon, bottom left)
+2. Scroll to the bottom → **Long-lived access tokens** → Create token
+3. Enter the token under `ha_token`
+
+> The token can be created by any HA user — admin privileges are not required.
 
 ## REST API
 

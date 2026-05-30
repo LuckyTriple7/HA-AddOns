@@ -67,6 +67,7 @@ const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
+const HA_NOTIFY_SKIP_GROUPS = process.env.HA_NOTIFICATIONS_SKIP_GROUPS === 'true';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
@@ -80,6 +81,7 @@ console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
+console.log(`[INFO]   ha_notify_skip_groups  = ${HA_NOTIFY_SKIP_GROUPS}`);
 console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'set' : 'not set'}`);
 console.log(`[INFO]   initial_chats          = ${INITIAL_CHATS}`);
 console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
@@ -141,7 +143,7 @@ try {
     let total = 0;
     for (const [chatId, msgs] of Object.entries(data)) {
       messagesByChatId.set(chatId, msgs);
-      for (const m of msgs) seenIds.add(m.id);
+      for (const m of msgs) { seenIds.add(m.id); applyReactionsToMsg(m); }
       total += msgs.length;
     }
     console.log(`[INFO] Loaded ${total} messages from disk`);
@@ -151,9 +153,10 @@ try {
 try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
+    const chat = chatMap.get(chatId);
+    if (HA_NOTIFY_SKIP_GROUPS && chat?.isGroup) continue;
     for (const m of msgs) {
       if (!m.fromMe && !m.deleted && (!best || m.timestamp > best.timestamp)) {
-        const chat = chatMap.get(chatId);
         best = {
           timestamp: m.timestamp,
           iso: new Date(m.timestamp).toISOString(),
@@ -408,12 +411,18 @@ client.on('message', async (msg) => {
   if (!isText && !isImage && !isDocument) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
   if (!msg.body && !isImage && !isDocument) return;
   const chat = await msg.getChat().catch(() => null);
-  if (!chat) return;
-  const chatId = chat.id._serialized;
-  if (isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
+  const chatId = chat ? chat.id._serialized : msg.from;
+  if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
+  const cachedChat = chatMap.get(chatId);
+  if (!chat && !cachedChat) { dbg(`getChat() failed and chat unknown: ${chatId} — skipping`); return; }
+  if (!chat) console.warn(`[WARN] getChat() failed for ${chatId} — using cached chat info`);
   const contact = await msg.getContact().catch(() => null);
-  const contactName = contact?.name || contact?.pushname || msg.from.replace('@c.us', '');
-  upsertChat(chatId, { name: chat.name || contactName, phone: chat.id.user, isGroup: chat.isGroup });
+  const contactName = contact?.name || contact?.pushname || msg.from.replace(/@[cg]\.us$/, '');
+  upsertChat(chatId, {
+    name: chat?.name || cachedChat?.name || contactName,
+    phone: chat?.id.user || cachedChat?.phone || '',
+    isGroup: chat?.isGroup ?? cachedChat?.isGroup ?? chatId.endsWith('@g.us'),
+  });
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
@@ -446,15 +455,19 @@ client.on('message', async (msg) => {
   });
   if (added) {
     const _ci = chatMap.get(chatId);
-    lastReceivedMsg = {
-      timestamp: msg.timestamp * 1000,
-      iso: new Date(msg.timestamp * 1000).toISOString(),
-      chatId,
-      chatName: _ci?.name || chatId,
-      contact: contactName,
-      preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
-    };
-    sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
+    const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
+    const skipGroup = HA_NOTIFY_SKIP_GROUPS && isGroup;
+    if (!skipGroup) {
+      lastReceivedMsg = {
+        timestamp: msg.timestamp * 1000,
+        iso: new Date(msg.timestamp * 1000).toISOString(),
+        chatId,
+        chatName: _ci?.name || chatId,
+        contact: contactName,
+        preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
+      };
+      sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
+    }
   }
   if (process.env.WEBHOOK_INCOMING) {
     dbg(`Firing incoming webhook: ${process.env.WEBHOOK_INCOMING}`);
@@ -1068,12 +1081,14 @@ app.get('/', (req, res) => {
     .status-dot.error, .status-dot.disconnected { background: #f15c5c; }
     .status-dot.initializing { background: #8696a0; }
     .storage-info { font-size: 12px; color: #8696a0; white-space: nowrap; }
-    .logout-btn {
+    .logout-btn, #topbar-back {
       background: none; border: none; color: #8696a0;
       cursor: pointer; padding: 6px; line-height: 1;
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     .logout-btn:hover { color: #f15c5c; }
+    #topbar-back { display: none; }
+    #topbar-back:hover { color: #e9edef; }
     .photo-toggle-btn {
       background: none; border: 1px solid #8696a0; color: #e9edef;
       padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1;
@@ -1151,6 +1166,7 @@ app.get('/', (req, res) => {
       border-bottom: 1px solid #2a3942; flex-shrink: 0; min-height: 60px;
     }
     #chat-header .avatar { width: 40px; height: 40px; font-size: 15px; }
+    #ch-info { flex: 1; min-width: 0; }
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
@@ -1159,8 +1175,8 @@ app.get('/', (req, res) => {
     #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
-    #spam-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
-    #spam-modal.open { display:flex; }
+    #spam-modal, #logout-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
+    #spam-modal.open, #logout-modal.open { display:flex; }
     .spam-modal-box { background:#202c33; border-radius:12px; padding:24px; max-width:360px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
     .spam-modal-box p { color:#e9edef; font-size:14px; line-height:1.6; margin-bottom:20px; }
     .spam-modal-actions { display:flex; justify-content:flex-end; gap:10px; }
@@ -1337,11 +1353,15 @@ app.get('/', (req, res) => {
     @media (max-width: 768px) {
       #sidebar { width: 100%; max-width: 100%; border-right: none; }
       #chat-panel { display: none; }
-      #back-btn { display: block; }
+      #back-btn { display: none !important; }
       body.chat-open #sidebar { display: none; }
       body.chat-open #chat-panel { display: flex; }
       #lang-btn { display: none !important; }
       .topbar { gap: 6px; }
+      #ch-stats { white-space: normal; font-size: 10px; }
+      body.chat-open .topbar h1 { display: none; }
+      body.chat-open .topbar .status-dot { display: none; }
+      body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
     }
 
     /* Overlays */
@@ -1411,6 +1431,7 @@ app.get('/', (req, res) => {
   </div>
 
   <div class="topbar" id="topbar" style="display:none;">
+    <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
     <h1>WhatsApp</h1>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
@@ -1419,7 +1440,7 @@ app.get('/', (req, res) => {
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
-    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="logout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+    <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="confirmLogout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
   <div id="main" style="display:none;">
@@ -1444,7 +1465,7 @@ app.get('/', (req, res) => {
       <div id="chat-header" style="display:none;">
         <button id="back-btn" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück">&#8592;</button>
         <div class="avatar" id="ch-avatar"></div>
-        <div>
+        <div id="ch-info">
           <div id="ch-name"></div>
           <div id="ch-phone"></div>
           <div id="ch-stats"></div>
@@ -1503,6 +1524,15 @@ app.get('/', (req, res) => {
       </div>
     </div>
   </div>
+  <div id="logout-modal">
+    <div class="spam-modal-box">
+      <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>
+      <div class="spam-modal-actions">
+        <button class="spam-modal-cancel" data-i18n="btnNo" onclick="closeLogoutModal()">Nein</button>
+        <button class="spam-modal-confirm" data-i18n="btnYes" onclick="logout()">Ja</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     // Fix für Android WebViews: setzt --app-height auf die tatsächlich sichtbare Höhe
@@ -1533,6 +1563,7 @@ app.get('/', (req, res) => {
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
+        logoutConfirmMsg:'Möchtest du dich wirklich abmelden?', btnYes:'Ja', btnNo:'Nein',
         today:'Heute', yesterday:'Gestern',
         photo:'📷 Foto', voiceMsg:'🎵 Sprachnachricht', mediaGeneric:'📎', media:'[Medien]', me:'Ich',
         forwarded:'↪ Weitergeleitet', frequentForwarded:'↪↪ Häufig weitergeleitet',
@@ -1565,6 +1596,7 @@ app.get('/', (req, res) => {
         btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
+        logoutConfirmMsg:'Do you really want to log out?', btnYes:'Yes', btnNo:'No',
         today:'Today', yesterday:'Yesterday',
         photo:'📷 Photo', voiceMsg:'🎵 Voice message', mediaGeneric:'📎', media:'[Media]', me:'Me',
         forwarded:'↪ Forwarded', frequentForwarded:'↪↪ Frequently forwarded',
@@ -1834,6 +1866,7 @@ app.get('/', (req, res) => {
       document.body.classList.add('chat-open'); // mobile: show chat panel
 
       const av = document.getElementById('ch-avatar');
+      av.onclick = null;
       if (chat.isGroup) {
         av.className = 'avatar group-avatar';
         av.textContent = '👥';
@@ -2307,7 +2340,15 @@ app.get('/', (req, res) => {
       currentStatus = ''; // force refresh() to pick up new status
     }
 
+    function confirmLogout() {
+      document.getElementById('logout-modal').classList.add('open');
+      applyI18n();
+    }
+    function closeLogoutModal() {
+      document.getElementById('logout-modal').classList.remove('open');
+    }
     async function logout() {
+      closeLogoutModal();
       showSpinner(t('spinnerLogout'));
       await fetch('api/logout', { method: 'POST' }).catch(() => {});
     }

@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.5.0] - 2026-05-30
+- Docs: ha_token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
+
+## [1.4.30] - 2026-05-30
+- Fix: Zurück-Pfeil linksbündig, restliche Topbar-Elemente rechtsbündig (margin-right: auto)
+
+## [1.4.29] - 2026-05-30
+- UX: Mobile Navigation — App-Name im Topbar ausgeblendet wenn Chat offen, stattdessen eleganter Zurück-Pfeil (SVG Chevron); Avatar-Klick-Navigation entfernt
+
+## [1.4.28] - 2026-05-30
+- Neu: Sicherheitsabfrage beim Abmelden — Popup mit Ja/Nein-Buttons (DE/EN)
+
+## [1.4.27] - 2026-05-30
+- Fix: Reactions nach Neustart sofort sichtbar — beim Disk-Load wird applyReactionsToMsg() aufgerufen, sodass reactionsCache direkt auf die geladenen Nachrichten angewendet wird (bisher fehlte dieser Schritt, Reactions kamen erst nach erneutem Sync vom WA-Server)
+
+## [1.4.26] - 2026-05-30
+- Neu: DE/EN-Übersetzungen für Option `ha_notifications_skip_groups` ergänzt
+
+## [1.4.25] - 2026-05-30
+- Neu: Option `ha_notifications_skip_groups` (Standard: aus) — unterdrückt HA-Benachrichtigungen und REST-API-Updates für Gruppenchats (analog zu Telegram `ha_notifications_skip_bots`)
+
+## [1.4.24] - 2026-05-30
+- Fix: Gruppennachrichten lösen jetzt HA-Benachrichtigungen und REST-API-Updates aus — msg.getChat() schlägt für Gruppen oft fehl; Fallback auf chatMap-Cache wenn Chat bekannt ist
+
+## [1.4.23] - 2026-05-30
+- Fix: Chat-Header Mobile — Zurück-Pfeil ausgeblendet, Avatar-Klick navigiert zurück zur Chat-Liste
+- Fix: Stats-Zeile im Chat-Header bricht auf Mobile um (white-space: normal, 10px) statt abgeschnitten zu werden
+- Fix: #ch-info Wrapper erhält flex:1; min-width:0 damit Stats-Bereich korrekt schrumpft
+
 ## [1.4.22] - 2026-05-30
 - Fix: JavaScript `visualViewport`-Fix für Android WebViews — setzt `--app-height` dynamisch auf die tatsächlich sichtbare Viewport-Höhe; verhindert zuverlässig dass Navigationsleiste die Eingabeleiste verdeckt, auch in Apps die `env(safe-area-inset-bottom)` nicht unterstützen
 

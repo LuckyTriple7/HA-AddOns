@@ -10,7 +10,7 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 
 | Option | Beschreibung | Standard |
 |---|---|---|
-| `ha_token` | HA Long-Lived Access Token | – |
+| `ha_token` | HA Long-Lived Access Token — **muss von einem Admin-Benutzer stammen** (CardBoard nutzt `/api/template`, der Admin-Rechte erfordert) | – |
 | `ha_url` | URL der HA-Instanz | `http://homeassistant.local:8123` |
 | `refresh_interval` | Automatische Aktualisierung in Sekunden | `30` |
 | `login_message` | Persönliche Begrüßung auf der Login-Seite (optional) | – |
@@ -25,6 +25,8 @@ CardBoard rendert Jinja2-Templates direkt über die HA-Template-API und stellt d
 
 Den Long-Lived Access Token erstellst du in HA unter:  
 **Profil → Sicherheit → Langlebige Zugangstoken → Token erstellen**
+
+> **Wichtig:** Der Token muss von einem **Admin-Benutzer** erstellt werden. CardBoard ruft den `/api/template`-Endpunkt auf, der von Home Assistant auf Admins beschränkt ist.
 
 Der Uptime-Sensor wird für die „online seit"-Anzeige auf der Login- und View-Seite verwendet. Er muss über die **Uptime-Integration** eingerichtet sein: <https://www.home-assistant.io/integrations/uptime/>
 

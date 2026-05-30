@@ -18,6 +18,24 @@ Oder manuell in Home Assistant:
 https://github.com/LuckyTriple7/HA-AddOns
 ```
 
+## Architektur
+
+| Add-on | amd64 | aarch64 |
+|---|:---:|:---:|
+| Claude Code | ✅ | ✅ |
+| Playwright Browser | ✅ | ✅ |
+| FileBox | ✅ | ❌ |
+| Firefox DE | ✅ | ❌ |
+| Webtop XFCE | ✅ | ✅ |
+| WhatsApp | ✅ | ✅ |
+| Telegram | ✅ | ✅ |
+| Signal | ✅ | ✅ |
+| Messenger Portal | ✅ | ✅ |
+| MariaDB 2 | ✅ | ✅ |
+| Collabora Online | ✅ | ❌ |
+| Nextcloud | ✅ | ❌ |
+| CardBoard | ✅ | ✅ |
+
 ## Apps
 
 ### [Claude Code](claudecode/)
@@ -201,6 +219,24 @@ Or manually in Home Assistant:
 ```
 https://github.com/LuckyTriple7/HA-AddOns
 ```
+
+## Architecture
+
+| Add-on | amd64 | aarch64 |
+|---|:---:|:---:|
+| Claude Code | ✅ | ✅ |
+| Playwright Browser | ✅ | ✅ |
+| FileBox | ✅ | ❌ |
+| Firefox DE | ✅ | ❌ |
+| Webtop XFCE | ✅ | ✅ |
+| WhatsApp | ✅ | ✅ |
+| Telegram | ✅ | ✅ |
+| Signal | ✅ | ✅ |
+| Messenger Portal | ✅ | ✅ |
+| MariaDB 2 | ✅ | ✅ |
+| Collabora Online | ✅ | ❌ |
+| Nextcloud | ✅ | ❌ |
+| CardBoard | ✅ | ✅ |
 
 ## Apps
 

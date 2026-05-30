@@ -1,5 +1,44 @@
 # Changelog – MessengerPortal
 
+## [1.0.9] – 2026-05-30
+
+### Changed
+- „Letzte Nachricht": Datum/Uhrzeit und Absender stehen jetzt auf separaten Zeilen
+
+## [1.0.8] – 2026-05-30
+
+### Removed
+- Ingress-Support entfernt (zu komplex für den Nutzen)
+
+## [1.0.7] – 2026-05-30
+
+### Fixed
+- Status-API: JS nutzt jetzt Jinja2 `url_for('status')` statt hardcoded `/status` → funktioniert via Ingress
+- Messenger-Karten: Link-Prefix kommt aus `request.script_root` → korrekte Ingress-URL für Proxy-Routen
+- Zurück-Button: navigiert zu `../../` (relativ) statt `/` → funktioniert für Direkt- und Ingress-Zugriff
+
+## [1.0.6] – 2026-05-30
+
+### Fixed
+- Ingress 404: HA Ingress folgt Redirects intern ohne X-Ingress-Path → Login-Redirect schlug fehl
+- Lösung: Requests via Ingress gelten als authentifiziert (HA übernimmt die Authentifizierung)
+- nginx `auth_request` leitet X-Ingress-Path weiter damit auch Proxy-Routen via Ingress funktionieren
+
+## [1.0.5] – 2026-05-30
+
+### Fixed
+- Ingress 404: PATH_INFO wird jetzt manuell bereinigt – HA strippt den Ingress-Prefix nicht immer selbst
+- `panel_title: MessengerPortal` ergänzt
+
+## [1.0.4] – 2026-05-30
+
+### Added
+- HA Ingress-Unterstützung: Add-on ist jetzt direkt in der HA-Oberfläche erreichbar (`ingress: true`, Port 17770, Icon `mdi:message-badge`)
+- X-Ingress-Path Header wird ausgewertet – alle Flask-URLs (Redirects, Links, Formulare) passen sich automatisch an den Ingress-Pfad an
+
+### Fixed
+- Sonnen-Icon (Light Mode): korrektes Material Design SVG mit sichtbarem Kreis (Radius 5px statt 3px) und geraden Strahlen
+
 ## [1.0.3] – 2026-05-30
 
 ### Fixed

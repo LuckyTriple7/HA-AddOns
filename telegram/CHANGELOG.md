@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0] - 2026-05-30
+- Docs: ha_token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
+
+## [1.2.10] - 2026-05-30
+- Fix: Zurück-Pfeil linksbündig, restliche Topbar-Elemente rechtsbündig (margin-right: auto)
+
+## [1.2.9] - 2026-05-30
+- UX: Mobile Navigation — App-Name im Topbar ausgeblendet wenn Chat offen, stattdessen eleganter Zurück-Pfeil (SVG Chevron); Avatar-Klick-Navigation entfernt
+
+## [1.2.8] - 2026-05-30
+- Neu: Sicherheitsabfrage beim Abmelden — Popup mit Ja/Nein-Buttons (DE/EN)
+
+## [1.2.7] - 2026-05-30
+- Fix: Chat-Header Mobile — Zurück-Pfeil ausgeblendet, Avatar-Klick navigiert zurück zur Chat-Liste
+- Fix: Stats-Zeile bricht auf Mobile um statt abgeschnitten zu werden
+
 ## [1.2.6] - 2026-05-30
 - Fix: visualViewport-JS-Fix + viewport-fit=cover — verhindert dass Android-Navigationsleiste die Eingabeleiste im Vollbildmodus verdeckt
 

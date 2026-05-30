@@ -40,7 +40,7 @@ BACK_BTN = (
     'if(dragged)try{localStorage.setItem("mp-bp",JSON.stringify({r:b.style.right,b:b.style.bottom}));}catch(e){}'
     'sx=undefined;});'
     'b.addEventListener("click",function(e){'
-    'if(dragged){e.preventDefault();}else{window.location.href="/";}});'
+    'if(dragged){e.preventDefault();}else{window.location.href="../../";}});'
     'b.addEventListener("touchstart",function(e){'
     'var t=e.touches[0];dragged=false;sx=t.clientX;sy=t.clientY;'
     'sr=gs(b,"right");sb=gs(b,"bottom");},{passive:true});'
@@ -52,7 +52,7 @@ BACK_BTN = (
     'document.addEventListener("touchend",function(){'
     'if(sx===undefined)return;'
     'if(dragged)try{localStorage.setItem("mp-bp",JSON.stringify({r:b.style.right,b:b.style.bottom}));}catch(e){}'
-    'else window.location.href="/";sx=undefined;});'
+    'else window.location.href="../../";sx=undefined;});'
     '})();</script></body>'
 )
 
