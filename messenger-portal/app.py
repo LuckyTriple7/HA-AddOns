@@ -191,8 +191,17 @@ def is_valid_session(token: str | None) -> bool:
 def handle_ingress_path():
     # HA Ingress sets X-Ingress-Path so Flask url_for() generates correct URLs
     ingress_path = request.headers.get('X-Ingress-Path', '').rstrip('/')
-    if ingress_path:
-        request.environ['SCRIPT_NAME'] = ingress_path
+    if not ingress_path:
+        return
+    path_info = request.environ.get('PATH_INFO', '/')
+    request.environ['SCRIPT_NAME'] = ingress_path
+    # HA may or may not strip the ingress prefix from PATH_INFO — handle both
+    if path_info.startswith(ingress_path + '/') or path_info == ingress_path:
+        request.environ['PATH_INFO'] = path_info[len(ingress_path):] or '/'
+        log.info("Ingress: stripped prefix from PATH_INFO: %s → %s",
+                 path_info, request.environ['PATH_INFO'])
+    else:
+        log.info("Ingress: PATH_INFO=%s (prefix already stripped)", path_info)
 
 
 def get_client_ip(req) -> str:

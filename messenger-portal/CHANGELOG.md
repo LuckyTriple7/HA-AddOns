@@ -1,5 +1,11 @@
 # Changelog – MessengerPortal
 
+## [1.0.5] – 2026-05-30
+
+### Fixed
+- Ingress 404: PATH_INFO wird jetzt manuell bereinigt – HA strippt den Ingress-Prefix nicht immer selbst
+- `panel_title: MessengerPortal` ergänzt
+
 ## [1.0.4] – 2026-05-30
 
 ### Added
