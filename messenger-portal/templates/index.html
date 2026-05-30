@@ -440,7 +440,7 @@
             else if (diffDays === 1) dateStr = T_YESTERDAY + ' ' + timeStr;
             else                     dateStr = T_DAYS.replace('{n}', diffDays);
             const sender = m.last_received.contact || m.last_received.chatName || '';
-            msgEl.textContent = T_LAST_MSG + ' ' + dateStr + (sender ? ' · ' + sender : '');
+            msgEl.innerHTML = T_LAST_MSG + ' ' + dateStr + (sender ? '<br>' + sender : '');
 
             // New message glow: compare last_received vs last_opened
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');

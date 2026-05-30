@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.0.9] – 2026-05-30
+
+### Changed
+- „Letzte Nachricht": Datum/Uhrzeit und Absender stehen jetzt auf separaten Zeilen
+
 ## [1.0.8] – 2026-05-30
 
 ### Removed
