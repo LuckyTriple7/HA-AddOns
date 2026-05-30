@@ -1,0 +1,47 @@
+name: WebDock
+description: Passwortgeschützter Startportal für bis zu 10 interne Web-Dienste
+version: "0.0.1"
+slug: web-dock
+url: https://github.com/LuckyTriple7/HA-AddOns
+image: "ghcr.io/luckytriple7/web-dock"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: false
+
+map:
+  - addon_config:rw
+
+ports:
+  17771/tcp: 17771
+
+ports_description:
+  17771/tcp: WebDock Web-UI
+
+options:
+  username: "admin"
+  password: "secret"
+  session_hours: 24
+  poll_interval: 30
+  sites:
+    - name: "Mein Dienst"
+      host: "192.168.1.100"
+      port: 8080
+      icon: "mein-dienst.png"
+      enabled: true
+
+schema:
+  username: str
+  password: str
+  session_hours: int
+  poll_interval: int?
+  sites:
+    - name: str
+      host: str
+      port: int
+      icon: str?
+      enabled: bool

@@ -1,0 +1,18 @@
+{
+  "app_name": "WebDock",
+  "tagline": "Your Web Services Portal",
+  "username": "Username",
+  "password": "Password",
+  "login": "Login",
+  "logout": "Logout",
+  "open": "Open",
+  "error_credentials": "Invalid username or password.",
+  "error_locked": "Too many failed attempts. Please try again in 15 minutes.",
+  "status_online": "Online",
+  "status_offline": "Offline",
+  "status_checking": "Checking...",
+  "no_sites": "No sites configured.",
+  "offline_title": "Unreachable",
+  "offline_body": "This service is not running or unreachable. Please check that the host and port are correctly configured.",
+  "back_to_portal": "Back to Portal"
+}

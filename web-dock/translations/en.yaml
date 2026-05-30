@@ -1,0 +1,16 @@
+configuration:
+  username:
+    name: Username
+    description: Username for the login.
+  password:
+    name: Password
+    description: Password for the login.
+  session_hours:
+    name: Session Duration (hours)
+    description: How many hours a login session remains valid before re-authentication is required.
+  poll_interval:
+    name: Poll Interval (seconds)
+    description: How often the online status of the services is checked. Minimum 5 seconds, default 30 seconds.
+  sites:
+    name: Web Services
+    description: List of configured web services (max. 10) with name, host IP, port, icon, and enabled state.
