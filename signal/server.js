@@ -710,11 +710,11 @@ function getHtml() {
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Signal</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; color: #111; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: var(--app-height, 100dvh); display: flex; flex-direction: column; background: #f0f2f5; color: #111; }
 
 #spinner-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; position: fixed; inset: 0; background: #1b1c22; z-index: 100; gap: 20px; }
 #spinner-overlay .spinner { width: 48px; height: 48px; border: 4px solid #3a76f8; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -934,6 +934,16 @@ html.dark .filter-tab:hover { background: #202c33; }
 </div>
 
 <script>
+    (function() {
+      function setAppHeight() {
+        var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+      window.addEventListener('resize', setAppHeight);
+      setAppHeight();
+    })();
+
 const LANG = {
   de: {
     spinnerStart: 'Starte Signal…', spinnerConnect: 'Verbinde…', spinnerLogout: 'Abmelden…',
