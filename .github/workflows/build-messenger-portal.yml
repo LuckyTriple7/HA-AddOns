@@ -2,7 +2,7 @@ name: Build MessengerPortal Image
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - 'messenger-portal/**'
   workflow_dispatch:

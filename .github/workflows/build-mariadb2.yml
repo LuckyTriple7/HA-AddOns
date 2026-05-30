@@ -2,7 +2,7 @@ name: Build MariaDB 2 Image
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - 'mariadb2/**'
   workflow_dispatch:

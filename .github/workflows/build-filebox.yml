@@ -2,7 +2,7 @@ name: Build FileBox Image
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - 'filebox/**'
   workflow_dispatch:

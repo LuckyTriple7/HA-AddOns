@@ -2,7 +2,7 @@ name: Build CardBoard Image
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - 'cardboard/**'
   workflow_dispatch:

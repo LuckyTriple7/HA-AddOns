@@ -2,7 +2,7 @@ name: Build Firefox Image
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, main]
     paths:
       - 'firefox/**'
   workflow_dispatch:
