@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.4.27] - 2026-05-30
+- Fix: Reactions nach Neustart sofort sichtbar — beim Disk-Load wird applyReactionsToMsg() aufgerufen, sodass reactionsCache direkt auf die geladenen Nachrichten angewendet wird (bisher fehlte dieser Schritt, Reactions kamen erst nach erneutem Sync vom WA-Server)
+
 ## [1.4.26] - 2026-05-30
 - Neu: DE/EN-Übersetzungen für Option `ha_notifications_skip_groups` ergänzt
 
