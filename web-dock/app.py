@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
+import io
 import json
 import logging
 import os
 import secrets
 import socket
 import time
+import urllib.request
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory,
                    send_file)
@@ -26,6 +29,103 @@ CONFIG_PATH      = '/data/options.json'
 SESSIONS_PATH    = '/data/sessions.json'
 LOCALES_PATH     = '/app/locales'
 ADDON_CONFIG_DIR = '/addon_config'
+
+ICON_CACHE_TTL = 3600  # seconds
+# {idx: (data: bytes, mimetype: str, fetched_at: float)}
+_icon_cache: dict[int, tuple[bytes, str, float]] = {}
+
+
+class _IconParser(HTMLParser):
+    """Collects <link rel="...icon..."> hrefs from an HTML page."""
+    def __init__(self):
+        super().__init__()
+        self.icons: list[dict] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != 'link':
+            return
+        a = dict(attrs)
+        rel = a.get('rel', '').lower()
+        if 'icon' in rel and a.get('href'):
+            self.icons.append({'rel': rel, 'href': a['href'], 'sizes': a.get('sizes', '')})
+
+
+def _fetch_remote_icon(host: str, port: int) -> tuple[bytes, str] | None:
+    base = f'http://{host}:{port}'
+    icons: list[dict] = []
+
+    # Parse HTML root for link[rel*=icon]
+    try:
+        req = urllib.request.Request(f'{base}/', headers={'User-Agent': 'WebDock/1.0'})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            html = r.read(65536).decode('utf-8', errors='ignore')
+        parser = _IconParser()
+        parser.feed(html)
+        icons = parser.icons
+    except Exception:
+        pass
+
+    def _priority(icon: dict) -> int:
+        rel = icon['rel']
+        if 'apple-touch-icon' in rel:
+            return 0
+        return 1
+
+    icons.sort(key=_priority)
+
+    for icon in icons:
+        href = icon['href']
+        if href.startswith('http'):
+            url = href
+        elif href.startswith('/'):
+            url = base + href
+        else:
+            url = base + '/' + href
+        try:
+            with urllib.request.urlopen(url, timeout=3) as r:
+                data = r.read()
+                ct = r.headers.get_content_type() or 'image/png'
+                if data:
+                    return data, ct
+        except Exception:
+            continue
+
+    # Fallback: /favicon.ico
+    try:
+        with urllib.request.urlopen(f'{base}/favicon.ico', timeout=3) as r:
+            data = r.read()
+            if data:
+                return data, 'image/x-icon'
+    except Exception:
+        pass
+
+    return None
+
+
+def get_site_icon(idx: int, site: dict) -> tuple[bytes, str] | None:
+    # Manual override: file in addon_config takes priority
+    icon_file = site.get('icon', '').strip()
+    if icon_file:
+        path = os.path.join(ADDON_CONFIG_DIR, icon_file)
+        if os.path.isfile(path):
+            try:
+                with open(path, 'rb') as f:
+                    return f.read(), 'image/png'
+            except Exception:
+                pass
+
+    # Auto-fetch with in-memory cache
+    cached = _icon_cache.get(idx)
+    if cached and time.time() - cached[2] < ICON_CACHE_TTL:
+        return cached[0], cached[1]
+
+    result = _fetch_remote_icon(site['host'], int(site['port']))
+    if result:
+        _icon_cache[idx] = (result[0], result[1], time.time())
+        log.info("Icon für Site %d (%s) automatisch geladen (%d bytes)", idx, site.get('name'), len(result[0]))
+        return result[0], result[1]
+
+    return None
 
 _config_cache = None
 _config_mtime = 0.0
@@ -201,13 +301,13 @@ def site_icon(idx: int):
     sites  = active_sites(config)
     if idx < 0 or idx >= len(sites):
         abort(404)
-    icon_file = sites[idx].get('icon', '').strip()
-    if not icon_file:
+    result = get_site_icon(idx, sites[idx])
+    if not result:
         abort(404)
-    icon_path = os.path.join(ADDON_CONFIG_DIR, icon_file)
-    if not os.path.isfile(icon_path):
-        abort(404)
-    return send_file(icon_path, mimetype='image/png')
+    data, mimetype = result
+    resp = make_response(send_file(io.BytesIO(data), mimetype=mimetype))
+    resp.headers['Cache-Control'] = 'private, max-age=3600'
+    return resp
 
 
 @app.route('/health')

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.3
+
+- Icons werden automatisch von der Zielseite geladen (Favicon / Apple-Touch-Icon, 1h Cache)
+- Manueller Override: PNG-Datei in `/addon_configs/web-dock/` ablegen und `icon: "datei.png"` setzen
+
 ## 0.0.2
 
 - Port von 17771 auf 17780 geändert

@@ -1,6 +1,6 @@
 name: WebDock
 description: Passwortgeschützter Startportal für bis zu 10 interne Web-Dienste
-version: "0.0.2"
+version: "0.0.3"
 slug: web-dock
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/web-dock"

@@ -40,17 +40,23 @@ sites:
 | `icon`    | Dateiname einer PNG-Datei im addon_config-Ordner (optional)|
 | `enabled` | `true` / `false` – Dienst anzeigen oder ausblenden         |
 
-### Icons hinterlegen
+### Icons
 
-PNG-Dateien einfach in den **addon_config**-Ordner des Add-ons legen (über den Datei-Editor oder SSH):
+WebDock lädt Icons **automatisch** von der jeweiligen Zielseite (Favicon / Apple-Touch-Icon). Es ist keine manuelle Konfiguration nötig.
+
+**Manueller Override** (optional): Eine eigene PNG-Datei im Add-on-Konfigurationsordner ablegen:
 
 ```
 /addon_configs/web-dock/mein-icon.png
 ```
 
-Im `icon`-Feld dann nur den Dateinamen angeben: `icon: "mein-icon.png"`.
+Im `icon`-Feld den Dateinamen angeben:
 
-Falls kein Icon angegeben oder die Datei nicht gefunden wird, erscheint ein Standard-Globus-Symbol.
+```yaml
+icon: "mein-icon.png"
+```
+
+Die manuelle Datei hat immer Vorrang. Ohne Datei wird das Icon automatisch von der Zielseite geholt und 1 Stunde im Speicher gecacht.
 
 ## Zugriff
 
