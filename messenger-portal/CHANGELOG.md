@@ -1,5 +1,14 @@
 # Changelog – MessengerPortal
 
+## [1.0.4] – 2026-05-30
+
+### Added
+- HA Ingress-Unterstützung: Add-on ist jetzt direkt in der HA-Oberfläche erreichbar (`ingress: true`, Port 17770, Icon `mdi:message-badge`)
+- X-Ingress-Path Header wird ausgewertet – alle Flask-URLs (Redirects, Links, Formulare) passen sich automatisch an den Ingress-Pfad an
+
+### Fixed
+- Sonnen-Icon (Light Mode): korrektes Material Design SVG mit sichtbarem Kreis (Radius 5px statt 3px) und geraden Strahlen
+
 ## [1.0.3] – 2026-05-30
 
 ### Fixed

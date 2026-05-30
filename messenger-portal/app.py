@@ -187,6 +187,14 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
+@app.before_request
+def handle_ingress_path():
+    # HA Ingress sets X-Ingress-Path so Flask url_for() generates correct URLs
+    ingress_path = request.headers.get('X-Ingress-Path', '').rstrip('/')
+    if ingress_path:
+        request.environ['SCRIPT_NAME'] = ingress_path
+
+
 def get_client_ip(req) -> str:
     # Cloudflare Tunnel sets CF-Connecting-IP with the real public IP
     cf = req.headers.get('CF-Connecting-IP', '').strip()
