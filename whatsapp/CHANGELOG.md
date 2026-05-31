@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.1] - 2026-05-31
+- Neu: Bilder aus der Zwischenablage direkt ins Chat-Eingabefeld einfügen (Strg+V / Cmd+V)
+
 ## [1.5.0] - 2026-05-30
 - Docs: ha_token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
 
