@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.2] - 2026-05-31
+- Fix: Backtick im Paste-Handler durch String-Verkettung ersetzt (Template-Literal-Konflikt → Crash beim Start)
+
 ## [1.5.1] - 2026-05-31
 - Neu: Bilder aus der Zwischenablage direkt ins Chat-Eingabefeld einfügen (Strg+V / Cmd+V)
 
