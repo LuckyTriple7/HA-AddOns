@@ -2441,7 +2441,7 @@ app.get('/', (req, res) => {
         if (item.type.startsWith('image/')) {
           e.preventDefault();
           const ext = item.type.split('/')[1].replace('jpeg', 'jpg');
-          attachFile(new File([item.getAsFile()], `bild.${ext}`, { type: item.type }));
+          attachFile(new File([item.getAsFile()], 'bild.' + ext, { type: item.type }));
           return;
         }
       }
