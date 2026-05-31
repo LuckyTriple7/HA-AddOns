@@ -562,6 +562,11 @@
     updateStatus();
     setInterval(updateStatus, {{ poll_interval * 1000 }});
 
+    // Sofort aktualisieren wenn Seite wieder in den Vordergrund kommt
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') updateStatus();
+    });
+
     // On click: mark as opened, remove glow
     document.querySelectorAll('.card[data-icon]').forEach(card => {
       card.addEventListener('click', () => {
