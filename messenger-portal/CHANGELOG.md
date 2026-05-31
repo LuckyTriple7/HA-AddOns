@@ -1,5 +1,30 @@
 # Changelog – MessengerPortal
 
+## [1.1.3] – 2026-05-30
+
+### Fixed
+- Benachrichtigungsverzögerung: PAGE_LOAD_TIME tracken – beim ersten Poll wird
+  sofort benachrichtigt wenn die Nachricht nach dem Seitenaufruf ankam, statt
+  erst beim zweiten Poll (ein voller poll_interval später)
+
+## [1.1.2] – 2026-05-30
+
+### Fixed
+- Benachrichtigungslogik: Tracking per Timestamp statt Zustandswechsel – Benachrichtigung kommt jetzt auch bei zweiter Nachricht im selben Messenger und nach Seitenneuladen
+
+## [1.1.1] – 2026-05-30
+
+### Fixed
+- Version-Bump damit HA das Update erkennt
+
+## [1.1.0] – 2026-05-30
+
+### Added
+- Browser-Benachrichtigungen: Glocken-Icon im Header zum Aktivieren/Deaktivieren
+- Stummschaltung für 1 Stunde, 4 Stunden oder bis morgen 08:00 Uhr
+- Benachrichtigung erscheint nur wenn eine neue Nachricht *während der Sitzung* eintrifft (kein Spam beim ersten Laden)
+- Glocken-Icon zeigt Zustand: aktiv (blau), stummgeschaltet (gelber Punkt), inaktiv (grau)
+
 ## [1.0.9] – 2026-05-30
 
 ### Changed

@@ -18,5 +18,21 @@
   "last_opened_today": "Today",
   "last_opened_yesterday": "Yesterday",
   "last_opened_days": "{n} days ago",
-  "last_msg_prefix": "Last message:"
+  "last_msg_prefix": "Last message:",
+  "notif_panel_title": "Notifications",
+  "notif_request_hint": "Get browser notifications when new messages arrive.",
+  "notif_enable": "Enable",
+  "notif_disable": "Disable",
+  "notif_denied": "Blocked by browser",
+  "notif_denied_hint": "Please allow notifications in your browser settings.",
+  "notif_status_active": "Active",
+  "notif_status_snoozed": "Muted until {time}",
+  "notif_status_off": "Disabled",
+  "notif_snooze_for": "Mute for:",
+  "notif_snooze_1h": "1 hour",
+  "notif_snooze_4h": "4 hours",
+  "notif_snooze_tomorrow": "Until tomorrow",
+  "notif_unsnooze": "Unmute",
+  "notif_new_msg_title": "New message",
+  "notif_new_msg_from": "from {sender}"
 }

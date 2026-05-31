@@ -18,5 +18,21 @@
   "last_opened_today": "Heute",
   "last_opened_yesterday": "Gestern",
   "last_opened_days": "vor {n} Tagen",
-  "last_msg_prefix": "Letzte Nachricht:"
+  "last_msg_prefix": "Letzte Nachricht:",
+  "notif_panel_title": "Benachrichtigungen",
+  "notif_request_hint": "Erhalte Browser-Benachrichtigungen wenn neue Nachrichten eintreffen.",
+  "notif_enable": "Aktivieren",
+  "notif_disable": "Deaktivieren",
+  "notif_denied": "Im Browser gesperrt",
+  "notif_denied_hint": "Bitte erlaube Benachrichtigungen in den Browser-Einstellungen.",
+  "notif_status_active": "Aktiv",
+  "notif_status_snoozed": "Stumm bis {time}",
+  "notif_status_off": "Deaktiviert",
+  "notif_snooze_for": "Stummschalten für:",
+  "notif_snooze_1h": "1 Stunde",
+  "notif_snooze_4h": "4 Stunden",
+  "notif_snooze_tomorrow": "Bis morgen",
+  "notif_unsnooze": "Aufheben",
+  "notif_new_msg_title": "Neue Nachricht",
+  "notif_new_msg_from": "von {sender}"
 }

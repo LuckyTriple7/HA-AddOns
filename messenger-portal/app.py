@@ -234,8 +234,9 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
     reachable = check_port(host, port)
     last      = fetch_last_received(host, port) if reachable else None
     return {
-        'icon':      m['icon'].lower(),
-        'reachable': reachable,
+        'icon':         m['icon'].lower(),
+        'name':         m.get('name', m['icon']),
+        'reachable':    reachable,
         'last_received': last,
     }
 
