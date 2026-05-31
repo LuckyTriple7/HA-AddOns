@@ -1,0 +1,38 @@
+name: Dev → Main mergen
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git Konfiguration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: dev in main mergen
+        run: |
+          git checkout main
+          git pull origin main
+
+          AHEAD=$(git log main..origin/dev --oneline --no-merges | wc -l | tr -d ' ')
+          if [ "$AHEAD" -eq "0" ]; then
+            echo "main ist bereits aktuell – nichts zu tun."
+            exit 0
+          fi
+
+          echo "Merging $AHEAD Commit(s) von dev nach main..."
+          git merge origin/dev --no-ff -m "chore: merge dev → main ($(date '+%Y-%m-%d'))"
+          git push origin main
+          echo "✓ main erfolgreich aktualisiert ($AHEAD Commit(s) übernommen)"
