@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.1.4] – 2026-05-31
+
+### Added
+- Status wird sofort aktualisiert wenn die Seite wieder in den Vordergrund kommt (visibilitychange)
+
 ## [1.1.3] – 2026-05-30
 
 ### Fixed
