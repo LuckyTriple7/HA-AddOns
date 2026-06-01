@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [0.1.8] - 2026-06-01
+
+### Changed
+- Interval-Dropdown entfernt — Browser kalibriert sich automatisch auf `cycle_s` (Abfragezeit + Sleep + Buffer) aus der Stats-Response
+- Header zeigt statisch "~5.5s" (tatsächlicher Zyklus) statt konfigurierbarem Dropdown
+- Backend gibt `cycle_s` in Stats-Response zurück
+
 ## [0.1.7] - 2026-06-01
 
 ### Fixed

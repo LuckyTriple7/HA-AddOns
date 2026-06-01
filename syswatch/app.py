@@ -115,7 +115,8 @@ RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
-_stats_cache: dict = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
+_stats_cache: dict  = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
+_last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _collector_mode:   str   = 'startup'    # 'active' | 'idle' | 'startup'
 _collect_event             = threading.Event()  # wakes collector early on heartbeat
@@ -439,8 +440,9 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
                 workers    = min(max(len(containers), 1), max_workers)
                 with ThreadPoolExecutor(max_workers=workers) as ex:
                     results = list(ex.map(_parse_container, containers))
-                elapsed  = time.time() - t0
-                running  = sum(1 for r in results if r['status'] == 'running')
+                elapsed      = time.time() - t0
+                _last_elapsed = elapsed
+                running      = sum(1 for r in results if r['status'] == 'running')
                 log.info("Abfrage: %d Container (%d laufend) | %d Worker | %.1fs",
                          len(results), running, workers, elapsed)
                 _update_history_and_cache(results)
@@ -686,6 +688,9 @@ def api_stats():
     with _stats_lock:
         data = dict(_stats_cache)
     data['collector_mode'] = _collector_mode
+    cfg = load_config()
+    sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
+    data['cycle_s'] = round(_last_elapsed + sleep_s + 0.3, 1)  # 0.3s buffer
     return jsonify(data)
 
 
@@ -757,7 +762,7 @@ def api_kill(name: str):
 def _log_startup() -> None:
     cfg = load_config()
     log.info("=" * 55)
-    log.info("  HA SysWatch v0.1.7 startet auf Port 17790")
+    log.info("  HA SysWatch v0.1.8 startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
              max(4, min(64, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
