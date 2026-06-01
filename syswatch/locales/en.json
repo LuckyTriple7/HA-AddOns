@@ -28,6 +28,7 @@
 
   "btn_logs": "Logs",
   "btn_restart": "Restart",
+  "btn_kill": "Kill",
   "btn_cancel": "Cancel",
   "btn_close": "Close",
   "btn_refresh": "Refresh",
@@ -42,6 +43,8 @@
 
   "confirm_restart": "Really restart container \"{name}\"?",
   "restart_success": "{name} is restarting...",
+  "confirm_kill": "Kill container \"{name}\" with SIGKILL?\nAll running processes will be stopped immediately.",
+  "kill_success": "{name} has been killed.",
 
   "error_docker": "Docker error",
   "error_network": "Network error",

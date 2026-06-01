@@ -28,6 +28,7 @@
 
   "btn_logs": "Logs",
   "btn_restart": "Neustart",
+  "btn_kill": "Kill",
   "btn_cancel": "Abbrechen",
   "btn_close": "Schliessen",
   "btn_refresh": "Aktualisieren",
@@ -42,6 +43,8 @@
 
   "confirm_restart": "Container \"{name}\" wirklich neustarten?",
   "restart_success": "{name} wird neugestartet...",
+  "confirm_kill": "Container \"{name}\" sofort beenden (SIGKILL)?\nAlle laufenden Prozesse werden abrupt gestoppt.",
+  "kill_success": "{name} wurde beendet.",
 
   "error_docker": "Docker-Fehler",
   "error_network": "Netzwerkfehler",

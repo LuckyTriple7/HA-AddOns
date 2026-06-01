@@ -1,6 +1,6 @@
 name: HA SysWatch
 description: Docker container resource monitor — CPU, RAM, Network, Disk I/O
-version: "0.0.9"
+version: "0.1.0"
 slug: syswatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/syswatch"
@@ -29,12 +29,14 @@ options:
   username: "admin"
   password: "secret"
   session_hours: 24
-  refresh_interval: 10
+  collect_interval: 3
+  collect_workers: 16
   show_stopped: false
 
 schema:
   username: str
   password: str
   session_hours: int
-  refresh_interval: int?
+  collect_interval: int?
+  collect_workers: int?
   show_stopped: bool?

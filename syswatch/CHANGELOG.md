@@ -1,5 +1,15 @@
 # Changelog — HA SysWatch
 
+## [0.1.0] - 2026-06-01
+
+### Added
+- Kill-Button (Totenkopf-Icon) pro Container — sendet SIGKILL, erfordert Passwortbestätigung
+- `collect_interval` (Standard: 3s) und `collect_workers` (Standard: 16, Min: 4, Max: 32) als konfigurierbare Add-on-Optionen
+
+### Changed
+- `refresh_interval` aus den Add-on-Optionen entfernt — UI-Dropdown (Standard 5s) reicht
+- Browser-Standard-Refresh-Intervall auf 5s gesetzt
+
 ## [0.0.9] - 2026-06-01
 
 ### Fixed

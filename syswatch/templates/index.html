@@ -616,7 +616,7 @@ function toggleTheme() {
 // ── Initialise ────────────────────────────────────────────────────────────────
 
 (function init() {
-  const serverDefault = {{ refresh_interval }};
+  const serverDefault = 5;
   const stored = parseInt(localStorage.getItem(REFRESH_KEY) || serverDefault);
   const sel = document.getElementById('interval-sel');
   const opts = Array.from(sel.options).map(o => parseInt(o.value));
@@ -782,6 +782,8 @@ function rowHtml(c) {
                 title="${esc(T.btn_logs)}">${esc(T.btn_logs)}</button>
         ${run ? `<button class="btn sm danger" data-action="restart" data-name="${esc(c.name)}"
                    title="${esc(T.btn_restart)}">&#8635;</button>` : ''}
+        ${run ? `<button class="btn sm danger" data-action="kill" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_kill)}"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26C17.81 13.47 19 11.38 19 9c0-3.87-3.13-7-7-7zm-1.5 11c-.83 0-1.5-.67-1.5-1.5S9.67 10 10.5 10s1.5.67 1.5 1.5S11.33 13 10.5 13zm3 0c-.83 0-1.5-.67-1.5-1.5S12.67 10 13.5 10s1.5.67 1.5 1.5S14.33 13 13.5 13zM10 17h4v1h-4v-1z"/></svg></button>` : ''}
       </div>
     </td>
   </tr>`;
@@ -851,33 +853,48 @@ function sparkline(history) {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
-let _restartTarget = null;
+let _actionTarget = null;
+let _actionType   = null;  // 'restart' | 'kill'
 
-function restartContainer(name) {
-  _restartTarget = name;
-  document.getElementById('restart-modal-title').textContent =
-      (T.btn_restart || 'Restart') + ': ' + name;
-  const desc = (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name);
-  document.getElementById('restart-modal-desc').textContent = desc;
+function _openActionModal(name, type) {
+  _actionTarget = name;
+  _actionType   = type;
+  const isKill  = type === 'kill';
+  const title   = isKill ? (T.btn_kill || 'Kill') : (T.btn_restart || 'Restart');
+  const desc    = isKill
+    ? (T.confirm_kill    || 'Kill "{name}" with SIGKILL?').replace('{name}', name)
+    : (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name);
+  document.getElementById('restart-modal-title').textContent = title + ': ' + name;
+  document.getElementById('restart-modal-desc').textContent  = desc;
   document.getElementById('restart-pw').value = '';
   document.getElementById('restart-error').textContent = '';
+  const confirmBtn = document.querySelector('#restart-modal .btn.danger');
+  if (confirmBtn) {
+    confirmBtn.textContent = title;
+    confirmBtn.style.background = isKill ? 'rgba(248,81,73,0.15)' : '';
+  }
   document.getElementById('restart-modal').classList.add('open');
   setTimeout(() => document.getElementById('restart-pw').focus(), 50);
 }
 
+function restartContainer(name) { _openActionModal(name, 'restart'); }
+function killContainer(name)    { _openActionModal(name, 'kill'); }
+
 function closeRestartModal() {
   document.getElementById('restart-modal').classList.remove('open');
-  _restartTarget = null;
+  _actionTarget = null;
+  _actionType   = null;
 }
 
 async function confirmRestart() {
-  const name = _restartTarget;
-  const pw   = document.getElementById('restart-pw').value;
-  const errEl = document.getElementById('restart-error');
-  if (!name) return;
+  const name   = _actionTarget;
+  const type   = _actionType;
+  const pw     = document.getElementById('restart-pw').value;
+  const errEl  = document.getElementById('restart-error');
+  if (!name || !type) return;
   errEl.textContent = '';
   try {
-    const res  = await fetch('/api/container/' + encodeURIComponent(name) + '/restart', {
+    const res  = await fetch('/api/container/' + encodeURIComponent(name) + '/' + type, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pw }),
@@ -890,7 +907,10 @@ async function confirmRestart() {
     }
     if (data.ok) {
       closeRestartModal();
-      alert((T.restart_success || '{name} restarting...').replace('{name}', name));
+      const msg = type === 'kill'
+        ? (T.kill_success    || '{name} killed.').replace('{name}', name)
+        : (T.restart_success || '{name} restarting...').replace('{name}', name);
+      alert(msg);
       setTimeout(doRefresh, 2000);
     } else {
       errEl.textContent = (T.error_unknown || 'Error') + ': ' + (data.error || '?');
@@ -932,6 +952,7 @@ document.addEventListener('click', e => {
   const name = btn.dataset.name;
   if (btn.dataset.action === 'logs')    showLogs(name);
   if (btn.dataset.action === 'restart') restartContainer(name);
+  if (btn.dataset.action === 'kill')    killContainer(name);
 });
 
 // Close modal on backdrop click or Escape

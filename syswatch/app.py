@@ -29,8 +29,8 @@ CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
 LOCALES_PATH  = '/app/locales'
 HISTORY_SIZE  = 30
-COLLECT_INTERVAL = 3  # seconds between collection runs
-MAX_WORKERS      = 16  # parallel docker stats calls; balance between speed and CPU load
+COLLECT_INTERVAL_DEFAULT = 3   # fallback if not set in config
+MAX_WORKERS_DEFAULT      = 16  # parallel docker stats calls (4–32 reasonable range)
 
 # HAOS exposes the Docker socket at different paths depending on version/config
 DOCKER_SOCKET_CANDIDATES = [
@@ -416,7 +416,8 @@ def _collect_once() -> None:
             try:
                 client     = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
                 containers = client.containers.list(all=True)
-                workers    = min(max(len(containers), 1), MAX_WORKERS)
+                cfg_workers = max(4, min(32, int(load_config().get('collect_workers', MAX_WORKERS_DEFAULT))))
+                workers     = min(max(len(containers), 1), cfg_workers)
                 with ThreadPoolExecutor(max_workers=workers) as ex:
                     results = list(ex.map(_parse_container, containers))
                 _update_history_and_cache(results)
@@ -456,7 +457,8 @@ def _background_collector() -> None:
             _collect_once()
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)
-        time.sleep(COLLECT_INTERVAL)
+        interval = max(2, int(load_config().get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
+        time.sleep(interval)
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -498,9 +500,7 @@ def index():
         return redirect(url_for('login'))
     lang = detect_language(request)
     t    = load_translations(lang)
-    config = load_config()
-    refresh_interval = max(5, int(config.get('refresh_interval', 10)))
-    return render_template('index.html', t=t, lang=lang, refresh_interval=refresh_interval)
+    return render_template('index.html', t=t, lang=lang)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -610,6 +610,29 @@ def api_restart(name: str):
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Restart-Fehler für '%s': %s", name, e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/container/<name>/kill', methods=['POST'])
+def api_kill(name: str):
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    body   = request.get_json(silent=True) or {}
+    config = load_config()
+    if body.get('password', '') != config.get('password', ''):
+        log.warning("Kill abgelehnt (falsches Passwort): container='%s'", name)
+        return jsonify({'error': 'wrong_password'}), 403
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
+    try:
+        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+        container = client.containers.get(name)
+        container.kill()
+        log.info("Container gekillt (SIGKILL): %s", name)
+        return jsonify({'ok': True})
+    except Exception as e:
+        log.error("Kill-Fehler für '%s': %s", name, e)
         return jsonify({'error': str(e)}), 500
 
 
