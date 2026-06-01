@@ -28,9 +28,17 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
 LOCALES_PATH  = '/app/locales'
-DOCKER_SOCKET = '/var/run/docker.sock'
 HISTORY_SIZE  = 30
 COLLECT_INTERVAL = 5  # seconds between background stat collections
+
+# HAOS exposes the Docker socket at different paths depending on version/config
+DOCKER_SOCKET_CANDIDATES = [
+    '/var/run/docker.sock',
+    '/run/docker.sock',
+    '/host/var/run/docker.sock',
+    '/host/run/docker.sock',
+]
+SUPERVISOR_API = 'http://supervisor'
 
 _config_cache = None
 _config_mtime = 0.0
@@ -44,7 +52,7 @@ RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
-_stats_cache: dict = {'containers': [], 'error': None, 'ts': 0}
+_stats_cache: dict = {'containers': [], 'error': None, 'warning': None, 'ts': 0}
 _stats_lock         = threading.Lock()
 _history: dict[str, deque] = {}
 
@@ -161,6 +169,99 @@ def detect_language(req) -> str:
     return 'en'
 
 
+# ── Docker socket helpers ──────────────────────────────────────────────────────
+
+def _find_docker_socket() -> str | None:
+    for path in DOCKER_SOCKET_CANDIDATES:
+        if os.path.exists(path):
+            log.info("Docker-Socket gefunden: %s", path)
+            return path
+    return None
+
+
+def _supervisor_token() -> str:
+    return os.environ.get('SUPERVISOR_TOKEN', '')
+
+
+def _collect_via_supervisor() -> list[dict]:
+    """Fallback: Add-on-Stats über die HA Supervisor REST-API."""
+    import urllib.request
+    token = _supervisor_token()
+    if not token:
+        return []
+    headers = {'Authorization': f'Bearer {token}'}
+
+    try:
+        req = urllib.request.Request(f'{SUPERVISOR_API}/addons', headers=headers)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        addons = data.get('data', {}).get('addons', [])
+    except Exception as e:
+        log.error("Supervisor /addons Fehler: %s", e)
+        return []
+
+    results = []
+    for addon in addons:
+        slug  = addon.get('slug', '')
+        state = addon.get('state', 'unknown')
+        base  = {
+            'id':        slug,
+            'name':      addon.get('name', slug),
+            'image':     f'HA Add-on',
+            'status':    'running' if state == 'started' else state,
+            'cpu_pct':   0.0,
+            'mem_usage': 0,
+            'mem_limit': 0,
+            'mem_pct':   0.0,
+            'net_rx':    0,
+            'net_tx':    0,
+            'blk_r':     0,
+            'blk_w':     0,
+            'pids':      0,
+        }
+        if state != 'started':
+            results.append(base)
+            continue
+        try:
+            req = urllib.request.Request(
+                f'{SUPERVISOR_API}/addons/{slug}/stats', headers=headers)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                s = json.loads(resp.read()).get('data', {})
+            results.append({
+                **base,
+                'cpu_pct':   round(s.get('cpu_percent', 0.0), 2),
+                'mem_usage': s.get('memory_usage', 0),
+                'mem_limit': s.get('memory_limit', 0),
+                'mem_pct':   round(s.get('memory_percent', 0.0), 2),
+                'net_rx':    s.get('network_rx', 0),
+                'net_tx':    s.get('network_tx', 0),
+                'blk_r':     s.get('blk_read', 0),
+                'blk_w':     s.get('blk_write', 0),
+            })
+        except Exception as e:
+            log.debug("Supervisor stats für '%s' fehlgeschlagen: %s", slug, e)
+            results.append(base)
+
+    return results
+
+
+def _update_history_and_cache(results: list, warning: str | None = None) -> None:
+    ts = time.time()
+    for r in results:
+        n = r['name']
+        if n not in _history:
+            _history[n] = deque(maxlen=HISTORY_SIZE)
+        if r['status'] == 'running':
+            _history[n].append({'ts': ts, 'cpu': r['cpu_pct'], 'mem': r['mem_pct']})
+    for r in results:
+        r['history'] = list(_history.get(r['name'], []))
+    with _stats_lock:
+        _stats_cache['containers'] = results
+        _stats_cache['error']      = None
+        _stats_cache['warning']    = warning
+        _stats_cache['ts']         = ts
+
+
 # ── Docker stats ───────────────────────────────────────────────────────────────
 
 def _parse_container(container) -> dict:
@@ -245,47 +346,45 @@ def _parse_container(container) -> dict:
 def _collect_once() -> None:
     global _stats_cache
 
-    if not _docker_available:
-        with _stats_lock:
-            _stats_cache = {'containers': [], 'error': 'Docker-SDK nicht installiert', 'ts': time.time()}
+    # ── Attempt 1: Docker socket ───────────────────────────────────────────────
+    if _docker_available:
+        socket_path = _find_docker_socket()
+        if socket_path:
+            try:
+                client     = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+                containers = client.containers.list(all=True)
+                workers    = min(max(len(containers), 1), 12)
+                with ThreadPoolExecutor(max_workers=workers) as ex:
+                    results = list(ex.map(_parse_container, containers))
+                _update_history_and_cache(results)
+                return
+            except Exception as e:
+                log.error("Docker-Socket-Fehler (%s): %s", socket_path, e)
+                with _stats_lock:
+                    _stats_cache['error'] = str(e)
+                    _stats_cache['ts']    = time.time()
+                return
+
+    # ── Attempt 2: Supervisor API (HA add-ons only) ────────────────────────────
+    results = _collect_via_supervisor()
+    if results:
+        _update_history_and_cache(
+            results,
+            warning='Docker-Socket nicht gefunden — zeige nur HA Add-ons (Supervisor API)',
+        )
         return
 
-    if not os.path.exists(DOCKER_SOCKET):
-        with _stats_lock:
-            _stats_cache = {
-                'containers': [],
-                'error': f'Docker-Socket nicht gefunden: {DOCKER_SOCKET} — full_access: true erforderlich',
-                'ts': time.time(),
-            }
-        return
-
-    try:
-        client = docker_lib.DockerClient(base_url=f'unix://{DOCKER_SOCKET}')
-        containers = client.containers.list(all=True)
-
-        workers = min(max(len(containers), 1), 12)
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_parse_container, containers))
-
-        ts = time.time()
-        for r in results:
-            n = r['name']
-            if n not in _history:
-                _history[n] = deque(maxlen=HISTORY_SIZE)
-            if r['status'] == 'running':
-                _history[n].append({'ts': ts, 'cpu': r['cpu_pct'], 'mem': r['mem_pct']})
-
-        for r in results:
-            r['history'] = list(_history.get(r['name'], []))
-
-        with _stats_lock:
-            _stats_cache = {'containers': results, 'error': None, 'ts': ts}
-
-    except Exception as e:
-        log.error("Docker-Collect-Fehler: %s", e)
-        with _stats_lock:
-            _stats_cache['error'] = str(e)
-            _stats_cache['ts']    = time.time()
+    # ── Nothing worked ─────────────────────────────────────────────────────────
+    tried = ', '.join(DOCKER_SOCKET_CANDIDATES)
+    with _stats_lock:
+        _stats_cache = {
+            'containers': [],
+            'warning':    None,
+            'error':      (f'Docker-Socket nicht gefunden (probiert: {tried}) '
+                           f'und Supervisor API nicht erreichbar. '
+                           f'full_access: true in config.yaml prüfen.'),
+            'ts':         time.time(),
+        }
 
 
 def _background_collector() -> None:
@@ -415,10 +514,11 @@ def api_stats():
 def api_logs(name: str):
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
-    if not _docker_available or not os.path.exists(DOCKER_SOCKET):
-        return jsonify({'error': 'Docker nicht verfügbar'}), 503
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
     try:
-        client    = docker_lib.DockerClient(base_url=f'unix://{DOCKER_SOCKET}')
+        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
         container = client.containers.get(name)
         logs      = container.logs(tail=200, timestamps=True).decode('utf-8', errors='replace')
         return jsonify({'logs': logs})
@@ -430,10 +530,11 @@ def api_logs(name: str):
 def api_restart(name: str):
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
-    if not _docker_available or not os.path.exists(DOCKER_SOCKET):
-        return jsonify({'error': 'Docker nicht verfügbar'}), 503
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
     try:
-        client    = docker_lib.DockerClient(base_url=f'unix://{DOCKER_SOCKET}')
+        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
         container = client.containers.get(name)
         container.restart()
         log.info("Container neugestartet: %s", name)

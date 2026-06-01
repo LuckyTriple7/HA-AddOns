@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [0.0.2] - 2026-06-01
+
+### Fixed
+- `full_access: true` durch `docker_api: true` ersetzt — mountet `/var/run/docker.sock` korrekt und zeigt Docker-Badge in der HA Add-on UI
+- Docker-Socket-Suche über mehrere Pfade (`/var/run/docker.sock`, `/run/docker.sock`, `/host/...`)
+- Supervisor API als Fallback wenn Docker-Socket nicht verfügbar (zeigt HA Add-ons)
+
 ## [0.0.1] - 2026-06-01
 
 ### Added
