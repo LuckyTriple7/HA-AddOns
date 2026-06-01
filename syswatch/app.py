@@ -29,7 +29,7 @@ CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
 LOCALES_PATH  = '/app/locales'
 HISTORY_SIZE  = 30
-COLLECT_INTERVAL = 5  # seconds between background stat collections
+COLLECT_INTERVAL = 1  # seconds between collection runs (collection itself takes ~1-2s)
 
 # HAOS exposes the Docker socket at different paths depending on version/config
 DOCKER_SOCKET_CANDIDATES = [
@@ -415,7 +415,7 @@ def _collect_once() -> None:
             try:
                 client     = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
                 containers = client.containers.list(all=True)
-                workers    = min(max(len(containers), 1), 12)
+                workers    = max(len(containers), 1)  # one thread per container
                 with ThreadPoolExecutor(max_workers=workers) as ex:
                     results = list(ex.map(_parse_container, containers))
                 _update_history_and_cache(results)
