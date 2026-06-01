@@ -12,6 +12,8 @@
   "card_running": "Laufend",
   "card_cpu": "CPU gesamt",
   "card_mem": "RAM genutzt",
+  "card_sys_cpu": "SYS CPU",
+  "card_sys_mem": "SYS RAM",
 
   "col_name": "Name",
   "col_status": "Status",

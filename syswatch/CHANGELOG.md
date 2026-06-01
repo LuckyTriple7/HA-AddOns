@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [0.0.3] - 2026-06-01
+
+### Fixed
+- Logs-Button funktionierte nicht — HTML-Attribut-Bug durch onclick mit JSON.stringify behoben (Event-Delegation via data-action/data-name)
+
+### Added
+- Zwei neue Summary-Karten: SYS CPU % und SYS RAM % (Systemauslastung des Hosts via /proc/stat und /proc/meminfo)
+
 ## [0.0.2] - 2026-06-01
 
 ### Fixed

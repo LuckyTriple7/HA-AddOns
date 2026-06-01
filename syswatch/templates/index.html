@@ -389,6 +389,14 @@
     <div class="card-value" id="c-mem">-</div>
     <div class="card-label">{{ t.card_mem }}</div>
   </div>
+  <div class="card">
+    <div class="card-value" id="s-cpu">-</div>
+    <div class="card-label">{{ t.card_sys_cpu }}</div>
+  </div>
+  <div class="card">
+    <div class="card-value" id="s-mem">-</div>
+    <div class="card-label">{{ t.card_sys_mem }}</div>
+  </div>
 </div>
 
 <!-- Controls -->
@@ -532,7 +540,7 @@ async function doRefresh() {
     }
 
     allData = data.containers || [];
-    updateCards();
+    updateCards(data.sysinfo || {});
     renderTable();
     document.getElementById('loading-row').style.display = 'none';
     document.getElementById('main-table').style.display  = '';
@@ -544,7 +552,7 @@ async function doRefresh() {
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
-function updateCards() {
+function updateCards(sys) {
   const running  = allData.filter(c => c.status === 'running');
   const totalCpu = running.reduce((s, c) => s + (c.cpu_pct || 0), 0);
   const totalMem = running.reduce((s, c) => s + (c.mem_usage || 0), 0);
@@ -553,10 +561,23 @@ function updateCards() {
   document.getElementById('c-running').textContent = running.length;
 
   const cpuEl = document.getElementById('c-cpu');
-  cpuEl.textContent  = totalCpu.toFixed(1) + '%';
-  cpuEl.style.color  = pctColor(totalCpu / Math.max(running.length, 1));
+  cpuEl.textContent = totalCpu.toFixed(1) + '%';
+  cpuEl.style.color = pctColor(totalCpu / Math.max(running.length, 1));
 
   document.getElementById('c-mem').textContent = fmtBytes(totalMem);
+
+  // System-level stats from /proc
+  const sCpuEl = document.getElementById('s-cpu');
+  const sMemEl = document.getElementById('s-mem');
+  if (sys.cpu_pct !== undefined) {
+    sCpuEl.textContent = sys.cpu_pct.toFixed(1) + '%';
+    sCpuEl.style.color = pctColor(sys.cpu_pct);
+  }
+  if (sys.mem_pct !== undefined) {
+    sMemEl.textContent = sys.mem_pct.toFixed(1) + '%';
+    sMemEl.style.color = pctColor(sys.mem_pct);
+    sMemEl.title       = fmtBytes(sys.mem_used || 0) + ' / ' + fmtBytes(sys.mem_total || 0);
+  }
 }
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -621,11 +642,10 @@ function rowHtml(c) {
     <td class="col-hide">${run ? sparkline(c.history || []) : ''}</td>
     <td>
       <div class="actions">
-        <button class="btn sm" onclick="showLogs(${JSON.stringify(c.name)})"
-                title="${T.btn_logs}">${T.btn_logs}</button>
-        ${run ? `<button class="btn sm danger"
-                   onclick="restartContainer(${JSON.stringify(c.name)})"
-                   title="${T.btn_restart}">&#8635;</button>` : ''}
+        <button class="btn sm" data-action="logs" data-name="${esc(c.name)}"
+                title="${esc(T.btn_logs)}">${esc(T.btn_logs)}</button>
+        ${run ? `<button class="btn sm danger" data-action="restart" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_restart)}">&#8635;</button>` : ''}
       </div>
     </td>
   </tr>`;
@@ -737,6 +757,15 @@ async function showLogs(name) {
 function closeModal() {
   document.getElementById('log-modal').classList.remove('open');
 }
+
+// Event delegation for table action buttons (avoids HTML-attribute quoting issues)
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const name = btn.dataset.name;
+  if (btn.dataset.action === 'logs')    showLogs(name);
+  if (btn.dataset.action === 'restart') restartContainer(name);
+});
 
 // Close modal on backdrop click or Escape
 document.getElementById('log-modal').addEventListener('click', e => {

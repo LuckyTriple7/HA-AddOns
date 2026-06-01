@@ -44,6 +44,53 @@ _config_cache = None
 _config_mtime = 0.0
 sessions: dict[str, float] = {}
 
+# ── System stats (/proc) ──────────────────────────────────────────────────────
+_prev_cpu: tuple[int, int] = (0, 0)  # (total_ticks, idle_ticks)
+
+
+def _read_sysinfo() -> dict:
+    global _prev_cpu
+    info: dict = {'cpu_pct': 0.0, 'mem_total': 0, 'mem_used': 0, 'mem_pct': 0.0}
+
+    # CPU % via /proc/stat (delta between two calls)
+    try:
+        with open('/proc/stat') as f:
+            line = f.readline()
+        parts  = [int(x) for x in line.split()[1:]]
+        idle   = parts[3] + (parts[4] if len(parts) > 4 else 0)  # idle + iowait
+        total  = sum(parts)
+        pt, pi = _prev_cpu
+        _prev_cpu = (total, idle)
+        dt = total - pt
+        di = idle  - pi
+        if dt > 0:
+            info['cpu_pct'] = round((1 - di / dt) * 100, 1)
+    except Exception as e:
+        log.debug("/proc/stat nicht lesbar: %s", e)
+
+    # RAM via /proc/meminfo
+    try:
+        with open('/proc/meminfo') as f:
+            raw = f.read()
+        mi = {}
+        for row in raw.splitlines():
+            p = row.split()
+            if len(p) >= 2:
+                mi[p[0].rstrip(':')] = int(p[1]) * 1024  # kB → bytes
+        total = mi.get('MemTotal', 0)
+        avail = mi.get('MemAvailable', 0)
+        used  = total - avail
+        info.update({
+            'mem_total': total,
+            'mem_used':  used,
+            'mem_pct':   round(used / total * 100, 1) if total else 0.0,
+        })
+    except Exception as e:
+        log.debug("/proc/meminfo nicht lesbar: %s", e)
+
+    return info
+
+
 # ── Rate limiting ──────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
@@ -52,7 +99,7 @@ RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
-_stats_cache: dict = {'containers': [], 'error': None, 'warning': None, 'ts': 0}
+_stats_cache: dict = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
 _stats_lock         = threading.Lock()
 _history: dict[str, deque] = {}
 
@@ -246,7 +293,8 @@ def _collect_via_supervisor() -> list[dict]:
 
 
 def _update_history_and_cache(results: list, warning: str | None = None) -> None:
-    ts = time.time()
+    ts      = time.time()
+    sysinfo = _read_sysinfo()
     for r in results:
         n = r['name']
         if n not in _history:
@@ -257,6 +305,7 @@ def _update_history_and_cache(results: list, warning: str | None = None) -> None
         r['history'] = list(_history.get(r['name'], []))
     with _stats_lock:
         _stats_cache['containers'] = results
+        _stats_cache['sysinfo']    = sysinfo
         _stats_cache['error']      = None
         _stats_cache['warning']    = warning
         _stats_cache['ts']         = ts
