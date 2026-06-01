@@ -115,6 +115,7 @@ RATE_LIMIT_BLOCK  = 15 * 60
 # ── Docker stats cache ─────────────────────────────────────────────────────────
 _stats_cache: dict = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
 _viewer_last_seen: float = 0.0
+_collector_mode:   str   = 'startup'   # 'active' | 'idle' | 'startup'
 VIEWER_TIMEOUT = 30  # seconds without heartbeat → idle mode
 _stats_lock         = threading.Lock()
 _history: dict[str, deque] = {}
@@ -416,11 +417,16 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
         socket_path = _find_docker_socket()
         if socket_path:
             try:
+                t0         = time.time()
                 client     = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
                 containers = client.containers.list(all=True)
                 workers    = min(max(len(containers), 1), max_workers)
                 with ThreadPoolExecutor(max_workers=workers) as ex:
                     results = list(ex.map(_parse_container, containers))
+                elapsed  = time.time() - t0
+                running  = sum(1 for r in results if r['status'] == 'running')
+                log.info("Abfrage: %d Container (%d laufend) | %d Worker | %.1fs",
+                         len(results), running, workers, elapsed)
                 _update_history_and_cache(results)
                 return
             except Exception as e:
@@ -457,8 +463,22 @@ def _is_viewer_active() -> bool:
 
 
 def _background_collector() -> None:
+    global _collector_mode
     while True:
-        active = _is_viewer_active()
+        active     = _is_viewer_active()
+        new_mode   = 'active' if active else 'idle'
+
+        if new_mode != _collector_mode:
+            if new_mode == 'idle':
+                log.info("Kein Browser aktiv seit %ds → IDLE-Modus (2 Worker, 60s Interval)",
+                         VIEWER_TIMEOUT)
+            else:
+                cfg = load_config()
+                log.info("Browser verbunden → AKTIV-Modus (%d Worker, %ds Interval)",
+                         max(4, min(32, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT)))),
+                         max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))))
+            _collector_mode = new_mode
+
         try:
             if active:
                 cfg  = load_config()
@@ -467,8 +487,8 @@ def _background_collector() -> None:
                 )
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
-                _collect_once(max_workers=2)  # idle: minimal workers
-                interval = 60                 # idle: collect every 60s
+                _collect_once(max_workers=2)
+                interval = 60
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)
             interval = 10
@@ -561,6 +581,7 @@ def logout():
     if token in sessions:
         del sessions[token]
         save_sessions()
+    log.info("Abmeldung: ip='%s'", get_client_ip(request))
     resp = make_response(redirect(url_for('login')))
     resp.delete_cookie('sw_session')
     return resp
@@ -583,7 +604,11 @@ def api_heartbeat():
     global _viewer_last_seen
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
+    was_idle = not _is_viewer_active()
     _viewer_last_seen = time.time()
+    if was_idle:
+        ip = get_client_ip(request)
+        log.info("Heartbeat empfangen (ip='%s') — Wechsel IDLE→AKTIV", ip)
     return '', 204
 
 
@@ -661,9 +686,22 @@ def api_kill(name: str):
 
 # ── Startup ────────────────────────────────────────────────────────────────────
 
+def _log_startup() -> None:
+    cfg = load_config()
+    log.info("=" * 55)
+    log.info("  HA SysWatch v0.1.2 startet auf Port 17790")
+    log.info("  collect_interval : %ds  |  collect_workers: %d",
+             max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
+             max(4, min(32, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
+    log.info("  session_hours    : %dh  |  idle timeout   : %ds",
+             int(cfg.get('session_hours', 24)), VIEWER_TIMEOUT)
+    log.info("  Docker-Socket-Kandidaten: %s", ', '.join(DOCKER_SOCKET_CANDIDATES))
+    log.info("=" * 55)
+
+
 load_sessions()
+_log_startup()
 threading.Thread(target=_background_collector, daemon=True, name='docker-collector').start()
 
 if __name__ == '__main__':
-    log.info("HA SysWatch startet auf Port 17790")
     app.run(host='0.0.0.0', port=17790, debug=False)

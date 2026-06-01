@@ -1,5 +1,14 @@
 # Changelog — HA SysWatch
 
+## [0.1.2] - 2026-06-01
+
+### Added
+- Startup-Banner im Log: Version, collect_interval, collect_workers, session_hours, Docker-Socket-Pfade
+- Collector-Log pro Zyklus: Anzahl Container, laufende Container, Worker, Abfragedauer
+- Modus-Wechsel-Log: IDLE→AKTIV und AKTIV→IDLE mit Grund und konfigurierten Werten
+- Heartbeat-Log bei Übergang IDLE→AKTIV (IP-Adresse des Browsers)
+- Abmeldungs-Log (Logout)
+
 ## [0.1.1] - 2026-06-01
 
 ### Added
