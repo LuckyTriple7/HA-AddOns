@@ -118,6 +118,7 @@ RATE_LIMIT_BLOCK  = 15 * 60
 _stats_cache: dict  = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
+_viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
 _collector_mode:   str   = 'startup'    # 'active' | 'idle' | 'startup'
 _collect_event             = threading.Event()  # wakes collector early on heartbeat
 _sse_queues: list          = []
@@ -494,8 +495,11 @@ def _background_collector() -> None:
 
         if new_mode != _collector_mode:
             if new_mode == 'idle':
-                log.info("Kein Browser aktiv seit %ds → IDLE-Modus (2 Worker, 60s Interval)",
-                         _viewer_timeout())
+                if _viewer_paused:
+                    log.info("Browser pausiert → IDLE-Modus (2 Worker, 60s Interval)")
+                else:
+                    log.info("Kein Browser aktiv seit %ds → IDLE-Modus (2 Worker, 60s Interval)",
+                             _viewer_timeout())
             else:
                 cfg = load_config()
                 log.info("Browser verbunden → AKTIV-Modus (%d Worker, %ds Interval)",
@@ -651,17 +655,19 @@ def api_wait():
 @app.route('/api/viewer', methods=['POST'])
 def api_viewer():
     """Browser signals active/paused state — immediately switches collector mode."""
-    global _viewer_last_seen
+    global _viewer_last_seen, _viewer_paused
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
     body   = request.get_json(silent=True) or {}
     active = body.get('active', True)
     ip     = get_client_ip(request)
     if active:
+        _viewer_paused    = False
         _viewer_last_seen = time.time()
         _collect_event.set()
         log.info("UI: Datenerfassung fortgesetzt (ip='%s')", ip)
     else:
+        _viewer_paused    = True
         _viewer_last_seen = 0.0  # force idle immediately
         log.info("UI: Datenerfassung pausiert (ip='%s')", ip)
     return '', 204
@@ -669,11 +675,12 @@ def api_viewer():
 
 @app.route('/api/heartbeat', methods=['POST'])
 def api_heartbeat():
-    global _viewer_last_seen
+    global _viewer_last_seen, _viewer_paused
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
     was_idle = not _is_viewer_active()
     _viewer_last_seen = time.time()
+    _viewer_paused    = False
     if was_idle:
         ip = get_client_ip(request)
         log.info("Heartbeat empfangen (ip='%s') — Wechsel IDLE→AKTIV", ip)

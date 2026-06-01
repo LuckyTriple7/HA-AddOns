@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.3] - 2026-06-01
+
+### Fixed
+- Log-Meldung "Kein Browser aktiv" erschien fälschlicherweise auch wenn der User bewusst Pause gedrückt hat — `_viewer_paused`-Flag eingeführt, Collector unterscheidet jetzt zwischen "Browser pausiert" und "kein Browser verbunden"
+
 ## [0.2.2] - 2026-06-01
 
 ### Fixed
