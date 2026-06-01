@@ -321,6 +321,15 @@
       .card-open { width: auto; padding: .45rem 1rem; font-size: .83rem; }
     }
 
+    /* ── Offline-Karte ──────────────────────────────────── */
+    .card.is-offline { opacity: .5; cursor: not-allowed; }
+    .card.is-offline:hover {
+      transform: none !important;
+      box-shadow: var(--card-shadow) !important;
+    }
+    .card.is-offline:hover::before { opacity: 0 !important; }
+    .card.is-offline .card-open { filter: grayscale(1); pointer-events: none; }
+
     /* ── Notification Panel ─────────────────────────────── */
     .notif-wrap { position: relative; }
     .notif-bell.notif-on { color: var(--accent); border-color: var(--accent); }
@@ -514,6 +523,9 @@
           dot.className    = 'status-dot ' + (m.reachable ? 'online' : 'offline');
           text.textContent = m.reachable ? T_ONLINE : T_OFFLINE;
 
+          const cardEl = document.querySelector('.card[data-icon="' + m.icon + '"]');
+          if (cardEl) cardEl.classList.toggle('is-offline', !m.reachable);
+
           const msgEl = document.getElementById('last-msg-' + m.icon);
           if (!msgEl) return;
           if (m.last_received && m.last_received.iso) {
@@ -567,9 +579,10 @@
       if (document.visibilityState === 'visible') updateStatus();
     });
 
-    // On click: mark as opened, remove glow
+    // On click: mark as opened, remove glow – blockiert wenn offline
     document.querySelectorAll('.card[data-icon]').forEach(card => {
-      card.addEventListener('click', () => {
+      card.addEventListener('click', (e) => {
+        if (card.classList.contains('is-offline')) { e.preventDefault(); return; }
         localStorage.setItem('mp-last-' + card.dataset.icon, Date.now());
         card.classList.remove('has-new');
       });

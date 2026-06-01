@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.1.5] – 2026-05-31
+
+### Added
+- Offline-Messenger: Karte ausgegraut, Hover deaktiviert, Klick blockiert
+
 ## [1.1.4] – 2026-05-31
 
 ### Added

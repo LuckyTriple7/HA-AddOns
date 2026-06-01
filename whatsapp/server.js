@@ -2222,8 +2222,7 @@ app.get('/', (req, res) => {
       return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
-    function onFileSelected(evt) {
-      const file = evt.target.files[0];
+    function attachFile(file) {
       if (!file) return;
       _attachFile = file;
       const isImg = file.type.startsWith('image/');
@@ -2242,6 +2241,10 @@ app.get('/', (req, res) => {
       document.getElementById('attach-bar').classList.add('active');
       document.getElementById('msg-input').placeholder = t('attachCaption');
       document.getElementById('msg-input').focus();
+    }
+
+    function onFileSelected(evt) {
+      attachFile(evt.target.files[0]);
       evt.target.value = '';
     }
 
@@ -2431,6 +2434,18 @@ app.get('/', (req, res) => {
     lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
     lbImg.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('keydown', e => { if (e.key === 'Escape') lightbox.classList.remove('open'); });
+
+    document.getElementById('msg-input').addEventListener('paste', e => {
+      const items = e.clipboardData?.items ?? [];
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const ext = item.type.split('/')[1].replace('jpeg', 'jpg');
+          attachFile(new File([item.getAsFile()], 'bild.' + ext, { type: item.type }));
+          return;
+        }
+      }
+    });
 
     document.addEventListener('click', ev => {
       if (!ev.target.closest('#reaction-picker') && !ev.target.closest('.react-btn')) {
