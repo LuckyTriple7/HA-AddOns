@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [0.1.9] - 2026-06-01
+
+### Added
+- `translations/en.yaml` und `translations/de.yaml` mit Beschreibungen aller Optionen (erscheinen jetzt in der HA Add-on UI)
+- README.md und DOCS.md mit Performance-Tuning-Tabelle, Erklärungen zu collect_interval/collect_workers/viewer_timeout
+
 ## [0.1.8] - 2026-06-01
 
 ### Changed
