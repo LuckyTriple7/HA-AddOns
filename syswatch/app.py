@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import queue
 import secrets
 import time
 import threading
@@ -9,7 +10,8 @@ from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
-                   url_for, make_response, abort, jsonify, send_from_directory)
+                   url_for, make_response, abort, jsonify, send_from_directory,
+                   Response, stream_with_context)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
@@ -117,7 +119,19 @@ _stats_cache: dict = {'containers': [], 'sysinfo': {}, 'error': None, 'warning':
 _viewer_last_seen: float = time.time()  # assume active on startup
 _collector_mode:   str   = 'startup'    # 'active' | 'idle' | 'startup'
 _collect_event             = threading.Event()  # wakes collector early on heartbeat
+_sse_queues: list          = []
+_sse_lock                  = threading.Lock()
 VIEWER_TIMEOUT = 30  # seconds without heartbeat → idle mode
+
+
+def _notify_sse() -> None:
+    """Signal all connected SSE clients that fresh data is available."""
+    with _sse_lock:
+        for q in list(_sse_queues):
+            try:
+                q.put_nowait('update')
+            except queue.Full:
+                pass
 _stats_lock         = threading.Lock()
 _history: dict[str, deque] = {}
 
@@ -327,6 +341,7 @@ def _update_history_and_cache(results: list, warning: str | None = None) -> None
         _stats_cache['error']      = None
         _stats_cache['warning']    = warning
         _stats_cache['ts']         = ts
+    _notify_sse()
 
 
 # ── Docker stats ───────────────────────────────────────────────────────────────
@@ -460,7 +475,9 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
 
 
 def _is_viewer_active() -> bool:
-    return (time.time() - _viewer_last_seen) < VIEWER_TIMEOUT
+    with _sse_lock:
+        has_sse = len(_sse_queues) > 0
+    return has_sse or (time.time() - _viewer_last_seen) < VIEWER_TIMEOUT
 
 
 def _background_collector() -> None:
@@ -601,6 +618,62 @@ def set_lang(lang: str):
 
 # ── API ────────────────────────────────────────────────────────────────────────
 
+@app.route('/api/stream')
+def api_stream():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+
+    client_q = queue.Queue(maxsize=5)
+    with _sse_lock:
+        _sse_queues.append(client_q)
+    log.debug("SSE-Client verbunden (gesamt: %d)", len(_sse_queues))
+
+    def generate():
+        try:
+            yield 'data: connected\n\n'
+            while True:
+                try:
+                    client_q.get(timeout=25)
+                    yield 'data: update\n\n'
+                except queue.Empty:
+                    yield ': ping\n\n'  # keepalive — prevents proxy timeouts
+        finally:
+            with _sse_lock:
+                try:
+                    _sse_queues.remove(client_q)
+                except ValueError:
+                    pass
+            log.debug("SSE-Client getrennt (gesamt: %d)", len(_sse_queues))
+
+    return Response(
+        stream_with_context(generate()),
+        content_type='text/event-stream',
+        headers={
+            'Cache-Control':    'no-cache',
+            'X-Accel-Buffering': 'no',   # disable nginx/proxy buffering
+        },
+    )
+
+
+@app.route('/api/viewer', methods=['POST'])
+def api_viewer():
+    """Browser signals active/paused state — immediately switches collector mode."""
+    global _viewer_last_seen
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    body   = request.get_json(silent=True) or {}
+    active = body.get('active', True)
+    ip     = get_client_ip(request)
+    if active:
+        _viewer_last_seen = time.time()
+        _collect_event.set()
+        log.info("UI: Datenerfassung fortgesetzt (ip='%s')", ip)
+    else:
+        _viewer_last_seen = 0.0  # force idle immediately
+        log.info("UI: Datenerfassung pausiert (ip='%s')", ip)
+    return '', 204
+
+
 @app.route('/api/heartbeat', methods=['POST'])
 def api_heartbeat():
     global _viewer_last_seen
@@ -621,6 +694,7 @@ def api_stats():
         return '', 401
     with _stats_lock:
         data = dict(_stats_cache)
+    data['collector_mode'] = _collector_mode
     return jsonify(data)
 
 
@@ -692,7 +766,7 @@ def api_kill(name: str):
 def _log_startup() -> None:
     cfg = load_config()
     log.info("=" * 55)
-    log.info("  HA SysWatch v0.1.3 startet auf Port 17790")
+    log.info("  HA SysWatch v0.1.4 startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
              max(4, min(32, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))

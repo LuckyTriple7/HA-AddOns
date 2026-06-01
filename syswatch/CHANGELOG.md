@@ -1,5 +1,16 @@
 # Changelog — HA SysWatch
 
+## [0.1.4] - 2026-06-01
+
+### Added
+- SSE (Server-Sent Events): Browser bekommt sofort nach jeder Docker-Abfrage ein Push-Event und fetcht neue Daten — kein festes Polling-Interval mehr nötig; Timer bleibt als Fallback
+- `/api/viewer` Endpoint: Pause/Resume-Button sendet sofort Signal ans Backend (Logausgabe, sofortiger Modus-Wechsel ohne 30s Wartezeit)
+- Farbiger Modus-Dot im Header (grün=aktiv, gelb=idle, rot=pausiert)
+- Pause-Button zeigt jetzt klar gelben Rand + Pause-Icon bei manuellem Pause, gedimmten Rand wenn Backend im IDLE-Modus
+
+### Fixed
+- Pause-Button-Klick war visuell unsichtbar — CSS-Klassen-Ansatz statt opacity-Manipulation
+
 ## [0.1.3] - 2026-06-01
 
 ### Fixed
