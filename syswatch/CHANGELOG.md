@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.1.6] - 2026-06-01
+
+### Changed
+- `collect_workers` Maximum von 32 auf 64 erhöht
+
 ## [0.1.5] - 2026-06-01
 
 ### Changed

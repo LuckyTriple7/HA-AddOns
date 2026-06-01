@@ -32,7 +32,7 @@ SESSIONS_PATH = '/data/sessions.json'
 LOCALES_PATH  = '/app/locales'
 HISTORY_SIZE  = 30
 COLLECT_INTERVAL_DEFAULT = 3   # fallback if not set in config
-MAX_WORKERS_DEFAULT      = 16  # parallel docker stats calls (4–32 reasonable range)
+MAX_WORKERS_DEFAULT      = 16  # parallel docker stats calls (4–64 reasonable range)
 
 # HAOS exposes the Docker socket at different paths depending on version/config
 DOCKER_SOCKET_CANDIDATES = [
@@ -497,7 +497,7 @@ def _background_collector() -> None:
             else:
                 cfg = load_config()
                 log.info("Browser verbunden → AKTIV-Modus (%d Worker, %ds Interval)",
-                         max(4, min(32, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT)))),
+                         max(4, min(64, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT)))),
                          max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))))
             _collector_mode = new_mode
 
@@ -505,7 +505,7 @@ def _background_collector() -> None:
             if active:
                 cfg  = load_config()
                 _collect_once(
-                    max_workers=max(4, min(32, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT))))
+                    max_workers=max(4, min(64, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT))))
                 )
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
@@ -773,7 +773,7 @@ def _log_startup() -> None:
     log.info("  HA SysWatch v0.1.5 startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
-             max(4, min(32, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
+             max(4, min(64, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
     log.info("  session_hours    : %dh  |  idle timeout   : %ds",
              int(cfg.get('session_hours', 24)),
              max(30, min(1800, int(cfg.get('viewer_timeout', VIEWER_TIMEOUT_DEFAULT)))))
