@@ -1,0 +1,53 @@
+{
+  "title": "HA SysWatch",
+  "subtitle": "Docker-Container-Monitor",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "username": "Benutzername",
+  "password": "Passwort",
+  "error_credentials": "Ungültige Anmeldedaten.",
+  "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
+
+  "card_total": "Container",
+  "card_running": "Laufend",
+  "card_cpu": "CPU gesamt",
+  "card_mem": "RAM genutzt",
+
+  "col_name": "Name",
+  "col_status": "Status",
+  "col_cpu": "CPU %",
+  "col_mem_pct": "RAM %",
+  "col_mem": "RAM",
+  "col_net": "NET I/O",
+  "col_disk": "DISK I/O",
+  "col_pids": "PIDs",
+  "col_history": "Verlauf",
+  "col_actions": "Aktionen",
+
+  "btn_logs": "Logs",
+  "btn_restart": "Neustart",
+  "btn_close": "Schliessen",
+  "btn_refresh": "Aktualisieren",
+  "btn_install": "Installieren",
+
+  "search_placeholder": "Container suchen...",
+  "toggle_stopped": "Gestoppte anzeigen",
+
+  "log_title": "Logs",
+  "log_loading": "Lade Logs...",
+  "log_empty": "(keine Logs)",
+
+  "confirm_restart": "Container \"{name}\" wirklich neustarten?",
+  "restart_success": "{name} wird neugestartet...",
+
+  "error_docker": "Docker-Fehler",
+  "error_network": "Netzwerkfehler",
+  "error_unknown": "Unbekannter Fehler",
+
+  "install_banner": "HA SysWatch als App installieren",
+
+  "loading": "Verbinde mit Docker...",
+  "updated_at": "Stand",
+  "lang_de": "DE",
+  "lang_en": "EN"
+}

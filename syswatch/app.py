@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+import json
+import logging
+import os
+import secrets
+import time
+import threading
+from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from flask import (Flask, render_template, request, redirect,
+                   url_for, make_response, abort, jsonify, send_from_directory)
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+try:
+    import docker as docker_lib
+    _docker_available = True
+except ImportError:
+    _docker_available = False
+
+logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
+log = logging.getLogger(__name__)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+CONFIG_PATH   = '/data/options.json'
+SESSIONS_PATH = '/data/sessions.json'
+LOCALES_PATH  = '/app/locales'
+DOCKER_SOCKET = '/var/run/docker.sock'
+HISTORY_SIZE  = 30
+COLLECT_INTERVAL = 5  # seconds between background stat collections
+
+_config_cache = None
+_config_mtime = 0.0
+sessions: dict[str, float] = {}
+
+# ── Rate limiting ──────────────────────────────────────────────────────────────
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+_blocked_ips:     dict[str, float]       = {}
+RATE_LIMIT_MAX    = 5
+RATE_LIMIT_WINDOW = 10 * 60
+RATE_LIMIT_BLOCK  = 15 * 60
+
+# ── Docker stats cache ─────────────────────────────────────────────────────────
+_stats_cache: dict = {'containers': [], 'error': None, 'ts': 0}
+_stats_lock         = threading.Lock()
+_history: dict[str, deque] = {}
+
+
+# ── Config & sessions ──────────────────────────────────────────────────────────
+
+def load_config() -> dict:
+    global _config_cache, _config_mtime
+    try:
+        mtime = os.path.getmtime(CONFIG_PATH)
+        if mtime != _config_mtime:
+            with open(CONFIG_PATH, 'r') as f:
+                _config_cache = json.load(f)
+            _config_mtime = mtime
+    except Exception:
+        pass
+    return _config_cache or {}
+
+
+def save_sessions() -> None:
+    try:
+        now = time.time()
+        with open(SESSIONS_PATH, 'w') as f:
+            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+    except Exception as e:
+        log.warning("Sessions konnten nicht gespeichert werden: %s", e)
+
+
+def load_sessions() -> None:
+    global sessions
+    try:
+        with open(SESSIONS_PATH) as f:
+            data = json.load(f)
+        now = time.time()
+        sessions = {k: v for k, v in data.items() if v > now}
+        if sessions:
+            log.info("Sessions geladen: %d aktive(s)", len(sessions))
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("Sessions konnten nicht geladen werden: %s", e)
+
+
+def create_session(hours: int) -> tuple[str, float]:
+    token = secrets.token_hex(32)
+    expires = time.time() + hours * 3600
+    sessions[token] = expires
+    save_sessions()
+    return token, expires
+
+
+def is_valid_session(token: str | None) -> bool:
+    if not token or token not in sessions:
+        return False
+    if time.time() > sessions[token]:
+        del sessions[token]
+        return False
+    return True
+
+
+def get_client_ip(req) -> str:
+    cf = req.headers.get('CF-Connecting-IP', '').strip()
+    if cf:
+        return cf
+    return req.remote_addr or 'unknown'
+
+
+# ── Rate limiting ──────────────────────────────────────────────────────────────
+
+def is_rate_limited(ip: str) -> bool:
+    now = time.time()
+    if ip in _blocked_ips:
+        if now < _blocked_ips[ip]:
+            return True
+        del _blocked_ips[ip]
+    _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    return False
+
+
+def record_failed_attempt(ip: str) -> None:
+    now = time.time()
+    _failed_attempts[ip].append(now)
+    recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    _failed_attempts[ip] = recent
+    if len(recent) >= RATE_LIMIT_MAX:
+        _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+        log.warning("IP '%s' für %d Minuten gesperrt (zu viele fehlgeschlagene Logins)",
+                    ip, RATE_LIMIT_BLOCK // 60)
+
+
+def clear_failed_attempts(ip: str) -> None:
+    _failed_attempts.pop(ip, None)
+    _blocked_ips.pop(ip, None)
+
+
+# ── i18n ───────────────────────────────────────────────────────────────────────
+
+def load_translations(lang: str) -> dict:
+    lang = lang if lang in ('de', 'en') else 'en'
+    try:
+        with open(f'{LOCALES_PATH}/{lang}.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def detect_language(req) -> str:
+    lang = req.cookies.get('lang')
+    if lang in ('de', 'en'):
+        return lang
+    accept = req.headers.get('Accept-Language', '')
+    if 'de' in accept[:5].lower():
+        return 'de'
+    return 'en'
+
+
+# ── Docker stats ───────────────────────────────────────────────────────────────
+
+def _parse_container(container) -> dict:
+    name = container.name
+    image = ''
+    try:
+        tags = container.image.tags
+        image = tags[0] if tags else container.image.short_id
+    except Exception:
+        pass
+
+    base = {
+        'id': container.short_id,
+        'name': name,
+        'image': image,
+        'status': container.status,
+        'cpu_pct': 0.0,
+        'mem_usage': 0,
+        'mem_limit': 0,
+        'mem_pct': 0.0,
+        'net_rx': 0,
+        'net_tx': 0,
+        'blk_r': 0,
+        'blk_w': 0,
+        'pids': 0,
+    }
+
+    if container.status != 'running':
+        return base
+
+    try:
+        raw = container.stats(stream=False)
+
+        # CPU %
+        cpu_delta = (raw['cpu_stats']['cpu_usage']['total_usage']
+                     - raw['precpu_stats']['cpu_usage']['total_usage'])
+        sys_delta = (raw['cpu_stats'].get('system_cpu_usage', 0)
+                     - raw['precpu_stats'].get('system_cpu_usage', 0))
+        ncpus = raw['cpu_stats'].get('online_cpus') or len(
+            raw['cpu_stats']['cpu_usage'].get('percpu_usage') or [1])
+        cpu_pct = (cpu_delta / sys_delta * ncpus * 100.0) if sys_delta > 0 else 0.0
+
+        # Memory (subtract page cache for real RSS)
+        mem_stats = raw.get('memory_stats', {})
+        cache = (mem_stats.get('stats', {}) or {}).get('inactive_file',
+                 (mem_stats.get('stats', {}) or {}).get('cache', 0))
+        mem_usage = max(0, mem_stats.get('usage', 0) - cache)
+        mem_limit = mem_stats.get('limit', 1) or 1
+        mem_pct = mem_usage / mem_limit * 100.0
+
+        # Network I/O
+        net_rx = sum(v.get('rx_bytes', 0) for v in raw.get('networks', {}).values())
+        net_tx = sum(v.get('tx_bytes', 0) for v in raw.get('networks', {}).values())
+
+        # Block I/O
+        blk_r = blk_w = 0
+        for entry in (raw.get('blkio_stats', {}).get('io_service_bytes_recursive') or []):
+            op  = entry.get('op', '').lower()
+            val = entry.get('value', 0)
+            if op == 'read':
+                blk_r += val
+            elif op == 'write':
+                blk_w += val
+
+        return {
+            **base,
+            'cpu_pct':   round(cpu_pct, 2),
+            'mem_usage': mem_usage,
+            'mem_limit': mem_limit,
+            'mem_pct':   round(mem_pct, 2),
+            'net_rx':    net_rx,
+            'net_tx':    net_tx,
+            'blk_r':     blk_r,
+            'blk_w':     blk_w,
+            'pids':      raw.get('pids_stats', {}).get('current', 0),
+        }
+    except Exception as e:
+        log.debug("Stats für '%s' fehlgeschlagen: %s", name, e)
+        return base
+
+
+def _collect_once() -> None:
+    global _stats_cache
+
+    if not _docker_available:
+        with _stats_lock:
+            _stats_cache = {'containers': [], 'error': 'Docker-SDK nicht installiert', 'ts': time.time()}
+        return
+
+    if not os.path.exists(DOCKER_SOCKET):
+        with _stats_lock:
+            _stats_cache = {
+                'containers': [],
+                'error': f'Docker-Socket nicht gefunden: {DOCKER_SOCKET} — full_access: true erforderlich',
+                'ts': time.time(),
+            }
+        return
+
+    try:
+        client = docker_lib.DockerClient(base_url=f'unix://{DOCKER_SOCKET}')
+        containers = client.containers.list(all=True)
+
+        workers = min(max(len(containers), 1), 12)
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_parse_container, containers))
+
+        ts = time.time()
+        for r in results:
+            n = r['name']
+            if n not in _history:
+                _history[n] = deque(maxlen=HISTORY_SIZE)
+            if r['status'] == 'running':
+                _history[n].append({'ts': ts, 'cpu': r['cpu_pct'], 'mem': r['mem_pct']})
+
+        for r in results:
+            r['history'] = list(_history.get(r['name'], []))
+
+        with _stats_lock:
+            _stats_cache = {'containers': results, 'error': None, 'ts': ts}
+
+    except Exception as e:
+        log.error("Docker-Collect-Fehler: %s", e)
+        with _stats_lock:
+            _stats_cache['error'] = str(e)
+            _stats_cache['ts']    = time.time()
+
+
+def _background_collector() -> None:
+    while True:
+        try:
+            _collect_once()
+        except Exception as e:
+            log.error("Hintergrund-Collector-Fehler: %s", e)
+        time.sleep(COLLECT_INTERVAL)
+
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('/app/static', 'icon-192.png', mimetype='image/png')
+
+
+@app.route('/manifest.json')
+def manifest():
+    resp = send_from_directory('/app/static', 'manifest.json',
+                               mimetype='application/manifest+json')
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']        = 'no-cache'
+    resp.headers['Expires']       = '0'
+    return resp
+
+
+@app.route('/sw.js')
+def sw():
+    resp = send_from_directory('/app/static', 'sw.js',
+                               mimetype='application/javascript')
+    resp.headers['Cache-Control']         = 'no-cache, no-store, must-revalidate'
+    resp.headers['Pragma']                = 'no-cache'
+    resp.headers['Expires']               = '0'
+    resp.headers['Service-Worker-Allowed'] = '/'
+    return resp
+
+
+@app.route('/health')
+def health():
+    return 'ok', 200
+
+
+@app.route('/')
+def index():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return redirect(url_for('login'))
+    lang = detect_language(request)
+    t    = load_translations(lang)
+    config = load_config()
+    refresh_interval = max(5, int(config.get('refresh_interval', 10)))
+    return render_template('index.html', t=t, lang=lang, refresh_interval=refresh_interval)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    config = load_config()
+    lang   = detect_language(request)
+    t      = load_translations(lang)
+    error  = None
+
+    if is_valid_session(request.cookies.get('sw_session')):
+        return redirect(url_for('index'))
+
+    ip = get_client_ip(request)
+
+    if request.method == 'POST':
+        if is_rate_limited(ip):
+            log.warning("Login blockiert (Rate Limit): ip='%s'", ip)
+            error = t.get('error_locked', 'Too many failed attempts. Please try again later.')
+        elif (request.form.get('username') == config.get('username') and
+              request.form.get('password') == config.get('password')):
+            clear_failed_attempts(ip)
+            log.info("Login erfolgreich: ip='%s' user='%s'", ip, config.get('username'))
+            hours = int(config.get('session_hours', 24))
+            token, expires = create_session(hours)
+            resp = make_response(redirect(url_for('index')))
+            resp.set_cookie(
+                'sw_session', token,
+                expires=datetime.fromtimestamp(expires, tz=timezone.utc),
+                httponly=True, samesite='Lax',
+            )
+            return resp
+        else:
+            record_failed_attempt(ip)
+            log.warning("Login fehlgeschlagen: ip='%s' user='%s'",
+                        ip, request.form.get('username', '?'))
+            error = t.get('error_credentials', 'Invalid credentials.')
+
+    return render_template('login.html', t=t, lang=lang, error=error)
+
+
+@app.route('/logout')
+def logout():
+    token = request.cookies.get('sw_session')
+    if token in sessions:
+        del sessions[token]
+        save_sessions()
+    resp = make_response(redirect(url_for('login')))
+    resp.delete_cookie('sw_session')
+    return resp
+
+
+@app.route('/set-lang/<lang>')
+def set_lang(lang: str):
+    if lang not in ('de', 'en'):
+        abort(400)
+    ref  = request.referrer or url_for('index')
+    resp = make_response(redirect(ref))
+    resp.set_cookie('lang', lang, max_age=365 * 24 * 3600, samesite='Lax')
+    return resp
+
+
+# ── API ────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/stats')
+def api_stats():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    with _stats_lock:
+        data = dict(_stats_cache)
+    return jsonify(data)
+
+
+@app.route('/api/container/<name>/logs')
+def api_logs(name: str):
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    if not _docker_available or not os.path.exists(DOCKER_SOCKET):
+        return jsonify({'error': 'Docker nicht verfügbar'}), 503
+    try:
+        client    = docker_lib.DockerClient(base_url=f'unix://{DOCKER_SOCKET}')
+        container = client.containers.get(name)
+        logs      = container.logs(tail=200, timestamps=True).decode('utf-8', errors='replace')
+        return jsonify({'logs': logs})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/container/<name>/restart', methods=['POST'])
+def api_restart(name: str):
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    if not _docker_available or not os.path.exists(DOCKER_SOCKET):
+        return jsonify({'error': 'Docker nicht verfügbar'}), 503
+    try:
+        client    = docker_lib.DockerClient(base_url=f'unix://{DOCKER_SOCKET}')
+        container = client.containers.get(name)
+        container.restart()
+        log.info("Container neugestartet: %s", name)
+        return jsonify({'ok': True})
+    except Exception as e:
+        log.error("Restart-Fehler für '%s': %s", name, e)
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Startup ────────────────────────────────────────────────────────────────────
+
+load_sessions()
+threading.Thread(target=_background_collector, daemon=True, name='docker-collector').start()
+
+if __name__ == '__main__':
+    log.info("HA SysWatch startet auf Port 17790")
+    app.run(host='0.0.0.0', port=17790, debug=False)

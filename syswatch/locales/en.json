@@ -1,0 +1,53 @@
+{
+  "title": "HA SysWatch",
+  "subtitle": "Docker Container Monitor",
+  "login": "Sign in",
+  "logout": "Sign out",
+  "username": "Username",
+  "password": "Password",
+  "error_credentials": "Invalid credentials.",
+  "error_locked": "Too many failed attempts. Please wait 15 minutes.",
+
+  "card_total": "Containers",
+  "card_running": "Running",
+  "card_cpu": "Total CPU",
+  "card_mem": "RAM used",
+
+  "col_name": "Name",
+  "col_status": "Status",
+  "col_cpu": "CPU %",
+  "col_mem_pct": "RAM %",
+  "col_mem": "RAM",
+  "col_net": "NET I/O",
+  "col_disk": "DISK I/O",
+  "col_pids": "PIDs",
+  "col_history": "History",
+  "col_actions": "Actions",
+
+  "btn_logs": "Logs",
+  "btn_restart": "Restart",
+  "btn_close": "Close",
+  "btn_refresh": "Refresh",
+  "btn_install": "Install",
+
+  "search_placeholder": "Search containers...",
+  "toggle_stopped": "Show stopped",
+
+  "log_title": "Logs",
+  "log_loading": "Loading logs...",
+  "log_empty": "(no logs)",
+
+  "confirm_restart": "Really restart container \"{name}\"?",
+  "restart_success": "{name} is restarting...",
+
+  "error_docker": "Docker error",
+  "error_network": "Network error",
+  "error_unknown": "Unknown error",
+
+  "install_banner": "Install HA SysWatch as app",
+
+  "loading": "Connecting to Docker...",
+  "updated_at": "Updated",
+  "lang_de": "DE",
+  "lang_en": "EN"
+}

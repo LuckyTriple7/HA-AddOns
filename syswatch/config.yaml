@@ -1,0 +1,40 @@
+name: HA SysWatch
+description: Docker container resource monitor — CPU, RAM, Network, Disk I/O
+version: "0.0.1"
+slug: syswatch
+url: https://github.com/LuckyTriple7/HA-AddOns
+image: "ghcr.io/luckytriple7/syswatch"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: false
+
+# Docker socket access required for container stats
+full_access: true
+
+map:
+  - addon_config:rw
+
+ports:
+  17790/tcp: 17790
+
+ports_description:
+  17790/tcp: SysWatch Web-UI
+
+options:
+  username: "admin"
+  password: "secret"
+  session_hours: 24
+  refresh_interval: 10
+  show_stopped: false
+
+schema:
+  username: str
+  password: str
+  session_hours: int
+  refresh_interval: int?
+  show_stopped: bool?

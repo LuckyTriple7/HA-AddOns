@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{{ t.title }}</title>
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surf:    #161b22;
+      --surf2:   #1c2128;
+      --border:  #30363d;
+      --text:    #c9d1d9;
+      --muted:   #8b949e;
+      --accent:  #58a6ff;
+      --green:   #3fb950;
+      --yellow:  #d29922;
+      --red:     #f85149;
+      --r:       6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surf);
+      border-bottom: 1px solid var(--border);
+      padding: 9px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); flex: 1; white-space: nowrap; }
+    .logo span { color: var(--text); font-weight: 400; }
+    #countdown { font-size: 0.72rem; color: var(--muted); min-width: 28px; text-align: right; }
+
+    /* ── Buttons ── */
+    .btn {
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: var(--r);
+      cursor: pointer;
+      font-size: 0.78rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: border-color .15s, color .15s;
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.danger:hover { border-color: var(--red); color: var(--red); }
+    .btn.sm { padding: 3px 7px; font-size: 0.72rem; }
+    .lang-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    select.btn {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238b949e'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 7px center;
+      padding-right: 22px;
+      background-color: var(--surf2);
+    }
+
+    /* ── Install banner ── */
+    .install-banner {
+      background: var(--surf2);
+      border-bottom: 1px solid var(--border);
+      padding: 7px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+    .install-banner span { flex: 1; }
+    .install-banner.hidden { display: none; }
+
+    /* ── Error bar ── */
+    .error-bar {
+      background: rgba(248,81,73,0.1);
+      border-left: 3px solid var(--red);
+      color: var(--red);
+      padding: 8px 14px;
+      font-size: 0.82rem;
+    }
+    .error-bar.hidden { display: none; }
+
+    /* ── Summary cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px;
+      padding: 12px 14px 8px;
+    }
+    .card {
+      background: var(--surf);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .card-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .card-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 3px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 8px;
+      padding: 6px 14px 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search {
+      flex: 1;
+      min-width: 140px;
+      max-width: 280px;
+      background: var(--surf);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: var(--r);
+      font-size: 0.82rem;
+    }
+    .search:focus { outline: none; border-color: var(--accent); }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle input { cursor: pointer; accent-color: var(--accent); }
+
+    /* ── Table ── */
+    .table-wrap {
+      padding: 0 14px 28px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .loading-row {
+      text-align: center;
+      padding: 48px;
+      color: var(--muted);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th {
+      background: var(--surf);
+      color: var(--muted);
+      font-weight: 500;
+      padding: 7px 10px;
+      text-align: left;
+      white-space: nowrap;
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 44px;
+      z-index: 100;
+      user-select: none;
+    }
+    th[data-col] { cursor: pointer; }
+    th[data-col]:hover { color: var(--text); }
+    th.sorted { color: var(--accent); }
+    th.sorted.asc::after  { content: ' \2191'; }
+    th.sorted.desc::after { content: ' \2193'; }
+    td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    tr:hover td { background: rgba(88,166,255,0.04); }
+
+    /* Name cell */
+    .name-cell { max-width: 180px; }
+    .name-cell strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .name-cell small {
+      color: var(--muted);
+      font-size: 0.68rem;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    /* Status badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .badge::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+    .badge-running { background: rgba(63,185,80,.12); color: var(--green); }
+    .badge-exited  { background: rgba(248,81,73,.12);  color: var(--red); }
+    .badge-paused  { background: rgba(210,153,34,.12); color: var(--yellow); }
+    .badge-other   { background: rgba(139,148,158,.12); color: var(--muted); }
+
+    /* Progress bar */
+    .bar-wrap { display: flex; align-items: center; gap: 5px; }
+    .bar-bg {
+      width: 68px;
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .bar-fg {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .4s ease;
+    }
+    .bar-fg.low  { background: var(--green); }
+    .bar-fg.mid  { background: var(--yellow); }
+    .bar-fg.high { background: var(--red); }
+    .bar-pct {
+      width: 42px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.78rem;
+    }
+
+    /* Sparkline */
+    .spark { display: block; overflow: visible; }
+
+    /* Actions */
+    .actions { display: flex; gap: 4px; }
+
+    /* ── Log modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 500;
+      padding: 12px;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    @media (min-width: 640px) {
+      .modal-overlay { align-items: center; padding: 20px; }
+    }
+    .modal {
+      background: var(--surf);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      width: 100%;
+      max-width: 920px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-hdr {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .modal-title { flex: 1; font-weight: 600; font-size: 0.9rem; }
+    .modal-body { flex: 1; overflow: auto; padding: 10px 14px; }
+    pre.log-out {
+      font-family: 'SF Mono', 'Consolas', 'Courier New', monospace;
+      font-size: 0.72rem;
+      white-space: pre;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .log-spin { color: var(--muted); text-align: center; padding: 20px; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 12px 14px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Mobile ── */
+    @media (max-width: 620px) {
+      .col-hide { display: none; }
+      .cards { grid-template-columns: repeat(2, 1fr); }
+      .card-value { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">HA <span>SysWatch</span></div>
+  <span id="countdown"></span>
+  <select class="btn" id="interval-sel" onchange="onIntervalChange()">
+    <option value="5">5s</option>
+    <option value="10">10s</option>
+    <option value="30">30s</option>
+    <option value="60">60s</option>
+  </select>
+  <button class="btn" id="refresh-btn" onclick="doRefresh()" title="{{ t.btn_refresh }}">&#8635;</button>
+  <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+  <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+  <a href="/logout" class="btn">{{ t.logout }}</a>
+</header>
+
+<!-- PWA install banner -->
+<div class="install-banner hidden" id="install-banner">
+  <span>{{ t.install_banner }}</span>
+  <button class="btn sm" id="install-btn">{{ t.btn_install }}</button>
+  <button class="btn sm" onclick="document.getElementById('install-banner').classList.add('hidden')">&#10005;</button>
+</div>
+
+<!-- Error bar -->
+<div class="error-bar hidden" id="error-bar"></div>
+
+<!-- Summary cards -->
+<div class="cards">
+  <div class="card">
+    <div class="card-value" id="c-total">-</div>
+    <div class="card-label">{{ t.card_total }}</div>
+  </div>
+  <div class="card">
+    <div class="card-value" style="color:var(--green)" id="c-running">-</div>
+    <div class="card-label">{{ t.card_running }}</div>
+  </div>
+  <div class="card">
+    <div class="card-value" id="c-cpu">-</div>
+    <div class="card-label">{{ t.card_cpu }}</div>
+  </div>
+  <div class="card">
+    <div class="card-value" id="c-mem">-</div>
+    <div class="card-label">{{ t.card_mem }}</div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <input type="search" class="search" id="search-input"
+         placeholder="{{ t.search_placeholder }}" oninput="renderTable()">
+  <label class="toggle">
+    <input type="checkbox" id="show-stopped" onchange="renderTable()">
+    {{ t.toggle_stopped }}
+  </label>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <div class="loading-row" id="loading-row">{{ t.loading }}</div>
+  <table id="main-table" style="display:none">
+    <thead>
+      <tr>
+        <th data-col="name">{{ t.col_name }}</th>
+        <th>{{ t.col_status }}</th>
+        <th data-col="cpu_pct">{{ t.col_cpu }}</th>
+        <th data-col="mem_pct">{{ t.col_mem_pct }}</th>
+        <th data-col="mem_usage" class="col-hide">{{ t.col_mem }}</th>
+        <th data-col="net_rx" class="col-hide">{{ t.col_net }}</th>
+        <th data-col="blk_r" class="col-hide">{{ t.col_disk }}</th>
+        <th data-col="pids" class="col-hide">{{ t.col_pids }}</th>
+        <th class="col-hide">{{ t.col_history }}</th>
+        <th>{{ t.col_actions }}</th>
+      </tr>
+    </thead>
+    <tbody id="main-tbody"></tbody>
+  </table>
+</div>
+
+<!-- Log modal -->
+<div class="modal-overlay" id="log-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="modal-title">{{ t.log_title }}</span>
+      <button class="btn sm" onclick="closeModal()">&#10005; {{ t.btn_close }}</button>
+    </div>
+    <div class="modal-body">
+      <pre class="log-out" id="log-out"><span class="log-spin">{{ t.log_loading }}</span></pre>
+    </div>
+  </div>
+</div>
+
+<footer>HA SysWatch &mdash; Docker Container Monitor</footer>
+
+<script>
+'use strict';
+
+// Translations passed from Flask via data attribute
+const T = {{ t | tojson }};
+const REFRESH_KEY = 'sw_refresh_interval';
+
+let allData     = [];
+let sortCol     = 'cpu_pct';
+let sortDir     = -1;          // -1 = desc, 1 = asc
+let refreshMs   = 10000;
+let countdownN  = 10;
+let refreshTimer   = null;
+let countdownTimer = null;
+let deferredInstall = null;
+
+// ── PWA ───────────────────────────────────────────────────────────────────────
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstall = e;
+  document.getElementById('install-banner').classList.remove('hidden');
+});
+document.getElementById('install-btn')?.addEventListener('click', () => {
+  if (!deferredInstall) return;
+  deferredInstall.prompt();
+  deferredInstall = null;
+  document.getElementById('install-banner').classList.add('hidden');
+});
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// ── Initialise ────────────────────────────────────────────────────────────────
+
+(function init() {
+  // Restore saved interval; fall back to server-side default
+  const serverDefault = {{ refresh_interval }};
+  const stored = parseInt(localStorage.getItem(REFRESH_KEY) || serverDefault);
+  const sel = document.getElementById('interval-sel');
+  // Pick closest option
+  const opts = Array.from(sel.options).map(o => parseInt(o.value));
+  const best = opts.reduce((a, b) => Math.abs(b - stored) < Math.abs(a - stored) ? b : a);
+  sel.value = best;
+  refreshMs = best * 1000;
+
+  // Wire sortable headers
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => sortBy(th.dataset.col));
+  });
+
+  // Set initial sort indicator on CPU column
+  markSorted();
+  doRefresh();
+})();
+
+// ── Refresh ───────────────────────────────────────────────────────────────────
+
+function onIntervalChange() {
+  const v = parseInt(document.getElementById('interval-sel').value);
+  localStorage.setItem(REFRESH_KEY, v);
+  refreshMs  = v * 1000;
+  countdownN = v;
+  scheduleNext();
+}
+
+function scheduleNext() {
+  clearTimeout(refreshTimer);
+  clearInterval(countdownTimer);
+  countdownN = Math.round(refreshMs / 1000);
+  tick();
+  countdownTimer = setInterval(() => { countdownN = Math.max(0, countdownN - 1); tick(); }, 1000);
+  refreshTimer   = setTimeout(doRefresh, refreshMs);
+}
+
+function tick() {
+  document.getElementById('countdown').textContent = countdownN + 's';
+}
+
+async function doRefresh() {
+  try {
+    const res = await fetch('/api/stats');
+    if (res.status === 401) { location.href = '/login'; return; }
+    const data = await res.json();
+
+    const errBar = document.getElementById('error-bar');
+    if (data.error) {
+      errBar.textContent = (T.error_docker || 'Docker error') + ': ' + data.error;
+      errBar.classList.remove('hidden');
+    } else {
+      errBar.classList.add('hidden');
+    }
+
+    allData = data.containers || [];
+    updateCards();
+    renderTable();
+    document.getElementById('loading-row').style.display = 'none';
+    document.getElementById('main-table').style.display  = '';
+  } catch (e) {
+    console.error('Refresh error:', e);
+  }
+  scheduleNext();
+}
+
+// ── Cards ─────────────────────────────────────────────────────────────────────
+
+function updateCards() {
+  const running  = allData.filter(c => c.status === 'running');
+  const totalCpu = running.reduce((s, c) => s + (c.cpu_pct || 0), 0);
+  const totalMem = running.reduce((s, c) => s + (c.mem_usage || 0), 0);
+
+  document.getElementById('c-total').textContent   = allData.length;
+  document.getElementById('c-running').textContent = running.length;
+
+  const cpuEl = document.getElementById('c-cpu');
+  cpuEl.textContent  = totalCpu.toFixed(1) + '%';
+  cpuEl.style.color  = pctColor(totalCpu / Math.max(running.length, 1));
+
+  document.getElementById('c-mem').textContent = fmtBytes(totalMem);
+}
+
+// ── Sorting ───────────────────────────────────────────────────────────────────
+
+function sortBy(col) {
+  if (sortCol === col) {
+    sortDir *= -1;
+  } else {
+    sortCol = col;
+    sortDir = col === 'name' ? 1 : -1;
+  }
+  markSorted();
+  renderTable();
+}
+
+function markSorted() {
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.classList.remove('sorted', 'asc', 'desc');
+    if (th.dataset.col === sortCol) {
+      th.classList.add('sorted', sortDir === 1 ? 'asc' : 'desc');
+    }
+  });
+}
+
+// ── Table rendering ───────────────────────────────────────────────────────────
+
+function renderTable() {
+  const search      = document.getElementById('search-input').value.toLowerCase();
+  const showStopped = document.getElementById('show-stopped').checked;
+
+  let rows = allData.filter(c => {
+    if (!showStopped && c.status !== 'running') return false;
+    if (search && !c.name.toLowerCase().includes(search) &&
+        !(c.image || '').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    const av = a[sortCol] ?? (typeof a[sortCol] === 'string' ? '' : 0);
+    const bv = b[sortCol] ?? (typeof b[sortCol] === 'string' ? '' : 0);
+    if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+    return sortDir * ((bv || 0) - (av || 0));
+  });
+
+  document.getElementById('main-tbody').innerHTML = rows.map(rowHtml).join('');
+}
+
+function rowHtml(c) {
+  const run = c.status === 'running';
+  return `<tr>
+    <td class="name-cell">
+      <strong title="${esc(c.name)}">${esc(c.name)}</strong>
+      <small title="${esc(c.image || '')}">${esc(c.image || '')}</small>
+    </td>
+    <td>${badge(c.status)}</td>
+    <td>${run ? progBar(c.cpu_pct) : '<span style="color:var(--muted)">-</span>'}</td>
+    <td>${run ? progBar(c.mem_pct) : '<span style="color:var(--muted)">-</span>'}</td>
+    <td class="col-hide">${run ? fmtBytes(c.mem_usage) + ' / ' + fmtBytes(c.mem_limit) : '-'}</td>
+    <td class="col-hide">${run ? fmtBytes(c.net_rx) + ' / ' + fmtBytes(c.net_tx) : '-'}</td>
+    <td class="col-hide">${run ? fmtBytes(c.blk_r) + ' / ' + fmtBytes(c.blk_w) : '-'}</td>
+    <td class="col-hide">${run ? (c.pids || 0) : '-'}</td>
+    <td class="col-hide">${run ? sparkline(c.history || []) : ''}</td>
+    <td>
+      <div class="actions">
+        <button class="btn sm" onclick="showLogs(${JSON.stringify(c.name)})"
+                title="${T.btn_logs}">${T.btn_logs}</button>
+        ${run ? `<button class="btn sm danger"
+                   onclick="restartContainer(${JSON.stringify(c.name)})"
+                   title="${T.btn_restart}">&#8635;</button>` : ''}
+      </div>
+    </td>
+  </tr>`;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtBytes(n) {
+  if (!n) return '0 B';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return (i > 0 ? n.toFixed(1) : Math.round(n)) + ' ' + units[i];
+}
+
+function pctColor(pct) {
+  if (pct >= 80) return 'var(--red)';
+  if (pct >= 60) return 'var(--yellow)';
+  return 'var(--text)';
+}
+
+function barClass(pct) {
+  if (pct >= 80) return 'high';
+  if (pct >= 60) return 'mid';
+  return 'low';
+}
+
+function progBar(pct) {
+  const p = Math.min(100, Math.max(0, pct || 0));
+  return `<div class="bar-wrap">
+    <div class="bar-bg"><div class="bar-fg ${barClass(p)}" style="width:${p}%"></div></div>
+    <span class="bar-pct" style="color:${pctColor(p)}">${p.toFixed(1)}%</span>
+  </div>`;
+}
+
+function badge(status) {
+  const cls = status === 'running' ? 'badge-running'
+            : status === 'exited'  ? 'badge-exited'
+            : status === 'paused'  ? 'badge-paused'
+            : 'badge-other';
+  return `<span class="badge ${cls}">${esc(status)}</span>`;
+}
+
+function sparkline(history) {
+  if (!history || history.length < 2) return '';
+  const vals = history.map(h => h.cpu || 0);
+  const maxV  = Math.max(...vals, 0.1);
+  const W = 64, H = 22, pad = 2;
+  const pts = vals.map((v, i) => {
+    const x = ((i / (vals.length - 1)) * (W - pad * 2) + pad).toFixed(1);
+    const y = (H - pad - (v / maxV) * (H - pad * 2 - 1)).toFixed(1);
+    return `${x},${y}`;
+  }).join(' ');
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <polyline points="${pts}" fill="none" stroke="var(--accent)"
+              stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+async function restartContainer(name) {
+  const msg = (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name);
+  if (!confirm(msg)) return;
+  try {
+    const res  = await fetch('/api/container/' + encodeURIComponent(name) + '/restart',
+                             { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      alert((T.restart_success || '{name} restarting...').replace('{name}', name));
+      setTimeout(doRefresh, 2000);
+    } else {
+      alert((T.error_unknown || 'Error') + ': ' + (data.error || '?'));
+    }
+  } catch (e) {
+    alert((T.error_network || 'Network error') + ': ' + e);
+  }
+}
+
+async function showLogs(name) {
+  document.getElementById('modal-title').textContent = (T.log_title || 'Logs') + ': ' + name;
+  document.getElementById('log-out').innerHTML =
+      '<span class="log-spin">' + (T.log_loading || 'Loading...') + '</span>';
+  document.getElementById('log-modal').classList.add('open');
+  try {
+    const res  = await fetch('/api/container/' + encodeURIComponent(name) + '/logs');
+    const data = await res.json();
+    const out  = document.getElementById('log-out');
+    if (data.error) {
+      out.textContent = (T.error_docker || 'Error') + ': ' + data.error;
+    } else {
+      out.textContent = data.logs || (T.log_empty || '(no logs)');
+      out.scrollTop   = out.scrollHeight;
+    }
+  } catch (e) {
+    document.getElementById('log-out').textContent =
+        (T.error_network || 'Network error') + ': ' + e;
+  }
+}
+
+function closeModal() {
+  document.getElementById('log-modal').classList.remove('open');
+}
+
+// Close modal on backdrop click or Escape
+document.getElementById('log-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('log-modal')) closeModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+</body>
+</html>
