@@ -1,5 +1,15 @@
 # Changelog — HA SysWatch
 
+## [0.0.8] - 2026-06-01
+
+### Fixed
+- Daten aktualisierten sich nur alle 10–15s statt im eingestellten Intervall — alle Container-Abfragen laufen jetzt vollständig parallel (ein Thread pro Container statt max. 12), Collector-Interval von 5s auf 1s reduziert → Gesamtzyklus ~2s
+
+## [0.0.7] - 2026-06-01
+
+### Added
+- SYS RAM Karte zeigt `used / total` als Sub-Label (z.B. `11.3 GiB / 31.1 GiB`), kein Hover mehr nötig
+
 ## [0.0.6] - 2026-06-01
 
 ### Added
