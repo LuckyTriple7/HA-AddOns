@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.0] - 2026-06-01
+
+### Fixed
+- Browser-Timer feuerte gelegentlich bevor neue Daten bereit waren — cycle_s Buffer von 0.3s auf 1.0s erhöht
+
 ## [0.1.9] - 2026-06-01
 
 ### Added
