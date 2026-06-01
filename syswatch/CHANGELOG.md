@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [0.0.6] - 2026-06-01
+
+### Added
+- Light/Dark-Mode-Toggle (Mond/Sonne-Icon im Header, gespeichert in localStorage)
+- Light Mode auf Login-Seite ebenfalls verfügbar
+- Aktualisierungsintervall 1s hinzugefügt
+- Logout-Button durch Icon ersetzt (Pfeil nach rechts), Refresh-Button als Icon
+
 ## [0.0.5] - 2026-06-01
 
 ### Fixed
