@@ -121,7 +121,7 @@ _collector_mode:   str   = 'startup'    # 'active' | 'idle' | 'startup'
 _collect_event             = threading.Event()  # wakes collector early on heartbeat
 _sse_queues: list          = []
 _sse_lock                  = threading.Lock()
-VIEWER_TIMEOUT = 30  # seconds without heartbeat → idle mode
+VIEWER_TIMEOUT_DEFAULT = 180  # seconds without heartbeat → idle mode (30s–1800s)
 
 
 def _notify_sse() -> None:
@@ -474,10 +474,14 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
         }
 
 
+def _viewer_timeout() -> int:
+    return max(30, min(1800, int(load_config().get('viewer_timeout', VIEWER_TIMEOUT_DEFAULT))))
+
+
 def _is_viewer_active() -> bool:
     with _sse_lock:
         has_sse = len(_sse_queues) > 0
-    return has_sse or (time.time() - _viewer_last_seen) < VIEWER_TIMEOUT
+    return has_sse or (time.time() - _viewer_last_seen) < _viewer_timeout()
 
 
 def _background_collector() -> None:
@@ -489,7 +493,7 @@ def _background_collector() -> None:
         if new_mode != _collector_mode:
             if new_mode == 'idle':
                 log.info("Kein Browser aktiv seit %ds → IDLE-Modus (2 Worker, 60s Interval)",
-                         VIEWER_TIMEOUT)
+                         _viewer_timeout())
             else:
                 cfg = load_config()
                 log.info("Browser verbunden → AKTIV-Modus (%d Worker, %ds Interval)",
@@ -766,12 +770,13 @@ def api_kill(name: str):
 def _log_startup() -> None:
     cfg = load_config()
     log.info("=" * 55)
-    log.info("  HA SysWatch v0.1.4 startet auf Port 17790")
+    log.info("  HA SysWatch v0.1.5 startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
              max(4, min(32, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
     log.info("  session_hours    : %dh  |  idle timeout   : %ds",
-             int(cfg.get('session_hours', 24)), VIEWER_TIMEOUT)
+             int(cfg.get('session_hours', 24)),
+             max(30, min(1800, int(cfg.get('viewer_timeout', VIEWER_TIMEOUT_DEFAULT)))))
     log.info("  Docker-Socket-Kandidaten: %s", ', '.join(DOCKER_SOCKET_CANDIDATES))
     log.info("=" * 55)
 

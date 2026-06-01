@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.1.5] - 2026-06-01
+
+### Changed
+- `viewer_timeout` als konfigurierbare Add-on-Option (Standard: 180s, Min: 30s, Max: 1800s / 30min)
+
 ## [0.1.4] - 2026-06-01
 
 ### Added
