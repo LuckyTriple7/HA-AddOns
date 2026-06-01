@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [0.0.5] - 2026-06-01
+
+### Fixed
+- Sticky-Tabellenkopf überlagerte erste Zeile — grundlegende Ursache behoben: `overflow-x: auto` auf `.table-wrap` machte es zum Scroll-Container und brach `position: sticky`. Lösung: `body` scrollt nicht mehr, Inhalt scrollt in `#main-scroll` (`flex: 1; overflow-y: auto`), horizontaler Scroll in separatem `.table-scroll`-Wrapper, `<th>` nun `top: 0`
+
+### Added
+- Passwortbestätigung beim Container-Neustart: Modal fragt das Dashboard-Passwort ab, Server validiert vor Ausführung (HTTP 403 bei falschem Passwort)
+
 ## [0.0.4] - 2026-06-01
 
 ### Fixed

@@ -592,6 +592,12 @@ def api_logs(name: str):
 def api_restart(name: str):
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
+    # Require password confirmation for destructive action
+    body     = request.get_json(silent=True) or {}
+    config   = load_config()
+    if body.get('password', '') != config.get('password', ''):
+        log.warning("Neustart abgelehnt (falsches Passwort): container='%s'", name)
+        return jsonify({'error': 'wrong_password'}), 403
     socket_path = _find_docker_socket() if _docker_available else None
     if not socket_path:
         return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503

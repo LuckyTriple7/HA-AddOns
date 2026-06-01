@@ -28,6 +28,7 @@
 
   "btn_logs": "Logs",
   "btn_restart": "Neustart",
+  "btn_cancel": "Abbrechen",
   "btn_close": "Schliessen",
   "btn_refresh": "Aktualisieren",
   "btn_install": "Installieren",

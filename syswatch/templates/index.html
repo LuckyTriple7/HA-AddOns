@@ -23,15 +23,20 @@
       --r:       6px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
       font-size: 14px;
+      display: flex;
+      flex-direction: column;
     }
 
-    /* ── Header ── */
+    /* ── Header ── (no sticky needed — body doesn't scroll) */
     header {
       background: var(--surf);
       border-bottom: 1px solid var(--border);
@@ -39,9 +44,16 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      position: sticky;
-      top: 0;
+      flex-shrink: 0;
       z-index: 200;
+    }
+
+    /* ── Main scroll container ── */
+    #main-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
     }
     .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); flex: 1; white-space: nowrap; }
     .logo span { color: var(--text); font-weight: 400; }
@@ -177,6 +189,8 @@
     /* ── Table ── */
     .table-wrap {
       padding: 0 14px 28px;
+    }
+    .table-scroll {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
@@ -199,7 +213,7 @@
       white-space: nowrap;
       border-bottom: 2px solid var(--border);
       position: sticky;
-      top: var(--hdr-h, 44px);
+      top: 0;
       z-index: 100;
       user-select: none;
     }
@@ -331,6 +345,33 @@
     }
     .log-spin { color: var(--muted); text-align: center; padding: 20px; }
 
+    /* ── Restart modal ── */
+    .restart-modal .modal { max-width: 360px; }
+    .restart-modal .modal-body { padding: 14px 16px; }
+    .restart-modal p { font-size: 0.83rem; color: var(--muted); margin-bottom: 14px; }
+    .restart-modal .pw-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: var(--r);
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+    }
+    .restart-modal .pw-input:focus { outline: none; border-color: var(--accent); }
+    .restart-modal .modal-footer {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .restart-modal .pw-error {
+      color: var(--red);
+      font-size: 0.78rem;
+      margin-top: 8px;
+      min-height: 1em;
+    }
+
     /* ── Footer ── */
     footer {
       text-align: center;
@@ -365,6 +406,8 @@
   <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
   <a href="/logout" class="btn">{{ t.logout }}</a>
 </header>
+
+<div id="main-scroll">
 
 <!-- PWA install banner -->
 <div class="install-banner hidden" id="install-banner">
@@ -418,6 +461,7 @@
 <!-- Table -->
 <div class="table-wrap">
   <div class="loading-row" id="loading-row">{{ t.loading }}</div>
+  <div class="table-scroll">
   <table id="main-table" style="display:none">
     <thead>
       <tr>
@@ -435,6 +479,7 @@
     </thead>
     <tbody id="main-tbody"></tbody>
   </table>
+  </div><!-- .table-scroll -->
 </div>
 
 <!-- Log modal -->
@@ -451,6 +496,29 @@
 </div>
 
 <footer>HA SysWatch &mdash; Docker Container Monitor</footer>
+
+</div><!-- #main-scroll -->
+
+<!-- Restart confirmation modal -->
+<div class="modal-overlay restart-modal" id="restart-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="restart-modal-title">{{ t.btn_restart }}</span>
+      <button class="btn sm" onclick="closeRestartModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="restart-modal-desc"></p>
+      <label style="font-size:0.78rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.password }}</label>
+      <input type="password" class="pw-input" id="restart-pw"
+             placeholder="{{ t.password }}" autocomplete="current-password">
+      <div class="modal-footer">
+        <button class="btn" onclick="closeRestartModal()">{{ t.btn_cancel }}</button>
+        <button class="btn danger" onclick="confirmRestart()">{{ t.btn_restart }}</button>
+      </div>
+      <div class="pw-error" id="restart-error"></div>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -487,32 +555,19 @@ if ('serviceWorker' in navigator) {
 
 // ── Initialise ────────────────────────────────────────────────────────────────
 
-function syncStickyTop() {
-  const h = Math.ceil(document.querySelector('header').getBoundingClientRect().height);
-  document.documentElement.style.setProperty('--hdr-h', h + 'px');
-}
-
 (function init() {
-  // Restore saved interval; fall back to server-side default
   const serverDefault = {{ refresh_interval }};
   const stored = parseInt(localStorage.getItem(REFRESH_KEY) || serverDefault);
   const sel = document.getElementById('interval-sel');
-  // Pick closest option
   const opts = Array.from(sel.options).map(o => parseInt(o.value));
   const best = opts.reduce((a, b) => Math.abs(b - stored) < Math.abs(a - stored) ? b : a);
   sel.value = best;
   refreshMs = best * 1000;
 
-  // Sync sticky header top to actual header height
-  syncStickyTop();
-  window.addEventListener('resize', syncStickyTop);
-
-  // Wire sortable headers
   document.querySelectorAll('th[data-col]').forEach(th => {
     th.addEventListener('click', () => sortBy(th.dataset.col));
   });
 
-  // Set initial sort indicator on CPU column
   markSorted();
   doRefresh();
 })();
@@ -735,21 +790,52 @@ function sparkline(history) {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
-async function restartContainer(name) {
-  const msg = (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name);
-  if (!confirm(msg)) return;
+let _restartTarget = null;
+
+function restartContainer(name) {
+  _restartTarget = name;
+  document.getElementById('restart-modal-title').textContent =
+      (T.btn_restart || 'Restart') + ': ' + name;
+  const desc = (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name);
+  document.getElementById('restart-modal-desc').textContent = desc;
+  document.getElementById('restart-pw').value = '';
+  document.getElementById('restart-error').textContent = '';
+  document.getElementById('restart-modal').classList.add('open');
+  setTimeout(() => document.getElementById('restart-pw').focus(), 50);
+}
+
+function closeRestartModal() {
+  document.getElementById('restart-modal').classList.remove('open');
+  _restartTarget = null;
+}
+
+async function confirmRestart() {
+  const name = _restartTarget;
+  const pw   = document.getElementById('restart-pw').value;
+  const errEl = document.getElementById('restart-error');
+  if (!name) return;
+  errEl.textContent = '';
   try {
-    const res  = await fetch('/api/container/' + encodeURIComponent(name) + '/restart',
-                             { method: 'POST' });
+    const res  = await fetch('/api/container/' + encodeURIComponent(name) + '/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
     const data = await res.json();
+    if (res.status === 403 || data.error === 'wrong_password') {
+      errEl.textContent = T.error_credentials || 'Falsches Passwort.';
+      document.getElementById('restart-pw').select();
+      return;
+    }
     if (data.ok) {
+      closeRestartModal();
       alert((T.restart_success || '{name} restarting...').replace('{name}', name));
       setTimeout(doRefresh, 2000);
     } else {
-      alert((T.error_unknown || 'Error') + ': ' + (data.error || '?'));
+      errEl.textContent = (T.error_unknown || 'Error') + ': ' + (data.error || '?');
     }
   } catch (e) {
-    alert((T.error_network || 'Network error') + ': ' + e);
+    errEl.textContent = (T.error_network || 'Network error') + ': ' + e;
   }
 }
 
@@ -791,7 +877,15 @@ document.addEventListener('click', e => {
 document.getElementById('log-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('log-modal')) closeModal();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeRestartModal(); }
+});
+document.getElementById('restart-pw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmRestart();
+});
+document.getElementById('restart-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('restart-modal')) closeRestartModal();
+});
 </script>
 </body>
 </html>
