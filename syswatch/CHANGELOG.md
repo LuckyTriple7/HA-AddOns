@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.2] - 2026-06-01
+
+### Fixed
+- Alle Action-Buttons (Logs, Restart, Kill) reagierten nicht — veralteter `connectSSE()`-Aufruf in `init()` warf ReferenceError und verhinderte die Registrierung des Click-Handlers
+
 ## [0.2.0] - 2026-06-01
 
 ### Fixed
