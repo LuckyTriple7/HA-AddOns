@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [0.1.3] - 2026-06-01
+
+### Fixed
+- Collector startete beim Add-on-Start sofort im IDLE-Modus (60s Pause zwischen Abfragen), weil `_viewer_last_seen = 0.0` → wird jetzt auf `time.time()` initialisiert, Startup gilt als "aktiv"
+- Heartbeat konnte den Collector nicht aus dem IDLE-Sleep aufwecken → `threading.Event` ersetzt `time.sleep`, Heartbeat weckt sofort auf
+
 ## [0.1.2] - 2026-06-01
 
 ### Added

@@ -114,8 +114,9 @@ RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
 _stats_cache: dict = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
-_viewer_last_seen: float = 0.0
-_collector_mode:   str   = 'startup'   # 'active' | 'idle' | 'startup'
+_viewer_last_seen: float = time.time()  # assume active on startup
+_collector_mode:   str   = 'startup'    # 'active' | 'idle' | 'startup'
+_collect_event             = threading.Event()  # wakes collector early on heartbeat
 VIEWER_TIMEOUT = 30  # seconds without heartbeat → idle mode
 _stats_lock         = threading.Lock()
 _history: dict[str, deque] = {}
@@ -492,7 +493,8 @@ def _background_collector() -> None:
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)
             interval = 10
-        time.sleep(interval)
+        _collect_event.wait(timeout=interval)
+        _collect_event.clear()
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -609,6 +611,7 @@ def api_heartbeat():
     if was_idle:
         ip = get_client_ip(request)
         log.info("Heartbeat empfangen (ip='%s') — Wechsel IDLE→AKTIV", ip)
+        _collect_event.set()  # wake collector immediately
     return '', 204
 
 
@@ -689,7 +692,7 @@ def api_kill(name: str):
 def _log_startup() -> None:
     cfg = load_config()
     log.info("=" * 55)
-    log.info("  HA SysWatch v0.1.2 startet auf Port 17790")
+    log.info("  HA SysWatch v0.1.3 startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
              max(4, min(32, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
