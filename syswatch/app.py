@@ -88,6 +88,19 @@ def _read_sysinfo() -> dict:
     except Exception as e:
         log.debug("/proc/meminfo nicht lesbar: %s", e)
 
+    # CPU frequency via /proc/cpuinfo
+    try:
+        with open('/proc/cpuinfo') as f:
+            raw = f.read()
+        freqs = [float(l.split(':')[1].strip())
+                 for l in raw.splitlines() if l.startswith('cpu MHz')]
+        if freqs:
+            info['cpu_count']    = len(freqs)
+            info['freq_ghz_avg'] = round(sum(freqs) / len(freqs) / 1000, 2)
+            info['freq_ghz_max'] = round(max(freqs) / 1000, 2)
+    except Exception as e:
+        log.debug("/proc/cpuinfo nicht lesbar: %s", e)
+
     return info
 
 

@@ -137,6 +137,11 @@
       text-transform: uppercase;
       letter-spacing: .04em;
     }
+    .card-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
 
     /* ── Controls ── */
     .controls {
@@ -194,7 +199,7 @@
       white-space: nowrap;
       border-bottom: 2px solid var(--border);
       position: sticky;
-      top: 44px;
+      top: var(--hdr-h, 44px);
       z-index: 100;
       user-select: none;
     }
@@ -392,6 +397,7 @@
   <div class="card">
     <div class="card-value" id="s-cpu">-</div>
     <div class="card-label">{{ t.card_sys_cpu }}</div>
+    <div class="card-sub" id="s-cpu-freq"></div>
   </div>
   <div class="card">
     <div class="card-value" id="s-mem">-</div>
@@ -481,6 +487,11 @@ if ('serviceWorker' in navigator) {
 
 // ── Initialise ────────────────────────────────────────────────────────────────
 
+function syncStickyTop() {
+  const h = Math.ceil(document.querySelector('header').getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--hdr-h', h + 'px');
+}
+
 (function init() {
   // Restore saved interval; fall back to server-side default
   const serverDefault = {{ refresh_interval }};
@@ -491,6 +502,10 @@ if ('serviceWorker' in navigator) {
   const best = opts.reduce((a, b) => Math.abs(b - stored) < Math.abs(a - stored) ? b : a);
   sel.value = best;
   refreshMs = best * 1000;
+
+  // Sync sticky header top to actual header height
+  syncStickyTop();
+  window.addEventListener('resize', syncStickyTop);
 
   // Wire sortable headers
   document.querySelectorAll('th[data-col]').forEach(th => {
@@ -567,8 +582,9 @@ function updateCards(sys) {
   document.getElementById('c-mem').textContent = fmtBytes(totalMem);
 
   // System-level stats from /proc
-  const sCpuEl = document.getElementById('s-cpu');
-  const sMemEl = document.getElementById('s-mem');
+  const sCpuEl  = document.getElementById('s-cpu');
+  const sMemEl  = document.getElementById('s-mem');
+  const sFreqEl = document.getElementById('s-cpu-freq');
   if (sys.cpu_pct !== undefined) {
     sCpuEl.textContent = sys.cpu_pct.toFixed(1) + '%';
     sCpuEl.style.color = pctColor(sys.cpu_pct);
@@ -577,6 +593,10 @@ function updateCards(sys) {
     sMemEl.textContent = sys.mem_pct.toFixed(1) + '%';
     sMemEl.style.color = pctColor(sys.mem_pct);
     sMemEl.title       = fmtBytes(sys.mem_used || 0) + ' / ' + fmtBytes(sys.mem_total || 0);
+  }
+  if (sys.freq_ghz_avg && sFreqEl) {
+    const cores = sys.cpu_count ? sys.cpu_count + ' × ' : '';
+    sFreqEl.textContent = cores + sys.freq_ghz_avg.toFixed(2) + ' GHz';
   }
 }
 

@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [0.0.4] - 2026-06-01
+
+### Fixed
+- Sticky-Tabellenkopf überlagerte erste Zeile — Header-Höhe wird jetzt dynamisch per JS berechnet (`--hdr-h` CSS-Variable) statt fest auf 44px gesetzt
+
+### Added
+- CPU-Takt aus `/proc/cpuinfo` (Ø GHz + Anzahl Kerne) als Sub-Label unter der SYS-CPU-Karte
+
 ## [0.0.3] - 2026-06-01
 
 ### Fixed
