@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.7] - 2026-06-01
+
+### Fixed
+- 60s Idle-Sleep wurde beim Resume nicht unterbrochen wenn der Long-Poll bereits vor dem Heartbeat verbunden war — `_is_viewer_active()` gab durch `has_sse=True` fälschlicherweise "aktiv" zurück und verhinderte `_collect_event.set()`. Fix: `was_idle` wird jetzt direkt aus `_collector_mode` gelesen
+
 ## [0.2.6] - 2026-06-01
 
 ### Fixed

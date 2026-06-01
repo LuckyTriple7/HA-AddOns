@@ -679,14 +679,14 @@ def api_heartbeat():
     global _viewer_last_seen, _viewer_paused, _collector_mode
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
-    was_idle = not _is_viewer_active()
+    was_idle = _collector_mode == 'idle'  # _is_viewer_active() wäre unzuverlässig wenn longPoll schon verbunden
     _viewer_last_seen = time.time()
     _viewer_paused    = False
     if was_idle:
-        _collector_mode = 'active'  # sofort aktiv, damit nächster /api/stats-Poll grün zeigt
+        _collector_mode = 'active'
         ip = get_client_ip(request)
         log.info("Heartbeat empfangen (ip='%s') — Wechsel IDLE→AKTIV", ip)
-        _collect_event.set()  # wake collector immediately
+        _collect_event.set()  # 60s-Sleep sofort unterbrechen
     return '', 204
 
 
