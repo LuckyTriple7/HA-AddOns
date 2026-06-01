@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.5] - 2026-06-01
+
+### Fixed
+- Status-Dot blieb nach Resume gelb bis zum nächsten Collector-Zyklus — `_collector_mode` wird jetzt sofort auf `active` gesetzt wenn Viewer-API oder Heartbeat den Wechsel auslöst
+
 ## [0.2.4] - 2026-06-01
 
 ### Fixed

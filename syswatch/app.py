@@ -655,7 +655,7 @@ def api_wait():
 @app.route('/api/viewer', methods=['POST'])
 def api_viewer():
     """Browser signals active/paused state — immediately switches collector mode."""
-    global _viewer_last_seen, _viewer_paused
+    global _viewer_last_seen, _viewer_paused, _collector_mode
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
     body   = request.get_json(silent=True) or {}
@@ -664,6 +664,7 @@ def api_viewer():
     if active:
         _viewer_paused    = False
         _viewer_last_seen = time.time()
+        _collector_mode   = 'active'  # sofort aktiv, damit nächster /api/stats-Poll grün zeigt
         _collect_event.set()
         log.info("UI: Datenerfassung fortgesetzt (ip='%s')", ip)
     else:
@@ -675,13 +676,14 @@ def api_viewer():
 
 @app.route('/api/heartbeat', methods=['POST'])
 def api_heartbeat():
-    global _viewer_last_seen, _viewer_paused
+    global _viewer_last_seen, _viewer_paused, _collector_mode
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
     was_idle = not _is_viewer_active()
     _viewer_last_seen = time.time()
     _viewer_paused    = False
     if was_idle:
+        _collector_mode = 'active'  # sofort aktiv, damit nächster /api/stats-Poll grün zeigt
         ip = get_client_ip(request)
         log.info("Heartbeat empfangen (ip='%s') — Wechsel IDLE→AKTIV", ip)
         _collect_event.set()  # wake collector immediately
