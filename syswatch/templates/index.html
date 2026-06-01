@@ -442,6 +442,9 @@
   </style>
 </head>
 <body>
+<!-- Chrome-Autofill-Trap: absorbiert Credential-Autofill bevor er das Suchfeld trifft -->
+<input type="text"     style="display:none" tabindex="-1" aria-hidden="true" autocomplete="username">
+<input type="password" style="display:none" tabindex="-1" aria-hidden="true" autocomplete="current-password">
 
 <!-- Header -->
 <header>
@@ -513,7 +516,7 @@
 <div class="controls">
   <input type="search" class="search" id="search-input"
          placeholder="{{ t.search_placeholder }}" oninput="renderTable()"
-         autocomplete="off">
+         autocomplete="new-password">
   <label class="toggle">
     <input type="checkbox" id="show-stopped" onchange="renderTable()">
     {{ t.toggle_stopped }}

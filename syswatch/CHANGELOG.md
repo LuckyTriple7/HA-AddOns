@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.6] - 2026-06-01
+
+### Fixed
+- Chrome-Credential-Autofill im Suchfeld: versteckte Dummy-Inputs als Autofill-Trap + `autocomplete="new-password"` am Suchfeld (Chrome ignoriert `off` seit v34)
+
 ## [0.2.5] - 2026-06-01
 
 ### Fixed
