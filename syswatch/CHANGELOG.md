@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.0.9] - 2026-06-01
+
+### Fixed
+- Paralleles Abfragen erhöhte CPU-Last spürbar — MAX_WORKERS auf 16 begrenzt, COLLECT_INTERVAL auf 3s erhöht; Zyklus ~6s bei deutlich reduzierter Last
+
 ## [0.0.8] - 2026-06-01
 
 ### Fixed
