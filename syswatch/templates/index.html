@@ -490,6 +490,7 @@
   <div class="card">
     <div class="card-value" id="s-mem">-</div>
     <div class="card-label">{{ t.card_sys_mem }}</div>
+    <div class="card-sub" id="s-mem-detail"></div>
   </div>
 </div>
 
@@ -706,7 +707,8 @@ function updateCards(sys) {
   if (sys.mem_pct !== undefined) {
     sMemEl.textContent = sys.mem_pct.toFixed(1) + '%';
     sMemEl.style.color = pctColor(sys.mem_pct);
-    sMemEl.title       = fmtBytes(sys.mem_used || 0) + ' / ' + fmtBytes(sys.mem_total || 0);
+    const detailEl = document.getElementById('s-mem-detail');
+    if (detailEl) detailEl.textContent = fmtBytes(sys.mem_used || 0) + ' / ' + fmtBytes(sys.mem_total || 0);
   }
   if (sys.freq_ghz_avg && sFreqEl) {
     const cores = sys.cpu_count ? sys.cpu_count + ' × ' : '';
