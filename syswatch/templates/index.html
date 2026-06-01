@@ -665,6 +665,10 @@ async function togglePerf() {
     startHeartbeat();
     longPoll();
     doRefresh();
+  } else {
+    clearTimeout(refreshTimer);
+    clearInterval(countdownTimer);
+    document.getElementById('countdown').textContent = '';
   }
 }
 
@@ -782,6 +786,7 @@ async function fetchAndUpdate() {
 }
 
 async function doRefresh() {
+  if (perfPaused) return;
   await fetchAndUpdate();
   scheduleNext();
 }
