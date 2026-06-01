@@ -7,7 +7,7 @@ import secrets
 import time
 import threading
 from collections import defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory,
@@ -427,8 +427,13 @@ def _parse_container(container) -> dict:
         return base
 
 
-def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
+def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT,
+                  abort: threading.Event | None = None) -> None:
     global _stats_cache
+
+    # Skip immediately if already signalled (e.g. user resumed before collection starts)
+    if abort and abort.is_set():
+        return
 
     # ── Attempt 1: Docker socket ───────────────────────────────────────────────
     if _docker_available:
@@ -439,8 +444,27 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
                 client     = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
                 containers = client.containers.list(all=True)
                 workers    = min(max(len(containers), 1), max_workers)
-                with ThreadPoolExecutor(max_workers=workers) as ex:
-                    results = list(ex.map(_parse_container, containers))
+
+                ex      = ThreadPoolExecutor(max_workers=workers)
+                futures = [ex.submit(_parse_container, c) for c in containers]
+                results = []
+                aborted = False
+                try:
+                    for future in as_completed(futures):
+                        if abort and abort.is_set():
+                            log.info("Idle-Abfrage abgebrochen — Browser aktiv")
+                            aborted = True
+                            break
+                        try:
+                            results.append(future.result())
+                        except Exception:
+                            pass
+                finally:
+                    ex.shutdown(wait=False)  # laufende Threads laufen aus, keine neuen
+
+                if aborted:
+                    return  # Cache nicht aktualisieren; nächster Aktiv-Zyklus holt frisch
+
                 elapsed      = time.time() - t0
                 _last_elapsed = elapsed
                 running      = sum(1 for r in results if r['status'] == 'running')
@@ -515,7 +539,8 @@ def _background_collector() -> None:
                 )
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
-                _collect_once(max_workers=2)
+                # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert
+                _collect_once(max_workers=2, abort=_collect_event)
                 interval = 60
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)

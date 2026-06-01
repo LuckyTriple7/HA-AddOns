@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.8] - 2026-06-01
+
+### Fixed
+- Idle-Abfrage (2 Worker, bis zu 47s für 48 Container) wurde beim Resume nicht unterbrochen — `_collect_once()` erhält jetzt ein Abort-Event im Idle-Modus; nach dem nächsten fertiggestellten Container wird die Sammlung sofort abgebrochen und der Aktiv-Zyklus startet unverzüglich
+
 ## [0.2.7] - 2026-06-01
 
 ### Fixed
