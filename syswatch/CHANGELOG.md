@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.1.7] - 2026-06-01
+
+### Fixed
+- Auto-Refresh funktionierte nicht (SSE wurde durch Flask-Buffering verzögert) — ersetzt durch Long-Polling: Browser hält /api/wait offen, Server antwortet sofort nach jeder abgeschlossenen Docker-Abfrage; kein Proxy/Buffering-Problem möglich
+
 ## [0.1.6] - 2026-06-01
 
 ### Changed

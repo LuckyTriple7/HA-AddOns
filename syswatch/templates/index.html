@@ -670,10 +670,8 @@ async function togglePerf() {
   }).catch(() => {});
   if (!perfPaused) {
     startHeartbeat();
-    connectSSE();
+    longPoll();
     doRefresh();
-  } else {
-    if (_sse) { _sse.close(); _sse = null; }
   }
 }
 
@@ -682,6 +680,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !perfPaused) {
     startHeartbeat();
     doRefresh();
+    longPoll();
   }
 });
 
@@ -744,32 +743,34 @@ function tick() {
   document.getElementById('countdown').textContent = countdownN + 's';
 }
 
-// ── SSE (push from backend when collection is done) ───────────────────────────
+// ── Long-polling (server holds request until new data is ready) ───────────────
 
-let _sse = null;
-let _sseFallbackTimer = null;
+let _pollActive = false;
 
-function connectSSE() {
-  if (_sse) { _sse.close(); _sse = null; }
-  _sse = new EventSource('/api/stream');
-
-  _sse.onmessage = e => {
-    if (perfPaused || document.hidden) return;
-    if (e.data === 'update') {
-      clearTimeout(_sseFallbackTimer);
-      fetchAndUpdate();
-      // reset fallback countdown
+async function longPoll() {
+  if (_pollActive || perfPaused || document.hidden) return;
+  _pollActive = true;
+  try {
+    const ctrl = new AbortController();
+    const tid   = setTimeout(() => ctrl.abort(), 35000);
+    const res   = await fetch('/api/wait', { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (res.status === 401) { location.href = '/login'; return; }
+    // new data arrived — fetch and display immediately
+    if (!perfPaused && !document.hidden) {
       clearTimeout(refreshTimer);
       clearInterval(countdownTimer);
+      await fetchAndUpdate();
       scheduleNext();
     }
-  };
-
-  _sse.onerror = () => {
-    _sse.close();
-    _sse = null;
-    setTimeout(connectSSE, 5000);
-  };
+  } catch (e) {
+    // aborted or network error — short pause before retry
+    await new Promise(r => setTimeout(r, 1000));
+  } finally {
+    _pollActive = false;
+  }
+  // immediately start next poll cycle
+  if (!perfPaused) longPoll();
 }
 
 async function fetchAndUpdate() {

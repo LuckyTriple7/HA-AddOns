@@ -622,41 +622,28 @@ def set_lang(lang: str):
 
 # ── API ────────────────────────────────────────────────────────────────────────
 
-@app.route('/api/stream')
-def api_stream():
+@app.route('/api/wait')
+def api_wait():
+    """Long-polling: blocks until new stats are available, then returns 204.
+    More reliable than SSE through HA nginx ingress (no streaming/buffering issues)."""
     if not is_valid_session(request.cookies.get('sw_session')):
         return '', 401
 
-    client_q = queue.Queue(maxsize=5)
+    client_q = queue.Queue(maxsize=1)
     with _sse_lock:
         _sse_queues.append(client_q)
-    log.debug("SSE-Client verbunden (gesamt: %d)", len(_sse_queues))
-
-    def generate():
+    try:
         try:
-            yield 'data: connected\n\n'
-            while True:
-                try:
-                    client_q.get(timeout=25)
-                    yield 'data: update\n\n'
-                except queue.Empty:
-                    yield ': ping\n\n'  # keepalive — prevents proxy timeouts
-        finally:
-            with _sse_lock:
-                try:
-                    _sse_queues.remove(client_q)
-                except ValueError:
-                    pass
-            log.debug("SSE-Client getrennt (gesamt: %d)", len(_sse_queues))
-
-    return Response(
-        stream_with_context(generate()),
-        content_type='text/event-stream',
-        headers={
-            'Cache-Control':    'no-cache',
-            'X-Accel-Buffering': 'no',   # disable nginx/proxy buffering
-        },
-    )
+            client_q.get(timeout=30)
+        except queue.Empty:
+            pass  # timeout — browser will retry immediately
+        return '', 204
+    finally:
+        with _sse_lock:
+            try:
+                _sse_queues.remove(client_q)
+            except ValueError:
+                pass
 
 
 @app.route('/api/viewer', methods=['POST'])
@@ -770,7 +757,7 @@ def api_kill(name: str):
 def _log_startup() -> None:
     cfg = load_config()
     log.info("=" * 55)
-    log.info("  HA SysWatch v0.1.5 startet auf Port 17790")
+    log.info("  HA SysWatch v0.1.7 startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
              max(4, min(64, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
