@@ -441,6 +441,10 @@
   <button class="icon-btn" onclick="doRefresh()" title="{{ t.btn_refresh }}">
     <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
   </button>
+  <button class="icon-btn" id="perf-btn" onclick="togglePerf()" title="{{ t.btn_perf_pause }}">
+    <svg id="perf-icon-active" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+    <svg id="perf-icon-paused" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+  </button>
   <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
   <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
   <button class="icon-btn" onclick="toggleTheme()" title="Light/Dark">
@@ -599,6 +603,51 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
+// ── Heartbeat & Performance Mode ─────────────────────────────────────────────
+
+let perfPaused = localStorage.getItem('sw-perf-paused') === '1';
+let heartbeatTimer = null;
+
+function updatePerfBtn() {
+  const btn     = document.getElementById('perf-btn');
+  const iconOn  = document.getElementById('perf-icon-active');
+  const iconOff = document.getElementById('perf-icon-paused');
+  const paused  = perfPaused || document.hidden;
+  if (btn)     btn.style.opacity = paused ? '0.45' : '1';
+  if (iconOn)  iconOn.style.display  = paused ? 'none' : '';
+  if (iconOff) iconOff.style.display = paused ? ''     : 'none';
+  if (btn)     btn.title = paused ? T.btn_perf_resume || 'Resume' : T.btn_perf_pause || 'Pause';
+}
+
+function sendHeartbeat() {
+  if (perfPaused || document.hidden) return;
+  fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+}
+
+function startHeartbeat() {
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(sendHeartbeat, 10000);
+  sendHeartbeat();
+}
+
+function togglePerf() {
+  perfPaused = !perfPaused;
+  localStorage.setItem('sw-perf-paused', perfPaused ? '1' : '0');
+  updatePerfBtn();
+  if (!perfPaused) {
+    startHeartbeat();
+    doRefresh();
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  updatePerfBtn();
+  if (!document.hidden && !perfPaused) {
+    startHeartbeat();
+    doRefresh();
+  }
+});
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
 (function applyTheme() {
@@ -629,6 +678,8 @@ function toggleTheme() {
   });
 
   markSorted();
+  updatePerfBtn();
+  startHeartbeat();
   doRefresh();
 })();
 

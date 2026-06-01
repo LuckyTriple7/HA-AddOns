@@ -114,6 +114,8 @@ RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
 _stats_cache: dict = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
+_viewer_last_seen: float = 0.0
+VIEWER_TIMEOUT = 30  # seconds without heartbeat → idle mode
 _stats_lock         = threading.Lock()
 _history: dict[str, deque] = {}
 
@@ -406,7 +408,7 @@ def _parse_container(container) -> dict:
         return base
 
 
-def _collect_once() -> None:
+def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT) -> None:
     global _stats_cache
 
     # ── Attempt 1: Docker socket ───────────────────────────────────────────────
@@ -416,8 +418,7 @@ def _collect_once() -> None:
             try:
                 client     = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
                 containers = client.containers.list(all=True)
-                cfg_workers = max(4, min(32, int(load_config().get('collect_workers', MAX_WORKERS_DEFAULT))))
-                workers     = min(max(len(containers), 1), cfg_workers)
+                workers    = min(max(len(containers), 1), max_workers)
                 with ThreadPoolExecutor(max_workers=workers) as ex:
                     results = list(ex.map(_parse_container, containers))
                 _update_history_and_cache(results)
@@ -451,13 +452,26 @@ def _collect_once() -> None:
         }
 
 
+def _is_viewer_active() -> bool:
+    return (time.time() - _viewer_last_seen) < VIEWER_TIMEOUT
+
+
 def _background_collector() -> None:
     while True:
+        active = _is_viewer_active()
         try:
-            _collect_once()
+            if active:
+                cfg  = load_config()
+                _collect_once(
+                    max_workers=max(4, min(32, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT))))
+                )
+                interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
+            else:
+                _collect_once(max_workers=2)  # idle: minimal workers
+                interval = 60                 # idle: collect every 60s
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)
-        interval = max(2, int(load_config().get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
+            interval = 10
         time.sleep(interval)
 
 
@@ -563,6 +577,15 @@ def set_lang(lang: str):
 
 
 # ── API ────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/heartbeat', methods=['POST'])
+def api_heartbeat():
+    global _viewer_last_seen
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    _viewer_last_seen = time.time()
+    return '', 204
+
 
 @app.route('/api/stats')
 def api_stats():

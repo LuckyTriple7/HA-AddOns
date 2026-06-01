@@ -32,6 +32,8 @@
   "btn_cancel": "Abbrechen",
   "btn_close": "Schliessen",
   "btn_refresh": "Aktualisieren",
+  "btn_perf_pause": "Datenerfassung pausieren",
+  "btn_perf_resume": "Datenerfassung fortsetzen",
   "btn_install": "Installieren",
 
   "search_placeholder": "Container suchen...",

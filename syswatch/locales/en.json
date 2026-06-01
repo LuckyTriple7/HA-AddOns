@@ -32,6 +32,8 @@
   "btn_cancel": "Cancel",
   "btn_close": "Close",
   "btn_refresh": "Refresh",
+  "btn_perf_pause": "Pause data collection",
+  "btn_perf_resume": "Resume data collection",
   "btn_install": "Install",
 
   "search_placeholder": "Search containers...",

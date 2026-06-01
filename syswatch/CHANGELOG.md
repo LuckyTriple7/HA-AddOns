@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [0.1.1] - 2026-06-01
+
+### Added
+- Performance-Mode: Browser sendet alle 10s einen Heartbeat; kein Heartbeat seit 30s → Backend wechselt automatisch in Idle-Modus (2 Worker, 60s Interval)
+- Pause-Button (⚡/⏸) im Header zum manuellen Pausieren der Datenerfassung
+- Visibility API: Heartbeat stoppt automatisch wenn Tab nicht sichtbar, nimmt bei Rückkehr sofort wieder auf
+- Zustand wird in localStorage gespeichert
+
 ## [0.1.0] - 2026-06-01
 
 ### Added
