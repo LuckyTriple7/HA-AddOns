@@ -95,7 +95,7 @@ jobs:
           DATE=$(date +%Y-%m-%d)
           BRANCH="update/webtop-${DATE}"
 
-          EXISTING_PR=$(gh pr list --json headRefName,number \
+          EXISTING_PR=$(gh pr list --state all --json headRefName,number \
             --jq '[.[] | select(.headRefName | startswith("update/webtop-"))][0].number' 2>/dev/null || echo "")
           if [ -n "$EXISTING_PR" ]; then
             echo "Offener Webtop-PR #${EXISTING_PR} existiert bereits — überspringe."
