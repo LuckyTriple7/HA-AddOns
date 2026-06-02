@@ -592,10 +592,10 @@
         <table style="width:100%;font-size:0.8rem;border-collapse:collapse">
           <thead>
             <tr>
-              <th style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;color:var(--muted);font-weight:500">{{ t.ports_col_container }}</th>
-              <th style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;color:var(--muted);font-weight:500">{{ t.ports_col_host }}</th>
-              <th style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;color:var(--muted);font-weight:500">{{ t.ports_col_cport }}</th>
-              <th style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;color:var(--muted);font-weight:500">{{ t.ports_col_proto }}</th>
+              <th data-pcol="name"      style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-weight:500;cursor:pointer;user-select:none">{{ t.ports_col_container }}</th>
+              <th data-pcol="host"      style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-weight:500;cursor:pointer;user-select:none">{{ t.ports_col_host }}</th>
+              <th data-pcol="container" style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-weight:500;cursor:pointer;user-select:none">{{ t.ports_col_cport }}</th>
+              <th data-pcol="proto"     style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;font-weight:500;cursor:pointer;user-select:none">{{ t.ports_col_proto }}</th>
             </tr>
           </thead>
           <tbody id="ports-tbody"></tbody>
@@ -613,12 +613,15 @@ const T = {{ t | tojson }};
 const CFG_SHOW_STOPPED = {{ 'true' if show_stopped else 'false' }};
 
 let allData      = [];
-let sortCol      = 'cpu_pct';
-let sortDir      = -1;   // -1 = desc, 1 = asc
+let sortCol      = localStorage.getItem('sw-sort-col') || 'cpu_pct';
+let sortDir      = parseInt(localStorage.getItem('sw-sort-dir') || '-1');
 let refreshMs    = 5000; // auto-calibrated from backend cycle_s
 let countdownN   = 5;
 let refreshTimer   = null;
 let countdownTimer = null;
+
+let _portsSortCol = 'name';
+let _portsSortDir = 1;
 
 // ── PWA ───────────────────────────────────────────────────────────────────────
 
@@ -713,6 +716,9 @@ function toggleTheme() {
 (function init() {
   document.querySelectorAll('th[data-col]').forEach(th => {
     th.addEventListener('click', () => sortBy(th.dataset.col));
+  });
+  document.querySelectorAll('th[data-pcol]').forEach(th => {
+    th.addEventListener('click', () => sortPorts(th.dataset.pcol));
   });
 
   // show-stopped: localStorage overrides config default; persists user choice across reloads
@@ -857,6 +863,8 @@ function sortBy(col) {
     sortCol = col;
     sortDir = col === 'name' ? 1 : -1;
   }
+  localStorage.setItem('sw-sort-col', sortCol);
+  localStorage.setItem('sw-sort-dir', String(sortDir));
   markSorted();
   renderTable();
 }
@@ -1102,14 +1110,20 @@ function showPorts() {
       _portsAll.push({ name: c.name, host: p.host, container: p.container, proto: p.proto });
     }
   }
-  _portsAll.sort((a, b) => a.name.localeCompare(b.name) || (+a.host) - (+b.host));
   document.getElementById('ports-search').value = '';
-  _renderPortsTable(_portsAll);
+  _portsSortCol = 'name';
+  _portsSortDir = 1;
+  _markPortsSorted();
+  _filterAndRenderPorts();
   document.getElementById('ports-modal').classList.add('open');
   setTimeout(() => document.getElementById('ports-search').focus(), 50);
 }
 
 function filterPorts() {
+  _filterAndRenderPorts();
+}
+
+function _filterAndRenderPorts() {
   const q = document.getElementById('ports-search').value.toLowerCase();
   const filtered = q
     ? _portsAll.filter(r =>
@@ -1118,11 +1132,40 @@ function filterPorts() {
   _renderPortsTable(filtered);
 }
 
+function sortPorts(col) {
+  if (_portsSortCol === col) {
+    _portsSortDir *= -1;
+  } else {
+    _portsSortCol = col;
+    _portsSortDir = 1;
+  }
+  _markPortsSorted();
+  _filterAndRenderPorts();
+}
+
+function _markPortsSorted() {
+  document.querySelectorAll('#ports-modal th[data-pcol]').forEach(th => {
+    th.classList.remove('sorted', 'asc', 'desc');
+    th.style.color = '';
+    if (th.dataset.pcol === _portsSortCol) {
+      th.classList.add('sorted', _portsSortDir === 1 ? 'asc' : 'desc');
+    }
+  });
+}
+
 function _renderPortsTable(rows) {
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[_portsSortCol] ?? '';
+    const bv = b[_portsSortCol] ?? '';
+    if (_portsSortCol === 'host' || _portsSortCol === 'container') {
+      return _portsSortDir * ((+av || 0) - (+bv || 0));
+    }
+    return _portsSortDir * String(av).localeCompare(String(bv));
+  });
   const empty = document.getElementById('ports-empty');
   const tbody = document.getElementById('ports-tbody');
-  empty.style.display = rows.length === 0 ? '' : 'none';
-  tbody.innerHTML = rows.map(r => `<tr>
+  empty.style.display = sorted.length === 0 ? '' : 'none';
+  tbody.innerHTML = sorted.map(r => `<tr>
     <td style="padding:6px 12px;border-bottom:1px solid var(--border)">${esc(r.name)}</td>
     <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;color:var(--accent)">${esc(r.host)}</td>
     <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums">${esc(r.container)}</td>

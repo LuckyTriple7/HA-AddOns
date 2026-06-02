@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [0.3.9] - 2026-06-02
+
+### Added
+- Haupttabelle merkt sich Sortierung (Spalte + Richtung) in localStorage — bleibt nach Reload erhalten
+- Port-Übersicht: alle Spalten sortierbar (Name, Host-Port, Container-Port, Protokoll) mit Pfeil-Indikator
+
 ## [0.3.8] - 2026-06-02
 
 ### Fixed
