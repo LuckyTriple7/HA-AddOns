@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.3.4] - 2026-06-02
+
+### Fixed
+- `hassio_role: manager` ergänzt — `hassio_api: true` allein reicht nicht für den `/addons`-Endpoint, HA lieferte 403
+
 ## [0.3.3] - 2026-06-02
 
 ### Fixed
