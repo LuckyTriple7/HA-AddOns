@@ -326,6 +326,43 @@ def _collect_via_supervisor() -> list[dict]:
     return results
 
 
+def _supervisor_addon_slug(name: str) -> str | None:
+    """Sucht den Slug eines HA Add-ons anhand seines Namens oder Slugs."""
+    import urllib.request
+    token = _supervisor_token()
+    if not token:
+        return None
+    headers = {'Authorization': f'Bearer {token}'}
+    try:
+        req = urllib.request.Request(f'{SUPERVISOR_API}/addons', headers=headers)
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+        for addon in data.get('data', {}).get('addons', []):
+            if addon.get('name', '').lower() == name.lower() or addon.get('slug', '') == name:
+                return addon.get('slug', '')
+    except Exception:
+        pass
+    return None
+
+
+def _supervisor_action(slug: str, action: str) -> bool:
+    """Führt start/stop/restart für ein HA Add-on über die Supervisor API aus."""
+    import urllib.request
+    token = _supervisor_token()
+    if not token:
+        return False
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+    try:
+        req = urllib.request.Request(
+            f'{SUPERVISOR_API}/addons/{slug}/{action}',
+            data=b'{}', headers=headers, method='POST')
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.status == 200
+    except Exception as e:
+        log.error("Supervisor %s für '%s' fehlgeschlagen: %s", action, slug, e)
+        return False
+
+
 def _get_supervisor_stopped_addons() -> list[dict]:
     """HA entfernt gestoppte Add-on-Container aus Docker — Supervisor API liefert sie trotzdem."""
     import urllib.request
@@ -867,17 +904,25 @@ def api_start(name: str):
         log.warning("Start abgelehnt (falsches Passwort): container='%s'", name)
         return jsonify({'error': 'wrong_password'}), 403
     socket_path = _find_docker_socket() if _docker_available else None
-    if not socket_path:
-        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
-    try:
-        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
-        container = client.containers.get(name)
-        container.start()
-        log.info("Container gestartet: %s", name)
+    if socket_path:
+        try:
+            client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+            container = client.containers.get(name)
+            container.start()
+            log.info("Container gestartet: %s", name)
+            return jsonify({'ok': True})
+        except docker_lib.errors.NotFound:
+            pass  # kein Docker-Container → Supervisor-Fallback
+        except Exception as e:
+            log.error("Start-Fehler (Docker) für '%s': %s", name, e)
+            return jsonify({'error': str(e)}), 500
+
+    # Supervisor-Fallback für gestoppte HA Add-ons (Docker-Container wurde entfernt)
+    slug = _supervisor_addon_slug(name)
+    if slug and _supervisor_action(slug, 'start'):
+        log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
         return jsonify({'ok': True})
-    except Exception as e:
-        log.error("Start-Fehler für '%s': %s", name, e)
-        return jsonify({'error': str(e)}), 500
+    return jsonify({'error': f'Container nicht gefunden: {name}'}), 404
 
 
 @app.route('/api/container/<name>/stop', methods=['POST'])

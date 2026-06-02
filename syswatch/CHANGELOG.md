@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.3.8] - 2026-06-02
+
+### Fixed
+- Start-Button für gestoppte HA Add-ons schlug mit 404 fehl — Docker-Container wurde von HA entfernt. Fix: Docker-Versuch → bei NotFound Fallback auf Supervisor API (`/addons/{slug}/start`)
+
 ## [0.3.7] - 2026-06-02
 
 ### Fixed
