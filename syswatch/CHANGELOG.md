@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [0.3.3] - 2026-06-02
+
+### Fixed
+- `hassio_api: true` in config.yaml ergänzt — ohne diese Berechtigung blockt HA den Supervisor-API-Aufruf für gestoppte Add-ons
+- Logging in `_get_supervisor_stopped_addons()` verbessert: Token-Fehler und API-Fehler werden jetzt sichtbar geloggt
+
 ## [0.3.2] - 2026-06-02
 
 ### Removed

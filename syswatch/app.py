@@ -331,6 +331,7 @@ def _get_supervisor_stopped_addons() -> list[dict]:
     import urllib.request
     token = _supervisor_token()
     if not token:
+        log.debug("Supervisor-Token fehlt — gestoppte Add-ons nicht abfragbar")
         return []
     headers = {'Authorization': f'Bearer {token}'}
     try:
@@ -338,22 +339,27 @@ def _get_supervisor_stopped_addons() -> list[dict]:
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
         addons = data.get('data', {}).get('addons', [])
-    except Exception:
+    except Exception as e:
+        log.warning("Supervisor API /addons Fehler: %s", e)
         return []
     stopped = []
     for addon in addons:
-        if addon.get('state', 'unknown') == 'started':
+        state = addon.get('state', 'unknown')
+        if state == 'started':
             continue  # läuft — ist bereits im Docker-Ergebnis
         stopped.append({
             'id':        addon.get('slug', ''),
             'name':      addon.get('name', addon.get('slug', '')),
             'image':     'HA Add-on',
-            'status':    addon.get('state', 'stopped'),
+            'status':    state,
             'cpu_pct':   0.0, 'mem_usage': 0, 'mem_limit': 0, 'mem_pct': 0.0,
             'net_rx':    0,   'net_tx':    0,
             'blk_r':     0,   'blk_w':     0,
             'pids':      0,
         })
+    if stopped:
+        log.info("Supervisor: %d gestoppte Add-on(s): %s",
+                 len(stopped), ', '.join(a['name'] for a in stopped))
     return stopped
 
 
