@@ -90,7 +90,7 @@ jobs:
 
           BRANCH="update/firefox-esr-${FF_VER}"
 
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state all --json number --jq '.[0].number' 2>/dev/null || echo "")
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #${EXISTING_PR} existiert bereits — überspringe."
             exit 0
