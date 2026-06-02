@@ -92,6 +92,7 @@
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn.danger:hover { border-color: var(--red); color: var(--red); }
     .btn.sm { padding: 3px 7px; font-size: 0.72rem; }
+    .btn.act-icon { padding: 4px 6px; }
 
     /* ── Collector mode indicator ── */
     #mode-dot {
@@ -920,14 +921,18 @@ function rowHtml(c) {
       <div class="actions">
         <button class="btn sm" data-action="logs" data-name="${esc(c.name)}"
                 title="${esc(T.btn_logs)}">${esc(T.btn_logs)}</button>
-        ${!run ? `<button class="btn sm" data-action="start" data-name="${esc(c.name)}"
-                   title="${esc(T.btn_start || 'Start')}" style="color:var(--green);border-color:var(--green)">&#9654;</button>` : ''}
-        ${run ? `<button class="btn sm danger" data-action="stop" data-name="${esc(c.name)}"
-                   title="${esc(T.btn_stop || 'Stop')}">&#9646;</button>` : ''}
-        ${run ? `<button class="btn sm danger" data-action="restart" data-name="${esc(c.name)}"
-                   title="${esc(T.btn_restart)}">&#8635;</button>` : ''}
-        ${run ? `<button class="btn sm danger" data-action="kill" data-name="${esc(c.name)}"
-                   title="${esc(T.btn_kill)}"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26C17.81 13.47 19 11.38 19 9c0-3.87-3.13-7-7-7zm-1.5 11c-.83 0-1.5-.67-1.5-1.5S9.67 10 10.5 10s1.5.67 1.5 1.5S11.33 13 10.5 13zm3 0c-.83 0-1.5-.67-1.5-1.5S12.67 10 13.5 10s1.5.67 1.5 1.5S14.33 13 13.5 13zM10 17h4v1h-4v-1z"/></svg></button>` : ''}
+        ${!run ? `<button class="btn sm act-icon" data-action="start" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_start || 'Start')}" style="color:var(--green);border-color:var(--green)">
+                   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>` : ''}
+        ${run ? `<button class="btn sm danger act-icon" data-action="stop" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_stop || 'Stop')}">
+                   <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>` : ''}
+        ${run ? `<button class="btn sm danger act-icon" data-action="restart" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_restart)}">
+                   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>` : ''}
+        ${run ? `<button class="btn sm danger act-icon" data-action="kill" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_kill)}">
+                   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg></button>` : ''}
       </div>
     </td>
   </tr>`;

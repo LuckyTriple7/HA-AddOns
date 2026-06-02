@@ -1,5 +1,14 @@
 # Changelog — HA SysWatch
 
+## [0.4.0] - 2026-06-02
+
+### Fixed
+- Stop-Button war verzerrt (&#9646; Rechteck-Zeichen + asymmetrisches Padding) → SVG-Quadrat-Icon
+- Totenkopf-Icon war bei 13px kaum erkennbar → ersetzt durch Power-Off-SVG (klarer Kontrast)
+- Restart-Button: ↺ Unicode → SVG für konsistente Darstellung
+- Start-Button: ▶ Unicode → SVG
+- Neue CSS-Klasse `.act-icon` für gleichmäßiges Padding bei Icon-only-Buttons
+
 ## [0.3.9] - 2026-06-02
 
 ### Added
