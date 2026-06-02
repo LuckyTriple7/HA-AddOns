@@ -581,10 +581,15 @@
       <span class="modal-title">{{ t.ports_title }}</span>
       <button class="btn sm" onclick="closePortsModal()">&#10005; {{ t.btn_close }}</button>
     </div>
+    <div style="padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <input type="search" id="ports-search" class="search"
+             style="width:100%;max-width:none" placeholder="{{ t.search_placeholder }}"
+             oninput="filterPorts()">
+    </div>
     <div class="modal-body" style="padding:0">
-      <div id="ports-empty" class="hidden" style="color:var(--muted);text-align:center;padding:24px">{{ t.ports_empty }}</div>
+      <div id="ports-empty" style="display:none;color:var(--muted);text-align:center;padding:24px">{{ t.ports_empty }}</div>
       <div class="table-scroll">
-        <table id="ports-table" style="width:100%;font-size:0.8rem">
+        <table style="width:100%;font-size:0.8rem;border-collapse:collapse">
           <thead>
             <tr>
               <th style="position:sticky;top:0;background:var(--surf);padding:7px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;color:var(--muted);font-weight:500">{{ t.ports_col_container }}</th>
@@ -1088,30 +1093,41 @@ function closeModal() {
   document.getElementById('log-modal').classList.remove('open');
 }
 
+let _portsAll = [];
+
 function showPorts() {
-  const rows = [];
+  _portsAll = [];
   for (const c of allData) {
     for (const p of (c.ports_mapped || [])) {
-      rows.push({ name: c.name, host: p.host, container: p.container, proto: p.proto });
+      _portsAll.push({ name: c.name, host: p.host, container: p.container, proto: p.proto });
     }
   }
-  rows.sort((a, b) => a.name.localeCompare(b.name) || (+a.host) - (+b.host));
+  _portsAll.sort((a, b) => a.name.localeCompare(b.name) || (+a.host) - (+b.host));
+  document.getElementById('ports-search').value = '';
+  _renderPortsTable(_portsAll);
+  document.getElementById('ports-modal').classList.add('open');
+  setTimeout(() => document.getElementById('ports-search').focus(), 50);
+}
 
+function filterPorts() {
+  const q = document.getElementById('ports-search').value.toLowerCase();
+  const filtered = q
+    ? _portsAll.filter(r =>
+        r.name.toLowerCase().includes(q) || r.host.includes(q) || r.container.includes(q))
+    : _portsAll;
+  _renderPortsTable(filtered);
+}
+
+function _renderPortsTable(rows) {
   const empty = document.getElementById('ports-empty');
   const tbody = document.getElementById('ports-tbody');
-  if (rows.length === 0) {
-    empty.classList.remove('hidden');
-    tbody.innerHTML = '';
-  } else {
-    empty.classList.add('hidden');
-    tbody.innerHTML = rows.map(r => `<tr>
-      <td style="padding:6px 12px;border-bottom:1px solid var(--border)">${esc(r.name)}</td>
-      <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;color:var(--accent)">${esc(r.host)}</td>
-      <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums">${esc(r.container)}</td>
-      <td style="padding:6px 12px;border-bottom:1px solid var(--border);color:var(--muted)">${esc(r.proto)}</td>
-    </tr>`).join('');
-  }
-  document.getElementById('ports-modal').classList.add('open');
+  empty.style.display = rows.length === 0 ? '' : 'none';
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td style="padding:6px 12px;border-bottom:1px solid var(--border)">${esc(r.name)}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;color:var(--accent)">${esc(r.host)}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums">${esc(r.container)}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid var(--border);color:var(--muted)">${esc(r.proto)}</td>
+  </tr>`).join('');
 }
 
 function closePortsModal() {

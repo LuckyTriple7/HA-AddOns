@@ -1,5 +1,14 @@
 # Changelog — HA SysWatch
 
+## [0.3.7] - 2026-06-02
+
+### Fixed
+- Port-Duplikate entfernt: Docker meldet IPv4 (0.0.0.0) und IPv6 (::) als separate Bindings — Deduplizierung per (host, container, proto)-Key im Backend
+- "Keine Host-Port-Mappings"-Label war immer sichtbar (fehlende `.hidden`-CSS-Klasse) — auf `style.display` umgestellt
+
+### Added
+- Suchfeld im Port-Übersicht-Modal (filtert nach Container-Name oder Port-Nummer)
+
 ## [0.3.6] - 2026-06-02
 
 ### Added

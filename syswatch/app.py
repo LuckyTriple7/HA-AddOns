@@ -396,6 +396,7 @@ def _parse_container(container) -> dict:
         pass
 
     ports_mapped = []
+    _seen_ports: set = set()
     try:
         for cport, bindings in (container.ports or {}).items():
             if not bindings:
@@ -404,8 +405,10 @@ def _parse_container(container) -> dict:
             cport_num = parts[0]
             proto     = parts[1] if len(parts) > 1 else 'tcp'
             for b in bindings:
-                hp = b.get('HostPort', '')
-                if hp:
+                hp  = b.get('HostPort', '')
+                key = (hp, cport_num, proto)
+                if hp and key not in _seen_ports:
+                    _seen_ports.add(key)
                     ports_mapped.append({'host': hp, 'container': cport_num, 'proto': proto})
     except Exception:
         pass
