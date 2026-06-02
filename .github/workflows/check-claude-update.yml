@@ -47,7 +47,7 @@ jobs:
           BRANCH="update/claude-code-${CLAUDE_VER}"
 
           # Skip if PR already exists for this branch
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state all --json number --jq '.[0].number' 2>/dev/null || echo "")
           if [ -n "$EXISTING_PR" ]; then
             echo "PR #${EXISTING_PR} already exists for ${BRANCH} — skipping."
             exit 0
