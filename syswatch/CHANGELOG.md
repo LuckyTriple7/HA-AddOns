@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.3.2] - 2026-06-02
+
+### Removed
+- PWA-Installationsbanner entfernt — erschien nach jedem Reload; Browser-eigenes Installationssymbol reicht aus. Service Worker bleibt aktiv.
+
 ## [0.3.1] - 2026-06-02
 
 ### Fixed

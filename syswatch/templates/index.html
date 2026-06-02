@@ -151,19 +151,6 @@
       background-color: var(--surf2);
     }
 
-    /* ── Install banner ── */
-    .install-banner {
-      background: var(--surf2);
-      border-bottom: 1px solid var(--border);
-      padding: 7px 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.82rem;
-    }
-    .install-banner span { flex: 1; }
-    .install-banner.hidden { display: none; }
-
     /* ── Error bar ── */
     .error-bar {
       background: rgba(248,81,73,0.1);
@@ -472,13 +459,6 @@
 
 <div id="main-scroll">
 
-<!-- PWA install banner -->
-<div class="install-banner hidden" id="install-banner">
-  <span>{{ t.install_banner }}</span>
-  <button class="btn sm" id="install-btn">{{ t.btn_install }}</button>
-  <button class="btn sm" onclick="document.getElementById('install-banner').classList.add('hidden')">&#10005;</button>
-</div>
-
 <!-- Error bar -->
 <div class="error-bar hidden" id="error-bar"></div>
 
@@ -597,23 +577,11 @@ let sortCol      = 'cpu_pct';
 let sortDir      = -1;   // -1 = desc, 1 = asc
 let refreshMs    = 5000; // auto-calibrated from backend cycle_s
 let countdownN   = 5;
-let refreshTimer    = null;
-let countdownTimer  = null;
-let deferredInstall = null;
+let refreshTimer   = null;
+let countdownTimer = null;
 
 // ── PWA ───────────────────────────────────────────────────────────────────────
 
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredInstall = e;
-  document.getElementById('install-banner').classList.remove('hidden');
-});
-document.getElementById('install-btn')?.addEventListener('click', () => {
-  if (!deferredInstall) return;
-  deferredInstall.prompt();
-  deferredInstall = null;
-  document.getElementById('install-banner').classList.add('hidden');
-});
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
