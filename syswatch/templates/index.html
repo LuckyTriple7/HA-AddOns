@@ -904,6 +904,10 @@ function rowHtml(c) {
       <div class="actions">
         <button class="btn sm" data-action="logs" data-name="${esc(c.name)}"
                 title="${esc(T.btn_logs)}">${esc(T.btn_logs)}</button>
+        ${!run ? `<button class="btn sm" data-action="start" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_start || 'Start')}" style="color:var(--green);border-color:var(--green)">&#9654;</button>` : ''}
+        ${run ? `<button class="btn sm danger" data-action="stop" data-name="${esc(c.name)}"
+                   title="${esc(T.btn_stop || 'Stop')}">&#9646;</button>` : ''}
         ${run ? `<button class="btn sm danger" data-action="restart" data-name="${esc(c.name)}"
                    title="${esc(T.btn_restart)}">&#8635;</button>` : ''}
         ${run ? `<button class="btn sm danger" data-action="kill" data-name="${esc(c.name)}"
@@ -983,11 +987,20 @@ let _actionType   = null;  // 'restart' | 'kill'
 function _openActionModal(name, type) {
   _actionTarget = name;
   _actionType   = type;
-  const isKill  = type === 'kill';
-  const title   = isKill ? (T.btn_kill || 'Kill') : (T.btn_restart || 'Restart');
-  const desc    = isKill
-    ? (T.confirm_kill    || 'Kill "{name}" with SIGKILL?').replace('{name}', name)
-    : (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name);
+  const titles = {
+    start:   T.btn_start   || 'Start',
+    stop:    T.btn_stop    || 'Stop',
+    restart: T.btn_restart || 'Restart',
+    kill:    T.btn_kill    || 'Kill',
+  };
+  const descs = {
+    start:   (T.confirm_start   || 'Start "{name}"?').replace('{name}', name),
+    stop:    (T.confirm_stop    || 'Stop "{name}"?').replace('{name}', name),
+    restart: (T.confirm_restart || 'Restart "{name}"?').replace('{name}', name),
+    kill:    (T.confirm_kill    || 'Kill "{name}" with SIGKILL?').replace('{name}', name),
+  };
+  const title = titles[type] || type;
+  const desc  = descs[type]  || '';
   document.getElementById('restart-modal-title').textContent = title + ': ' + name;
   document.getElementById('restart-modal-desc').textContent  = desc;
   document.getElementById('restart-pw').value = '';
@@ -995,7 +1008,7 @@ function _openActionModal(name, type) {
   const confirmBtn = document.querySelector('#restart-modal .btn.danger');
   if (confirmBtn) {
     confirmBtn.textContent = title;
-    confirmBtn.style.background = isKill ? 'rgba(248,81,73,0.15)' : '';
+    confirmBtn.style.background = type === 'kill' ? 'rgba(248,81,73,0.15)' : '';
   }
   document.getElementById('restart-modal').classList.add('open');
   setTimeout(() => document.getElementById('restart-pw').focus(), 50);
@@ -1031,10 +1044,13 @@ async function confirmRestart() {
     }
     if (data.ok) {
       closeRestartModal();
-      const msg = type === 'kill'
-        ? (T.kill_success    || '{name} killed.').replace('{name}', name)
-        : (T.restart_success || '{name} restarting...').replace('{name}', name);
-      alert(msg);
+      const successMsgs = {
+        start:   (T.start_success   || '{name} starting...').replace('{name}', name),
+        stop:    (T.stop_success    || '{name} stopping...').replace('{name}', name),
+        restart: (T.restart_success || '{name} restarting...').replace('{name}', name),
+        kill:    (T.kill_success    || '{name} killed.').replace('{name}', name),
+      };
+      alert(successMsgs[type] || name);
       setTimeout(doRefresh, 2000);
     } else {
       errEl.textContent = (T.error_unknown || 'Error') + ': ' + (data.error || '?');
@@ -1075,6 +1091,8 @@ document.addEventListener('click', e => {
   if (!btn) return;
   const name = btn.dataset.name;
   if (btn.dataset.action === 'logs')    showLogs(name);
+  if (btn.dataset.action === 'start')   _openActionModal(name, 'start');
+  if (btn.dataset.action === 'stop')    _openActionModal(name, 'stop');
   if (btn.dataset.action === 'restart') restartContainer(name);
   if (btn.dataset.action === 'kill')    killContainer(name);
 });

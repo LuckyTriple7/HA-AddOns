@@ -27,6 +27,8 @@
   "col_actions": "Actions",
 
   "btn_logs": "Logs",
+  "btn_start": "Start",
+  "btn_stop": "Stop",
   "btn_restart": "Restart",
   "btn_kill": "Kill",
   "btn_cancel": "Cancel",
@@ -43,6 +45,10 @@
   "log_loading": "Loading logs...",
   "log_empty": "(no logs)",
 
+  "confirm_start": "Start container \"{name}\"?",
+  "start_success": "{name} is starting...",
+  "confirm_stop": "Stop container \"{name}\"?",
+  "stop_success": "{name} is stopping...",
   "confirm_restart": "Really restart container \"{name}\"?",
   "restart_success": "{name} is restarting...",
   "confirm_kill": "Kill container \"{name}\" with SIGKILL?\nAll running processes will be stopped immediately.",

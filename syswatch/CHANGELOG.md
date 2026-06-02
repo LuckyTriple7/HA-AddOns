@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [0.3.0] - 2026-06-02
+
+### Added
+- Start/Stop-Buttons pro Container: ▶ (grün) bei gestoppten Containern, ■ (rot) bei laufenden — mit Passwortbestätigung über dasselbe Modal wie Restart/Kill
+- Backend-Endpoints `/api/container/<name>/start` und `/api/container/<name>/stop` (POST, Passwort-geschützt)
+- Übersetzungen für Start/Stop in `de.json` und `en.json`
+
 ## [0.2.9] - 2026-06-02
 
 ### Fixed

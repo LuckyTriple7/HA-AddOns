@@ -27,6 +27,8 @@
   "col_actions": "Aktionen",
 
   "btn_logs": "Logs",
+  "btn_start": "Starten",
+  "btn_stop": "Stoppen",
   "btn_restart": "Neustart",
   "btn_kill": "Kill",
   "btn_cancel": "Abbrechen",
@@ -43,6 +45,10 @@
   "log_loading": "Lade Logs...",
   "log_empty": "(keine Logs)",
 
+  "confirm_start": "Container \"{name}\" starten?",
+  "start_success": "{name} wird gestartet...",
+  "confirm_stop": "Container \"{name}\" stoppen?",
+  "stop_success": "{name} wird gestoppt...",
   "confirm_restart": "Container \"{name}\" wirklich neustarten?",
   "restart_success": "{name} wird neugestartet...",
   "confirm_kill": "Container \"{name}\" sofort beenden (SIGKILL)?\nAlle laufenden Prozesse werden abrupt gestoppt.",

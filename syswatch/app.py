@@ -793,6 +793,52 @@ def api_kill(name: str):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/container/<name>/start', methods=['POST'])
+def api_start(name: str):
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    body   = request.get_json(silent=True) or {}
+    config = load_config()
+    if body.get('password', '') != config.get('password', ''):
+        log.warning("Start abgelehnt (falsches Passwort): container='%s'", name)
+        return jsonify({'error': 'wrong_password'}), 403
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
+    try:
+        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+        container = client.containers.get(name)
+        container.start()
+        log.info("Container gestartet: %s", name)
+        return jsonify({'ok': True})
+    except Exception as e:
+        log.error("Start-Fehler für '%s': %s", name, e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/container/<name>/stop', methods=['POST'])
+def api_stop(name: str):
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    body   = request.get_json(silent=True) or {}
+    config = load_config()
+    if body.get('password', '') != config.get('password', ''):
+        log.warning("Stop abgelehnt (falsches Passwort): container='%s'", name)
+        return jsonify({'error': 'wrong_password'}), 403
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
+    try:
+        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+        container = client.containers.get(name)
+        container.stop(timeout=10)
+        log.info("Container gestoppt: %s", name)
+        return jsonify({'ok': True})
+    except Exception as e:
+        log.error("Stop-Fehler für '%s': %s", name, e)
+        return jsonify({'error': str(e)}), 500
+
+
 # ── Startup ────────────────────────────────────────────────────────────────────
 
 def _log_startup() -> None:
