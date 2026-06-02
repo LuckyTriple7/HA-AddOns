@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [0.3.1] - 2026-06-02
+
+### Fixed
+- Gestoppte HA Add-ons nicht sichtbar: HA entfernt gestoppte Add-on-Container vollständig aus Docker — `containers.list(all=True)` findet sie deshalb nicht. Fix: nach Docker-Abfrage werden gestoppte Add-ons zusätzlich über die Supervisor API geholt und zum Ergebnis hinzugefügt (Duplikate werden per Name ausgeschlossen)
+- SW-Cache-Name auf `syswatch-v2` erhöht — erzwingt vollständige Browser-Cache-Invalidierung
+- Default `show_stopped` in config.yaml auf `true` geändert (sinnvollerer Standard)
+
 ## [0.3.0] - 2026-06-02
 
 ### Added

@@ -1,4 +1,4 @@
-const CACHE = 'syswatch-v1';
+const CACHE = 'syswatch-v2';
 const STATIC = ['/', '/login'];
 
 self.addEventListener('install', e => {

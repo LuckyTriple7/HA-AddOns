@@ -326,6 +326,37 @@ def _collect_via_supervisor() -> list[dict]:
     return results
 
 
+def _get_supervisor_stopped_addons() -> list[dict]:
+    """HA entfernt gestoppte Add-on-Container aus Docker — Supervisor API liefert sie trotzdem."""
+    import urllib.request
+    token = _supervisor_token()
+    if not token:
+        return []
+    headers = {'Authorization': f'Bearer {token}'}
+    try:
+        req = urllib.request.Request(f'{SUPERVISOR_API}/addons', headers=headers)
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+        addons = data.get('data', {}).get('addons', [])
+    except Exception:
+        return []
+    stopped = []
+    for addon in addons:
+        if addon.get('state', 'unknown') == 'started':
+            continue  # läuft — ist bereits im Docker-Ergebnis
+        stopped.append({
+            'id':        addon.get('slug', ''),
+            'name':      addon.get('name', addon.get('slug', '')),
+            'image':     'HA Add-on',
+            'status':    addon.get('state', 'stopped'),
+            'cpu_pct':   0.0, 'mem_usage': 0, 'mem_limit': 0, 'mem_pct': 0.0,
+            'net_rx':    0,   'net_tx':    0,
+            'blk_r':     0,   'blk_w':     0,
+            'pids':      0,
+        })
+    return stopped
+
+
 def _update_history_and_cache(results: list, warning: str | None = None) -> None:
     ts      = time.time()
     sysinfo = _read_sysinfo()
@@ -465,11 +496,18 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT,
                 if aborted:
                     return  # Cache nicht aktualisieren; nächster Aktiv-Zyklus holt frisch
 
+                # Gestoppte HA Add-ons ergänzen (HA entfernt ihre Docker-Container)
+                docker_names = {r['name'] for r in results}
+                for addon in _get_supervisor_stopped_addons():
+                    if addon['name'] not in docker_names:
+                        results.append(addon)
+
                 elapsed      = time.time() - t0
                 _last_elapsed = elapsed
                 running      = sum(1 for r in results if r['status'] == 'running')
-                log.info("Abfrage: %d Container (%d laufend) | %d Worker | %.1fs",
-                         len(results), running, workers, elapsed)
+                stopped_cnt  = len(results) - running
+                log.info("Abfrage: %d Container (%d laufend, %d gestoppt) | %d Worker | %.1fs",
+                         len(results), running, stopped_cnt, workers, elapsed)
                 _update_history_and_cache(results)
                 return
             except Exception as e:
