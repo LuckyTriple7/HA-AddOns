@@ -77,27 +77,14 @@ jobs:
             ghcr.io/luckytriple7/firefox:${{ steps.versions.outputs.new }}
             ghcr.io/luckytriple7/firefox:latest
 
-      - name: Create PR with update
+      - name: Prepare files
         if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        id: prepare
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FF_VER: ${{ steps.upstream.outputs.version }}
           OLD_ADDON_VER: ${{ steps.versions.outputs.old }}
           NEW_ADDON_VER: ${{ steps.versions.outputs.new }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          BRANCH="update/firefox-esr-${FF_VER}"
-
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --state all --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #${EXISTING_PR} existiert bereits — überspringe."
-            exit 0
-          fi
-
-          git checkout -b "$BRANCH"
-
           DATE=$(date +%Y-%m-%d)
 
           sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" firefox/config.yaml
@@ -107,11 +94,26 @@ jobs:
           sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" firefox/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" firefox/CHANGELOG.md
 
-          git add firefox/config.yaml firefox/CHANGELOG.md .firefox-version
-          git commit -m "Bump Firefox Add-on zu v${NEW_ADDON_VER} — Firefox ESR ${FF_VER}"
-          git push origin "$BRANCH"
+      - name: Create Pull Request
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
+          branch: update/firefox-esr-${{ steps.upstream.outputs.version }}
+          delete-branch: true
+          commit-message: "Bump Firefox Add-on zu v${{ steps.versions.outputs.new }} — Firefox ESR ${{ steps.upstream.outputs.version }}"
+          title: "Update Firefox ESR ${{ steps.upstream.outputs.version }} (Add-on v${{ steps.versions.outputs.new }})"
+          body: |
+            ## Firefox Update
 
-          gh pr create \
-            --title "Update Firefox ESR ${FF_VER} (Add-on v${NEW_ADDON_VER})" \
-            --body "$(printf '## Firefox Update\n\nNeue Firefox ESR Version **%s** verfügbar.\n\n- Add-on Version: `%s` → `%s`\n- Firefox ESR: `%s`\n- Image: `ghcr.io/luckytriple7/firefox:%s`\n\n_Automatisch erstellt von GitHub Actions._' "$FF_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FF_VER" "$NEW_ADDON_VER")" \
-            --base dev
+            Neue Firefox ESR Version **${{ steps.upstream.outputs.version }}** verfügbar.
+
+            ### Änderungen
+            - Add-on Version: `${{ steps.versions.outputs.old }}` → `${{ steps.versions.outputs.new }}`
+            - Firefox ESR: `${{ steps.upstream.outputs.version }}`
+            - Image: `ghcr.io/luckytriple7/firefox:${{ steps.versions.outputs.new }}`
+
+            ---
+            _Automatisch erstellt von GitHub Actions._
+          labels: "auto-update"
