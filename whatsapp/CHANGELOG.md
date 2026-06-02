@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.3] - 2026-06-02
+- Fix: Kein Unread-Dot für eigene gesendete Nachrichten — lastFromMe-Flag verhindert falsches Unread-Indikator
+
 ## [1.5.2] - 2026-05-31
 - Fix: Backtick im Paste-Handler durch String-Verkettung ersetzt (Template-Literal-Konflikt → Crash beim Start)
 

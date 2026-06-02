@@ -287,11 +287,12 @@ function processEnvelope(envelope) {
   messagesByChatId.get(chatId).push(msg);
 
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp });
+    chatMap.set(chatId, { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn });
   } else {
     const chat = chatMap.get(chatId);
     chat.lastMsg = previewText;
     chat.lastTime = dm.timestamp;
+    chat.lastFromMe = isOwn;
     if (senderName && senderName !== chatId) chat.name = senderName;
   }
 
@@ -596,6 +597,7 @@ app.post('/api/send', async (req, res) => {
         const chat = chatMap.get(to);
         chat.lastMsg = message;
         chat.lastTime = Date.now();
+        chat.lastFromMe = true;
       }
       scheduleSave();
     }
@@ -640,6 +642,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       if (chatMap.has(to)) {
         chatMap.get(to).lastMsg = caption || (isImg ? '📷 Foto' : safeName);
         chatMap.get(to).lastTime = signalTs;
+        chatMap.get(to).lastFromMe = true;
       }
       scheduleSave();
     }
@@ -1212,7 +1215,7 @@ function renderChats(chats) {
   const el = document.getElementById('chat-list');
   el.innerHTML = filtered.map(c => {
     if (c.id === selectedChatId) lastSeenTime[c.id] = Math.max(lastSeenTime[c.id] || 0, c.lastTime || 0);
-    const hasUnread = c.id !== selectedChatId && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
+    const hasUnread = c.id !== selectedChatId && !c.lastFromMe && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
     return \`
     <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
       \${chatAvatar(c)}

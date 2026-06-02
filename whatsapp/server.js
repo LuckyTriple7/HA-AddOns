@@ -233,6 +233,7 @@ function addMsg(chatId, msg) {
     const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? `📄 ${msg.filename || 'Dokument'}` : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
+    chat.lastFromMe = !!msg.fromMe;
   }
   saveMsgs();
   return true;
@@ -1839,7 +1840,7 @@ app.get('/', (req, res) => {
         time.className = 'chat-time';
         time.textContent = chat.lastTime ? fmtChatTime(chat.lastTime) : '';
         meta.appendChild(time);
-        if (chat.id !== selectedChatId && chat.lastTime > (lastSeenTime[chat.id] || 0)) {
+        if (chat.id !== selectedChatId && !chat.lastFromMe && chat.lastTime > (lastSeenTime[chat.id] || 0)) {
           const dot = document.createElement('div');
           dot.className = 'unread-dot';
           meta.appendChild(dot);
