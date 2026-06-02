@@ -627,7 +627,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
     if (!seenMsgIds.has(msgId)) {
       seenMsgIds.add(msgId);
       let mediaFile = null;
-      if (isImg) {
+      if (isImg && DOWNLOAD_MEDIA) {
         const fname = `${signalTs}_${safeName}`;
         fs.writeFileSync(`${MEDIA_DIR}${fname}`, buffer);
         mediaFile = fname;
@@ -1309,11 +1309,11 @@ function renderMessages(msgs) {
     const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
     if (m.mediaFile) {
-      content = (showPhotos || m.fromMe)
+      content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
-    } else if (m.type === 'photo' || (m.attIds && m.attIds.length > 0)) {
+    } else if (showPhotos && (m.type === 'photo' || (m.attIds && m.attIds.length > 0))) {
       content = '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'document' && m.filename) {

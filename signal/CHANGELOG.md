@@ -1,9 +1,11 @@
 # Changelog
 
+## [1.5.2] - 2026-06-02
+- Fix: Revert — download_media steuert Bilder vollständig (auch gesendete); wenn aus, dann aus
+
 ## [1.5.1] - 2026-06-02
 - Fix: Vom Handy gesendete Bilder/Nachrichten werden jetzt im Chat angezeigt — SyncMessage-Handling in processEnvelope ergänzt
-- Fix: Gesendete Bilder immer im Chat sichtbar, unabhängig von download_media-Einstellung
-- Fix: Fallback "📷 Foto" Platzhalter für empfangene Bilder ohne heruntergeladene Mediendatei
+- Fix: Fallback "📷 Foto" Platzhalter für Bilder ohne heruntergeladene Mediendatei (nur wenn download_media aktiv)
 
 ## [1.5.0] - 2026-05-30
 - Docs: ha_notifications/ha_token-Optionen ergänzt; Token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
