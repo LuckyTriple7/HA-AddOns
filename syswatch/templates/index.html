@@ -518,7 +518,7 @@
          placeholder="{{ t.search_placeholder }}" oninput="renderTable()"
          autocomplete="new-password">
   <label class="toggle">
-    <input type="checkbox" id="show-stopped" onchange="renderTable()">
+    <input type="checkbox" id="show-stopped">
     {{ t.toggle_stopped }}
   </label>
 </div>
@@ -590,6 +590,7 @@
 
 // Translations passed from Flask via data attribute
 const T = {{ t | tojson }};
+const CFG_SHOW_STOPPED = {{ 'true' if show_stopped else 'false' }};
 
 let allData      = [];
 let sortCol      = 'cpu_pct';
@@ -704,6 +705,14 @@ function toggleTheme() {
 (function init() {
   document.querySelectorAll('th[data-col]').forEach(th => {
     th.addEventListener('click', () => sortBy(th.dataset.col));
+  });
+
+  // show-stopped: localStorage overrides config default; persists user choice across reloads
+  const _ss = localStorage.getItem('sw-show-stopped');
+  document.getElementById('show-stopped').checked = _ss !== null ? _ss === '1' : CFG_SHOW_STOPPED;
+  document.getElementById('show-stopped').addEventListener('change', e => {
+    localStorage.setItem('sw-show-stopped', e.target.checked ? '1' : '0');
+    renderTable();
   });
 
   markSorted();

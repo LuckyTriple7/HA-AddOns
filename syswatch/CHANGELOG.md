@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.2.9] - 2026-06-02
+
+### Fixed
+- `show_stopped`-Config hatte keine Wirkung — Config-Default wird jetzt via Template an den Client übergeben (`CFG_SHOW_STOPPED`) und initialisiert die Checkbox beim Laden. Manuelle Benutzerauswahl wird in localStorage gespeichert (Vorrang vor Config-Default) und bleibt nach Reload erhalten.
+
 ## [0.2.8] - 2026-06-01
 
 ### Fixed

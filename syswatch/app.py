@@ -588,7 +588,9 @@ def index():
         return redirect(url_for('login'))
     lang = detect_language(request)
     t    = load_translations(lang)
-    return render_template('index.html', t=t, lang=lang)
+    cfg  = load_config()
+    return render_template('index.html', t=t, lang=lang,
+                           show_stopped=cfg.get('show_stopped', False))
 
 
 @app.route('/login', methods=['GET', 'POST'])
