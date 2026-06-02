@@ -356,6 +356,7 @@ def _get_supervisor_stopped_addons() -> list[dict]:
             'net_rx':    0,   'net_tx':    0,
             'blk_r':     0,   'blk_w':     0,
             'pids':      0,
+            'ports_mapped': [],
         })
     if stopped:
         log.info("Supervisor: %d gestoppte Add-on(s): %s",
@@ -394,6 +395,21 @@ def _parse_container(container) -> dict:
     except Exception:
         pass
 
+    ports_mapped = []
+    try:
+        for cport, bindings in (container.ports or {}).items():
+            if not bindings:
+                continue
+            parts     = cport.split('/')
+            cport_num = parts[0]
+            proto     = parts[1] if len(parts) > 1 else 'tcp'
+            for b in bindings:
+                hp = b.get('HostPort', '')
+                if hp:
+                    ports_mapped.append({'host': hp, 'container': cport_num, 'proto': proto})
+    except Exception:
+        pass
+
     base = {
         'id': container.short_id,
         'name': name,
@@ -408,6 +424,7 @@ def _parse_container(container) -> dict:
         'blk_r': 0,
         'blk_w': 0,
         'pids': 0,
+        'ports_mapped': ports_mapped,
     }
 
     if container.status != 'running':

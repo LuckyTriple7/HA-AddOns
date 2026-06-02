@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [0.3.6] - 2026-06-02
+
+### Added
+- Port-Übersicht: "Ports"-Button in der Controls-Zeile öffnet Modal mit allen Host-Port-Mappings (Container | Host-Port | Container-Port | Protokoll), sortiert nach Name und Port-Nummer
+- Backend: `ports_mapped`-Feld pro Container aus `container.ports` (kein Extra-API-Call)
+
 ## [0.3.5] - 2026-06-02
 
 ### Changed

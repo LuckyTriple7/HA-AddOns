@@ -27,6 +27,13 @@
   "col_actions": "Actions",
 
   "btn_logs": "Logs",
+  "btn_ports": "Ports",
+  "ports_title": "Port Overview",
+  "ports_empty": "No host port mappings found",
+  "ports_col_container": "Container",
+  "ports_col_host": "Host Port",
+  "ports_col_cport": "Container Port",
+  "ports_col_proto": "Protocol",
   "btn_start": "Start",
   "btn_stop": "Stop",
   "btn_restart": "Restart",
