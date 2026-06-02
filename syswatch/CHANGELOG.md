@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [0.3.5] - 2026-06-02
+
+### Changed
+- Sprach-Buttons (DE/EN) auf mobilen Geräten (≤620px) ausgeblendet — Sprache wird automatisch über Browsersprache erkannt
+
 ## [0.3.4] - 2026-06-02
 
 ### Fixed

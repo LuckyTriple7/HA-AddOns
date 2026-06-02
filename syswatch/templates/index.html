@@ -142,6 +142,9 @@
       text-decoration: none;
     }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 620px) {
+      .lang-btn { display: none; }
+    }
     select.btn {
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238b949e'/%3E%3C/svg%3E");
