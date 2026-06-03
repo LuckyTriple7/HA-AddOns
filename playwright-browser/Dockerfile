@@ -1,8 +1,7 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+FROM debian:bookworm-slim
 
 LABEL \
-    io.hass.version="1.0.3" \
+    io.hass.version="1.0.12" \
     io.hass.type="addon" \
     io.hass.arch="amd64|aarch64"
 

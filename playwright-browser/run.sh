@@ -1,7 +1,7 @@
-#!/usr/bin/with-contenv bashio
+#!/bin/sh
 
-CDP_PORT=$(bashio::config 'cdp_port')
-IDLE_MINUTES=$(bashio::config 'idle_timeout' 2>/dev/null || echo '5')
+CDP_PORT=$(jq -r '.cdp_port // 9222' /data/options.json)
+IDLE_MINUTES=$(jq -r '.idle_timeout // 5' /data/options.json)
 
 # Find Chromium binary
 CHROMIUM_BIN=""
@@ -13,11 +13,11 @@ for candidate in chromium chromium-browser google-chrome-stable google-chrome; d
 done
 
 if [ -z "$CHROMIUM_BIN" ]; then
-    bashio::log.fatal "No Chromium binary found!"
+    echo "[FATAL] No Chromium binary found!"
     exit 1
 fi
 
-bashio::log.info "CDP proxy starting on port ${CDP_PORT} (lazy Chromium, idle timeout: ${IDLE_MINUTES} min)..."
+echo "[INFO] CDP proxy starting on port ${CDP_PORT} (lazy Chromium, idle timeout: ${IDLE_MINUTES} min)..."
 
 exec env \
     CHROMIUM_BIN="$CHROMIUM_BIN" \
