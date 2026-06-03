@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1] - 2026-06-03
+
+### Fixed
+- Verbindungsabbrüche wurden nicht erkannt: TCP-Verbindung zu Telegram kann nach Netzwerk-Flaps oder NAT-Timeouts still abbrechen, `status` blieb 'connected' → Chats luden nicht mehr. Fix: Keep-Alive-Ping (`getMe()`) alle 30s mit 10s Timeout — schlägt er fehl, wird automatisch reconnectet
+- `loadDialogs()` hatte keinen Timeout — konnte hängen und blockierte Node.js-Event-Loop. Fix: 15s Timeout via `Promise.race`
+
 ## [1.5.0] - 2026-05-30
 - Docs: ha_token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
 

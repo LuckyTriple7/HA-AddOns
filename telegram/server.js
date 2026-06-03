@@ -304,7 +304,10 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
 async function loadDialogs() {
   if (status !== 'connected') return;
   try {
-    const dialogs = await client.getDialogs({ limit: 50 });
+    const dialogs = await Promise.race([
+      client.getDialogs({ limit: 50 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout after 15s')), 15000)),
+    ]);
     for (const dialog of dialogs) {
       if (!dialog.entity) continue;
       const entity = dialog.entity;
@@ -717,6 +720,39 @@ app.post('/api/logout', async (req, res) => {
 });
 
 setInterval(loadDialogs, 60000);
+
+// ── Keep-alive: erkennt silent TCP-Drops und reconnectet automatisch ──────────
+let _reconnecting = false;
+setInterval(async () => {
+  if (status !== 'connected' || _reconnecting) return;
+  try {
+    await Promise.race([
+      client.getMe(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('ping timeout')), 10000)),
+    ]);
+  } catch (e) {
+    if (status !== 'connected') return; // zwischenzeitlich geändert
+    console.warn('[WARN] Keep-alive fehlgeschlagen (%s) — reconnecting…', e.message);
+    _reconnecting = true;
+    status = 'starting';
+    try { await client.disconnect(); } catch (_) {}
+    try {
+      await client.connect();
+      const me = await client.getMe();
+      myId   = String(me.id);
+      myName = getEntityName(me);
+      status = 'connected';
+      _reconnecting = false;
+      console.log('[INFO] Reconnected als %s', myName);
+      await loadDialogs();
+    } catch (err) {
+      console.error('[ERROR] Reconnect fehlgeschlagen: %s', err.message);
+      status = 'error';
+      lastError = err.message;
+      _reconnecting = false;
+    }
+  }
+}, 30000);
 
 function getDirSize(dir) {
   let total = 0;
