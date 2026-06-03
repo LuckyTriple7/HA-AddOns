@@ -8,12 +8,16 @@ LABEL org.opencontainers.image.licenses="MIT"
 RUN apk add --no-cache \
     jq \
     ca-certificates \
+    python3 \
+    make \
+    g++ \
     && update-ca-certificates
 
 WORKDIR /ui
 
 COPY package.json ./
-RUN npm install --omit=dev --no-fund --no-audit
+RUN npm install --omit=dev --no-fund --no-audit \
+    && apk del python3 make g++
 
 COPY server.js ./
 COPY run.sh /run.sh
