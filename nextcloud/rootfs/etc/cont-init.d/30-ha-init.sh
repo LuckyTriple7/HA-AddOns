@@ -16,20 +16,19 @@ chmod 755 /config/data
 
 # PHP-Limits
 mkdir -p /config/php
-cat > /config/php/php-local.ini << EOF
+# PHP-Limits: zz-ha-limits.ini wird alphabetisch nach allen anderen conf.d-Dateien
+# geladen (inkl. nextcloud.ini) und überschreibt linuxserver-Defaults zuverlässig
+for PHP_CONF_D in /etc/php*/conf.d; do
+    [ -d "$PHP_CONF_D" ] || continue
+    cat > "${PHP_CONF_D}/zz-ha-limits.ini" << EOF
 memory_limit = ${MEMORY_LIMIT}
 upload_max_filesize = ${UPLOAD_MAX}
 post_max_size = ${POST_MAX}
 max_execution_time = 300
 max_input_time = 300
+opcache.memory_consumption = ${OPCACHE_MEM}
 EOF
-echo "[ha-init] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX}"
-
-# OPcache: direkt in conf.d-Datei setzen (php-local.ini überschreibt opcache-Werte nicht zuverlässig)
-for OPCACHE_INI in /etc/php*/conf.d/00_opcache.ini; do
-    [ -f "$OPCACHE_INI" ] || continue
-    sed -i "s/^opcache.memory_consumption=.*/opcache.memory_consumption=${OPCACHE_MEM}/" "$OPCACHE_INI"
-    echo "[ha-init] OPcache memory_consumption=${OPCACHE_MEM}M (${OPCACHE_INI})"
+    echo "[ha-init] PHP conf.d: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX} opcache=${OPCACHE_MEM}M (${PHP_CONF_D})"
 done
 
 # PHP-FPM: mehr Worker-Prozesse (Standard linuxserver = 5, zu wenig)
