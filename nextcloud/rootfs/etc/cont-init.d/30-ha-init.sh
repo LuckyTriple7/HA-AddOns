@@ -22,9 +22,15 @@ upload_max_filesize = ${UPLOAD_MAX}
 post_max_size = ${POST_MAX}
 max_execution_time = 300
 max_input_time = 300
-opcache.memory_consumption = ${OPCACHE_MEM}
 EOF
-echo "[ha-init] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX} opcache=${OPCACHE_MEM}M"
+echo "[ha-init] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX}"
+
+# OPcache: direkt in conf.d-Datei setzen (php-local.ini überschreibt opcache-Werte nicht zuverlässig)
+for OPCACHE_INI in /etc/php*/conf.d/00_opcache.ini; do
+    [ -f "$OPCACHE_INI" ] || continue
+    sed -i "s/^opcache.memory_consumption=.*/opcache.memory_consumption=${OPCACHE_MEM}/" "$OPCACHE_INI"
+    echo "[ha-init] OPcache memory_consumption=${OPCACHE_MEM}M (${OPCACHE_INI})"
+done
 
 # PHP-FPM: mehr Worker-Prozesse (Standard linuxserver = 5, zu wenig)
 for POOL_CONF in /etc/php*/php-fpm.d/www.conf; do

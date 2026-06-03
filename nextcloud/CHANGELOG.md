@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.7
+- Fix: `opcache_memory_consumption` schreibt jetzt direkt per sed in `/etc/php84/conf.d/00_opcache.ini` — php-local.ini überschrieb opcache-Werte nicht zuverlässig
+
 ## 1.0.6
 - Neu: `opcache_memory_consumption` Option (Standard: 256 MB) — behebt "OPcache-Puffer fast voll"-Warnung; Wert wird bei jedem Start persistent in php-local.ini geschrieben
 
