@@ -1,5 +1,4 @@
-﻿ARG BUILD_ARCH=amd64
-FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-python:3.13-alpine3.21
+FROM python:3.13-alpine3.21
 
 # Labels
 LABEL maintainer="LuckyTriple7"
@@ -44,12 +43,10 @@ RUN apk add --no-cache \
     && update-ca-certificates
 
 # Install ttyd static binary (avoids libwebsockets issues)
-ARG BUILD_ARCH
-RUN case "${BUILD_ARCH}" in \
+ARG TARGETARCH=amd64
+RUN case "${TARGETARCH}" in \
         amd64) TTYD_ARCH="x86_64" ;; \
-        aarch64) TTYD_ARCH="aarch64" ;; \
-        armv7|armhf) TTYD_ARCH="armhf" ;; \
-        i386) TTYD_ARCH="i686" ;; \
+        arm64) TTYD_ARCH="aarch64" ;; \
         *) TTYD_ARCH="x86_64" ;; \
     esac && \
     curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.${TTYD_ARCH}" -o /usr/bin/ttyd && \
@@ -90,11 +87,9 @@ ENV NPM_CONFIG_CACHE=/root/.npm
 RUN npx @playwright/mcp --version || true
 
 # Install Home Assistant CLI (ha command)
-RUN case "${BUILD_ARCH}" in \
+RUN case "${TARGETARCH}" in \
         amd64) HA_ARCH="amd64" ;; \
-        aarch64) HA_ARCH="aarch64" ;; \
-        armv7|armhf) HA_ARCH="armhf" ;; \
-        i386) HA_ARCH="i386" ;; \
+        arm64) HA_ARCH="aarch64" ;; \
         *) HA_ARCH="amd64" ;; \
     esac && \
     curl -fsSL "https://github.com/home-assistant/cli/releases/latest/download/ha_${HA_ARCH}" -o /usr/local/bin/ha && \
