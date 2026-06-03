@@ -296,6 +296,8 @@ client.on('authenticated', () => {
 });
 
 client.on('ready', async () => {
+  _reconnecting = false;
+  _intentionalDisconnect = false;
   connectedPhone = (client.info?.wid?.user || '').replace(/:\d+$/, '') || null;
   status = 'connected';
   lastError = null;
@@ -395,6 +397,7 @@ client.on('disconnected', (reason) => {
   connectedPhone = null;
   lastError = reason;
   console.log(`[WARN] Disconnected: ${reason}`);
+  setTimeout(() => doReconnect(`disconnected event: ${reason}`), 5000);
 });
 
 client.on('auth_failure', (msg) => {
@@ -781,7 +784,44 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
   }
 });
 
+let _reconnecting = false;
+let _intentionalDisconnect = false;
+
+async function doReconnect(reason) {
+  if (_reconnecting || _intentionalDisconnect) return;
+  _reconnecting = true;
+  status = 'initializing';
+  connectedPhone = null;
+  console.warn('[WARN] Auto-reconnect: %s', reason);
+  try { await client.destroy(); } catch (e) {}
+  ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].forEach(f => {
+    try { rmSync(path.join(SESSION_CHROMIUM_DIR, f), { force: true }); } catch(e) {}
+  });
+  client.initialize().catch(err => {
+    lastError = String(err?.message || err);
+    status = 'error';
+    _reconnecting = false;
+    console.error('[ERROR] Auto-reconnect failed:', lastError);
+  });
+}
+
+// Keep-alive: erkennt hängende Puppeteer-Instanzen alle 10 Minuten
+setInterval(async () => {
+  if (status !== 'connected' || _reconnecting) return;
+  try {
+    const state = await client.getState();
+    if (state !== 'CONNECTED') {
+      console.warn('[WARN] State check: state=%s — reconnecting…', state);
+      doReconnect('state check: ' + state);
+    }
+  } catch (e) {
+    console.warn('[WARN] State check failed (%s) — reconnecting…', e.message);
+    doReconnect('state check error: ' + e.message);
+  }
+}, 600000);
+
 async function reinitClient() {
+  _intentionalDisconnect = true;
   status = 'initializing';
   qrCodeDataUrl = null;
   connectedPhone = null;
@@ -801,6 +841,7 @@ async function reinitClient() {
 
 app.post('/api/logout', async (req, res) => {
   res.json({ success: true });
+  _intentionalDisconnect = true;
   try { await client.logout(); } catch(e) {}
   // Clear session so QR is shown on next init (not auto-reconnect)
   try { rmSync(SESSION_CHROMIUM_DIR, { recursive: true, force: true }); } catch(e) {}
