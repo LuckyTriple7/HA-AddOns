@@ -49,3 +49,11 @@ jobs:
           tags: |
             ghcr.io/luckytriple7/whatsapp:${{ steps.ver.outputs.version }}
             ghcr.io/luckytriple7/whatsapp:latest
+
+      - name: Alte Image-Versionen aufräumen
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: whatsapp
+          package-type: container
+          min-versions-to-keep: 5
+          token: ${{ secrets.GITHUB_TOKEN }}
