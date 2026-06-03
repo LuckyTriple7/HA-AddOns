@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.4] - 2026-06-03
+- Neu: Auto-Reconnect bei Verbindungsabbruch — `disconnected`-Event löst nach 5s automatischen Reconnect aus; Keep-Alive-State-Check alle 10 Minuten erkennt hängende Puppeteer-Instanzen; `_intentionalDisconnect`-Flag verhindert ungewollten Reconnect bei Logout/Reset
+
 ## [1.5.3] - 2026-06-02
 - Fix: Kein Unread-Dot für eigene gesendete Nachrichten — lastFromMe-Flag verhindert falsches Unread-Indikator
 
