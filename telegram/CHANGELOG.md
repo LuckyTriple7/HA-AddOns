@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.2] - 2026-06-03
+- Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/telegram)
+- Build: Basis-Image auf node:lts-alpine umgestellt, run.sh auf #!/bin/sh
+
 ## [1.5.1] - 2026-06-03
 
 ### Fixed

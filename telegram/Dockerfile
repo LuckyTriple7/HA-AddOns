@@ -1,5 +1,4 @@
-ARG BUILD_ARCH=amd64
-FROM ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
+FROM node:lts-alpine
 
 LABEL org.opencontainers.image.title="Telegram for Home Assistant"
 LABEL org.opencontainers.image.description="Telegram client with chat UI, REST API and webhook support"
@@ -7,8 +6,6 @@ LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns
 LABEL org.opencontainers.image.licenses="MIT"
 
 RUN apk add --no-cache \
-    nodejs \
-    npm \
     jq \
     ca-certificates \
     && update-ca-certificates
