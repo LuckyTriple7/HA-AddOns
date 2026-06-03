@@ -7,6 +7,7 @@ PGID=$(jq -r '.PGID // 1000' "$OPTIONS" 2>/dev/null || echo 1000)
 MEMORY_LIMIT=$(jq -r '.memory_limit // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
 UPLOAD_MAX=$(jq -r '.upload_max_filesize // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
 POST_MAX=$(jq -r '.post_max_size // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
+OPCACHE_MEM=$(jq -r '.opcache_memory_consumption // 256' "$OPTIONS" 2>/dev/null || echo 256)
 
 # /config/data anlegen und für linuxservers abc-User beschreibbar machen
 mkdir -p /config/data
@@ -21,8 +22,9 @@ upload_max_filesize = ${UPLOAD_MAX}
 post_max_size = ${POST_MAX}
 max_execution_time = 300
 max_input_time = 300
+opcache.memory_consumption = ${OPCACHE_MEM}
 EOF
-echo "[ha-init] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX}"
+echo "[ha-init] PHP-Limits: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX} opcache=${OPCACHE_MEM}M"
 
 # PHP-FPM: mehr Worker-Prozesse (Standard linuxserver = 5, zu wenig)
 for POOL_CONF in /etc/php*/php-fpm.d/www.conf; do

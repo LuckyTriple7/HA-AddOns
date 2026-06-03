@@ -49,3 +49,11 @@ jobs:
           tags: |
             ghcr.io/luckytriple7/cardboard:${{ steps.ver.outputs.version }}
             ghcr.io/luckytriple7/cardboard:latest
+
+      - name: Alte Image-Versionen aufräumen
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: cardboard
+          package-type: container
+          min-versions-to-keep: 5
+          token: ${{ secrets.GITHUB_TOKEN }}

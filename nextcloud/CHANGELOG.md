@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.6
+- Neu: `opcache_memory_consumption` Option (Standard: 256 MB) — behebt "OPcache-Puffer fast voll"-Warnung; Wert wird bei jedem Start persistent in php-local.ini geschrieben
+
 ## 1.0.5
 - Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 33.0.5
 

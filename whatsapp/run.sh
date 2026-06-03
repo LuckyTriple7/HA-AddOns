@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 export WEBHOOK_URL=$(jq -r '.webhook_url // ""' /data/options.json)

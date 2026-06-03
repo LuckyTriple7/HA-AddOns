@@ -49,3 +49,11 @@ jobs:
           tags: |
             ghcr.io/luckytriple7/messenger-portal:${{ steps.ver.outputs.version }}
             ghcr.io/luckytriple7/messenger-portal:latest
+
+      - name: Alte Image-Versionen aufräumen
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: messenger-portal
+          package-type: container
+          min-versions-to-keep: 5
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.22] - 2026-06-03
+- Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/claudecode)
+- Build: Basis-Image auf python:3.13-alpine3.21 umgestellt, TARGETARCH statt BUILD_ARCH
+
 ## [1.0.21] - 2026-06-03
 
 ### Changed

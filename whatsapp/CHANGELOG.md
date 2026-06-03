@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.6] - 2026-06-03
+- Fix: run.sh Shebang auf #!/bin/sh — node:lts-alpine hat kein bash
+
+## [1.5.5] - 2026-06-03
+- Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/whatsapp)
+- Build: Basis-Image auf node:lts-alpine umgestellt (multi-arch, kein lokaler HA-Build mehr nötig)
+
 ## [1.5.4] - 2026-06-03
 - Neu: Auto-Reconnect bei Verbindungsabbruch — `disconnected`-Event löst nach 5s automatischen Reconnect aus; Keep-Alive-State-Check alle 10 Minuten erkennt hängende Puppeteer-Instanzen; `_intentionalDisconnect`-Flag verhindert ungewollten Reconnect bei Logout/Reset
 

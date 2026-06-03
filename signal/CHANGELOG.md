@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.4] - 2026-06-03
+- Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/signal)
+
 ## [1.5.3] - 2026-06-02
 - Fix: Kein Unread-Dot für eigene gesendete Nachrichten — lastFromMe-Flag verhindert falsches Unread-Indikator
 

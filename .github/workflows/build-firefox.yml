@@ -65,3 +65,11 @@ jobs:
           git diff --staged --quiet || git commit -m "Track Firefox ESR ${{ steps.ffver.outputs.version }}"
           git pull --rebase origin main
           git push
+
+      - name: Alte Image-Versionen aufräumen
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: firefox
+          package-type: container
+          min-versions-to-keep: 5
+          token: ${{ secrets.GITHUB_TOKEN }}

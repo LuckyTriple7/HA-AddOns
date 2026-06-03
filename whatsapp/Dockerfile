@@ -1,15 +1,12 @@
-ARG BUILD_ARCH=amd64
-FROM ghcr.io/home-assistant/${BUILD_ARCH}-base:latest
+FROM node:lts-alpine
 
 LABEL org.opencontainers.image.title="WhatsApp for Home Assistant"
 LABEL org.opencontainers.image.description="WhatsApp Web with REST API and webhook support"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Install Node.js, Chromium and dependencies
+# Install Chromium and dependencies
 RUN apk add --no-cache \
-    nodejs \
-    npm \
     chromium \
     chromium-chromedriver \
     curl \

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.12 - 2026-06-03
+- Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/playwright-browser)
+- Build: Basis-Image auf debian:bookworm-slim, bashio durch jq ersetzt
+
 ## 1.0.11 - 2026-05-16
 
 ### Behoben

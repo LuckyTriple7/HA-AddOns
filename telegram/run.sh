@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 export API_ID=$(jq -r '.api_id // 0' /data/options.json)

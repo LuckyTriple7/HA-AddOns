@@ -1,6 +1,6 @@
 name: Nextcloud
 description: Nextcloud – Private Cloud direkt in Home Assistant, mit SMB-Netzwerkspeicher-Unterstützung
-version: "1.0.5"
+version: "1.0.6"
 slug: nextcloud
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -49,6 +49,7 @@ options:
   memory_limit: "512M"
   upload_max_filesize: "512M"
   post_max_size: "512M"
+  opcache_memory_consumption: 256
   disable_updates: false
   maintenance_window_start: 1
   loglevel: 3
@@ -81,6 +82,7 @@ schema:
   memory_limit: str?
   upload_max_filesize: str?
   post_max_size: str?
+  opcache_memory_consumption: int?
   disable_updates: bool
   maintenance_window_start: int
   loglevel: int
