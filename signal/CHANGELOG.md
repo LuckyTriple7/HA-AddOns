@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.3] - 2026-06-02
+- Fix: Kein Unread-Dot für eigene gesendete Nachrichten — lastFromMe-Flag verhindert falsches Unread-Indikator
+
+## [1.5.2] - 2026-06-02
+- Fix: Revert — download_media steuert Bilder vollständig (auch gesendete); wenn aus, dann aus
+
+## [1.5.1] - 2026-06-02
+- Fix: Vom Handy gesendete Bilder/Nachrichten werden jetzt im Chat angezeigt — SyncMessage-Handling in processEnvelope ergänzt
+- Fix: Fallback "📷 Foto" Platzhalter für Bilder ohne heruntergeladene Mediendatei (nur wenn download_media aktiv)
+
 ## [1.5.0] - 2026-05-30
 - Docs: ha_notifications/ha_token-Optionen ergänzt; Token-Admin-Anforderung dokumentiert — kein Admin-Benutzer erforderlich
 

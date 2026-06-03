@@ -242,26 +242,40 @@ function processEnvelope(envelope) {
     return;
   }
 
-  const dm = env.dataMessage;
-  const source = normPhone(env.sourceNumber || env.source);
+  // Sync-Nachrichten: vom eigenen Gerät (Handy) gesendete Nachrichten
+  const sm = env.syncMessage?.sentMessage;
+
+  let dm, chatId, isOwn, senderName;
+  if (sm) {
+    const dest = normPhone(sm.destinationNumber || sm.destination);
+    if (!dest) { dbg('processEnvelope: syncMessage ohne Ziel, übersprungen'); return; }
+    dm = { message: sm.message || '', timestamp: sm.timestamp, attachments: sm.attachments || [] };
+    chatId = dest;
+    isOwn = true;
+    senderName = PHONE_NUMBER;
+  } else {
+    dm = env.dataMessage;
+    const source = normPhone(env.sourceNumber || env.source);
+    isOwn = source === PHONE_NUMBER;
+    chatId = source;
+    senderName = env.sourceName || source;
+  }
+
   const hasText = !!(dm && dm.message);
   const hasAttachments = !!(dm && Array.isArray(dm.attachments) && dm.attachments.length > 0);
-  dbg(`processEnvelope: source=${source} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
-  if (!dm || !source || (!hasText && !hasAttachments)) { dbg(`processEnvelope: skipping — no dataMessage, source, or content`); return; }
+  dbg(`processEnvelope: chatId=${chatId} isOwn=${isOwn} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
+  if (!dm || !chatId || (!hasText && !hasAttachments)) { dbg(`processEnvelope: skipping — no dataMessage, chatId, or content`); return; }
 
-  const msgId = `${source}_${dm.timestamp}`;
+  const msgId = `${isOwn ? PHONE_NUMBER : chatId}_${dm.timestamp}`;
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
-
-  const isOwn = source === PHONE_NUMBER;
-  const chatId = source;
-  const senderName = env.sourceName || source;
   const previewText = dm.message || (hasAttachments ? '📷 Foto' : '');
 
   const attIds = hasAttachments
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
     : undefined;
-  const msg = { id: msgId, from: source, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, attIds };
+  const msgFrom = isOwn ? PHONE_NUMBER : chatId;
+  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, attIds };
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -273,12 +287,13 @@ function processEnvelope(envelope) {
   messagesByChatId.get(chatId).push(msg);
 
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: senderName, phone: source, lastMsg: previewText, lastTime: dm.timestamp });
+    chatMap.set(chatId, { id: chatId, name: senderName, phone: chatId, lastMsg: previewText, lastTime: dm.timestamp, lastFromMe: isOwn });
   } else {
     const chat = chatMap.get(chatId);
     chat.lastMsg = previewText;
     chat.lastTime = dm.timestamp;
-    if (senderName && senderName !== source) chat.name = senderName;
+    chat.lastFromMe = isOwn;
+    if (senderName && senderName !== chatId) chat.name = senderName;
   }
 
   scheduleSave();
@@ -302,7 +317,7 @@ function processEnvelope(envelope) {
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: source, name: senderName, message: dm.message || previewText, timestamp: dm.timestamp }),
+      body: JSON.stringify({ from: chatId, name: senderName, message: dm.message || previewText, timestamp: dm.timestamp }),
     }).catch(() => {});
   }
 }
@@ -582,6 +597,7 @@ app.post('/api/send', async (req, res) => {
         const chat = chatMap.get(to);
         chat.lastMsg = message;
         chat.lastTime = Date.now();
+        chat.lastFromMe = true;
       }
       scheduleSave();
     }
@@ -626,6 +642,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       if (chatMap.has(to)) {
         chatMap.get(to).lastMsg = caption || (isImg ? '📷 Foto' : safeName);
         chatMap.get(to).lastTime = signalTs;
+        chatMap.get(to).lastFromMe = true;
       }
       scheduleSave();
     }
@@ -1198,7 +1215,7 @@ function renderChats(chats) {
   const el = document.getElementById('chat-list');
   el.innerHTML = filtered.map(c => {
     if (c.id === selectedChatId) lastSeenTime[c.id] = Math.max(lastSeenTime[c.id] || 0, c.lastTime || 0);
-    const hasUnread = c.id !== selectedChatId && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
+    const hasUnread = c.id !== selectedChatId && !c.lastFromMe && (c.lastTime || 0) > (lastSeenTime[c.id] || 0);
     return \`
     <div class="chat-item\${c.id === selectedChatId ? ' active' : ''}" data-chatid="\${escHtml(c.id)}" onclick="openChatById(this.dataset.chatid)">
       \${chatAvatar(c)}
@@ -1298,6 +1315,9 @@ function renderMessages(msgs) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
+      if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
+    } else if (showPhotos && (m.type === 'photo' || (m.attIds && m.attIds.length > 0))) {
+      content = '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'document' && m.filename) {
       content = \`<div class="bubble-doc"><span class="doc-icon">📄</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
@@ -1539,7 +1559,7 @@ process.on('unhandledRejection', (reason) => {
 
 async function init() {
   console.log('[INFO] Signal UI starting...');
-  if (DOWNLOAD_MEDIA) { try { fs.mkdirSync(MEDIA_DIR, { recursive: true }); } catch (e) {} }
+  try { fs.mkdirSync(MEDIA_DIR, { recursive: true }); } catch (e) {}
   loadFromDisk();
   try {
     let best = null;

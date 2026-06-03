@@ -1,0 +1,22 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Benutzername für das Web-Interface.
+  password:
+    name: Passwort
+    description: Passwort für das Web-Interface. Wird auch zur Bestätigung von Container-Neustart und Kill-Aktionen benötigt.
+  session_hours:
+    name: Session-Dauer (Stunden)
+    description: Wie viele Stunden eine Login-Session gültig bleibt. Standard 24.
+  collect_interval:
+    name: Abfrageintervall (Sekunden)
+    description: "Pause zwischen zwei Docker-Abfragen. Gesamtzyklus = Abfragezeit + dieser Wert. Beispiel: 49 Container ~2s + 3s Pause = ~5s Zyklus. Kleiner = schnellere Updates, aber mehr CPU-Last. Standard 3, Minimum 2."
+  collect_workers:
+    name: Parallele Worker
+    description: "Anzahl gleichzeitiger Docker-Stats-Abfragen. Mehr Worker = schneller, aber mehr CPU/RAM. Bei 49 Containern: 16 Worker ~4s, 32 Worker ~2.5s, 49+ Worker ~2s (wie docker stats CLI). Bereich 4–64, Standard 16."
+  viewer_timeout:
+    name: Idle-Timeout (Sekunden)
+    description: "Nach dieser Zeit ohne aktive Browser-Verbindung wechselt der Collector in den Idle-Modus (2 Worker, 60s Interval) um Ressourcen zu sparen. Der Browser sendet alle 10s einen Heartbeat solange der Tab geöffnet ist. Bereich 30–1800 (30 Min), Standard 180."
+  show_stopped:
+    name: Gestoppte Container anzeigen
+    description: Gestoppte/beendete Container standardmäßig in der Tabelle anzeigen. Kann auch in der UI umgeschaltet werden. Standard false.

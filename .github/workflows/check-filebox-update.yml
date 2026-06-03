@@ -77,33 +77,14 @@ jobs:
             ghcr.io/luckytriple7/filebox:${{ steps.versions.outputs.new }}
             ghcr.io/luckytriple7/filebox:latest
 
-      - name: Create PR with update
+      - name: Prepare files
         if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        id: prepare
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FB_VER: ${{ steps.upstream.outputs.version }}
           OLD_ADDON_VER: ${{ steps.versions.outputs.old }}
           NEW_ADDON_VER: ${{ steps.versions.outputs.new }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          BRANCH="update/filebox-${FB_VER}"
-
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #${EXISTING_PR} existiert bereits — überspringe."
-            exit 0
-          fi
-
-          # Branch auf Remote löschen falls er ohne PR existiert (z. B. gecrasht)
-          if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
-            echo "Branch $BRANCH existiert auf Remote ohne PR — wird neu erstellt."
-            git push origin --delete "$BRANCH" 2>/dev/null || true
-          fi
-
-          git checkout -b "$BRANCH"
-
           DATE=$(date +%Y-%m-%d)
 
           sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" filebox/config.yaml
@@ -113,11 +94,26 @@ jobs:
           sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" filebox/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" filebox/CHANGELOG.md
 
-          git add filebox/config.yaml filebox/CHANGELOG.md .filebox-version
-          git commit -m "Bump FileBox Add-on zu v${NEW_ADDON_VER} — FileBrowser ${FB_VER}"
-          git push origin "$BRANCH"
+      - name: Create Pull Request
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
+          branch: update/filebox-${{ steps.upstream.outputs.version }}
+          delete-branch: true
+          commit-message: "Bump FileBox Add-on zu v${{ steps.versions.outputs.new }} — FileBrowser ${{ steps.upstream.outputs.version }}"
+          title: "Update FileBrowser ${{ steps.upstream.outputs.version }} (Add-on v${{ steps.versions.outputs.new }})"
+          body: |
+            ## FileBrowser Update
 
-          gh pr create \
-            --title "Update FileBrowser ${FB_VER} (Add-on v${NEW_ADDON_VER})" \
-            --body "$(printf '## FileBrowser Update\n\nNeue FileBrowser Version **%s** verfügbar.\n\n- Add-on Version: `%s` → `%s`\n- FileBrowser: `%s`\n- Image: `ghcr.io/luckytriple7/filebox:%s`\n\n_Automatisch erstellt von GitHub Actions._' "$FB_VER" "$OLD_ADDON_VER" "$NEW_ADDON_VER" "$FB_VER" "$NEW_ADDON_VER")" \
-            --base dev
+            Neue FileBrowser Version **${{ steps.upstream.outputs.version }}** verfügbar.
+
+            ### Änderungen
+            - Add-on Version: `${{ steps.versions.outputs.old }}` → `${{ steps.versions.outputs.new }}`
+            - FileBrowser: `${{ steps.upstream.outputs.version }}`
+            - Image: `ghcr.io/luckytriple7/filebox:${{ steps.versions.outputs.new }}`
+
+            ---
+            _Automatisch erstellt von GitHub Actions._
+          labels: "auto-update"

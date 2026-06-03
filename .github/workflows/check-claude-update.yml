@@ -35,27 +35,12 @@ jobs:
         if: steps.claude.outputs.version == steps.tracked.outputs.version
         run: echo "Claude Code ${{ steps.claude.outputs.version }} already tracked — nothing to do."
 
-      - name: Create PR with version bump
+      - name: Prepare files
         if: steps.claude.outputs.version != steps.tracked.outputs.version
+        id: prepare
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CLAUDE_VER: ${{ steps.claude.outputs.version }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          BRANCH="update/claude-code-${CLAUDE_VER}"
-
-          # Skip if PR already exists for this branch
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [ -n "$EXISTING_PR" ]; then
-            echo "PR #${EXISTING_PR} already exists for ${BRANCH} — skipping."
-            exit 0
-          fi
-
-          git checkout -b "$BRANCH"
-
-          # Bump add-on patch version
           ADDON_VER=$(grep '^version:' claudecode/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           MAJOR=$(echo $ADDON_VER | cut -d. -f1)
           MINOR=$(echo $ADDON_VER | cut -d. -f2)
@@ -64,20 +49,34 @@ jobs:
           DATE=$(date +%Y-%m-%d)
 
           sed -i "s/version: \"${ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" claudecode/config.yaml
-
-          # Update tracked version
           echo "$CLAUDE_VER" > .claude-code-version
 
-          # Prepend CHANGELOG entry
           ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Changed\n- Rebuild für Claude Code ${CLAUDE_VER}\n"
           sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" claudecode/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" claudecode/CHANGELOG.md
 
-          git add claudecode/config.yaml claudecode/CHANGELOG.md .claude-code-version
-          git commit -m "Bump add-on to v${NEW_ADDON_VER} — Claude Code ${CLAUDE_VER}"
-          git push --force origin "$BRANCH"
+          echo "old=${ADDON_VER}" >> $GITHUB_OUTPUT
+          echo "new=${NEW_ADDON_VER}" >> $GITHUB_OUTPUT
 
-          gh pr create \
-            --title "Update Claude Code ${CLAUDE_VER} (Add-on v${NEW_ADDON_VER})" \
-            --body "$(printf '## Claude Code Update\n\nNeue Version **%s** von [@anthropic-ai/claude-code](https://www.npmjs.com/package/@anthropic-ai/claude-code) verfügbar.\n\n### Änderungen\n- Add-on Version: `%s` → `%s`\n- Claude Code Version: `%s`\n\n---\n_Automatisch erstellt von GitHub Actions. Bitte prüfen und mergen._' "$CLAUDE_VER" "$ADDON_VER" "$NEW_ADDON_VER" "$CLAUDE_VER")" \
-            --base dev
+      - name: Create Pull Request
+        if: steps.claude.outputs.version != steps.tracked.outputs.version
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
+          branch: update/claude-code-${{ steps.claude.outputs.version }}
+          delete-branch: true
+          commit-message: "Bump add-on to v${{ steps.prepare.outputs.new }} — Claude Code ${{ steps.claude.outputs.version }}"
+          title: "Update Claude Code ${{ steps.claude.outputs.version }} (Add-on v${{ steps.prepare.outputs.new }})"
+          body: |
+            ## Claude Code Update
+
+            Neue Version **${{ steps.claude.outputs.version }}** von [@anthropic-ai/claude-code](https://www.npmjs.com/package/@anthropic-ai/claude-code) verfügbar.
+
+            ### Änderungen
+            - Add-on Version: `${{ steps.prepare.outputs.old }}` → `${{ steps.prepare.outputs.new }}`
+            - Claude Code Version: `${{ steps.claude.outputs.version }}`
+
+            ---
+            _Automatisch erstellt von GitHub Actions. Bitte prüfen und mergen._
+          labels: "auto-update"
