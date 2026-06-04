@@ -32,9 +32,9 @@ fi
 
 if [ "$NATIVE_MODE" = "true" ]; then
   export MODE=native
-  echo "[INFO] [$(date +%H:%M:%S)] Mode: native (niedrige CPU-Last)"
+  echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Mode: native (niedrige CPU-Last)"
 else
-  echo "[INFO] [$(date +%H:%M:%S)] Mode: default (Java pro API-Aufruf)"
+  echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Mode: default (Java pro API-Aufruf)"
 fi
 
 start_signal_api() {
@@ -45,21 +45,21 @@ start_signal_api() {
     # Normal: GIN-Access-Logs und signal-cli-Info-Meldungen unterdrücken
     /entrypoint.sh 2>&1 | grep -Ev '^\[GIN\] |level=info' &
   fi
-  echo "[INFO] [$(date +%H:%M:%S)] Waiting for signal-cli-rest-api on :8080..."
+  echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Waiting for signal-cli-rest-api on :8080..."
   for i in $(seq 1 60); do
     if curl -s --max-time 2 -o /dev/null http://localhost:8080/v1/about; then
-      echo "[INFO] [$(date +%H:%M:%S)] signal-cli-rest-api ready"
+      echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] signal-cli-rest-api ready"
       return 0
     fi
     sleep 2
   done
 }
 
-echo "[INFO] [$(date +%H:%M:%S)] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG_DIR)..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting signal-cli-rest-api (data: $SIGNAL_CLI_CONFIG_DIR)..."
 start_signal_api
 
 
 export PORT=17777
-echo "[INFO] [$(date +%H:%M:%S)] Starting Signal UI on port $PORT..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting Signal UI on port $PORT..."
 cd /ui
 exec node server.js

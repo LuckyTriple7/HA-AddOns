@@ -28,7 +28,7 @@ max_execution_time = 300
 max_input_time = 300
 opcache.memory_consumption = ${OPCACHE_MEM}
 EOF
-    echo "[ha-init] [$(date +%H:%M:%S)] PHP conf.d: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX} opcache=${OPCACHE_MEM}M (${PHP_CONF_D})"
+    echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] PHP conf.d: memory=${MEMORY_LIMIT} upload=${UPLOAD_MAX} post=${POST_MAX} opcache=${OPCACHE_MEM}M (${PHP_CONF_D})"
 done
 
 # PHP-FPM: mehr Worker-Prozesse (Standard linuxserver = 5, zu wenig)
@@ -38,7 +38,7 @@ for POOL_CONF in /etc/php*/php-fpm.d/www.conf; do
     sed -i 's/^pm.start_servers = .*/pm.start_servers = 5/' "$POOL_CONF"
     sed -i 's/^pm.min_spare_servers = .*/pm.min_spare_servers = 3/' "$POOL_CONF"
     sed -i 's/^pm.max_spare_servers = .*/pm.max_spare_servers = 10/' "$POOL_CONF"
-    echo "[ha-init] [$(date +%H:%M:%S)] PHP-FPM pool: max_children=15 (${POOL_CONF})"
+    echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] PHP-FPM pool: max_children=15 (${POOL_CONF})"
 done
 
 # SMB-Mounts
@@ -47,7 +47,7 @@ do_mount() {
     mkdir -p "$MOUNTPOINT"
     umount "$MOUNTPOINT" 2>/dev/null || true
     if ! nc -z -w 5 "$SERVER" 445 2>/dev/null; then
-        echo "[ha-init] [$(date +%H:%M:%S)] SMB FAIL: Port 445 auf ${SERVER} nicht erreichbar"
+        echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] SMB FAIL: Port 445 auf ${SERVER} nicht erreichbar"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
         return
     fi
@@ -55,9 +55,9 @@ do_mount() {
     [ -n "$USER" ] && OPTS="${OPTS},username=${USER}" || OPTS="${OPTS},guest"
     [ -n "$PASS" ] && OPTS="${OPTS},password=${PASS}"
     if mount -t cifs "//${SERVER}/${SHARE}" "$MOUNTPOINT" -o "$OPTS" 2>/tmp/smb_err; then
-        echo "[ha-init] [$(date +%H:%M:%S)] SMB OK: //${SERVER}/${SHARE} → ${MOUNTPOINT}"
+        echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] SMB OK: //${SERVER}/${SHARE} → ${MOUNTPOINT}"
     else
-        echo "[ha-init] [$(date +%H:%M:%S)] SMB FAIL: //${SERVER}/${SHARE}: $(cat /tmp/smb_err 2>/dev/null)"
+        echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] SMB FAIL: //${SERVER}/${SHARE}: $(cat /tmp/smb_err 2>/dev/null)"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
     fi
     rm -f /tmp/smb_err
@@ -69,10 +69,10 @@ for IDX in 1 2 3; do
     USER=$(jq -r   ".smb_${IDX}_user // empty"   "$OPTIONS" 2>/dev/null)
     PASS=$(jq -r   ".smb_${IDX}_password // empty" "$OPTIONS" 2>/dev/null)
     if [ -z "$SERVER" ]; then
-        echo "[ha-init] [$(date +%H:%M:%S)] SMB-${IDX}: nicht konfiguriert"
+        echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] SMB-${IDX}: nicht konfiguriert"
         continue
     fi
-    [ -z "$SHARE" ] && echo "[ha-init] [$(date +%H:%M:%S)] SMB-${IDX}: kein Share konfiguriert" && continue
+    [ -z "$SHARE" ] && echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] SMB-${IDX}: kein Share konfiguriert" && continue
     do_mount "$SERVER" "$SHARE" "$USER" "$PASS" "/mnt/smb${IDX}"
 done
 
@@ -89,9 +89,9 @@ HEADERS
 NGINX_CONF=/config/nginx/site-confs/default.conf
 if [ -f "$NGINX_CONF" ] && ! grep -q "security-headers.conf" "$NGINX_CONF"; then
     sed -i '/^server {/a\    include /config/nginx/security-headers.conf;' "$NGINX_CONF"
-    echo "[ha-init] [$(date +%H:%M:%S)] Nginx security headers: eingebunden"
+    echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] Nginx security headers: eingebunden"
 else
-    echo "[ha-init] [$(date +%H:%M:%S)] Nginx security headers: bereits konfiguriert"
+    echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] Nginx security headers: bereits konfiguriert"
 fi
 
-echo "[ha-init] [$(date +%H:%M:%S)] done"
+echo "[ha-init] [$(date '+%Y-%m-%d %H:%M:%S')] done"

@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 log = logging.getLogger(__name__)
 
 app        = FastAPI()

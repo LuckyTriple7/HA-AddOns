@@ -13,11 +13,11 @@ for candidate in chromium chromium-browser google-chrome-stable google-chrome; d
 done
 
 if [ -z "$CHROMIUM_BIN" ]; then
-    echo "[FATAL] [$(date +%H:%M:%S)] No Chromium binary found!"
+    echo "[FATAL] [$(date '+%Y-%m-%d %H:%M:%S')] No Chromium binary found!"
     exit 1
 fi
 
-echo "[INFO] [$(date +%H:%M:%S)] CDP proxy starting on port ${CDP_PORT} (lazy Chromium, idle timeout: ${IDLE_MINUTES} min)..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] CDP proxy starting on port ${CDP_PORT} (lazy Chromium, idle timeout: ${IDLE_MINUTES} min)..."
 
 exec env \
     CHROMIUM_BIN="$CHROMIUM_BIN" \
