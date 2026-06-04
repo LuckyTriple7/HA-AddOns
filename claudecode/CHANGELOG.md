@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.24] - 2026-06-04
+
+### Added
+- Neue Option `notify_on_update` (Standard: aktiviert): HA-Persistent-Notification bei Update kann deaktiviert werden, ohne den Update-Check selbst abzuschalten.
+
 ## [1.0.23] - 2026-06-04
 
 ### Changed

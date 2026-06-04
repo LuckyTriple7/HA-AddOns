@@ -50,6 +50,13 @@ configuration:
     description: >-
       Beim Start des Add-ons automatisch nach Claude Code-Updates suchen und
       diese installieren. Hält Claude Code aktuell ohne Versions-Bump des Add-ons.
+  notify_on_update:
+    name: HA-Benachrichtigung bei Update
+    description: >-
+      Beim Erkennen einer neuen Claude Code-Version eine persistente
+      Home Assistant-Benachrichtigung anzeigen. Deaktivieren, wenn keine
+      Notification in HA gewünscht ist (Update wird trotzdem erkannt und
+      im Terminal angezeigt). Standard: aktiviert.
   model:
     name: Claude-Modell
     description: >-

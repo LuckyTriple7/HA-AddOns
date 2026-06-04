@@ -100,6 +100,7 @@ ENABLE_MCP=$(jq -r '.enable_mcp // true' /data/options.json)
 ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
 PLAYWRIGHT_HOST=$(jq -r --arg d '' '.playwright_cdp_host // $d' /data/options.json)
 AUTO_UPDATE=$(jq -r '.auto_update_claude // true' /data/options.json)
+NOTIFY_ON_UPDATE=$(jq -r '.notify_on_update // true' /data/options.json)
 MODEL=$(jq -r --arg d claude-sonnet-4-6 '.model // $d' /data/options.json)
 EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
 EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
@@ -115,6 +116,7 @@ echo "[INFO]   terminal_theme         : $THEME"
 echo "[INFO]   session_persistence    : $SESSION_PERSIST"
 echo "[INFO]   claude_autostart       : $CLAUDE_AUTOSTART"
 echo "[INFO]   auto_update_claude     : $AUTO_UPDATE"
+echo "[INFO]   notify_on_update       : $NOTIFY_ON_UPDATE"
 echo "[INFO]   export_memory          : $EXPORT_MEMORY"
 echo "[INFO]   export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 
@@ -279,19 +281,23 @@ if [ "$AUTO_UPDATE" = "true" ]; then
         if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
             echo "$LV" > "$PERSIST_DIR/.update_notice"
             echo "[INFO] Update available: $LV (installed: $IV)"
-            printf '{"title":"Claude Code Update Available","message":"Version %s is available (installed: %s). Restart the add-on to update.","notification_id":"claude_code_update"}' "$LV" "$IV" \
-                | curl -sf -X POST \
-                  -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
-                  -H "Content-Type: application/json" \
-                  -d @- http://supervisor/core/api/services/persistent_notification/create 2>/dev/null || true
+            if [ "$NOTIFY_ON_UPDATE" = "true" ]; then
+                printf '{"title":"Claude Code Update Available","message":"Version %s is available (installed: %s). Restart the add-on to update.","notification_id":"claude_code_update"}' "$LV" "$IV" \
+                    | curl -sf -X POST \
+                      -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
+                      -H "Content-Type: application/json" \
+                      -d @- http://supervisor/core/api/services/persistent_notification/create 2>/dev/null || true
+            fi
         else
             rm -f "$PERSIST_DIR/.update_notice" 2>/dev/null
             echo "[INFO] Claude Code $IV is up to date"
-            printf '{"notification_id":"claude_code_update"}' \
-                | curl -sf -X POST \
-                  -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
-                  -H "Content-Type: application/json" \
-                  -d @- http://supervisor/core/api/services/persistent_notification/dismiss 2>/dev/null || true
+            if [ "$NOTIFY_ON_UPDATE" = "true" ]; then
+                printf '{"notification_id":"claude_code_update"}' \
+                    | curl -sf -X POST \
+                      -H "Authorization: Bearer $SUPERVISOR_TOKEN" \
+                      -H "Content-Type: application/json" \
+                      -d @- http://supervisor/core/api/services/persistent_notification/dismiss 2>/dev/null || true
+            fi
         fi
     done) &
 else

@@ -44,6 +44,12 @@
     description: >-
       Verifica e instala automaticamente atualizações do Claude Code ao iniciar o add-on.
       Mantém o Claude Code atualizado sem precisar atualizar a versão do add-on.
+  notify_on_update:
+    name: Notificação do HA ao Atualizar
+    description: >-
+      Exibir uma notificação persistente no Home Assistant quando uma nova versão
+      do Claude Code for detectada. Desative se não quiser notificações no HA
+      (as atualizações ainda são detectadas e exibidas no terminal). Padrão: ativado.
   model:
     name: Modelo Claude
     description: >-
