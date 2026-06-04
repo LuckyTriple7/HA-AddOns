@@ -4,11 +4,6 @@
 # Home Assistant Add-on: phpMyAdmin Maria DB 2
 # Configures phpMyAdmin
 # ==============================================================================
-declare host
-declare password
-declare port
-declare username
-declare database
 
 if ! bashio::fs.file_exists "/data/config.secret.inc.php"; then
     cat > /data/config.secret.inc.php <<EOT
@@ -17,26 +12,3 @@ if ! bashio::fs.file_exists "/data/config.secret.inc.php"; then
 EOT
 fi
 chmod 644 /data/config.secret.inc.php
-
-host=$(bashio::config "mysql_host")
-port=$(bashio::config "mysql_port")
-username=$(bashio::config "mysql_user")
-password=$(bashio::config "mysql_password")
-
-database=$(\
-    mariadb \
-        -u "${username}" -p"${password}" \
-        -h "${host}" -P "${port}" \
-        --skip-column-names \
-        --skip-ssl \
-        -e "SHOW DATABASES LIKE 'phpmyadmin';"
-)
-
-if ! bashio::var.has_value "${database}"; then
-    bashio::log.info "Creating database for phpMyAdmin"
-    mariadb \
-        -u "${username}" -p"${password}" \
-        -h "${host}" -P "${port}" \
-        --skip-ssl \
-            < /var/www/phpmyadmin/sql/create_tables.sql
-fi

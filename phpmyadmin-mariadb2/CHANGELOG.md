@@ -1,5 +1,10 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.3] - 2026-06-04
+
+### Fixed
+- phpMyAdmin-Datenbank-Init entfernt — verhinderte Start wenn User keine CREATE-Rechte hat (Datenbank ist optional)
+
 ## [1.0.2] - 2026-06-04
 
 ### Fixed
