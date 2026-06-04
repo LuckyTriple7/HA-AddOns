@@ -24,7 +24,7 @@ if [ -f "${OPTIONS_FILE}" ]; then
     [ -n "${DRINODE}" ]   && export DRINODE
 else
     export PUID PGID TZ
-    echo "[ubuntu-webtop] Warnung: ${OPTIONS_FILE} nicht gefunden, benutze Standardwerte."
+    echo "[ubuntu-webtop] [$(date +%H:%M:%S)] Warnung: ${OPTIONS_FILE} nicht gefunden, benutze Standardwerte."
 fi
 
 # XDG_RUNTIME_DIR wird normalerweise von logind beim Login erstellt.

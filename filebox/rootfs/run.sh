@@ -16,7 +16,7 @@ SHOW_MEDIA=$(jq -r '.show_media // false' /data/options.json 2>/dev/null || echo
 SHOW_CONFIG=$(jq -r '.show_config // false' /data/options.json 2>/dev/null || echo "false")
 SHOW_BACKUP=$(jq -r '.show_backup // false' /data/options.json 2>/dev/null || echo "false")
 
-echo "[INFO] PORT=$PORT SHOW_MEDIA=$SHOW_MEDIA SHOW_CONFIG=$SHOW_CONFIG SHOW_BACKUP=$SHOW_BACKUP"
+echo "[INFO] [$(date +%H:%M:%S)] PORT=$PORT SHOW_MEDIA=$SHOW_MEDIA SHOW_CONFIG=$SHOW_CONFIG SHOW_BACKUP=$SHOW_BACKUP"
 
 mkdir -p "$ROOT"
 
@@ -75,7 +75,7 @@ do_mount() {
     umount "$MOUNTPOINT" 2>/dev/null || true
 
     if ! nc -z -w 5 "$SERVER" 445 2>/dev/null; then
-        echo "[FAIL] Port 445 auf ${SERVER} nicht erreichbar — übersprungen"
+        echo "[FAIL] [$(date +%H:%M:%S)] Port 445 auf ${SERVER} nicht erreichbar — übersprungen"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
         return
     fi
@@ -91,17 +91,17 @@ do_mount() {
     fi
 
     UNC="//${SERVER}/${SHARE}"
-    echo "[INFO] Mounte ${UNC} → ${MOUNTPOINT} ..."
+    echo "[INFO] [$(date +%H:%M:%S)] Mounte ${UNC} → ${MOUNTPOINT} ..."
 
     ERR_FILE="/tmp/mount_err_$$"
     if mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1; then
         rm -f "$ERR_FILE"
-        echo "[OK]   ${UNC} erfolgreich gemountet"
-        echo "[OK]   In FileBrowser sichtbar als '${LINKNAME}'"
+        echo "[OK] [$(date +%H:%M:%S)] ${UNC} erfolgreich gemountet"
+        echo "[OK] [$(date +%H:%M:%S)] In FileBrowser sichtbar als '${LINKNAME}'"
     else
         MOUNT_ERR=$(cat "$ERR_FILE" 2>/dev/null)
         rm -f "$ERR_FILE"
-        echo "[FAIL] Mount von ${UNC} fehlgeschlagen: ${MOUNT_ERR}"
+        echo "[FAIL] [$(date +%H:%M:%S)] Mount von ${UNC} fehlgeschlagen: ${MOUNT_ERR}"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
     fi
 }
@@ -114,11 +114,11 @@ mount_server() {
     PASS=$(jq -r ".smb_${INDEX}_password // empty" /data/options.json 2>/dev/null)
 
     if [ -z "$SERVER" ]; then
-        echo "[INFO] SMB-${INDEX}: nicht konfiguriert — übersprungen"
+        echo "[INFO] [$(date +%H:%M:%S)] SMB-${INDEX}: nicht konfiguriert — übersprungen"
         return
     fi
 
-    echo "[INFO] SMB-${INDEX}: Server ${SERVER}"
+    echo "[INFO] [$(date +%H:%M:%S)] SMB-${INDEX}: Server ${SERVER}"
 
     # Alte Mounts für diesen Slot umounten und entfernen
     for d in "$ROOT"/SMB-${INDEX}*; do
@@ -131,18 +131,18 @@ mount_server() {
         do_mount "$SERVER" "$SHARE" "$USER" "$PASS" \
             "SMB-${INDEX} ${SHARE}"
     else
-        echo "[INFO] SMB-${INDEX}: Ermittle alle Shares auf ${SERVER} ..."
+        echo "[INFO] [$(date +%H:%M:%S)] SMB-${INDEX}: Ermittle alle Shares auf ${SERVER} ..."
         if [ -n "$USER" ]; then
             SMB_LIST_CMD="smbclient -L $SERVER -U ${USER}%${PASS} -g"
         else
             SMB_LIST_CMD="smbclient -L $SERVER -N -g"
         fi
         SMB_LIST_OUT=$(eval "$SMB_LIST_CMD" 2>&1)
-        echo "[DEBUG] SMB-${INDEX}: smbclient Ausgabe: ${SMB_LIST_OUT}"
+        echo "[DEBUG] [$(date +%H:%M:%S)] SMB-${INDEX}: smbclient Ausgabe: ${SMB_LIST_OUT}"
         SHARES=$(echo "$SMB_LIST_OUT" | awk -F'|' '/^Disk\|/ {print $2}')
 
         if [ -z "$SHARES" ]; then
-            echo "[WARN] SMB-${INDEX}: Keine Shares auf ${SERVER} gefunden"
+            echo "[WARN] [$(date +%H:%M:%S)] SMB-${INDEX}: Keine Shares auf ${SERVER} gefunden"
             return
         fi
 
@@ -152,7 +152,7 @@ mount_server() {
             do_mount "$SERVER" "$S" "$USER" "$PASS" \
                 "SMB-${INDEX} ${S}"
         done
-        echo "[INFO] SMB-${INDEX}: Auto-Discovery abgeschlossen"
+        echo "[INFO] [$(date +%H:%M:%S)] SMB-${INDEX}: Auto-Discovery abgeschlossen"
     fi
 }
 
@@ -165,7 +165,7 @@ mount_server 5
 echo "------------------"
 
 if [ ! -f "$DB" ]; then
-    echo "[INFO] Erste Initialisierung der FileBrowser-Datenbank ..."
+    echo "[INFO] [$(date +%H:%M:%S)] Erste Initialisierung der FileBrowser-Datenbank ..."
     filebrowser --database "$DB" --address 127.0.0.1 --port 19999 --root "$ROOT" &
     FB_PID=$!
     sleep 3
@@ -180,7 +180,7 @@ filebrowser users update 1 \
     --locale de \
     --database "$DB" 2>/dev/null || true
 
-echo "[INFO] Starte FileBrowser auf Port ${PORT} ..."
+echo "[INFO] [$(date +%H:%M:%S)] Starte FileBrowser auf Port ${PORT} ..."
 exec filebrowser \
     --database "$DB" \
     --address 0.0.0.0 \

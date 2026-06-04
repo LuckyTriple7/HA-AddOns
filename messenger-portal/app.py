@@ -14,7 +14,7 @@ from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
+logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%H:%M:%S')
 log = logging.getLogger(__name__)
 # Werkzeug HTTP-Access-Logs unterdrücken – nginx übernimmt das
 logging.getLogger('werkzeug').setLevel(logging.ERROR)

@@ -7,7 +7,7 @@ PGID=${PGID:-1000}
 BASE_PORT=8800
 
 if [ ! -f "$RCLONE_CONF" ]; then
-    echo "[rclone] Keine rclone.conf gefunden — überspringe."
+    echo "[rclone] [$(date +%H:%M:%S)] Keine rclone.conf gefunden — überspringe."
     exit 0
 fi
 
@@ -17,31 +17,31 @@ touch "$BOOKMARKS_FILE"
 REMOTES=$(RCLONE_CONFIG="$RCLONE_CONF" rclone listremotes 2>/dev/null | sed 's/:$//')
 
 if [ -z "$REMOTES" ]; then
-    echo "[rclone] Keine Remotes in rclone.conf — überspringe."
+    echo "[rclone] [$(date +%H:%M:%S)] Keine Remotes in rclone.conf — überspringe."
     exit 0
 fi
 
 # Warte bis DNS verfügbar ist (bis zu 30 Sekunden)
-echo "[rclone] Warte auf DNS..."
+echo "[rclone] [$(date +%H:%M:%S)] Warte auf DNS..."
 DNS_OK=false
 for i in $(seq 1 15); do
     if getent hosts microsoft.com >/dev/null 2>&1 \
     || getent hosts graph.microsoft.com >/dev/null 2>&1 \
     || getent hosts graph.microsoft.de >/dev/null 2>&1; then
         DNS_OK=true
-        echo "[rclone] DNS verfügbar (nach ${i}x2s)"
+        echo "[rclone] [$(date +%H:%M:%S)] DNS verfügbar (nach ${i}x2s)"
         break
     fi
     sleep 2
 done
 
 if [ "$DNS_OK" = false ]; then
-    echo "[rclone] WARNUNG: DNS nach 30s nicht erreichbar — versuche trotzdem..."
+    echo "[rclone] [$(date +%H:%M:%S)] WARNUNG: DNS nach 30s nicht erreichbar — versuche trotzdem..."
 fi
 
 PORT=$BASE_PORT
 for REMOTE in $REMOTES; do
-    echo "[rclone] Starte WebDAV-Server für ${REMOTE}: auf Port ${PORT}"
+    echo "[rclone] [$(date +%H:%M:%S)] Starte WebDAV-Server für ${REMOTE}: auf Port ${PORT}"
 
     nohup rclone serve webdav "${REMOTE}:" \
         --config "$RCLONE_CONF" \
@@ -64,7 +64,7 @@ for REMOTE in $REMOTES; do
     done
 
     if [ "$STARTED" = true ]; then
-        echo "[rclone] ${REMOTE}: WebDAV-Server läuft auf Port ${PORT}"
+        echo "[rclone] [$(date +%H:%M:%S)] ${REMOTE}: WebDAV-Server läuft auf Port ${PORT}"
 
         BOOKMARK="dav://localhost:${PORT}/ ${REMOTE}"
         if ! grep -qF "dav://localhost:${PORT}/" "$BOOKMARKS_FILE" 2>/dev/null; then
@@ -72,7 +72,7 @@ for REMOTE in $REMOTES; do
         fi
     else
         ERR=$(cat "/tmp/rclone_webdav_${REMOTE}.log" 2>/dev/null | tail -3)
-        echo "[rclone] FEHLER: WebDAV für ${REMOTE}: konnte nicht gestartet werden${ERR:+ — $ERR}"
+        echo "[rclone] [$(date +%H:%M:%S)] FEHLER: WebDAV für ${REMOTE}: konnte nicht gestartet werden${ERR:+ — $ERR}"
     fi
 
     PORT=$((PORT + 1))

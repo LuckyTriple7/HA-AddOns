@@ -6,11 +6,11 @@ CONFIG_PHP=/config/www/nextcloud/config/config.php
 
 # Wie alexbelgium: nur wenn installiert
 if ! grep -q "'installed' => true" "$CONFIG_PHP" 2>/dev/null; then
-    echo "[ha-config] Nextcloud noch nicht installiert — bitte Web-Installer aufrufen und Add-on neu starten"
+    echo "[ha-config] [$(date +%H:%M:%S)] Nextcloud noch nicht installiert — bitte Web-Installer aufrufen und Add-on neu starten"
     exit 0
 fi
 
-echo "[ha-config] Nextcloud installiert — wende HA-Konfiguration an ..."
+echo "[ha-config] [$(date +%H:%M:%S)] Nextcloud installiert — wende HA-Konfiguration an ..."
 
 TRUSTED_DOMAINS=$(jq -r '.trusted_domains // ""' "$OPTIONS" 2>/dev/null || echo "")
 TRUSTED_PROXIES=$(jq -r '.trusted_proxies // "172.30.32.0/23"' "$OPTIONS" 2>/dev/null || echo "172.30.32.0/23")
@@ -32,7 +32,7 @@ if [ -n "$TRUSTED_DOMAINS" ]; then
     echo "$TRUSTED_DOMAINS" | tr ',' '\n' | while IFS= read -r D; do
         D=$(echo "$D" | tr -d ' \r')
         [ -z "$D" ] && continue
-        echo "[ha-config] trusted_domain ${IDX}: ${D}"
+        echo "[ha-config] [$(date +%H:%M:%S)] trusted_domain ${IDX}: ${D}"
         ALLOW_ROOT=1 php "$OCC" config:system:set trusted_domains $IDX --value="$D" || true
         IDX=$((IDX + 1))
     done
@@ -96,7 +96,7 @@ if [ ! -f "$FLAG" ]; then
     for IDX in 1 2 3; do
         if mountpoint -q "/mnt/smb${IDX}" 2>/dev/null; then
             SHARE=$(jq -r ".smb_${IDX}_share // empty" "$OPTIONS" 2>/dev/null)
-            echo "[ha-config] Registriere SMB-${IDX} (${SHARE}) als externen Speicher ..."
+            echo "[ha-config] [$(date +%H:%M:%S)] Registriere SMB-${IDX} (${SHARE}) als externen Speicher ..."
             occ files_external:create "SMB-${IDX} ${SHARE}" local null::null \
                 --config datadir="/mnt/smb${IDX}"
         fi
@@ -104,4 +104,4 @@ if [ ! -f "$FLAG" ]; then
     touch "$FLAG"
 fi
 
-echo "[ha-config] Fertig"
+echo "[ha-config] [$(date +%H:%M:%S)] Fertig"

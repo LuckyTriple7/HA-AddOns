@@ -35,6 +35,6 @@ rm -rf "$SESSION_DIR/chromium/Default/Cache2"
 rm -rf "$SESSION_DIR/chromium/Default/Code Cache"
 rm -rf "$SESSION_DIR/chromium/Default/GPUCache"
 
-echo "[INFO] Starting WhatsApp add-on..."
+echo "[INFO] [$(date +%H:%M:%S)] Starting WhatsApp add-on..."
 cd /app
 exec node server.js
