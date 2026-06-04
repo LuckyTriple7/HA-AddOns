@@ -1,5 +1,5 @@
 name: phpMyAdmin Maria DB 2
-version: "1.0.3"
+version: "1.0.4"
 slug: phpmyadmin-mariadb2
 description: Web-Oberfläche für das MariaDB 2 Add-on
 url: https://github.com/LuckyTriple7/HA-AddOns

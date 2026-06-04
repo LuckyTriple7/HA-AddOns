@@ -1,4 +1,3 @@
----
 configuration:
   mysql_host:
     name: MySQL Host
