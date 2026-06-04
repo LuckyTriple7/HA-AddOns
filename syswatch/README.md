@@ -39,6 +39,20 @@ Real-time CPU, RAM, Network I/O, Disk I/O and PID counts for all Docker containe
 (same floor as `docker stats --no-stream` in the terminal — Docker daemon measurement interval).
 Total cycle: ~2 s + `collect_interval`.
 
+## Gesicherter Modus / Protection Mode
+
+Nach der Installation zeigt HA eine Warnung: **„Gesicherter Modus deaktiviert"**.
+Das ist korrekt und muss manuell bestätigt werden.
+
+SysWatch benötigt `docker_api: true`, um den Docker-Socket (`/var/run/docker.sock`)
+einzubinden — ohne diesen Zugriff können keine Container-Stats gelesen werden.
+HA deaktiviert dafür automatisch den gesicherten Modus, da der Docker-Socket
+prinzipiell weitreichenden Host-Zugriff ermöglicht.
+
+**In der HA Add-on UI:** Info-Tab → Schalter „Gesicherter Modus" auf **Aus** stellen.
+
+---
+
 ## Installation
 
 Add this repository to your Home Assistant Add-on Store:
