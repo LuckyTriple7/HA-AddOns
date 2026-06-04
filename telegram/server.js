@@ -1,6 +1,6 @@
 'use strict';
 (function () {
-  const _ts = () => new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
     console[m] = (...a) => {

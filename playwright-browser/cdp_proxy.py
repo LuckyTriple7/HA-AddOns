@@ -37,7 +37,7 @@ _last_activity = time.monotonic()
 
 
 def log(level, msg):
-    print(f'[{level}] [{time.strftime("%H:%M:%S")}] {msg}', flush=True)
+    print(f'[{level}] [{time.strftime("%Y-%m-%d %H:%M:%S")}] {msg}', flush=True)
 
 
 def rewrite(body: bytes) -> bytes:
@@ -238,7 +238,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pipe(client, backend)
             t.join(timeout=5)
         except Exception as e:
-            sys.stderr.write(f'[ERROR] [{time.strftime("%H:%M:%S")}] WS error: {e}\n')
+            sys.stderr.write(f'[ERROR] [{time.strftime("%Y-%m-%d %H:%M:%S")}] WS error: {e}\n')
             sys.stderr.flush()
         finally:
             with _lock:

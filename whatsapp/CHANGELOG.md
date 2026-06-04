@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.8] - 2026-06-04
+- fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
+
 ## [1.5.7] - 2026-06-04
 - Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 

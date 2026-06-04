@@ -1,6 +1,6 @@
 name: Playwright Browser
 description: Headless Chromium browser with CDP endpoint for Claude Code browser automation
-version: "1.0.13"
+version: "1.0.14"
 image: "ghcr.io/luckytriple7/playwright-browser"
 slug: playwright-browser
 url: https://github.com/LuckyTriple7/HA-AddOns
