@@ -19,4 +19,7 @@ configuration:
     description: "After this many seconds without an active browser session, the collector switches to idle mode (2 workers, 60s interval) to save resources. The browser sends a heartbeat every 10s while the tab is open. Range 30–1800 (30min), default 180."
   show_stopped:
     name: Show Stopped Containers
-    description: Show stopped/exited containers in the table by default. Can also be toggled in the UI. Default false.
+    description: Show stopped/exited containers in the table by default. Can also be toggled in the UI. Default true.
+  verbose_log:
+    name: Verbose Logging
+    description: Logs container count, worker count and query duration on every collection cycle. Default false — only mode changes, errors and actions are logged.

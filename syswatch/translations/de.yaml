@@ -19,4 +19,7 @@ configuration:
     description: "Nach dieser Zeit ohne aktive Browser-Verbindung wechselt der Collector in den Idle-Modus (2 Worker, 60s Interval) um Ressourcen zu sparen. Der Browser sendet alle 10s einen Heartbeat solange der Tab geöffnet ist. Bereich 30–1800 (30 Min), Standard 180."
   show_stopped:
     name: Gestoppte Container anzeigen
-    description: Gestoppte/beendete Container standardmäßig in der Tabelle anzeigen. Kann auch in der UI umgeschaltet werden. Standard false.
+    description: Gestoppte/beendete Container standardmäßig in der Tabelle anzeigen. Kann auch in der UI umgeschaltet werden. Standard true.
+  verbose_log:
+    name: Ausführliches Logging
+    description: Gibt pro Abfrage-Zyklus die Anzahl Container, Worker und Dauer im Log aus. Standard false — nur Modus-Wechsel, Fehler und Aktionen werden geloggt.
