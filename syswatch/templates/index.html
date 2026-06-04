@@ -552,7 +552,7 @@
   </div>
 </div>
 
-<footer>HA SysWatch &mdash; Docker Container Monitor</footer>
+<footer>HA SysWatch &mdash; Docker Container Monitor<span id="ha-versions" style="margin-left:10px;opacity:0.6"></span></footer>
 
 </div><!-- #main-scroll -->
 
@@ -807,6 +807,15 @@ async function fetchAndUpdate() {
     }
     updateCards(data.sysinfo || {}, data.ha_status || null);
     updatePerfBtn(data.collector_mode);
+    const verEl = document.getElementById('ha-versions');
+    if (verEl && data.ha_status) {
+      const s = data.ha_status;
+      const parts = [];
+      if (s.core_version)       parts.push('HA ' + s.core_version);
+      if (s.supervisor_version) parts.push('Supervisor ' + s.supervisor_version);
+      if (s.os_version)         parts.push('OS ' + s.os_version);
+      if (parts.length) verEl.textContent = '· ' + parts.join(' · ');
+    }
     renderTable();
     document.getElementById('loading-row').style.display = 'none';
     document.getElementById('main-table').style.display  = '';

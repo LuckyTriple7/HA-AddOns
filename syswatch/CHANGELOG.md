@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.3] - 2026-06-04
+
+### Added
+- Footer zeigt HA Core-, Supervisor- und OS-Version (via Supervisor API, 3 parallele Calls, 60s Cache)
+
 ## [1.0.2] - 2026-06-04
 
 ### Changed

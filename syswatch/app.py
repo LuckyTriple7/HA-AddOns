@@ -334,29 +334,47 @@ def _collect_via_supervisor() -> list[dict]:
 
 
 def _get_ha_status() -> dict:
-    """Holt HA Supervisor-Status (healthy/supported) via Supervisor API, 30s Cache."""
+    """Holt HA Status + Versionen via Supervisor API (parallel), 60s Cache."""
     global _ha_status_cache, _ha_status_ts
     now = time.time()
-    if _ha_status_cache and now - _ha_status_ts < 30:
+    if _ha_status_cache and now - _ha_status_ts < 60:
         return _ha_status_cache
+
     import urllib.request
     token = _supervisor_token()
+    empty = {'connected': False, 'supported': None, 'healthy': None,
+             'core_version': '', 'supervisor_version': '', 'os_version': ''}
     if not token:
-        result = {'connected': False, 'supported': None, 'healthy': None}
-        _ha_status_cache = result; _ha_status_ts = now
-        return result
+        _ha_status_cache = empty; _ha_status_ts = now
+        return empty
+
     headers = {'Authorization': f'Bearer {token}'}
-    try:
-        req = urllib.request.Request(f'{SUPERVISOR_API}/supervisor/info', headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            d = json.loads(resp.read()).get('data', {})
+
+    def _fetch(path: str) -> dict:
+        try:
+            req = urllib.request.Request(f'{SUPERVISOR_API}{path}', headers=headers)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                return json.loads(resp.read()).get('data', {})
+        except Exception:
+            return {}
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_sup  = ex.submit(_fetch, '/supervisor/info')
+        f_core = ex.submit(_fetch, '/core/info')
+        f_os   = ex.submit(_fetch, '/os/info')
+        d_sup, d_core, d_os = f_sup.result(), f_core.result(), f_os.result()
+
+    if d_sup:
         result = {
-            'connected': True,
-            'supported': bool(d.get('supported', True)),
-            'healthy':   bool(d.get('healthy', True)),
+            'connected':          True,
+            'supported':          bool(d_sup.get('supported', True)),
+            'healthy':            bool(d_sup.get('healthy', True)),
+            'supervisor_version': d_sup.get('version', ''),
+            'core_version':       d_core.get('version', ''),
+            'os_version':         d_os.get('version', ''),
         }
-    except Exception:
-        result = {'connected': False, 'supported': None, 'healthy': None}
+    else:
+        result = empty
     _ha_status_cache = result; _ha_status_ts = now
     return result
 
