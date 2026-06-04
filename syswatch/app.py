@@ -252,10 +252,15 @@ def detect_language(req) -> str:
 
 # ── Docker socket helpers ──────────────────────────────────────────────────────
 
+def _verbose() -> bool:
+    return bool(load_config().get('verbose_log', False))
+
+
 def _find_docker_socket() -> str | None:
     for path in DOCKER_SOCKET_CANDIDATES:
         if os.path.exists(path):
-            log.info("Docker-Socket gefunden: %s", path)
+            if _verbose():
+                log.info("Docker-Socket gefunden: %s", path)
             return path
     return None
 
@@ -395,7 +400,7 @@ def _get_supervisor_stopped_addons() -> list[dict]:
             'pids':      0,
             'ports_mapped': [],
         })
-    if stopped:
+    if stopped and _verbose():
         log.info("Supervisor: %d gestoppte Add-on(s): %s",
                  len(stopped), ', '.join(a['name'] for a in stopped))
     return stopped
@@ -569,8 +574,9 @@ def _collect_once(max_workers: int = MAX_WORKERS_DEFAULT,
                 _last_elapsed = elapsed
                 running      = sum(1 for r in results if r['status'] == 'running')
                 stopped_cnt  = len(results) - running
-                log.info("Abfrage: %d Container (%d laufend, %d gestoppt) | %d Worker | %.1fs",
-                         len(results), running, stopped_cnt, workers, elapsed)
+                if _verbose():
+                    log.info("Abfrage: %d Container (%d laufend, %d gestoppt) | %d Worker | %.1fs",
+                             len(results), running, stopped_cnt, workers, elapsed)
                 _update_history_and_cache(results)
                 return
             except Exception as e:

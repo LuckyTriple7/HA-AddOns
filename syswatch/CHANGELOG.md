@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.1] - 2026-06-04
+
+### Added
+- `verbose_log` Option (Standard: `false`) — unterdrückt die pro-Zyklus-Logs (Docker-Socket, Abfrage-Statistik, Supervisor-Add-ons). Nur Modus-Wechsel, Fehler und Aktionen bleiben immer sichtbar.
+
 ## [1.0.0] - 2026-06-04
 
 ### Stable Release
