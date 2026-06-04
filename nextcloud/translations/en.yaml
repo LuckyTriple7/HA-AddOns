@@ -1,0 +1,94 @@
+configuration:
+  PUID:
+    name: User ID (PUID)
+    description: Linux user ID Nextcloud runs as. Default 1000.
+  PGID:
+    name: Group ID (PGID)
+    description: Linux group ID Nextcloud runs as. Default 1000.
+  TZ:
+    name: Timezone
+    description: Container timezone, e.g. Europe/Berlin.
+  trusted_domains:
+    name: Trusted Domains
+    description: Space-separated list of additional allowed domains/IPs, e.g. 192.168.1.100 my-server.local. Leave empty for automatic detection.
+  trusted_proxies:
+    name: Trusted Proxies
+    description: IP range of the reverse proxy. Default 172.30.32.0/23 (HA internal network).
+  default_phone_region:
+    name: Default Phone Region
+    description: ISO 3166-1 Alpha-2 country code for phone numbers, e.g. DE. Default DE.
+  enable_thumbnails:
+    name: Enable Thumbnails
+    description: Generate thumbnail previews for images and videos in the Nextcloud gallery. Default true.
+  memory_limit:
+    name: PHP Memory Limit
+    description: Maximum PHP memory per process, e.g. 512M or 1G. Default 512M.
+  upload_max_filesize:
+    name: Max Upload Size
+    description: Maximum file size per upload, e.g. 512M or 10G. Default 512M.
+  post_max_size:
+    name: Max POST Size
+    description: Should be equal to or larger than upload_max_filesize. Default 512M.
+  opcache_memory_consumption:
+    name: OPcache Memory (MB)
+    description: PHP OPcache memory in megabytes. More = faster PHP execution. Default 256.
+  disable_updates:
+    name: Disable Updates
+    description: Suppress automatic Nextcloud updates inside the container. Default false.
+  maintenance_window_start:
+    name: Maintenance Window (hour)
+    description: Hour (0–23) when background jobs start running. Default 1 (01:00).
+  loglevel:
+    name: Log Level
+    description: "Nextcloud log level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal. Default 3."
+  skeletondirectory:
+    name: Skeleton Directory
+    description: Path to files automatically provided to new users. Leave empty for default.
+  trashbin_retention_obligation:
+    name: Trash Bin Retention
+    description: "Retention rule for deleted files, e.g. 'auto, 30' (up to 30 days). Default: auto, 30."
+  versions_retention_obligation:
+    name: File Versions Retention
+    description: "Retention rule for file versions, e.g. 'auto, 30'. Default: auto, 30."
+  update_wopi_ip:
+    name: Auto-update WOPI IP
+    description: Automatically updates the Collabora WOPI IP on startup to the current container IP. Default false.
+  mariadb_discovery:
+    name: MariaDB Auto-Discovery
+    description: Automatically detects a running MariaDB 2 instance and configures Nextcloud accordingly. Default false (SQLite).
+  smb_1_server:
+    name: SMB Server 1
+    description: Hostname or IP of the first SMB/CIFS server, e.g. 192.168.1.10. Leave empty to disable SMB mount 1.
+  smb_1_share:
+    name: SMB Share 1
+    description: Name of the SMB share, e.g. Documents.
+  smb_1_user:
+    name: SMB User 1
+    description: Username for SMB access.
+  smb_1_password:
+    name: SMB Password 1
+    description: Password for SMB access.
+  smb_2_server:
+    name: SMB Server 2
+    description: Hostname or IP of the second SMB/CIFS server. Leave empty to disable SMB mount 2.
+  smb_2_share:
+    name: SMB Share 2
+    description: Name of the second SMB share.
+  smb_2_user:
+    name: SMB User 2
+    description: Username for SMB mount 2.
+  smb_2_password:
+    name: SMB Password 2
+    description: Password for SMB mount 2.
+  smb_3_server:
+    name: SMB Server 3
+    description: Hostname or IP of the third SMB/CIFS server. Leave empty to disable SMB mount 3.
+  smb_3_share:
+    name: SMB Share 3
+    description: Name of the third SMB share.
+  smb_3_user:
+    name: SMB User 3
+    description: Username for SMB mount 3.
+  smb_3_password:
+    name: SMB Password 3
+    description: Password for SMB mount 3.

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.2] - 2026-06-04
+- Translations DE/EN für alle Optionen ergänzt
+
 ## [1.0.1] - 2026-05-31
 - Collabora Base-Image aktualisiert (neuer collabora/code Digest)
 

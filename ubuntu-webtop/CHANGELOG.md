@@ -1,3 +1,6 @@
+## [1.8.22] - 2026-06-04
+- Translations DE/EN für alle Optionen ergänzt
+
 ## [1.8.21] - 2026-06-03
 
 ### Aktualisiert

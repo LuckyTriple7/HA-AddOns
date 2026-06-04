@@ -1,0 +1,97 @@
+configuration:
+  PUID:
+    name: User ID (PUID)
+    description: Linux-User-ID für den Desktop-Benutzer. Standard 1000.
+  PGID:
+    name: Group ID (PGID)
+    description: Linux-Group-ID für den Desktop-Benutzer. Standard 1000.
+  TZ:
+    name: Zeitzone
+    description: Zeitzone des Containers, z.B. Europe/Berlin.
+  PASSWORD:
+    name: Passwort
+    description: Optionales Passwort für den Web-Zugriff. Leer lassen für ungeschützten Zugriff.
+  show_media:
+    name: /media einbinden
+    description: Das HA-Medienverzeichnis (/media) im Desktop unter /media verfügbar machen. Standard false.
+  show_backup:
+    name: /backup einbinden
+    description: Das HA-Backup-Verzeichnis (/backup) im Desktop verfügbar machen. Standard false.
+  smb_1_server:
+    name: SMB-Server 1
+    description: Hostname oder IP des ersten SMB/CIFS-Servers. Leer lassen um SMB-Mount 1 zu deaktivieren.
+  smb_1_share:
+    name: SMB-Freigabe 1
+    description: Name der SMB-Freigabe, z.B. Dokumente.
+  smb_1_user:
+    name: SMB-Benutzer 1
+    description: Benutzername für den SMB-Zugriff.
+  smb_1_password:
+    name: SMB-Passwort 1
+    description: Passwort für den SMB-Zugriff.
+  smb_2_server:
+    name: SMB-Server 2
+    description: Hostname oder IP des zweiten SMB/CIFS-Servers. Leer lassen um SMB-Mount 2 zu deaktivieren.
+  smb_2_share:
+    name: SMB-Freigabe 2
+    description: Name der zweiten SMB-Freigabe.
+  smb_2_user:
+    name: SMB-Benutzer 2
+    description: Benutzername für SMB-Mount 2.
+  smb_2_password:
+    name: SMB-Passwort 2
+    description: Passwort für SMB-Mount 2.
+  smb_3_server:
+    name: SMB-Server 3
+    description: Hostname oder IP des dritten SMB/CIFS-Servers. Leer lassen um SMB-Mount 3 zu deaktivieren.
+  smb_3_share:
+    name: SMB-Freigabe 3
+    description: Name der dritten SMB-Freigabe.
+  smb_3_user:
+    name: SMB-Benutzer 3
+    description: Benutzername für SMB-Mount 3.
+  smb_3_password:
+    name: SMB-Passwort 3
+    description: Passwort für SMB-Mount 3.
+  smb_4_server:
+    name: SMB-Server 4
+    description: Hostname oder IP des vierten SMB/CIFS-Servers. Leer lassen um SMB-Mount 4 zu deaktivieren.
+  smb_4_share:
+    name: SMB-Freigabe 4
+    description: Name der vierten SMB-Freigabe.
+  smb_4_user:
+    name: SMB-Benutzer 4
+    description: Benutzername für SMB-Mount 4.
+  smb_4_password:
+    name: SMB-Passwort 4
+    description: Passwort für SMB-Mount 4.
+  smb_5_server:
+    name: SMB-Server 5
+    description: Hostname oder IP des fünften SMB/CIFS-Servers. Leer lassen um SMB-Mount 5 zu deaktivieren.
+  smb_5_share:
+    name: SMB-Freigabe 5
+    description: Name der fünften SMB-Freigabe.
+  smb_5_user:
+    name: SMB-Benutzer 5
+    description: Benutzername für SMB-Mount 5.
+  smb_5_password:
+    name: SMB-Passwort 5
+    description: Passwort für SMB-Mount 5.
+  nfs_1_server:
+    name: NFS-Server 1
+    description: Hostname oder IP des ersten NFS-Servers. Leer lassen um NFS-Mount 1 zu deaktivieren.
+  nfs_1_share:
+    name: NFS-Freigabe 1
+    description: NFS-Exportpfad, z.B. /volume1/data.
+  nfs_2_server:
+    name: NFS-Server 2
+    description: Hostname oder IP des zweiten NFS-Servers. Leer lassen um NFS-Mount 2 zu deaktivieren.
+  nfs_2_share:
+    name: NFS-Freigabe 2
+    description: NFS-Exportpfad für Mount 2.
+  nfs_3_server:
+    name: NFS-Server 3
+    description: Hostname oder IP des dritten NFS-Servers. Leer lassen um NFS-Mount 3 zu deaktivieren.
+  nfs_3_share:
+    name: NFS-Freigabe 3
+    description: NFS-Exportpfad für Mount 3.

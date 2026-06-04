@@ -1,0 +1,97 @@
+configuration:
+  PUID:
+    name: User ID (PUID)
+    description: Linux user ID for the desktop user. Default 1000.
+  PGID:
+    name: Group ID (PGID)
+    description: Linux group ID for the desktop user. Default 1000.
+  TZ:
+    name: Timezone
+    description: Container timezone, e.g. Europe/Berlin.
+  PASSWORD:
+    name: Password
+    description: Optional password for web access. Leave empty for unprotected access.
+  show_media:
+    name: Mount /media
+    description: Make the HA media directory (/media) available on the desktop. Default false.
+  show_backup:
+    name: Mount /backup
+    description: Make the HA backup directory (/backup) available on the desktop. Default false.
+  smb_1_server:
+    name: SMB Server 1
+    description: Hostname or IP of the first SMB/CIFS server. Leave empty to disable SMB mount 1.
+  smb_1_share:
+    name: SMB Share 1
+    description: Name of the SMB share, e.g. Documents.
+  smb_1_user:
+    name: SMB User 1
+    description: Username for SMB access.
+  smb_1_password:
+    name: SMB Password 1
+    description: Password for SMB access.
+  smb_2_server:
+    name: SMB Server 2
+    description: Hostname or IP of the second SMB/CIFS server. Leave empty to disable SMB mount 2.
+  smb_2_share:
+    name: SMB Share 2
+    description: Name of the second SMB share.
+  smb_2_user:
+    name: SMB User 2
+    description: Username for SMB mount 2.
+  smb_2_password:
+    name: SMB Password 2
+    description: Password for SMB mount 2.
+  smb_3_server:
+    name: SMB Server 3
+    description: Hostname or IP of the third SMB/CIFS server. Leave empty to disable SMB mount 3.
+  smb_3_share:
+    name: SMB Share 3
+    description: Name of the third SMB share.
+  smb_3_user:
+    name: SMB User 3
+    description: Username for SMB mount 3.
+  smb_3_password:
+    name: SMB Password 3
+    description: Password for SMB mount 3.
+  smb_4_server:
+    name: SMB Server 4
+    description: Hostname or IP of the fourth SMB/CIFS server. Leave empty to disable SMB mount 4.
+  smb_4_share:
+    name: SMB Share 4
+    description: Name of the fourth SMB share.
+  smb_4_user:
+    name: SMB User 4
+    description: Username for SMB mount 4.
+  smb_4_password:
+    name: SMB Password 4
+    description: Password for SMB mount 4.
+  smb_5_server:
+    name: SMB Server 5
+    description: Hostname or IP of the fifth SMB/CIFS server. Leave empty to disable SMB mount 5.
+  smb_5_share:
+    name: SMB Share 5
+    description: Name of the fifth SMB share.
+  smb_5_user:
+    name: SMB User 5
+    description: Username for SMB mount 5.
+  smb_5_password:
+    name: SMB Password 5
+    description: Password for SMB mount 5.
+  nfs_1_server:
+    name: NFS Server 1
+    description: Hostname or IP of the first NFS server. Leave empty to disable NFS mount 1.
+  nfs_1_share:
+    name: NFS Share 1
+    description: NFS export path, e.g. /volume1/data.
+  nfs_2_server:
+    name: NFS Server 2
+    description: Hostname or IP of the second NFS server. Leave empty to disable NFS mount 2.
+  nfs_2_share:
+    name: NFS Share 2
+    description: NFS export path for mount 2.
+  nfs_3_server:
+    name: NFS Server 3
+    description: Hostname or IP of the third NFS server. Leave empty to disable NFS mount 3.
+  nfs_3_share:
+    name: NFS Share 3
+    description: NFS export path for mount 3.

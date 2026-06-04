@@ -1,0 +1,94 @@
+configuration:
+  PUID:
+    name: User ID (PUID)
+    description: Linux-User-ID unter der Nextcloud läuft. Standard 1000.
+  PGID:
+    name: Group ID (PGID)
+    description: Linux-Group-ID unter der Nextcloud läuft. Standard 1000.
+  TZ:
+    name: Zeitzone
+    description: Zeitzone des Containers, z.B. Europe/Berlin.
+  trusted_domains:
+    name: Vertrauenswürdige Domains
+    description: Leerzeichen-getrennte Liste zusätzlicher erlaubter Domains/IPs, z.B. 192.168.1.100 mein-server.local. Leer lassen für automatische Erkennung.
+  trusted_proxies:
+    name: Vertrauenswürdige Proxies
+    description: IP-Bereich des Reverse-Proxys. Standard 172.30.32.0/23 (HA-internes Netz).
+  default_phone_region:
+    name: Standard-Telefonregion
+    description: ISO 3166-1 Alpha-2 Ländercode für Telefonnummern, z.B. DE. Standard DE.
+  enable_thumbnails:
+    name: Vorschaubilder aktivieren
+    description: Miniaturansichten für Bilder und Videos in der Nextcloud-Galerie generieren. Standard true.
+  memory_limit:
+    name: PHP-Speicherlimit
+    description: Maximaler PHP-Speicher pro Prozess, z.B. 512M oder 1G. Standard 512M.
+  upload_max_filesize:
+    name: Maximale Upload-Größe
+    description: Maximale Dateigröße pro Upload, z.B. 512M oder 10G. Standard 512M.
+  post_max_size:
+    name: Maximale POST-Größe
+    description: Sollte gleich oder größer als upload_max_filesize sein. Standard 512M.
+  opcache_memory_consumption:
+    name: OPcache-Speicher (MB)
+    description: PHP OPcache-Speicher in Megabyte. Mehr = schnellere PHP-Ausführung. Standard 256.
+  disable_updates:
+    name: Updates deaktivieren
+    description: Automatische Nextcloud-Updates im Container unterdrücken. Standard false.
+  maintenance_window_start:
+    name: Wartungsfenster (Stunde)
+    description: Stunde (0–23) ab der Hintergrundjobs ausgeführt werden. Standard 1 (01:00 Uhr).
+  loglevel:
+    name: Log-Level
+    description: "Nextcloud-Log-Level: 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal. Standard 3."
+  skeletondirectory:
+    name: Skeleton-Verzeichnis
+    description: Pfad zu Dateien die neuen Benutzern automatisch bereitgestellt werden. Leer für Standard.
+  trashbin_retention_obligation:
+    name: Papierkorb-Aufbewahrung
+    description: "Aufbewahrungsregel für gelöschte Dateien, z.B. 'auto, 30' (bis zu 30 Tage). Standard: auto, 30."
+  versions_retention_obligation:
+    name: Versionen-Aufbewahrung
+    description: "Aufbewahrungsregel für Dateiversionen, z.B. 'auto, 30'. Standard: auto, 30."
+  update_wopi_ip:
+    name: WOPI-IP automatisch aktualisieren
+    description: Aktualisiert die Collabora-WOPI-IP beim Start automatisch auf die aktuelle Container-IP. Standard false.
+  mariadb_discovery:
+    name: MariaDB Auto-Discovery
+    description: Sucht automatisch nach einer laufenden MariaDB-2-Instanz und konfiguriert Nextcloud entsprechend. Standard false (SQLite).
+  smb_1_server:
+    name: SMB-Server 1
+    description: Hostname oder IP des ersten SMB/CIFS-Servers, z.B. 192.168.1.10. Leer lassen um SMB-Mount 1 zu deaktivieren.
+  smb_1_share:
+    name: SMB-Freigabe 1
+    description: Name der SMB-Freigabe, z.B. Dokumente.
+  smb_1_user:
+    name: SMB-Benutzer 1
+    description: Benutzername für den SMB-Zugriff.
+  smb_1_password:
+    name: SMB-Passwort 1
+    description: Passwort für den SMB-Zugriff.
+  smb_2_server:
+    name: SMB-Server 2
+    description: Hostname oder IP des zweiten SMB/CIFS-Servers. Leer lassen um SMB-Mount 2 zu deaktivieren.
+  smb_2_share:
+    name: SMB-Freigabe 2
+    description: Name der zweiten SMB-Freigabe.
+  smb_2_user:
+    name: SMB-Benutzer 2
+    description: Benutzername für SMB-Mount 2.
+  smb_2_password:
+    name: SMB-Passwort 2
+    description: Passwort für SMB-Mount 2.
+  smb_3_server:
+    name: SMB-Server 3
+    description: Hostname oder IP des dritten SMB/CIFS-Servers. Leer lassen um SMB-Mount 3 zu deaktivieren.
+  smb_3_share:
+    name: SMB-Freigabe 3
+    description: Name der dritten SMB-Freigabe.
+  smb_3_user:
+    name: SMB-Benutzer 3
+    description: Benutzername für SMB-Mount 3.
+  smb_3_password:
+    name: SMB-Passwort 3
+    description: Passwort für SMB-Mount 3.

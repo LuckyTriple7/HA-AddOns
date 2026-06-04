@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.9
+- Translations DE/EN für alle Optionen ergänzt
+
 ## 1.0.8
 - Fix: PHP-Limits (memory_limit, upload, post) und opcache.memory_consumption werden jetzt via `zz-ha-limits.ini` in `/etc/php*/conf.d/` gesetzt — überschreibt linuxservers `nextcloud.ini` zuverlässig (alphabetisch letzter)
 

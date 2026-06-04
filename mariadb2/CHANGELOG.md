@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [0.1.3] - 2026-06-04
+- Translations DE/EN: disable_foreign_key_checks-Beschreibung ergänzt
+
 ## [0.1.2] - 2026-05-25
 - Option `disable_foreign_key_checks` — für SQLite→MariaDB-Migration aktivieren, danach wieder deaktivieren
 

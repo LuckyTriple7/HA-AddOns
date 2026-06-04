@@ -1,0 +1,22 @@
+configuration:
+  TZ:
+    name: Timezone
+    description: Container timezone, e.g. Europe/Berlin.
+  nextcloud_url:
+    name: Nextcloud URL
+    description: Full URL of your Nextcloud instance, e.g. https://192.168.1.100:7443. Added as an allowed WOPI domain.
+  aliasgroup1:
+    name: Alias Group 1
+    description: Additional allowed domain as a regular expression, e.g. https://my-domain\.com:443. Leave empty if not needed.
+  domain1:
+    name: Domain 1
+    description: Another allowed domain (regular expression). Leave empty if not needed.
+  admin_user:
+    name: Admin Username
+    description: Username for the Collabora admin interface at /browser/dist/admin/admin.html. Default admin.
+  admin_password:
+    name: Admin Password
+    description: Password for the Collabora admin interface.
+  extra_params:
+    name: Extra Parameters
+    description: Optional additional startup parameters for Collabora, e.g. --o:security.seccomp=false. Leave empty if not needed.

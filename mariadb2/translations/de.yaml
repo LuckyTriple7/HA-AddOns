@@ -8,6 +8,9 @@ configuration:
   rights:
     name: Berechtigungen
     description: Welcher Benutzer hat Zugriff auf welche Datenbank (ALL PRIVILEGES).
+  disable_foreign_key_checks:
+    name: Foreign Key Checks deaktivieren
+    description: Deaktiviert Foreign-Key-Prüfungen beim Start (nützlich für Imports). Standard false.
 
 network:
   3306/tcp: MariaDB 2 (erreichbar auf Host-Port 3307)
