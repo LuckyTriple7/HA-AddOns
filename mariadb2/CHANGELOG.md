@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [1.0.0] - 2026-06-04
+- Log-Ausgaben mit Zeitstempel: `[INFO] [HH:MM:SS] Nachricht`
+
 ## [0.1.3] - 2026-06-04
 - Translations DE/EN: disable_foreign_key_checks-Beschreibung ergänzt
 

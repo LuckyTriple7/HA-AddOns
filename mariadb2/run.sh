@@ -10,22 +10,22 @@ USERS=$(jq -r '.logins // [] | map(.username) | join(", ")' /data/options.json)
 DISABLE_FK=$(jq -r '.disable_foreign_key_checks // false' /data/options.json)
 
 # Log configuration
-echo "[INFO] Configuration:"
-echo "[INFO]   databases                   : ${DBS:-none}"
-echo "[INFO]   logins                      : ${USERS:-none}"
-echo "[INFO]   disable_foreign_key_checks  : $DISABLE_FK"
+echo "[INFO] [$(date +%H:%M:%S)] Configuration:"
+echo "[INFO] [$(date +%H:%M:%S)] databases                   : ${DBS:-none}"
+echo "[INFO] [$(date +%H:%M:%S)] logins                      : ${USERS:-none}"
+echo "[INFO] [$(date +%H:%M:%S)] disable_foreign_key_checks  : $DISABLE_FK"
 
 mkdir -p /run/mysqld "$DATA_DIR"
 
 # First run: initialize data directory
 if [ ! -d "$DATA_DIR/mysql" ]; then
-    echo "[INFO] First run — initializing MariaDB data directory..."
+    echo "[INFO] [$(date +%H:%M:%S)] First run — initializing MariaDB data directory..."
     mariadb-install-db --user=root --datadir="$DATA_DIR" --skip-test-db > /dev/null 2>&1
-    echo "[INFO] Database initialized"
+    echo "[INFO] [$(date +%H:%M:%S)] Database initialized"
 fi
 
 # Start MariaDB temporarily without networking for setup
-echo "[INFO] Starting MariaDB for setup..."
+echo "[INFO] [$(date +%H:%M:%S)] Starting MariaDB for setup..."
 mariadbd --no-defaults --user=root --datadir="$DATA_DIR" --socket="$SOCKET" --skip-networking \
     --log-warnings=0 --silent-startup 2>/dev/null &
 MYSQL_PID=$!
@@ -35,16 +35,16 @@ for i in $(seq 1 30); do
     [ -S "$SOCKET" ] && break
     sleep 1
     if [ "$i" -eq 30 ]; then
-        echo "[ERROR] MariaDB did not start within 30 seconds"
+        echo "[ERROR] [$(date +%H:%M:%S)] MariaDB did not start within 30 seconds"
         exit 1
     fi
 done
-echo "[INFO] MariaDB ready for setup"
+echo "[INFO] [$(date +%H:%M:%S)] MariaDB ready for setup"
 
 # Create databases
 jq -r '.databases // [] | .[]' /data/options.json | while read -r DB; do
     [ -z "$DB" ] && continue
-    echo "[INFO] Creating database: $DB"
+    echo "[INFO] [$(date +%H:%M:%S)] Creating database: $DB"
     mariadb --socket="$SOCKET" -e "CREATE DATABASE IF NOT EXISTS \`${DB}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null
 done
 
@@ -54,11 +54,11 @@ jq -c '.logins // [] | .[]' /data/options.json | while read -r LOGIN; do
     PASS=$(echo "$LOGIN" | jq -r '.password // ""')
     [ -z "$USER" ] && continue
     if [ -n "$PASS" ]; then
-        echo "[INFO] Creating/updating user: $USER"
+        echo "[INFO] [$(date +%H:%M:%S)] Creating/updating user: $USER"
         mariadb --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS '${USER}'@'%' IDENTIFIED BY '${PASS}';" 2>/dev/null
         mariadb --socket="$SOCKET" -e "ALTER USER '${USER}'@'%' IDENTIFIED BY '${PASS}';" 2>/dev/null
     else
-        echo "[INFO] Creating user (no password): $USER"
+        echo "[INFO] [$(date +%H:%M:%S)] Creating user (no password): $USER"
         mariadb --socket="$SOCKET" -e "CREATE USER IF NOT EXISTS '${USER}'@'%';" 2>/dev/null
     fi
 done
@@ -68,14 +68,14 @@ jq -c '.rights // [] | .[]' /data/options.json | while read -r RIGHT; do
     USER=$(echo "$RIGHT" | jq -r '.username')
     DB=$(echo "$RIGHT" | jq -r '.database')
     [ -z "$USER" ] || [ -z "$DB" ] && continue
-    echo "[INFO] Granting ALL PRIVILEGES: $USER → $DB"
+    echo "[INFO] [$(date +%H:%M:%S)] Granting ALL PRIVILEGES: $USER → $DB"
     mariadb --socket="$SOCKET" -e "GRANT ALL PRIVILEGES ON \`${DB}\`.* TO '${USER}'@'%';" 2>/dev/null
 done
 
 mariadb --socket="$SOCKET" -e "FLUSH PRIVILEGES;" 2>/dev/null
 
 # Stop temp instance
-echo "[INFO] Setup complete — starting MariaDB with network access..."
+echo "[INFO] [$(date +%H:%M:%S)] Setup complete — starting MariaDB with network access..."
 kill "$MYSQL_PID"
 wait "$MYSQL_PID" 2>/dev/null || true
 rm -f "$SOCKET"
@@ -83,13 +83,13 @@ rm -f "$SOCKET"
 # Build optional args
 EXTRA_ARGS=()
 if [ "$DISABLE_FK" = "true" ]; then
-    echo "[INFO] Foreign key checks DISABLED (migration mode)"
+    echo "[INFO] [$(date +%H:%M:%S)] Foreign key checks DISABLED (migration mode)"
     EXTRA_ARGS+=("--init-connect=SET foreign_key_checks=0")
 fi
 
 # Start MariaDB in foreground on port 3306
-echo "[INFO] MariaDB 2 listening on port 3306 (host: 3307)"
-echo "[INFO] Hostname (for Nextcloud migration): $(hostname)"
+echo "[INFO] [$(date +%H:%M:%S)] MariaDB 2 listening on port 3306 (host: 3307)"
+echo "[INFO] [$(date +%H:%M:%S)] Hostname (for Nextcloud migration): $(hostname)"
 exec mariadbd --no-defaults --user=root \
     --datadir="$DATA_DIR" \
     --socket="$SOCKET" \
