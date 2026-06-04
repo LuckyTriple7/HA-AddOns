@@ -116,6 +116,8 @@ RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
 _stats_cache: dict  = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
+_ha_status_cache: dict  = {}
+_ha_status_ts:    float = 0.0
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -329,6 +331,34 @@ def _collect_via_supervisor() -> list[dict]:
             results.append(base)
 
     return results
+
+
+def _get_ha_status() -> dict:
+    """Holt HA Supervisor-Status (healthy/supported) via Supervisor API, 30s Cache."""
+    global _ha_status_cache, _ha_status_ts
+    now = time.time()
+    if _ha_status_cache and now - _ha_status_ts < 30:
+        return _ha_status_cache
+    import urllib.request
+    token = _supervisor_token()
+    if not token:
+        result = {'connected': False, 'supported': None, 'healthy': None}
+        _ha_status_cache = result; _ha_status_ts = now
+        return result
+    headers = {'Authorization': f'Bearer {token}'}
+    try:
+        req = urllib.request.Request(f'{SUPERVISOR_API}/supervisor/info', headers=headers)
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            d = json.loads(resp.read()).get('data', {})
+        result = {
+            'connected': True,
+            'supported': bool(d.get('supported', True)),
+            'healthy':   bool(d.get('healthy', True)),
+        }
+    except Exception:
+        result = {'connected': False, 'supported': None, 'healthy': None}
+    _ha_status_cache = result; _ha_status_ts = now
+    return result
 
 
 def _supervisor_addon_slug(name: str) -> str | None:
@@ -831,6 +861,7 @@ def api_stats():
     with _stats_lock:
         data = dict(_stats_cache)
     data['collector_mode'] = _collector_mode
+    data['ha_status']      = _get_ha_status()
     cfg = load_config()
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
     data['cycle_s'] = round(_last_elapsed + sleep_s + 1.0, 1)  # 1s buffer for variability

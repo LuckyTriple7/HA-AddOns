@@ -469,12 +469,14 @@
 <!-- Summary cards -->
 <div class="cards">
   <div class="card">
-    <div class="card-value" id="c-total">-</div>
-    <div class="card-label">{{ t.card_total }}</div>
+    <div class="card-value" id="ha-status-val">—</div>
+    <div class="card-label">{{ t.card_ha_status }}</div>
+    <div class="card-sub" id="ha-status-sub"></div>
   </div>
   <div class="card">
     <div class="card-value" style="color:var(--green)" id="c-running">-</div>
     <div class="card-label">{{ t.card_running }}</div>
+    <div class="card-sub" id="c-total-sub"></div>
   </div>
   <div class="card">
     <div class="card-value" id="c-cpu">-</div>
@@ -803,7 +805,7 @@ async function fetchAndUpdate() {
       const lbl = document.getElementById('cycle-label');
       if (lbl) lbl.textContent = '~' + data.cycle_s.toFixed(1) + 's';
     }
-    updateCards(data.sysinfo || {});
+    updateCards(data.sysinfo || {}, data.ha_status || null);
     updatePerfBtn(data.collector_mode);
     renderTable();
     document.getElementById('loading-row').style.display = 'none';
@@ -821,13 +823,32 @@ async function doRefresh() {
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
-function updateCards(sys) {
+function updateCards(sys, haStatus) {
   const running  = allData.filter(c => c.status === 'running');
   const totalCpu = running.reduce((s, c) => s + (c.cpu_pct || 0), 0);
   const totalMem = running.reduce((s, c) => s + (c.mem_usage || 0), 0);
 
-  document.getElementById('c-total').textContent   = allData.length;
+  // Merged Running/Total card
   document.getElementById('c-running').textContent = running.length;
+  const totalSubEl = document.getElementById('c-total-sub');
+  if (totalSubEl) totalSubEl.textContent = allData.length + ' ' + (T.card_total_sub || 'gesamt');
+
+  // HA Status card
+  const valEl = document.getElementById('ha-status-val');
+  const subEl = document.getElementById('ha-status-sub');
+  if (valEl && haStatus) {
+    const allGood = haStatus.connected && haStatus.supported !== false && haStatus.healthy !== false;
+    const isErr   = !haStatus.connected || haStatus.healthy === false;
+    valEl.style.color = allGood ? 'var(--green)' : (isErr ? 'var(--red)' : 'var(--yellow)');
+    valEl.textContent  = allGood ? 'OK' : (isErr ? 'ERR' : 'WARN');
+    const dot = (ok) => ok === null
+      ? `<span style="color:var(--muted)">? </span>`
+      : `<span style="color:${ok ? 'var(--green)' : 'var(--red)'}">` + (ok ? '✓ ' : '✗ ') + '</span>';
+    if (subEl) subEl.innerHTML =
+      dot(haStatus.connected) + 'Sup &nbsp;' +
+      dot(haStatus.supported) + 'Spt &nbsp;' +
+      dot(haStatus.healthy)   + 'Hlth';
+  }
 
   const cpuEl = document.getElementById('c-cpu');
   cpuEl.textContent = totalCpu.toFixed(1) + '%';

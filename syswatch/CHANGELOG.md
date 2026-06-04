@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.0.2] - 2026-06-04
+
+### Changed
+- Kacheln "Container" und "Laufend" zusammengeführt — zeigt laufende Container mit Gesamtanzahl als Sub-Label
+- Neue Kachel "HA Status" (ganz links): zeigt Supervisor/Support/Health-Status aus der Supervisor API; grün = alles OK, gelb = unsupported, rot = disconnected/unhealthy; 30s Cache
+
 ## [1.0.1] - 2026-06-04
 
 ### Added
