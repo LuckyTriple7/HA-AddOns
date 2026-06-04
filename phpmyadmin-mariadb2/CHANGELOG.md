@@ -1,5 +1,10 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.2] - 2026-06-04
+
+### Fixed
+- Executable-Bit auf s6-overlay Scripts gesetzt (Permission denied beim Start behoben)
+
 ## [1.0.1] - 2026-06-04
 
 ### Fixed
