@@ -19,8 +19,24 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
+
+UVICORN_LOG_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {"format": "[%(levelname)s] [%(asctime)s] %(message)s", "datefmt": "%Y-%m-%d %H:%M:%S"},
+    },
+    "handlers": {
+        "default": {"formatter": "default", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"},
+    },
+    "loggers": {
+        "uvicorn":        {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn.error":  {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
+    },
+}
 
 app        = FastAPI()
 admin_app  = FastAPI()
@@ -1583,9 +1599,9 @@ if __name__ == "__main__":
     log.info("CardBoard startet — Web-UI: %s  Admin-API: %s  Ingress: %s", port, admin_port, ingress_port)
 
     async def serve():
-        cfg_main    = uvicorn.Config(app,         host="0.0.0.0", port=port,         log_level="info")
-        cfg_admin   = uvicorn.Config(admin_app,   host="0.0.0.0", port=admin_port,   log_level="info")
-        cfg_ingress = uvicorn.Config(ingress_app, host="0.0.0.0", port=ingress_port, log_level="info")
+        cfg_main    = uvicorn.Config(app,         host="0.0.0.0", port=port,         log_level="info", log_config=UVICORN_LOG_CONFIG)
+        cfg_admin   = uvicorn.Config(admin_app,   host="0.0.0.0", port=admin_port,   log_level="info", log_config=UVICORN_LOG_CONFIG)
+        cfg_ingress = uvicorn.Config(ingress_app, host="0.0.0.0", port=ingress_port, log_level="info", log_config=UVICORN_LOG_CONFIG)
         await asyncio.gather(
             uvicorn.Server(cfg_main).serve(),
             uvicorn.Server(cfg_admin).serve(),

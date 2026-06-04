@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.7] - 2026-06-04
+- fix: Log-Zeitstempel vollständig in allen Ausgaben (force=True / UVICORN_LOG_CONFIG)
+
 ## [1.1.6] - 2026-06-04
 - Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 
