@@ -1,0 +1,37 @@
+configuration:
+  ha_token:
+    name: HA Long-Lived Access Token
+    description: Long-lived access token from Home Assistant (Profile → Security → Long-Lived Access Tokens). Required for the template rendering API.
+  ha_url:
+    name: Home Assistant URL
+    description: Internal URL of your HA instance, e.g. http://homeassistant.local:8123. Used for API calls.
+  refresh_interval:
+    name: Refresh Interval (seconds)
+    description: How often the cards are automatically reloaded. Default 30.
+  login_message:
+    name: Login Message
+    description: Optional text displayed below the login form. Leave empty to show nothing.
+  uptime_sensor:
+    name: Uptime Sensor
+    description: Entity ID of an HA sensor for the uptime display in the footer, e.g. sensor.uptime. Leave empty to hide.
+  session_lifetime:
+    name: Session Duration (days)
+    description: How many days a login session stays valid. Default 7.
+  notify_failed_login:
+    name: Notify on Failed Login
+    description: Sends an HA notification on failed login attempts. Requires ha_token.
+  pw_min_length:
+    name: Minimum Password Length
+    description: Minimum number of characters for user passwords. Default 8.
+  pw_require_special:
+    name: Require Special Characters
+    description: Passwords must contain at least one special character. Default true.
+  admin_password:
+    name: Admin Password
+    description: Password for the admin panel. Leave empty to disable the admin panel.
+  max_cards:
+    name: Maximum Cards
+    description: Maximum number of cards per user. Default 3, maximum 20.
+  cards_per_row:
+    name: Cards per Row
+    description: Number of cards side by side in the grid. Default 3.

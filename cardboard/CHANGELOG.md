@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.1
+- Translations DE/EN für alle Optionen ergänzt (Anzeigenamen und Beschreibungen in der HA Add-on UI)
+
 ## 1.0.0
 - Erste stabile Produktivversion
 
