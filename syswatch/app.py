@@ -953,7 +953,7 @@ def api_stop(name: str):
 def _log_startup() -> None:
     cfg = load_config()
     log.info("=" * 55)
-    log.info("  HA SysWatch v0.2.0 startet auf Port 17790")
+    log.info("  HA SysWatch startet auf Port 17790")
     log.info("  collect_interval : %ds  |  collect_workers: %d",
              max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT))),
              max(4, min(64, int(cfg.get('collect_workers',  MAX_WORKERS_DEFAULT)))))
