@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.10] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## [1.2.9] - 2026-06-04
 
 ### Behoben

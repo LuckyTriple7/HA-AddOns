@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.5] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## [1.5.4] - 2026-06-03
 - Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/signal)
 

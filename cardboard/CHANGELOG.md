@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.2] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## 1.0.1
 - Translations DE/EN für alle Optionen ergänzt (Anzeigenamen und Beschreibungen in der HA Add-on UI)
 

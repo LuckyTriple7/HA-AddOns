@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.7] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## [1.5.6] - 2026-06-03
 - Fix: run.sh Shebang auf #!/bin/sh — node:lts-alpine hat kein bash
 

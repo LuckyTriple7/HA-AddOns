@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.13] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## 1.0.12 - 2026-06-03
 - Build: Image wird jetzt via GitHub Actions auf GHCR gebaut (ghcr.io/luckytriple7/playwright-browser)
 - Build: Basis-Image auf debian:bookworm-slim, bashio durch jq ersetzt
