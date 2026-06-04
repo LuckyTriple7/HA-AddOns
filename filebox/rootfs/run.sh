@@ -18,51 +18,58 @@ SHOW_BACKUP=$(jq -r '.show_backup // false' /data/options.json 2>/dev/null || ec
 
 echo "[INFO] PORT=$PORT SHOW_MEDIA=$SHOW_MEDIA SHOW_CONFIG=$SHOW_CONFIG SHOW_BACKUP=$SHOW_BACKUP"
 
-# Standard-Ordner anlegen
-mkdir -p /share/filebox "$ROOT"
+mkdir -p "$ROOT"
 
-# Symlinks für HA-Shares
-ln -sfn /share/filebox "$ROOT/FileBox"
+# HA-Shares als Bind-Mounts — FileBrowser 2.63.12+ folgt Symlinks außerhalb von ROOT nicht mehr
+mkdir -p /share/filebox "$ROOT/FileBox"
+umount "$ROOT/FileBox" 2>/dev/null || true
+mount --bind /share/filebox "$ROOT/FileBox"
 
 if [ "$SHOW_MEDIA" = "true" ]; then
-    ln -sfn /media "$ROOT/Media"
+    mkdir -p "$ROOT/Media"
+    umount "$ROOT/Media" 2>/dev/null || true
+    mount --bind /media "$ROOT/Media"
 else
-    rm -f "$ROOT/Media"
+    umount "$ROOT/Media" 2>/dev/null || true
+    rmdir "$ROOT/Media" 2>/dev/null || true
 fi
 
 if [ "$SHOW_CONFIG" = "true" ]; then
-    ln -sfn /config "$ROOT/Config"
+    mkdir -p "$ROOT/Config"
+    umount "$ROOT/Config" 2>/dev/null || true
+    mount --bind /config "$ROOT/Config"
 else
-    rm -f "$ROOT/Config"
+    umount "$ROOT/Config" 2>/dev/null || true
+    rmdir "$ROOT/Config" 2>/dev/null || true
 fi
 
 if [ "$SHOW_BACKUP" = "true" ]; then
-    ln -sfn /backup "$ROOT/Backup"
+    mkdir -p "$ROOT/Backup"
+    umount "$ROOT/Backup" 2>/dev/null || true
+    mount --bind /backup "$ROOT/Backup"
 else
-    rm -f "$ROOT/Backup"
+    umount "$ROOT/Backup" 2>/dev/null || true
+    rmdir "$ROOT/Backup" 2>/dev/null || true
 fi
 
-# Einen SMB-Share mounten
+# SMB-Share direkt in ROOT mounten (kein /mnt-Zwischenpfad + Symlink)
 do_mount() {
     SERVER=$1
     SHARE=$2
     USER=$3
     PASS=$4
-    MOUNTPOINT=$5
-    LINKNAME=$6
+    LINKNAME=$5
 
+    MOUNTPOINT="$ROOT/${LINKNAME}"
     mkdir -p "$MOUNTPOINT"
     umount "$MOUNTPOINT" 2>/dev/null || true
 
-    # TCP-Vorprüfung: Port 445 erreichbar? (schnelles Fail bei falscher IP)
     if ! nc -z -w 5 "$SERVER" 445 2>/dev/null; then
         echo "[FAIL] Port 445 auf ${SERVER} nicht erreichbar — übersprungen"
         rmdir "$MOUNTPOINT" 2>/dev/null || true
         return
     fi
 
-    # sec=ntlmssp: kein Kerberos/Keyring — verhindert D-State im Kernel
-    # nodfs: kein DFS-Lookup — verhindert zusätzliche Netzwerkabfragen
     OPTS="vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm,sec=ntlmssp,nodfs"
     if [ -n "$USER" ]; then
         OPTS="${OPTS},username=${USER}"
@@ -80,8 +87,6 @@ do_mount() {
     if mount -t cifs "$UNC" "$MOUNTPOINT" -o "$OPTS" >"$ERR_FILE" 2>&1; then
         rm -f "$ERR_FILE"
         echo "[OK]   ${UNC} erfolgreich gemountet"
-        rm -f "$ROOT/${LINKNAME}"
-        ln -sfn "$MOUNTPOINT" "$ROOT/${LINKNAME}"
         echo "[OK]   In FileBrowser sichtbar als '${LINKNAME}'"
     else
         MOUNT_ERR=$(cat "$ERR_FILE" 2>/dev/null)
@@ -91,7 +96,6 @@ do_mount() {
     fi
 }
 
-# Alle Shares eines Servers mounten (Auto-Discovery oder einzelner Share)
 mount_server() {
     INDEX=$1
     SERVER=$(jq -r ".smb_${INDEX}_server // empty" /data/options.json 2>/dev/null)
@@ -106,16 +110,17 @@ mount_server() {
 
     echo "[INFO] SMB-${INDEX}: Server ${SERVER}"
 
-    # Alten Symlinks für diesen Slot aufräumen
-    rm -f "$ROOT/SMB-${INDEX}"*
+    # Alte Mounts für diesen Slot umounten und entfernen
+    for d in "$ROOT"/SMB-${INDEX}*; do
+        [ -e "$d" ] || continue
+        umount "$d" 2>/dev/null || true
+        rmdir "$d" 2>/dev/null || true
+    done
 
     if [ -n "$SHARE" ]; then
-        # Einzelner Share angegeben
         do_mount "$SERVER" "$SHARE" "$USER" "$PASS" \
-            "/mnt/smb${INDEX}_${SHARE}" \
             "SMB-${INDEX} ${SHARE}"
     else
-        # Auto-Discovery: alle Disk-Shares des Servers ermitteln
         echo "[INFO] SMB-${INDEX}: Ermittle alle Shares auf ${SERVER} ..."
         if [ -n "$USER" ]; then
             SMB_LIST_CMD="smbclient -L $SERVER -U ${USER}%${PASS} -g"
@@ -131,14 +136,10 @@ mount_server() {
             return
         fi
 
-        COUNT=0
         echo "$SHARES" | while IFS= read -r S; do
             S=$(echo "$S" | tr -d '\r')
             [ -z "$S" ] && continue
-            COUNT=$((COUNT + 1))
-            MNTPOINT="/mnt/smb${INDEX}_$(echo "$S" | tr ' ' '_')"
             do_mount "$SERVER" "$S" "$USER" "$PASS" \
-                "$MNTPOINT" \
                 "SMB-${INDEX} ${S}"
         done
         echo "[INFO] SMB-${INDEX}: Auto-Discovery abgeschlossen"
@@ -153,7 +154,6 @@ mount_server 4
 mount_server 5
 echo "------------------"
 
-# Erster Start: FileBrowser DB initialisieren
 if [ ! -f "$DB" ]; then
     echo "[INFO] Erste Initialisierung der FileBrowser-Datenbank ..."
     filebrowser --database "$DB" --address 127.0.0.1 --port 19999 --root "$ROOT" &
@@ -176,4 +176,4 @@ exec filebrowser \
     --address 0.0.0.0 \
     --port "$PORT" \
     --root "$ROOT" \
-    --baseurl "/"
+    --baseURL "/"
