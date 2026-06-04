@@ -29,6 +29,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Get FileBrowser version
+        id: fbver
+        run: |
+          VERSION=$(cat .filebox-version 2>/dev/null || echo "")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "FileBrowser Version: ${VERSION}"
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -43,6 +50,8 @@ jobs:
           platforms: linux/amd64
           push: true
           no-cache: true
+          build-args: |
+            FILEBROWSER_VERSION=${{ steps.fbver.outputs.version }}
           tags: |
             ghcr.io/luckytriple7/filebox:${{ steps.ver.outputs.version }}
             ghcr.io/luckytriple7/filebox:latest
