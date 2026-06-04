@@ -1,0 +1,24 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Home Assistant Add-on: phpMyAdmin Maria DB 2
+# Runs the PHP-FPM daemon
+# ==============================================================================
+bashio::log.info "Starting PHP-FPM..."
+
+export SERVICE_HOST
+export SERVICE_PASSWORD
+export SERVICE_PORT
+export SERVICE_USERNAME
+export UPLOAD_LIMIT=64M
+
+SERVICE_HOST=$(bashio::config "mysql_host")
+SERVICE_PORT=$(bashio::config "mysql_port")
+SERVICE_USERNAME=$(bashio::config "mysql_user")
+SERVICE_PASSWORD=$(bashio::config "mysql_password")
+
+if bashio::config.has_value 'upload_limit'; then
+    UPLOAD_LIMIT=$(bashio::config 'upload_limit')M
+fi
+
+exec php-fpm82 --nodaemonize

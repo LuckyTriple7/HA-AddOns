@@ -1,0 +1,31 @@
+name: phpMyAdmin Maria DB 2
+version: "1.0.0"
+slug: phpmyadmin-mariadb2
+description: Web-Oberfläche für das MariaDB 2 Add-on
+url: https://github.com/LuckyTriple7/HA-AddOns
+ingress: true
+ingress_stream: true
+panel_icon: mdi:database
+init: false
+
+arch:
+  - aarch64
+  - amd64
+
+image: "ghcr.io/luckytriple7/phpmyadmin-mariadb2"
+
+options:
+  mysql_host: mariadb2
+  mysql_port: 3306
+  mysql_user: ""
+  mysql_password: ""
+  upload_limit: 64
+  log_level: info
+
+schema:
+  mysql_host: str
+  mysql_port: int
+  mysql_user: str
+  mysql_password: str
+  upload_limit: int?
+  log_level: list(trace|debug|info|notice|warning|error|fatal)?

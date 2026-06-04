@@ -1,0 +1,20 @@
+---
+configuration:
+  mysql_host:
+    name: MySQL Host
+    description: Hostname of the MariaDB 2 add-on (default: mariadb2).
+  mysql_port:
+    name: MySQL Port
+    description: Port of the MariaDB 2 add-on (default: 3306).
+  mysql_user:
+    name: MySQL User
+    description: Username to connect with.
+  mysql_password:
+    name: MySQL Password
+    description: Password for the MySQL user.
+  upload_limit:
+    name: Upload limit
+    description: Maximum file upload size in MB (default: 64).
+  log_level:
+    name: Log level
+    description: Controls the level of log details the add-on provides.
