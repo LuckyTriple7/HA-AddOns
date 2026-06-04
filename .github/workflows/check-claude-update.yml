@@ -52,7 +52,7 @@ jobs:
           echo "$CLAUDE_VER" > .claude-code-version
 
           ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Changed\n- Rebuild für Claude Code ${CLAUDE_VER}\n"
-          sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" claudecode/CHANGELOG.md
+          sed -i "0,/^## \[/{s/^## \[/ENTRY_PLACEHOLDER\n\n## [/}" claudecode/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" claudecode/CHANGELOG.md
 
           echo "old=${ADDON_VER}" >> $GITHUB_OUTPUT

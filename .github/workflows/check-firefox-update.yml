@@ -63,7 +63,7 @@ jobs:
           echo "$FF_VER" > .firefox-version
 
           ENTRY="## [${NEW_ADDON_VER}] - ${DATE}\n\n### Geändert\n- Rebuild für Firefox ESR ${FF_VER}\n"
-          sed -i "s/^## \[/ENTRY_PLACEHOLDER\n\n## [/" firefox/CHANGELOG.md
+          sed -i "0,/^## \[/{s/^## \[/ENTRY_PLACEHOLDER\n\n## [/}" firefox/CHANGELOG.md
           sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" firefox/CHANGELOG.md
 
       - name: Create Pull Request
