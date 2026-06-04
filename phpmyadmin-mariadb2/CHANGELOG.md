@@ -1,5 +1,10 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.1] - 2026-06-04
+
+### Fixed
+- Versions-Pins aus Dockerfile entfernt (Alpine-Pakete nicht mehr verfügbar)
+
 ## [1.0.0] - 2026-06-04
 
 ### Added
