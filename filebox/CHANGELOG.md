@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.9] - 2026-06-04
+
+### Behoben
+- Start schlägt fehl wenn `/data/filebox-root/` noch alte Symlinks aus v1.2.7 oder früher enthält — `mkdir -p` kann keinen Symlink überschreiben (`File exists`). Symlinks werden jetzt vor `mkdir` explizit entfernt.
+
 ## [1.2.8] - 2026-06-04
 
 ### Behoben

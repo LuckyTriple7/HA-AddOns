@@ -21,34 +21,43 @@ echo "[INFO] PORT=$PORT SHOW_MEDIA=$SHOW_MEDIA SHOW_CONFIG=$SHOW_CONFIG SHOW_BAC
 mkdir -p "$ROOT"
 
 # HA-Shares als Bind-Mounts — FileBrowser 2.63.12+ folgt Symlinks außerhalb von ROOT nicht mehr
-mkdir -p /share/filebox "$ROOT/FileBox"
+# Alte Symlinks aus früheren Versionen entfernen, dann als echtes Verzeichnis anlegen
+mkdir -p /share/filebox
+[ -L "$ROOT/FileBox" ] && rm -f "$ROOT/FileBox"
+mkdir -p "$ROOT/FileBox"
 umount "$ROOT/FileBox" 2>/dev/null || true
 mount --bind /share/filebox "$ROOT/FileBox"
 
 if [ "$SHOW_MEDIA" = "true" ]; then
+    [ -L "$ROOT/Media" ] && rm -f "$ROOT/Media"
     mkdir -p "$ROOT/Media"
     umount "$ROOT/Media" 2>/dev/null || true
     mount --bind /media "$ROOT/Media"
 else
     umount "$ROOT/Media" 2>/dev/null || true
+    [ -L "$ROOT/Media" ] && rm -f "$ROOT/Media"
     rmdir "$ROOT/Media" 2>/dev/null || true
 fi
 
 if [ "$SHOW_CONFIG" = "true" ]; then
+    [ -L "$ROOT/Config" ] && rm -f "$ROOT/Config"
     mkdir -p "$ROOT/Config"
     umount "$ROOT/Config" 2>/dev/null || true
     mount --bind /config "$ROOT/Config"
 else
     umount "$ROOT/Config" 2>/dev/null || true
+    [ -L "$ROOT/Config" ] && rm -f "$ROOT/Config"
     rmdir "$ROOT/Config" 2>/dev/null || true
 fi
 
 if [ "$SHOW_BACKUP" = "true" ]; then
+    [ -L "$ROOT/Backup" ] && rm -f "$ROOT/Backup"
     mkdir -p "$ROOT/Backup"
     umount "$ROOT/Backup" 2>/dev/null || true
     mount --bind /backup "$ROOT/Backup"
 else
     umount "$ROOT/Backup" 2>/dev/null || true
+    [ -L "$ROOT/Backup" ] && rm -f "$ROOT/Backup"
     rmdir "$ROOT/Backup" 2>/dev/null || true
 fi
 
@@ -61,6 +70,7 @@ do_mount() {
     LINKNAME=$5
 
     MOUNTPOINT="$ROOT/${LINKNAME}"
+    [ -L "$MOUNTPOINT" ] && rm -f "$MOUNTPOINT"  # Symlink aus alter Version entfernen
     mkdir -p "$MOUNTPOINT"
     umount "$MOUNTPOINT" 2>/dev/null || true
 
