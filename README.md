@@ -35,6 +35,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | Collabora Online | ✅ | ❌ |
 | Nextcloud | ✅ | ❌ |
 | CardBoard | ✅ | ✅ |
+| HA SysWatch | ✅ | ✅ |
 
 ## Apps
 
@@ -198,6 +199,22 @@ Jinja2-Templates mit HA-Sensordaten als gerenderte Markdown-Karten im Browser �
 
 → [Dokumentation & Changelog](cardboard/README.md)
 
+### [HA SysWatch](syswatch/)
+
+Docker-Container-Ressourcenmonitor — CPU, RAM, Netzwerk, Disk I/O für alle Container in einer PWA-fähigen Web-UI.
+
+- Sortierbare Tabelle mit CPU %, RAM %, NET I/O, DISK I/O, PIDs (Sortierung gespeichert)
+- CPU-Sparkline-Verlauf pro Container (letzte 30 Messungen)
+- System-Karten: Host-CPU %, RAM %, CPU-Takt aus `/proc`
+- Aktionen: **Start, Stop, Neustart, Kill** — alle mit Passwortbestätigung
+- Gestoppte HA Add-ons via Supervisor API (HA entfernt deren Docker-Container)
+- Port-Übersicht als Modal mit Suche und sortierbaren Spalten
+- Auto-Refresh (Browser passt Interval automatisch an Backend-Zyklus an)
+- Idle-Modus bei inaktivem Browser (minimale Systemlast)
+- Passwortschutz mit Brute-Force-Sperre, Light/Dark Mode, PWA, DE/EN
+
+→ [Dokumentation & Changelog](syswatch/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -237,6 +254,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | Collabora Online | ✅ | ❌ |
 | Nextcloud | ✅ | ❌ |
 | CardBoard | ✅ | ✅ |
+| HA SysWatch | ✅ | ✅ |
 
 ## Apps
 
@@ -399,3 +417,19 @@ Jinja2 templates with HA sensor data rendered as Markdown cards in the browser �
 - Dark/light mode, multilingual (DE/EN), responsive design
 
 → [Documentation & Changelog](cardboard/README.md)
+
+### [HA SysWatch](syswatch/)
+
+Docker container resource monitor — CPU, RAM, Network, Disk I/O for all containers in a PWA-ready web UI.
+
+- Sortable table with CPU %, RAM %, NET I/O, DISK I/O, PIDs (sort state persisted)
+- CPU sparkline history per container (last 30 measurements)
+- System cards: host CPU %, RAM %, CPU clock from `/proc`
+- Actions: **Start, Stop, Restart, Kill** — all with password confirmation
+- Stopped HA add-ons via Supervisor API (HA removes their Docker containers)
+- Port overview modal with search and sortable columns
+- Auto-refresh (browser interval calibrates automatically to the backend cycle)
+- Idle mode when no browser is active (minimal system load)
+- Password protection with brute-force lockout, Light/Dark mode, PWA, DE/EN
+
+→ [Documentation & Changelog](syswatch/README.md)

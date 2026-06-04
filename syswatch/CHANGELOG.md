@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.0.0] - 2026-06-04
+
+### Stable Release
+- Erstes stabiles Release nach ausgiebigem Testen
+- Alle bekannten Bugs behoben, Feature-Set vollständig
+
 ## [0.4.0] - 2026-06-02
 
 ### Fixed

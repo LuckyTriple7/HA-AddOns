@@ -20,6 +20,7 @@ body:
         - Collabora Online
         - CardBoard
         - Messenger Portal
+        - HA SysWatch
         - Sonstiges
     validations:
       required: true

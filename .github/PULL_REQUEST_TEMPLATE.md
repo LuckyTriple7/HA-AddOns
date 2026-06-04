@@ -19,6 +19,7 @@
 - [ ] Collabora
 - [ ] CardBoard
 - [ ] Messenger Portal
+- [ ] HA SysWatch
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change
