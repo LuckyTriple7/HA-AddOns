@@ -88,7 +88,7 @@ mkdir -p "$PERSIST_DIR/local-share-claude" /root/.local/share
 
 # Report active version (npm-global/bin is first in PATH, so updated version is used automatically)
 if [ -f "$NPM_GLOBAL_DIR/bin/claude" ]; then
-    echo "[INFO] Using npm-updated Claude Code: $(claude --version 2>/dev/null)"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Using npm-updated Claude Code: $(claude --version 2>/dev/null)"
 fi
 
 # Read all options from HA config
@@ -106,30 +106,30 @@ EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
 EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
 
 # Log configuration
-echo "[INFO] Configuration:"
-echo "[INFO]   model                  : $MODEL"
-echo "[INFO]   enable_mcp             : $ENABLE_MCP"
-echo "[INFO]   enable_playwright_mcp  : $ENABLE_PLAYWRIGHT"
-echo "[INFO]   playwright_cdp_host    : ${PLAYWRIGHT_HOST:-auto-detect}"
-echo "[INFO]   terminal_font_size     : $FONT_SIZE"
-echo "[INFO]   terminal_theme         : $THEME"
-echo "[INFO]   session_persistence    : $SESSION_PERSIST"
-echo "[INFO]   claude_autostart       : $CLAUDE_AUTOSTART"
-echo "[INFO]   auto_update_claude     : $AUTO_UPDATE"
-echo "[INFO]   notify_on_update       : $NOTIFY_ON_UPDATE"
-echo "[INFO]   export_memory          : $EXPORT_MEMORY"
-echo "[INFO]   export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Configuration:"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] model                  : $MODEL"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_mcp             : $ENABLE_MCP"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_playwright_mcp  : $ENABLE_PLAYWRIGHT"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] playwright_cdp_host    : ${PLAYWRIGHT_HOST:-auto-detect}"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] terminal_font_size     : $FONT_SIZE"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] terminal_theme         : $THEME"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] session_persistence    : $SESSION_PERSIST"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] claude_autostart       : $CLAUDE_AUTOSTART"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] auto_update_claude     : $AUTO_UPDATE"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] notify_on_update       : $NOTIFY_ON_UPDATE"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory          : $EXPORT_MEMORY"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 
 # Auto-detect Playwright Browser hostname if not explicitly set
 if [ -z "$PLAYWRIGHT_HOST" ] && [ "$ENABLE_PLAYWRIGHT" = "true" ]; then
-    echo '[INFO] Auto-detecting Playwright Browser hostname...'
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Auto-detecting Playwright Browser hostname..."
     PLAYWRIGHT_HOST=$(curl -s -H "Authorization: Bearer $SUPERVISOR_TOKEN" http://supervisor/addons \
         | jq -r --arg s1 playwright-browser --arg s2 _playwright-browser \
           '.data.addons[] | select(.slug | (endswith($s1) or endswith($s2))) | .hostname' | head -1)
     if [ -n "$PLAYWRIGHT_HOST" ] && [ "$PLAYWRIGHT_HOST" != "null" ]; then
-        echo "[INFO] Found Playwright Browser: $PLAYWRIGHT_HOST"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Found Playwright Browser: $PLAYWRIGHT_HOST"
     else
-        echo '[WARN] Playwright Browser add-on not found, using default hostname'
+        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] Playwright Browser add-on not found, using default hostname"
         PLAYWRIGHT_HOST="playwright-browser"
     fi
 fi
@@ -139,14 +139,14 @@ if [ "$AUTO_UPDATE" = "true" ]; then
     CURRENT_VER=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     LATEST_VER=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
     if [ -n "$LATEST_VER" ] && [ -n "$CURRENT_VER" ] && [ "$CURRENT_VER" != "$LATEST_VER" ]; then
-        echo "[INFO] Updating Claude Code from $CURRENT_VER to $LATEST_VER..."
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Updating Claude Code from $CURRENT_VER to $LATEST_VER..."
         # Install into the writable persisted prefix — avoids read-only Docker layer restriction
         # that blocks `claude update` (which tries to update the npm global in /usr/local)
         npm install -g "@anthropic-ai/claude-code@$LATEST_VER" \
             --prefix "$NPM_GLOBAL_DIR" --no-fund --no-audit 2>&1 || true
-        echo "[INFO] Claude Code update complete: $(claude --version 2>/dev/null)"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Claude Code update complete: $(claude --version 2>/dev/null)"
     else
-        echo "[INFO] Claude Code $CURRENT_VER is up to date"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Claude Code $CURRENT_VER is up to date"
     fi
 fi
 
@@ -160,33 +160,33 @@ do_memory_export() {
     if [ -d "$MEMORY_SRC" ]; then
         mkdir -p /config/memory
         cp -a "$MEMORY_SRC/." /config/memory/
-        echo "[INFO] Memory exported: $(ls /config/memory/*.md 2>/dev/null | wc -l) file(s) → /config/memory/"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Memory exported: $(ls /config/memory/*.md 2>/dev/null | wc -l) file(s) → /config/memory/"
     else
-        echo "[INFO] No memory directory found at $MEMORY_SRC — skipping"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] No memory directory found at $MEMORY_SRC — skipping"
     fi
     COMMANDS_SRC="$PERSIST_DIR/commands"
     if [ -d "$COMMANDS_SRC" ] && [ -n "$(ls -A "$COMMANDS_SRC" 2>/dev/null)" ]; then
         mkdir -p /config/commands
         cp -a "$COMMANDS_SRC/." /config/commands/
-        echo "[INFO] Commands exported: $(ls /config/commands/ 2>/dev/null | wc -l) file(s) → /config/commands/"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Commands exported: $(ls /config/commands/ 2>/dev/null | wc -l) file(s) → /config/commands/"
     else
-        echo "[INFO] No custom commands found — skipping"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] No custom commands found — skipping"
     fi
 }
 
 if [ "$EXPORT_MEMORY" = "true" ]; then
-    echo "[INFO] Exporting Claude memory and commands to /config/..."
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Exporting Claude memory and commands to /config/..."
     do_memory_export
     if [ "$EXPORT_MEMORY_INTERVAL" -gt 0 ] 2>/dev/null; then
-        echo "[INFO] Memory backup started (interval: ${EXPORT_MEMORY_INTERVAL} min)"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Memory backup started (interval: ${EXPORT_MEMORY_INTERVAL} min)"
         (while true; do
             sleep $(( EXPORT_MEMORY_INTERVAL * 60 ))
-            echo "[INFO] Running scheduled memory backup..."
+            echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Running scheduled memory backup..."
             do_memory_export
         done) &
     fi
 else
-    echo "[INFO] Memory export disabled"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Memory export disabled"
 fi
 
 # Configure MCP servers
@@ -220,10 +220,10 @@ if [ "$ENABLE_MCP" = "true" ]; then
     jq --arg token "$SUPERVISOR_TOKEN" \
         '.mcpServers.homeassistant.env.HASS_TOKEN = $token' \
         "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
-    echo '[INFO] MCP configured with Home Assistant integration'
-    echo '[INFO] Pre-authorized read-only MCP tools'
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] MCP configured with Home Assistant integration"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Pre-authorized read-only MCP tools"
 else
-    echo '[INFO] MCP disabled'
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] MCP disabled"
 fi
 
 if [ "$ENABLE_PLAYWRIGHT" = "true" ]; then
@@ -231,15 +231,15 @@ if [ "$ENABLE_PLAYWRIGHT" = "true" ]; then
     # Playwright MCP requires the CDP endpoint on port 80; socat bridges to the add-on's port 9222.
     if getent hosts "$PLAYWRIGHT_HOST" > /dev/null 2>&1; then
         socat TCP-LISTEN:80,fork TCP:"$PLAYWRIGHT_HOST":9222 &
-        echo "[INFO] socat forwarding localhost:80 → $PLAYWRIGHT_HOST:9222"
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] socat forwarding localhost:80 → $PLAYWRIGHT_HOST:9222"
     fi
     claude mcp add-json playwright \
         '{"command":"npx","args":["--no-install","@playwright/mcp","--cdp-endpoint","http://localhost:80"]}' \
         -s user
-    echo "[INFO] Playwright MCP enabled (CDP: http://localhost:80 → ${PLAYWRIGHT_HOST}:9222)"
-    echo '[INFO] Make sure the Playwright Browser add-on is installed and running'
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Playwright MCP enabled (CDP: http://localhost:80 → ${PLAYWRIGHT_HOST}:9222)"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Make sure the Playwright Browser add-on is installed and running"
 else
-    echo '[INFO] Playwright MCP disabled'
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Playwright MCP disabled"
 fi
 
 # Set terminal colors based on theme
@@ -272,15 +272,15 @@ fi
 
 # Background update checker — runs hourly, posts HA notification when update is available
 if [ "$AUTO_UPDATE" = "true" ]; then
-    echo "[INFO] Update checker started (interval: 1h)"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Update checker started (interval: 1h)"
     (while true; do
         sleep 3600
-        echo "[INFO] Checking for Claude Code updates..."
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Checking for Claude Code updates..."
         IV=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
         LV=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
         if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
             echo "$LV" > "$PERSIST_DIR/.update_notice"
-            echo "[INFO] Update available: $LV (installed: $IV)"
+            echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Update available: $LV (installed: $IV)"
             if [ "$NOTIFY_ON_UPDATE" = "true" ]; then
                 printf '{"title":"Claude Code Update Available","message":"Version %s is available (installed: %s). Restart the add-on to update.","notification_id":"claude_code_update"}' "$LV" "$IV" \
                     | curl -sf -X POST \
@@ -290,7 +290,7 @@ if [ "$AUTO_UPDATE" = "true" ]; then
             fi
         else
             rm -f "$PERSIST_DIR/.update_notice" 2>/dev/null
-            echo "[INFO] Claude Code $IV is up to date"
+            echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Claude Code $IV is up to date"
             if [ "$NOTIFY_ON_UPDATE" = "true" ]; then
                 printf '{"notification_id":"claude_code_update"}' \
                     | curl -sf -X POST \
@@ -301,7 +301,7 @@ if [ "$AUTO_UPDATE" = "true" ]; then
         fi
     done) &
 else
-    echo "[INFO] Auto-update disabled — update checker not started"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Auto-update disabled — update checker not started"
 fi
 
 # Start web terminal

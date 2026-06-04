@@ -8,7 +8,8 @@
   "error_credentials": "Ungültige Anmeldedaten.",
   "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
 
-  "card_total": "Container",
+  "card_ha_status": "HA Status",
+  "card_total_sub": "gesamt",
   "card_running": "Laufend",
   "card_cpu": "CPU gesamt",
   "card_mem": "RAM genutzt",

@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## [1.0.10] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## 1.0.9
 - Translations DE/EN für alle Optionen ergänzt
 

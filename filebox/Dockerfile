@@ -1,6 +1,6 @@
 FROM debian:bookworm-slim
 
-ARG FILEBROWSER_VERSION=2.63.3
+ARG FILEBROWSER_VERSION=2.63.12
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \

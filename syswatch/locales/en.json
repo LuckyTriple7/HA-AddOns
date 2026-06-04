@@ -8,7 +8,8 @@
   "error_credentials": "Invalid credentials.",
   "error_locked": "Too many failed attempts. Please wait 15 minutes.",
 
-  "card_total": "Containers",
+  "card_ha_status": "HA Status",
+  "card_total_sub": "total",
   "card_running": "Running",
   "card_cpu": "Total CPU",
   "card_mem": "RAM used",

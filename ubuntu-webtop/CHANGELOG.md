@@ -1,4 +1,7 @@
 ## [1.8.22] - 2026-06-04
+
+## [1.8.23] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 - Translations DE/EN für alle Optionen ergänzt
 
 ## [1.8.21] - 2026-06-03

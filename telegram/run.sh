@@ -30,6 +30,6 @@ if [ -d /data/media ] && [ ! -d /config/media ]; then
   cp -a /data/media /config/media 2>/dev/null || true
 fi
 
-echo "[INFO] Starting Telegram add-on (API_ID: $API_ID)..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting Telegram add-on (API_ID: $API_ID)..."
 cd /ui
 exec node server.js

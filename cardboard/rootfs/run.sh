@@ -11,22 +11,22 @@ ADMIN_PORT=17773
 HA_URL=$(jq -r '.ha_url // "http://homeassistant.local:8123"' /data/options.json 2>/dev/null || echo "http://homeassistant.local:8123")
 HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json 2>/dev/null || echo "")
 
-echo "[INFO] Prüfe HA Token ..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Prüfe HA Token ..."
 if [ -z "$HA_TOKEN" ]; then
-    echo "[WARN] ha_token ist nicht konfiguriert — bitte in den Add-on Optionen eintragen!"
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] ha_token ist nicht konfiguriert — bitte in den Add-on Optionen eintragen!"
 else
     HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
         --max-time 5 \
         -H "Authorization: Bearer ${HA_TOKEN}" \
         "${HA_URL}/api/" 2>/dev/null || echo "000")
     if [ "$HTTP_STATUS" = "200" ]; then
-        echo "[OK]   HA Token ist gültig (${HA_URL})"
+        echo "[OK] [$(date '+%Y-%m-%d %H:%M:%S')] HA Token ist gültig (${HA_URL})"
     elif [ "$HTTP_STATUS" = "401" ]; then
-        echo "[WARN] HA Token ungültig oder abgelaufen — HTTP 401"
+        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] HA Token ungültig oder abgelaufen — HTTP 401"
     elif [ "$HTTP_STATUS" = "000" ]; then
-        echo "[WARN] HA nicht erreichbar unter ${HA_URL} — Timeout oder Verbindungsfehler"
+        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] HA nicht erreichbar unter ${HA_URL} — Timeout oder Verbindungsfehler"
     else
-        echo "[WARN] HA Token-Prüfung: unerwarteter HTTP-Status ${HTTP_STATUS}"
+        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] HA Token-Prüfung: unerwarteter HTTP-Status ${HTTP_STATUS}"
     fi
 fi
 
@@ -34,7 +34,7 @@ mkdir -p /config/addons_config/cardboard
 
 USERS_FILE=/config/addons_config/cardboard/users.yaml
 if [ ! -f "$USERS_FILE" ]; then
-    echo "[INFO] Keine users.yaml gefunden — Demo-Konfiguration wird angelegt ..."
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Keine users.yaml gefunden — Demo-Konfiguration wird angelegt ..."
     cat > "$USERS_FILE" <<'YAML'
 # CardBoard Benutzerkonfiguration
 # Dokumentation: siehe DOCS.md
@@ -56,18 +56,18 @@ users:
       - file: card3.j2
         title: Status
 YAML
-    echo "[INFO] users.yaml angelegt unter ${USERS_FILE}"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] users.yaml angelegt unter ${USERS_FILE}"
 fi
 
 DEMO_DIR=/config/addons_config/cardboard/demo
 if [ ! -d "$DEMO_DIR" ]; then
-    echo "[INFO] Demo-Templates werden angelegt ..."
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Demo-Templates werden angelegt ..."
     mkdir -p "$DEMO_DIR"
     cp /app/demo_templates/demo/card1.j2 "$DEMO_DIR/card1.j2"
     cp /app/demo_templates/demo/card2.j2 "$DEMO_DIR/card2.j2"
     cp /app/demo_templates/demo/card3.j2 "$DEMO_DIR/card3.j2"
-    echo "[INFO] Demo-Templates angelegt unter ${DEMO_DIR}"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Demo-Templates angelegt unter ${DEMO_DIR}"
 fi
 
-echo "[INFO] Starte CardBoard — Web: ${PORT}  Admin-API: ${ADMIN_PORT} ..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starte CardBoard — Web: ${PORT}  Admin-API: ${ADMIN_PORT} ..."
 exec python /app/server.py

@@ -20,7 +20,7 @@ try:
 except ImportError:
     _docker_available = False
 
-logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
+logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
@@ -116,6 +116,8 @@ RATE_LIMIT_BLOCK  = 15 * 60
 
 # ── Docker stats cache ─────────────────────────────────────────────────────────
 _stats_cache: dict  = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
+_ha_status_cache: dict  = {}
+_ha_status_ts:    float = 0.0
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -329,6 +331,67 @@ def _collect_via_supervisor() -> list[dict]:
             results.append(base)
 
     return results
+
+
+def _get_ha_status() -> dict:
+    """Holt HA Status + Versionen via Supervisor API (parallel), 60s Cache."""
+    global _ha_status_cache, _ha_status_ts
+    now = time.time()
+    if _ha_status_cache and now - _ha_status_ts < 60:
+        return _ha_status_cache
+
+    import urllib.request
+    token = _supervisor_token()
+    empty = {'connected': False, 'supported': None, 'healthy': None,
+             'core_version': '', 'supervisor_version': '', 'os_version': '',
+             'host_ip': '', 'hostname': ''}
+    if not token:
+        _ha_status_cache = empty; _ha_status_ts = now
+        return empty
+
+    headers = {'Authorization': f'Bearer {token}'}
+
+    def _fetch(path: str) -> dict:
+        try:
+            req = urllib.request.Request(f'{SUPERVISOR_API}{path}', headers=headers)
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                return json.loads(resp.read()).get('data', {})
+        except Exception:
+            return {}
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_sup  = ex.submit(_fetch, '/supervisor/info')
+        f_core = ex.submit(_fetch, '/core/info')
+        f_os   = ex.submit(_fetch, '/os/info')
+        f_net  = ex.submit(_fetch, '/network/info')
+        d_sup, d_core, d_os, d_net = (
+            f_sup.result(), f_core.result(), f_os.result(), f_net.result())
+
+    # Host-IP aus erster verbundener Netzwerkschnittstelle
+    host_ip = ''
+    for iface in d_net.get('interfaces', []):
+        if not iface.get('connected', False):
+            continue
+        addrs = (iface.get('ipv4') or {}).get('address', [])
+        if addrs:
+            host_ip = addrs[0].split('/')[0]  # '192.168.1.1/24' → '192.168.1.1'
+            break
+
+    if d_sup:
+        result = {
+            'connected':          True,
+            'supported':          bool(d_sup.get('supported', True)),
+            'healthy':            bool(d_sup.get('healthy', True)),
+            'supervisor_version': d_sup.get('version', ''),
+            'core_version':       d_core.get('version', ''),
+            'os_version':         d_os.get('version', ''),
+            'host_ip':            host_ip,
+            'hostname':           d_net.get('hostname', ''),
+        }
+    else:
+        result = {**empty, 'host_ip': host_ip, 'hostname': ''}
+    _ha_status_cache = result; _ha_status_ts = now
+    return result
 
 
 def _supervisor_addon_slug(name: str) -> str | None:
@@ -831,6 +894,7 @@ def api_stats():
     with _stats_lock:
         data = dict(_stats_cache)
     data['collector_mode'] = _collector_mode
+    data['ha_status']      = _get_ha_status()
     cfg = load_config()
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
     data['cycle_s'] = round(_last_elapsed + sleep_s + 1.0, 1)  # 1s buffer for variability

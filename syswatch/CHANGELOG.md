@@ -1,5 +1,28 @@
 # Changelog — HA SysWatch
 
+## [1.0.6] - 2026-06-04
+- fix: Log-Zeitstempel vollständig in allen Ausgaben (force=True / UVICORN_LOG_CONFIG)
+
+## [1.0.5] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
+## [1.0.4] - 2026-06-04
+
+### Added
+- Port-Übersicht: Host-Ports sind jetzt klickbare Links (`http://<host-ip>:<port>`) — Host-IP wird aus `/network/info` Supervisor API gelesen (erster verbundener Interface)
+- Fallback: ohne Host-IP bleibt Port-Nummer als Text sichtbar
+
+## [1.0.3] - 2026-06-04
+
+### Added
+- Footer zeigt HA Core-, Supervisor- und OS-Version (via Supervisor API, 3 parallele Calls, 60s Cache)
+
+## [1.0.2] - 2026-06-04
+
+### Changed
+- Kacheln "Container" und "Laufend" zusammengeführt — zeigt laufende Container mit Gesamtanzahl als Sub-Label
+- Neue Kachel "HA Status" (ganz links): zeigt Supervisor/Support/Health-Status aus der Supervisor API; grün = alles OK, gelb = unsupported, rot = disconnected/unhealthy; 30s Cache
+
 ## [1.0.1] - 2026-06-04
 
 ### Added

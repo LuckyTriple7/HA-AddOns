@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.5] - 2026-06-04
+- fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
+
+## [1.5.4] - 2026-06-04
+- Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
+
 ## [1.5.3] - 2026-06-03
 - Fix: python3/make/g++ für GramJS-Compilation hinzugefügt, nach npm install wieder entfernt
 

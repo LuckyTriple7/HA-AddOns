@@ -10,7 +10,7 @@ DOMAIN1=$(jq -r '.domain1 // ""' /data/options.json)
 EXTRA_PARAMS=$(jq -r '.extra_params // ""' /data/options.json)
 TZ=$(jq -r '.TZ // "Europe/Berlin"' /data/options.json)
 
-echo "[INFO] admin_user='${ADMIN_USER}' password_set=$([ -n "$ADMIN_PASSWORD" ] && echo yes || echo NO)"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] admin_user='${ADMIN_USER}' password_set=$([ -n "$ADMIN_PASSWORD" ] && echo yes || echo NO)"
 
 # Domain ermitteln
 if [ -n "$ALIASGROUP1" ]; then
@@ -18,13 +18,13 @@ if [ -n "$ALIASGROUP1" ]; then
 else
     DOMAIN=$(echo "$NEXTCLOUD_URL" | sed -E 's|https?://||; s|/.*||; s|:[0-9]+||; s/\./\\./g')
 fi
-echo "[INFO] domain='${DOMAIN}'"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] domain='${DOMAIN}'"
 
 # coolwsd.xml nach /config persistieren
 COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
 CONFIG_DEST="/config/coolwsd.xml"
 if [ ! -f "${CONFIG_DEST}" ]; then
-    echo "[INFO] Copying coolwsd.xml to /config..."
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Copying coolwsd.xml to /config..."
     cp "${COOL_CONFIG}" "${CONFIG_DEST}"
 fi
 ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
@@ -35,28 +35,28 @@ cp /etc/resolv.conf /opt/cool/systemplate/etc/resolv.conf 2>/dev/null || true
 
 # WOPI proof key generieren falls nicht vorhanden
 if [ ! -f /etc/coolwsd/proof_key ]; then
-    echo "[INFO] Generating WOPI proof key..."
-    coolconfig generate-proof-key 2>/dev/null || echo "[WARN] proof key generation failed"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Generating WOPI proof key..."
+    coolconfig generate-proof-key 2>/dev/null || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed"
 fi
 
 # Zeitzone setzen und in systemplate kopieren
-echo "[INFO] Timezone: ${TZ}"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Timezone: ${TZ}"
 echo "$TZ" > /etc/timezone
 export TZ
 cp /etc/timezone /opt/cool/systemplate/etc/timezone 2>/dev/null || true
 
 # Bind-Mount im Container nicht möglich → mount_jail_tree dauerhaft deaktivieren
 sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>false</mount_jail_tree>|' "${CONFIG_DEST}" \
-    && echo "[INFO] mount_jail_tree=false" \
-    || echo "[WARN] mount_jail_tree konnte nicht gesetzt werden"
+    && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree=false" \
+    || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree konnte nicht gesetzt werden"
 
 # Admin-Passwort via coolconfig setzen — hasht das Passwort korrekt (Klartext funktioniert nicht)
 # Username-Prompt konsumiert erste Zeile → leere Zeile voranstellen damit Default (arg) genommen wird
 if [ -n "$ADMIN_PASSWORD" ]; then
-    echo "[INFO] Setting admin credentials via coolconfig..."
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Setting admin credentials via coolconfig..."
     printf '\n%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | coolconfig set-admin-password "$ADMIN_USER" \
-        && echo "[INFO] coolconfig: credentials set OK" \
-        || echo "[WARN] coolconfig failed"
+        && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] coolconfig: credentials set OK" \
+        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolconfig failed"
 fi
 
 # Env-Vars für domain (offizielle Docker-Methode)
@@ -71,16 +71,16 @@ export password="$ADMIN_PASSWORD"
 TTYD_PID=$!
 sleep 1
 if kill -0 $TTYD_PID 2>/dev/null; then
-    echo "[INFO] ttyd gestartet (PID $TTYD_PID)"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] ttyd gestartet (PID $TTYD_PID)"
 else
-    echo "[WARN] ttyd konnte nicht gestartet werden"
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] ttyd konnte nicht gestartet werden"
 fi
 
-echo "[INFO] Starting Collabora Online..."
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting Collabora Online..."
 
 # SIGTERM-Handler: sauber beenden statt exit 143
 _term() {
-    echo "[INFO] SIGTERM empfangen, stoppe Collabora..."
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] SIGTERM empfangen, stoppe Collabora..."
     kill -TERM "$COOLWSD_PID" 2>/dev/null || true
     kill -TERM "$TTYD_PID"    2>/dev/null || true
     wait "$COOLWSD_PID" 2>/dev/null || true
