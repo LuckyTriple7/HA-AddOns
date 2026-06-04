@@ -343,7 +343,8 @@ def _get_ha_status() -> dict:
     import urllib.request
     token = _supervisor_token()
     empty = {'connected': False, 'supported': None, 'healthy': None,
-             'core_version': '', 'supervisor_version': '', 'os_version': ''}
+             'core_version': '', 'supervisor_version': '', 'os_version': '',
+             'host_ip': '', 'hostname': ''}
     if not token:
         _ha_status_cache = empty; _ha_status_ts = now
         return empty
@@ -358,11 +359,23 @@ def _get_ha_status() -> dict:
         except Exception:
             return {}
 
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=4) as ex:
         f_sup  = ex.submit(_fetch, '/supervisor/info')
         f_core = ex.submit(_fetch, '/core/info')
         f_os   = ex.submit(_fetch, '/os/info')
-        d_sup, d_core, d_os = f_sup.result(), f_core.result(), f_os.result()
+        f_net  = ex.submit(_fetch, '/network/info')
+        d_sup, d_core, d_os, d_net = (
+            f_sup.result(), f_core.result(), f_os.result(), f_net.result())
+
+    # Host-IP aus erster verbundener Netzwerkschnittstelle
+    host_ip = ''
+    for iface in d_net.get('interfaces', []):
+        if not iface.get('connected', False):
+            continue
+        addrs = (iface.get('ipv4') or {}).get('address', [])
+        if addrs:
+            host_ip = addrs[0].split('/')[0]  # '192.168.1.1/24' → '192.168.1.1'
+            break
 
     if d_sup:
         result = {
@@ -372,9 +385,11 @@ def _get_ha_status() -> dict:
             'supervisor_version': d_sup.get('version', ''),
             'core_version':       d_core.get('version', ''),
             'os_version':         d_os.get('version', ''),
+            'host_ip':            host_ip,
+            'hostname':           d_net.get('hostname', ''),
         }
     else:
-        result = empty
+        result = {**empty, 'host_ip': host_ip, 'hostname': ''}
     _ha_status_cache = result; _ha_status_ts = now
     return result
 

@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.0.4] - 2026-06-04
+
+### Added
+- Port-Übersicht: Host-Ports sind jetzt klickbare Links (`http://<host-ip>:<port>`) — Host-IP wird aus `/network/info` Supervisor API gelesen (erster verbundener Interface)
+- Fallback: ohne Host-IP bleibt Port-Nummer als Text sichtbar
+
 ## [1.0.3] - 2026-06-04
 
 ### Added

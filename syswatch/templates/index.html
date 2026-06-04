@@ -807,6 +807,7 @@ async function fetchAndUpdate() {
     }
     updateCards(data.sysinfo || {}, data.ha_status || null);
     updatePerfBtn(data.collector_mode);
+    if (data.ha_status && data.ha_status.host_ip) _hostIp = data.ha_status.host_ip;
     const verEl = document.getElementById('ha-versions');
     if (verEl && data.ha_status) {
       const s = data.ha_status;
@@ -1137,6 +1138,7 @@ function closeModal() {
 }
 
 let _portsAll = [];
+let _hostIp   = '';
 
 function showPorts() {
   _portsAll = [];
@@ -1200,12 +1202,20 @@ function _renderPortsTable(rows) {
   const empty = document.getElementById('ports-empty');
   const tbody = document.getElementById('ports-tbody');
   empty.style.display = sorted.length === 0 ? '' : 'none';
-  tbody.innerHTML = sorted.map(r => `<tr>
-    <td style="padding:6px 12px;border-bottom:1px solid var(--border)">${esc(r.name)}</td>
-    <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;color:var(--accent)">${esc(r.host)}</td>
-    <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums">${esc(r.container)}</td>
-    <td style="padding:6px 12px;border-bottom:1px solid var(--border);color:var(--muted)">${esc(r.proto)}</td>
-  </tr>`).join('');
+  const base = _hostIp ? `http://${_hostIp}` : '';
+  tbody.innerHTML = sorted.map(r => {
+    const portLink = base
+      ? `<a href="${base}:${esc(r.host)}" target="_blank" rel="noopener noreferrer"
+            style="color:var(--accent);text-decoration:none;font-variant-numeric:tabular-nums"
+            title="${base}:${esc(r.host)}">${esc(r.host)} ↗</a>`
+      : `<span style="color:var(--accent);font-variant-numeric:tabular-nums">${esc(r.host)}</span>`;
+    return `<tr>
+      <td style="padding:6px 12px;border-bottom:1px solid var(--border)">${esc(r.name)}</td>
+      <td style="padding:6px 12px;border-bottom:1px solid var(--border)">${portLink}</td>
+      <td style="padding:6px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums">${esc(r.container)}</td>
+      <td style="padding:6px 12px;border-bottom:1px solid var(--border);color:var(--muted)">${esc(r.proto)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function closePortsModal() {
