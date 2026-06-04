@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## [1.0.11] - 2026-06-04
+- fix: timeout: 30 — verhindert Exit 137 (SIGKILL) beim Stopp des Add-ons
+
 ## [1.0.10] - 2026-06-04
 - Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 
