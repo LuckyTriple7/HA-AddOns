@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.13] - 2026-06-05
+- Neu: media_max_mb Config (Standard 500 MB) — bei Überschreitung werden automatisch die ältesten Mediendateien gelöscht
+
 ## [1.5.12] - 2026-06-05
 - Fix: Weitergeleitete Nachricht wird jetzt lokal gespeichert und UI aktualisiert — war nach dem Weiterleiten unsichtbar im AddOn
 

@@ -36,6 +36,7 @@ const PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -180,6 +181,7 @@ async function downloadMedia(rawMsg, msgId) {
     }
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!fs.existsSync(filePath)) {
+      enforceMediaLimit();
       const buf = await client.downloadMedia(rawMsg, {});
       if (buf) fs.writeFileSync(filePath, buf);
     }
@@ -842,6 +844,32 @@ function getDirSize(dir) {
     }
   } catch (e) {}
   return total;
+}
+
+function enforceMediaLimit() {
+  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
+  const targetBytes = limitBytes * 0.8; // auf 80% des Limits zurückschneiden
+  let current = 0;
+  let files = [];
+  try {
+    for (const f of fs.readdirSync(MEDIA_DIR)) {
+      const fp = `${MEDIA_DIR}/${f}`;
+      try {
+        const st = fs.statSync(fp);
+        files.push({ fp, size: st.size, mtime: st.mtimeMs });
+        current += st.size;
+      } catch(e) {}
+    }
+  } catch(e) { return; }
+  if (current <= limitBytes) return;
+  // Älteste zuerst löschen
+  files.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const f of files) {
+    if (current - freed <= targetBytes) break;
+    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
+  }
+  console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
 }
 
 app.get('/api/storage', (req, res) => {

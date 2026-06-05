@@ -63,6 +63,7 @@ let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, prev
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -239,12 +240,33 @@ function addMsg(chatId, msg) {
   return true;
 }
 
+function enforceMediaLimit() {
+  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
+  const targetBytes = limitBytes * 0.8;
+  let current = 0, files = [];
+  try {
+    for (const f of fs.readdirSync(MEDIA_DIR)) {
+      const fp = `${MEDIA_DIR}/${f}`;
+      try { const st = fs.statSync(fp); files.push({ fp, size: st.size, mtime: st.mtimeMs }); current += st.size; } catch(e) {}
+    }
+  } catch(e) { return; }
+  if (current <= limitBytes) return;
+  files.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const f of files) {
+    if (current - freed <= targetBytes) break;
+    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
+  }
+  if (freed) console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
+}
+
 async function downloadWAMedia(msg, msgId) {
   try {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
     const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
+      enforceMediaLimit();
       dbg(`Downloading media: ${safeId}.${ext}`);
       const media = await msg.downloadMedia();
       if (media?.data) fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));

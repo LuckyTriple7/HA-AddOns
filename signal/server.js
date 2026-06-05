@@ -33,6 +33,7 @@ let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const DARK_MODE = process.env.DARK_MODE === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_TOKEN = process.env.HA_TOKEN || '';
@@ -528,6 +529,26 @@ app.get('/api/media/:filename', (req, res) => {
   fs.createReadStream(filepath).pipe(res);
 });
 
+function enforceMediaLimit() {
+  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
+  const targetBytes = limitBytes * 0.8;
+  let current = 0, files = [];
+  try {
+    for (const f of fs.readdirSync(MEDIA_DIR)) {
+      const fp = `${MEDIA_DIR}${f}`;
+      try { const st = fs.statSync(fp); files.push({ fp, size: st.size, mtime: st.mtimeMs }); current += st.size; } catch(e) {}
+    }
+  } catch(e) { return; }
+  if (current <= limitBytes) return;
+  files.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const f of files) {
+    if (current - freed <= targetBytes) break;
+    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
+  }
+  if (freed) console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
+}
+
 function getDirSize(dir) {
   let total = 0;
   try {
@@ -717,6 +738,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       seenMsgIds.add(msgId);
       let mediaFile = null;
       if (isImg && DOWNLOAD_MEDIA) {
+        enforceMediaLimit();
         const fname = `${signalTs}_${safeName}`;
         fs.writeFileSync(`${MEDIA_DIR}${fname}`, buffer);
         mediaFile = fname;
