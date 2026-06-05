@@ -15,15 +15,34 @@ zusätzlich die **Supervisor API** genutzt (`hassio_api: true`, `hassio_role: ma
 
 ## Konfiguration
 
+### Allgemein
+
 | Option | Typ | Standard | Beschreibung |
 |---|---|---|---|
 | `username` | string | `admin` | Login-Benutzername |
 | `password` | string | `secret` | Login-Passwort (auch für Start/Stop/Neustart/Kill benötigt) |
 | `session_hours` | int | `24` | Session-Dauer in Stunden |
+| `show_stopped` | bool | `true` | Gestoppte Container standardmäßig anzeigen |
+| `verbose_log` | bool | `false` | Pro Zyklus Anzahl Container, Worker und Dauer loggen |
+
+### Performance
+
+| Option | Typ | Standard | Beschreibung |
+|---|---|---|---|
 | `collect_interval` | int | `3` | Pause zwischen Docker-Abfragen in Sekunden (min. 2) |
 | `collect_workers` | int | `16` | Parallele Docker-Stats-Abfragen (4–64) |
 | `viewer_timeout` | int | `180` | Idle-Timeout in Sekunden (30–1800) |
-| `show_stopped` | bool | `true` | Gestoppte Container standardmäßig anzeigen |
+
+### Telegram-Benachrichtigungen
+
+| Option | Typ | Standard | Beschreibung |
+|---|---|---|---|
+| `telegram_bot_token` | string | `""` | Bot-Token (leer = deaktiviert) |
+| `telegram_chat_id` | string | `""` | Empfänger-Chat-ID |
+| `notify_cpu_threshold` | int | `0` | CPU-Schwellenwert in % (0 = aus) |
+| `notify_ram_threshold` | int | `0` | RAM-Schwellenwert in % (0 = aus) |
+| `notify_over_duration` | int | `0` | Sekunden über Schwellenwert vor Alarm-Auslösung |
+| `notify_clear_duration` | int | `120` | Sekunden unter Schwellenwert vor Entwarnung |
 
 ## Performance-Tuning
 
@@ -68,6 +87,16 @@ Der **Pause-Button** (⚡) im Header pausiert die Datenerfassung manuell.
 
 ## Funktionen
 
+### Übersichts-Kacheln
+
+- **HA Status**: Supervisor / Support / Health aus der Supervisor API — grün / gelb / rot
+- **Laufend**: Anzahl laufender Container, Sub-Label zeigt Gesamtanzahl
+- **CPU Gesamt**: Summe CPU aller laufenden Container
+- **RAM Genutzt**: Summe RAM aller laufenden Container
+- **SYS CPU / SYS RAM**: Host-Auslastung aus `/proc`
+
+Der **Footer** zeigt HA Core-, Supervisor- und OS-Version (60 s Cache).
+
 ### Container-Tabelle
 
 - **Sortierbare Spalten**: Name, CPU %, RAM %, RAM-Nutzung, NET I/O, DISK I/O, PIDs
@@ -96,12 +125,30 @@ SysWatch holt sie über die Supervisor API und zeigt einen ▶-Button zum Starte
 
 Über den **Ports**-Button in der Kontrollzeile öffnet sich ein Modal mit allen
 Host-Port-Mappings. Die Tabelle ist vollständig sortierbar und hat ein Suchfeld.
+Ein Klick auf einen Host-Port öffnet `http://<host-ip>:<port>` direkt im Browser.
+Die Host-IP wird automatisch aus der Supervisor Netzwerk-API gelesen.
 
-### System-Karten
+### Telegram-Benachrichtigungen
 
-- **SYS CPU**: Auslastung des Hosts in %
-- **SYS RAM**: RAM-Nutzung in %, Sub-Label zeigt `genutzt / gesamt`
-- **CPU-Takt**: aus `/proc/cpuinfo` (Kerne × Ø GHz)
+Bot erstellen via `@BotFather`, eigene Chat-ID via `@userinfobot` ermitteln.
+
+**Ereignisse die Nachrichten auslösen:**
+
+| Ereignis | Nachricht |
+|---|---|
+| Container crasht / von HA gestoppt | 💥 Container unerwartet gestoppt |
+| Container startet (nicht via SysWatch) | ▶️ Container gestartet |
+| CPU über Schwellenwert (nach `notify_over_duration` Sek.) | ⚠️ Hohe CPU-Last |
+| CPU 2 Min. unter Schwellenwert (nach `notify_clear_duration` Sek.) | ✅ CPU-Last normal |
+| RAM über Schwellenwert | ⚠️ Hohe RAM-Auslastung |
+| RAM unter Schwellenwert | ✅ RAM-Auslastung normal |
+
+Stop/Kill/Start über die SysWatch-UI löst **keine** Benachrichtigung aus.
+CPU/RAM-Alerts haben einen 10-Minuten-Cooldown zwischen gleichen Meldungen.
+
+**Verzögerungslogik:**
+- `notify_over_duration = 60`: CPU/RAM muss 60 Sekunden ununterbrochen über dem Schwellenwert liegen, bevor der Alarm ausgelöst wird — verhindert Alarme bei kurzen Spitzen
+- `notify_clear_duration = 120`: CPU/RAM muss 120 Sekunden ununterbrochen unter dem Schwellenwert liegen, bevor die Entwarnung gesendet wird
 
 ### Header-Elemente
 
@@ -120,3 +167,14 @@ Host-Port-Mappings. Die Tabelle ist vollständig sortierbar und hat ein Suchfeld
 - **Passwortbestätigung** für alle destruktiven Aktionen (Start, Stop, Neustart, Kill)
 - Session-Cookies: `HttpOnly`, `SameSite=Lax`
 - Cloudflare-Tunnel-kompatibel (`CF-Connecting-IP` wird ausgewertet)
+
+## Gesicherter Modus (Protection Mode)
+
+Nach der Installation zeigt HA eine Warnung: **"Gesicherter Modus deaktiviert"**.
+Das ist korrekt und muss manuell bestätigt werden.
+
+SysWatch benötigt `docker_api: true` um den Docker-Socket (`/var/run/docker.sock`)
+einzubinden — ohne diesen können keine Container-Stats gelesen werden.
+HA deaktiviert den gesicherten Modus automatisch wenn `docker_api: true` gesetzt ist.
+
+**In der HA Add-on UI:** Reiter „Info" → Schalter „Gesicherter Modus" auf **Aus** stellen.
