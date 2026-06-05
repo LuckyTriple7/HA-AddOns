@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.25] - 2026-06-05
+- Fix: MEDIA_MAX_MB fehlte in run.sh → Limit zeigte immer 500 MB statt konfiguriertem Wert
+
 ## [1.5.24] - 2026-06-05
 - Video-Placeholder: "⬇ Video herunterladen · X.X MB" statt doppeltem "Video"; Body nur anzeigen wenn Video geladen; DE+EN
 

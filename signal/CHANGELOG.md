@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.16] - 2026-06-05
+- Fix: MEDIA_MAX_MB fehlte in run.sh → Limit zeigte immer 500 MB statt konfiguriertem Wert
+
 ## [1.5.15] - 2026-06-05
 - 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS" (DE+EN)
 
