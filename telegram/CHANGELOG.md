@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.6] - 2026-06-05
+- feat: Chat-ID per Mouse-Over auf dem eigenen Namen im Header anzeigen
+
 ## [1.5.5] - 2026-06-04
 - fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
 
