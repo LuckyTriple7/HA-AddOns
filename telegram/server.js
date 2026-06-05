@@ -571,7 +571,7 @@ app.get('/api/export/:chatId', (req, res) => {
     if (m.type === 'voice' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
       content = fs.existsSync(fp)
-        ? `<audio controls style="min-width:200px;max-width:280px;width:100%" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
+        ? `<audio controls style="max-width:280px;width:100%;display:block" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if (m.type === 'video' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
@@ -1938,7 +1938,7 @@ function renderMessages(msgs) {
     const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
     if(isVoice){
       content = m.mediaFile
-        ? \`<audio controls style="min-width:220px;max-width:300px;width:100%" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
+        ? \`<audio controls style="max-width:300px;width:100%;display:block" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if(isVideo){
       content = m.mediaFile

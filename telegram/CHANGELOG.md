@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.35] - 2026-06-06
+- Fix: Audio-Player ragte über Bubble-Rahmen hinaus — min-width entfernt, player passt sich per width:100% der Bubble an
+
 ## [1.5.34] - 2026-06-06
 - Fix: Speicheranzeige aktualisiert sich jetzt auch nach Video-Löschen sofort
 
