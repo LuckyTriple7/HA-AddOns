@@ -1,5 +1,13 @@
 # Changelog — MediaGrab
 
+## [0.2.7] — 2026-06-05
+### Improved
+- yt-dlp Update-Button prüft zuerst PyPI auf neue Version; Update wird nur durchgeführt wenn tatsächlich eine neuere Version verfügbar ist
+- Toast "Bereits aktuell: x.x.x" wenn nichts zu tun, "Aktualisiert auf x.x.x" nach echtem Update
+- Versions-Cache wird nach Update invalidiert
+### Fixed
+- Tag-Strings (＋ Tag, ✕ Entfernen, Eigener Tag …) fehlten in Übersetzungen — jetzt in DE/EN Locale-Dateien
+
 ## [0.2.6] — 2026-06-05
 ### Added
 - Custom Tags: freie Texteingabe im Plattform-Picker — beliebiger Tag statt nur vordefinierter Plattformen

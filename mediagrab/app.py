@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -728,12 +729,22 @@ def api_ytdlp_update():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     try:
+        current = _get_ytdlp_version()
+        latest = ''
+        try:
+            with urllib.request.urlopen('https://pypi.org/pypi/yt-dlp/json', timeout=8) as resp:
+                latest = json.loads(resp.read())['info']['version']
+        except Exception as e:
+            log.warning('PyPI-Versionsabfrage fehlgeschlagen: %s', e)
+        if latest and latest == current:
+            log.info('yt-dlp bereits aktuell: %s', current)
+            return jsonify({'ok': True, 'up_to_date': True, 'version': current})
         subprocess.run(['pip', 'install', '--upgrade', 'yt-dlp'],
                        capture_output=True, text=True, timeout=120, check=True)
-        r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
-        new_ver = r.stdout.strip()
+        _ytdlp_ver_cache['ver'] = None  # cache invalidieren
+        new_ver = _get_ytdlp_version()
         log.info('yt-dlp aktualisiert auf %s', new_ver)
-        return jsonify({'ok': True, 'version': new_ver})
+        return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
     except Exception as e:

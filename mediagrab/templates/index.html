@@ -304,8 +304,13 @@
       status_cancelled: {{ t.status_cancelled | tojson }},
       cookies_loaded: {{ t.cookies_loaded | tojson }},
       cookies_none:   {{ t.cookies_none | tojson }},
-      ytdlp_updating: {{ t.ytdlp_updating | tojson }},
-      ytdlp_updated:  {{ t.ytdlp_updated | tojson }},
+      ytdlp_checking:    {{ t.ytdlp_checking | tojson }},
+      ytdlp_updating:    {{ t.ytdlp_updating | tojson }},
+      ytdlp_updated:     {{ t.ytdlp_updated | tojson }},
+      ytdlp_up_to_date:  {{ t.ytdlp_up_to_date | tojson }},
+      tag_add:           {{ t.tag_add | tojson }},
+      tag_remove:        {{ t.tag_remove | tojson }},
+      tag_placeholder:   {{ t.tag_placeholder | tojson }},
       disk_free:      {{ t.disk_free | tojson }},
       disk_used_by_folder: {{ t.disk_used_by_folder | tojson }},
       info_loading:   {{ t.info_loading | tojson }},
@@ -555,7 +560,7 @@
       const inp = document.createElement('input');
       inp.type = 'text';
       inp.className = 'pp-input';
-      inp.placeholder = 'Eigener Tag …';
+      inp.placeholder = T.tag_placeholder;
       inp.maxLength = 50;
       inp.value = (current && !_PLATFORMS.includes(current)) ? current : '';
       inp.onclick = e => e.stopPropagation();
@@ -570,7 +575,7 @@
       if (current) {
         const rem = document.createElement('button');
         rem.className = 'pp-remove';
-        rem.textContent = '✕ Entfernen';
+        rem.textContent = T.tag_remove;
         rem.onclick = (e) => { e.stopPropagation(); savePlatform(filename, ''); };
         popup.appendChild(rem);
       }
@@ -636,7 +641,7 @@
             <div class="file-meta">
               ${f.platform
                 ? `<span class="file-platform${_PLATFORMS.includes(f.platform)?'':' custom-tag'}" onclick="openPlatformPicker(event,'${esc(f.name)}','${esc(f.platform)}')">${esc(f.platform)}</span>`
-                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')">＋ Tag</button>`}
+                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')">${esc(T.tag_add)}</button>`}
               <span class="file-size">${fmtSize(f.size)}</span>
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">
@@ -692,13 +697,13 @@
       const btn = document.getElementById('ytdlp-update-btn');
       const ver = document.getElementById('ytdlp-ver');
       btn.disabled = true;
-      ver.textContent = T.ytdlp_updating;
+      ver.textContent = T.ytdlp_checking;
       try {
         const r = await fetch('/api/ytdlp/update', {method:'POST'});
         const d = await r.json();
         if (r.ok && d.version) {
           ver.textContent = d.version;
-          toast(T.ytdlp_updated + ' ' + d.version);
+          toast(d.up_to_date ? T.ytdlp_up_to_date + ' ' + d.version : T.ytdlp_updated + ' ' + d.version);
         } else {
           ver.textContent = '—';
           toast(T.error_unknown, true);
