@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.12] - 2026-06-05
+- Speicher-Tooltip: Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete (DE+EN)
+
 ## [1.6.11] - 2026-06-05
 - Neu: media_max_mb Config (Standard 500 MB) — bei Überschreitung werden automatisch die ältesten Mediendateien gelöscht (LRU)
 

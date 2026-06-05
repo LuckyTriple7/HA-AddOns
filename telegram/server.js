@@ -874,7 +874,14 @@ function enforceMediaLimit() {
 
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
-  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+  const mediaBytes = getDirSize(MEDIA_DIR);
+  const mediaMb = mediaBytes / 1024 / 1024;
+  res.json({
+    bytes, mb: (bytes / 1024 / 1024).toFixed(1),
+    mediaMb: mediaMb.toFixed(1),
+    limitMb: MEDIA_MAX_MB,
+    mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
+  });
 });
 
 app.post('/api/cleanup-media', (req, res) => {
@@ -1565,7 +1572,14 @@ async function loadStorage() {
   try {
     const d = await fetch(api('/api/storage')).then(r => r.json());
     const el = document.getElementById('storage-info');
-    if (el) el.textContent = '💾 ' + d.mb + ' MB';
+    if (!el) return;
+    el.textContent = '💾 ' + d.mb + ' MB';
+    if (d.mediaMb !== undefined) {
+      const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
+      el.title = lang === 'de'
+        ? \`Gesamt /config: \${d.mb} MB\nMedienordner: \${d.mediaMb} MB von \${autoAt} MB (\${d.mediaPct}%)\nAuto-Delete startet bei \${autoAt} MB → löscht auf \${autoTo} MB\`
+        : \`Total /config: \${d.mb} MB\nMedia folder: \${d.mediaMb} MB of \${autoAt} MB (\${d.mediaPct}%)\nAuto-delete starts at \${autoAt} MB → cleans to \${autoTo} MB\`;
+    }
   } catch(e) {}
 }
 loadStorage();
