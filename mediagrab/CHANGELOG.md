@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.0.6] — 2026-06-05
+### Removed
+- PWA-Installationsbanner entfernt (Browser-Favicon ausreichend)
+
 ## [0.0.5] — 2026-06-05
 ### Fixed
 - Favicon in Browser-Tab fehlte (link rel="icon" ergänzt)

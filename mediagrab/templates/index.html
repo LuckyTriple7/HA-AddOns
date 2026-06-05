@@ -133,11 +133,6 @@
     .cookie-no  { background:rgba(139,148,158,.15); color:var(--muted); }
     #cookie-upload-input { display:none; }
 
-    /* ── PWA banner ── */
-    #pwa-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:9px 13px; font-size:.82rem; align-items:center; gap:10px; }
-    #pwa-banner.visible { display:flex; }
-    #pwa-install { background:var(--accent); color:#fff; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:.8rem; }
-    #pwa-dismiss { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; margin-left:auto; }
   </style>
 </head>
 <body>
@@ -154,12 +149,6 @@
   </header>
 
   <div id="main-scroll">
-
-    <div id="pwa-banner">
-      <span>{{ t.install_banner }}</span>
-      <button id="pwa-install">Install</button>
-      <button id="pwa-dismiss">&times;</button>
-    </div>
 
     <!-- Download -->
     <div class="card">
@@ -582,32 +571,13 @@
       } catch(e) { toast(T.error_network, true); }
     }
 
-    // ── PWA ───────────────────────────────────────────────────────────────────
-    let _deferredPrompt = null;
-    window.addEventListener('beforeinstallprompt', e => {
-      e.preventDefault(); _deferredPrompt = e;
-      document.getElementById('pwa-banner').classList.add('visible');
-    });
-
     // ── Init ──────────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
-      // Keyboard shortcut: Enter in textarea (single line) starts download
       document.getElementById('url-input').addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
           const lines = e.target.value.split('\n').filter(l => l.trim()).length;
           if (lines <= 1) { e.preventDefault(); startDownload(); }
         }
-      });
-
-      document.getElementById('pwa-install').addEventListener('click', async () => {
-        if (!_deferredPrompt) return;
-        _deferredPrompt.prompt();
-        await _deferredPrompt.userChoice;
-        _deferredPrompt = null;
-        document.getElementById('pwa-banner').classList.remove('visible');
-      });
-      document.getElementById('pwa-dismiss').addEventListener('click', () => {
-        document.getElementById('pwa-banner').classList.remove('visible');
       });
 
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
