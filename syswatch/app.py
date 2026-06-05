@@ -1247,6 +1247,8 @@ def _background_collector() -> None:
             else:
                 # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert
                 _collect_once(max_workers=2, abort=_collect_event)
+                _check_container_changes()
+                _check_thresholds()
                 _update_hw_sensors()
                 with _stats_lock:
                     _si_idle = _stats_cache.get('sysinfo', {})
