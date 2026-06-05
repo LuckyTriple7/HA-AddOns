@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.2] - 2026-06-05
+- Fix: Sprachnachrichten nicht abspielbar — Media-Endpoint lieferte .ogg als image/jpeg; MIME-Type für ogg + mp3 ergänzt
+
 ## [1.6.1] - 2026-06-05
 - Fix: Ältere Sprachnachrichten werden beim Start automatisch nachgeladen (Auto-Download auf voice erweitert)
 - Fix: Audio-Player-Darstellung korrigiert (feste Höhe entfernt, Browser rendert Controls vollständig)

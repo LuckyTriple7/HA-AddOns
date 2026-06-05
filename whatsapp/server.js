@@ -860,7 +860,7 @@ app.get('/api/media/:filename', (req, res) => {
   const filePath = `${MEDIA_DIR}/${filename}`;
   if (!existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
-  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'image/jpeg';
   res.setHeader('Content-Type', mime);
   res.setHeader('Cache-Control', 'max-age=86400');
   res.sendFile(filePath);
