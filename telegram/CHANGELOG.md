@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.26] - 2026-06-05
+- Neu: video_max_mb Option (Standard 50 MB) — ersetzt hardcoded 10 MB Limit für Video-Downloads
+
 ## [1.5.25] - 2026-06-05
 - Fix: MEDIA_MAX_MB fehlte in run.sh → Limit zeigte immer 500 MB statt konfiguriertem Wert
 

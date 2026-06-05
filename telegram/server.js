@@ -37,6 +37,7 @@ const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
+const VIDEO_MAX_MB  = Math.max(parseInt(process.env.VIDEO_MAX_MB  || '50',  10), 1);
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -169,7 +170,7 @@ async function downloadMedia(rawMsg, msgId) {
         ext = 'ogg';
       } else if (isVideo) {
         const fileSize = rawMsg.media.document?.size || 0;
-        if (fileSize > 10 * 1024 * 1024) return null; // max 10 MB — größere Videos trennen die Verbindung
+        if (fileSize > VIDEO_MAX_MB * 1024 * 1024) return null;
         ext = mime === 'video/webm' ? 'webm' : mime === 'video/ogg' ? 'ogv' : 'mp4';
       } else if (mime.startsWith('image/')) {
         ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
@@ -684,8 +685,8 @@ app.post('/api/fetch-video', async (req, res) => {
     if (!tgMsgs?.[0]) return res.status(404).json({ error: 'TG-Nachricht nicht gefunden' });
     const rawTgMsg = tgMsgs[0];
     const fileSize = rawTgMsg.media?.document?.size || 0;
-    if (fileSize > 10 * 1024 * 1024) {
-      return res.status(413).json({ error: `Video zu groß (${(fileSize/1024/1024).toFixed(1)} MB, max 10 MB)` });
+    if (fileSize > VIDEO_MAX_MB * 1024 * 1024) {
+      return res.status(413).json({ error: `Video zu groß (${(fileSize/1024/1024).toFixed(1)} MB, max ${VIDEO_MAX_MB} MB)` });
     }
     const mediaFile = await Promise.race([
       downloadMedia(rawTgMsg, msgId),
@@ -1925,7 +1926,7 @@ function renderMessages(msgs) {
         : (() => {
             const sz = m.videoSize || 0;
             const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
-            const tooBig = sz > 10*1024*1024;
+            const tooBig = sz > ${VIDEO_MAX_MB}*1024*1024;
             return tooBig
               ? \`<span style="opacity:0.5;cursor:default" title="\${t('videoTooBig')}\${mb}">\${t('videoTooBig')}\${mb}</span>\`
               : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.85;user-select:none;text-decoration:underline" title="\${t('videoDownload')}">\${t('videoDownload')}\${mb}</span>\`;
