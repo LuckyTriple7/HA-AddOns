@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.24] - 2026-06-05
+
+### Changed
+- Temperatur-Rotschwelle von 85°C auf 90°C angehoben (grün <60, gelb <75, orange <90, rot ≥90)
+
 ## [1.0.23] - 2026-06-05
 
 ### Fixed
