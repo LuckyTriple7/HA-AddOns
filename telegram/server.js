@@ -1491,6 +1491,7 @@ const LANG = {
     btnConfirm: 'Bestätigen', overlayErrorTitle: 'Fehler', btnReconnect: 'Erneut verbinden',
     unknownError: 'Unbekannter Fehler',
     photosOn: 'Medien AN', photosOff: 'Medien AUS',
+    videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max 10 MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
@@ -1512,6 +1513,7 @@ const LANG = {
     btnConfirm: 'Confirm', overlayErrorTitle: 'Error', btnReconnect: 'Reconnect',
     unknownError: 'Unknown error',
     photosOn: 'Media ON', photosOff: 'Media OFF',
+    videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max 10 MB)',
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
@@ -1922,13 +1924,13 @@ function renderMessages(msgs) {
         ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>\`
         : (() => {
             const sz = m.videoSize || 0;
-            const mb = sz ? (sz/1024/1024).toFixed(1)+' MB' : '';
+            const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
             const tooBig = sz > 10*1024*1024;
             return tooBig
-              ? \`<span style="opacity:0.5;cursor:default" title="Video zu groß zum Laden (max 10 MB)">📹 Video \${mb}</span>\`
-              : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.75;user-select:none" title="Klicken zum Laden">📹 Video\${mb?' ('+mb+')':''}</span>\`;
+              ? \`<span style="opacity:0.5;cursor:default" title="\${t('videoTooBig')}\${mb}">\${t('videoTooBig')}\${mb}</span>\`
+              : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.85;user-select:none;text-decoration:underline" title="\${t('videoDownload')}">\${t('videoDownload')}\${mb}</span>\`;
           })()
-      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
+      if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;

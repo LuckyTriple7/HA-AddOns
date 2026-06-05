@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.24] - 2026-06-05
+- Video-Placeholder: "⬇ Video herunterladen · X.X MB" statt doppeltem "Video"; Body nur anzeigen wenn Video geladen; DE+EN
+
 ## [1.5.23] - 2026-06-05
 - Kritischer Fix: messages.GetHistory FloodWait — /api/messages rief bei jedem pollMessages (2s) fetchMessages() auf wenn Chat < FETCH_LIMIT hatte; jetzt nur noch beim ersten Öffnen (wenn Chat nie geladen)
 
