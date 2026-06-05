@@ -2020,6 +2020,7 @@ async function deleteVideo(msgId) {
       body: JSON.stringify({ msgId })
     });
     await loadMessages(selectedChatId);
+    loadStorage();
   } catch(e) { console.error('deleteVideo:', e.message); }
 }
 

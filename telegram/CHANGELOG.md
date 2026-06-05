@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.34] - 2026-06-06
+- Fix: Speicheranzeige aktualisiert sich jetzt auch nach Video-Löschen sofort
+
 ## [1.5.33] - 2026-06-06
 - Fix: Unhandled rejection "not found" — promise.finally() erzeugte zweite rejecting Promise ohne catch; ersetzt durch .then(del, del)
 
