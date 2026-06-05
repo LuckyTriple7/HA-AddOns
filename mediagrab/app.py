@@ -591,7 +591,26 @@ def api_cookies_status():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     p = Path(COOKIES_PATH)
-    return jsonify({'loaded': p.exists(), 'size': p.stat().st_size if p.exists() else 0})
+    if not p.exists():
+        return jsonify({'loaded': False, 'size': 0, 'domains': []})
+    domains: set[str] = set()
+    try:
+        with open(p, encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split('\t')
+                if len(parts) >= 6:
+                    domain = parts[0].lstrip('.')
+                    # Keep only the main domain (e.g. instagram.com from auth.instagram.com)
+                    parts2 = domain.split('.')
+                    if len(parts2) >= 2:
+                        domain = '.'.join(parts2[-2:])
+                    domains.add(domain)
+    except Exception:
+        pass
+    return jsonify({'loaded': True, 'size': p.stat().st_size, 'domains': sorted(domains)})
 
 @app.route('/api/cookies/upload', methods=['POST'])
 def api_cookies_upload():

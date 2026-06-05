@@ -541,12 +541,15 @@
         const el  = document.getElementById('cookie-status');
         const del = document.getElementById('cookie-del-btn');
         if (d.loaded) {
-          el.textContent = T.cookies_loaded + ' (' + fmtSize(d.size) + ')';
+          const domainStr = d.domains && d.domains.length ? d.domains.join(', ') : fmtSize(d.size);
+          el.textContent = domainStr;
+          el.title = fmtSize(d.size) + (d.domains && d.domains.length ? ' · ' + d.domains.length + ' Domains' : '');
           el.className = 'cookie-status cookie-ok';
           del.style.display = '';
           document.getElementById('cb-cookies-wrap').style.display = '';
         } else {
           el.textContent = T.cookies_none;
+          el.title = '';
           el.className = 'cookie-status cookie-no';
           del.style.display = 'none';
           document.getElementById('cb-cookies-wrap').style.display = 'none';

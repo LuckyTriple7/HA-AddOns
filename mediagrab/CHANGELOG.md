@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.1.0] — 2026-06-05
+### Improved
+- Cookies-Anzeige zeigt jetzt die enthaltenen Domains (z.B. "instagram.com, tiktok.com") statt nur die Dateigröße
+- Tooltip zeigt Dateigröße und Anzahl Domains beim Hover
+
 ## [0.0.9] — 2026-06-05
 ### Fixed
 - Cookies-Upload überschrieb bisherige Cookies — jetzt werden sie zusammengeführt (Instagram + TikTok gleichzeitig möglich)
