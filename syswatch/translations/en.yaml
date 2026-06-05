@@ -27,8 +27,8 @@ configuration:
     name: Telegram Bot Token
     description: "Token of the Telegram bot for notifications (format: 123456:ABC-...). Leave empty to disable notifications. Create a bot via @BotFather."
   telegram_chat_id:
-    name: Telegram Chat ID
-    description: Chat ID of the recipient (user, group or channel). Find your own chat ID via @userinfobot.
+    name: Telegram Chat ID (optional)
+    description: "Chat ID of the recipient. Can be left empty — SysWatch auto-detects the chat ID when you send the bot any message (e.g. /start). Find it manually via @userinfobot."
   notify_cpu_threshold:
     name: CPU Alert Threshold (%)
     description: "Send a Telegram alert when system CPU exceeds this value. 0 = disabled. Example: 80 (alert above 80% CPU)."

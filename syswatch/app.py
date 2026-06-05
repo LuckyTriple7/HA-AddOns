@@ -134,6 +134,7 @@ _prev_running_init: bool            = False
 _manually_stopped:    dict[str, float] = {}  # name → timestamp (vom SysWatch-Button ausgelöst)
 _manually_started:    dict[str, float] = {}  # name → timestamp
 _pending_restart_msgs: dict[str, dict] = {}  # name → {message_id, chat_id} für Callback-Nachrichten
+_auto_chat_id:         str             = ''  # automatisch erkannte Chat-ID (ersetzt manuelle Konfig)
 MANUAL_ACTION_TTL                     = 90   # Sekunden bis manueller Eintrag verfällt
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
@@ -698,6 +699,12 @@ def _is_viewer_active() -> bool:
     return has_sse or (time.time() - _viewer_last_seen) < _viewer_timeout()
 
 
+def _get_effective_chat_id() -> str:
+    """Gibt konfigurierte oder automatisch erkannte Chat-ID zurück."""
+    configured = str(load_config().get('telegram_chat_id', '')).strip()
+    return configured or _auto_chat_id
+
+
 def _telegram_api(method: str, http_timeout: int = 10, **kwargs) -> dict | None:
     """Generischer Telegram Bot-API Aufruf. Gibt JSON-Result zurück oder None bei Fehler."""
     cfg   = load_config()
@@ -723,8 +730,7 @@ def _telegram_api(method: str, http_timeout: int = 10, **kwargs) -> dict | None:
 
 def _send_telegram(msg: str, reply_markup: dict | None = None) -> dict | None:
     """Sendet eine Telegram-Nachricht. Gibt {message_id, chat_id} zurück wenn reply_markup gesetzt."""
-    cfg     = load_config()
-    chat_id = str(cfg.get('telegram_chat_id', '')).strip()
+    chat_id = _get_effective_chat_id()
     if not chat_id:
         return None
     preview = msg.replace('\n', ' ').replace('<b>', '').replace('</b>', '').replace('<code>', '').replace('</code>', '')
@@ -789,15 +795,14 @@ def _start_container_core(name: str) -> tuple[bool, str]:
 
 def _handle_telegram_callback(cq: dict) -> None:
     """Verarbeitet Inline-Keyboard-Callbacks (▶ Starten)."""
+    global _auto_chat_id
     cq_id      = cq['id']
     chat_id    = str(cq.get('from', {}).get('id', ''))
     data       = cq.get('data', '')
     message_id = cq.get('message', {}).get('message_id')
 
-    # Nur konfigurierte Chat-ID akzeptieren
-    cfg = load_config()
-    allowed = str(cfg.get('telegram_chat_id', '')).strip()
-    if chat_id != allowed:
+    allowed = _get_effective_chat_id()
+    if allowed and chat_id != allowed:
         _telegram_api('answerCallbackQuery', callback_query_id=cq_id, text='❌ Nicht autorisiert')
         return
 
@@ -817,17 +822,25 @@ def _handle_telegram_callback(cq: dict) -> None:
 
 def _telegram_polling_loop() -> None:
     """Hintergrund-Thread: empfängt Telegram-Updates via Long-Polling und verarbeitet Callbacks."""
-    offset = 0
-    log.info("[Telegram] Polling-Thread gestartet")
+    global _auto_chat_id
+    offset       = 0
+    _was_active  = False
     while True:
         cfg   = load_config()
         token = str(cfg.get('telegram_bot_token', '')).strip()
         if not token:
+            if _was_active:
+                log.info("[Telegram] Bot-Token entfernt — Polling deaktiviert")
+                _was_active = False
             time.sleep(15)
             continue
+        if not _was_active:
+            log.info("[Telegram] Polling aktiv (Token gesetzt)")
+            _was_active = True
+
         result = _telegram_api('getUpdates', http_timeout=35,
                                offset=offset, timeout=30,
-                               allowed_updates=['callback_query'])
+                               allowed_updates=['callback_query', 'message'])
         if not result:
             time.sleep(5)
             continue
@@ -837,6 +850,17 @@ def _telegram_polling_loop() -> None:
             continue
         for update in result.get('result', []):
             offset = update['update_id'] + 1
+
+            # Chat-ID aus erster Nachricht oder Callback auto-lernen
+            if not _auto_chat_id and not str(load_config().get('telegram_chat_id', '')).strip():
+                src = (update.get('callback_query', {}).get('from')
+                       or update.get('message', {}).get('from') or {})
+                cid = str(src.get('id', ''))
+                if cid:
+                    _auto_chat_id = cid
+                    log.info("[Telegram] Chat-ID automatisch erkannt: %s", cid)
+                    _send_telegram(f'✅ <b>HA SysWatch</b> verbunden\nChat-ID <code>{cid}</code> erkannt — Benachrichtigungen aktiv.')
+
             if 'callback_query' in update:
                 try:
                     _handle_telegram_callback(update['callback_query'])

@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.0.12] - 2026-06-05
+
+### Changed
+- `telegram_chat_id` ist jetzt optional: SysWatch erkennt die Chat-ID automatisch wenn der Bot angeschrieben wird (`/start`) und sendet eine Bestätigung
+- Token leer → Polling-Thread schweigt (kein Log-Spam); loggt erst wenn Token gesetzt wird
+- Callback-Sicherheit: ohne konfigurierte Chat-ID wird erste Kontaktaufnahme akzeptiert und Chat-ID gesetzt; danach nur noch diese Chat-ID
+
 ## [1.0.11] - 2026-06-05
 
 ### Added
