@@ -27,6 +27,7 @@ app = Flask(__name__, template_folder='/app/templates', static_folder='/app/stat
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 MEDIA_DIR     = Path('/media/mediagrab')
+META_PATH     = MEDIA_DIR / '.mediagrab_meta.json'
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
 JOBS_PATH     = '/data/jobs.json'
@@ -43,8 +44,39 @@ sessions: dict[str, float] = {}
 _failed: dict[str, list[float]] = defaultdict(list)
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
+_meta_lock = threading.Lock()
 
 _ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
+
+# ── Platform detection ────────────────────────────────────────────────────────
+
+def _detect_platform(url: str) -> str:
+    u = url.lower()
+    if 'youtube.com' in u or 'youtu.be' in u: return 'YouTube'
+    if 'tiktok.com' in u:                      return 'TikTok'
+    if 'instagram.com' in u:                   return 'Instagram'
+    if 'twitter.com' in u or 'x.com' in u:    return 'X'
+    if 'vimeo.com' in u:                       return 'Vimeo'
+    if 'soundcloud.com' in u:                  return 'SoundCloud'
+    if 'twitch.tv' in u:                       return 'Twitch'
+    if 'reddit.com' in u:                      return 'Reddit'
+    if 'dailymotion.com' in u:                 return 'Dailymotion'
+    return 'Sonstiges'
+
+def _load_meta() -> dict:
+    try:
+        if META_PATH.exists():
+            return json.loads(META_PATH.read_text())
+    except Exception:
+        pass
+    return {}
+
+def _save_meta(meta: dict) -> None:
+    try:
+        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        META_PATH.write_text(json.dumps(meta))
+    except Exception as e:
+        log.warning('Meta-Datei konnte nicht gespeichert werden: %s', e)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -327,7 +359,14 @@ def _run_download(job_id: str) -> None:
                 _jobs[job_id]['status']   = 'done'
                 _jobs[job_id]['progress'] = 100.0
                 _jobs[job_id]['eta']      = ''
-                log.info('Download fertig: job=%s file=%s', job_id, _jobs[job_id]['filename'])
+                fname    = _jobs[job_id].get('filename', '')
+                job_url  = _jobs[job_id].get('url', '')
+                log.info('Download fertig: job=%s file=%s', job_id, fname)
+                if fname:
+                    with _meta_lock:
+                        meta = _load_meta()
+                        meta[fname] = {'platform': _detect_platform(job_url)}
+                        _save_meta(meta)
             else:
                 err = _parse_error(output_lines)
                 _jobs[job_id]['status'] = 'error'
@@ -506,7 +545,7 @@ def api_status():
         done     = sum(1 for j in jobs if j['status'] == 'done')
         errors   = sum(1 for j in jobs if j['status'] == 'error')
 
-        files = [p for p in MEDIA_DIR.iterdir() if p.is_file()] if MEDIA_DIR.exists() else []
+        files = [p for p in MEDIA_DIR.iterdir() if p.is_file() and p.name != '.mediagrab_meta.json'] if MEDIA_DIR.exists() else []
         files_count = len(files)
         folder_size = sum(f.stat().st_size for f in files)
         last_file   = max(files, key=lambda f: f.stat().st_mtime).name if files else ''
@@ -758,11 +797,14 @@ def api_files():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    with _meta_lock:
+        meta = _load_meta()
     files = []
     for p in sorted(MEDIA_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if p.is_file():
+        if p.is_file() and p.name != '.mediagrab_meta.json':
             st = p.stat()
-            files.append({'name': p.name, 'size': st.st_size, 'mtime': int(st.st_mtime)})
+            platform = meta.get(p.name, {}).get('platform', '')
+            files.append({'name': p.name, 'size': st.st_size, 'mtime': int(st.st_mtime), 'platform': platform})
     return jsonify(files)
 
 @app.route('/api/file/delete/<path:filename>', methods=['POST'])
@@ -777,6 +819,11 @@ def api_file_delete(filename):
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     p.unlink()
+    with _meta_lock:
+        meta = _load_meta()
+        if filename in meta:
+            meta.pop(filename)
+            _save_meta(meta)
     log.info('Datei gelöscht: %s', filename)
     return jsonify({'ok': True})
 

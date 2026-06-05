@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [0.2.3] — 2026-06-05
+### Added
+- Plattform-Filter in der Dateiliste: Filter-Buttons (YouTube, TikTok, Instagram, X, …) erscheinen automatisch wenn Dateien aus verschiedenen Quellen vorhanden sind
+- Kleines Plattform-Badge je Datei (z.B. "YouTube") in der Datei-Metazeile
+- Plattform wird beim Download in `.mediagrab_meta.json` gespeichert und beim Löschen bereinigt
+
 ## [0.2.2] — 2026-06-05
 ### Fixed
 - API-Logging: log.debug() funktionierte nicht (Logger läuft auf INFO) — jetzt verbose_log-Prüfung wie beim yt-dlp-Logging

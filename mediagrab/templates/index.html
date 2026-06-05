@@ -113,6 +113,11 @@
     .sort-btn { font-size:.72rem; padding:3px 8px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
     .sort-btn.active { border-color:var(--accent); color:var(--accent); }
     .sort-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .platform-filters { display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 4px; }
+    .plat-btn { font-size:.72rem; padding:3px 9px; border-radius:10px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
+    .plat-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
+    .plat-btn:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
+    .file-platform { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--accent); color:#fff; opacity:.75; white-space:nowrap; }
     .file-item { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); }
     .file-item:last-child { border-bottom:none; }
     .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; padding-top:1px; }
@@ -224,6 +229,7 @@
         <button class="sort-btn" id="sort-name" onclick="setSort('name')">{{ t.sort_name }}</button>
         <button class="sort-btn" id="sort-size" onclick="setSort('size')">{{ t.sort_size }}</button>
       </div>
+      <div class="platform-filters" id="platform-filters" style="display:none"></div>
       <div id="files-list"><p class="empty-note">{{ t.files_empty }}</p></div>
     </div>
 
@@ -471,8 +477,9 @@
     }
 
     // ── Files ─────────────────────────────────────────────────────────────────
-    let _allFiles = [];
-    let _sortKey  = 'date';
+    let _allFiles       = [];
+    let _sortKey        = 'date';
+    let _platformFilter = null;
 
     function setSort(key) {
       _sortKey = key;
@@ -487,14 +494,35 @@
         if (!r.ok) return;
         _allFiles = await r.json();
         document.getElementById('files-badge').textContent = _allFiles.length;
+        _buildPlatformFilters();
         renderFiles();
       } catch(e) {}
+    }
+
+    function _buildPlatformFilters() {
+      const wrap = document.getElementById('platform-filters');
+      const platforms = [...new Set(_allFiles.map(f => f.platform).filter(Boolean))].sort();
+      if (!platforms.length) { wrap.style.display = 'none'; return; }
+      // reset active filter if platform no longer present
+      if (_platformFilter && !platforms.includes(_platformFilter)) _platformFilter = null;
+      wrap.style.display = 'flex';
+      wrap.innerHTML = platforms.map(p =>
+        `<button class="plat-btn${_platformFilter === p ? ' active' : ''}" onclick="setPlatformFilter('${p}')">${p}</button>`
+      ).join('');
+    }
+
+    function setPlatformFilter(p) {
+      _platformFilter = (_platformFilter === p) ? null : p;
+      _buildPlatformFilters();
+      renderFiles();
     }
 
     function renderFiles() {
       const list   = document.getElementById('files-list');
       const q      = (document.getElementById('file-search').value || '').toLowerCase();
-      let   files  = q ? _allFiles.filter(f => f.name.toLowerCase().includes(q)) : [..._allFiles];
+      let   files  = [..._allFiles];
+      if (q)               files = files.filter(f => f.name.toLowerCase().includes(q));
+      if (_platformFilter) files = files.filter(f => f.platform === _platformFilter);
 
       if (_sortKey === 'name') files.sort((a,b) => a.name.localeCompare(b.name));
       else if (_sortKey === 'size') files.sort((a,b) => b.size - a.size);
@@ -521,6 +549,7 @@
           <div class="file-body">
             <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
             <div class="file-meta">
+              ${f.platform ? `<span class="file-platform">${esc(f.platform)}</span>` : ''}
               <span class="file-size">${fmtSize(f.size)}</span>
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">
