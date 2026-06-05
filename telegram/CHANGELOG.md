@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.23] - 2026-06-05
+- Kritischer Fix: messages.GetHistory FloodWait — /api/messages rief bei jedem pollMessages (2s) fetchMessages() auf wenn Chat < FETCH_LIMIT hatte; jetzt nur noch beim ersten Öffnen (wenn Chat nie geladen)
+
 ## [1.5.22] - 2026-06-05
 - Fix: Video-Download > 10 MB trennt Verbindung — Limit auf 10 MB reduziert, Timeout 25s, Größe im Placeholder "(X.X MB)", zu-groß-Videos grau ohne Klick
 

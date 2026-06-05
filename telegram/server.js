@@ -541,7 +541,7 @@ app.get('/api/messages/:chatId', async (req, res) => {
     return res.json(messagesByChatId.get(chatId) || []);
   }
   const existing = messagesByChatId.get(chatId) || [];
-  if (existing.length < FETCH_LIMIT && status === 'connected') {
+  if (!messagesByChatId.has(chatId) && status === 'connected') {
     await fetchMessages(chatId);
     return res.json(messagesByChatId.get(chatId) || []);
   }
