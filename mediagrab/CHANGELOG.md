@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.2.0] — 2026-06-05
+### Fixed
+- Polling-Interval: _pollInterval war im falschen Scope — jetzt global, 500ms greift korrekt bei aktiven Downloads
+
 ## [0.1.9] — 2026-06-05
 ### Improved
 - Polling-Interval dynamisch: 500ms bei aktiven Downloads, 2s im Leerlauf

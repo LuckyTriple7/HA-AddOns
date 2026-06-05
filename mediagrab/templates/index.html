@@ -392,6 +392,14 @@
       document.getElementById('info-thumb').src = '';
     }
 
+    // ── Polling ───────────────────────────────────────────────────────────────
+    let _pollInterval = 2000;
+    let _pollTimer    = null;
+    function schedulePoll() {
+      clearTimeout(_pollTimer);
+      _pollTimer = setTimeout(async () => { await loadJobs(); schedulePoll(); }, _pollInterval);
+    }
+
     // ── Queue ─────────────────────────────────────────────────────────────────
     const STATUS_LABEL = { pending:T.status_pending, running:T.status_running, done:T.status_done, error:T.status_error, cancelled:T.status_cancelled };
     let _prevDoneIds = new Set();
@@ -654,16 +662,6 @@
       loadYtdlpVersion();
       loadCookiesStatus();
 
-      // 500ms when downloads active, 2s when idle
-      let _pollInterval = 2000;
-      let _pollTimer = null;
-      function schedulePoll() {
-        clearTimeout(_pollTimer);
-        _pollTimer = setTimeout(async () => {
-          await loadJobs();
-          schedulePoll();
-        }, _pollInterval);
-      }
       schedulePoll();
     });
   </script>
