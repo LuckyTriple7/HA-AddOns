@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.3.0] — 2026-06-05
+### Fixed
+- Dateikonflikt: yt-dlp lud Streams herunter, konnte aber die Zieldatei nicht speichern wenn ein gleichnamiger Dateiname schon existierte — behoben mit --force-overwrites
+
 ## [0.2.9] — 2026-06-05
 ### Fixed
 - Custom-Tag-Editor: bestehender Tag wird beim Öffnen vorausgefüllt und selektiert (war leer wirkend durch fehlenden inp.select())

@@ -254,6 +254,7 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         'yt-dlp',
         '--no-color', '--newline', '--progress',
         '--progress-template', 'download:MGPROG|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s',
+        '--force-overwrites',
         '-o', '/media/mediagrab/%(title)s.%(ext)s',
     ]
     if not playlist:
