@@ -704,6 +704,8 @@ def _send_telegram(msg: str) -> None:
     chat_id = str(cfg.get('telegram_chat_id', '')).strip()
     if not token or not chat_id:
         return
+    preview = msg.replace('\n', ' ').replace('<b>', '').replace('</b>', '').replace('<code>', '').replace('</code>', '')
+    log.info("[Telegram] → %s", preview[:120])
     import urllib.request
     try:
         payload = json.dumps({'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}).encode()
@@ -715,8 +717,9 @@ def _send_telegram(msg: str) -> None:
         )
         with urllib.request.urlopen(req, timeout=10):
             pass
+        log.info("[Telegram] Gesendet.")
     except Exception as e:
-        log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+        log.warning("[Telegram] Fehlgeschlagen: %s", e)
 
 
 def _check_container_changes() -> None:
@@ -838,6 +841,34 @@ def _check_thresholds() -> None:
                     _clear('ram', ram_pct, ram_limit)
 
 
+_startup_notif_sent: bool = False
+
+
+def _send_startup_notification() -> None:
+    """Sendet einmalig beim ersten abgeschlossenen Zyklus eine Startup-Meldung an Telegram."""
+    global _startup_notif_sent
+    if _startup_notif_sent:
+        return
+    _startup_notif_sent = True
+
+    import datetime as _dt
+    now_str = _dt.datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+    ha = _get_ha_status()
+    with _stats_lock:
+        containers = _stats_cache.get('containers', [])
+    running = sum(1 for c in containers if c.get('status') == 'running')
+    total   = len(containers)
+
+    parts = [f'🟢 <b>HA SysWatch gestartet</b>', f'📅 {now_str}']
+    if ha.get('core_version'):
+        parts.append(f'🏠 HA {ha["core_version"]}  ·  Supervisor {ha.get("supervisor_version", "?")}  ·  OS {ha.get("os_version", "?")}')
+    parts.append(f'🐳 {running} Container laufend / {total} gesamt')
+    if ha.get('host_ip'):
+        parts.append(f'🌐 {ha["host_ip"]}')
+
+    threading.Thread(target=_send_telegram, args=('\n'.join(parts),), daemon=True).start()
+
+
 def _background_collector() -> None:
     global _collector_mode
     while True:
@@ -866,6 +897,7 @@ def _background_collector() -> None:
                 )
                 _check_container_changes()
                 _check_thresholds()
+                _send_startup_notification()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
                 # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert

@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.0.10] - 2026-06-05
+
+### Added
+- Telegram-Log: jede ausgehende Nachricht erscheint im HA-Log mit Vorschau (`[Telegram] →`) und Bestätigung (`[Telegram] Gesendet.`) oder Fehler
+- Startup-Benachrichtigung: nach dem ersten abgeschlossenen Zyklus sendet SysWatch einmalig Datum/Uhrzeit, HA-/Supervisor-/OS-Version, Anzahl laufender und gestoppter Container sowie Host-IP
+
 ## [1.0.9] - 2026-06-05
 
 ### Added
