@@ -122,6 +122,15 @@
     .file-acts { display:flex; gap:6px; flex-shrink:0; }
     .path-note { font-size:.73rem; color:var(--muted); margin-bottom:8px; }
 
+    /* ── Player modal ── */
+    #player-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:500; align-items:center; justify-content:center; flex-direction:column; padding:16px; }
+    #player-modal.open { display:flex; }
+    #player-modal video, #player-modal audio { max-width:100%; max-height:80vh; border-radius:var(--r); outline:none; }
+    #player-modal audio { width:360px; margin-top:20px; }
+    .player-title { color:#fff; font-size:.85rem; margin-bottom:10px; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
+    .player-close { position:absolute; top:14px; right:18px; background:none; border:none; color:#fff; font-size:1.6rem; cursor:pointer; opacity:.7; }
+    .player-close:hover { opacity:1; }
+
     /* ── Settings ── */
     .settings-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
     .settings-row:last-child { border-bottom:none; }
@@ -239,6 +248,13 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Player modal -->
+  <div id="player-modal" onclick="closePlayer(event)">
+    <button class="player-close" onclick="closePlayer()">&times;</button>
+    <div class="player-title" id="player-title"></div>
+    <div id="player-content"></div>
   </div>
 
   <div id="toast"></div>
@@ -475,11 +491,17 @@
       document.getElementById('files-badge').textContent = _allFiles.length;
 
       if (!files.length) { list.innerHTML = '<p class="empty-note">' + esc(T.files_empty) + '</p>'; return; }
+      const VIDEO_EXT = ['mp4','mkv','webm','avi','mov'];
+      const AUDIO_EXT = ['mp3','m4a','ogg','opus','aac','flac','wav'];
       const icon = f => {
         const ext = f.name.split('.').pop().toLowerCase();
-        if (['mp4','mkv','webm','avi','mov'].includes(ext)) return '🎬';
-        if (['mp3','m4a','ogg','opus','aac','flac','wav'].includes(ext)) return '🎵';
+        if (VIDEO_EXT.includes(ext)) return '🎬';
+        if (AUDIO_EXT.includes(ext)) return '🎵';
         return '📄';
+      };
+      const isPlayable = f => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        return VIDEO_EXT.includes(ext) || AUDIO_EXT.includes(ext);
       };
       list.innerHTML = files.map(f => `
         <div class="file-item">
@@ -488,11 +510,32 @@
           <span class="file-size">${fmtSize(f.size)}</span>
           <span class="file-date">${fmtDate(f.mtime)}</span>
           <div class="file-acts">
+            ${isPlayable(f) ? `<button class="sm-btn" onclick="playFile('${esc(f.name)}')">▶</button>` : ''}
             <a class="sm-btn" href="/files/${encodeURIComponent(f.name)}" download>${esc(T.btn_download_file)}</a>
             <button class="sm-btn danger" onclick="deleteFile('${esc(f.name)}')">${esc(T.btn_delete)}</button>
           </div>
         </div>`).join('');
     }
+
+    function playFile(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      const isVideo = ['mp4','mkv','webm','avi','mov'].includes(ext);
+      const src = '/stream/' + encodeURIComponent(name);
+      const tag = isVideo ? 'video' : 'audio';
+      document.getElementById('player-title').textContent = name;
+      document.getElementById('player-content').innerHTML =
+        `<${tag} src="${src}" controls autoplay ${isVideo ? 'playsinline' : ''}></${tag}>`;
+      document.getElementById('player-modal').classList.add('open');
+      document.addEventListener('keydown', _playerEsc);
+    }
+    function closePlayer(e) {
+      if (e && e.target !== document.getElementById('player-modal') && e.type === 'click') return;
+      const modal = document.getElementById('player-modal');
+      modal.classList.remove('open');
+      document.getElementById('player-content').innerHTML = '';
+      document.removeEventListener('keydown', _playerEsc);
+    }
+    function _playerEsc(e) { if (e.key === 'Escape') closePlayer(); }
 
     async function deleteFile(name) {
       if (!confirm(T.confirm_delete.replace('{name}', name))) return;

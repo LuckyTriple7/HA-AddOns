@@ -668,6 +668,17 @@ def api_file_delete(filename):
     log.info('Datei gelöscht: %s', filename)
     return jsonify({'ok': True})
 
+@app.route('/stream/<path:filename>')
+def stream_file(filename):
+    if _require_auth():
+        return redirect(url_for('login'))
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
+        abort(400)
+    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=False)
+
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     if _require_auth():

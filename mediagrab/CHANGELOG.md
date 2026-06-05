@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [0.1.2] — 2026-06-05
+### Added
+- Play-Button (▶) in der Dateiliste für Video- und Audio-Dateien
+- Video/Audio-Player öffnet sich als Modal direkt im Browser
+- Schließen per ×-Button, Klick auf Hintergrund oder Escape-Taste
+- Neuer /stream/-Endpunkt für Inline-Wiedergabe (ohne erzwungenen Download)
+
 ## [0.1.1] — 2026-06-05
 ### Fixed
 - URL-Textarea: Resize-Griff rechts unten entfernt
