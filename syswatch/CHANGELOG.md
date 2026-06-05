@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.1.2] - 2026-06-05
+
+### Fixed
+- Im Idle-Modus wurden keine Telegram-Benachrichtigungen ausgelöst — `_check_container_changes()` und `_check_thresholds()` werden jetzt auch im Idle-Zweig aufgerufen
+
 ## [1.1.1] - 2026-06-05
 
 ### Fixed

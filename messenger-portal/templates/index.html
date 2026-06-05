@@ -259,6 +259,10 @@
     }
 
     /* ── Last received ───────────────────────────────────────*/
+    .msg-type-icon {
+      font-size: .8em;
+      line-height: 1;
+    }
     .card-last-msg {
       font-size: .72rem;
       color: var(--text-muted);
@@ -482,6 +486,7 @@
     const T_YESTERDAY   = {{ t.last_opened_yesterday | tojson }};
     const T_DAYS        = {{ t.last_opened_days | tojson }};
     const T_LAST_MSG    = {{ t.last_msg_prefix | tojson }};
+    const TYPE_ICONS    = { text: '💬', photo: '🖼️', document: '📄', voice: '🎙️' };
     const T_ONLINE      = {{ t.status_online | tojson }};
     const T_OFFLINE  = {{ t.status_offline | tojson }};
     const T_CHECKING   = {{ t.status_checking | tojson }};
@@ -540,8 +545,13 @@
             if (diffDays === 0)      dateStr = T_TODAY + ' ' + timeStr;
             else if (diffDays === 1) dateStr = T_YESTERDAY + ' ' + timeStr;
             else                     dateStr = T_DAYS.replace('{n}', diffDays);
-            const sender = m.last_received.contact || m.last_received.chatName || '';
-            msgEl.innerHTML = T_LAST_MSG + ' ' + dateStr + (sender ? '<br>' + sender : '');
+            const sender   = m.last_received.contact || m.last_received.chatName || '';
+            const msgType  = m.last_received.type || '';
+            const typeIcon = TYPE_ICONS[msgType]
+              ? '<span class="msg-type-icon">' + TYPE_ICONS[msgType] + '</span> '
+              : '';
+            msgEl.innerHTML = T_LAST_MSG + ' ' + dateStr
+              + (sender ? '<br>' + typeIcon + sender : (typeIcon ? '<br>' + typeIcon.trim() : ''));
 
             const lastReceived = date.getTime();
             currentLastReceived[m.icon] = lastReceived;

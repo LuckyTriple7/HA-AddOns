@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ t.title }} – {{ t.login }}</title>
+  <link rel="icon" href="/static/icon.png">
   <meta name="theme-color" content="#0d1117">
   <style>
     :root { --bg:#0d1117; --surf:#161b22; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; }
@@ -76,6 +77,7 @@
     {% endif %}
 
     <form method="post" autocomplete="on">
+      {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
       <label for="username">{{ t.username }}</label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus required>
 

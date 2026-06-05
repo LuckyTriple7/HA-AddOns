@@ -301,12 +301,14 @@ function processEnvelope(envelope) {
   dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
 
   if (!isOwn) {
+    const msgType = hasAttachments ? 'photo' : 'text';
     lastReceivedMsg = {
       timestamp: dm.timestamp,
       iso: new Date(dm.timestamp).toISOString(),
       chatId,
       chatName: chatMap.get(chatId)?.name || senderName,
       contact: senderName,
+      type: msgType,
       preview: previewText,
     };
     sendHANotification(senderName, dm.message || previewText);
@@ -314,10 +316,11 @@ function processEnvelope(envelope) {
 
   if (WEBHOOK_INCOMING && !isOwn) {
     dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
+    const msgType = hasAttachments ? 'photo' : 'text';
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: chatId, name: senderName, message: dm.message || previewText, timestamp: dm.timestamp }),
+      body: JSON.stringify({ from: chatId, name: senderName, message: dm.message || previewText, type: msgType, timestamp: dm.timestamp }),
     }).catch(() => {});
   }
 }
@@ -454,7 +457,8 @@ app.get('/api/last-received', (req, res) => {
       chatId,
       chatName: chat?.name || chatId,
       contact: chat?.name || chatId,
-      preview: last.body || (last.type === 'photo' ? '📷 Foto' : '[Medien]'),
+      type: last.type || 'text',
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
   res.json(lastReceivedMsg);

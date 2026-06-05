@@ -21,6 +21,8 @@ body:
         - CardBoard
         - Messenger Portal
         - HA SysWatch
+        - phpMyAdmin MariaDB 2
+        - MediaGrab
         - Alle / Allgemein
     validations:
       required: true
