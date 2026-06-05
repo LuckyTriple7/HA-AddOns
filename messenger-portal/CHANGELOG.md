@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.8] - 2026-06-05
+- feat: Nachrichtentyp-Icon in Übersicht (💬 text, 🖼️ photo, 📄 document, 🎙️ voice)
+
 ## [1.1.7] - 2026-06-04
 - fix: Log-Zeitstempel vollständig in allen Ausgaben (force=True / UVICORN_LOG_CONFIG)
 
