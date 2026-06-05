@@ -10,7 +10,7 @@ configuration:
     description: Automatically download and display received photos. Only works reliably for newly incoming messages, not for historical ones.
   media_max_mb:
     name: Media Storage Limit (MB)
-    description: "Maximum size of the media folder in MB. When exceeded, the oldest files are deleted automatically. Default: 500 MB."
+    description: "Maximum size of the media folder in MB. When the limit is exceeded, the oldest files (photos, voice messages) are automatically deleted until the folder shrinks back to 80 % of the limit. Default: 500 MB."
   phone_number:
     name: Phone Number
     description: Your Signal phone number including country code (e.g. +4917612345678). Optional — detected automatically after linking.
