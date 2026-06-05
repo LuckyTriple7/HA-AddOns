@@ -44,6 +44,7 @@ console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'set' : 'not set
 console.log(`[INFO]   signal_api_url         = ${SIGNAL_API}`);
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);

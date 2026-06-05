@@ -78,6 +78,7 @@ const WEBHOOK = process.env.WEBHOOK_INCOMING || '';
 console.log('[INFO] ── Configuration ──────────────────────────────────');
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
