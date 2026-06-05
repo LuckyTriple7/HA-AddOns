@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.1] - 2026-06-05
+- Fix: Ältere Sprachnachrichten werden beim Start automatisch nachgeladen (Auto-Download auf voice erweitert)
+- Fix: Audio-Player-Darstellung korrigiert (feste Höhe entfernt, Browser rendert Controls vollständig)
+- Fix: Log-Meldungen für Auto-Download auf photo+voice verallgemeinert
+
 ## [1.6.0] - 2026-06-05
 - Fix: Sprachnachrichten wurden im Chat nicht angezeigt — Voice-Rendering fehlte im Client-seitigen Render-Zweig; Audio-Player und Fallback-Text jetzt korrekt
 

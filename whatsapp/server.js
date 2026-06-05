@@ -365,14 +365,14 @@ client.on('ready', async () => {
         const pending = [];
         let cached = 0;
         for (const [chatId, msgs] of messagesByChatId) {
-          for (const m of msgs.filter(m => m.type === 'photo')) {
+          for (const m of msgs.filter(m => m.type === 'photo' || m.type === 'voice')) {
             if (m.mediaFile) cached++;
             else pending.push({ chatId, m });
           }
         }
-        if (cached) console.log(`[INFO] ${cached} photo(s) already on disk — no download needed`);
+        if (cached) console.log(`[INFO] ${cached} media file(s) already on disk — no download needed`);
         if (!pending.length) return;
-        console.log(`[INFO] Auto-downloading media for ${pending.length} photo message(s) in background…`);
+        console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
         let count = 0;
         for (const { m } of pending) {
           try {
@@ -384,7 +384,7 @@ client.on('ready', async () => {
           } catch (e) { dbg(`auto-media: error for ${m.id}: ${e.message}`); }
           await new Promise(r => setTimeout(r, 600));
         }
-        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} photo(s) downloaded`);
+        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} media file(s) downloaded`);
         if (count) saveMsgs();
       })();
     }
@@ -989,7 +989,7 @@ app.get('/api/export/:chatId', (req, res) => {
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'voice') {
       content = m.mediaFile
-        ? '<audio controls style="max-width:260px;width:100%;height:36px" src="api/media/' + escH(m.mediaFile) + '"></audio>'
+        ? '<audio controls style="max-width:280px;width:100%" src="api/media/' + escH(m.mediaFile) + '"></audio>'
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
@@ -2031,7 +2031,7 @@ app.get('/', (req, res) => {
         } else if (m.type === 'voice') {
           const audioSrc = m.mediaFile ? 'api/media/' + encodeURIComponent(m.mediaFile) : '';
           bub.innerHTML = (audioSrc
-            ? '<audio controls style="max-width:260px;width:100%;height:36px" src="' + audioSrc + '"></audio>'
+            ? '<audio controls style="max-width:280px;width:100%" src="' + audioSrc + '"></audio>'
             : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>')
             + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'photo' && m.mediaFile) {
