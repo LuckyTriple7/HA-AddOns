@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [0.3.1] — 2026-06-05
+### Fixed
+- Dateikonflikt: bestehende Datei wird mit Zeitstempel-Suffix umbenannt (z.B. Video_20260605_165031.mp4) statt überschrieben; yt-dlp speichert den neuen Download unter dem Originalnamen
+- Nur echte Zieldateien werden umbenannt — temporäre Streams (Video.f137.mp4) werden ignoriert
+- yt-dlp Version-Vergleich: PyPI liefert 2026.3.17, yt-dlp binary 2026.03.17 — führende Nullen werden vor Vergleich normalisiert → "Bereits aktuell" wird korrekt erkannt
+
 ## [0.3.0] — 2026-06-05
 ### Fixed
 - Dateikonflikt: yt-dlp lud Streams herunter, konnte aber die Zieldatei nicht speichern wenn ein gleichnamiger Dateiname schon existierte — behoben mit --force-overwrites

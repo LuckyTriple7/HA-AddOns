@@ -339,14 +339,18 @@ def _run_download(job_id: str) -> None:
 
             m = _DEST_RE.search(line)
             if m:
+                dest = Path(m.group(1).strip())
+                _safe_rename_existing(dest)
                 with _jobs_lock:
-                    _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                    _jobs[job_id]['filename'] = dest.name
                 continue
 
             m = _MERGE_RE.search(line)
             if m:
+                dest = Path(m.group(1).strip())
+                _safe_rename_existing(dest)
                 with _jobs_lock:
-                    _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                    _jobs[job_id]['filename'] = dest.name
                 continue
 
             m = _ALREADY_RE.search(line)
@@ -390,6 +394,20 @@ def _run_download(job_id: str) -> None:
 # ── Temp file cleanup ──────────────────────────────────────────────────────────
 
 TEMP_SUFFIXES = ('.part', '.ytdl', '.part-Frag0', '.part-Frag1', '.part-Frag2', '.part-Frag3')
+
+def _is_stream_tmp(p: Path) -> bool:
+    return bool(re.search(r'\.f\d+$', p.stem))
+
+def _safe_rename_existing(p: Path) -> None:
+    if not p.exists() or _is_stream_tmp(p):
+        return
+    ts = time.strftime('%Y%m%d_%H%M%S')
+    candidate = p.parent / f'{p.stem}_{ts}{p.suffix}'
+    try:
+        p.rename(candidate)
+        log.info('Dateikonflikt: "%s" → "%s" umbenannt', p.name, candidate.name)
+    except Exception as e:
+        log.warning('Umbenennen bei Konflikt fehlgeschlagen: %s — %s', p.name, e)
 
 def _cleanup_temp_files() -> None:
     """Remove .part/.ytdl leftovers not belonging to an active download."""
@@ -737,7 +755,13 @@ def api_ytdlp_update():
                 latest = json.loads(resp.read())['info']['version']
         except Exception as e:
             log.warning('PyPI-Versionsabfrage fehlgeschlagen: %s', e)
-        if latest and latest == current:
+        def _norm_ver(v: str) -> str:
+            parts = v.split('.')
+            try:
+                return '.'.join(str(int(x)) for x in parts) if len(parts) == 3 else v
+            except ValueError:
+                return v
+        if latest and _norm_ver(latest) == _norm_ver(current):
             log.info('yt-dlp bereits aktuell: %s', current)
             return jsonify({'ok': True, 'up_to_date': True, 'version': current})
         subprocess.run(['pip', 'install', '--upgrade', 'yt-dlp'],
