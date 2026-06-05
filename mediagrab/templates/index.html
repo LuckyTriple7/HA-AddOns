@@ -510,6 +510,14 @@
         navigator.serviceWorker.register('/sw.js').catch(() => {});
       }
 
+      // Web Share Target — auto-fill URL from ?url= param
+      const sharedUrl = new URLSearchParams(window.location.search).get('url');
+      if (sharedUrl) {
+        document.getElementById('url-input').value = sharedUrl;
+        history.replaceState({}, '', '/');
+        startDownload();
+      }
+
       // Initial load
       loadJobs();
       loadFiles();

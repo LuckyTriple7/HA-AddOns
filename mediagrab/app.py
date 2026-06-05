@@ -7,6 +7,7 @@ import secrets
 import subprocess
 import threading
 import time
+import urllib.parse
 from collections import defaultdict
 from pathlib import Path
 
@@ -245,6 +246,12 @@ def _run_download(job_id: str) -> None:
 def _require_auth() -> bool:
     return not is_valid_session(request.cookies.get('mg_session'))
 
+def _safe_next(url: str) -> str:
+    """Only allow internal redirects — no open-redirect to external URLs."""
+    if url and url.startswith('/') and not url.startswith('//'):
+        return url
+    return ''
+
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @app.route('/set-lang/<lang>')
@@ -262,8 +269,10 @@ def login():
     config = get_config()
     error = None
 
+    next_url = request.args.get('next', '')
+
     if is_valid_session(request.cookies.get('mg_session')):
-        return redirect(url_for('index'))
+        return redirect(_safe_next(next_url) or url_for('index'))
 
     if request.method == 'POST':
         ip = request.remote_addr
@@ -278,7 +287,8 @@ def login():
                 log.info('Login erfolgreich: ip=%s user=%s', ip, uname)
                 hours = int(config.get('session_hours', 24))
                 token, expires = create_session(hours)
-                resp = make_response(redirect(url_for('index')))
+                target = _safe_next(request.form.get('next', '')) or url_for('index')
+                resp = make_response(redirect(target))
                 resp.set_cookie(
                     'mg_session', token,
                     httponly=True, samesite='Lax',
@@ -289,7 +299,7 @@ def login():
                 record_failed(ip)
                 error = t.get('error_credentials', 'Invalid credentials.')
 
-    return render_template('login.html', t=t, lang=lang, error=error)
+    return render_template('login.html', t=t, lang=lang, error=error, next_url=next_url)
 
 @app.route('/logout')
 def logout():
@@ -308,6 +318,15 @@ def index():
     lang = get_lang(request)
     t    = get_locale(lang)
     return render_template('index.html', t=t, lang=lang)
+
+@app.route('/share')
+def share():
+    # Web Share Target — receives URL from native share sheet
+    shared_url = (request.args.get('url') or request.args.get('text') or '').strip()
+    if _require_auth():
+        next_path = '/share?' + urllib.parse.urlencode({'url': shared_url})
+        return redirect(url_for('login') + '?next=' + urllib.parse.quote(next_path))
+    return redirect('/?url=' + urllib.parse.quote(shared_url, safe=''))
 
 @app.route('/health')
 def health():

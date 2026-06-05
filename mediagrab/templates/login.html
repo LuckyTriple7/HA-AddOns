@@ -76,6 +76,7 @@
     {% endif %}
 
     <form method="post" autocomplete="on">
+      {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
       <label for="username">{{ t.username }}</label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus required>
 
