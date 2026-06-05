@@ -1462,8 +1462,7 @@ function applyAvatar(avEl, chatId) {
 }
 function queueAvatars(chats) {
   for (const chat of chats) {
-    const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
-    if (type === 'private' && !_avatarState.has(chat.id)) _avatarQueue.push(chat.id);
+    if (!_avatarState.has(chat.id)) _avatarQueue.push(chat.id);
   }
   drainAvatarQueue();
 }
@@ -1665,10 +1664,11 @@ function setFilter(f) {
 
 function chatAvatar(c) {
   const type = c.chatType || (c.isBot ? 'bot' : 'private');
-  if (type === 'group')   return '<div class="avatar type-group" style="background:#2b5278">👥</div>';
-  if (type === 'channel') return '<div class="avatar type-channel" style="background:#1e6b8c">📢</div>';
-  if (type === 'bot')     return '<div class="avatar type-bot" style="background:#4a3f8c">🤖</div>';
-  return \`<div class="avatar" data-avid="\${escHtml(c.id)}" style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
+  const avid = \`data-avid="\${escHtml(c.id)}"\`;
+  if (type === 'group')   return \`<div class="avatar type-group" \${avid} style="background:#2b5278">👥</div>\`;
+  if (type === 'channel') return \`<div class="avatar type-channel" \${avid} style="background:#1e6b8c">📢</div>\`;
+  if (type === 'bot')     return \`<div class="avatar type-bot" \${avid} style="background:#4a3f8c">🤖</div>\`;
+  return \`<div class="avatar" \${avid} style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
 }
 
 function renderChats(chats) {
@@ -1721,19 +1721,15 @@ function openChat(chat) {
   av.onclick = null; av.style.cursor = '';
   av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
   const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
-  if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; av.removeAttribute('data-avid'); }
-  else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; av.removeAttribute('data-avid'); }
-  else if (type === 'bot')     { av.textContent = '🤖'; av.style.background = '#4a3f8c'; av.style.fontSize = '22px'; av.removeAttribute('data-avid'); }
-  else {
-    av.textContent = avatarInitial(chat.name||chat.id);
-    av.style.background = avatarColor(chat.name||chat.id);
-    av.style.fontSize = '';
-    av.setAttribute('data-avid', chat.id);
-    if (_avatarState.get(chat.id) === 'loaded') applyAvatar(av, chat.id);
-    else queueAvatars([chat]);
-    av.onclick = () => openContactInfo(chat.id, chat.name);
-    av.style.cursor = 'pointer';
-  }
+  if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; }
+  else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; }
+  else if (type === 'bot')     { av.textContent = '🤖'; av.style.background = '#4a3f8c'; av.style.fontSize = '22px'; }
+  else { av.textContent = avatarInitial(chat.name||chat.id); av.style.background = avatarColor(chat.name||chat.id); av.style.fontSize = ''; }
+  av.setAttribute('data-avid', chat.id);
+  if (_avatarState.get(chat.id) === 'loaded') applyAvatar(av, chat.id);
+  else queueAvatars([chat]);
+  av.onclick = () => openContactInfo(chat.id, chat.name);
+  av.style.cursor = 'pointer';
   renderChats(allChats);
   loadMessages(chat.id);
 }

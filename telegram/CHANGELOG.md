@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.12] - 2026-06-05
+- Fix: Kontaktinfo-Modal und Profilbilder jetzt auch für Gruppen, Kanäle und Bots
+
 ## [1.5.11] - 2026-06-05
 - Neu: Profilbilder als Avatare (downloadProfilePhoto, lazy, 2 parallel); Klick auf Header-Avatar → Kontaktinfo-Modal mit Foto, Name, @username, Telefon, Bio
 
