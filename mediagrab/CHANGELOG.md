@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.1.7] — 2026-06-05
+### Fixed
+- Temp-Dateien (.part, .ytdl) werden nach Abbruch, Fehler und Add-on-Neustart automatisch gelöscht
+- Dateien aktiver Downloads bleiben unangetastet
+
 ## [0.1.6] — 2026-06-05
 ### Fixed
 - Fortschrittsbalken Live-Update: for-Iterator durch readline()-Schleife ersetzt (kein interner Read-Ahead-Buffer mehr)

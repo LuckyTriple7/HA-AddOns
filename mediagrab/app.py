@@ -337,6 +337,45 @@ def _run_download(job_id: str) -> None:
                 _jobs[job_id]['error']  = str(e)
     finally:
         save_jobs()
+        _cleanup_temp_files()
+
+# ── Temp file cleanup ──────────────────────────────────────────────────────────
+
+TEMP_SUFFIXES = ('.part', '.ytdl', '.part-Frag0', '.part-Frag1', '.part-Frag2', '.part-Frag3')
+
+def _cleanup_temp_files() -> None:
+    """Remove .part/.ytdl leftovers not belonging to an active download."""
+    if not MEDIA_DIR.exists():
+        return
+    with _jobs_lock:
+        active_filenames = {
+            j.get('filename', '')
+            for j in _jobs.values()
+            if j['status'] in ('pending', 'running') and j.get('filename')
+        }
+    removed = []
+    for p in MEDIA_DIR.iterdir():
+        if not p.is_file():
+            continue
+        name = p.name
+        is_temp = any(name.endswith(s) for s in TEMP_SUFFIXES) or name.endswith('.ytdl')
+        if not is_temp:
+            continue
+        # Keep if an active download uses this base file
+        base = name
+        for s in TEMP_SUFFIXES:
+            if base.endswith(s):
+                base = base[:-len(s)]
+                break
+        if base in active_filenames:
+            continue
+        try:
+            p.unlink()
+            removed.append(name)
+        except Exception as e:
+            log.warning('Temp-Datei konnte nicht gelöscht werden: %s — %s', name, e)
+    if removed:
+        log.info('Temp-Dateien aufgeräumt: %s', ', '.join(removed))
 
 # ── Auth helpers ───────────────────────────────────────────────────────────────
 
@@ -578,6 +617,8 @@ def api_cancel(job_id):
         proc = job.get('proc')
     if proc:
         proc.terminate()
+        # Give process a moment to release file handles before cleanup
+        threading.Thread(target=lambda: (time.sleep(1), _cleanup_temp_files()), daemon=True).start()
     save_jobs()
     return jsonify({'ok': True})
 
@@ -754,6 +795,7 @@ if __name__ == '__main__':
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     load_sessions()
     load_jobs()
+    _cleanup_temp_files()
     threading.Thread(target=_auto_clear_worker, daemon=True).start()
     log.info('MediaGrab startet auf Port %d ...', PORT)
     app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
