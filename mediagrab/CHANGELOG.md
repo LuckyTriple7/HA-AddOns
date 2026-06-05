@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.3.2] — 2026-06-05
+### Improved
+- Custom-Tag-Popup zeigt alle bereits verwendeten Tags als Schnellauswahl-Buttons (gelb), analog zu den Plattform-Buttons im Platform-Picker
+- Aktiver Tag wird hervorgehoben; Trennlinie vor dem Texteingabefeld
+
 ## [0.3.1] — 2026-06-05
 ### Fixed
 - Dateikonflikt: bestehende Datei wird mit Zeitstempel-Suffix umbenannt (z.B. Video_20260605_165031.mp4) statt überschrieben; yt-dlp speichert den neuen Download unter dem Originalnamen
