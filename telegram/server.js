@@ -169,7 +169,7 @@ async function downloadMedia(rawMsg, msgId) {
         ext = 'ogg';
       } else if (isVideo) {
         const fileSize = rawMsg.media.document?.size || 0;
-        if (fileSize > 50 * 1024 * 1024) return null; // max 50 MB
+        if (fileSize > 10 * 1024 * 1024) return null; // max 10 MB — größere Videos trennen die Verbindung
         ext = mime === 'video/webm' ? 'webm' : mime === 'video/ogg' ? 'ogv' : 'mp4';
       } else if (mime.startsWith('image/')) {
         ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
@@ -246,6 +246,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
 
   let type = 'text';
   let mediaFile = null;
+  let videoSize = 0;
   if (hasMedia) {
     const mc = rawMsg.media?.className;
     const attrs = rawMsg.media?.document?.attributes || [];
@@ -262,6 +263,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     } else if (isVideo) {
       type = 'video';
+      videoSize = rawMsg.media?.document?.size || 0;
       if (DOWNLOAD_MEDIA && source === 'NewMessage') {
         mediaFile = await downloadMedia(rawMsg, msgId);
       }
@@ -289,7 +291,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     const qStored = messagesByChatId.get(chatId)?.find(m => m.id === qId);
     if (qStored) quotedMsg = { body: (qStored.body || '').slice(0, 100), contact: qStored.fromMe ? 'Ich' : (chatMap.get(chatId)?.name || chatId) };
   }
-  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0, quotedMsg };
+  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, videoSize: videoSize || undefined, timestamp: ts, fromMe, ack: fromMe ? 1 : 0, quotedMsg };
   if (Object.keys(msgReactions).length) msgObj.reactions = msgReactions;
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   msgs.push(msgObj);
@@ -680,7 +682,15 @@ app.post('/api/fetch-video', async (req, res) => {
     if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
     const tgMsgs = await client.getMessages(entity, { ids: [tgId] });
     if (!tgMsgs?.[0]) return res.status(404).json({ error: 'TG-Nachricht nicht gefunden' });
-    const mediaFile = await downloadMedia(tgMsgs[0], msgId);
+    const rawTgMsg = tgMsgs[0];
+    const fileSize = rawTgMsg.media?.document?.size || 0;
+    if (fileSize > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: `Video zu groß (${(fileSize/1024/1024).toFixed(1)} MB, max 10 MB)` });
+    }
+    const mediaFile = await Promise.race([
+      downloadMedia(rawTgMsg, msgId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout nach 25s')), 25000)),
+    ]);
     if (!mediaFile) return res.status(500).json({ error: 'Download fehlgeschlagen' });
     storedMsg.mediaFile = mediaFile;
     scheduleSave();
@@ -1910,7 +1920,14 @@ function renderMessages(msgs) {
     } else if(isVideo){
       content = m.mediaFile
         ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>\`
-        : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.75;user-select:none" title="Klicken zum Laden">📹 Video</span>\`;
+        : (() => {
+            const sz = m.videoSize || 0;
+            const mb = sz ? (sz/1024/1024).toFixed(1)+' MB' : '';
+            const tooBig = sz > 10*1024*1024;
+            return tooBig
+              ? \`<span style="opacity:0.5;cursor:default" title="Video zu groß zum Laden (max 10 MB)">📹 Video \${mb}</span>\`
+              : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.75;user-select:none" title="Klicken zum Laden">📹 Video\${mb?' ('+mb+')':''}</span>\`;
+          })()
       if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
@@ -1963,6 +1980,8 @@ async function fetchVideo(el) {
       await loadMessages(selectedChatId);
     } else {
       el.textContent = '❌ ' + (r.error || 'Fehler');
+      el.style.cursor = 'default';
+      el.title = r.error || 'Fehler';
     }
   } catch(e) {
     el.textContent = '❌ Fehler';

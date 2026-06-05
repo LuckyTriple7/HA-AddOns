@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.22] - 2026-06-05
+- Fix: Video-Download > 10 MB trennt Verbindung — Limit auf 10 MB reduziert, Timeout 25s, Größe im Placeholder "(X.X MB)", zu-groß-Videos grau ohne Klick
+
 ## [1.5.21] - 2026-06-05
 - Neu: 🗑️-Button neben dem Video-Player — löscht Datei von Disk, zeigt 📹 Video Placeholder wieder an
 
