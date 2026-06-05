@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.16] - 2026-06-05
+- Fix: FloodWait beim Video-Download — downloadMedia workers:1 verhindert parallele upload.GetFile-Requests
+
 ## [1.5.15] - 2026-06-05
 - Speicher-Tooltip: Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete (DE+EN)
 

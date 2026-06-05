@@ -182,7 +182,7 @@ async function downloadMedia(rawMsg, msgId) {
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!fs.existsSync(filePath)) {
       enforceMediaLimit();
-      const buf = await client.downloadMedia(rawMsg, {});
+      const buf = await client.downloadMedia(rawMsg, { workers: 1 });
       if (buf) fs.writeFileSync(filePath, buf);
     }
     return fs.existsSync(filePath) ? `${safeId}.${ext}` : null;
