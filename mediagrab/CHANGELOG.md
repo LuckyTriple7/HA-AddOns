@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.0.5] — 2026-06-05
+### Fixed
+- Favicon in Browser-Tab fehlte (link rel="icon" ergänzt)
+
 ## [0.0.4] — 2026-06-05
 ### Added
 - Batch-Download: mehrere URLs gleichzeitig (eine pro Zeile)
