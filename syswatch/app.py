@@ -118,6 +118,37 @@ RATE_LIMIT_BLOCK  = 15 * 60
 _stats_cache: dict  = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
 _ha_status_cache: dict  = {}
 _ha_status_ts:    float = 0.0
+_notif_cpu_ts:      float = 0.0   # letzter Versand CPU-Alert
+_notif_ram_ts:      float = 0.0   # letzter Versand RAM-Alert
+_notif_cpu_above:    bool  = False  # war CPU zuletzt über Schwellenwert?
+_notif_ram_above:    bool  = False  # war RAM zuletzt über Schwellenwert?
+_notif_cpu_over_since: float = 0.0  # seit wann CPU über Schwellenwert (für Verzögerung)
+_notif_ram_over_since: float = 0.0
+_notif_cpu_ok_since:  float = 0.0  # seit wann CPU unter Schwellenwert (für Entwarnung)
+_notif_ram_ok_since:  float = 0.0
+NOTIF_COOLDOWN               = 600  # 10 Min Cooldown zwischen gleichen Alerts
+
+# Container-Zustandsüberwachung
+_prev_running:      set[str]        = set()
+_prev_running_init: bool            = False
+_manually_stopped:    dict[str, float] = {}  # name → timestamp (vom SysWatch-Button ausgelöst)
+_manually_started:    dict[str, float] = {}  # name → timestamp
+_pending_restart_msgs: dict[str, dict] = {}  # name → {message_id, chat_id} für Callback-Nachrichten
+_auto_chat_id:         str             = ''  # automatisch erkannte Chat-ID (ersetzt manuelle Konfig)
+MANUAL_ACTION_TTL                     = 90   # Sekunden bis manueller Eintrag verfällt
+
+# Verlaufs-DB (SQLite, 24h-Minuten-Buckets)
+import sqlite3 as _sqlite3
+_DB_PATH        = '/config/syswatch_history.db'
+_db_lock        = threading.Lock()
+_hist_last_min:  int   = 0   # letzter geschriebener Minuten-Bucket (Unix-Timestamp)
+_hist_cpu_acc:   list  = []  # Akkumulator bis zum nächsten Minuten-Flush
+_hist_ram_acc:   list  = []
+_hist_temp_acc:  list  = []
+
+# Hardware-Sensoren (Temp + Lüfter), gecacht
+_hw_cache:  dict  = {'cpu_temp': None, 'fans': []}
+_hw_ts:     float = 0.0
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -405,9 +436,13 @@ def _supervisor_addon_slug(name: str) -> str | None:
         req = urllib.request.Request(f'{SUPERVISOR_API}/addons', headers=headers)
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
+        # Docker-Containernamen beginnen mit 'addon_', Supervisor-Slugs nicht
+        name_as_slug = name.removeprefix('addon_')
         for addon in data.get('data', {}).get('addons', []):
-            if addon.get('name', '').lower() == name.lower() or addon.get('slug', '') == name:
-                return addon.get('slug', '')
+            slug = addon.get('slug', '')
+            if (addon.get('name', '').lower() == name.lower()
+                    or slug == name or slug == name_as_slug):
+                return slug
     except Exception:
         pass
     return None
@@ -681,6 +716,499 @@ def _is_viewer_active() -> bool:
     return has_sse or (time.time() - _viewer_last_seen) < _viewer_timeout()
 
 
+def _get_effective_chat_id() -> str:
+    """Gibt konfigurierte oder automatisch erkannte Chat-ID zurück."""
+    configured = str(load_config().get('telegram_chat_id', '')).strip()
+    return configured or _auto_chat_id
+
+
+def _telegram_api(method: str, http_timeout: int = 10, **kwargs) -> dict | None:
+    """Generischer Telegram Bot-API Aufruf. Gibt JSON-Result zurück oder None bei Fehler."""
+    cfg   = load_config()
+    token = str(cfg.get('telegram_bot_token', '')).strip()
+    if not token:
+        return None
+    import urllib.request
+    try:
+        payload = json.dumps(kwargs).encode()
+        req = urllib.request.Request(
+            f'https://api.telegram.org/bot{token}/{method}',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=http_timeout) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        if method != 'getUpdates':  # getUpdates-Timeouts sind normal beim Long-Polling
+            log.warning("[Telegram] %s fehlgeschlagen: %s", method, e)
+        return None
+
+
+def _fmt_bytes(n: float) -> str:
+    for unit in ('B', 'KiB', 'MiB', 'GiB'):
+        if n < 1024 or unit == 'GiB':
+            return f'{n:.1f} {unit}'
+        n /= 1024
+    return f'{n:.1f} GiB'
+
+
+def _send_telegram(msg: str, reply_markup: dict | None = None) -> dict | None:
+    """Sendet eine Telegram-Nachricht. Gibt {message_id, chat_id} zurück wenn reply_markup gesetzt."""
+    chat_id = _get_effective_chat_id()
+    if not chat_id:
+        return None
+    preview = msg.replace('\n', ' ').replace('<b>', '').replace('</b>', '').replace('<code>', '').replace('</code>', '')
+    log.info("[Telegram] → %s", preview[:120])
+    kwargs: dict = {'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}
+    if reply_markup:
+        kwargs['reply_markup'] = json.dumps(reply_markup)
+    result = _telegram_api('sendMessage', **kwargs)
+    if result and result.get('ok'):
+        log.info("[Telegram] Gesendet.")
+        if reply_markup:
+            return {'message_id': result['result']['message_id'], 'chat_id': chat_id}
+    elif result:
+        log.warning("[Telegram] Fehlgeschlagen: %s", result.get('description', '?'))
+    return None
+
+
+def _edit_telegram_message(chat_id: str, message_id: int, text: str) -> None:
+    """Bearbeitet eine existierende Telegram-Nachricht und entfernt alle Inline-Buttons."""
+    _telegram_api('editMessageText',
+                  chat_id=chat_id,
+                  message_id=message_id,
+                  text=text,
+                  parse_mode='HTML',
+                  reply_markup=json.dumps({'inline_keyboard': []}))
+
+
+def _telegram_unexpected_stop_notif(name: str) -> None:
+    """Sendet Stop-Benachrichtigung mit ▶ Starten-Button und speichert message_id."""
+    keyboard = {'inline_keyboard': [[{'text': '▶ Starten', 'callback_data': f'start:{name}'}]]}
+    result = _send_telegram(
+        f'💥 <b>HA SysWatch</b> — Container unerwartet gestoppt\n<code>{name}</code>',
+        reply_markup=keyboard,
+    )
+    if result:
+        _pending_restart_msgs[name] = result
+
+
+def _start_container_core(name: str) -> tuple[bool, str]:
+    """Startet Container via Docker (Fallback: Supervisor). Gibt (ok, fehlermeldung) zurück."""
+    socket_path = _find_docker_socket() if _docker_available else None
+    if socket_path:
+        try:
+            client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+            container = client.containers.get(name)
+            container.start()
+            log.info("Container gestartet: %s", name)
+            _manually_started[name] = time.time()
+            return True, ''
+        except docker_lib.errors.NotFound:
+            pass
+        except Exception as e:
+            log.error("Start-Fehler (Docker) für '%s': %s", name, e)
+            return False, str(e)
+    slug = _supervisor_addon_slug(name)
+    if slug and _supervisor_action(slug, 'start'):
+        log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
+        _manually_started[name] = time.time()
+        return True, ''
+    return False, f'Container nicht gefunden: {name}'
+
+
+def _handle_telegram_callback(cq: dict) -> None:
+    """Verarbeitet Inline-Keyboard-Callbacks (▶ Starten)."""
+    global _auto_chat_id
+    cq_id      = cq['id']
+    chat_id    = str(cq.get('from', {}).get('id', ''))
+    data       = cq.get('data', '')
+    message_id = cq.get('message', {}).get('message_id')
+
+    allowed = _get_effective_chat_id()
+    if allowed and chat_id != allowed:
+        _telegram_api('answerCallbackQuery', callback_query_id=cq_id, text='❌ Nicht autorisiert')
+        return
+
+    if data.startswith('start:'):
+        name = data[len('start:'):]
+        _telegram_api('answerCallbackQuery', callback_query_id=cq_id,
+                      text=f'▶ Starte {name}…', show_alert=False)
+        ok, err = _start_container_core(name)
+        new_text = (
+            f'💥 <b>HA SysWatch</b> — Container gestoppt\n<code>{name}</code>\n\n'
+            f'{"⏳ <i>Startbefehl gesendet…</i>" if ok else f"❌ <i>Start fehlgeschlagen: {err}</i>"}'
+        )
+        if message_id:
+            threading.Thread(target=_edit_telegram_message,
+                             args=(chat_id, message_id, new_text), daemon=True).start()
+
+
+def _telegram_polling_loop() -> None:
+    """Hintergrund-Thread: empfängt Telegram-Updates via Long-Polling und verarbeitet Callbacks."""
+    global _auto_chat_id
+    offset       = 0
+    _was_active  = False
+    while True:
+        cfg   = load_config()
+        token = str(cfg.get('telegram_bot_token', '')).strip()
+        if not token:
+            if _was_active:
+                log.info("[Telegram] Bot-Token entfernt — Polling deaktiviert")
+                _was_active = False
+            time.sleep(15)
+            continue
+        if not _was_active:
+            log.info("[Telegram] Polling aktiv (Token gesetzt)")
+            _was_active = True
+
+        result = _telegram_api('getUpdates', http_timeout=35,
+                               offset=offset, timeout=30,
+                               allowed_updates=['callback_query', 'message'])
+        if not result:
+            time.sleep(5)
+            continue
+        if not result.get('ok'):
+            log.warning("[Telegram] getUpdates Fehler: %s", result.get('description'))
+            time.sleep(10)
+            continue
+        for update in result.get('result', []):
+            offset = update['update_id'] + 1
+
+            # Chat-ID aus erster Nachricht oder Callback auto-lernen
+            if not _auto_chat_id and not str(load_config().get('telegram_chat_id', '')).strip():
+                src = (update.get('callback_query', {}).get('from')
+                       or update.get('message', {}).get('from') or {})
+                cid = str(src.get('id', ''))
+                if cid:
+                    _auto_chat_id = cid
+                    log.info("[Telegram] Chat-ID automatisch erkannt: %s", cid)
+                    _send_telegram(f'✅ <b>HA SysWatch</b> verbunden\nChat-ID <code>{cid}</code> erkannt — Benachrichtigungen aktiv.')
+
+            if 'callback_query' in update:
+                try:
+                    _handle_telegram_callback(update['callback_query'])
+                except Exception as e:
+                    log.error("[Telegram] Callback-Fehler: %s", e)
+
+
+def _check_container_changes() -> None:
+    """Erkennt unerwartete Container-Stops und Starts, sendet Telegram-Benachrichtigung."""
+    global _prev_running, _prev_running_init
+    with _stats_lock:
+        containers = _stats_cache.get('containers', [])
+    current_running = {c['name'] for c in containers if c['status'] == 'running'}
+
+    if not _prev_running_init:
+        _prev_running_init = True
+        _prev_running = current_running
+        return
+
+    now = time.time()
+
+    # veraltete manuelle Einträge bereinigen
+    for d in (_manually_stopped, _manually_started):
+        for k in [k for k, ts in d.items() if now - ts > MANUAL_ACTION_TTL]:
+            del d[k]
+
+    newly_stopped = _prev_running - current_running
+    newly_started = current_running - _prev_running
+
+    for name in newly_stopped:
+        if name in _manually_stopped:
+            del _manually_stopped[name]   # manuell ausgelöst → keine Notification
+        else:
+            threading.Thread(target=_telegram_unexpected_stop_notif,
+                             args=(name,), daemon=True).start()
+
+    for name in newly_started:
+        # Offene Stop-Nachricht mit ▶ Button → auf ✅ editieren (Button entfernen)
+        has_pending = name in _pending_restart_msgs
+        if has_pending:
+            info = _pending_restart_msgs.pop(name)
+            threading.Thread(target=_edit_telegram_message, daemon=True, args=(
+                info['chat_id'], info['message_id'],
+                f'✅ <b>HA SysWatch</b> — Container läuft wieder\n<code>{name}</code>',
+            )).start()
+
+        if name in _manually_started:
+            del _manually_started[name]   # manuell ausgelöst → keine ▶️-Notification
+        elif not has_pending:
+            # Kein offener Stop-Alert → separates ▶️
+            threading.Thread(target=_send_telegram, daemon=True, args=(
+                f'▶️ <b>HA SysWatch</b> — Container gestartet\n<code>{name}</code>',
+            )).start()
+
+    _prev_running = current_running
+
+
+def _check_thresholds() -> None:
+    """Prüft CPU/RAM-Schwellenwerte mit konfigurierbarer Auslöse- und Entwarungsverzögerung."""
+    global _notif_cpu_ts, _notif_ram_ts
+    global _notif_cpu_above, _notif_ram_above
+    global _notif_cpu_over_since, _notif_ram_over_since
+    global _notif_cpu_ok_since, _notif_ram_ok_since
+    now = time.time()
+    cfg = load_config()
+    cpu_limit   = int(cfg.get('notify_cpu_threshold',   0))
+    ram_limit   = int(cfg.get('notify_ram_threshold',   0))
+    if not cpu_limit and not ram_limit:
+        return
+    over_delay  = max(0, int(cfg.get('notify_over_duration',  0)))
+    clear_delay = max(0, int(cfg.get('notify_clear_duration', 120)))
+    with _stats_lock:
+        si         = _stats_cache.get('sysinfo', {})
+        containers = _stats_cache.get('containers', [])
+    running = [c for c in containers if c.get('status') == 'running']
+    cpu_pct = si.get('cpu_pct', 0.0)
+    ram_pct = si.get('mem_pct', 0.0)
+
+    def _top5_lines(sort_key: str, fmt) -> str:
+        top = sorted(running, key=lambda c: c.get(sort_key, 0), reverse=True)[:5]
+        return '\n'.join(f'  {i+1}. {c["name"]}: <b>{fmt(c)}</b>'
+                         for i, c in enumerate(top))
+
+    def _alert(metric: str, pct: float, limit: int) -> None:
+        label = 'CPU-Last' if metric == 'cpu' else 'RAM-Auslastung'
+        sym   = 'CPU'      if metric == 'cpu' else 'RAM'
+        if metric == 'cpu':
+            top5 = _top5_lines('cpu_pct', lambda c: f'{c.get("cpu_pct", 0):.1f}%')
+        else:
+            top5 = _top5_lines('mem_usage',
+                               lambda c: f'{_fmt_bytes(c.get("mem_usage", 0))} ({c.get("mem_pct", 0):.1f}%)')
+        threading.Thread(target=_send_telegram, daemon=True, args=(
+            f'⚠️ <b>HA SysWatch</b> — Hohe {label}\n'
+            f'System-{sym}: <b>{pct:.1f}%</b> (Schwellenwert: {limit}%, seit {over_delay}s)\n\n'
+            f'<b>Top 5 {sym}:</b>\n{top5}',
+        )).start()
+
+    def _clear(metric: str, pct: float, limit: int) -> None:
+        label = 'CPU-Last' if metric == 'cpu' else 'RAM-Auslastung'
+        sym   = 'CPU'      if metric == 'cpu' else 'RAM'
+        threading.Thread(target=_send_telegram, daemon=True, args=(
+            f'✅ <b>HA SysWatch</b> — {label} normal\n'
+            f'System-{sym}: <b>{pct:.1f}%</b> (unter {limit}% seit {clear_delay}s)',
+        )).start()
+
+    # CPU
+    if cpu_limit:
+        if cpu_pct >= cpu_limit:
+            _notif_cpu_ok_since = 0.0
+            if _notif_cpu_over_since == 0.0:
+                _notif_cpu_over_since = now
+            if (not _notif_cpu_above or now - _notif_cpu_ts > NOTIF_COOLDOWN) \
+                    and now - _notif_cpu_over_since >= over_delay:
+                _notif_cpu_above = True
+                _notif_cpu_ts    = now
+                _alert('cpu', cpu_pct, cpu_limit)
+        else:
+            _notif_cpu_over_since = 0.0
+            if _notif_cpu_above:
+                if _notif_cpu_ok_since == 0.0:
+                    _notif_cpu_ok_since = now
+                elif now - _notif_cpu_ok_since >= clear_delay:
+                    _notif_cpu_above    = False
+                    _notif_cpu_ok_since = 0.0
+                    _clear('cpu', cpu_pct, cpu_limit)
+
+    # RAM
+    if ram_limit:
+        if ram_pct >= ram_limit:
+            _notif_ram_ok_since = 0.0
+            if _notif_ram_over_since == 0.0:
+                _notif_ram_over_since = now
+            if (not _notif_ram_above or now - _notif_ram_ts > NOTIF_COOLDOWN) \
+                    and now - _notif_ram_over_since >= over_delay:
+                _notif_ram_above = True
+                _notif_ram_ts    = now
+                _alert('ram', ram_pct, ram_limit)
+        else:
+            _notif_ram_over_since = 0.0
+            if _notif_ram_above:
+                if _notif_ram_ok_since == 0.0:
+                    _notif_ram_ok_since = now
+                elif now - _notif_ram_ok_since >= clear_delay:
+                    _notif_ram_above    = False
+                    _notif_ram_ok_since = 0.0
+                    _clear('ram', ram_pct, ram_limit)
+
+
+def _init_history_db() -> None:
+    """Erstellt/migriert die SQLite-Tabelle für den Systemverlauf."""
+    with _db_lock:
+        con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+        con.execute('''CREATE TABLE IF NOT EXISTS sys_history (
+            ts   INTEGER PRIMARY KEY,
+            cpu  REAL,
+            ram  REAL
+        )''')
+        # Migration: temp-Spalte nachrüsten (ignoriert Fehler wenn bereits vorhanden)
+        try:
+            con.execute('ALTER TABLE sys_history ADD COLUMN temp REAL')
+        except _sqlite3.OperationalError:
+            pass
+        cutoff = int(time.time()) - 86400
+        con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
+        con.commit()
+        con.close()
+    log.info("History-DB initialisiert: %s", _DB_PATH)
+
+
+def _flush_history_minute(ts_min: int, cpu_avg: float, ram_avg: float,
+                          temp_avg: float | None) -> None:
+    """Schreibt einen Minuten-Durchschnitt (CPU, RAM, Temp) in die DB."""
+    cutoff = ts_min - 86400
+    with _db_lock:
+        try:
+            con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+            con.execute(
+                'INSERT OR REPLACE INTO sys_history (ts, cpu, ram, temp) VALUES (?,?,?,?)',
+                (ts_min, round(cpu_avg, 1), round(ram_avg, 1),
+                 round(temp_avg, 1) if temp_avg is not None else None))
+            con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
+            con.commit()
+            con.close()
+        except Exception as e:
+            log.warning("History-DB Schreibfehler: %s", e)
+
+
+def _tick_history(cpu_pct: float, ram_pct: float, cpu_temp: float | None = None) -> None:
+    """Akkumuliert CPU/RAM/Temp-Werte und flusht einmal pro Minute in die DB."""
+    global _hist_last_min, _hist_cpu_acc, _hist_ram_acc, _hist_temp_acc
+    _hist_cpu_acc.append(cpu_pct)
+    _hist_ram_acc.append(ram_pct)
+    if cpu_temp is not None:
+        _hist_temp_acc.append(cpu_temp)
+    cur_min = int(time.time() // 60) * 60
+    if cur_min > _hist_last_min and _hist_cpu_acc:
+        cpu_avg  = sum(_hist_cpu_acc)  / len(_hist_cpu_acc)
+        ram_avg  = sum(_hist_ram_acc)  / len(_hist_ram_acc)
+        temp_avg = sum(_hist_temp_acc) / len(_hist_temp_acc) if _hist_temp_acc else None
+        _hist_last_min  = cur_min
+        _hist_cpu_acc   = []
+        _hist_ram_acc   = []
+        _hist_temp_acc  = []
+        threading.Thread(target=_flush_history_minute,
+                         args=(cur_min, cpu_avg, ram_avg, temp_avg), daemon=True).start()
+
+
+_CORETEMP_NAMES = ('coretemp', 'k10temp', 'zenpower', 'nct6775', 'it87')
+
+
+def _hwmon_by_name(*names: str):
+    """Gibt den ersten hwmon-Pfad zurück dessen 'name' in names vorkommt."""
+    import glob
+    for hwmon in sorted(glob.glob('/sys/class/hwmon/hwmon*')):
+        try:
+            if open(f'{hwmon}/name').read().strip() in names:
+                return hwmon
+        except Exception:
+            pass
+    return None
+
+
+def _read_cpu_temp() -> float | None:
+    """Liest CPU Package-Temperatur — bevorzugt coretemp/k10temp hwmon, Fallback ACPI."""
+    import glob
+    # 1. Bevorzuge coretemp (Intel) / k10temp (AMD) — temp1 = Package
+    hwmon = _hwmon_by_name(*_CORETEMP_NAMES)
+    if hwmon:
+        try:
+            temp = int(open(f'{hwmon}/temp1_input').read().strip()) / 1000.0
+            if 0 < temp < 150:
+                return temp
+        except Exception:
+            pass
+    # 2. Fallback: ACPI thermal_zone
+    for path in sorted(glob.glob('/sys/class/thermal/thermal_zone*/temp')):
+        try:
+            temp = int(open(path).read().strip()) / 1000.0
+            if 0 < temp < 150:
+                return temp
+        except Exception:
+            pass
+    return None
+
+
+def _read_core_temps() -> list[dict]:
+    """Liest alle Kern-Temperaturen aus coretemp/k10temp hwmon (label + °C)."""
+    hwmon = _hwmon_by_name(*_CORETEMP_NAMES)
+    if not hwmon:
+        return []
+    import glob
+    cores = []
+    for inp in sorted(glob.glob(f'{hwmon}/temp*_input')):
+        try:
+            label = open(inp.replace('_input', '_label')).read().strip()
+            temp  = int(open(inp).read().strip()) / 1000.0
+            if 0 < temp < 150:
+                cores.append({'label': label, 'temp': round(temp, 1)})
+        except Exception:
+            pass
+    return cores
+
+
+def _read_fan_speeds() -> list[dict]:
+    """Liest Lüfter-RPM aus hwmon (alle Geräte)."""
+    import glob
+    fans = []
+    for hwmon in sorted(glob.glob('/sys/class/hwmon/hwmon*')):
+        for fan_in in sorted(glob.glob(f'{hwmon}/fan*_input')):
+            try:
+                rpm = int(open(fan_in).read().strip())
+                try:
+                    label = open(fan_in.replace('_input', '_label')).read().strip()
+                except Exception:
+                    label = 'Fan ' + fan_in.split('fan')[1].split('_')[0]
+                fans.append({'label': label, 'rpm': rpm})
+            except Exception:
+                pass
+    return fans
+
+
+def _update_hw_sensors() -> None:
+    """Aktualisiert den HW-Sensor-Cache (CPU-Temp + Kern-Temps + Lüfter), max. alle 5s."""
+    global _hw_cache, _hw_ts
+    now = time.time()
+    if now - _hw_ts < 5:
+        return
+    _hw_ts    = now
+    _hw_cache = {
+        'cpu_temp':   _read_cpu_temp(),
+        'core_temps': _read_core_temps(),
+        'fans':       _read_fan_speeds(),
+    }
+
+
+_startup_notif_sent: bool = False
+
+
+def _send_startup_notification() -> None:
+    """Sendet einmalig beim ersten abgeschlossenen Zyklus eine Startup-Meldung an Telegram."""
+    global _startup_notif_sent
+    if _startup_notif_sent:
+        return
+    _startup_notif_sent = True
+
+    import datetime as _dt
+    now_str = _dt.datetime.now().strftime('%d.%m.%Y %H:%M:%S')
+    ha = _get_ha_status()
+    with _stats_lock:
+        containers = _stats_cache.get('containers', [])
+    running = sum(1 for c in containers if c.get('status') == 'running')
+    total   = len(containers)
+
+    parts = [f'🟢 <b>HA SysWatch gestartet</b>', f'📅 {now_str}']
+    if ha.get('core_version'):
+        parts.append(f'🏠 HA {ha["core_version"]}  ·  Supervisor {ha.get("supervisor_version", "?")}  ·  OS {ha.get("os_version", "?")}')
+    parts.append(f'🐳 {running} Container laufend / {total} gesamt')
+    if ha.get('host_ip'):
+        parts.append(f'🌐 {ha["host_ip"]}')
+
+    threading.Thread(target=_send_telegram, args=('\n'.join(parts),), daemon=True).start()
+
+
 def _background_collector() -> None:
     global _collector_mode
     while True:
@@ -707,6 +1235,14 @@ def _background_collector() -> None:
                 _collect_once(
                     max_workers=max(4, min(64, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT))))
                 )
+                _check_container_changes()
+                _check_thresholds()
+                _update_hw_sensors()
+                with _stats_lock:
+                    _si = _stats_cache.get('sysinfo', {})
+                _tick_history(_si.get('cpu_pct', 0.0), _si.get('mem_pct', 0.0),
+                             _hw_cache.get('cpu_temp'))
+                _send_startup_notification()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
                 # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert
@@ -799,6 +1335,49 @@ def login():
             error = t.get('error_credentials', 'Invalid credentials.')
 
     return render_template('login.html', t=t, lang=lang, error=error)
+
+
+@app.route('/api/sysinfo/history')
+def api_sysinfo_history():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    try:
+        with _db_lock:
+            con  = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+            rows = con.execute(
+                'SELECT ts, cpu, ram, temp FROM sys_history ORDER BY ts'
+            ).fetchall()
+            con.close()
+        data = [{'ts': r[0], 'c': r[1], 'r': r[2], 't': r[3]} for r in rows]
+    except Exception as e:
+        log.warning("History-DB Lesefehler: %s", e)
+        data = []
+    return jsonify({'data': data})
+
+
+@app.route('/api/test/telegram', methods=['POST'])
+def api_test_telegram():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    with _stats_lock:
+        si         = _stats_cache.get('sysinfo', {})
+        containers = _stats_cache.get('containers', [])
+    running = [c for c in containers if c.get('status') == 'running']
+    cpu_top = sorted(running, key=lambda c: c.get('cpu_pct', 0), reverse=True)[:5]
+    ram_top = sorted(running, key=lambda c: c.get('mem_usage', 0), reverse=True)[:5]
+    cpu_lines = '\n'.join(f'  {i+1}. {c["name"]}: <b>{c.get("cpu_pct", 0):.1f}%</b>'
+                          for i, c in enumerate(cpu_top))
+    ram_lines = '\n'.join(
+        f'  {i+1}. {c["name"]}: <b>{_fmt_bytes(c.get("mem_usage", 0))} ({c.get("mem_pct", 0):.1f}%)</b>'
+        for i, c in enumerate(ram_top))
+    msg = (
+        f'🧪 <b>HA SysWatch</b> — Test-Benachrichtigung\n'
+        f'System-CPU: <b>{si.get("cpu_pct", 0):.1f}%</b>  |  RAM: <b>{si.get("mem_pct", 0):.1f}%</b>\n\n'
+        f'<b>Top 5 CPU:</b>\n{cpu_lines}\n\n'
+        f'<b>Top 5 RAM:</b>\n{ram_lines}'
+    )
+    threading.Thread(target=_send_telegram, args=(msg,), daemon=True).start()
+    return jsonify({'ok': True})
 
 
 @app.route('/logout')
@@ -895,6 +1474,9 @@ def api_stats():
         data = dict(_stats_cache)
     data['collector_mode'] = _collector_mode
     data['ha_status']      = _get_ha_status()
+    data['cpu_temp']       = _hw_cache.get('cpu_temp')
+    data['core_temps']     = _hw_cache.get('core_temps', [])
+    data['fans']           = _hw_cache.get('fans', [])
     cfg = load_config()
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
     data['cycle_s'] = round(_last_elapsed + sleep_s + 1.0, 1)  # 1s buffer for variability
@@ -958,6 +1540,7 @@ def api_kill(name: str):
         container = client.containers.get(name)
         container.kill()
         log.info("Container gekillt (SIGKILL): %s", name)
+        _manually_stopped[name] = time.time()
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Kill-Fehler für '%s': %s", name, e)
@@ -973,26 +1556,10 @@ def api_start(name: str):
     if body.get('password', '') != config.get('password', ''):
         log.warning("Start abgelehnt (falsches Passwort): container='%s'", name)
         return jsonify({'error': 'wrong_password'}), 403
-    socket_path = _find_docker_socket() if _docker_available else None
-    if socket_path:
-        try:
-            client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
-            container = client.containers.get(name)
-            container.start()
-            log.info("Container gestartet: %s", name)
-            return jsonify({'ok': True})
-        except docker_lib.errors.NotFound:
-            pass  # kein Docker-Container → Supervisor-Fallback
-        except Exception as e:
-            log.error("Start-Fehler (Docker) für '%s': %s", name, e)
-            return jsonify({'error': str(e)}), 500
-
-    # Supervisor-Fallback für gestoppte HA Add-ons (Docker-Container wurde entfernt)
-    slug = _supervisor_addon_slug(name)
-    if slug and _supervisor_action(slug, 'start'):
-        log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
+    ok, err = _start_container_core(name)
+    if ok:
         return jsonify({'ok': True})
-    return jsonify({'error': f'Container nicht gefunden: {name}'}), 404
+    return jsonify({'error': err}), (404 if 'nicht gefunden' in err else 500)
 
 
 @app.route('/api/container/<name>/stop', methods=['POST'])
@@ -1012,6 +1579,7 @@ def api_stop(name: str):
         container = client.containers.get(name)
         container.stop(timeout=10)
         log.info("Container gestoppt: %s", name)
+        _manually_stopped[name] = time.time()
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Stop-Fehler für '%s': %s", name, e)
@@ -1036,7 +1604,9 @@ def _log_startup() -> None:
 
 load_sessions()
 _log_startup()
-threading.Thread(target=_background_collector, daemon=True, name='docker-collector').start()
+_init_history_db()
+threading.Thread(target=_background_collector,   daemon=True, name='docker-collector').start()
+threading.Thread(target=_telegram_polling_loop, daemon=True, name='telegram-polling').start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=17790, debug=False)

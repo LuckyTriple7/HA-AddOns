@@ -1329,6 +1329,7 @@ async function refresh() {
       document.getElementById('topbar').style.display = 'flex';
       document.getElementById('main').style.display = 'flex';
       document.getElementById('my-name').textContent = d.name || '';
+      document.getElementById('my-name').title = d.id || '';
       loadChats();
     }
   } catch(e) {}

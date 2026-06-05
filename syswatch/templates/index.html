@@ -68,9 +68,51 @@
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
     }
-    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); flex: 1; white-space: nowrap; }
+    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
     .logo span { color: var(--text); font-weight: 400; }
+    .hdr-spacer { flex: 1; }
+    .sim-btn {
+      font-size: 0.65rem; padding: 2px 7px; border-radius: 4px; cursor: pointer;
+      border: 1px solid var(--muted); color: var(--muted); background: transparent;
+      margin-left: 8px; vertical-align: middle; opacity: 0.6;
+      transition: opacity .15s, color .15s, border-color .15s;
+    }
+    .sim-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+    @media (max-width: 620px) { .sim-btn { display: none !important; } }
     #countdown { font-size: 0.72rem; color: var(--muted); min-width: 28px; text-align: right; }
+
+    /* ── SYS-Balken in Kacheln ── */
+    .sys-bar-bg {
+      width: 100%; height: 12px; background: var(--surf2);
+      border-radius: 6px; overflow: hidden; margin-bottom: 4px;
+    }
+    .sys-bar-fill {
+      height: 100%; border-radius: 6px; width: 0%;
+      transition: width .5s ease, background-color .5s ease;
+    }
+    .sys-bar-pct { font-size: 0.8rem; font-weight: 600; }
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { border-color: var(--accent); }
+
+    /* ── History-Chart-Modal ── */
+    #sys-hist-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: none; align-items: center; justify-content: center; z-index: 200;
+    }
+    #sys-hist-overlay.open { display: flex; }
+    #sys-hist-box {
+      background: var(--surf); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px; width: min(760px, 96vw);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    #sys-hist-hdr { display: flex; align-items: center; gap: 8px; }
+    #sys-hist-title { font-weight: 700; font-size: 1rem; flex: 1; }
+    #sys-hist-canvas { width: 100%; height: 260px; display: block; border-radius: 6px; }
+    #sys-hist-footer {
+      font-size: 0.78rem; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 16px; padding-top: 4px;
+    }
+    .hist-sensor { display: flex; align-items: center; gap: 5px; }
 
     /* ── Buttons ── */
     .btn {
@@ -440,6 +482,8 @@
 <!-- Header -->
 <header>
   <div class="logo">HA <span>SysWatch</span></div>
+  <button class="sim-btn" id="sim-btn" title="Telegram Test-Nachricht senden">📨 Test</button>
+  <div class="hdr-spacer"></div>
   <div id="mode-dot" title="Collector aktiv"></div>
   <span id="countdown"></span>
   <span id="cycle-label" style="font-size:0.72rem;color:var(--muted)" title="Abfragezyklus"></span>
@@ -486,13 +530,15 @@
     <div class="card-value" id="c-mem">-</div>
     <div class="card-label">{{ t.card_mem }}</div>
   </div>
-  <div class="card">
-    <div class="card-value" id="s-cpu">-</div>
+  <div class="card clickable" onclick="openSysHist('cpu')" title="{{ t.hist_open_cpu }}">
+    <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-cpu-bar"></div></div>
+    <span class="sys-bar-pct" id="s-cpu">-</span>
     <div class="card-label">{{ t.card_sys_cpu }}</div>
     <div class="card-sub" id="s-cpu-freq"></div>
   </div>
-  <div class="card">
-    <div class="card-value" id="s-mem">-</div>
+  <div class="card clickable" onclick="openSysHist('ram')" title="{{ t.hist_open_ram }}">
+    <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-mem-bar"></div></div>
+    <span class="sys-bar-pct" id="s-mem">-</span>
     <div class="card-label">{{ t.card_sys_mem }}</div>
     <div class="card-sub" id="s-mem-detail"></div>
   </div>
@@ -553,6 +599,23 @@
 </div>
 
 <footer>HA SysWatch &mdash; Docker Container Monitor<span id="ha-versions" style="margin-left:10px;opacity:0.6"></span></footer>
+
+<!-- History Chart Modal -->
+<div id="sys-hist-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeSysHist()">
+  <div id="sys-hist-box">
+    <div id="sys-hist-hdr">
+      <button class="icon-btn" id="sys-hist-back" onclick="openSysHist('cpu')" title="Zurück zu SYS CPU" style="display:none;margin-right:4px">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <span id="sys-hist-title">Verlauf</span>
+      <button class="icon-btn" onclick="closeSysHist()" title="Schließen" style="margin-left:auto">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <canvas id="sys-hist-canvas"></canvas>
+    <div id="sys-hist-footer"></div>
+  </div>
+</div>
 
 </div><!-- #main-scroll -->
 
@@ -724,6 +787,20 @@ function toggleTheme() {
     th.addEventListener('click', () => sortPorts(th.dataset.pcol));
   });
 
+  // Telegram-Simulations-Button
+  const simBtn = document.getElementById('sim-btn');
+  if (simBtn) {
+    simBtn.addEventListener('click', async () => {
+      simBtn.disabled = true;
+      simBtn.textContent = '⏳ …';
+      try {
+        const r = await fetch('/api/test/telegram', { method: 'POST', credentials: 'include' });
+        simBtn.textContent = r.ok ? '✅ Gesendet' : '❌ Fehler';
+      } catch (_) { simBtn.textContent = '❌ Fehler'; }
+      setTimeout(() => { simBtn.disabled = false; simBtn.textContent = '📨 Test'; }, 2500);
+    });
+  }
+
   // show-stopped: localStorage overrides config default; persists user choice across reloads
   const _ss = localStorage.getItem('sw-show-stopped');
   document.getElementById('show-stopped').checked = _ss !== null ? _ss === '1' : CFG_SHOW_STOPPED;
@@ -808,6 +885,9 @@ async function fetchAndUpdate() {
     updateCards(data.sysinfo || {}, data.ha_status || null);
     updatePerfBtn(data.collector_mode);
     if (data.ha_status && data.ha_status.host_ip) _hostIp = data.ha_status.host_ip;
+    if (data.cpu_temp   !== undefined) _lastCpuTemp   = data.cpu_temp;
+    if (data.core_temps !== undefined) _lastCoreTemps = data.core_temps;
+    if (data.fans)                     _lastFans       = data.fans;
     const verEl = document.getElementById('ha-versions');
     if (verEl && data.ha_status) {
       const s = data.ha_status;
@@ -867,16 +947,10 @@ function updateCards(sys, haStatus) {
   document.getElementById('c-mem').textContent = fmtBytes(totalMem);
 
   // System-level stats from /proc
-  const sCpuEl  = document.getElementById('s-cpu');
-  const sMemEl  = document.getElementById('s-mem');
   const sFreqEl = document.getElementById('s-cpu-freq');
-  if (sys.cpu_pct !== undefined) {
-    sCpuEl.textContent = sys.cpu_pct.toFixed(1) + '%';
-    sCpuEl.style.color = pctColor(sys.cpu_pct);
-  }
+  if (sys.cpu_pct !== undefined) setSysBar('s-cpu-bar', 's-cpu', sys.cpu_pct);
   if (sys.mem_pct !== undefined) {
-    sMemEl.textContent = sys.mem_pct.toFixed(1) + '%';
-    sMemEl.style.color = pctColor(sys.mem_pct);
+    setSysBar('s-mem-bar', 's-mem', sys.mem_pct);
     const detailEl = document.getElementById('s-mem-detail');
     if (detailEl) detailEl.textContent = fmtBytes(sys.mem_used || 0) + ' / ' + fmtBytes(sys.mem_total || 0);
   }
@@ -991,6 +1065,19 @@ function pctColor(pct) {
   if (pct >= 80) return 'var(--red)';
   if (pct >= 60) return 'var(--yellow)';
   return 'var(--text)';
+}
+function sysPctColor(pct) {
+  if (pct > 90) return '#ef4444';
+  if (pct > 80) return '#f97316';
+  if (pct > 70) return '#eab308';
+  return '#22c55e';
+}
+function setSysBar(barId, pctId, pct) {
+  const color = sysPctColor(pct);
+  const bar   = document.getElementById(barId);
+  const label = document.getElementById(pctId);
+  if (bar)   { bar.style.width = Math.min(100, pct).toFixed(1) + '%'; bar.style.background = color; }
+  if (label) { label.textContent = pct.toFixed(1) + '%'; label.style.color = color; }
 }
 
 function barClass(pct) {
@@ -1249,6 +1336,211 @@ document.getElementById('restart-modal').addEventListener('click', e => {
 });
 document.getElementById('ports-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('ports-modal')) closePortsModal();
+});
+
+// ── System-Verlauf (24h-Chart) ─────────────────────────────────────────────
+
+let _lastCpuTemp   = null;
+let _lastCoreTemps = [];
+let _lastFans      = [];
+
+function openSysHist(metric, label) {
+  const overlay = document.getElementById('sys-hist-overlay');
+  if (!overlay) return;
+  const titles = { cpu: T.hist_title_cpu, ram: T.hist_title_ram };
+  const title = metric === 'temp'
+    ? (T.hist_title_temp || 'CPU Temperatur') + (label ? ' (' + label + ')' : '') + ' ' + (T.hist_title_suffix || '— Verlauf 24h')
+    : (titles[metric] || 'Verlauf');
+  document.getElementById('sys-hist-title').textContent = title;
+  document.getElementById('sys-hist-back').style.display = metric === 'temp' ? '' : 'none';
+  overlay.classList.add('open');
+
+  const footer = document.getElementById('sys-hist-footer');
+  footer.innerHTML = '';
+
+  // Ladeindikator
+  const canvas = document.getElementById('sys-hist-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  fetch('/api/sysinfo/history', { credentials: 'include' })
+    .then(r => r.json())
+    .then(json => {
+      drawSysChart(canvas, json.data || [], metric);
+      if (metric === 'cpu' || metric === 'temp') renderSysHistFooter(footer);
+    })
+    .catch(() => {
+      drawSysChartError(canvas, T.hist_load_error || 'Error loading data');
+    });
+}
+
+function closeSysHist() {
+  document.getElementById('sys-hist-overlay').classList.remove('open');
+}
+
+function tempColor(t) {
+  if (t >= 90) return '#ef4444';
+  if (t >= 75) return '#f97316';
+  if (t >= 60) return '#eab308';
+  return '#22c55e';
+}
+
+function renderSysHistFooter(el) {
+  const parts = [];
+  // Kern-Temperaturen (Package + Cores)
+  (_lastCoreTemps || []).forEach(c => {
+    const col = tempColor(c.temp);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','${c.label.replace(/'/g,"\\'")}')" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
+  });
+  if (!parts.length && _lastCpuTemp !== null) {
+    const col = tempColor(_lastCpuTemp);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','CPU')" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+  }
+  // Lüfter (nur anzeigen wenn vorhanden)
+  (_lastFans || []).forEach(f => {
+    parts.push(`<span class="hist-sensor">💨 ${f.label}: <b>${f.rpm.toLocaleString()} RPM</b></span>`);
+  });
+  if (!parts.length)
+    parts.push(`<span style="opacity:.5">${T.hist_no_sensors || 'No sensor data available'}</span>`);
+  el.innerHTML = parts.join('');
+}
+
+function drawSysChartError(canvas, msg) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.clientWidth, H = 260;
+  canvas.width = W; canvas.height = H;
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surf').trim() || '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#888'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(msg, W / 2, H / 2);
+}
+
+function drawSysChart(canvas, history, metric) {
+  const dpr   = window.devicePixelRatio || 1;
+  const W     = canvas.clientWidth;
+  const H     = 260;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx   = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cs   = getComputedStyle(document.documentElement);
+  const surf = cs.getPropertyValue('--surf').trim()    || '#111827';
+  const bdr  = cs.getPropertyValue('--border').trim()  || '#374151';
+  const muted = cs.getPropertyValue('--muted').trim()  || '#6b7280';
+
+  ctx.fillStyle = surf;
+  ctx.fillRect(0, 0, W, H);
+
+  if (!history || history.length < 2) {
+    ctx.fillStyle = muted; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(T.hist_no_data || 'No history data yet', W / 2, H / 2);
+    return;
+  }
+
+  const PAD  = { top: 18, right: 18, bottom: 38, left: 46 };
+  const cW   = W - PAD.left - PAD.right;
+  const cH   = H - PAD.top  - PAD.bottom;
+  // Für Temp nur Einträge mit vorhandenen Werten behalten
+  const src   = metric === 'temp' ? history.filter(d => d.t != null) : history;
+  const vals  = src.map(d => metric === 'cpu' ? d.c : metric === 'ram' ? d.r : d.t);
+  const tsMs  = src.map(d => d.ts * 1000);
+  const minT  = tsMs[0], maxT = tsMs[tsMs.length - 1];
+  const tRange = Math.max(maxT - minT, 1);
+
+  const isTemp = metric === 'temp';
+  const yMax   = isTemp ? Math.max(100, ...vals) : 100;
+  const yUnit  = isTemp ? '°C' : '%';
+  const valColor = isTemp ? tempColor : sysPctColor;
+
+  const px = t => PAD.left + ((t - minT) / tRange) * cW;
+  const py = v => PAD.top  + cH - Math.min(1, v / yMax) * cH;
+
+  // Horizontale Grid-Linien + Y-Achse
+  ctx.font = '11px system-ui,sans-serif';
+  ctx.textAlign = 'right';
+  const gridVals = isTemp ? [0, 20, 40, 60, 75, 90, 100] : [0, 20, 40, 60, 80, 100];
+  gridVals.forEach(g => {
+    if (g > yMax) return;
+    const y = py(g);
+    // Schwellenwert-Linien farbig hervorheben
+    const isThreshold = isTemp && (g === 60 || g === 75 || g === 90);
+    ctx.strokeStyle = isThreshold ? (tempColor(g + 1) + '55') : (bdr + '88');
+    ctx.lineWidth   = isThreshold ? 1.5 : 1;
+    ctx.setLineDash(isThreshold ? [4, 4] : []);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = isThreshold ? tempColor(g + 1) : '#9ca3af';
+    ctx.fillText(g + yUnit, PAD.left - 6, y + 4);
+  });
+
+  // Zeitachse — Stunden-Markierungen
+  const nowMs = Date.now();
+  ctx.textAlign = 'center';
+  for (let h = 0; h <= 24; h += 4) {
+    const t = nowMs - h * 3600000;
+    if (t < minT - 120000) continue;
+    const x = px(t);
+    if (x < PAD.left || x > PAD.left + cW) continue;
+    ctx.strokeStyle = bdr + '55'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + cH); ctx.stroke();
+    const d = new Date(t);
+    const lbl = h === 0 ? 'jetzt' : `${String(d.getHours()).padStart(2,'0')}:00`;
+    ctx.fillStyle = muted;
+    ctx.fillText(lbl, x, PAD.top + cH + 16);
+  }
+
+  // Dominante Farbe basierend auf Durchschnitt → für Fill
+  const avgVal  = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const fillCol = valColor(avgVal);
+
+  // Area-Fill (farbig, gut sichtbar)
+  ctx.beginPath();
+  history.forEach((d, i) => {
+    const x = px(tsMs[i]), y = py(vals[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(px(tsMs[tsMs.length - 1]), PAD.top + cH);
+  ctx.lineTo(px(tsMs[0]), PAD.top + cH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+  grad.addColorStop(0, fillCol + '55');   // ~33% Deckkraft oben
+  grad.addColorStop(1, fillCol + '08');   // fast transparent unten
+  ctx.fillStyle = grad; ctx.fill();
+
+  // Farbige Linie — pro Segment nach Schwellenwert, deutlich dicker
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin  = 'round';
+  ctx.lineCap   = 'round';
+  for (let i = 1; i < history.length; i++) {
+    const avg = (vals[i - 1] + vals[i]) / 2;
+    ctx.strokeStyle = valColor(avg);
+    ctx.beginPath();
+    ctx.moveTo(px(tsMs[i - 1]), py(vals[i - 1]));
+    ctx.lineTo(px(tsMs[i]),     py(vals[i]));
+    ctx.stroke();
+  }
+
+  // Aktueller Wert als Dot + Label
+  const lastV = vals[vals.length - 1];
+  const lastX = px(tsMs[tsMs.length - 1]);
+  const lastY = py(lastV);
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = valColor(lastV); ctx.fill();
+  ctx.fillStyle = valColor(lastV);
+  ctx.font = 'bold 12px system-ui,sans-serif';
+  ctx.textAlign = lastX > PAD.left + cW - 40 ? 'right' : 'left';
+  ctx.fillText(lastV.toFixed(1) + yUnit, lastX + (ctx.textAlign === 'right' ? -8 : 8), lastY - 8);
+
+  // Rahmen
+  ctx.strokeStyle = bdr + '66'; ctx.lineWidth = 1;
+  ctx.strokeRect(PAD.left, PAD.top, cW, cH);
+}
+
+// ESC schließt Modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSysHist();
 });
 </script>
 </body>

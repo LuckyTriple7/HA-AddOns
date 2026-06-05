@@ -71,5 +71,16 @@
   "loading": "Verbinde mit Docker...",
   "updated_at": "Stand",
   "lang_de": "DE",
-  "lang_en": "EN"
+  "lang_en": "EN",
+
+  "hist_open_cpu": "CPU-Verlauf anzeigen",
+  "hist_open_ram": "RAM-Verlauf anzeigen",
+  "hist_title_cpu": "SYS CPU — Verlauf 24h",
+  "hist_title_ram": "SYS RAM — Verlauf 24h",
+  "hist_title_temp": "CPU Temperatur",
+  "hist_title_suffix": "— Verlauf 24h",
+  "hist_no_data": "Noch keine Verlaufsdaten — Daten werden minütlich gespeichert",
+  "hist_load_error": "Fehler beim Laden",
+  "hist_no_sensors": "Keine Sensor-Daten verfügbar",
+  "hist_temp_tooltip": "Temperaturverlauf anzeigen"
 }

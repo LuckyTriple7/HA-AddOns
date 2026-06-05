@@ -71,5 +71,16 @@
   "loading": "Connecting to Docker...",
   "updated_at": "Updated",
   "lang_de": "DE",
-  "lang_en": "EN"
+  "lang_en": "EN",
+
+  "hist_open_cpu": "Show CPU history",
+  "hist_open_ram": "Show RAM history",
+  "hist_title_cpu": "SYS CPU — 24h History",
+  "hist_title_ram": "SYS RAM — 24h History",
+  "hist_title_temp": "CPU Temperature",
+  "hist_title_suffix": "— 24h History",
+  "hist_no_data": "No history data yet — data is saved every minute",
+  "hist_load_error": "Error loading data",
+  "hist_no_sensors": "No sensor data available",
+  "hist_temp_tooltip": "Show temperature history"
 }

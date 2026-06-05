@@ -1,5 +1,147 @@
 # Changelog — HA SysWatch
 
+## [1.1.0] - 2026-06-05
+
+### Stable Release
+- README und DOCS.md vollständig überarbeitet und auf aktuellen Stand gebracht
+- Alle Features seit v1.0.0 dokumentiert: 24h-Charts, Temperatur, Verlaufs-DB, Telegram-Erweiterungen, Balken-Kacheln, Port-Links, HA-Status-Kachel
+
+### Enthaltene Features (seit v1.0.0)
+- SYS CPU / SYS RAM Kacheln mit Farbbalken (klickbar → 24h-Chart)
+- 24h-Verlaufscharts für CPU, RAM und Temperatur (SQLite, restart-sicher)
+- CPU-Temperatur (Package + alle Kerne) aus coretemp/k10temp hwmon
+- Temperatur-Chart mit Schwellenwert-Referenzlinien + ← Zurück-Button
+- Telegram: Inline-Keyboard ▶ Starten, Top-5-Verbraucher in Alerts (RAM: GiB + %), Chat-ID-Autoerkennung, 📨 Test-Button, Startup-Benachrichtigung
+- Port-Übersicht mit klickbaren Links (Host-IP aus Supervisor Netzwerk-API)
+- HA-Status-Kachel (Supervisor/Support/Health) + Footer-Versionen
+- Alle UI-Strings vollständig in DE/EN übersetzt
+
+## [1.0.25] - 2026-06-05
+
+### Added
+- Zurück-Button (←) im Temperatur-Chart-Header: navigiert direkt zurück zum SYS CPU Chart
+
+## [1.0.24] - 2026-06-05
+
+### Changed
+- Temperatur-Rotschwelle von 85°C auf 90°C angehoben (grün <60, gelb <75, orange <90, rot ≥90)
+
+## [1.0.23] - 2026-06-05
+
+### Fixed
+- Alle Chart-bezogenen Strings aus locales/de.json + en.json ergänzt (hist_title_*, hist_no_data, hist_load_error, hist_no_sensors, hist_temp_tooltip, hist_open_cpu/ram)
+- JS nutzt jetzt T.-Referenzen statt hart-kodierter deutscher Texte
+
+## [1.0.22] - 2026-06-05
+
+### Fixed
+- Temperatur-Chart-Titel zeigt jetzt den Sensor-Namen: "CPU Temperatur (Package id 0) — Verlauf 24h"
+
+## [1.0.21] - 2026-06-05
+
+### Fixed
+- History-DB Lesefehler "tuple index out of range": SELECT-Query fehlte `temp`-Spalte
+
+## [1.0.20] - 2026-06-05
+
+### Added
+- CPU-Temperaturverlauf wird in SQLite gespeichert (`temp`-Spalte, Migration automatisch)
+- Klick auf Temperaturwerte im CPU-Chart-Footer öffnet Temperatur-Verlaufsdiagramm (24h)
+- Temperatur-Chart: Y-Achse in °C, farbige gestrichelte Schwellenwert-Linien bei 60/75/85°C, Linie farbkodiert nach Temperaturbereich
+
+## [1.0.19] - 2026-06-05
+
+### Fixed
+- Chart-Lesbarkeit: sysPctColor() und tempColor() geben jetzt Hex-Farben zurück statt CSS-Variablen (die im Canvas-Kontext nicht aufgelöst werden)
+- Area-Fill nutzt die Durchschnitts-Farbe der Daten (grün/gelb/orange/rot) mit 33% Deckkraft oben — klar sichtbar
+- Linie dicker (2.5px statt 2px), Grid-Linien und Y-Achsenbeschriftungen kontrastreicher
+
+## [1.0.18] - 2026-06-05
+
+### Changed
+- CPU-Temp liest jetzt bevorzugt `coretemp`/`k10temp` hwmon (Package temp1) statt ACPI-Zone — genauere Intel/AMD-Werte
+- Alle Kern-Temperaturen (Package + Core 0–N) werden im CPU-Chart-Footer angezeigt, farbkodiert (grün/gelb/orange/rot)
+- Lüfter werden nur angezeigt wenn tatsächlich hwmon-Daten vorhanden; kein Fallback-Text mehr wenn nur Temp verfügbar
+- `core_temps` in `api_stats()` ergänzt
+
+## [1.0.17] - 2026-06-05
+
+### Added
+- **24h-Verlaufschart**: Klick auf SYS CPU / SYS RAM Kachel öffnet Canvas-Diagramm mit 24h-Verlauf
+- SQLite-DB `/config/syswatch_history.db` — überlebt Neustarts; 1-Minuten-Durchschnittswerte, max. 1440 Einträge (24h)
+- API `GET /api/sysinfo/history` liefert alle gespeicherten Punkte
+- Farbkodierte Linie im Chart (grün/gelb/orange/rot) + Area-Fill + Zeitachse + aktueller Wert als Dot
+- CPU-Temp aus `/sys/class/thermal/` + Lüfter-RPM aus `/sys/class/hwmon/` — werden im CPU-Chart als Footer angezeigt
+- `cpu_temp` + `fans` in `api_stats()` (5s gecacht)
+
+## [1.0.16] - 2026-06-05
+
+### Changed
+- SYS CPU und SYS RAM Kacheln: Prozentzahl ersetzt durch Balken (grün ≤70%, gelb >70%, orange >80%, rot >90%), Prozentwert als kleine Zahl darunter
+
+## [1.0.15] - 2026-06-05
+
+### Changed
+- Top-5-RAM-Zeilen zeigen jetzt Größe + Prozent: `1.2 GiB (18.4%)` statt nur `18.4%`
+
+## [1.0.14] - 2026-06-05
+
+### Added
+- CPU/RAM-Alarmbenachrichtigungen enthalten jetzt die Top 5 Verbraucher (Name + Wert%)
+- 📨 Test-Button neben dem Logo (nur Desktop ≥620px): sendet sofort eine Test-Telegram-Nachricht mit aktuellen Top-5-CPU und Top-5-RAM Werten
+
+## [1.0.13] - 2026-06-05
+
+### Fixed
+- Telegram ▶ Starten schlug mit "Container nicht gefunden" fehl: Docker-Containernamen beginnen mit `addon_`, Supervisor-Slugs nicht — `_supervisor_addon_slug()` strippt jetzt das Prefix vor dem Vergleich
+
+## [1.0.12] - 2026-06-05
+
+### Changed
+- `telegram_chat_id` ist jetzt optional: SysWatch erkennt die Chat-ID automatisch wenn der Bot angeschrieben wird (`/start`) und sendet eine Bestätigung
+- Token leer → Polling-Thread schweigt (kein Log-Spam); loggt erst wenn Token gesetzt wird
+- Callback-Sicherheit: ohne konfigurierte Chat-ID wird erste Kontaktaufnahme akzeptiert und Chat-ID gesetzt; danach nur noch diese Chat-ID
+
+## [1.0.11] - 2026-06-05
+
+### Added
+- Telegram Inline-Keyboard-Callback: Stop-Nachricht enthält ▶ Starten-Button
+- Hintergrund-Thread `telegram-polling` empfängt Callbacks via `getUpdates` Long-Polling
+- Klick auf ▶ Starten → startet Container (Docker / Supervisor-Fallback), editiert Nachricht sofort auf "⏳ Startbefehl gesendet…"
+- Wenn Container wieder läuft → Nachricht wird auf ✅ Container läuft wieder editiert, Button entfernt
+- Nur konfigurierte `telegram_chat_id` kann Callbacks auslösen (Sicherheit)
+- `api_start()` auf `_start_container_core()` refaktoriert (gemeinsame Logik mit Callback-Handler)
+
+## [1.0.10] - 2026-06-05
+
+### Added
+- Telegram-Log: jede ausgehende Nachricht erscheint im HA-Log mit Vorschau (`[Telegram] →`) und Bestätigung (`[Telegram] Gesendet.`) oder Fehler
+- Startup-Benachrichtigung: nach dem ersten abgeschlossenen Zyklus sendet SysWatch einmalig Datum/Uhrzeit, HA-/Supervisor-/OS-Version, Anzahl laufender und gestoppter Container sowie Host-IP
+
+## [1.0.9] - 2026-06-05
+
+### Added
+- `notify_over_duration` (Sek., Standard 0): CPU/RAM muss diese Zeit dauerhaft über Schwellenwert liegen bevor Alarm ausgelöst wird
+- `notify_clear_duration` (Sek., Standard 120): CPU/RAM muss diese Zeit dauerhaft unter Schwellenwert liegen bevor Entwarnung gesendet wird
+- Translations DE/EN für beide neuen Optionen
+
+## [1.0.8] - 2026-06-05
+
+### Changed
+- Container-Stop/Start-Notification umgebaut auf State-Tracking (Option A):
+  Nur unerwartete Stops/Starts lösen Telegram aus — eigene SysWatch-Aktionen (Stop/Kill/Start-Button) werden als "manuell" markiert und unterdrückt (90s TTL)
+- Keine Notification mehr bei manuellem Stop/Kill über SysWatch-UI
+- 💥 bei unerwartetem Stop, ▶️ bei unerwartetem Start, ✅ CPU/RAM-Entwarnung nach 2 Min.
+
+## [1.0.7] - 2026-06-05
+
+### Added
+- Telegram-Benachrichtigungen: Bot Token + Chat ID als Config-Optionen
+- Alarm bei Container-Stop/Kill: 🛑/💀 Nachricht mit Container-Name
+- Alarm bei CPU-Überschreitung: ⚠️ Nachricht + ✅ Entwarnung nach 2 Min. unter Schwellenwert (10 Min. Cooldown)
+- Alarm bei RAM-Überschreitung: gleiche Logik
+- Neue Config-Optionen: `telegram_bot_token`, `telegram_chat_id`, `notify_cpu_threshold`, `notify_ram_threshold` (0 = deaktiviert)
+
 ## [1.0.6] - 2026-06-04
 - fix: Log-Zeitstempel vollständig in allen Ausgaben (force=True / UVICORN_LOG_CONFIG)
 

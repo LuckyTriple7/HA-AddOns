@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.26] - 2026-06-05
+
+### Changed
+- Rebuild für Claude Code 2.1.163
+
+
 ## [1.0.25] - 2026-06-04
 - Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 
