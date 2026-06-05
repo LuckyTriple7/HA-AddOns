@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [1.0.18] - 2026-06-05
+
+### Changed
+- CPU-Temp liest jetzt bevorzugt `coretemp`/`k10temp` hwmon (Package temp1) statt ACPI-Zone — genauere Intel/AMD-Werte
+- Alle Kern-Temperaturen (Package + Core 0–N) werden im CPU-Chart-Footer angezeigt, farbkodiert (grün/gelb/orange/rot)
+- Lüfter werden nur angezeigt wenn tatsächlich hwmon-Daten vorhanden; kein Fallback-Text mehr wenn nur Temp verfügbar
+- `core_temps` in `api_stats()` ergänzt
+
 ## [1.0.17] - 2026-06-05
 
 ### Added

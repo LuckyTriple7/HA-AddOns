@@ -882,8 +882,9 @@ async function fetchAndUpdate() {
     updateCards(data.sysinfo || {}, data.ha_status || null);
     updatePerfBtn(data.collector_mode);
     if (data.ha_status && data.ha_status.host_ip) _hostIp = data.ha_status.host_ip;
-    if (data.cpu_temp !== undefined) _lastCpuTemp = data.cpu_temp;
-    if (data.fans)                   _lastFans    = data.fans;
+    if (data.cpu_temp   !== undefined) _lastCpuTemp   = data.cpu_temp;
+    if (data.core_temps !== undefined) _lastCoreTemps = data.core_temps;
+    if (data.fans)                     _lastFans       = data.fans;
     const verEl = document.getElementById('ha-versions');
     if (verEl && data.ha_status) {
       const s = data.ha_status;
@@ -1336,8 +1337,9 @@ document.getElementById('ports-modal').addEventListener('click', e => {
 
 // ── System-Verlauf (24h-Chart) ─────────────────────────────────────────────
 
-let _lastCpuTemp = null;
-let _lastFans    = [];
+let _lastCpuTemp   = null;
+let _lastCoreTemps = [];
+let _lastFans      = [];
 
 function openSysHist(metric) {
   const overlay = document.getElementById('sys-hist-overlay');
@@ -1369,13 +1371,28 @@ function closeSysHist() {
   document.getElementById('sys-hist-overlay').classList.remove('open');
 }
 
+function tempColor(t) {
+  if (t >= 85) return 'var(--red)';
+  if (t >= 75) return '#f97316';
+  if (t >= 60) return 'var(--yellow)';
+  return 'var(--green)';
+}
+
 function renderSysHistFooter(el) {
   const parts = [];
-  if (_lastCpuTemp !== null)
-    parts.push(`<span class="hist-sensor">🌡️ <b>${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+  // Kern-Temperaturen (Package + Cores)
+  (_lastCoreTemps || []).forEach(c => {
+    const col = tempColor(c.temp);
+    parts.push(`<span class="hist-sensor">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
+  });
+  // Fallback: nur Package-Temp wenn keine Core-Daten
+  if (!parts.length && _lastCpuTemp !== null) {
+    const col = tempColor(_lastCpuTemp);
+    parts.push(`<span class="hist-sensor">🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+  }
+  // Lüfter (nur anzeigen wenn vorhanden)
   (_lastFans || []).forEach(f => {
-    if (f.rpm >= 0)
-      parts.push(`<span class="hist-sensor">💨 ${f.label}: <b>${f.rpm.toLocaleString()} RPM</b></span>`);
+    parts.push(`<span class="hist-sensor">💨 ${f.label}: <b>${f.rpm.toLocaleString()} RPM</b></span>`);
   });
   if (!parts.length)
     parts.push('<span style="opacity:.5">Keine Sensor-Daten verfügbar</span>');

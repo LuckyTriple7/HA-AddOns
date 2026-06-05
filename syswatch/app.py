@@ -1080,23 +1080,35 @@ def _tick_history(cpu_pct: float, ram_pct: float) -> None:
                          args=(cur_min, cpu_avg, ram_avg), daemon=True).start()
 
 
-def _read_cpu_temp() -> float | None:
-    """Liest CPU-Temperatur aus /sys/class/thermal/ (in °C)."""
+_CORETEMP_NAMES = ('coretemp', 'k10temp', 'zenpower', 'nct6775', 'it87')
+
+
+def _hwmon_by_name(*names: str):
+    """Gibt den ersten hwmon-Pfad zurück dessen 'name' in names vorkommt."""
     import glob
-    preferred = ('cpu', 'x86', 'acpitz', 'soc', 'package', 'core')
-    paths = sorted(glob.glob('/sys/class/thermal/thermal_zone*/temp'))
-    # Bevorzuge CPU-nahe Zonen
-    for path in paths:
+    for hwmon in sorted(glob.glob('/sys/class/hwmon/hwmon*')):
         try:
-            zone_type = open(path.replace('/temp', '/type')).read().strip().lower()
-            if any(t in zone_type for t in preferred):
-                temp = int(open(path).read().strip()) / 1000.0
-                if 0 < temp < 150:
-                    return temp
+            if open(f'{hwmon}/name').read().strip() in names:
+                return hwmon
         except Exception:
             pass
-    # Fallback: erste verfügbare Zone
-    for path in paths:
+    return None
+
+
+def _read_cpu_temp() -> float | None:
+    """Liest CPU Package-Temperatur — bevorzugt coretemp/k10temp hwmon, Fallback ACPI."""
+    import glob
+    # 1. Bevorzuge coretemp (Intel) / k10temp (AMD) — temp1 = Package
+    hwmon = _hwmon_by_name(*_CORETEMP_NAMES)
+    if hwmon:
+        try:
+            temp = int(open(f'{hwmon}/temp1_input').read().strip()) / 1000.0
+            if 0 < temp < 150:
+                return temp
+        except Exception:
+            pass
+    # 2. Fallback: ACPI thermal_zone
+    for path in sorted(glob.glob('/sys/class/thermal/thermal_zone*/temp')):
         try:
             temp = int(open(path).read().strip()) / 1000.0
             if 0 < temp < 150:
@@ -1106,19 +1118,36 @@ def _read_cpu_temp() -> float | None:
     return None
 
 
+def _read_core_temps() -> list[dict]:
+    """Liest alle Kern-Temperaturen aus coretemp/k10temp hwmon (label + °C)."""
+    hwmon = _hwmon_by_name(*_CORETEMP_NAMES)
+    if not hwmon:
+        return []
+    import glob
+    cores = []
+    for inp in sorted(glob.glob(f'{hwmon}/temp*_input')):
+        try:
+            label = open(inp.replace('_input', '_label')).read().strip()
+            temp  = int(open(inp).read().strip()) / 1000.0
+            if 0 < temp < 150:
+                cores.append({'label': label, 'temp': round(temp, 1)})
+        except Exception:
+            pass
+    return cores
+
+
 def _read_fan_speeds() -> list[dict]:
-    """Liest Lüfter-RPM aus /sys/class/hwmon/."""
+    """Liest Lüfter-RPM aus hwmon (alle Geräte)."""
     import glob
     fans = []
     for hwmon in sorted(glob.glob('/sys/class/hwmon/hwmon*')):
         for fan_in in sorted(glob.glob(f'{hwmon}/fan*_input')):
             try:
                 rpm = int(open(fan_in).read().strip())
-                idx = fan_in.split('fan')[1].split('_')[0]
                 try:
                     label = open(fan_in.replace('_input', '_label')).read().strip()
                 except Exception:
-                    label = f'Fan {idx}'
+                    label = 'Fan ' + fan_in.split('fan')[1].split('_')[0]
                 fans.append({'label': label, 'rpm': rpm})
             except Exception:
                 pass
@@ -1126,13 +1155,17 @@ def _read_fan_speeds() -> list[dict]:
 
 
 def _update_hw_sensors() -> None:
-    """Aktualisiert den HW-Sensor-Cache (CPU-Temp + Lüfter), max. alle 5s."""
+    """Aktualisiert den HW-Sensor-Cache (CPU-Temp + Kern-Temps + Lüfter), max. alle 5s."""
     global _hw_cache, _hw_ts
     now = time.time()
     if now - _hw_ts < 5:
         return
     _hw_ts    = now
-    _hw_cache = {'cpu_temp': _read_cpu_temp(), 'fans': _read_fan_speeds()}
+    _hw_cache = {
+        'cpu_temp':   _read_cpu_temp(),
+        'core_temps': _read_core_temps(),
+        'fans':       _read_fan_speeds(),
+    }
 
 
 _startup_notif_sent: bool = False
@@ -1428,6 +1461,7 @@ def api_stats():
     data['collector_mode'] = _collector_mode
     data['ha_status']      = _get_ha_status()
     data['cpu_temp']       = _hw_cache.get('cpu_temp')
+    data['core_temps']     = _hw_cache.get('core_temps', [])
     data['fans']           = _hw_cache.get('fans', [])
     cfg = load_config()
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
