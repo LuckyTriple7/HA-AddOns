@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.0.8] — 2026-06-05
+### Added
+- Translations (DE/EN) für alle Optionen in der HA-Konfigurationsoberfläche
+
 ## [0.0.7] — 2026-06-05
 ### Added
 - "Cookies verwenden"-Checkbox im Download-Formular (erscheint nur wenn Cookies geladen sind)

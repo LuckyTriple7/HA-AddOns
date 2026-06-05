@@ -1,0 +1,22 @@
+configuration:
+  username:
+    name: Username
+    description: Username for the web interface.
+  password:
+    name: Password
+    description: Password for the web interface. Brute-force protection locks an IP for 15 minutes after 5 failed attempts.
+  session_hours:
+    name: Session duration (hours)
+    description: How many hours a login session stays valid before requiring re-authentication. Default 24.
+  max_concurrent:
+    name: Max concurrent downloads
+    description: How many downloads may run simultaneously. Additional requests are rejected with "queue full". Default 3.
+  auto_clear_hours:
+    name: Auto-clear queue (hours)
+    description: "Automatically remove finished, failed and cancelled jobs from the queue after this many hours. 0 = disabled (default). Example: 24 = jobs older than 24h are removed automatically."
+  speed_limit:
+    name: Download speed limit
+    description: "Maximum download speed for all downloads. Leave empty for unlimited speed. Include the unit: e.g. 5M (5 MB/s), 500K (500 KB/s), 2M (2 MB/s)."
+  verbose_log:
+    name: Verbose logging
+    description: Prints the full yt-dlp output to the add-on log. Useful for diagnosing errors. Default false.
