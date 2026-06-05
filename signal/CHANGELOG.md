@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.9] - 2026-06-05
+- fix: Bestätigungs-Haken (✓/✓✓) werden jetzt auch bei gesendeten Bildern und Dokumenten angezeigt — `signalTimestamp` fehlte in send-media-Nachrichten
+
 ## [1.5.8] - 2026-06-05
 - Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo)
 

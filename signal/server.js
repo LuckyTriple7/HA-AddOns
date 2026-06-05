@@ -639,8 +639,8 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
         mediaFile = fname;
       }
       const msg = isImg
-        ? { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'photo', timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile }
-        : { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'document', filename: safeName, timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile: null };
+        ? { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'photo', timestamp: signalTs, signalTimestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile }
+        : { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'document', filename: safeName, timestamp: signalTs, signalTimestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile: null };
       if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
       messagesByChatId.get(to).push(msg);
       if (chatMap.has(to)) {
