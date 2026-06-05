@@ -1,5 +1,21 @@
 # Changelog — HA SysWatch
 
+## [1.1.0] - 2026-06-05
+
+### Stable Release
+- README und DOCS.md vollständig überarbeitet und auf aktuellen Stand gebracht
+- Alle Features seit v1.0.0 dokumentiert: 24h-Charts, Temperatur, Verlaufs-DB, Telegram-Erweiterungen, Balken-Kacheln, Port-Links, HA-Status-Kachel
+
+### Enthaltene Features (seit v1.0.0)
+- SYS CPU / SYS RAM Kacheln mit Farbbalken (klickbar → 24h-Chart)
+- 24h-Verlaufscharts für CPU, RAM und Temperatur (SQLite, restart-sicher)
+- CPU-Temperatur (Package + alle Kerne) aus coretemp/k10temp hwmon
+- Temperatur-Chart mit Schwellenwert-Referenzlinien + ← Zurück-Button
+- Telegram: Inline-Keyboard ▶ Starten, Top-5-Verbraucher in Alerts (RAM: GiB + %), Chat-ID-Autoerkennung, 📨 Test-Button, Startup-Benachrichtigung
+- Port-Übersicht mit klickbaren Links (Host-IP aus Supervisor Netzwerk-API)
+- HA-Status-Kachel (Supervisor/Support/Health) + Footer-Versionen
+- Alle UI-Strings vollständig in DE/EN übersetzt
+
 ## [1.0.25] - 2026-06-05
 
 ### Added
