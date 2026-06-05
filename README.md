@@ -36,6 +36,8 @@ https://github.com/LuckyTriple7/HA-AddOns
 | Nextcloud | ✅ | ❌ |
 | CardBoard | ✅ | ✅ |
 | HA SysWatch | ✅ | ✅ |
+| phpMyAdmin MariaDB 2 | ✅ | ✅ |
+| MediaGrab | ✅ | ✅ |
 
 ## Apps
 
@@ -215,6 +217,31 @@ Docker-Container-Ressourcenmonitor — CPU, RAM, Netzwerk, Disk I/O für alle Co
 
 → [Dokumentation & Changelog](syswatch/README.md)
 
+### [phpMyAdmin MariaDB 2](phpmyadmin-mariadb2/)
+
+phpMyAdmin als Web-UI für die **MariaDB 2**-Instanz — Datenbanken und Tabellen direkt im Browser verwalten.
+
+- Vorkonfiguriert für MariaDB 2 (Port 3307)
+- Kein separates Login nötig — Zugangsdaten aus den App-Optionen
+- Volles phpMyAdmin-Funktionsset: SQL-Editor, Import/Export, Tabellenstruktur
+
+→ [Dokumentation & Changelog](phpmyadmin-mariadb2/README.md)
+
+### [MediaGrab](mediagrab/)
+
+yt-dlp Web-GUI — Videos und Audio von YouTube, TikTok, Instagram, Vimeo, SoundCloud und hunderten weiteren Seiten herunterladen.
+
+- Format-Auswahl: Bestes Video (MP4), 1080p/720p/480p/360p, Audio (MP3/M4A)
+- Batch-Download: mehrere URLs gleichzeitig (eine pro Zeile)
+- Live-Fortschrittsanzeige mit Geschwindigkeit und ETA
+- Datei-Browser mit Inline-Player, Download und Löschen
+- Cookies-Support für private und altersgeschützte Videos
+- Web Share Target: URL direkt vom Handy-Teilen-Menü senden
+- Passwortschutz mit Brute-Force-Sperre, Dark/Light Mode, DE/EN, PWA
+- REST-API für HA-Sensoren (`/api/status`)
+
+→ [Dokumentation & Changelog](mediagrab/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -255,6 +282,8 @@ https://github.com/LuckyTriple7/HA-AddOns
 | Nextcloud | ✅ | ❌ |
 | CardBoard | ✅ | ✅ |
 | HA SysWatch | ✅ | ✅ |
+| phpMyAdmin MariaDB 2 | ✅ | ✅ |
+| MediaGrab | ✅ | ✅ |
 
 ## Apps
 
@@ -433,3 +462,28 @@ Docker container resource monitor — CPU, RAM, Network, Disk I/O for all contai
 - Password protection with brute-force lockout, Light/Dark mode, PWA, DE/EN
 
 → [Documentation & Changelog](syswatch/README.md)
+
+### [phpMyAdmin MariaDB 2](phpmyadmin-mariadb2/)
+
+phpMyAdmin as a web UI for the **MariaDB 2** instance — manage databases and tables directly in the browser.
+
+- Pre-configured for MariaDB 2 (port 3307)
+- No separate login required — credentials from app options
+- Full phpMyAdmin feature set: SQL editor, import/export, table structure
+
+→ [Documentation & Changelog](phpmyadmin-mariadb2/README.md)
+
+### [MediaGrab](mediagrab/)
+
+yt-dlp web GUI — download videos and audio from YouTube, TikTok, Instagram, Vimeo, SoundCloud and hundreds of other sites.
+
+- Format selection: Best Video (MP4), 1080p/720p/480p/360p, Audio (MP3/M4A)
+- Batch download: multiple URLs at once (one per line)
+- Live progress with speed and ETA
+- File browser with inline player, download and delete
+- Cookie support for private and age-restricted videos
+- Web Share Target: share URL directly from your phone's share sheet
+- Password protection with brute-force lockout, Dark/Light mode, DE/EN, PWA
+- REST API for HA sensors (`/api/status`)
+
+→ [Documentation & Changelog](mediagrab/README.md)

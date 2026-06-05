@@ -20,6 +20,8 @@
 - [ ] CardBoard
 - [ ] Messenger Portal
 - [ ] HA SysWatch
+- [ ] phpMyAdmin MariaDB 2
+- [ ] MediaGrab
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change
