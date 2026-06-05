@@ -264,8 +264,8 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     } else if (isVideo) {
       type = 'video';
       if (DOWNLOAD_MEDIA) {
+        enforceVideoLimitBefore(chatId); // erst Platz schaffen, dann laden
         mediaFile = await downloadMedia(rawMsg, msgId);
-        if (mediaFile) enforceVideoLimit(chatId);
       }
     }
   }
@@ -876,12 +876,13 @@ function enforceMediaLimit() {
   console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
 }
 
-function enforceVideoLimit(chatId) {
+function enforceVideoLimitBefore(chatId) {
+  // Wird VOR dem Download aufgerufen — löscht ältestes Video wenn Limit voll ist
   const msgs = messagesByChatId.get(chatId) || [];
   const videos = msgs.filter(m => m.type === 'video' && m.mediaFile);
-  if (videos.length <= VIDEO_MAX_PER_CHAT) return;
+  if (videos.length < VIDEO_MAX_PER_CHAT) return; // noch Platz
   videos.sort((a, b) => a.timestamp - b.timestamp);
-  const toDelete = videos.slice(0, videos.length - VIDEO_MAX_PER_CHAT);
+  const toDelete = videos.slice(0, videos.length - VIDEO_MAX_PER_CHAT + 1); // +1 für das neue Video
   for (const m of toDelete) {
     const fp = `${MEDIA_DIR}/${m.mediaFile}`;
     try { fs.unlinkSync(fp); } catch(e) {}

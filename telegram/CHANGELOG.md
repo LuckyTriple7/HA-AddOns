@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.19] - 2026-06-05
+- Fix: Video-Limit prüft VOR dem Download ob Platz ist (nicht danach) — verhindert nutzlose Downloads die sofort wieder gelöscht werden
+
 ## [1.5.18] - 2026-06-05
 - Neu: video_max_per_chat Option (Standard 20) — älteste Videos pro Chat werden automatisch gelöscht wenn das Limit überschritten wird
 
