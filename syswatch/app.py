@@ -118,6 +118,14 @@ RATE_LIMIT_BLOCK  = 15 * 60
 _stats_cache: dict  = {'containers': [], 'sysinfo': {}, 'error': None, 'warning': None, 'ts': 0}
 _ha_status_cache: dict  = {}
 _ha_status_ts:    float = 0.0
+_notif_cpu_ts:      float = 0.0   # letzter Versand CPU-Alert
+_notif_ram_ts:      float = 0.0   # letzter Versand RAM-Alert
+_notif_cpu_above:   bool  = False  # war CPU zuletzt über Schwellenwert?
+_notif_ram_above:   bool  = False  # war RAM zuletzt über Schwellenwert?
+_notif_cpu_ok_since: float = 0.0  # seit wann CPU unter Schwellenwert
+_notif_ram_ok_since: float = 0.0  # seit wann RAM unter Schwellenwert
+NOTIF_COOLDOWN              = 600  # 10 Min zwischen gleichen Alerts
+NOTIF_CLEAR_DELAY           = 120  # 2 Min unter Threshold → Entwarnung
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -681,6 +689,91 @@ def _is_viewer_active() -> bool:
     return has_sse or (time.time() - _viewer_last_seen) < _viewer_timeout()
 
 
+def _send_telegram(msg: str) -> None:
+    """Sendet eine Telegram-Nachricht via Bot-API (fire-and-forget, kein Re-try)."""
+    cfg = load_config()
+    token   = str(cfg.get('telegram_bot_token', '')).strip()
+    chat_id = str(cfg.get('telegram_chat_id', '')).strip()
+    if not token or not chat_id:
+        return
+    import urllib.request
+    try:
+        payload = json.dumps({'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}).encode()
+        req = urllib.request.Request(
+            f'https://api.telegram.org/bot{token}/sendMessage',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception as e:
+        log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+
+
+def _check_thresholds() -> None:
+    """Prüft CPU/RAM-Schwellenwerte, sendet Alarm bei Überschreitung und Entwarnung nach 2 Min."""
+    global _notif_cpu_ts, _notif_ram_ts
+    global _notif_cpu_above, _notif_ram_above
+    global _notif_cpu_ok_since, _notif_ram_ok_since
+    now = time.time()
+    cfg = load_config()
+    cpu_limit = int(cfg.get('notify_cpu_threshold', 0))
+    ram_limit = int(cfg.get('notify_ram_threshold', 0))
+    if not cpu_limit and not ram_limit:
+        return
+    with _stats_lock:
+        si = _stats_cache.get('sysinfo', {})
+    cpu_pct = si.get('cpu_pct', 0.0)
+    ram_pct = si.get('mem_pct', 0.0)
+
+    # CPU
+    if cpu_limit:
+        if cpu_pct >= cpu_limit:
+            _notif_cpu_ok_since = 0.0
+            if not _notif_cpu_above or now - _notif_cpu_ts > NOTIF_COOLDOWN:
+                _notif_cpu_above = True
+                _notif_cpu_ts    = now
+                threading.Thread(target=_send_telegram, daemon=True, args=(
+                    f'⚠️ <b>HA SysWatch</b> — Hohe CPU-Last\n'
+                    f'System-CPU: <b>{cpu_pct:.1f}%</b> (Schwellenwert: {cpu_limit}%)',
+                )).start()
+        else:
+            if _notif_cpu_above:
+                if _notif_cpu_ok_since == 0.0:
+                    _notif_cpu_ok_since = now
+                elif now - _notif_cpu_ok_since >= NOTIF_CLEAR_DELAY:
+                    _notif_cpu_above    = False
+                    _notif_cpu_ok_since = 0.0
+                    threading.Thread(target=_send_telegram, daemon=True, args=(
+                        f'✅ <b>HA SysWatch</b> — CPU-Last normal\n'
+                        f'System-CPU: <b>{cpu_pct:.1f}%</b> (unter {cpu_limit}%)',
+                    )).start()
+
+    # RAM
+    if ram_limit:
+        if ram_pct >= ram_limit:
+            _notif_ram_ok_since = 0.0
+            if not _notif_ram_above or now - _notif_ram_ts > NOTIF_COOLDOWN:
+                _notif_ram_above = True
+                _notif_ram_ts    = now
+                threading.Thread(target=_send_telegram, daemon=True, args=(
+                    f'⚠️ <b>HA SysWatch</b> — Hohe RAM-Auslastung\n'
+                    f'System-RAM: <b>{ram_pct:.1f}%</b> (Schwellenwert: {ram_limit}%)',
+                )).start()
+        else:
+            if _notif_ram_above:
+                if _notif_ram_ok_since == 0.0:
+                    _notif_ram_ok_since = now
+                elif now - _notif_ram_ok_since >= NOTIF_CLEAR_DELAY:
+                    _notif_ram_above    = False
+                    _notif_ram_ok_since = 0.0
+                    threading.Thread(target=_send_telegram, daemon=True, args=(
+                        f'✅ <b>HA SysWatch</b> — RAM-Auslastung normal\n'
+                        f'System-RAM: <b>{ram_pct:.1f}%</b> (unter {ram_limit}%)',
+                    )).start()
+
+
 def _background_collector() -> None:
     global _collector_mode
     while True:
@@ -707,6 +800,7 @@ def _background_collector() -> None:
                 _collect_once(
                     max_workers=max(4, min(64, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT))))
                 )
+                _check_thresholds()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
                 # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert
@@ -958,6 +1052,9 @@ def api_kill(name: str):
         container = client.containers.get(name)
         container.kill()
         log.info("Container gekillt (SIGKILL): %s", name)
+        threading.Thread(target=_send_telegram,
+            args=(f'💀 <b>HA SysWatch</b> — Container gekillt\n<code>{name}</code>',),
+            daemon=True).start()
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Kill-Fehler für '%s': %s", name, e)
@@ -1012,6 +1109,9 @@ def api_stop(name: str):
         container = client.containers.get(name)
         container.stop(timeout=10)
         log.info("Container gestoppt: %s", name)
+        threading.Thread(target=_send_telegram,
+            args=(f'🛑 <b>HA SysWatch</b> — Container gestoppt\n<code>{name}</code>',),
+            daemon=True).start()
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Stop-Fehler für '%s': %s", name, e)

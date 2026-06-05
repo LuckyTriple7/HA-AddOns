@@ -23,3 +23,15 @@ configuration:
   verbose_log:
     name: Verbose Logging
     description: Logs container count, worker count and query duration on every collection cycle. Default false — only mode changes, errors and actions are logged.
+  telegram_bot_token:
+    name: Telegram Bot Token
+    description: "Token of the Telegram bot for notifications (format: 123456:ABC-...). Leave empty to disable notifications. Create a bot via @BotFather."
+  telegram_chat_id:
+    name: Telegram Chat ID
+    description: Chat ID of the recipient (user, group or channel). Find your own chat ID via @userinfobot.
+  notify_cpu_threshold:
+    name: CPU Alert Threshold (%)
+    description: "Send a Telegram alert when system CPU exceeds this value. All-clear after 2 min below threshold. 0 = disabled. Example: 80 (alert above 80% CPU)."
+  notify_ram_threshold:
+    name: RAM Alert Threshold (%)
+    description: "Send a Telegram alert when system RAM exceeds this value. All-clear after 2 min below threshold. 0 = disabled. Example: 85 (alert above 85% RAM)."

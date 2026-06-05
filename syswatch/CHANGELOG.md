@@ -1,5 +1,14 @@
 # Changelog — HA SysWatch
 
+## [1.0.7] - 2026-06-05
+
+### Added
+- Telegram-Benachrichtigungen: Bot Token + Chat ID als Config-Optionen
+- Alarm bei Container-Stop/Kill: 🛑/💀 Nachricht mit Container-Name
+- Alarm bei CPU-Überschreitung: ⚠️ Nachricht + ✅ Entwarnung nach 2 Min. unter Schwellenwert (10 Min. Cooldown)
+- Alarm bei RAM-Überschreitung: gleiche Logik
+- Neue Config-Optionen: `telegram_bot_token`, `telegram_chat_id`, `notify_cpu_threshold`, `notify_ram_threshold` (0 = deaktiviert)
+
 ## [1.0.6] - 2026-06-04
 - fix: Log-Zeitstempel vollständig in allen Ausgaben (force=True / UVICORN_LOG_CONFIG)
 
