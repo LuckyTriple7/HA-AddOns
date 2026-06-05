@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.9] - 2026-06-05
+- Fix: Telefonnummer im Kontaktinfo-Modal war falsch (contact.number liefert Müll); jetzt contact.id.user aus der chatId extrahiert
+
 ## [1.6.8] - 2026-06-05
 - Lade-Reihenfolge: Kontakte sofort (Initialen) → Nachrichten → Avatare nachgelagert (max 2 parallel, 200ms Verzögerung); renderChatList blockiert keine HTTP-Slots mehr
 

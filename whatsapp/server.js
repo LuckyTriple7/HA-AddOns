@@ -1161,11 +1161,13 @@ app.get('/api/contact/:chatId', async (req, res) => {
     const contact = await client.getContactById(chatId);
     const picUrl = await contact.getProfilePicUrl().catch(() => null);
     const about = await contact.getAbout().catch(() => null);
+    const rawId = contact.id?.user || chatId.split('@')[0];
+    const number = /^\d{6,15}$/.test(rawId) ? rawId : '';
     res.json({
       id: chatId,
-      name: contact.name || contact.pushname || chatId.replace(/@[cg]\.us$/, ''),
+      name: contact.name || contact.pushname || rawId,
       pushname: contact.pushname || '',
-      number: contact.number || chatId.replace(/@[cg]\.us$/, ''),
+      number,
       about: about || '',
       isMyContact: contact.isMyContact || false,
       hasProfilePic: !!picUrl,
