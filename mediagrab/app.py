@@ -268,9 +268,11 @@ def _run_download(job_id: str) -> None:
 
     output_lines: list[str] = []
     try:
+        env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1
+            text=True, bufsize=1, env=env
         )
         with _jobs_lock:
             _jobs[job_id]['proc'] = proc

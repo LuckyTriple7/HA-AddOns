@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.1.4] — 2026-06-05
+### Fixed
+- Fortschrittsbalken zeigte nur 0% → 100% (kein Live-Update)
+- Ursache: yt-dlp pufferte Ausgabe in Pipe — behoben via PYTHONUNBUFFERED=1
+
 ## [0.1.3] — 2026-06-05
 ### Improved
 - Dateiliste: zweizeiliges Layout — Dateiname oben (volle Breite), Größe/Datum/Buttons unten
