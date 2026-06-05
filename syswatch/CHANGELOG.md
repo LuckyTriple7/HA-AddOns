@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.1.1] - 2026-06-05
+
+### Fixed
+- Im Idle-Modus (kein Browser aktiv) wurden keine CPU/RAM/Temp-Daten in die History-DB geschrieben — `_tick_history()` wird jetzt auch nach der Idle-Sammlung aufgerufen (alle 60s)
+- Zeitachse im Chart: Labels werden jetzt aus dem tatsächlichen Datenbereich berechnet (step 1/2/3/4/6h je nach Fenstergröße) — zeigt immer sinnvolle Markierungen auch bei kurzem Datenfenster
+- Aktuelle Uhrzeit (`HH:MM`) erscheint am rechten Rand der Zeitachse
+
 ## [1.1.0] - 2026-06-05
 
 ### Stable Release
