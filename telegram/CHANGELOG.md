@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.28] - 2026-06-06
+- Fix: videoTooBig-Text zeigte hardcodiert "max 10 MB" statt konfiguriertem video_max_mb-Wert
+
 ## [1.5.27] - 2026-06-05
 - Fix: Video-Wiedergabe wurde alle 2s durch pollMessages-Re-Render unterbrochen — renderMessages nur noch bei geändertem Nachrichten-Fingerprint (Anzahl + IDs + Video-mediaFile)
 
