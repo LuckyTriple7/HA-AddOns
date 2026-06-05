@@ -1,5 +1,14 @@
 # Changelog — MediaGrab
 
+## [0.2.8] — 2026-06-05
+### Changed
+- Platform-Tag und Custom-Tag sind jetzt getrennte, unabhängige Felder pro Datei
+- Platform-Tag (blau): Klick auf ＋ öffnet Plattform-Picker (YouTube, TikTok, …)
+- Custom-Tag (gelb): Klick auf ＋ Tag öffnet Texteingabe für freien Tag
+- Beide Tags werden gleichzeitig angezeigt; Filter-Buttons zeigen beide Typen
+- Neuer API-Endpunkt `/api/file/tag/<filename>` für Custom Tags
+- Meta-Datei speichert `platform` und `tag` getrennt
+
 ## [0.2.7] — 2026-06-05
 ### Improved
 - yt-dlp Update-Button prüft zuerst PyPI auf neue Version; Update wird nur durchgeführt wenn tatsächlich eine neuere Version verfügbar ist

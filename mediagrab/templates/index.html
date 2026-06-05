@@ -119,19 +119,25 @@
     .plat-btn:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
     .file-platform { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--accent); color:#fff; opacity:.75; white-space:nowrap; cursor:pointer; }
     .file-platform:hover { opacity:1; }
-    .file-platform.custom-tag { background:var(--yellow); }
+    .file-custom-tag { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--yellow); color:#fff; opacity:.85; white-space:nowrap; cursor:pointer; }
+    .file-custom-tag:hover { opacity:1; }
     .file-tag-btn { font-size:.68rem; padding:1px 6px; border-radius:8px; border:1px dashed var(--muted); background:none; color:var(--muted); cursor:pointer; white-space:nowrap; }
     .file-tag-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .file-tag-btn.custom { border-color:var(--yellow); color:var(--yellow); opacity:.7; }
+    .file-tag-btn.custom:hover { opacity:1; }
     .plat-popup { position:fixed; z-index:9999; background:var(--surf); border:1px solid var(--accent); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.55); padding:10px; display:flex; flex-wrap:wrap; gap:6px; max-width:270px; }
     .plat-popup .pp-opt { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--border); background:var(--surf2); color:var(--text); cursor:pointer; font-weight:500; }
     .plat-popup .pp-opt:hover, .plat-popup .pp-opt.active { border-color:var(--accent); background:var(--accent); color:#fff; }
     .plat-popup .pp-remove { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--red); background:var(--surf2); color:var(--red); cursor:pointer; font-weight:500; width:100%; text-align:center; }
     .plat-popup .pp-remove:hover { background:var(--red); color:#fff; }
-    .plat-popup .pp-input-wrap { width:100%; display:flex; gap:5px; }
-    .plat-popup .pp-input { flex:1; min-width:0; padding:4px 8px; font-size:.78rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none; font-family:inherit; }
-    .plat-popup .pp-input:focus { border-color:var(--accent); }
-    .plat-popup .pp-save { padding:4px 10px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:.78rem; font-weight:600; }
-    .plat-popup .pp-save:hover { opacity:.85; }
+    .tag-popup { position:fixed; z-index:9999; background:var(--surf); border:1px solid var(--yellow); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.55); padding:10px; display:flex; flex-direction:column; gap:6px; min-width:200px; max-width:260px; }
+    .tag-popup .tp-input-wrap { display:flex; gap:5px; }
+    .tag-popup .tp-input { flex:1; min-width:0; padding:5px 9px; font-size:.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none; font-family:inherit; }
+    .tag-popup .tp-input:focus { border-color:var(--yellow); }
+    .tag-popup .tp-save { padding:5px 10px; background:var(--yellow); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:.82rem; font-weight:600; }
+    .tag-popup .tp-save:hover { opacity:.85; }
+    .tag-popup .tp-remove { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--red); background:var(--surf2); color:var(--red); cursor:pointer; font-weight:500; text-align:center; }
+    .tag-popup .tp-remove:hover { background:var(--red); color:#fff; }
     .file-item { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); }
     .file-item:last-child { border-bottom:none; }
     .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; padding-top:1px; }
@@ -521,13 +527,17 @@
     function _buildPlatformFilters() {
       const wrap = document.getElementById('platform-filters');
       const platforms = [...new Set(_allFiles.map(f => f.platform).filter(Boolean))].sort();
-      if (!platforms.length) { wrap.style.display = 'none'; return; }
-      // reset active filter if platform no longer present
-      if (_platformFilter && !platforms.includes(_platformFilter)) _platformFilter = null;
+      const tags      = [...new Set(_allFiles.map(f => f.tag).filter(Boolean))].sort();
+      if (!platforms.length && !tags.length) { wrap.style.display = 'none'; return; }
+      if (_platformFilter && !platforms.includes(_platformFilter) && !tags.includes(_platformFilter)) _platformFilter = null;
       wrap.style.display = 'flex';
-      wrap.innerHTML = platforms.map(p =>
+      const platBtns = platforms.map(p =>
         `<button class="plat-btn${_platformFilter === p ? ' active' : ''}" onclick="setPlatformFilter('${p}')">${p}</button>`
       ).join('');
+      const tagBtns = tags.map(t =>
+        `<button class="plat-btn${_platformFilter === t ? ' active' : ''}" style="${_platformFilter !== t ? 'border-color:var(--yellow);color:var(--yellow);opacity:.8' : ''}" onclick="setPlatformFilter('${t}')">${t}</button>`
+      ).join('');
+      wrap.innerHTML = platBtns + tagBtns;
     }
 
     function setPlatformFilter(p) {
@@ -537,11 +547,12 @@
     }
 
     const _PLATFORMS = ['YouTube','TikTok','Instagram','X','Vimeo','SoundCloud','Twitch','Reddit','Dailymotion','Sonstiges'];
-    let   _platPopup = null;
+    let _platPopup = null;
+    let _tagPopup  = null;
 
     function openPlatformPicker(evt, filename, current) {
       evt.stopPropagation();
-      closePlatformPicker();
+      closePlatformPicker(); closeTagEditor();
       const popup = document.createElement('div');
       popup.className = 'plat-popup';
       _PLATFORMS.forEach(p => {
@@ -551,27 +562,6 @@
         btn.onclick = (e) => { e.stopPropagation(); savePlatform(filename, p); };
         popup.appendChild(btn);
       });
-      // Divider + custom tag input
-      const div = document.createElement('div');
-      div.style.cssText = 'width:100%; border-top:1px solid var(--border); margin:4px 0 2px;';
-      popup.appendChild(div);
-      const inputWrap = document.createElement('div');
-      inputWrap.className = 'pp-input-wrap';
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.className = 'pp-input';
-      inp.placeholder = T.tag_placeholder;
-      inp.maxLength = 50;
-      inp.value = (current && !_PLATFORMS.includes(current)) ? current : '';
-      inp.onclick = e => e.stopPropagation();
-      inp.onkeydown = e => { if (e.key === 'Enter') { e.stopPropagation(); const v = inp.value.trim(); if (v) savePlatform(filename, v); } };
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'pp-save';
-      saveBtn.textContent = '✓';
-      saveBtn.onclick = e => { e.stopPropagation(); const v = inp.value.trim(); if (v) savePlatform(filename, v); };
-      inputWrap.appendChild(inp);
-      inputWrap.appendChild(saveBtn);
-      popup.appendChild(inputWrap);
       if (current) {
         const rem = document.createElement('button');
         rem.className = 'pp-remove';
@@ -607,12 +597,68 @@
       } catch(e) { toast(T.error_network, true); }
     }
 
+    function openTagEditor(evt, filename, current) {
+      evt.stopPropagation();
+      closeTagEditor(); closePlatformPicker();
+      const popup = document.createElement('div');
+      popup.className = 'tag-popup';
+      const wrap = document.createElement('div');
+      wrap.className = 'tp-input-wrap';
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'tp-input';
+      inp.placeholder = T.tag_placeholder;
+      inp.maxLength = 50;
+      inp.value = current || '';
+      inp.onclick = e => e.stopPropagation();
+      inp.onkeydown = e => { if (e.key === 'Enter') { e.stopPropagation(); saveTag(filename, inp.value.trim()); } };
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'tp-save';
+      saveBtn.textContent = '✓';
+      saveBtn.onclick = e => { e.stopPropagation(); saveTag(filename, inp.value.trim()); };
+      wrap.appendChild(inp); wrap.appendChild(saveBtn);
+      popup.appendChild(wrap);
+      if (current) {
+        const rem = document.createElement('button');
+        rem.className = 'tp-remove';
+        rem.textContent = T.tag_remove;
+        rem.onclick = e => { e.stopPropagation(); saveTag(filename, ''); };
+        popup.appendChild(rem);
+      }
+      const rect = evt.target.getBoundingClientRect();
+      popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+      popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 260) + 'px';
+      document.body.appendChild(popup);
+      _tagPopup = popup;
+      setTimeout(() => { inp.focus(); document.addEventListener('click', closeTagEditor, {once:true}); }, 0);
+    }
+
+    function closeTagEditor() {
+      if (_tagPopup) { _tagPopup.remove(); _tagPopup = null; }
+    }
+
+    async function saveTag(filename, tag) {
+      closeTagEditor();
+      try {
+        const r = await fetch('/api/file/tag/' + encodeURIComponent(filename), {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({tag})
+        });
+        if (r.ok) {
+          const f = _allFiles.find(x => x.name === filename);
+          if (f) f.tag = tag;
+          _buildPlatformFilters();
+          renderFiles();
+        } else { toast(T.error_unknown, true); }
+      } catch(e) { toast(T.error_network, true); }
+    }
+
     function renderFiles() {
       const list   = document.getElementById('files-list');
       const q      = (document.getElementById('file-search').value || '').toLowerCase();
       let   files  = [..._allFiles];
       if (q)               files = files.filter(f => f.name.toLowerCase().includes(q));
-      if (_platformFilter) files = files.filter(f => f.platform === _platformFilter);
+      if (_platformFilter) files = files.filter(f => f.platform === _platformFilter || f.tag === _platformFilter);
 
       if (_sortKey === 'name') files.sort((a,b) => a.name.localeCompare(b.name));
       else if (_sortKey === 'size') files.sort((a,b) => b.size - a.size);
@@ -640,8 +686,11 @@
             <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
             <div class="file-meta">
               ${f.platform
-                ? `<span class="file-platform${_PLATFORMS.includes(f.platform)?'':' custom-tag'}" onclick="openPlatformPicker(event,'${esc(f.name)}','${esc(f.platform)}')">${esc(f.platform)}</span>`
-                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')">${esc(T.tag_add)}</button>`}
+                ? `<span class="file-platform" onclick="openPlatformPicker(event,'${esc(f.name)}','${esc(f.platform)}')">${esc(f.platform)}</span>`
+                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')" title="Plattform zuweisen">＋</button>`}
+              ${f.tag
+                ? `<span class="file-custom-tag" onclick="openTagEditor(event,'${esc(f.name)}','${esc(f.tag)}')">${esc(f.tag)}</span>`
+                : `<button class="file-tag-btn custom" onclick="openTagEditor(event,'${esc(f.name)}','')" title="Custom Tag zuweisen">${esc(T.tag_add)}</button>`}
               <span class="file-size">${fmtSize(f.size)}</span>
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">

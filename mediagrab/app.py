@@ -816,8 +816,9 @@ def api_files():
     for p in sorted(MEDIA_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
         if p.is_file() and p.name != '.mediagrab_meta.json':
             st = p.stat()
-            platform = meta.get(p.name, {}).get('platform', '')
-            files.append({'name': p.name, 'size': st.st_size, 'mtime': int(st.st_mtime), 'platform': platform})
+            entry    = meta.get(p.name, {})
+            files.append({'name': p.name, 'size': st.st_size, 'mtime': int(st.st_mtime),
+                          'platform': entry.get('platform', ''), 'tag': entry.get('tag', '')})
     return jsonify(files)
 
 @app.route('/api/file/delete/<path:filename>', methods=['POST'])
@@ -846,7 +847,7 @@ def api_file_platform(filename):
         return jsonify({'error': 'unauthorized'}), 401
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    if len(platform) > 50:
+    if platform and platform not in PLATFORMS:
         return jsonify({'error': 'invalid_platform'}), 400
     p = (MEDIA_DIR / filename).resolve()
     try:
@@ -857,12 +858,46 @@ def api_file_platform(filename):
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
+        entry = meta.get(filename, {})
         if platform:
-            meta[filename] = {'platform': platform}
+            entry['platform'] = platform
+        else:
+            entry.pop('platform', None)
+        if entry:
+            meta[filename] = entry
         else:
             meta.pop(filename, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'platform': platform})
+
+@app.route('/api/file/tag/<path:filename>', methods=['POST'])
+def api_file_tag(filename):
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    data = request.json or {}
+    tag  = data.get('tag', '').strip()
+    if len(tag) > 50:
+        return jsonify({'error': 'tag_too_long'}), 400
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
+        return jsonify({'error': 'invalid_path'}), 400
+    if not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    with _meta_lock:
+        meta = _load_meta()
+        entry = meta.get(filename, {})
+        if tag:
+            entry['tag'] = tag
+        else:
+            entry.pop('tag', None)
+        if entry:
+            meta[filename] = entry
+        else:
+            meta.pop(filename, None)
+        _save_meta(meta)
+    return jsonify({'ok': True, 'tag': tag})
 
 @app.route('/stream/<path:filename>')
 def stream_file(filename):
