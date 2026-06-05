@@ -1345,7 +1345,7 @@ def api_sysinfo_history():
         with _db_lock:
             con  = _sqlite3.connect(_DB_PATH, check_same_thread=False)
             rows = con.execute(
-                'SELECT ts, cpu, ram FROM sys_history ORDER BY ts'
+                'SELECT ts, cpu, ram, temp FROM sys_history ORDER BY ts'
             ).fetchall()
             con.close()
         data = [{'ts': r[0], 'c': r[1], 'r': r[2], 't': r[3]} for r in rows]

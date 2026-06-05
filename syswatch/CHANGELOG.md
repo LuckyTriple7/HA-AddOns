@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.21] - 2026-06-05
+
+### Fixed
+- History-DB Lesefehler "tuple index out of range": SELECT-Query fehlte `temp`-Spalte
+
 ## [1.0.20] - 2026-06-05
 
 ### Added
