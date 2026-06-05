@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.18] - 2026-06-05
+- Neu: video_max_per_chat Option (Standard 20) — älteste Videos pro Chat werden automatisch gelöscht wenn das Limit überschritten wird
+
 ## [1.5.17] - 2026-06-05
 - 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS"; blendet jetzt auch Videos aus (body.hide-photos video)
 

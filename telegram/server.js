@@ -37,6 +37,7 @@ const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
+const VIDEO_MAX_PER_CHAT = Math.max(parseInt(process.env.VIDEO_MAX_PER_CHAT || '20', 10), 1);
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -262,7 +263,10 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     } else if (isVideo) {
       type = 'video';
-      if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
+      if (DOWNLOAD_MEDIA) {
+        mediaFile = await downloadMedia(rawMsg, msgId);
+        if (mediaFile) enforceVideoLimit(chatId);
+      }
     }
   }
 
@@ -870,6 +874,21 @@ function enforceMediaLimit() {
     try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
   }
   console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
+}
+
+function enforceVideoLimit(chatId) {
+  const msgs = messagesByChatId.get(chatId) || [];
+  const videos = msgs.filter(m => m.type === 'video' && m.mediaFile);
+  if (videos.length <= VIDEO_MAX_PER_CHAT) return;
+  videos.sort((a, b) => a.timestamp - b.timestamp);
+  const toDelete = videos.slice(0, videos.length - VIDEO_MAX_PER_CHAT);
+  for (const m of toDelete) {
+    const fp = `${MEDIA_DIR}/${m.mediaFile}`;
+    try { fs.unlinkSync(fp); } catch(e) {}
+    m.mediaFile = null;
+  }
+  console.log(`[INFO] Video-Limit: ${toDelete.length} Video(s) aus Chat ${chatId} entfernt (Limit: ${VIDEO_MAX_PER_CHAT}/Chat)`);
+  scheduleSave();
 }
 
 app.get('/api/storage', (req, res) => {
