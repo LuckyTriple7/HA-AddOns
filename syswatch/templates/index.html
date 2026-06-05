@@ -81,6 +81,17 @@
     @media (max-width: 620px) { .sim-btn { display: none !important; } }
     #countdown { font-size: 0.72rem; color: var(--muted); min-width: 28px; text-align: right; }
 
+    /* ── SYS-Balken in Kacheln ── */
+    .sys-bar-bg {
+      width: 100%; height: 12px; background: var(--surf2);
+      border-radius: 6px; overflow: hidden; margin-bottom: 4px;
+    }
+    .sys-bar-fill {
+      height: 100%; border-radius: 6px; width: 0%;
+      transition: width .5s ease, background-color .5s ease;
+    }
+    .sys-bar-pct { font-size: 0.8rem; font-weight: 600; }
+
     /* ── Buttons ── */
     .btn {
       background: var(--surf2);
@@ -498,12 +509,14 @@
     <div class="card-label">{{ t.card_mem }}</div>
   </div>
   <div class="card">
-    <div class="card-value" id="s-cpu">-</div>
+    <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-cpu-bar"></div></div>
+    <span class="sys-bar-pct" id="s-cpu">-</span>
     <div class="card-label">{{ t.card_sys_cpu }}</div>
     <div class="card-sub" id="s-cpu-freq"></div>
   </div>
   <div class="card">
-    <div class="card-value" id="s-mem">-</div>
+    <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-mem-bar"></div></div>
+    <span class="sys-bar-pct" id="s-mem">-</span>
     <div class="card-label">{{ t.card_sys_mem }}</div>
     <div class="card-sub" id="s-mem-detail"></div>
   </div>
@@ -892,16 +905,10 @@ function updateCards(sys, haStatus) {
   document.getElementById('c-mem').textContent = fmtBytes(totalMem);
 
   // System-level stats from /proc
-  const sCpuEl  = document.getElementById('s-cpu');
-  const sMemEl  = document.getElementById('s-mem');
   const sFreqEl = document.getElementById('s-cpu-freq');
-  if (sys.cpu_pct !== undefined) {
-    sCpuEl.textContent = sys.cpu_pct.toFixed(1) + '%';
-    sCpuEl.style.color = pctColor(sys.cpu_pct);
-  }
+  if (sys.cpu_pct !== undefined) setSysBar('s-cpu-bar', 's-cpu', sys.cpu_pct);
   if (sys.mem_pct !== undefined) {
-    sMemEl.textContent = sys.mem_pct.toFixed(1) + '%';
-    sMemEl.style.color = pctColor(sys.mem_pct);
+    setSysBar('s-mem-bar', 's-mem', sys.mem_pct);
     const detailEl = document.getElementById('s-mem-detail');
     if (detailEl) detailEl.textContent = fmtBytes(sys.mem_used || 0) + ' / ' + fmtBytes(sys.mem_total || 0);
   }
@@ -1016,6 +1023,19 @@ function pctColor(pct) {
   if (pct >= 80) return 'var(--red)';
   if (pct >= 60) return 'var(--yellow)';
   return 'var(--text)';
+}
+function sysPctColor(pct) {
+  if (pct > 90) return 'var(--red)';
+  if (pct > 80) return '#f97316';   // orange
+  if (pct > 70) return 'var(--yellow)';
+  return 'var(--green)';
+}
+function setSysBar(barId, pctId, pct) {
+  const color = sysPctColor(pct);
+  const bar   = document.getElementById(barId);
+  const label = document.getElementById(pctId);
+  if (bar)   { bar.style.width = Math.min(100, pct).toFixed(1) + '%'; bar.style.background = color; }
+  if (label) { label.textContent = pct.toFixed(1) + '%'; label.style.color = color; }
 }
 
 function barClass(pct) {

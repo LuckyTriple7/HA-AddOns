@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.16] - 2026-06-05
+
+### Changed
+- SYS CPU und SYS RAM Kacheln: Prozentzahl ersetzt durch Balken (grün ≤70%, gelb >70%, orange >80%, rot >90%), Prozentwert als kleine Zahl darunter
+
 ## [1.0.15] - 2026-06-05
 
 ### Changed
