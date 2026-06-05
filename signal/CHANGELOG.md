@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.12] - 2026-06-05
+- Fix: Weitergeleitete Nachricht wird jetzt lokal gespeichert und UI aktualisiert — war nach dem Weiterleiten unsichtbar im AddOn
+
 ## [1.5.11] - 2026-06-05
 - Neu: Nachrichten weiterleiten (↪) und beantworten (↩) — Hover-Buttons, Forward-Modal mit Suchfeld, Zitat-Block in der Bubble; Reply nutzt Signal quote-API
 

@@ -674,6 +674,22 @@ app.post('/api/forward', async (req, res) => {
     if (!payload) payload = { message: origMsg.body || '', number: PHONE_NUMBER, recipients: [to] };
     const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), timeout: 30000 });
     if (!r.ok) return res.status(500).json({ error: await r.json() });
+    const result = await r.json();
+    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const newMsgId = `${PHONE_NUMBER}_${signalTs}`;
+    if (!seenMsgIds.has(newMsgId)) {
+      seenMsgIds.add(newMsgId);
+      const preview = origMsg.body || (origMsg.type === 'photo' ? '📷 Foto' : origMsg.type === 'voice' ? '🎵 Sprachnachricht' : '');
+      const newMsg = { id: newMsgId, from: PHONE_NUMBER, body: origMsg.body || '', timestamp: signalTs, fromMe: true, ack: 0, signalTimestamp: signalTs, type: origMsg.type || 'text', mediaFile: origMsg.mediaFile || null };
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push(newMsg);
+      if (!chatMap.has(to)) {
+        chatMap.set(to, { id: to, name: to, phone: to, lastMsg: preview, lastTime: signalTs, lastFromMe: true });
+      } else {
+        const chat = chatMap.get(to); chat.lastMsg = preview; chat.lastTime = signalTs; chat.lastFromMe = true;
+      }
+      scheduleSave();
+    }
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
 });
@@ -1494,6 +1510,8 @@ async function forwardTo(chatId) {
   if (!msgId) return;
   try {
     await fetch(api('/api/forward'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, to: chatId }) });
+    if (chatId === selectedChatId) await loadMessages(selectedChatId);
+    await loadChats();
   } catch(e) { console.error('Forward error:', e.message); }
 }
 
