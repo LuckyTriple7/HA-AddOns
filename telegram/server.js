@@ -1005,7 +1005,7 @@ app.get('/api/avatar/:chatId', async (req, res) => {
     return (buf && buf.length) ? buf : null;
   })();
   tgAvatarPending.set(chatId, promise);
-  promise.finally(() => tgAvatarPending.delete(chatId));
+  promise.then(() => tgAvatarPending.delete(chatId), () => tgAvatarPending.delete(chatId));
   try {
     const buf = await promise;
     tgAvatarCache.set(chatId, { buf: buf || null, ts: Date.now() });

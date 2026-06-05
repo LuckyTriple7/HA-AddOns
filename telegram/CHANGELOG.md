@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.33] - 2026-06-06
+- Fix: Unhandled rejection "not found" — promise.finally() erzeugte zweite rejecting Promise ohne catch; ersetzt durch .then(del, del)
+
+## [1.5.32] - 2026-06-06
+- feat: media_max_mb/video_max_mb im Startup-Log
+
 ## [1.5.31] - 2026-06-06
 - Fix: Reload-Button ersetzte heruntergeladene Videos durch Placeholder — mediaFile und videoSize werden beim Refresh jetzt wie Reactions gespeichert und wiederhergestellt
 
