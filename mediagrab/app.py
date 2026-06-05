@@ -207,7 +207,7 @@ def _parse_error(lines: list[str]) -> str:
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
 _PROGRESS_RE = re.compile(
-    r'\[download\]\s+([\d.]+)%\s+of\s+[\d.~]+\S*\s+at\s+([\d.]+\S+)\s+ETA\s+(\S+)'
+    r'\[download\]\s+([\d.]+)%\s+of\s+[\d.~]+\S*\s+at\s+(\S+)\s+ETA\s+(\S+)'
 )
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
@@ -277,7 +277,12 @@ def _run_download(job_id: str) -> None:
         with _jobs_lock:
             _jobs[job_id]['proc'] = proc
 
-        for line in proc.stdout:  # type: ignore[union-attr]
+        while True:
+            line = proc.stdout.readline()  # type: ignore[union-attr]
+            if not line:
+                if proc.poll() is not None:
+                    break
+                continue
             line = line.rstrip()
             output_lines.append(line)
             if get_config().get('verbose_log'):

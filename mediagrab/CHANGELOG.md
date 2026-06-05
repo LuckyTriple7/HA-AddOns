@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.1.6] — 2026-06-05
+### Fixed
+- Fortschrittsbalken Live-Update: for-Iterator durch readline()-Schleife ersetzt (kein interner Read-Ahead-Buffer mehr)
+- Progress-Regex robuster: matched jetzt auch "Unknown" Speed/ETA am Download-Anfang
+
 ## [0.1.5] — 2026-06-05
 ### Added
 - REST API `/api/status` für HA-Sensoren (gesichert per API-Key)
