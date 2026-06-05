@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.2.2] — 2026-06-05
+### Fixed
+- API-Logging: log.debug() funktionierte nicht (Logger läuft auf INFO) — jetzt verbose_log-Prüfung wie beim yt-dlp-Logging
+
 ## [0.2.1] — 2026-06-05
 ### Fixed
 - API `/api/status`: yt-dlp-Version wird 1h gecacht (kein subprocess bei jedem Sensor-Poll mehr)
