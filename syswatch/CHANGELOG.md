@@ -1,5 +1,15 @@
 # Changelog — HA SysWatch
 
+## [1.0.17] - 2026-06-05
+
+### Added
+- **24h-Verlaufschart**: Klick auf SYS CPU / SYS RAM Kachel öffnet Canvas-Diagramm mit 24h-Verlauf
+- SQLite-DB `/config/syswatch_history.db` — überlebt Neustarts; 1-Minuten-Durchschnittswerte, max. 1440 Einträge (24h)
+- API `GET /api/sysinfo/history` liefert alle gespeicherten Punkte
+- Farbkodierte Linie im Chart (grün/gelb/orange/rot) + Area-Fill + Zeitachse + aktueller Wert als Dot
+- CPU-Temp aus `/sys/class/thermal/` + Lüfter-RPM aus `/sys/class/hwmon/` — werden im CPU-Chart als Footer angezeigt
+- `cpu_temp` + `fans` in `api_stats()` (5s gecacht)
+
 ## [1.0.16] - 2026-06-05
 
 ### Changed

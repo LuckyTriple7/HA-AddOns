@@ -91,6 +91,28 @@
       transition: width .5s ease, background-color .5s ease;
     }
     .sys-bar-pct { font-size: 0.8rem; font-weight: 600; }
+    .card.clickable { cursor: pointer; }
+    .card.clickable:hover { border-color: var(--accent); }
+
+    /* ── History-Chart-Modal ── */
+    #sys-hist-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: none; align-items: center; justify-content: center; z-index: 200;
+    }
+    #sys-hist-overlay.open { display: flex; }
+    #sys-hist-box {
+      background: var(--surf); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px; width: min(760px, 96vw);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    #sys-hist-hdr { display: flex; align-items: center; gap: 8px; }
+    #sys-hist-title { font-weight: 700; font-size: 1rem; flex: 1; }
+    #sys-hist-canvas { width: 100%; height: 260px; display: block; border-radius: 6px; }
+    #sys-hist-footer {
+      font-size: 0.78rem; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 16px; padding-top: 4px;
+    }
+    .hist-sensor { display: flex; align-items: center; gap: 5px; }
 
     /* ── Buttons ── */
     .btn {
@@ -508,13 +530,13 @@
     <div class="card-value" id="c-mem">-</div>
     <div class="card-label">{{ t.card_mem }}</div>
   </div>
-  <div class="card">
+  <div class="card clickable" onclick="openSysHist('cpu')" title="{{ t.hist_open_cpu or 'Verlauf anzeigen' }}">
     <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-cpu-bar"></div></div>
     <span class="sys-bar-pct" id="s-cpu">-</span>
     <div class="card-label">{{ t.card_sys_cpu }}</div>
     <div class="card-sub" id="s-cpu-freq"></div>
   </div>
-  <div class="card">
+  <div class="card clickable" onclick="openSysHist('ram')" title="{{ t.hist_open_ram or 'Verlauf anzeigen' }}">
     <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-mem-bar"></div></div>
     <span class="sys-bar-pct" id="s-mem">-</span>
     <div class="card-label">{{ t.card_sys_mem }}</div>
@@ -577,6 +599,20 @@
 </div>
 
 <footer>HA SysWatch &mdash; Docker Container Monitor<span id="ha-versions" style="margin-left:10px;opacity:0.6"></span></footer>
+
+<!-- History Chart Modal -->
+<div id="sys-hist-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeSysHist()">
+  <div id="sys-hist-box">
+    <div id="sys-hist-hdr">
+      <span id="sys-hist-title">Verlauf</span>
+      <button class="icon-btn" onclick="closeSysHist()" title="Schließen">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <canvas id="sys-hist-canvas"></canvas>
+    <div id="sys-hist-footer"></div>
+  </div>
+</div>
 
 </div><!-- #main-scroll -->
 
@@ -846,6 +882,8 @@ async function fetchAndUpdate() {
     updateCards(data.sysinfo || {}, data.ha_status || null);
     updatePerfBtn(data.collector_mode);
     if (data.ha_status && data.ha_status.host_ip) _hostIp = data.ha_status.host_ip;
+    if (data.cpu_temp !== undefined) _lastCpuTemp = data.cpu_temp;
+    if (data.fans)                   _lastFans    = data.fans;
     const verEl = document.getElementById('ha-versions');
     if (verEl && data.ha_status) {
       const s = data.ha_status;
@@ -1294,6 +1332,173 @@ document.getElementById('restart-modal').addEventListener('click', e => {
 });
 document.getElementById('ports-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('ports-modal')) closePortsModal();
+});
+
+// ── System-Verlauf (24h-Chart) ─────────────────────────────────────────────
+
+let _lastCpuTemp = null;
+let _lastFans    = [];
+
+function openSysHist(metric) {
+  const overlay = document.getElementById('sys-hist-overlay');
+  if (!overlay) return;
+  const titles = { cpu: 'SYS CPU — Verlauf 24h', ram: 'SYS RAM — Verlauf 24h' };
+  document.getElementById('sys-hist-title').textContent = titles[metric] || 'Verlauf';
+  overlay.classList.add('open');
+
+  const footer = document.getElementById('sys-hist-footer');
+  footer.innerHTML = '';
+
+  // Ladeindikator
+  const canvas = document.getElementById('sys-hist-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  fetch('/api/sysinfo/history', { credentials: 'include' })
+    .then(r => r.json())
+    .then(json => {
+      drawSysChart(canvas, json.data || [], metric);
+      if (metric === 'cpu') renderSysHistFooter(footer);
+    })
+    .catch(() => {
+      drawSysChartError(canvas, 'Fehler beim Laden');
+    });
+}
+
+function closeSysHist() {
+  document.getElementById('sys-hist-overlay').classList.remove('open');
+}
+
+function renderSysHistFooter(el) {
+  const parts = [];
+  if (_lastCpuTemp !== null)
+    parts.push(`<span class="hist-sensor">🌡️ <b>${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+  (_lastFans || []).forEach(f => {
+    if (f.rpm >= 0)
+      parts.push(`<span class="hist-sensor">💨 ${f.label}: <b>${f.rpm.toLocaleString()} RPM</b></span>`);
+  });
+  if (!parts.length)
+    parts.push('<span style="opacity:.5">Keine Sensor-Daten verfügbar</span>');
+  el.innerHTML = parts.join('');
+}
+
+function drawSysChartError(canvas, msg) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.clientWidth, H = 260;
+  canvas.width = W; canvas.height = H;
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surf').trim() || '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#888'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(msg, W / 2, H / 2);
+}
+
+function drawSysChart(canvas, history, metric) {
+  const dpr   = window.devicePixelRatio || 1;
+  const W     = canvas.clientWidth;
+  const H     = 260;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx   = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cs   = getComputedStyle(document.documentElement);
+  const surf = cs.getPropertyValue('--surf').trim()    || '#111827';
+  const bdr  = cs.getPropertyValue('--border').trim()  || '#374151';
+  const muted = cs.getPropertyValue('--muted').trim()  || '#6b7280';
+
+  ctx.fillStyle = surf;
+  ctx.fillRect(0, 0, W, H);
+
+  if (!history || history.length < 2) {
+    ctx.fillStyle = muted; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Noch keine Verlaufsdaten — Daten werden minütlich gespeichert', W / 2, H / 2);
+    return;
+  }
+
+  const PAD  = { top: 18, right: 18, bottom: 38, left: 46 };
+  const cW   = W - PAD.left - PAD.right;
+  const cH   = H - PAD.top  - PAD.bottom;
+  const vals  = history.map(d => metric === 'cpu' ? d.c : d.r);
+  const tsMs  = history.map(d => d.ts * 1000);
+  const minT  = tsMs[0], maxT = tsMs[tsMs.length - 1];
+  const tRange = Math.max(maxT - minT, 1);
+
+  const px = t => PAD.left + ((t - minT) / tRange) * cW;
+  const py = v => PAD.top  + cH - Math.min(1, v / 100) * cH;
+
+  // Horizontale Grid-Linien + Y-Achse
+  ctx.font = '11px system-ui,sans-serif';
+  ctx.textAlign = 'right';
+  [0, 20, 40, 60, 80, 100].forEach(g => {
+    const y = py(g);
+    ctx.strokeStyle = bdr + '55'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
+    ctx.fillStyle = muted;
+    ctx.fillText(g + '%', PAD.left - 6, y + 4);
+  });
+
+  // Zeitachse — Stunden-Markierungen
+  const nowMs = Date.now();
+  ctx.textAlign = 'center';
+  for (let h = 0; h <= 24; h += 4) {
+    const t = nowMs - h * 3600000;
+    if (t < minT - 120000) continue;
+    const x = px(t);
+    if (x < PAD.left || x > PAD.left + cW) continue;
+    ctx.strokeStyle = bdr + '55'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + cH); ctx.stroke();
+    const d = new Date(t);
+    const lbl = h === 0 ? 'jetzt' : `${String(d.getHours()).padStart(2,'0')}:00`;
+    ctx.fillStyle = muted;
+    ctx.fillText(lbl, x, PAD.top + cH + 16);
+  }
+
+  // Area-Fill
+  ctx.beginPath();
+  history.forEach((d, i) => {
+    const x = px(tsMs[i]), y = py(vals[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(px(tsMs[tsMs.length - 1]), PAD.top + cH);
+  ctx.lineTo(px(tsMs[0]), PAD.top + cH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+  grad.addColorStop(0, 'rgba(59,130,246,0.25)');
+  grad.addColorStop(1, 'rgba(59,130,246,0)');
+  ctx.fillStyle = grad; ctx.fill();
+
+  // Farbige Linie (nach Schwellenwert)
+  ctx.lineWidth = 2;
+  ctx.lineJoin  = 'round';
+  for (let i = 1; i < history.length; i++) {
+    const avg = (vals[i - 1] + vals[i]) / 2;
+    ctx.strokeStyle = sysPctColor(avg);
+    ctx.beginPath();
+    ctx.moveTo(px(tsMs[i - 1]), py(vals[i - 1]));
+    ctx.lineTo(px(tsMs[i]),     py(vals[i]));
+    ctx.stroke();
+  }
+
+  // Aktueller Wert als Dot + Label
+  const lastV = vals[vals.length - 1];
+  const lastX = px(tsMs[tsMs.length - 1]);
+  const lastY = py(lastV);
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = sysPctColor(lastV); ctx.fill();
+  ctx.fillStyle = sysPctColor(lastV);
+  ctx.font = 'bold 12px system-ui,sans-serif';
+  ctx.textAlign = lastX > PAD.left + cW - 40 ? 'right' : 'left';
+  ctx.fillText(lastV.toFixed(1) + '%', lastX + (ctx.textAlign === 'right' ? -8 : 8), lastY - 8);
+
+  // Rahmen
+  ctx.strokeStyle = bdr + '66'; ctx.lineWidth = 1;
+  ctx.strokeRect(PAD.left, PAD.top, cW, cH);
+}
+
+// ESC schließt Modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSysHist();
 });
 </script>
 </body>

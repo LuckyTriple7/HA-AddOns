@@ -136,6 +136,18 @@ _manually_started:    dict[str, float] = {}  # name → timestamp
 _pending_restart_msgs: dict[str, dict] = {}  # name → {message_id, chat_id} für Callback-Nachrichten
 _auto_chat_id:         str             = ''  # automatisch erkannte Chat-ID (ersetzt manuelle Konfig)
 MANUAL_ACTION_TTL                     = 90   # Sekunden bis manueller Eintrag verfällt
+
+# Verlaufs-DB (SQLite, 24h-Minuten-Buckets)
+import sqlite3 as _sqlite3
+_DB_PATH        = '/config/syswatch_history.db'
+_db_lock        = threading.Lock()
+_hist_last_min:  int   = 0   # letzter geschriebener Minuten-Bucket (Unix-Timestamp)
+_hist_cpu_acc:   list  = []  # Akkumulator bis zum nächsten Minuten-Flush
+_hist_ram_acc:   list  = []
+
+# Hardware-Sensoren (Temp + Lüfter), gecacht
+_hw_cache:  dict  = {'cpu_temp': None, 'fans': []}
+_hw_ts:     float = 0.0
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -1021,6 +1033,108 @@ def _check_thresholds() -> None:
                     _clear('ram', ram_pct, ram_limit)
 
 
+def _init_history_db() -> None:
+    """Erstellt die SQLite-Tabelle für den Systemverlauf, löscht Einträge > 24h."""
+    with _db_lock:
+        con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+        con.execute('''CREATE TABLE IF NOT EXISTS sys_history (
+            ts  INTEGER PRIMARY KEY,
+            cpu REAL,
+            ram REAL
+        )''')
+        cutoff = int(time.time()) - 86400
+        con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
+        con.commit()
+        con.close()
+    log.info("History-DB initialisiert: %s", _DB_PATH)
+
+
+def _flush_history_minute(ts_min: int, cpu_avg: float, ram_avg: float) -> None:
+    """Schreibt einen Minuten-Durchschnitt in die DB und löscht Einträge > 24h."""
+    cutoff = ts_min - 86400
+    with _db_lock:
+        try:
+            con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+            con.execute('INSERT OR REPLACE INTO sys_history (ts, cpu, ram) VALUES (?,?,?)',
+                        (ts_min, round(cpu_avg, 1), round(ram_avg, 1)))
+            con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
+            con.commit()
+            con.close()
+        except Exception as e:
+            log.warning("History-DB Schreibfehler: %s", e)
+
+
+def _tick_history(cpu_pct: float, ram_pct: float) -> None:
+    """Akkumuliert CPU/RAM-Werte und flusht einmal pro Minute in die DB."""
+    global _hist_last_min, _hist_cpu_acc, _hist_ram_acc
+    _hist_cpu_acc.append(cpu_pct)
+    _hist_ram_acc.append(ram_pct)
+    cur_min = int(time.time() // 60) * 60
+    if cur_min > _hist_last_min and _hist_cpu_acc:
+        cpu_avg = sum(_hist_cpu_acc) / len(_hist_cpu_acc)
+        ram_avg = sum(_hist_ram_acc) / len(_hist_ram_acc)
+        _hist_last_min   = cur_min
+        _hist_cpu_acc    = []
+        _hist_ram_acc    = []
+        threading.Thread(target=_flush_history_minute,
+                         args=(cur_min, cpu_avg, ram_avg), daemon=True).start()
+
+
+def _read_cpu_temp() -> float | None:
+    """Liest CPU-Temperatur aus /sys/class/thermal/ (in °C)."""
+    import glob
+    preferred = ('cpu', 'x86', 'acpitz', 'soc', 'package', 'core')
+    paths = sorted(glob.glob('/sys/class/thermal/thermal_zone*/temp'))
+    # Bevorzuge CPU-nahe Zonen
+    for path in paths:
+        try:
+            zone_type = open(path.replace('/temp', '/type')).read().strip().lower()
+            if any(t in zone_type for t in preferred):
+                temp = int(open(path).read().strip()) / 1000.0
+                if 0 < temp < 150:
+                    return temp
+        except Exception:
+            pass
+    # Fallback: erste verfügbare Zone
+    for path in paths:
+        try:
+            temp = int(open(path).read().strip()) / 1000.0
+            if 0 < temp < 150:
+                return temp
+        except Exception:
+            pass
+    return None
+
+
+def _read_fan_speeds() -> list[dict]:
+    """Liest Lüfter-RPM aus /sys/class/hwmon/."""
+    import glob
+    fans = []
+    for hwmon in sorted(glob.glob('/sys/class/hwmon/hwmon*')):
+        for fan_in in sorted(glob.glob(f'{hwmon}/fan*_input')):
+            try:
+                rpm = int(open(fan_in).read().strip())
+                idx = fan_in.split('fan')[1].split('_')[0]
+                try:
+                    label = open(fan_in.replace('_input', '_label')).read().strip()
+                except Exception:
+                    label = f'Fan {idx}'
+                fans.append({'label': label, 'rpm': rpm})
+            except Exception:
+                pass
+    return fans
+
+
+def _update_hw_sensors() -> None:
+    """Aktualisiert den HW-Sensor-Cache (CPU-Temp + Lüfter), max. alle 5s."""
+    global _hw_cache, _hw_ts
+    now = time.time()
+    if now - _hw_ts < 5:
+        return
+    _hw_ts    = now
+    _hw_cache = {'cpu_temp': _read_cpu_temp(), 'fans': _read_fan_speeds()}
+
+
 _startup_notif_sent: bool = False
 
 
@@ -1077,6 +1191,10 @@ def _background_collector() -> None:
                 )
                 _check_container_changes()
                 _check_thresholds()
+                _update_hw_sensors()
+                with _stats_lock:
+                    _si = _stats_cache.get('sysinfo', {})
+                _tick_history(_si.get('cpu_pct', 0.0), _si.get('mem_pct', 0.0))
                 _send_startup_notification()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
@@ -1170,6 +1288,24 @@ def login():
             error = t.get('error_credentials', 'Invalid credentials.')
 
     return render_template('login.html', t=t, lang=lang, error=error)
+
+
+@app.route('/api/sysinfo/history')
+def api_sysinfo_history():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    try:
+        with _db_lock:
+            con  = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+            rows = con.execute(
+                'SELECT ts, cpu, ram FROM sys_history ORDER BY ts'
+            ).fetchall()
+            con.close()
+        data = [{'ts': r[0], 'c': r[1], 'r': r[2]} for r in rows]
+    except Exception as e:
+        log.warning("History-DB Lesefehler: %s", e)
+        data = []
+    return jsonify({'data': data})
 
 
 @app.route('/api/test/telegram', methods=['POST'])
@@ -1291,6 +1427,8 @@ def api_stats():
         data = dict(_stats_cache)
     data['collector_mode'] = _collector_mode
     data['ha_status']      = _get_ha_status()
+    data['cpu_temp']       = _hw_cache.get('cpu_temp')
+    data['fans']           = _hw_cache.get('fans', [])
     cfg = load_config()
     sleep_s = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
     data['cycle_s'] = round(_last_elapsed + sleep_s + 1.0, 1)  # 1s buffer for variability
@@ -1418,6 +1556,7 @@ def _log_startup() -> None:
 
 load_sessions()
 _log_startup()
+_init_history_db()
 threading.Thread(target=_background_collector,   daemon=True, name='docker-collector').start()
 threading.Thread(target=_telegram_polling_loop, daemon=True, name='telegram-polling').start()
 
