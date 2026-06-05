@@ -1103,6 +1103,56 @@ app.post('/api/delete-batch/:chatId', async (req, res) => {
   res.json({ deleted, failed });
 });
 
+// ── Avatar + Kontaktinfo ──────────────────────────────────────────────────────
+
+const avatarCache = new Map(); // chatId → { buf: Buffer, ts: number }
+
+app.get('/api/avatar/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  const cached = avatarCache.get(chatId);
+  if (cached && Date.now() - cached.ts < 3600000) {
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.send(cached.buf);
+  }
+  if (status !== 'connected') return res.status(503).end();
+  try {
+    const contact = await client.getContactById(chatId);
+    const picUrl = await contact.getProfilePicUrl();
+    if (!picUrl) return res.status(404).end();
+    const r = await fetch(picUrl);
+    if (!r.ok) return res.status(404).end();
+    const buf = Buffer.from(await r.arrayBuffer());
+    avatarCache.set(chatId, { buf, ts: Date.now() });
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buf);
+  } catch(e) {
+    res.status(404).end();
+  }
+});
+
+app.get('/api/contact/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const contact = await client.getContactById(chatId);
+    const picUrl = await contact.getProfilePicUrl().catch(() => null);
+    const about = await contact.getAbout().catch(() => null);
+    res.json({
+      id: chatId,
+      name: contact.name || contact.pushname || chatId.replace(/@[cg]\.us$/, ''),
+      pushname: contact.pushname || '',
+      number: contact.number || chatId.replace(/@[cg]\.us$/, ''),
+      about: about || '',
+      isMyContact: contact.isMyContact || false,
+      hasProfilePic: !!picUrl,
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => {
@@ -1195,7 +1245,26 @@ app.get('/', (req, res) => {
       width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
       font-size: 17px; font-weight: 700; color: #fff; user-select: none;
+      position: relative; overflow: hidden;
     }
+    .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+    #contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+    #contact-modal.open { display: flex; }
+    .contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    html.dark .contact-modal-box { background: #202c33; }
+    html.light .contact-modal-box { background: #fff; }
+    .contact-modal-pic { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
+    .contact-modal-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
+    html.dark .contact-modal-name { color: #e9edef; }
+    html.light .contact-modal-name { color: #111; }
+    .contact-modal-pushname { font-size: 13px; color: #8696a0; }
+    .contact-modal-number { font-size: 14px; color: #00a884; font-weight: 500; }
+    .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
+    .contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
+    html.dark .contact-modal-close { background: #2a3942; color: #e9edef; }
+    html.light .contact-modal-close { background: #f0f2f5; color: #111; }
+    .contact-modal-close:hover { opacity: 0.8; }
     .chat-info { flex: 1; min-width: 0; }
     .chat-name {
       font-size: 15px; font-weight: 500;
@@ -1559,6 +1628,17 @@ app.get('/', (req, res) => {
 
   </div>
 
+  <div id="contact-modal" onclick="if(event.target===this)closeContactModal()">
+    <div class="contact-modal-box">
+      <div class="contact-modal-pic" id="contact-modal-pic"></div>
+      <div class="contact-modal-name" id="contact-modal-name">…</div>
+      <div class="contact-modal-pushname" id="contact-modal-pushname"></div>
+      <div class="contact-modal-number" id="contact-modal-number"></div>
+      <div class="contact-modal-about" id="contact-modal-about"></div>
+      <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+    </div>
+  </div>
+
   <div id="fwd-modal">
     <div class="fwd-modal-box">
       <h3 data-i18n="fwdTitle">↪ Weiterleiten an…</h3>
@@ -1878,6 +1958,11 @@ app.get('/', (req, res) => {
           av.className = 'avatar';
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
+          const img = document.createElement('img');
+          img.onload = () => { av.textContent = ''; av.style.background = 'none'; };
+          img.onerror = () => img.remove();
+          img.src = api('/api/avatar/' + encodeURIComponent(chat.id));
+          av.appendChild(img);
         }
 
         const info = document.createElement('div');
@@ -1920,6 +2005,8 @@ app.get('/', (req, res) => {
 
       const av = document.getElementById('ch-avatar');
       av.onclick = null;
+      av.style.cursor = '';
+      av.querySelectorAll('img').forEach(i => i.remove());
       if (chat.isGroup) {
         av.className = 'avatar group-avatar';
         av.textContent = '👥';
@@ -1928,6 +2015,13 @@ app.get('/', (req, res) => {
         av.className = 'avatar';
         av.style.background = avatarColor(chat.name);
         av.textContent = avatarInitials(chat.name);
+        const img = document.createElement('img');
+        img.onload = () => { av.textContent = ''; av.style.background = 'none'; };
+        img.onerror = () => img.remove();
+        img.src = api('/api/avatar/' + encodeURIComponent(chat.id));
+        av.appendChild(img);
+        av.onclick = () => openContactInfo(chat.id, chat.name);
+        av.style.cursor = 'pointer';
       }
       document.getElementById('ch-name').textContent = chat.name;
       const ph = chat.phone || '';
@@ -2226,6 +2320,45 @@ app.get('/', (req, res) => {
       renderFwdChatList(q ? allChats.filter(c => c.name.toLowerCase().includes(q)) : allChats);
     }
 
+    async function openContactInfo(chatId, fallbackName) {
+      const modal = document.getElementById('contact-modal');
+      const picEl = document.getElementById('contact-modal-pic');
+      const nameEl = document.getElementById('contact-modal-name');
+      const pushnameEl = document.getElementById('contact-modal-pushname');
+      const numberEl = document.getElementById('contact-modal-number');
+      const aboutEl = document.getElementById('contact-modal-about');
+      // Reset
+      picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
+      nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
+      modal.classList.add('open');
+      try {
+        const data = await fetch(api('/api/contact/' + encodeURIComponent(chatId))).then(r => r.json());
+        const name = data.name || fallbackName || chatId;
+        nameEl.textContent = name;
+        pushnameEl.textContent = data.pushname && data.pushname !== data.name ? '"' + data.pushname + '"' : '';
+        numberEl.textContent = data.number ? '+' + data.number : '';
+        aboutEl.textContent = data.about || '';
+        picEl.textContent = '';
+        if (data.hasProfilePic) {
+          picEl.style.background = 'none';
+          const img = document.createElement('img');
+          img.onerror = () => { picEl.style.background = avatarColor(name); picEl.textContent = avatarInitials(name); };
+          img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+          picEl.appendChild(img);
+        } else {
+          picEl.style.background = avatarColor(name);
+          picEl.textContent = avatarInitials(name);
+        }
+      } catch(e) {
+        nameEl.textContent = fallbackName || chatId;
+        picEl.style.background = avatarColor(fallbackName || chatId);
+        picEl.textContent = avatarInitials(fallbackName || chatId);
+      }
+    }
+    function closeContactModal() {
+      document.getElementById('contact-modal').classList.remove('open');
+    }
+
     function openFwdModal(msgId) {
       _fwdMsgId = msgId;
       document.getElementById('fwd-search').value = '';
@@ -2492,7 +2625,12 @@ app.get('/', (req, res) => {
     function openLightbox(src) { lbImg.src = src; lightbox.classList.add('open'); }
     lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
     lbImg.addEventListener('click', e => e.stopPropagation());
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') lightbox.classList.remove('open'); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        lightbox.classList.remove('open');
+        document.getElementById('contact-modal')?.classList.remove('open');
+      }
+    });
 
     document.getElementById('msg-input').addEventListener('paste', e => {
       const items = e.clipboardData?.items ?? [];

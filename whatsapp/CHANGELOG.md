@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.5] - 2026-06-05
+- Neu: Profilbilder als echte Avatare (lazy-load, 1h-Cache server+Browser); Klick auf Header-Avatar öffnet Kontaktinfo-Modal mit Foto, Name, Nummer und About
+
 ## [1.6.4] - 2026-06-05
 - Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo/document/voice)
 
