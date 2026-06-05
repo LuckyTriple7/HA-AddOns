@@ -409,6 +409,16 @@ def api_remove(job_id):
         _jobs.pop(job_id, None)
     return jsonify({'ok': True})
 
+@app.route('/api/jobs/clear', methods=['POST'])
+def api_jobs_clear():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    with _jobs_lock:
+        finished = [jid for jid, j in _jobs.items() if j['status'] not in ('pending', 'running')]
+        for jid in finished:
+            del _jobs[jid]
+    return jsonify({'ok': True, 'removed': len(finished)})
+
 @app.route('/api/files')
 def api_files():
     if _require_auth():

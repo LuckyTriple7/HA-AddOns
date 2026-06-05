@@ -32,6 +32,7 @@
   "status_cancelled": "Cancelled",
   "btn_cancel": "Cancel",
   "btn_remove": "Remove",
+  "btn_clear_queue": "Clear queue",
   "lbl_speed": "Speed",
   "lbl_eta": "ETA",
 

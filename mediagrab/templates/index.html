@@ -254,6 +254,8 @@
       <div class="card-title">
         {{ t.section_queue }}
         <span class="badge" id="queue-badge">0</span>
+        <span class="spacer"></span>
+        <button class="sm-btn" onclick="clearQueue()">{{ t.btn_clear_queue }}</button>
       </div>
       <div id="jobs-list">
         <p class="empty-note" id="queue-empty">{{ t.queue_empty }}</p>
@@ -290,6 +292,7 @@
       confirm_delete: {{ t.confirm_delete | tojson }},
       btn_cancel:     {{ t.btn_cancel | tojson }},
       btn_remove:     {{ t.btn_remove | tojson }},
+      btn_clear_queue: {{ t.btn_clear_queue | tojson }},
       btn_delete:     {{ t.btn_delete | tojson }},
       btn_download_file: {{ t.btn_download_file | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
@@ -429,6 +432,11 @@
             </div>
           </div>`;
       }).join('');
+    }
+
+    async function clearQueue() {
+      await fetch('/api/jobs/clear', {method: 'POST'});
+      loadJobs();
     }
 
     async function cancelJob(id) {

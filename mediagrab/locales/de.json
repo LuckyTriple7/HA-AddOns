@@ -32,6 +32,7 @@
   "status_cancelled": "Abgebrochen",
   "btn_cancel": "Abbrechen",
   "btn_remove": "Entfernen",
+  "btn_clear_queue": "Queue leeren",
   "lbl_speed": "Geschw.",
   "lbl_eta": "ETA",
 
