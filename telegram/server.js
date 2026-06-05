@@ -161,8 +161,15 @@ async function downloadMedia(rawMsg, msgId) {
     let ext = 'jpg';
     if (mediaClass === 'MessageMediaDocument') {
       const mime = rawMsg.media.document?.mimeType || '';
-      if (!mime.startsWith('image/')) return null;
-      ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
+      const attrs = rawMsg.media.document?.attributes || [];
+      const isVoice = attrs.some(a => a.className === 'DocumentAttributeAudio' && a.voice);
+      if (isVoice) {
+        ext = 'ogg';
+      } else if (mime.startsWith('image/')) {
+        ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
+      } else {
+        return null;
+      }
     } else if (mediaClass !== 'MessageMediaPhoto') {
       return null;
     }
@@ -234,11 +241,16 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   let mediaFile = null;
   if (hasMedia) {
     const mc = rawMsg.media?.className;
-    const isImage = mc === 'MessageMediaPhoto' ||
-      (mc === 'MessageMediaDocument' && rawMsg.media.document?.mimeType?.startsWith('image/'));
-    const isVideo = !isImage && mc === 'MessageMediaDocument' &&
+    const attrs = rawMsg.media?.document?.attributes || [];
+    const isVoice = mc === 'MessageMediaDocument' && attrs.some(a => a.className === 'DocumentAttributeAudio' && a.voice);
+    const isImage = !isVoice && (mc === 'MessageMediaPhoto' ||
+      (mc === 'MessageMediaDocument' && rawMsg.media.document?.mimeType?.startsWith('image/')));
+    const isVideo = !isVoice && !isImage && mc === 'MessageMediaDocument' &&
       rawMsg.media.document?.mimeType?.startsWith('video/');
-    if (isImage) {
+    if (isVoice) {
+      type = 'voice';
+      if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
+    } else if (isImage) {
       type = 'photo';
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     } else if (isVideo) {
@@ -533,7 +545,12 @@ app.get('/api/export/:chatId', (req, res) => {
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'photo' && m.mediaFile) {
+    if (m.type === 'voice' && m.mediaFile) {
+      const fp = `${MEDIA_DIR}/${m.mediaFile}`;
+      content = fs.existsSync(fp)
+        ? `<audio controls style="min-width:200px;max-width:280px;width:100%" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
+        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if (m.type === 'photo' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
       if (fs.existsSync(fp)) {
         const ext = m.mediaFile.split('.').pop().toLowerCase();
@@ -797,7 +814,7 @@ app.get('/api/media/:filename', (req, res) => {
   const filePath = `${MEDIA_DIR}/${filename}`;
   if (!fs.existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
-  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : 'image/jpeg';
   res.setHeader('Content-Type', mime);
   res.setHeader('Cache-Control', 'max-age=86400');
   res.sendFile(filePath);
@@ -1535,7 +1552,12 @@ function renderMessages(msgs) {
     let content='';
     const isPhoto = m.type==='photo'&&m.mediaFile;
     const isDoc = m.type==='document'&&m.filename;
-    if(isPhoto){
+    const isVoice = m.type==='voice';
+    if(isVoice){
+      content = m.mediaFile
+        ? \`<audio controls style="min-width:220px;max-width:300px;width:100%" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
+        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
     } else if(isDoc){
