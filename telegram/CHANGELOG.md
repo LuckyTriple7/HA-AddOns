@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.30] - 2026-06-06
+- Fix: Chat-Wechsel zeigte leeres Fenster — openChat() löscht Fingerprint damit loadMessages() immer neu rendert
+
+## [1.5.29] - 2026-06-06
+- Speicheranzeige aktualisiert sich nach Video-Download
+
 ## [1.5.28] - 2026-06-06
 - Fix: videoTooBig-Text zeigte hardcodiert "max 10 MB" statt konfiguriertem video_max_mb-Wert
 

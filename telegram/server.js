@@ -1821,6 +1821,7 @@ function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openCha
 
 function openChat(chat) {
   selectedChatId = chat.id;
+  _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
   lastMsgCount[chat.id] = 0;
   document.body.classList.add('chat-open');
