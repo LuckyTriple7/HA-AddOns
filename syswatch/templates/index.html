@@ -530,13 +530,13 @@
     <div class="card-value" id="c-mem">-</div>
     <div class="card-label">{{ t.card_mem }}</div>
   </div>
-  <div class="card clickable" onclick="openSysHist('cpu')" title="{{ t.hist_open_cpu or 'Verlauf anzeigen' }}">
+  <div class="card clickable" onclick="openSysHist('cpu')" title="{{ t.hist_open_cpu }}">
     <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-cpu-bar"></div></div>
     <span class="sys-bar-pct" id="s-cpu">-</span>
     <div class="card-label">{{ t.card_sys_cpu }}</div>
     <div class="card-sub" id="s-cpu-freq"></div>
   </div>
-  <div class="card clickable" onclick="openSysHist('ram')" title="{{ t.hist_open_ram or 'Verlauf anzeigen' }}">
+  <div class="card clickable" onclick="openSysHist('ram')" title="{{ t.hist_open_ram }}">
     <div class="sys-bar-bg"><div class="sys-bar-fill" id="s-mem-bar"></div></div>
     <span class="sys-bar-pct" id="s-mem">-</span>
     <div class="card-label">{{ t.card_sys_mem }}</div>
@@ -1344,9 +1344,9 @@ let _lastFans      = [];
 function openSysHist(metric, label) {
   const overlay = document.getElementById('sys-hist-overlay');
   if (!overlay) return;
-  const titles = { cpu: 'SYS CPU — Verlauf 24h', ram: 'SYS RAM — Verlauf 24h' };
+  const titles = { cpu: T.hist_title_cpu, ram: T.hist_title_ram };
   const title = metric === 'temp'
-    ? 'CPU Temperatur' + (label ? ' (' + label + ')' : '') + ' — Verlauf 24h'
+    ? (T.hist_title_temp || 'CPU Temperatur') + (label ? ' (' + label + ')' : '') + ' ' + (T.hist_title_suffix || '— Verlauf 24h')
     : (titles[metric] || 'Verlauf');
   document.getElementById('sys-hist-title').textContent = title;
   overlay.classList.add('open');
@@ -1366,7 +1366,7 @@ function openSysHist(metric, label) {
       if (metric === 'cpu' || metric === 'temp') renderSysHistFooter(footer);
     })
     .catch(() => {
-      drawSysChartError(canvas, 'Fehler beim Laden');
+      drawSysChartError(canvas, T.hist_load_error || 'Error loading data');
     });
 }
 
@@ -1386,18 +1386,18 @@ function renderSysHistFooter(el) {
   // Kern-Temperaturen (Package + Cores)
   (_lastCoreTemps || []).forEach(c => {
     const col = tempColor(c.temp);
-    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','${c.label.replace(/'/g,"\\'")}')" style="cursor:pointer" title="Temperaturverlauf anzeigen">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','${c.label.replace(/'/g,"\\'")}')" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
   });
   if (!parts.length && _lastCpuTemp !== null) {
     const col = tempColor(_lastCpuTemp);
-    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','CPU')" style="cursor:pointer" title="Temperaturverlauf anzeigen">🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','CPU')" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
   }
   // Lüfter (nur anzeigen wenn vorhanden)
   (_lastFans || []).forEach(f => {
     parts.push(`<span class="hist-sensor">💨 ${f.label}: <b>${f.rpm.toLocaleString()} RPM</b></span>`);
   });
   if (!parts.length)
-    parts.push('<span style="opacity:.5">Keine Sensor-Daten verfügbar</span>');
+    parts.push(`<span style="opacity:.5">${T.hist_no_sensors || 'No sensor data available'}</span>`);
   el.innerHTML = parts.join('');
 }
 
@@ -1430,7 +1430,7 @@ function drawSysChart(canvas, history, metric) {
 
   if (!history || history.length < 2) {
     ctx.fillStyle = muted; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('Noch keine Verlaufsdaten — Daten werden minütlich gespeichert', W / 2, H / 2);
+    ctx.fillText(T.hist_no_data || 'No history data yet', W / 2, H / 2);
     return;
   }
 

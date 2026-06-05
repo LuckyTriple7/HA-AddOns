@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.0.23] - 2026-06-05
+
+### Fixed
+- Alle Chart-bezogenen Strings aus locales/de.json + en.json ergänzt (hist_title_*, hist_no_data, hist_load_error, hist_no_sensors, hist_temp_tooltip, hist_open_cpu/ram)
+- JS nutzt jetzt T.-Referenzen statt hart-kodierter deutscher Texte
+
 ## [1.0.22] - 2026-06-05
 
 ### Fixed
