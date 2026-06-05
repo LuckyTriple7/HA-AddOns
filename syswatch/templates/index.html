@@ -68,8 +68,17 @@
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
     }
-    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); flex: 1; white-space: nowrap; }
+    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
     .logo span { color: var(--text); font-weight: 400; }
+    .hdr-spacer { flex: 1; }
+    .sim-btn {
+      font-size: 0.65rem; padding: 2px 7px; border-radius: 4px; cursor: pointer;
+      border: 1px solid var(--muted); color: var(--muted); background: transparent;
+      margin-left: 8px; vertical-align: middle; opacity: 0.6;
+      transition: opacity .15s, color .15s, border-color .15s;
+    }
+    .sim-btn:hover { opacity: 1; color: var(--accent); border-color: var(--accent); }
+    @media (max-width: 620px) { .sim-btn { display: none !important; } }
     #countdown { font-size: 0.72rem; color: var(--muted); min-width: 28px; text-align: right; }
 
     /* ── Buttons ── */
@@ -440,6 +449,8 @@
 <!-- Header -->
 <header>
   <div class="logo">HA <span>SysWatch</span></div>
+  <button class="sim-btn" id="sim-btn" title="Telegram Test-Nachricht senden">📨 Test</button>
+  <div class="hdr-spacer"></div>
   <div id="mode-dot" title="Collector aktiv"></div>
   <span id="countdown"></span>
   <span id="cycle-label" style="font-size:0.72rem;color:var(--muted)" title="Abfragezyklus"></span>
@@ -723,6 +734,20 @@ function toggleTheme() {
   document.querySelectorAll('th[data-pcol]').forEach(th => {
     th.addEventListener('click', () => sortPorts(th.dataset.pcol));
   });
+
+  // Telegram-Simulations-Button
+  const simBtn = document.getElementById('sim-btn');
+  if (simBtn) {
+    simBtn.addEventListener('click', async () => {
+      simBtn.disabled = true;
+      simBtn.textContent = '⏳ …';
+      try {
+        const r = await fetch('/api/test/telegram', { method: 'POST', credentials: 'include' });
+        simBtn.textContent = r.ok ? '✅ Gesendet' : '❌ Fehler';
+      } catch (_) { simBtn.textContent = '❌ Fehler'; }
+      setTimeout(() => { simBtn.disabled = false; simBtn.textContent = '📨 Test'; }, 2500);
+    });
+  }
 
   // show-stopped: localStorage overrides config default; persists user choice across reloads
   const _ss = localStorage.getItem('sw-show-stopped');

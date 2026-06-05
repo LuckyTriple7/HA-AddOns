@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.0.14] - 2026-06-05
+
+### Added
+- CPU/RAM-Alarmbenachrichtigungen enthalten jetzt die Top 5 Verbraucher (Name + Wert%)
+- 📨 Test-Button neben dem Logo (nur Desktop ≥620px): sendet sofort eine Test-Telegram-Nachricht mit aktuellen Top-5-CPU und Top-5-RAM Werten
+
 ## [1.0.13] - 2026-06-05
 
 ### Fixed

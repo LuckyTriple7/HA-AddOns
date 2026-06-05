@@ -937,16 +937,28 @@ def _check_thresholds() -> None:
     over_delay  = max(0, int(cfg.get('notify_over_duration',  0)))
     clear_delay = max(0, int(cfg.get('notify_clear_duration', 120)))
     with _stats_lock:
-        si = _stats_cache.get('sysinfo', {})
+        si         = _stats_cache.get('sysinfo', {})
+        containers = _stats_cache.get('containers', [])
+    running = [c for c in containers if c.get('status') == 'running']
     cpu_pct = si.get('cpu_pct', 0.0)
     ram_pct = si.get('mem_pct', 0.0)
+
+    def _top5_lines(sort_key: str, fmt) -> str:
+        top = sorted(running, key=lambda c: c.get(sort_key, 0), reverse=True)[:5]
+        return '\n'.join(f'  {i+1}. {c["name"]}: <b>{fmt(c)}</b>'
+                         for i, c in enumerate(top))
 
     def _alert(metric: str, pct: float, limit: int) -> None:
         label = 'CPU-Last' if metric == 'cpu' else 'RAM-Auslastung'
         sym   = 'CPU'      if metric == 'cpu' else 'RAM'
+        if metric == 'cpu':
+            top5 = _top5_lines('cpu_pct', lambda c: f'{c.get("cpu_pct", 0):.1f}%')
+        else:
+            top5 = _top5_lines('mem_usage', lambda c: f'{c.get("mem_pct", 0):.1f}%')
         threading.Thread(target=_send_telegram, daemon=True, args=(
             f'⚠️ <b>HA SysWatch</b> — Hohe {label}\n'
-            f'System-{sym}: <b>{pct:.1f}%</b> (Schwellenwert: {limit}%, seit {over_delay}s)',
+            f'System-{sym}: <b>{pct:.1f}%</b> (Schwellenwert: {limit}%, seit {over_delay}s)\n\n'
+            f'<b>Top 5 {sym}:</b>\n{top5}',
         )).start()
 
     def _clear(metric: str, pct: float, limit: int) -> None:
@@ -1149,6 +1161,30 @@ def login():
             error = t.get('error_credentials', 'Invalid credentials.')
 
     return render_template('login.html', t=t, lang=lang, error=error)
+
+
+@app.route('/api/test/telegram', methods=['POST'])
+def api_test_telegram():
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    with _stats_lock:
+        si         = _stats_cache.get('sysinfo', {})
+        containers = _stats_cache.get('containers', [])
+    running = [c for c in containers if c.get('status') == 'running']
+    cpu_top = sorted(running, key=lambda c: c.get('cpu_pct', 0), reverse=True)[:5]
+    ram_top = sorted(running, key=lambda c: c.get('mem_usage', 0), reverse=True)[:5]
+    cpu_lines = '\n'.join(f'  {i+1}. {c["name"]}: <b>{c.get("cpu_pct", 0):.1f}%</b>'
+                          for i, c in enumerate(cpu_top))
+    ram_lines = '\n'.join(f'  {i+1}. {c["name"]}: <b>{c.get("mem_pct", 0):.1f}%</b>'
+                          for i, c in enumerate(ram_top))
+    msg = (
+        f'🧪 <b>HA SysWatch</b> — Test-Benachrichtigung\n'
+        f'System-CPU: <b>{si.get("cpu_pct", 0):.1f}%</b>  |  RAM: <b>{si.get("mem_pct", 0):.1f}%</b>\n\n'
+        f'<b>Top 5 CPU:</b>\n{cpu_lines}\n\n'
+        f'<b>Top 5 RAM:</b>\n{ram_lines}'
+    )
+    threading.Thread(target=_send_telegram, args=(msg,), daemon=True).start()
+    return jsonify({'ok': True})
 
 
 @app.route('/logout')
