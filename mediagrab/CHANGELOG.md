@@ -1,5 +1,13 @@
 # Changelog — MediaGrab
 
+## [0.0.7] — 2026-06-05
+### Added
+- "Cookies verwenden"-Checkbox im Download-Formular (erscheint nur wenn Cookies geladen sind)
+- Cookies können pro Download ein- oder ausgeschaltet werden
+
+### Fixed
+- Downloads schlugen fehl wenn mehrere/ungültige Cookies hochgeladen wurden
+
 ## [0.0.6] — 2026-06-05
 ### Removed
 - PWA-Installationsbanner entfernt (Browser-Favicon ausreichend)

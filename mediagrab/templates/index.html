@@ -172,6 +172,7 @@
       <div class="dl-opts">
         <label><input type="checkbox" id="cb-subtitles"> {{ t.label_subtitles }}</label>
         <label><input type="checkbox" id="cb-playlist"> {{ t.label_playlist }}</label>
+        <label id="cb-cookies-wrap" style="display:none"><input type="checkbox" id="cb-cookies" checked> {{ t.label_cookies }}</label>
       </div>
       <!-- Info card -->
       <div id="info-card">
@@ -325,9 +326,10 @@
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
             url,
-            fmt: document.getElementById('fmt-select').value,
+            fmt:      document.getElementById('fmt-select').value,
             subtitles: document.getElementById('cb-subtitles').checked,
             playlist:  document.getElementById('cb-playlist').checked,
+            use_cookies: document.getElementById('cb-cookies').checked,
           })
         });
         const data = await r.json();
@@ -542,10 +544,12 @@
           el.textContent = T.cookies_loaded + ' (' + fmtSize(d.size) + ')';
           el.className = 'cookie-status cookie-ok';
           del.style.display = '';
+          document.getElementById('cb-cookies-wrap').style.display = '';
         } else {
           el.textContent = T.cookies_none;
           el.className = 'cookie-status cookie-no';
           del.style.display = 'none';
+          document.getElementById('cb-cookies-wrap').style.display = 'none';
         }
       } catch(e) {}
     }

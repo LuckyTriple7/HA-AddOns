@@ -213,7 +213,7 @@ _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
 _ALREADY_RE = re.compile(r'\[download\] (.+) has already been downloaded')
 
-def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool) -> list[str]:
+def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies: bool = True) -> list[str]:
     config = get_config()
     cmd = [
         'yt-dlp',
@@ -229,7 +229,7 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool) -> list[str]
     if speed:
         cmd += ['--limit-rate', speed]
 
-    if Path(COOKIES_PATH).exists():
+    if use_cookies and Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
 
     if fmt == 'mp3':
@@ -263,7 +263,7 @@ def _run_download(job_id: str) -> None:
         job['status'] = 'running'
     save_jobs()
 
-    cmd = _build_cmd(job['url'], job['fmt'], job['subtitles'], job['playlist'])
+    cmd = _build_cmd(job['url'], job['fmt'], job['subtitles'], job['playlist'], job.get('use_cookies', True))
     log.info('Download startet: job=%s fmt=%s url=%s', job_id, job['fmt'], job['url'])
 
     output_lines: list[str] = []
@@ -452,6 +452,7 @@ def api_download():
             'fmt':        fmt,
             'subtitles':  bool(data.get('subtitles', False)),
             'playlist':   bool(data.get('playlist', False)),
+            'use_cookies': bool(data.get('use_cookies', True)),
             'status':     'pending',
             'progress':   0.0,
             'speed':      '',
