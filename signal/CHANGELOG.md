@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.7] - 2026-06-05
+- Neu: Bilder aus der Zwischenablage direkt ins Chat-Eingabefeld einfügen (Strg+V / Cmd+V)
+
 ## [1.5.6] - 2026-06-04
 - fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
 
