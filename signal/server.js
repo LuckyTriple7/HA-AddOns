@@ -269,13 +269,15 @@ function processEnvelope(envelope) {
   const msgId = `${isOwn ? PHONE_NUMBER : chatId}_${dm.timestamp}`;
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
-  const previewText = dm.message || (hasAttachments ? '📷 Foto' : '');
+  const isVoice = hasAttachments && dm.attachments.some(a => (a.contentType || '').startsWith('audio/'));
+  const msgType = isVoice ? 'voice' : hasAttachments ? 'photo' : 'text';
+  const previewText = dm.message || (isVoice ? '🎵 Sprachnachricht' : hasAttachments ? '📷 Foto' : '');
 
   const attIds = hasAttachments
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
     : undefined;
   const msgFrom = isOwn ? PHONE_NUMBER : chatId;
-  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, attIds };
+  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds };
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -301,7 +303,6 @@ function processEnvelope(envelope) {
   dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
 
   if (!isOwn) {
-    const msgType = hasAttachments ? 'photo' : 'text';
     lastReceivedMsg = {
       timestamp: dm.timestamp,
       iso: new Date(dm.timestamp).toISOString(),
@@ -316,7 +317,6 @@ function processEnvelope(envelope) {
 
   if (WEBHOOK_INCOMING && !isOwn) {
     dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
-    const msgType = hasAttachments ? 'photo' : 'text';
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -340,7 +340,7 @@ async function pollMessages() {
 
 async function downloadAttachment(attId, contentType, msgId) {
   try {
-    const ext = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const ext = contentType.includes('ogg') ? 'ogg' : contentType.includes('aac') ? 'aac' : contentType.includes('mpeg') ? 'mp3' : contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
     const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
     const filepath = MEDIA_DIR + filename;
     if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); scheduleSave(); return; }
@@ -481,7 +481,12 @@ app.get('/api/export/:chatId', (req, res) => {
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.mediaFile) {
+    if (m.type === 'voice' && m.mediaFile) {
+      const fp = MEDIA_DIR + m.mediaFile;
+      content = fs.existsSync(fp)
+        ? `<audio controls style="min-width:200px;max-width:280px;width:100%" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
+        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if (m.mediaFile) {
       const fp = MEDIA_DIR + m.mediaFile;
       if (fs.existsSync(fp)) {
         const ext = m.mediaFile.split('.').pop().toLowerCase();
@@ -511,7 +516,7 @@ app.get('/api/media/:filename', (req, res) => {
   const filepath = MEDIA_DIR + filename;
   if (!fs.existsSync(filepath)) return res.status(404).send('Not found');
   const ext = filename.split('.').pop().toLowerCase();
-  const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+  const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', aac: 'audio/aac', mp3: 'audio/mpeg' };
   res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
   fs.createReadStream(filepath).pipe(res);
 });
@@ -1315,7 +1320,12 @@ function renderMessages(msgs) {
     const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
     const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
-    if (m.mediaFile) {
+    if (m.type === 'voice' && m.mediaFile) {
+      content = \`<audio controls style="min-width:220px;max-width:280px;width:100%" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></audio>\`;
+      if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
+    } else if (m.type === 'voice') {
+      content = '<span class="photo-placeholder">🎵 Sprachnachricht</span>';
+    } else if (m.mediaFile) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
