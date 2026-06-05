@@ -1922,8 +1922,8 @@ app.get('/', (req, res) => {
         if (d.mediaMb !== undefined) {
           const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
           el.title = lang === 'de'
-            ? 'Gesamt /config: ' + d.mb + ' MB\nMedienordner: ' + d.mediaMb + ' MB von ' + autoAt + ' MB (' + d.mediaPct + '%)\nAuto-Delete startet bei ' + autoAt + ' MB → l\xF6scht auf ' + autoTo + ' MB'
-            : 'Total /config: ' + d.mb + ' MB\nMedia folder: ' + d.mediaMb + ' MB of ' + autoAt + ' MB (' + d.mediaPct + '%)\nAuto-delete starts at ' + autoAt + ' MB → cleans to ' + autoTo + ' MB';
+            ? 'Gesamt /config: ' + d.mb + ' MB\\nMedienordner: ' + d.mediaMb + ' MB von ' + autoAt + ' MB (' + d.mediaPct + '%)\\nAuto-Delete startet bei ' + autoAt + ' MB, l\xF6scht auf ' + autoTo + ' MB'
+            : 'Total /config: ' + d.mb + ' MB\\nMedia folder: ' + d.mediaMb + ' MB of ' + autoAt + ' MB (' + d.mediaPct + '%)\\nAuto-delete starts at ' + autoAt + ' MB, cleans to ' + autoTo + ' MB';
         }
       } catch(e) {}
     }
