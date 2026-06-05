@@ -1341,11 +1341,14 @@ let _lastCpuTemp   = null;
 let _lastCoreTemps = [];
 let _lastFans      = [];
 
-function openSysHist(metric) {
+function openSysHist(metric, label) {
   const overlay = document.getElementById('sys-hist-overlay');
   if (!overlay) return;
-  const titles = { cpu: 'SYS CPU — Verlauf 24h', ram: 'SYS RAM — Verlauf 24h', temp: 'CPU Temperatur — Verlauf 24h' };
-  document.getElementById('sys-hist-title').textContent = titles[metric] || 'Verlauf';
+  const titles = { cpu: 'SYS CPU — Verlauf 24h', ram: 'SYS RAM — Verlauf 24h' };
+  const title = metric === 'temp'
+    ? 'CPU Temperatur' + (label ? ' (' + label + ')' : '') + ' — Verlauf 24h'
+    : (titles[metric] || 'Verlauf');
+  document.getElementById('sys-hist-title').textContent = title;
   overlay.classList.add('open');
 
   const footer = document.getElementById('sys-hist-footer');
@@ -1381,14 +1384,13 @@ function tempColor(t) {
 function renderSysHistFooter(el) {
   const parts = [];
   // Kern-Temperaturen (Package + Cores)
-  const tempClick = `onclick="openSysHist('temp')" style="cursor:pointer" title="Temperaturverlauf anzeigen"`;
   (_lastCoreTemps || []).forEach(c => {
     const col = tempColor(c.temp);
-    parts.push(`<span class="hist-sensor" ${tempClick}>🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','${c.label.replace(/'/g,"\\'")}')" style="cursor:pointer" title="Temperaturverlauf anzeigen">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
   });
   if (!parts.length && _lastCpuTemp !== null) {
     const col = tempColor(_lastCpuTemp);
-    parts.push(`<span class="hist-sensor" ${tempClick}>🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','CPU')" style="cursor:pointer" title="Temperaturverlauf anzeigen">🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
   }
   // Lüfter (nur anzeigen wenn vorhanden)
   (_lastFans || []).forEach(f => {

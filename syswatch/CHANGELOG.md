@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.22] - 2026-06-05
+
+### Fixed
+- Temperatur-Chart-Titel zeigt jetzt den Sensor-Namen: "CPU Temperatur (Package id 0) — Verlauf 24h"
+
 ## [1.0.21] - 2026-06-05
 
 ### Fixed
