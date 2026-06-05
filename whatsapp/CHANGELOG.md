@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.0] - 2026-06-05
+- Fix: Sprachnachrichten wurden im Chat nicht angezeigt — Voice-Rendering fehlte im Client-seitigen Render-Zweig; Audio-Player und Fallback-Text jetzt korrekt
+
 ## [1.5.9] - 2026-06-05
 - Neu: Sprachnachrichten (ptt/audio) werden empfangen, als .ogg auf Disk gespeichert und im Chat als abspielbarer Audio-Player angezeigt; Fallback-Platzhalter wenn Download fehlschlägt
 

@@ -988,11 +988,9 @@ app.get('/api/export/:chatId', (req, res) => {
       } else { content = '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'voice') {
-      if (m.mediaFile) {
-        content = '<audio controls style="max-width:260px;width:100%;height:36px" src="api/media/' + escH(m.mediaFile) + '"></audio>';
-      } else {
-        content = '<span style="opacity:0.6">' + t('voiceMsg') + '</span>';
-      }
+      content = m.mediaFile
+        ? '<audio controls style="max-width:260px;width:100%;height:36px" src="api/media/' + escH(m.mediaFile) + '"></audio>'
+        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
@@ -2030,6 +2028,12 @@ app.get('/', (req, res) => {
           bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
         } else if (m.type === 'document') {
           bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
+        } else if (m.type === 'voice') {
+          const audioSrc = m.mediaFile ? 'api/media/' + encodeURIComponent(m.mediaFile) : '';
+          bub.innerHTML = (audioSrc
+            ? '<audio controls style="max-width:260px;width:100%;height:36px" src="' + audioSrc + '"></audio>'
+            : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>')
+            + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'photo' && m.mediaFile) {
           bub.classList.add('bubble-photo');
           if (m.isForwarded) {
