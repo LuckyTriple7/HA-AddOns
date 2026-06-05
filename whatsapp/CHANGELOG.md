@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.16] - 2026-06-06
+- Neu: media_max_mb Option (Standard 500 MB) + Speicher-Tooltip (Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete, DE+EN)
+
 ## [1.6.15] - 2026-06-05
 - Revert auf stabile Basis v1.6.10 (Version-Bump für HA-Update-Erkennung)
 
