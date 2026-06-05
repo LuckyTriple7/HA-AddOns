@@ -17,6 +17,9 @@ configuration:
   speed_limit:
     name: Downloadgeschwindigkeit begrenzen
     description: "Maximale Downloadgeschwindigkeit für alle Downloads. Leer lassen für unbegrenzte Geschwindigkeit. Einheit angeben: z.B. 5M (5 MB/s), 500K (500 KB/s), 2M (2 MB/s)."
+  api_key:
+    name: API-Key
+    description: "Geheimer Schlüssel für den /api/status-Endpunkt (HA REST-Sensoren). Leer lassen um den Endpunkt zu deaktivieren. Beispiel: mein-geheimer-key-123. Tipp: einen langen zufälligen String verwenden."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt die vollständige yt-dlp-Ausgabe ins Add-on-Log aus. Nützlich zur Fehlerdiagnose. Standard false.

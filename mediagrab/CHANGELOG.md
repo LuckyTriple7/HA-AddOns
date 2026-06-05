@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [0.1.5] — 2026-06-05
+### Added
+- REST API `/api/status` für HA-Sensoren (gesichert per API-Key)
+- 9 Sensor-Werte: aktive/fertige/fehlerhafte Downloads, Dateianzahl, Ordnergröße, freier Speicher, Speicherauslastung, letzte Datei, yt-dlp Version
+- API-Key als URL-Parameter oder X-API-Key Header
+- DOCS.md: vollständiges YAML-Beispiel für alle Sensoren + Automation-Beispiel
+
 ## [0.1.4] — 2026-06-05
 ### Fixed
 - Fortschrittsbalken zeigte nur 0% → 100% (kein Live-Update)

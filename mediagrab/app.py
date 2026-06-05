@@ -421,6 +421,49 @@ def share():
 def health():
     return 'ok'
 
+@app.route('/api/status')
+def api_status():
+    config  = get_config()
+    api_key = config.get('api_key', '').strip()
+    if not api_key:
+        return jsonify({'error': 'api_disabled'}), 403
+    provided = (request.args.get('api_key') or request.headers.get('X-API-Key', '')).strip()
+    if not provided or provided != api_key:
+        return jsonify({'error': 'unauthorized'}), 401
+
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    with _jobs_lock:
+        jobs = list(_jobs.values())
+
+    active   = sum(1 for j in jobs if j['status'] in ('pending', 'running'))
+    done     = sum(1 for j in jobs if j['status'] == 'done')
+    errors   = sum(1 for j in jobs if j['status'] == 'error')
+
+    files = [p for p in MEDIA_DIR.iterdir() if p.is_file()] if MEDIA_DIR.exists() else []
+    files_count = len(files)
+    folder_size = sum(f.stat().st_size for f in files)
+    last_file   = max(files, key=lambda f: f.stat().st_mtime).name if files else ''
+
+    usage    = shutil.disk_usage(str(MEDIA_DIR))
+    disk_pct = round(usage.used / usage.total * 100, 1) if usage.total else 0
+
+    try:
+        ver = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        ver = 'unknown'
+
+    return jsonify({
+        'active_downloads':  active,
+        'done_downloads':    done,
+        'error_downloads':   errors,
+        'files_count':       files_count,
+        'folder_size_mb':    round(folder_size / 1048576, 1),
+        'disk_free_gb':      round(usage.free / 1073741824, 2),
+        'disk_used_pct':     disk_pct,
+        'last_file':         last_file,
+        'ytdlp_version':     ver,
+    })
+
 # ── API ────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/download', methods=['POST'])

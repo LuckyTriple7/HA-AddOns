@@ -17,6 +17,9 @@ configuration:
   speed_limit:
     name: Download speed limit
     description: "Maximum download speed for all downloads. Leave empty for unlimited speed. Include the unit: e.g. 5M (5 MB/s), 500K (500 KB/s), 2M (2 MB/s)."
+  api_key:
+    name: API Key
+    description: "Secret key for the /api/status endpoint (HA REST sensors). Leave empty to disable the endpoint. Example: my-secret-key-123. Tip: use a long random string."
   verbose_log:
     name: Verbose logging
     description: Prints the full yt-dlp output to the add-on log. Useful for diagnosing errors. Default false.
