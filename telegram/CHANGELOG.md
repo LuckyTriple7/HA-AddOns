@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.31] - 2026-06-06
+- Fix: Reload-Button ersetzte heruntergeladene Videos durch Placeholder — mediaFile und videoSize werden beim Refresh jetzt wie Reactions gespeichert und wiederhergestellt
+
 ## [1.5.30] - 2026-06-06
 - Fix: Chat-Wechsel zeigte leeres Fenster — openChat() löscht Fingerprint damit loadMessages() immer neu rendert
 

@@ -529,15 +529,17 @@ app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
   if (req.query.refresh === '1' && status === 'connected') {
     const prevMsgs = messagesByChatId.get(chatId) || [];
-    const savedReactions = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction }]));
+    const savedData = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction, mediaFile: m.mediaFile || null, videoSize: m.videoSize }]));
     prevMsgs.forEach(m => seenMsgIds.delete(m.id));
     messagesByChatId.delete(chatId);
     await fetchMessages(chatId);
     for (const m of (messagesByChatId.get(chatId) || [])) {
-      const saved = savedReactions.get(m.id);
+      const saved = savedData.get(m.id);
       if (!saved) continue;
       if (!m.myReaction && saved.myReaction) m.myReaction = saved.myReaction;
       if ((!m.reactions || !Object.keys(m.reactions).length) && Object.keys(saved.reactions || {}).length) m.reactions = saved.reactions;
+      if (!m.mediaFile && saved.mediaFile) m.mediaFile = saved.mediaFile; // heruntergeladene Videos behalten
+      if (!m.videoSize && saved.videoSize) m.videoSize = saved.videoSize;
     }
     return res.json(messagesByChatId.get(chatId) || []);
   }
