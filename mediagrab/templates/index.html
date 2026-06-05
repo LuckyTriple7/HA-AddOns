@@ -630,7 +630,7 @@
       popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 260) + 'px';
       document.body.appendChild(popup);
       _tagPopup = popup;
-      setTimeout(() => { inp.focus(); document.addEventListener('click', closeTagEditor, {once:true}); }, 0);
+      setTimeout(() => { inp.focus(); if (inp.value) inp.select(); document.addEventListener('click', closeTagEditor, {once:true}); }, 0);
     }
 
     function closeTagEditor() {

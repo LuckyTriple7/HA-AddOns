@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.2.9] — 2026-06-05
+### Fixed
+- Custom-Tag-Editor: bestehender Tag wird beim Öffnen vorausgefüllt und selektiert (war leer wirkend durch fehlenden inp.select())
+
 ## [0.2.8] — 2026-06-05
 ### Changed
 - Platform-Tag und Custom-Tag sind jetzt getrennte, unabhängige Felder pro Datei
