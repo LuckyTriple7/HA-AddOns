@@ -1,5 +1,15 @@
 # Changelog — HA SysWatch
 
+## [1.0.11] - 2026-06-05
+
+### Added
+- Telegram Inline-Keyboard-Callback: Stop-Nachricht enthält ▶ Starten-Button
+- Hintergrund-Thread `telegram-polling` empfängt Callbacks via `getUpdates` Long-Polling
+- Klick auf ▶ Starten → startet Container (Docker / Supervisor-Fallback), editiert Nachricht sofort auf "⏳ Startbefehl gesendet…"
+- Wenn Container wieder läuft → Nachricht wird auf ✅ Container läuft wieder editiert, Button entfernt
+- Nur konfigurierte `telegram_chat_id` kann Callbacks auslösen (Sicherheit)
+- `api_start()` auf `_start_container_core()` refaktoriert (gemeinsame Logik mit Callback-Handler)
+
 ## [1.0.10] - 2026-06-05
 
 ### Added

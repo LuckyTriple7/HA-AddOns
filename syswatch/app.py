@@ -131,9 +131,10 @@ NOTIF_COOLDOWN               = 600  # 10 Min Cooldown zwischen gleichen Alerts
 # Container-Zustandsüberwachung
 _prev_running:      set[str]        = set()
 _prev_running_init: bool            = False
-_manually_stopped:  dict[str, float] = {}  # name → timestamp (vom SysWatch-Button ausgelöst)
-_manually_started:  dict[str, float] = {}  # name → timestamp
-MANUAL_ACTION_TTL                   = 90   # Sekunden bis manueller Eintrag verfällt
+_manually_stopped:    dict[str, float] = {}  # name → timestamp (vom SysWatch-Button ausgelöst)
+_manually_started:    dict[str, float] = {}  # name → timestamp
+_pending_restart_msgs: dict[str, dict] = {}  # name → {message_id, chat_id} für Callback-Nachrichten
+MANUAL_ACTION_TTL                     = 90   # Sekunden bis manueller Eintrag verfällt
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -697,29 +698,150 @@ def _is_viewer_active() -> bool:
     return has_sse or (time.time() - _viewer_last_seen) < _viewer_timeout()
 
 
-def _send_telegram(msg: str) -> None:
-    """Sendet eine Telegram-Nachricht via Bot-API (fire-and-forget, kein Re-try)."""
-    cfg = load_config()
-    token   = str(cfg.get('telegram_bot_token', '')).strip()
-    chat_id = str(cfg.get('telegram_chat_id', '')).strip()
-    if not token or not chat_id:
-        return
-    preview = msg.replace('\n', ' ').replace('<b>', '').replace('</b>', '').replace('<code>', '').replace('</code>', '')
-    log.info("[Telegram] → %s", preview[:120])
+def _telegram_api(method: str, http_timeout: int = 10, **kwargs) -> dict | None:
+    """Generischer Telegram Bot-API Aufruf. Gibt JSON-Result zurück oder None bei Fehler."""
+    cfg   = load_config()
+    token = str(cfg.get('telegram_bot_token', '')).strip()
+    if not token:
+        return None
     import urllib.request
     try:
-        payload = json.dumps({'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}).encode()
+        payload = json.dumps(kwargs).encode()
         req = urllib.request.Request(
-            f'https://api.telegram.org/bot{token}/sendMessage',
+            f'https://api.telegram.org/bot{token}/{method}',
             data=payload,
             headers={'Content-Type': 'application/json'},
             method='POST',
         )
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-        log.info("[Telegram] Gesendet.")
+        with urllib.request.urlopen(req, timeout=http_timeout) as resp:
+            return json.loads(resp.read())
     except Exception as e:
-        log.warning("[Telegram] Fehlgeschlagen: %s", e)
+        if method != 'getUpdates':  # getUpdates-Timeouts sind normal beim Long-Polling
+            log.warning("[Telegram] %s fehlgeschlagen: %s", method, e)
+        return None
+
+
+def _send_telegram(msg: str, reply_markup: dict | None = None) -> dict | None:
+    """Sendet eine Telegram-Nachricht. Gibt {message_id, chat_id} zurück wenn reply_markup gesetzt."""
+    cfg     = load_config()
+    chat_id = str(cfg.get('telegram_chat_id', '')).strip()
+    if not chat_id:
+        return None
+    preview = msg.replace('\n', ' ').replace('<b>', '').replace('</b>', '').replace('<code>', '').replace('</code>', '')
+    log.info("[Telegram] → %s", preview[:120])
+    kwargs: dict = {'chat_id': chat_id, 'text': msg, 'parse_mode': 'HTML'}
+    if reply_markup:
+        kwargs['reply_markup'] = json.dumps(reply_markup)
+    result = _telegram_api('sendMessage', **kwargs)
+    if result and result.get('ok'):
+        log.info("[Telegram] Gesendet.")
+        if reply_markup:
+            return {'message_id': result['result']['message_id'], 'chat_id': chat_id}
+    elif result:
+        log.warning("[Telegram] Fehlgeschlagen: %s", result.get('description', '?'))
+    return None
+
+
+def _edit_telegram_message(chat_id: str, message_id: int, text: str) -> None:
+    """Bearbeitet eine existierende Telegram-Nachricht und entfernt alle Inline-Buttons."""
+    _telegram_api('editMessageText',
+                  chat_id=chat_id,
+                  message_id=message_id,
+                  text=text,
+                  parse_mode='HTML',
+                  reply_markup=json.dumps({'inline_keyboard': []}))
+
+
+def _telegram_unexpected_stop_notif(name: str) -> None:
+    """Sendet Stop-Benachrichtigung mit ▶ Starten-Button und speichert message_id."""
+    keyboard = {'inline_keyboard': [[{'text': '▶ Starten', 'callback_data': f'start:{name}'}]]}
+    result = _send_telegram(
+        f'💥 <b>HA SysWatch</b> — Container unerwartet gestoppt\n<code>{name}</code>',
+        reply_markup=keyboard,
+    )
+    if result:
+        _pending_restart_msgs[name] = result
+
+
+def _start_container_core(name: str) -> tuple[bool, str]:
+    """Startet Container via Docker (Fallback: Supervisor). Gibt (ok, fehlermeldung) zurück."""
+    socket_path = _find_docker_socket() if _docker_available else None
+    if socket_path:
+        try:
+            client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+            container = client.containers.get(name)
+            container.start()
+            log.info("Container gestartet: %s", name)
+            _manually_started[name] = time.time()
+            return True, ''
+        except docker_lib.errors.NotFound:
+            pass
+        except Exception as e:
+            log.error("Start-Fehler (Docker) für '%s': %s", name, e)
+            return False, str(e)
+    slug = _supervisor_addon_slug(name)
+    if slug and _supervisor_action(slug, 'start'):
+        log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
+        _manually_started[name] = time.time()
+        return True, ''
+    return False, f'Container nicht gefunden: {name}'
+
+
+def _handle_telegram_callback(cq: dict) -> None:
+    """Verarbeitet Inline-Keyboard-Callbacks (▶ Starten)."""
+    cq_id      = cq['id']
+    chat_id    = str(cq.get('from', {}).get('id', ''))
+    data       = cq.get('data', '')
+    message_id = cq.get('message', {}).get('message_id')
+
+    # Nur konfigurierte Chat-ID akzeptieren
+    cfg = load_config()
+    allowed = str(cfg.get('telegram_chat_id', '')).strip()
+    if chat_id != allowed:
+        _telegram_api('answerCallbackQuery', callback_query_id=cq_id, text='❌ Nicht autorisiert')
+        return
+
+    if data.startswith('start:'):
+        name = data[len('start:'):]
+        _telegram_api('answerCallbackQuery', callback_query_id=cq_id,
+                      text=f'▶ Starte {name}…', show_alert=False)
+        ok, err = _start_container_core(name)
+        new_text = (
+            f'💥 <b>HA SysWatch</b> — Container gestoppt\n<code>{name}</code>\n\n'
+            f'{"⏳ <i>Startbefehl gesendet…</i>" if ok else f"❌ <i>Start fehlgeschlagen: {err}</i>"}'
+        )
+        if message_id:
+            threading.Thread(target=_edit_telegram_message,
+                             args=(chat_id, message_id, new_text), daemon=True).start()
+
+
+def _telegram_polling_loop() -> None:
+    """Hintergrund-Thread: empfängt Telegram-Updates via Long-Polling und verarbeitet Callbacks."""
+    offset = 0
+    log.info("[Telegram] Polling-Thread gestartet")
+    while True:
+        cfg   = load_config()
+        token = str(cfg.get('telegram_bot_token', '')).strip()
+        if not token:
+            time.sleep(15)
+            continue
+        result = _telegram_api('getUpdates', http_timeout=35,
+                               offset=offset, timeout=30,
+                               allowed_updates=['callback_query'])
+        if not result:
+            time.sleep(5)
+            continue
+        if not result.get('ok'):
+            log.warning("[Telegram] getUpdates Fehler: %s", result.get('description'))
+            time.sleep(10)
+            continue
+        for update in result.get('result', []):
+            offset = update['update_id'] + 1
+            if 'callback_query' in update:
+                try:
+                    _handle_telegram_callback(update['callback_query'])
+                except Exception as e:
+                    log.error("[Telegram] Callback-Fehler: %s", e)
 
 
 def _check_container_changes() -> None:
@@ -748,14 +870,23 @@ def _check_container_changes() -> None:
         if name in _manually_stopped:
             del _manually_stopped[name]   # manuell ausgelöst → keine Notification
         else:
-            threading.Thread(target=_send_telegram, daemon=True, args=(
-                f'💥 <b>HA SysWatch</b> — Container unerwartet gestoppt\n<code>{name}</code>',
-            )).start()
+            threading.Thread(target=_telegram_unexpected_stop_notif,
+                             args=(name,), daemon=True).start()
 
     for name in newly_started:
+        # Offene Stop-Nachricht mit ▶ Button → auf ✅ editieren (Button entfernen)
+        has_pending = name in _pending_restart_msgs
+        if has_pending:
+            info = _pending_restart_msgs.pop(name)
+            threading.Thread(target=_edit_telegram_message, daemon=True, args=(
+                info['chat_id'], info['message_id'],
+                f'✅ <b>HA SysWatch</b> — Container läuft wieder\n<code>{name}</code>',
+            )).start()
+
         if name in _manually_started:
-            del _manually_started[name]   # manuell ausgelöst → keine Notification
-        else:
+            del _manually_started[name]   # manuell ausgelöst → keine ▶️-Notification
+        elif not has_pending:
+            # Kein offener Stop-Alert → separates ▶️
             threading.Thread(target=_send_telegram, daemon=True, args=(
                 f'▶️ <b>HA SysWatch</b> — Container gestartet\n<code>{name}</code>',
             )).start()
@@ -1165,28 +1296,10 @@ def api_start(name: str):
     if body.get('password', '') != config.get('password', ''):
         log.warning("Start abgelehnt (falsches Passwort): container='%s'", name)
         return jsonify({'error': 'wrong_password'}), 403
-    socket_path = _find_docker_socket() if _docker_available else None
-    if socket_path:
-        try:
-            client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
-            container = client.containers.get(name)
-            container.start()
-            log.info("Container gestartet: %s", name)
-            _manually_started[name] = time.time()
-            return jsonify({'ok': True})
-        except docker_lib.errors.NotFound:
-            pass  # kein Docker-Container → Supervisor-Fallback
-        except Exception as e:
-            log.error("Start-Fehler (Docker) für '%s': %s", name, e)
-            return jsonify({'error': str(e)}), 500
-
-    # Supervisor-Fallback für gestoppte HA Add-ons (Docker-Container wurde entfernt)
-    slug = _supervisor_addon_slug(name)
-    if slug and _supervisor_action(slug, 'start'):
-        log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
-        _manually_started[name] = time.time()
+    ok, err = _start_container_core(name)
+    if ok:
         return jsonify({'ok': True})
-    return jsonify({'error': f'Container nicht gefunden: {name}'}), 404
+    return jsonify({'error': err}), (404 if 'nicht gefunden' in err else 500)
 
 
 @app.route('/api/container/<name>/stop', methods=['POST'])
@@ -1231,7 +1344,8 @@ def _log_startup() -> None:
 
 load_sessions()
 _log_startup()
-threading.Thread(target=_background_collector, daemon=True, name='docker-collector').start()
+threading.Thread(target=_background_collector,   daemon=True, name='docker-collector').start()
+threading.Thread(target=_telegram_polling_loop, daemon=True, name='telegram-polling').start()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=17790, debug=False)
