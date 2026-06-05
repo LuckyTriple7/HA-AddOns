@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [0.2.1] — 2026-06-05
+### Fixed
+- API `/api/status`: yt-dlp-Version wird 1h gecacht (kein subprocess bei jedem Sensor-Poll mehr)
+- API `/api/status`: try-except schützt vor "unavailable" im HA-Sensor bei unerwarteten Fehlern
+- API Logging: ungültige Key-Versuche als WARNING, erfolgreiche Zugriffe als DEBUG
+
 ## [0.2.0] — 2026-06-05
 ### Fixed
 - Polling-Interval: _pollInterval war im falschen Scope — jetzt global, 500ms greift korrekt bei aktiven Downloads

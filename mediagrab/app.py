@@ -44,6 +44,8 @@ _failed: dict[str, list[float]] = defaultdict(list)
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 
+_ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 def get_config() -> dict:
@@ -468,48 +470,64 @@ def share():
 def health():
     return 'ok'
 
+def _get_ytdlp_version() -> str:
+    now = time.time()
+    if _ytdlp_ver_cache['ver'] and now - _ytdlp_ver_cache['ts'] < 3600:
+        return _ytdlp_ver_cache['ver']
+    try:
+        ver = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        ver = 'unknown'
+    _ytdlp_ver_cache['ver'] = ver
+    _ytdlp_ver_cache['ts']  = now
+    return ver
+
+
 @app.route('/api/status')
 def api_status():
     config  = get_config()
     api_key = config.get('api_key', '').strip()
     if not api_key:
+        log.debug('API /status: api_key nicht konfiguriert — Zugriff abgelehnt (%s)', request.remote_addr)
         return jsonify({'error': 'api_disabled'}), 403
     provided = (request.args.get('api_key') or request.headers.get('X-API-Key', '')).strip()
     if not provided or provided != api_key:
+        log.warning('API /status: ungültiger API-Key von %s', request.remote_addr)
         return jsonify({'error': 'unauthorized'}), 401
 
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    with _jobs_lock:
-        jobs = list(_jobs.values())
-
-    active   = sum(1 for j in jobs if j['status'] in ('pending', 'running'))
-    done     = sum(1 for j in jobs if j['status'] == 'done')
-    errors   = sum(1 for j in jobs if j['status'] == 'error')
-
-    files = [p for p in MEDIA_DIR.iterdir() if p.is_file()] if MEDIA_DIR.exists() else []
-    files_count = len(files)
-    folder_size = sum(f.stat().st_size for f in files)
-    last_file   = max(files, key=lambda f: f.stat().st_mtime).name if files else ''
-
-    usage    = shutil.disk_usage(str(MEDIA_DIR))
-    disk_pct = round(usage.used / usage.total * 100, 1) if usage.total else 0
+    log.debug('API /status: Zugriff von %s', request.remote_addr)
 
     try:
-        ver = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=5).stdout.strip()
-    except Exception:
-        ver = 'unknown'
+        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        with _jobs_lock:
+            jobs = list(_jobs.values())
 
-    return jsonify({
-        'active_downloads':  active,
-        'done_downloads':    done,
-        'error_downloads':   errors,
-        'files_count':       files_count,
-        'folder_size_mb':    round(folder_size / 1048576, 1),
-        'disk_free_gb':      round(usage.free / 1073741824, 2),
-        'disk_used_pct':     disk_pct,
-        'last_file':         last_file,
-        'ytdlp_version':     ver,
-    })
+        active   = sum(1 for j in jobs if j['status'] in ('pending', 'running'))
+        done     = sum(1 for j in jobs if j['status'] == 'done')
+        errors   = sum(1 for j in jobs if j['status'] == 'error')
+
+        files = [p for p in MEDIA_DIR.iterdir() if p.is_file()] if MEDIA_DIR.exists() else []
+        files_count = len(files)
+        folder_size = sum(f.stat().st_size for f in files)
+        last_file   = max(files, key=lambda f: f.stat().st_mtime).name if files else ''
+
+        usage    = shutil.disk_usage(str(MEDIA_DIR))
+        disk_pct = round(usage.used / usage.total * 100, 1) if usage.total else 0
+
+        return jsonify({
+            'active_downloads':  active,
+            'done_downloads':    done,
+            'error_downloads':   errors,
+            'files_count':       files_count,
+            'folder_size_mb':    round(folder_size / 1048576, 1),
+            'disk_free_gb':      round(usage.free / 1073741824, 2),
+            'disk_used_pct':     disk_pct,
+            'last_file':         last_file,
+            'ytdlp_version':     _get_ytdlp_version(),
+        })
+    except Exception as e:
+        log.error('API /status: Fehler — %s', e)
+        return jsonify({'error': 'internal_error'}), 500
 
 # ── API ────────────────────────────────────────────────────────────────────────
 
