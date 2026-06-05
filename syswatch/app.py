@@ -144,6 +144,7 @@ _db_lock        = threading.Lock()
 _hist_last_min:  int   = 0   # letzter geschriebener Minuten-Bucket (Unix-Timestamp)
 _hist_cpu_acc:   list  = []  # Akkumulator bis zum nächsten Minuten-Flush
 _hist_ram_acc:   list  = []
+_hist_temp_acc:  list  = []
 
 # Hardware-Sensoren (Temp + Lüfter), gecacht
 _hw_cache:  dict  = {'cpu_temp': None, 'fans': []}
@@ -1034,14 +1035,19 @@ def _check_thresholds() -> None:
 
 
 def _init_history_db() -> None:
-    """Erstellt die SQLite-Tabelle für den Systemverlauf, löscht Einträge > 24h."""
+    """Erstellt/migriert die SQLite-Tabelle für den Systemverlauf."""
     with _db_lock:
         con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
         con.execute('''CREATE TABLE IF NOT EXISTS sys_history (
-            ts  INTEGER PRIMARY KEY,
-            cpu REAL,
-            ram REAL
+            ts   INTEGER PRIMARY KEY,
+            cpu  REAL,
+            ram  REAL
         )''')
+        # Migration: temp-Spalte nachrüsten (ignoriert Fehler wenn bereits vorhanden)
+        try:
+            con.execute('ALTER TABLE sys_history ADD COLUMN temp REAL')
+        except _sqlite3.OperationalError:
+            pass
         cutoff = int(time.time()) - 86400
         con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
         con.commit()
@@ -1049,14 +1055,17 @@ def _init_history_db() -> None:
     log.info("History-DB initialisiert: %s", _DB_PATH)
 
 
-def _flush_history_minute(ts_min: int, cpu_avg: float, ram_avg: float) -> None:
-    """Schreibt einen Minuten-Durchschnitt in die DB und löscht Einträge > 24h."""
+def _flush_history_minute(ts_min: int, cpu_avg: float, ram_avg: float,
+                          temp_avg: float | None) -> None:
+    """Schreibt einen Minuten-Durchschnitt (CPU, RAM, Temp) in die DB."""
     cutoff = ts_min - 86400
     with _db_lock:
         try:
             con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
-            con.execute('INSERT OR REPLACE INTO sys_history (ts, cpu, ram) VALUES (?,?,?)',
-                        (ts_min, round(cpu_avg, 1), round(ram_avg, 1)))
+            con.execute(
+                'INSERT OR REPLACE INTO sys_history (ts, cpu, ram, temp) VALUES (?,?,?,?)',
+                (ts_min, round(cpu_avg, 1), round(ram_avg, 1),
+                 round(temp_avg, 1) if temp_avg is not None else None))
             con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
             con.commit()
             con.close()
@@ -1064,20 +1073,24 @@ def _flush_history_minute(ts_min: int, cpu_avg: float, ram_avg: float) -> None:
             log.warning("History-DB Schreibfehler: %s", e)
 
 
-def _tick_history(cpu_pct: float, ram_pct: float) -> None:
-    """Akkumuliert CPU/RAM-Werte und flusht einmal pro Minute in die DB."""
-    global _hist_last_min, _hist_cpu_acc, _hist_ram_acc
+def _tick_history(cpu_pct: float, ram_pct: float, cpu_temp: float | None = None) -> None:
+    """Akkumuliert CPU/RAM/Temp-Werte und flusht einmal pro Minute in die DB."""
+    global _hist_last_min, _hist_cpu_acc, _hist_ram_acc, _hist_temp_acc
     _hist_cpu_acc.append(cpu_pct)
     _hist_ram_acc.append(ram_pct)
+    if cpu_temp is not None:
+        _hist_temp_acc.append(cpu_temp)
     cur_min = int(time.time() // 60) * 60
     if cur_min > _hist_last_min and _hist_cpu_acc:
-        cpu_avg = sum(_hist_cpu_acc) / len(_hist_cpu_acc)
-        ram_avg = sum(_hist_ram_acc) / len(_hist_ram_acc)
-        _hist_last_min   = cur_min
-        _hist_cpu_acc    = []
-        _hist_ram_acc    = []
+        cpu_avg  = sum(_hist_cpu_acc)  / len(_hist_cpu_acc)
+        ram_avg  = sum(_hist_ram_acc)  / len(_hist_ram_acc)
+        temp_avg = sum(_hist_temp_acc) / len(_hist_temp_acc) if _hist_temp_acc else None
+        _hist_last_min  = cur_min
+        _hist_cpu_acc   = []
+        _hist_ram_acc   = []
+        _hist_temp_acc  = []
         threading.Thread(target=_flush_history_minute,
-                         args=(cur_min, cpu_avg, ram_avg), daemon=True).start()
+                         args=(cur_min, cpu_avg, ram_avg, temp_avg), daemon=True).start()
 
 
 _CORETEMP_NAMES = ('coretemp', 'k10temp', 'zenpower', 'nct6775', 'it87')
@@ -1227,7 +1240,8 @@ def _background_collector() -> None:
                 _update_hw_sensors()
                 with _stats_lock:
                     _si = _stats_cache.get('sysinfo', {})
-                _tick_history(_si.get('cpu_pct', 0.0), _si.get('mem_pct', 0.0))
+                _tick_history(_si.get('cpu_pct', 0.0), _si.get('mem_pct', 0.0),
+                             _hw_cache.get('cpu_temp'))
                 _send_startup_notification()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
@@ -1334,7 +1348,7 @@ def api_sysinfo_history():
                 'SELECT ts, cpu, ram FROM sys_history ORDER BY ts'
             ).fetchall()
             con.close()
-        data = [{'ts': r[0], 'c': r[1], 'r': r[2]} for r in rows]
+        data = [{'ts': r[0], 'c': r[1], 'r': r[2], 't': r[3]} for r in rows]
     except Exception as e:
         log.warning("History-DB Lesefehler: %s", e)
         data = []

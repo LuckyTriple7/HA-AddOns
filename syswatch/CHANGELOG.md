@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.0.20] - 2026-06-05
+
+### Added
+- CPU-Temperaturverlauf wird in SQLite gespeichert (`temp`-Spalte, Migration automatisch)
+- Klick auf Temperaturwerte im CPU-Chart-Footer öffnet Temperatur-Verlaufsdiagramm (24h)
+- Temperatur-Chart: Y-Achse in °C, farbige gestrichelte Schwellenwert-Linien bei 60/75/85°C, Linie farbkodiert nach Temperaturbereich
+
 ## [1.0.19] - 2026-06-05
 
 ### Fixed

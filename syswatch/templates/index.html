@@ -1344,7 +1344,7 @@ let _lastFans      = [];
 function openSysHist(metric) {
   const overlay = document.getElementById('sys-hist-overlay');
   if (!overlay) return;
-  const titles = { cpu: 'SYS CPU — Verlauf 24h', ram: 'SYS RAM — Verlauf 24h' };
+  const titles = { cpu: 'SYS CPU — Verlauf 24h', ram: 'SYS RAM — Verlauf 24h', temp: 'CPU Temperatur — Verlauf 24h' };
   document.getElementById('sys-hist-title').textContent = titles[metric] || 'Verlauf';
   overlay.classList.add('open');
 
@@ -1360,7 +1360,7 @@ function openSysHist(metric) {
     .then(r => r.json())
     .then(json => {
       drawSysChart(canvas, json.data || [], metric);
-      if (metric === 'cpu') renderSysHistFooter(footer);
+      if (metric === 'cpu' || metric === 'temp') renderSysHistFooter(footer);
     })
     .catch(() => {
       drawSysChartError(canvas, 'Fehler beim Laden');
@@ -1381,14 +1381,14 @@ function tempColor(t) {
 function renderSysHistFooter(el) {
   const parts = [];
   // Kern-Temperaturen (Package + Cores)
+  const tempClick = `onclick="openSysHist('temp')" style="cursor:pointer" title="Temperaturverlauf anzeigen"`;
   (_lastCoreTemps || []).forEach(c => {
     const col = tempColor(c.temp);
-    parts.push(`<span class="hist-sensor">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" ${tempClick}>🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
   });
-  // Fallback: nur Package-Temp wenn keine Core-Daten
   if (!parts.length && _lastCpuTemp !== null) {
     const col = tempColor(_lastCpuTemp);
-    parts.push(`<span class="hist-sensor">🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" ${tempClick}>🌡️ CPU: <b style="color:${col}">${_lastCpuTemp.toFixed(1)}°C</b></span>`);
   }
   // Lüfter (nur anzeigen wenn vorhanden)
   (_lastFans || []).forEach(f => {
@@ -1435,23 +1435,37 @@ function drawSysChart(canvas, history, metric) {
   const PAD  = { top: 18, right: 18, bottom: 38, left: 46 };
   const cW   = W - PAD.left - PAD.right;
   const cH   = H - PAD.top  - PAD.bottom;
-  const vals  = history.map(d => metric === 'cpu' ? d.c : d.r);
-  const tsMs  = history.map(d => d.ts * 1000);
+  // Für Temp nur Einträge mit vorhandenen Werten behalten
+  const src   = metric === 'temp' ? history.filter(d => d.t != null) : history;
+  const vals  = src.map(d => metric === 'cpu' ? d.c : metric === 'ram' ? d.r : d.t);
+  const tsMs  = src.map(d => d.ts * 1000);
   const minT  = tsMs[0], maxT = tsMs[tsMs.length - 1];
   const tRange = Math.max(maxT - minT, 1);
 
+  const isTemp = metric === 'temp';
+  const yMax   = isTemp ? Math.max(100, ...vals) : 100;
+  const yUnit  = isTemp ? '°C' : '%';
+  const valColor = isTemp ? tempColor : sysPctColor;
+
   const px = t => PAD.left + ((t - minT) / tRange) * cW;
-  const py = v => PAD.top  + cH - Math.min(1, v / 100) * cH;
+  const py = v => PAD.top  + cH - Math.min(1, v / yMax) * cH;
 
   // Horizontale Grid-Linien + Y-Achse
   ctx.font = '11px system-ui,sans-serif';
   ctx.textAlign = 'right';
-  [0, 20, 40, 60, 80, 100].forEach(g => {
+  const gridVals = isTemp ? [0, 20, 40, 60, 75, 85, 100] : [0, 20, 40, 60, 80, 100];
+  gridVals.forEach(g => {
+    if (g > yMax) return;
     const y = py(g);
-    ctx.strokeStyle = bdr + '88'; ctx.lineWidth = 1;
+    // Schwellenwert-Linien farbig hervorheben
+    const isThreshold = isTemp && (g === 60 || g === 75 || g === 85);
+    ctx.strokeStyle = isThreshold ? (tempColor(g + 1) + '55') : (bdr + '88');
+    ctx.lineWidth   = isThreshold ? 1.5 : 1;
+    ctx.setLineDash(isThreshold ? [4, 4] : []);
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
-    ctx.fillStyle = '#9ca3af';
-    ctx.fillText(g + '%', PAD.left - 6, y + 4);
+    ctx.setLineDash([]);
+    ctx.fillStyle = isThreshold ? tempColor(g + 1) : '#9ca3af';
+    ctx.fillText(g + yUnit, PAD.left - 6, y + 4);
   });
 
   // Zeitachse — Stunden-Markierungen
@@ -1472,7 +1486,7 @@ function drawSysChart(canvas, history, metric) {
 
   // Dominante Farbe basierend auf Durchschnitt → für Fill
   const avgVal  = vals.reduce((a, b) => a + b, 0) / vals.length;
-  const fillCol = sysPctColor(avgVal);
+  const fillCol = valColor(avgVal);
 
   // Area-Fill (farbig, gut sichtbar)
   ctx.beginPath();
@@ -1494,7 +1508,7 @@ function drawSysChart(canvas, history, metric) {
   ctx.lineCap   = 'round';
   for (let i = 1; i < history.length; i++) {
     const avg = (vals[i - 1] + vals[i]) / 2;
-    ctx.strokeStyle = sysPctColor(avg);
+    ctx.strokeStyle = valColor(avg);
     ctx.beginPath();
     ctx.moveTo(px(tsMs[i - 1]), py(vals[i - 1]));
     ctx.lineTo(px(tsMs[i]),     py(vals[i]));
@@ -1507,11 +1521,11 @@ function drawSysChart(canvas, history, metric) {
   const lastY = py(lastV);
   ctx.beginPath();
   ctx.arc(lastX, lastY, 5, 0, Math.PI * 2);
-  ctx.fillStyle = sysPctColor(lastV); ctx.fill();
-  ctx.fillStyle = sysPctColor(lastV);
+  ctx.fillStyle = valColor(lastV); ctx.fill();
+  ctx.fillStyle = valColor(lastV);
   ctx.font = 'bold 12px system-ui,sans-serif';
   ctx.textAlign = lastX > PAD.left + cW - 40 ? 'right' : 'left';
-  ctx.fillText(lastV.toFixed(1) + '%', lastX + (ctx.textAlign === 'right' ? -8 : 8), lastY - 8);
+  ctx.fillText(lastV.toFixed(1) + yUnit, lastX + (ctx.textAlign === 'right' ? -8 : 8), lastY - 8);
 
   // Rahmen
   ctx.strokeStyle = bdr + '66'; ctx.lineWidth = 1;
