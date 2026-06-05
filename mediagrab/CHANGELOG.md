@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [0.2.6] — 2026-06-05
+### Added
+- Custom Tags: freie Texteingabe im Plattform-Picker — beliebiger Tag statt nur vordefinierter Plattformen
+- Custom Tags erscheinen in Gelb (Plattform-Tags bleiben Blau) zur visuellen Unterscheidung
+- Plattform-Filter zeigt auch Custom Tags automatisch an
+
 ## [0.2.5] — 2026-06-05
 ### Fixed
 - Plattform-Popover: var(--card) existiert nicht → transparenter Hintergrund, kaum lesbar; auf var(--surf)/var(--surf2) umgestellt
