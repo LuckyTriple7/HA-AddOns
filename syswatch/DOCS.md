@@ -37,8 +37,8 @@ zusätzlich die **Supervisor API** genutzt (`hassio_api: true`, `hassio_role: ma
 
 | Option | Typ | Standard | Beschreibung |
 |---|---|---|---|
-| `telegram_bot_token` | string | `""` | Bot-Token (leer = deaktiviert) |
-| `telegram_chat_id` | string | `""` | Empfänger-Chat-ID |
+| `telegram_bot_token` | string | `""` | Bot-Token (leer = komplett deaktiviert) |
+| `telegram_chat_id` | string | `""` | Empfänger-Chat-ID (**optional** — wird automatisch erkannt) |
 | `notify_cpu_threshold` | int | `0` | CPU-Schwellenwert in % (0 = aus) |
 | `notify_ram_threshold` | int | `0` | RAM-Schwellenwert in % (0 = aus) |
 | `notify_over_duration` | int | `0` | Sekunden über Schwellenwert vor Alarm-Auslösung |
@@ -130,31 +130,76 @@ Die Host-IP wird automatisch aus der Supervisor Netzwerk-API gelesen.
 
 ### Telegram-Benachrichtigungen
 
-Bot erstellen via `@BotFather`, eigene Chat-ID via `@userinfobot` ermitteln.
+#### Einrichtung
 
-**Ereignisse die Nachrichten auslösen:**
+1. Bot erstellen via `@BotFather` → `/newbot` — Token kopieren
+2. `telegram_bot_token` in der Add-on-Konfiguration eintragen
+3. Bot in Telegram öffnen und `/start` schicken
+4. SysWatch erkennt die Chat-ID automatisch und sendet eine Bestätigung — fertig
+
+`telegram_chat_id` ist **optional**. Wird sie leer gelassen, lernt SysWatch sie
+automatisch beim ersten Kontakt. Wird sie explizit gesetzt, wird nur genau diese
+Chat-ID akzeptiert (empfohlen für geteilte Bots).
+
+Token leer → Telegram komplett deaktiviert (kein Polling, kein Log-Eintrag).
+
+#### Benachrichtigungsereignisse
 
 | Ereignis | Nachricht |
 |---|---|
-| Container crasht / von HA gestoppt | 💥 Container unerwartet gestoppt |
+| Add-on gestartet (einmalig) | 🟢 HA SysWatch gestartet — mit HA-Version, Container-Anzahl, Host-IP |
+| Container crasht / von HA gestoppt | 💥 Container unerwartet gestoppt + **▶ Starten**-Button |
 | Container startet (nicht via SysWatch) | ▶️ Container gestartet |
-| CPU über Schwellenwert (nach `notify_over_duration` Sek.) | ⚠️ Hohe CPU-Last |
-| CPU 2 Min. unter Schwellenwert (nach `notify_clear_duration` Sek.) | ✅ CPU-Last normal |
-| RAM über Schwellenwert | ⚠️ Hohe RAM-Auslastung |
-| RAM unter Schwellenwert | ✅ RAM-Auslastung normal |
+| CPU über Schwellenwert | ⚠️ Hohe CPU-Last + Top 5 CPU-Verbraucher |
+| CPU zurück unter Schwellenwert | ✅ CPU-Last normal |
+| RAM über Schwellenwert | ⚠️ Hohe RAM-Auslastung + Top 5 RAM-Verbraucher (GiB + %) |
+| RAM zurück unter Schwellenwert | ✅ RAM-Auslastung normal |
 
 Stop/Kill/Start über die SysWatch-UI löst **keine** Benachrichtigung aus.
 CPU/RAM-Alerts haben einen 10-Minuten-Cooldown zwischen gleichen Meldungen.
 
-**Verzögerungslogik:**
-- `notify_over_duration = 60`: CPU/RAM muss 60 Sekunden ununterbrochen über dem Schwellenwert liegen, bevor der Alarm ausgelöst wird — verhindert Alarme bei kurzen Spitzen
-- `notify_clear_duration = 120`: CPU/RAM muss 120 Sekunden ununterbrochen unter dem Schwellenwert liegen, bevor die Entwarnung gesendet wird
+#### Inline-Keyboard — Container per Telegram starten
+
+Wenn ein Container unerwartet stoppt, enthält die Telegram-Nachricht einen
+**▶ Starten**-Button. Ein Klick startet den Container direkt aus Telegram heraus
+(Docker-Versuch, Fallback auf Supervisor API). Die Nachricht wird dann automatisch
+auf ✅ aktualisiert sobald der Container wieder läuft — der Button verschwindet.
+
+#### Top-5-Verbraucher in Alerts
+
+CPU-Alarme zeigen die 5 Container mit der höchsten CPU-Last.
+RAM-Alarme zeigen die 5 Container mit dem höchsten RAM-Verbrauch (Größe + %):
+
+```
+Top 5 RAM:
+  1. addon_nextcloud: 1.8 GiB (18.4%)
+  2. homeassistant: 1.2 GiB (12.1%)
+  3. addon_collabora: 876.3 MiB (8.7%)
+  ...
+```
+
+#### Logging
+
+Jede ausgehende Telegram-Nachricht erscheint im HA-Add-on-Log:
+```
+[Telegram] → 🟢 HA SysWatch gestartet …
+[Telegram] Gesendet.
+[Telegram] Fehlgeschlagen: …   ← bei Netzwerkproblemen
+```
+
+#### Verzögerungslogik
+
+- `notify_over_duration = 60`: CPU/RAM muss 60 s ununterbrochen über dem Schwellenwert
+  liegen bevor der Alarm ausgelöst wird — verhindert Alarme bei kurzen Spitzen
+- `notify_clear_duration = 120`: CPU/RAM muss 120 s ununterbrochen unter dem
+  Schwellenwert liegen bevor die Entwarnung gesendet wird
 
 ### Header-Elemente
 
 - **Modus-Dot**: grün = aktiv, gelb = idle, rot = pausiert
 - **Zyklus-Label**: zeigt den tatsächlichen Browser-Refresh-Zyklus in Sekunden
 - **Countdown**: Sekunden bis zur nächsten Aktualisierung
+- **📨 Test**: sendet sofort eine Test-Telegram-Nachricht mit aktuellen Top-5-Werten (nur Desktop)
 - **Refresh-Button**: sofortige manuelle Aktualisierung
 - **Pause-Button**: pausiert/setzt Datenerfassung fort
 - **Light/Dark-Toggle**: wechselt zwischen Hell- und Dunkel-Modus
@@ -167,6 +212,7 @@ CPU/RAM-Alerts haben einen 10-Minuten-Cooldown zwischen gleichen Meldungen.
 - **Passwortbestätigung** für alle destruktiven Aktionen (Start, Stop, Neustart, Kill)
 - Session-Cookies: `HttpOnly`, `SameSite=Lax`
 - Cloudflare-Tunnel-kompatibel (`CF-Connecting-IP` wird ausgewertet)
+- Telegram-Callbacks: nur konfigurierte oder auto-erkannte Chat-ID wird akzeptiert
 
 ## Gesicherter Modus (Protection Mode)
 
