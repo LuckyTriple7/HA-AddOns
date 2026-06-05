@@ -1871,15 +1871,30 @@ async function refreshChat() {
   btn.classList.add('spinning');
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?refresh=1')).then(r=>r.json());
+    _lastMsgFingerprint[selectedChatId] = '';
     renderMessages(msgs);
   } catch(e) {}
   btn.classList.remove('spinning');
 }
 
-async function loadMessages(chatId) {
+// Fingerprint der letzten gerenderten Nachrichten — verhindert unnötige Re-Renders
+const _lastMsgFingerprint = {};
+
+function msgFingerprint(msgs) {
+  if (!msgs || !msgs.length) return '';
+  const last = msgs[msgs.length - 1];
+  // Anzahl + letzte ID + ob letztes Video eine mediaFile hat (für fetchVideo-Updates)
+  const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey;
+}
+
+async function loadMessages(chatId, forceRender = false) {
   if (!chatId) return;
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
+    const fp = msgFingerprint(msgs);
+    if (!forceRender && _lastMsgFingerprint[chatId] === fp) return; // nichts geändert
+    _lastMsgFingerprint[chatId] = fp;
     renderMessages(msgs);
     if (window.pollReactions) window.pollReactions();
     updateChatStats(chatId);
@@ -1980,6 +1995,7 @@ async function fetchVideo(el) {
       body: JSON.stringify({ msgId })
     }).then(r => r.json());
     if (r.success) {
+      _lastMsgFingerprint[selectedChatId] = ''; // Cache invalidieren → forceRender
       await loadMessages(selectedChatId);
     } else {
       el.textContent = '❌ ' + (r.error || 'Fehler');

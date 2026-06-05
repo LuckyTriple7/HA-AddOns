@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.27] - 2026-06-05
+- Fix: Video-Wiedergabe wurde alle 2s durch pollMessages-Re-Render unterbrochen — renderMessages nur noch bei geändertem Nachrichten-Fingerprint (Anzahl + IDs + Video-mediaFile)
+
 ## [1.5.26] - 2026-06-05
 - Neu: video_max_mb Option (Standard 50 MB) — ersetzt hardcoded 10 MB Limit für Video-Downloads
 
