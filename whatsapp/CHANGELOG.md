@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.15] - 2026-06-05
+- Revert auf stabile Basis v1.6.10 (Version-Bump für HA-Update-Erkennung)
+
 ## [1.6.10] - 2026-06-05
 - Kontaktinfo-Modal: savedName (Telefonbuch) als Hauptname, waName (WhatsApp-Profilname) als Label wenn abweichend; shortName als Fallback
 
