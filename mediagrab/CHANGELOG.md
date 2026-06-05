@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.0.2] — 2026-06-05
+### Added
+- Web Share Target: URL direkt vom Handy-Teilen-Menü an MediaGrab senden
+- PWA-Installation erforderlich; Download startet nach dem Teilen automatisch
+
 ## [0.0.1] — 2026-06-05
 ### Added
 - Erstveröffentlichung
