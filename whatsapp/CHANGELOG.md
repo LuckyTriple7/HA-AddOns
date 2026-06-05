@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.14] - 2026-06-05
+- Fix: SyntaxError beim Start — Backtick-Template-Literals in loadStorage() terminierten das äußere getHtml()-Template vorzeitig
+
 ## [1.6.13] - 2026-06-05
 - 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS"; blendet jetzt auch Videos aus
 

@@ -1942,11 +1942,10 @@ app.get('/', (req, res) => {
         if (!el) return;
         el.textContent = '💾 ' + d.mb + ' MB';
         if (d.mediaMb !== undefined) {
-          const autoAt = d.limitMb;
-          const autoTo = Math.round(d.limitMb * 0.8);
+          const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
           el.title = lang === 'de'
-            ? `Gesamt /config: ${d.mb} MB\nMedienordner: ${d.mediaMb} MB von ${autoAt} MB (${d.mediaPct}%)\nAuto-Delete startet bei ${autoAt} MB → löscht auf ${autoTo} MB`
-            : `Total /config: ${d.mb} MB\nMedia folder: ${d.mediaMb} MB of ${autoAt} MB (${d.mediaPct}%)\nAuto-delete starts at ${autoAt} MB → cleans to ${autoTo} MB`;
+            ? 'Gesamt /config: ' + d.mb + ' MB\nMedienordner: ' + d.mediaMb + ' MB von ' + autoAt + ' MB (' + d.mediaPct + '%)\nAuto-Delete startet bei ' + autoAt + ' MB → löscht auf ' + autoTo + ' MB'
+            : 'Total /config: ' + d.mb + ' MB\nMedia folder: ' + d.mediaMb + ' MB of ' + autoAt + ' MB (' + d.mediaPct + '%)\nAuto-delete starts at ' + autoAt + ' MB → cleans to ' + autoTo + ' MB';
         }
       } catch(e) {}
     }
