@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.15] - 2026-06-05
+
+### Changed
+- Top-5-RAM-Zeilen zeigen jetzt Größe + Prozent: `1.2 GiB (18.4%)` statt nur `18.4%`
+
 ## [1.0.14] - 2026-06-05
 
 ### Added

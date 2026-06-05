@@ -732,6 +732,14 @@ def _telegram_api(method: str, http_timeout: int = 10, **kwargs) -> dict | None:
         return None
 
 
+def _fmt_bytes(n: float) -> str:
+    for unit in ('B', 'KiB', 'MiB', 'GiB'):
+        if n < 1024 or unit == 'GiB':
+            return f'{n:.1f} {unit}'
+        n /= 1024
+    return f'{n:.1f} GiB'
+
+
 def _send_telegram(msg: str, reply_markup: dict | None = None) -> dict | None:
     """Sendet eine Telegram-Nachricht. Gibt {message_id, chat_id} zurück wenn reply_markup gesetzt."""
     chat_id = _get_effective_chat_id()
@@ -954,7 +962,8 @@ def _check_thresholds() -> None:
         if metric == 'cpu':
             top5 = _top5_lines('cpu_pct', lambda c: f'{c.get("cpu_pct", 0):.1f}%')
         else:
-            top5 = _top5_lines('mem_usage', lambda c: f'{c.get("mem_pct", 0):.1f}%')
+            top5 = _top5_lines('mem_usage',
+                               lambda c: f'{_fmt_bytes(c.get("mem_usage", 0))} ({c.get("mem_pct", 0):.1f}%)')
         threading.Thread(target=_send_telegram, daemon=True, args=(
             f'⚠️ <b>HA SysWatch</b> — Hohe {label}\n'
             f'System-{sym}: <b>{pct:.1f}%</b> (Schwellenwert: {limit}%, seit {over_delay}s)\n\n'
@@ -1175,8 +1184,9 @@ def api_test_telegram():
     ram_top = sorted(running, key=lambda c: c.get('mem_usage', 0), reverse=True)[:5]
     cpu_lines = '\n'.join(f'  {i+1}. {c["name"]}: <b>{c.get("cpu_pct", 0):.1f}%</b>'
                           for i, c in enumerate(cpu_top))
-    ram_lines = '\n'.join(f'  {i+1}. {c["name"]}: <b>{c.get("mem_pct", 0):.1f}%</b>'
-                          for i, c in enumerate(ram_top))
+    ram_lines = '\n'.join(
+        f'  {i+1}. {c["name"]}: <b>{_fmt_bytes(c.get("mem_usage", 0))} ({c.get("mem_pct", 0):.1f}%)</b>'
+        for i, c in enumerate(ram_top))
     msg = (
         f'🧪 <b>HA SysWatch</b> — Test-Benachrichtigung\n'
         f'System-CPU: <b>{si.get("cpu_pct", 0):.1f}%</b>  |  RAM: <b>{si.get("mem_pct", 0):.1f}%</b>\n\n'
