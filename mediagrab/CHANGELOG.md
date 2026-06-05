@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.3.4] — 2026-06-05
+### Fixed
+- Dateikonflikt: die NEUE Datei bekommt den Zeitstempel (Video_20260605_165031.mp4), die bestehende Datei bleibt unverändert — Tags/Plattform-Metadaten der Originaldatei bleiben erhalten
+
 ## [0.3.3] — 2026-06-05
 ### Fixed
 - Dateikonflikt: --force-overwrites entfernt (hatte die Datei überschrieben bevor Umbenennung möglich war)

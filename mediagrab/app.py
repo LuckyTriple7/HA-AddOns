@@ -355,13 +355,9 @@ def _run_download(job_id: str) -> None:
 
                 m = _ALREADY_RE.search(line)
                 if m:
-                    existing = Path(m.group(1).strip())
-                    if not existing.is_absolute():
-                        existing = MEDIA_DIR / existing
-                    _safe_rename_existing(existing)
                     _needs_retry = True
                     with _jobs_lock:
-                        _jobs[job_id]['filename'] = existing.name
+                        _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
 
             proc.wait()
 
@@ -373,10 +369,14 @@ def _run_download(job_id: str) -> None:
                 break
 
             if _needs_retry and attempt == 0:
+                # New file gets timestamp suffix; existing file (with its tags) stays untouched
+                ts = time.strftime('%Y%m%d_%H%M%S')
+                cmd = [a.replace('/%(title)s.%(ext)s', f'/%(title)s_{ts}.%(ext)s')
+                       if a.endswith('/%(title)s.%(ext)s') else a for a in cmd]
                 with _jobs_lock:
                     _jobs[job_id]['progress'] = 0.0
                     _jobs[job_id]['filename'] = ''
-                log.info('Download-Retry nach Dateikonflikt: job=%s', job_id)
+                log.info('Download-Retry mit Zeitstempel-Suffix: job=%s ts=%s', job_id, ts)
                 continue
 
             with _jobs_lock:
