@@ -117,7 +117,15 @@
     .plat-btn { font-size:.72rem; padding:3px 9px; border-radius:10px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
     .plat-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
     .plat-btn:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
-    .file-platform { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--accent); color:#fff; opacity:.75; white-space:nowrap; }
+    .file-platform { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--accent); color:#fff; opacity:.75; white-space:nowrap; cursor:pointer; }
+    .file-platform:hover { opacity:1; }
+    .file-tag-btn { font-size:.68rem; padding:1px 6px; border-radius:8px; border:1px dashed var(--muted); background:none; color:var(--muted); cursor:pointer; white-space:nowrap; }
+    .file-tag-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .plat-popup { position:fixed; z-index:200; background:var(--card); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.3); padding:8px; display:flex; flex-wrap:wrap; gap:5px; max-width:260px; }
+    .plat-popup .pp-opt { font-size:.75rem; padding:3px 10px; border-radius:10px; border:1px solid var(--border); background:none; color:var(--text); cursor:pointer; }
+    .plat-popup .pp-opt:hover { border-color:var(--accent); color:var(--accent); }
+    .plat-popup .pp-opt.pp-remove { border-color:#e55; color:#e55; }
+    .plat-popup .pp-opt.pp-remove:hover { background:#e55; color:#fff; }
     .file-item { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); }
     .file-item:last-child { border-bottom:none; }
     .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; padding-top:1px; }
@@ -517,6 +525,56 @@
       renderFiles();
     }
 
+    const _PLATFORMS = ['YouTube','TikTok','Instagram','X','Vimeo','SoundCloud','Twitch','Reddit','Dailymotion','Sonstiges'];
+    let   _platPopup = null;
+
+    function openPlatformPicker(evt, filename, current) {
+      evt.stopPropagation();
+      closePlatformPicker();
+      const popup = document.createElement('div');
+      popup.className = 'plat-popup';
+      _PLATFORMS.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'pp-opt' + (p === current ? ' active' : '');
+        btn.textContent = p;
+        btn.onclick = (e) => { e.stopPropagation(); savePlatform(filename, p); };
+        popup.appendChild(btn);
+      });
+      if (current) {
+        const rem = document.createElement('button');
+        rem.className = 'pp-opt pp-remove';
+        rem.textContent = '✕ Entfernen';
+        rem.onclick = (e) => { e.stopPropagation(); savePlatform(filename, ''); };
+        popup.appendChild(rem);
+      }
+      const rect = evt.target.getBoundingClientRect();
+      popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+      popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 270) + 'px';
+      document.body.appendChild(popup);
+      _platPopup = popup;
+      setTimeout(() => document.addEventListener('click', closePlatformPicker, {once:true}), 0);
+    }
+
+    function closePlatformPicker() {
+      if (_platPopup) { _platPopup.remove(); _platPopup = null; }
+    }
+
+    async function savePlatform(filename, platform) {
+      closePlatformPicker();
+      try {
+        const r = await fetch('/api/file/platform/' + encodeURIComponent(filename), {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({platform})
+        });
+        if (r.ok) {
+          const f = _allFiles.find(x => x.name === filename);
+          if (f) f.platform = platform;
+          _buildPlatformFilters();
+          renderFiles();
+        } else { toast(T.error_unknown, true); }
+      } catch(e) { toast(T.error_network, true); }
+    }
+
     function renderFiles() {
       const list   = document.getElementById('files-list');
       const q      = (document.getElementById('file-search').value || '').toLowerCase();
@@ -549,7 +607,9 @@
           <div class="file-body">
             <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
             <div class="file-meta">
-              ${f.platform ? `<span class="file-platform">${esc(f.platform)}</span>` : ''}
+              ${f.platform
+                ? `<span class="file-platform" onclick="openPlatformPicker(event,'${esc(f.name)}','${esc(f.platform)}')">${esc(f.platform)}</span>`
+                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')">＋ Tag</button>`}
               <span class="file-size">${fmtSize(f.size)}</span>
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">

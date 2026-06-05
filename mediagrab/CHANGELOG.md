@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [0.2.4] — 2026-06-05
+### Added
+- Plattform-Tag manuell zuweisen oder ändern: Klick auf Badge oder "＋ Tag"-Button öffnet Popover mit allen Plattformen
+- "✕ Entfernen" löscht den Tag wieder
+- Bestehende Dateien (ohne automatischen Tag) können so nachträglich kategorisiert werden
+
 ## [0.2.3] — 2026-06-05
 ### Added
 - Plattform-Filter in der Dateiliste: Filter-Buttons (YouTube, TikTok, Instagram, X, …) erscheinen automatisch wenn Dateien aus verschiedenen Quellen vorhanden sind

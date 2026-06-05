@@ -50,6 +50,8 @@ _ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
 
 # ── Platform detection ────────────────────────────────────────────────────────
 
+PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'X', 'Vimeo', 'SoundCloud', 'Twitch', 'Reddit', 'Dailymotion', 'Sonstiges']
+
 def _detect_platform(url: str) -> str:
     u = url.lower()
     if 'youtube.com' in u or 'youtu.be' in u: return 'YouTube'
@@ -826,6 +828,30 @@ def api_file_delete(filename):
             _save_meta(meta)
     log.info('Datei gelöscht: %s', filename)
     return jsonify({'ok': True})
+
+@app.route('/api/file/platform/<path:filename>', methods=['POST'])
+def api_file_platform(filename):
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    data     = request.json or {}
+    platform = data.get('platform', '').strip()
+    if platform and platform not in PLATFORMS:
+        return jsonify({'error': 'invalid_platform'}), 400
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
+        return jsonify({'error': 'invalid_path'}), 400
+    if not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    with _meta_lock:
+        meta = _load_meta()
+        if platform:
+            meta[filename] = {'platform': platform}
+        else:
+            meta.pop(filename, None)
+        _save_meta(meta)
+    return jsonify({'ok': True, 'platform': platform})
 
 @app.route('/stream/<path:filename>')
 def stream_file(filename):
