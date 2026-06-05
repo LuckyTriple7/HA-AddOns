@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.36] - 2026-06-06
+- Fix: Audio-Player kollabierte auf minimale Breite — feste Breite 260px mit max-width als Grenze statt width:100%
+
 ## [1.5.35] - 2026-06-06
 - Fix: Audio-Player ragte über Bubble-Rahmen hinaus — min-width entfernt, player passt sich per width:100% der Bubble an
 
