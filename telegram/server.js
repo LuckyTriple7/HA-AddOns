@@ -865,6 +865,83 @@ app.get('/api/media/:filename', (req, res) => {
   res.sendFile(filePath);
 });
 
+// ── Avatar + Kontaktinfo ──────────────────────────────────────────────────────
+
+const tgAvatarCache   = new Map(); // chatId → { buf: Buffer|null, ts: number }
+const tgAvatarPending = new Map(); // chatId → Promise
+
+app.get('/api/avatar/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  const cached = tgAvatarCache.get(chatId);
+  if (cached !== undefined && Date.now() - cached.ts < 3600000) {
+    if (!cached.buf) return res.status(404).end();
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.send(cached.buf);
+  }
+  if (status !== 'connected') return res.status(503).end();
+  if (tgAvatarPending.has(chatId)) {
+    try {
+      const buf = await tgAvatarPending.get(chatId);
+      if (!buf) return res.status(404).end();
+      res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(buf);
+    } catch { return res.status(404).end(); }
+  }
+  const promise = (async () => {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) throw new Error('not found');
+    const buf = await client.downloadProfilePhoto(entity, { isBig: false });
+    return (buf && buf.length) ? buf : null;
+  })();
+  tgAvatarPending.set(chatId, promise);
+  promise.finally(() => tgAvatarPending.delete(chatId));
+  try {
+    const buf = await promise;
+    tgAvatarCache.set(chatId, { buf: buf || null, ts: Date.now() });
+    if (!buf) return res.status(404).end();
+    res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buf);
+  } catch(e) {
+    tgAvatarCache.set(chatId, { buf: null, ts: Date.now() });
+    res.status(404).end();
+  }
+});
+
+app.get('/api/contact/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Not found' });
+    let bio = '';
+    try {
+      if (entity.className === 'User') {
+        const full = await client.invoke(new Api.users.GetFullUser({ id: entity }));
+        bio = full.fullUser?.about || '';
+      } else if (entity.className === 'Channel' || entity.className === 'Chat') {
+        const full = await client.invoke(new Api.channels.GetFullChannel({ channel: entity })).catch(() => null);
+        bio = full?.fullChat?.about || '';
+      }
+    } catch(e) {}
+    const picBuf = await client.downloadProfilePhoto(entity, { isBig: false }).catch(() => null);
+    const name = entity.firstName ? [entity.firstName, entity.lastName].filter(Boolean).join(' ') : (entity.title || chatId);
+    res.json({
+      id: chatId,
+      name,
+      firstName: entity.firstName || '',
+      lastName: entity.lastName || '',
+      username: entity.username || '',
+      phone: entity.phone || '',
+      about: bio,
+      hasProfilePic: !!(picBuf && picBuf.length),
+      chatType: entity.className === 'Channel' ? (entity.megagroup ? 'group' : 'channel') : entity.className === 'Chat' ? 'group' : 'private',
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── UI ────────────────────────────────────────────────────────────────────────
 
 app.get('*', (req, res) => {
@@ -974,7 +1051,25 @@ html.dark .chat-item:hover { background: #2B3A4A; }
 html.dark .chat-item.active { background: #2B5278; }
 html.light .chat-item:hover { background: #F1F1F1; }
 html.light .chat-item.active { background: #E3F2FD; }
-.avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; color: #fff; flex-shrink: 0; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; color: #fff; flex-shrink: 0; position: relative; overflow: hidden; }
+.avatar img[data-avatar] { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+#contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+#contact-modal.open { display: flex; }
+.contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.dark .contact-modal-box { background: #232E3C; }
+html.light .contact-modal-box { background: #fff; }
+.contact-modal-pic { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
+.contact-modal-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
+html.dark .contact-modal-name { color: #fff; }
+html.light .contact-modal-name { color: #111; }
+.contact-modal-sub { font-size: 13px; color: #6B7B8D; text-align: center; }
+.contact-modal-number { font-size: 14px; color: #2AABEE; font-weight: 500; }
+.contact-modal-about { font-size: 13px; color: #6B7B8D; text-align: center; max-width: 260px; word-break: break-word; }
+.contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
+html.dark .contact-modal-close { background: #2B3A4A; color: #C1C9D4; }
+html.light .contact-modal-close { background: #f0f2f5; color: #111; }
+.contact-modal-close:hover { opacity: 0.8; }
 .chat-info { flex: 1; overflow: hidden; }
 .chat-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html.dark .chat-name { color: #fff; }
@@ -1347,6 +1442,48 @@ function switchLang() {
 }
 
 const BASE = location.pathname.replace(/\\/+$/, '');
+
+// ── Avatar-System ─────────────────────────────────────────────────────────────
+const _avatarState = new Map();
+const _avatarUrl   = new Map();
+const _avatarQueue = [];
+let   _avatarActive = 0;
+const AVATAR_CONCURRENCY = 2;
+
+function applyAvatar(avEl, chatId) {
+  const src = _avatarUrl.get(chatId);
+  if (!src || avEl.querySelector('img[data-avatar]')) return;
+  const i = document.createElement('img');
+  i.setAttribute('data-avatar', '1');
+  i.src = src;
+  avEl.textContent = '';
+  avEl.style.background = 'none';
+  avEl.appendChild(i);
+}
+function queueAvatars(chats) {
+  for (const chat of chats) {
+    const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
+    if (type === 'private' && !_avatarState.has(chat.id)) _avatarQueue.push(chat.id);
+  }
+  drainAvatarQueue();
+}
+function drainAvatarQueue() {
+  while (_avatarQueue.length && _avatarActive < AVATAR_CONCURRENCY) {
+    const chatId = _avatarQueue.shift();
+    if (_avatarState.has(chatId)) { drainAvatarQueue(); return; }
+    _avatarActive++;
+    _avatarState.set(chatId, 'loading');
+    const img = new Image();
+    img.onload = () => {
+      _avatarState.set(chatId, 'loaded'); _avatarUrl.set(chatId, img.src);
+      document.querySelectorAll('[data-avid="'+chatId+'"]').forEach(el => applyAvatar(el, chatId));
+      _avatarActive--; drainAvatarQueue();
+    };
+    img.onerror = () => { _avatarState.set(chatId, 'failed'); _avatarActive--; drainAvatarQueue(); };
+    img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+  }
+}
+
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
@@ -1531,7 +1668,7 @@ function chatAvatar(c) {
   if (type === 'group')   return '<div class="avatar type-group" style="background:#2b5278">👥</div>';
   if (type === 'channel') return '<div class="avatar type-channel" style="background:#1e6b8c">📢</div>';
   if (type === 'bot')     return '<div class="avatar type-bot" style="background:#4a3f8c">🤖</div>';
-  return \`<div class="avatar" style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
+  return \`<div class="avatar" data-avid="\${escHtml(c.id)}" style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
 }
 
 function renderChats(chats) {
@@ -1555,6 +1692,12 @@ function renderChats(chats) {
       </div>
     </div>
   \`).join('');
+  // Gecachte Avatare sofort anwenden, Rest nachgelagert
+  document.querySelectorAll('[data-avid]').forEach(el => {
+    const id = el.getAttribute('data-avid');
+    if (_avatarState.get(id) === 'loaded') applyAvatar(el, id);
+  });
+  setTimeout(() => queueAvatars(filtered), 300);
 }
 
 function filterChats() { renderChats(allChats); }
@@ -1575,12 +1718,22 @@ function openChat(chat) {
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
   const av = document.getElementById('ch-avatar');
-  av.onclick = null;
+  av.onclick = null; av.style.cursor = '';
+  av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
   const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
-  if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; }
-  else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; }
-  else if (type === 'bot')     { av.textContent = '🤖'; av.style.background = '#4a3f8c'; av.style.fontSize = '22px'; }
-  else { av.textContent = avatarInitial(chat.name||chat.id); av.style.background = avatarColor(chat.name||chat.id); av.style.fontSize = ''; }
+  if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; av.removeAttribute('data-avid'); }
+  else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; av.removeAttribute('data-avid'); }
+  else if (type === 'bot')     { av.textContent = '🤖'; av.style.background = '#4a3f8c'; av.style.fontSize = '22px'; av.removeAttribute('data-avid'); }
+  else {
+    av.textContent = avatarInitial(chat.name||chat.id);
+    av.style.background = avatarColor(chat.name||chat.id);
+    av.style.fontSize = '';
+    av.setAttribute('data-avid', chat.id);
+    if (_avatarState.get(chat.id) === 'loaded') applyAvatar(av, chat.id);
+    else queueAvatars([chat]);
+    av.onclick = () => openContactInfo(chat.id, chat.name);
+    av.style.cursor = 'pointer';
+  }
   renderChats(allChats);
   loadMessages(chat.id);
 }
@@ -1690,6 +1843,51 @@ function clearReply() {
   _replyMsgId = null; _replyTgId = null; _replyContact = null; _replyPreview = null;
   document.getElementById('reply-bar').classList.remove('active');
 }
+
+async function openContactInfo(chatId, fallbackName) {
+  const modal = document.getElementById('contact-modal');
+  const picEl = document.getElementById('contact-modal-pic');
+  const nameEl = document.getElementById('contact-modal-name');
+  const subEl  = document.getElementById('contact-modal-sub');
+  const numEl  = document.getElementById('contact-modal-number');
+  const aboutEl = document.getElementById('contact-modal-about');
+  picEl.innerHTML = '…'; picEl.style.background = '#2B3A4A';
+  nameEl.textContent = '…'; subEl.textContent = ''; numEl.textContent = ''; aboutEl.textContent = '';
+  modal.classList.add('open');
+  try {
+    const data = await fetch(api('/api/contact/' + encodeURIComponent(chatId))).then(r => r.json());
+    const name = data.name || fallbackName || chatId;
+    nameEl.textContent = name;
+    subEl.textContent = data.username ? '@' + data.username : '';
+    numEl.textContent = data.phone ? '+' + data.phone : '';
+    aboutEl.textContent = data.about || '';
+    picEl.textContent = '';
+    if (data.hasProfilePic) {
+      const cached = _avatarState.get(chatId);
+      if (cached === 'loaded') {
+        picEl.style.background = 'none';
+        const img = document.createElement('img'); img.src = _avatarUrl.get(chatId);
+        picEl.appendChild(img);
+      } else {
+        picEl.style.background = avatarColor(name); picEl.textContent = avatarInitial(name);
+        const img = new Image();
+        img.onload = () => {
+          picEl.style.background = 'none'; picEl.textContent = '';
+          const i2 = document.createElement('img'); i2.src = img.src; picEl.appendChild(i2);
+          _avatarState.set(chatId, 'loaded'); _avatarUrl.set(chatId, img.src);
+        };
+        img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+      }
+    } else {
+      picEl.style.background = avatarColor(name); picEl.textContent = avatarInitial(name);
+    }
+  } catch(e) {
+    nameEl.textContent = fallbackName || chatId;
+    picEl.style.background = avatarColor(fallbackName || chatId);
+    picEl.textContent = avatarInitial(fallbackName || chatId);
+  }
+}
+function closeContactModal() { document.getElementById('contact-modal').classList.remove('open'); }
 
 let _fwdMsgId = null;
 function openFwdModal(msgId) {
@@ -1948,9 +2146,24 @@ applyLang();
   window.openLightbox=function(src){lbImg.src=src;lb.classList.add('open');};
   lb.addEventListener('click',()=>lb.classList.remove('open'));
   lbImg.addEventListener('click',e=>e.stopPropagation());
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      lb.classList.remove('open');
+      document.getElementById('contact-modal')?.classList.remove('open');
+    }
+  });
 })();
 </script>
+<div id="contact-modal" onclick="if(event.target===this)closeContactModal()">
+  <div class="contact-modal-box">
+    <div class="contact-modal-pic" id="contact-modal-pic"></div>
+    <div class="contact-modal-name" id="contact-modal-name">…</div>
+    <div class="contact-modal-sub" id="contact-modal-sub"></div>
+    <div class="contact-modal-number" id="contact-modal-number"></div>
+    <div class="contact-modal-about" id="contact-modal-about"></div>
+    <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+  </div>
+</div>
 <div id="fwd-modal">
   <div class="fwd-modal-box">
     <h3>↪ Weiterleiten an…</h3>

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.11] - 2026-06-05
+- Neu: Profilbilder als Avatare (downloadProfilePhoto, lazy, 2 parallel); Klick auf Header-Avatar → Kontaktinfo-Modal mit Foto, Name, @username, Telefon, Bio
+
 ## [1.5.10] - 2026-06-05
 - Neu: Nachrichten weiterleiten (↪, via forwardMessages) und beantworten (↩, via replyTo); Hover-Buttons, Forward-Modal mit Suchfeld, Zitat-Block in der Bubble
 
