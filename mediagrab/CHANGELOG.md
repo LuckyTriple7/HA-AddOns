@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.2.5] — 2026-06-05
+### Fixed
+- Plattform-Popover: var(--card) existiert nicht → transparenter Hintergrund, kaum lesbar; auf var(--surf)/var(--surf2) umgestellt
+- Popover: stärkerer Schatten, Accent-Border, besserer Kontrast für Dark/Light-Mode
+
 ## [0.2.4] — 2026-06-05
 ### Added
 - Plattform-Tag manuell zuweisen oder ändern: Klick auf Badge oder "＋ Tag"-Button öffnet Popover mit allen Plattformen
