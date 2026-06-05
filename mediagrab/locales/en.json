@@ -80,7 +80,7 @@
   "cookies_loaded": "Loaded",
   "cookies_none": "Not loaded",
   "cookies_hint": "For private or age-restricted videos (Netscape format .txt)",
-  "btn_upload_cookies": "Upload",
+  "btn_upload_cookies": "Add",
   "btn_delete_cookies": "Delete",
   "confirm_delete_cookies": "Really delete cookies?",
 

@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.0.9] — 2026-06-05
+### Fixed
+- Cookies-Upload überschrieb bisherige Cookies — jetzt werden sie zusammengeführt (Instagram + TikTok gleichzeitig möglich)
+- Upload-Button heißt nun "Hinzufügen" statt "Hochladen"
+
 ## [0.0.8] — 2026-06-05
 ### Added
 - Translations (DE/EN) für alle Optionen in der HA-Konfigurationsoberfläche

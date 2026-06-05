@@ -605,10 +605,14 @@ def api_cookies_upload():
     content = f.read()
     if len(content) < 10:
         return jsonify({'error': 'invalid_file'}), 400
-    with open(COOKIES_PATH, 'wb') as out:
+    # Append to existing file so multiple cookie files (e.g. Instagram + TikTok) are merged
+    with open(COOKIES_PATH, 'ab') as out:
+        if out.tell() > 0:
+            out.write(b'\n')  # separator between files
         out.write(content)
-    log.info('Cookies hochgeladen: %d bytes', len(content))
-    return jsonify({'ok': True, 'size': len(content)})
+    total = Path(COOKIES_PATH).stat().st_size
+    log.info('Cookies hinzugefügt: +%d bytes, gesamt %d bytes', len(content), total)
+    return jsonify({'ok': True, 'size': total})
 
 @app.route('/api/cookies/delete', methods=['POST'])
 def api_cookies_delete():
