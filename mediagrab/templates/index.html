@@ -405,6 +405,8 @@
         const nowDone = new Set(jobs.filter(j => j.status === 'done').map(j => j.id));
         if ([...nowDone].some(id => !_prevDoneIds.has(id))) { loadFiles(); loadDiskSpace(); }
         _prevDoneIds = nowDone;
+        const hasActive = jobs.some(j => j.status === 'pending' || j.status === 'running');
+        _pollInterval = hasActive ? 500 : 2000;
       } catch(e) {}
     }
 
@@ -652,7 +654,17 @@
       loadYtdlpVersion();
       loadCookiesStatus();
 
-      setInterval(loadJobs, 2000);
+      // 500ms when downloads active, 2s when idle
+      let _pollInterval = 2000;
+      let _pollTimer = null;
+      function schedulePoll() {
+        clearTimeout(_pollTimer);
+        _pollTimer = setTimeout(async () => {
+          await loadJobs();
+          schedulePoll();
+        }, _pollInterval);
+      }
+      schedulePoll();
     });
   </script>
 </body>
