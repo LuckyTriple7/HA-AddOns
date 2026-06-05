@@ -230,7 +230,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎤 Sprachnachricht' : '[Medien]');
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -991,7 +991,7 @@ app.get('/api/export/:chatId', (req, res) => {
       if (m.mediaFile) {
         content = '<audio controls style="max-width:260px;width:100%;height:36px" src="api/media/' + escH(m.mediaFile) + '"></audio>';
       } else {
-        content = '<span style="opacity:0.6">🎤 Sprachnachricht</span>';
+        content = '<span style="opacity:0.6">' + t('voiceMsg') + '</span>';
       }
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
