@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.3] - 2026-06-05
+- Fix: Audio-Player zu schmal — Chrome zeigte nur Drei-Punkte-Menü statt voller Controls; min-width:220px gesetzt
+
 ## [1.6.2] - 2026-06-05
 - Fix: Sprachnachrichten nicht abspielbar — Media-Endpoint lieferte .ogg als image/jpeg; MIME-Type für ogg + mp3 ergänzt
 
