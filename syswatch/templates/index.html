@@ -1064,10 +1064,10 @@ function pctColor(pct) {
   return 'var(--text)';
 }
 function sysPctColor(pct) {
-  if (pct > 90) return 'var(--red)';
-  if (pct > 80) return '#f97316';   // orange
-  if (pct > 70) return 'var(--yellow)';
-  return 'var(--green)';
+  if (pct > 90) return '#ef4444';
+  if (pct > 80) return '#f97316';
+  if (pct > 70) return '#eab308';
+  return '#22c55e';
 }
 function setSysBar(barId, pctId, pct) {
   const color = sysPctColor(pct);
@@ -1372,10 +1372,10 @@ function closeSysHist() {
 }
 
 function tempColor(t) {
-  if (t >= 85) return 'var(--red)';
+  if (t >= 85) return '#ef4444';
   if (t >= 75) return '#f97316';
-  if (t >= 60) return 'var(--yellow)';
-  return 'var(--green)';
+  if (t >= 60) return '#eab308';
+  return '#22c55e';
 }
 
 function renderSysHistFooter(el) {
@@ -1448,9 +1448,9 @@ function drawSysChart(canvas, history, metric) {
   ctx.textAlign = 'right';
   [0, 20, 40, 60, 80, 100].forEach(g => {
     const y = py(g);
-    ctx.strokeStyle = bdr + '55'; ctx.lineWidth = 1;
+    ctx.strokeStyle = bdr + '88'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
-    ctx.fillStyle = muted;
+    ctx.fillStyle = '#9ca3af';
     ctx.fillText(g + '%', PAD.left - 6, y + 4);
   });
 
@@ -1470,7 +1470,11 @@ function drawSysChart(canvas, history, metric) {
     ctx.fillText(lbl, x, PAD.top + cH + 16);
   }
 
-  // Area-Fill
+  // Dominante Farbe basierend auf Durchschnitt → für Fill
+  const avgVal  = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const fillCol = sysPctColor(avgVal);
+
+  // Area-Fill (farbig, gut sichtbar)
   ctx.beginPath();
   history.forEach((d, i) => {
     const x = px(tsMs[i]), y = py(vals[i]);
@@ -1480,13 +1484,14 @@ function drawSysChart(canvas, history, metric) {
   ctx.lineTo(px(tsMs[0]), PAD.top + cH);
   ctx.closePath();
   const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
-  grad.addColorStop(0, 'rgba(59,130,246,0.25)');
-  grad.addColorStop(1, 'rgba(59,130,246,0)');
+  grad.addColorStop(0, fillCol + '55');   // ~33% Deckkraft oben
+  grad.addColorStop(1, fillCol + '08');   // fast transparent unten
   ctx.fillStyle = grad; ctx.fill();
 
-  // Farbige Linie (nach Schwellenwert)
-  ctx.lineWidth = 2;
+  // Farbige Linie — pro Segment nach Schwellenwert, deutlich dicker
+  ctx.lineWidth = 2.5;
   ctx.lineJoin  = 'round';
+  ctx.lineCap   = 'round';
   for (let i = 1; i < history.length; i++) {
     const avg = (vals[i - 1] + vals[i]) / 2;
     ctx.strokeStyle = sysPctColor(avg);

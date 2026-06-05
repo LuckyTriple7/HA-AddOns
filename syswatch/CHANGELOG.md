@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.0.19] - 2026-06-05
+
+### Fixed
+- Chart-Lesbarkeit: sysPctColor() und tempColor() geben jetzt Hex-Farben zurück statt CSS-Variablen (die im Canvas-Kontext nicht aufgelöst werden)
+- Area-Fill nutzt die Durchschnitts-Farbe der Daten (grün/gelb/orange/rot) mit 33% Deckkraft oben — klar sichtbar
+- Linie dicker (2.5px statt 2px), Grid-Linien und Y-Achsenbeschriftungen kontrastreicher
+
 ## [1.0.18] - 2026-06-05
 
 ### Changed
