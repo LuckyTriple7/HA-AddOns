@@ -277,7 +277,14 @@ function processEnvelope(envelope) {
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
     : undefined;
   const msgFrom = isOwn ? PHONE_NUMBER : chatId;
-  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds };
+  let quotedMsg = null;
+  if (dm.quote) {
+    quotedMsg = {
+      body: (dm.quote.text || dm.quote.message || '').slice(0, 100),
+      contact: normPhone(dm.quote.author) === PHONE_NUMBER ? 'Ich' : (dm.quote.author || ''),
+    };
+  }
+  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, quotedMsg };
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -616,6 +623,61 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+app.post('/api/reply', async (req, res) => {
+  const { to, message, quoteTimestamp, quoteAuthor, quoteBody } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
+  try {
+    const r = await fetch(`${SIGNAL_API}/v2/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote: { id: quoteTimestamp, author: quoteAuthor, message: quoteBody || '' } }),
+      timeout: 10000,
+    });
+    const result = await r.json();
+    if (!r.ok) return res.status(500).json({ error: result });
+    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const msgId = `${PHONE_NUMBER}_${signalTs}`;
+    if (!seenMsgIds.has(msgId)) {
+      seenMsgIds.add(msgId);
+      const storedQuote = quoteBody ? { body: quoteBody.slice(0, 100), contact: normPhone(quoteAuthor) === PHONE_NUMBER ? 'Ich' : (quoteAuthor || '') } : undefined;
+      const msg = { id: msgId, from: PHONE_NUMBER, body: message, timestamp: signalTs, fromMe: true, ack: 0, signalTimestamp: signalTs, quotedMsg: storedQuote };
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push(msg);
+      if (!chatMap.has(to)) {
+        chatMap.set(to, { id: to, name: to, phone: to, lastMsg: message, lastTime: signalTs, lastFromMe: true });
+      } else {
+        const chat = chatMap.get(to);
+        chat.lastMsg = message; chat.lastTime = signalTs; chat.lastFromMe = true;
+      }
+      scheduleSave();
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
+
+app.post('/api/forward', async (req, res) => {
+  const { msgId, to } = req.body;
+  if (!msgId || !to) return res.status(400).json({ error: 'msgId and to required' });
+  let origMsg = null;
+  for (const msgs of messagesByChatId.values()) { origMsg = msgs.find(m => m.id === msgId); if (origMsg) break; }
+  if (!origMsg) return res.status(404).json({ error: 'Message not found' });
+  try {
+    let payload;
+    if ((origMsg.type === 'photo' || origMsg.type === 'voice') && origMsg.mediaFile) {
+      const fp = MEDIA_DIR + origMsg.mediaFile;
+      if (fs.existsSync(fp)) {
+        const ext = origMsg.mediaFile.split('.').pop();
+        const mimeMap = { jpg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', mp3: 'audio/mpeg' };
+        payload = { message: origMsg.body || '', number: PHONE_NUMBER, recipients: [to], base64_attachments: [`data:${mimeMap[ext] || 'image/jpeg'};base64,${fs.readFileSync(fp).toString('base64')}`] };
+      }
+    }
+    if (!payload) payload = { message: origMsg.body || '', number: PHONE_NUMBER, recipients: [to] };
+    const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), timeout: 30000 });
+    if (!r.ok) return res.status(500).json({ error: await r.json() });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
+
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
   const { to, caption } = req.body;
   if (!to || !req.file) return res.status(400).json({ error: 'Missing to/file' });
@@ -817,6 +879,42 @@ html.dark .unread-dot { background: #3cdb7c; }
 html.dark .del-btn { color: rgba(233,237,239,0.6); }
 html.light .del-btn { color: rgba(0,0,0,0.4); }
 .del-btn:hover { color: #e74c3c !important; }
+.fwd-btn, .reply-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .fwd-btn, .bubble-row:hover .reply-btn { display: block; }
+html.dark .fwd-btn, html.dark .reply-btn { color: rgba(134,150,160,0.85); }
+html.light .fwd-btn, html.light .reply-btn { color: rgba(0,0,0,0.4); }
+.fwd-btn:hover { color: #3a76f8 !important; }
+.reply-btn:hover { color: #3a76f8 !important; }
+.quoted-block { border-left: 3px solid #3a76f8; background: rgba(58,118,248,0.08); border-radius: 4px; padding: 4px 8px; margin-bottom: 5px; overflow: hidden; }
+.quoted-sender { font-size: 11px; font-weight: 600; color: #3a76f8; margin-bottom: 1px; }
+.quoted-text { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .quoted-text { color: rgba(134,150,160,0.85); }
+#reply-bar { display: none; background: #e8eef4; border-left: 3px solid #3a76f8; padding: 6px 16px; align-items: center; gap: 10px; flex-shrink: 0; }
+html.dark #reply-bar { background: #1a2533; }
+#reply-bar.active { display: flex; }
+.reply-bar-content { flex: 1; overflow: hidden; }
+#reply-bar-sender { font-size: 11px; font-weight: 600; color: #3a76f8; }
+#reply-bar-text { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#reply-close { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px; flex-shrink: 0; }
+#reply-close:hover { color: #e74c3c; }
+#fwd-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#fwd-modal.open { display: flex; }
+.fwd-modal-box { background: #202c33; border-radius: 12px; padding: 20px; max-width: 400px; width: 92%; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.light .fwd-modal-box { background: #fff; }
+.fwd-modal-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #e9edef; }
+html.light .fwd-modal-box h3 { color: #111; }
+#fwd-search { width: 100%; background: #2a3942; border: none; border-radius: 8px; padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none; margin-bottom: 10px; }
+html.light #fwd-search { background: #f0f2f5; color: #111; }
+#fwd-search::placeholder { color: #8696a0; }
+#fwd-chat-list { flex: 1; overflow-y: auto; }
+.fwd-chat-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-radius: 8px; }
+.fwd-chat-item:hover { background: #2a3942; }
+html.light .fwd-chat-item:hover { background: #f0f2f5; }
+.fwd-chat-item-name { font-size: 14px; color: #e9edef; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.light .fwd-chat-item-name { color: #111; }
+.fwd-modal-cancel { margin-top: 12px; background: #2a3942; color: #e9edef; border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; cursor: pointer; width: 100%; }
+html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
+.fwd-modal-cancel:hover { background: #3d5259; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
 .msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
 .ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
@@ -960,6 +1058,13 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
     </div>
     <div id="messages"><div id="no-chat" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div></div>
+    <div id="reply-bar">
+      <div class="reply-bar-content">
+        <div id="reply-bar-sender"></div>
+        <div id="reply-bar-text"></div>
+      </div>
+      <button id="reply-close" onclick="clearReply()">✕</button>
+    </div>
     <div id="attach-bar">
       <span>📎</span>
       <span class="attach-name" id="attach-name"></span>
@@ -1006,7 +1111,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     errSend: (e) => 'Fehler: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
@@ -1030,7 +1135,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     errSend: (e) => 'Error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
@@ -1339,12 +1444,58 @@ function renderMessages(msgs) {
     } else {
       content = formatText(m.body || '');
     }
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">✕</button></div>\`;
+    const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
+    const chatForReply = allChats.find(c => c.id === selectedChatId);
+    const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name || selectedChatId || '');
+    const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':'')).slice(0,60));
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">✕</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">↩</button></div>\`;
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;
+let _replyMsgId = null, _replyFrom = null, _replyTs = null, _replyBody = null;
+
+function setReply(msgId, contact, preview, from, ts) {
+  _replyMsgId = msgId; _replyFrom = from; _replyTs = ts; _replyBody = preview;
+  document.getElementById('reply-bar-sender').textContent = contact;
+  document.getElementById('reply-bar-text').textContent = preview;
+  document.getElementById('reply-bar').classList.add('active');
+  document.getElementById('msg-input').focus();
+}
+function clearReply() {
+  _replyMsgId = null; _replyFrom = null; _replyTs = null; _replyBody = null;
+  document.getElementById('reply-bar').classList.remove('active');
+}
+
+let _fwdMsgId = null;
+function openFwdModal(msgId) {
+  _fwdMsgId = msgId;
+  document.getElementById('fwd-search').value = '';
+  renderFwdList(allChats);
+  document.getElementById('fwd-modal').classList.add('open');
+  setTimeout(() => document.getElementById('fwd-search').focus(), 50);
+}
+function closeFwdModal() { document.getElementById('fwd-modal').classList.remove('open'); _fwdMsgId = null; }
+function filterFwdChats() {
+  const q = document.getElementById('fwd-search').value.toLowerCase();
+  renderFwdList(q ? allChats.filter(c => (c.name||'').toLowerCase().includes(q)) : allChats);
+}
+function renderFwdList(chats) {
+  const list = document.getElementById('fwd-chat-list');
+  list.innerHTML = chats.map(c => {
+    const bg = avatarColor(c.name||c.id);
+    return \`<div class="fwd-chat-item" onclick="forwardTo('\${escHtml(c.id)}')"><div class="avatar" style="width:34px;height:34px;font-size:13px;background:\${bg};flex-shrink:0">\${avatarInitial(c.name||c.id)}</div><div class="fwd-chat-item-name">\${escHtml(c.name||c.id)}</div></div>\`;
+  }).join('');
+}
+async function forwardTo(chatId) {
+  const msgId = _fwdMsgId;
+  closeFwdModal();
+  if (!msgId) return;
+  try {
+    await fetch(api('/api/forward'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, to: chatId }) });
+  } catch(e) { console.error('Forward error:', e.message); }
+}
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -1394,14 +1545,16 @@ async function sendMsg() {
     return;
   }
   if (!text) return;
+  const replyId = _replyMsgId, replyFrom = _replyFrom, replyTs = _replyTs, replyBody = _replyBody;
+  clearReply();
   inp.value = '';
   inp.style.height = '';
   try {
-    await fetch(api('/api/send'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: selectedChatId, message: text }),
-    });
+    const endpoint = replyId ? api('/api/reply') : api('/api/send');
+    const payload = replyId
+      ? { to: selectedChatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody }
+      : { to: selectedChatId, message: text };
+    await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     lastSeenTime[selectedChatId] = Date.now();
     localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
     fetch(api('/api/poll'), { method: 'POST' });
@@ -1496,11 +1649,12 @@ async function deleteMsg(chatId, msgId) {
   } catch(e) {}
 }
 document.getElementById('messages').addEventListener('click', e => {
-  const btn = e.target.closest('.del-btn');
-  if (!btn) return;
-  const row = btn.closest('.bubble-row');
-  if (!row) return;
-  deleteMsg(row.dataset.chatid, row.dataset.msgid);
+  const del = e.target.closest('.del-btn');
+  if (del) { const row = del.closest('.bubble-row'); if (row) deleteMsg(row.dataset.chatid, row.dataset.msgid); return; }
+  const fwd = e.target.closest('.fwd-btn');
+  if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
+  const rpl = e.target.closest('.reply-btn');
+  if (rpl) { setReply(rpl.dataset.msgid, rpl.dataset.contact, rpl.dataset.preview, rpl.dataset.from, rpl.dataset.ts); return; }
 });
 
 function handleKey(e) {
@@ -1570,6 +1724,14 @@ document.getElementById('msg-input').addEventListener('paste', function(e) {
 
 applyLang();
 </script>
+<div id="fwd-modal">
+  <div class="fwd-modal-box">
+    <h3>↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <div id="fwd-chat-list"></div>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+  </div>
+</div>
 <div id="logout-modal">
   <div class="logout-modal-box">
     <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.11] - 2026-06-05
+- Neu: Nachrichten weiterleiten (↪) und beantworten (↩) — Hover-Buttons, Forward-Modal mit Suchfeld, Zitat-Block in der Bubble; Reply nutzt Signal quote-API
+
 ## [1.5.10] - 2026-06-05
 - Neu: Sprachnachrichten werden empfangen, als .ogg gespeichert und als abspielbarer Audio-Player angezeigt (erfordert download_media: true); Fallback-Platzhalter wenn Datei fehlt
 
