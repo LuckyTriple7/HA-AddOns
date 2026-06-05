@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.3.3] — 2026-06-05
+### Fixed
+- Dateikonflikt: --force-overwrites entfernt (hatte die Datei überschrieben bevor Umbenennung möglich war)
+- Neues Verhalten: yt-dlp meldet "already downloaded" → bestehende Datei wird mit Zeitstempel umbenannt → Download startet automatisch erneut → beide Dateien bleiben erhalten
+
 ## [0.3.2] — 2026-06-05
 ### Improved
 - Custom-Tag-Popup zeigt alle bereits verwendeten Tags als Schnellauswahl-Buttons (gelb), analog zu den Plattform-Buttons im Platform-Picker

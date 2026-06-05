@@ -254,7 +254,6 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         'yt-dlp',
         '--no-color', '--newline', '--progress',
         '--progress-template', 'download:MGPROG|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s',
-        '--force-overwrites',
         '-o', '/media/mediagrab/%(title)s.%(ext)s',
     ]
     if not playlist:
@@ -307,79 +306,98 @@ def _run_download(job_id: str) -> None:
     try:
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, env=env
-        )
-        with _jobs_lock:
-            _jobs[job_id]['proc'] = proc
 
-        while True:
-            line = proc.stdout.readline()  # type: ignore[union-attr]
-            if not line:
-                if proc.poll() is not None:
-                    break
-                continue
-            line = line.rstrip()
-            output_lines.append(line)
-            if get_config().get('verbose_log'):
-                log.info('[yt-dlp] %s', line)
+        for attempt in range(2):
+            output_lines = []
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, env=env
+            )
+            with _jobs_lock:
+                _jobs[job_id]['proc'] = proc
 
-            m = _PROG_RE.match(line)
-            if m:
-                try:
-                    pct = float(m.group(1).strip())
-                except ValueError:
-                    pct = 0.0
-                with _jobs_lock:
-                    _jobs[job_id]['progress'] = pct
-                    _jobs[job_id]['speed']    = m.group(2).strip()
-                    _jobs[job_id]['eta']      = m.group(3).strip()
-                continue
+            _needs_retry = False
 
-            m = _DEST_RE.search(line)
-            if m:
-                dest = Path(m.group(1).strip())
-                _safe_rename_existing(dest)
-                with _jobs_lock:
-                    _jobs[job_id]['filename'] = dest.name
-                continue
+            while True:
+                line = proc.stdout.readline()  # type: ignore[union-attr]
+                if not line:
+                    if proc.poll() is not None:
+                        break
+                    continue
+                line = line.rstrip()
+                output_lines.append(line)
+                if get_config().get('verbose_log'):
+                    log.info('[yt-dlp] %s', line)
 
-            m = _MERGE_RE.search(line)
-            if m:
-                dest = Path(m.group(1).strip())
-                _safe_rename_existing(dest)
-                with _jobs_lock:
-                    _jobs[job_id]['filename'] = dest.name
-                continue
+                m = _PROG_RE.match(line)
+                if m:
+                    try:
+                        pct = float(m.group(1).strip())
+                    except ValueError:
+                        pct = 0.0
+                    with _jobs_lock:
+                        _jobs[job_id]['progress'] = pct
+                        _jobs[job_id]['speed']    = m.group(2).strip()
+                        _jobs[job_id]['eta']      = m.group(3).strip()
+                    continue
 
-            m = _ALREADY_RE.search(line)
-            if m:
-                with _jobs_lock:
-                    _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                m = _DEST_RE.search(line)
+                if m:
+                    with _jobs_lock:
+                        _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                    continue
 
-        proc.wait()
+                m = _MERGE_RE.search(line)
+                if m:
+                    with _jobs_lock:
+                        _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                    continue
 
-        with _jobs_lock:
-            if _jobs[job_id]['status'] == 'cancelled':
+                m = _ALREADY_RE.search(line)
+                if m:
+                    existing = Path(m.group(1).strip())
+                    if not existing.is_absolute():
+                        existing = MEDIA_DIR / existing
+                    _safe_rename_existing(existing)
+                    _needs_retry = True
+                    with _jobs_lock:
+                        _jobs[job_id]['filename'] = existing.name
+
+            proc.wait()
+
+            with _jobs_lock:
+                cancelled = _jobs[job_id]['status'] == 'cancelled'
+
+            if cancelled:
                 log.info('Download abgebrochen: job=%s', job_id)
-            elif proc.returncode == 0:
-                _jobs[job_id]['status']   = 'done'
-                _jobs[job_id]['progress'] = 100.0
-                _jobs[job_id]['eta']      = ''
-                fname    = _jobs[job_id].get('filename', '')
-                job_url  = _jobs[job_id].get('url', '')
-                log.info('Download fertig: job=%s file=%s', job_id, fname)
-                if fname:
-                    with _meta_lock:
-                        meta = _load_meta()
-                        meta[fname] = {'platform': _detect_platform(job_url)}
-                        _save_meta(meta)
-            else:
-                err = _parse_error(output_lines)
-                _jobs[job_id]['status'] = 'error'
-                _jobs[job_id]['error']  = err
-                log.warning('Download Fehler: job=%s rc=%d err=%s', job_id, proc.returncode, err)
+                break
+
+            if _needs_retry and attempt == 0:
+                with _jobs_lock:
+                    _jobs[job_id]['progress'] = 0.0
+                    _jobs[job_id]['filename'] = ''
+                log.info('Download-Retry nach Dateikonflikt: job=%s', job_id)
+                continue
+
+            with _jobs_lock:
+                if proc.returncode == 0:
+                    _jobs[job_id]['status']   = 'done'
+                    _jobs[job_id]['progress'] = 100.0
+                    _jobs[job_id]['eta']      = ''
+                    fname   = _jobs[job_id].get('filename', '')
+                    job_url = _jobs[job_id].get('url', '')
+                    log.info('Download fertig: job=%s file=%s', job_id, fname)
+                    if fname:
+                        with _meta_lock:
+                            meta = _load_meta()
+                            meta[fname] = {'platform': _detect_platform(job_url)}
+                            _save_meta(meta)
+                else:
+                    err = _parse_error(output_lines)
+                    _jobs[job_id]['status'] = 'error'
+                    _jobs[job_id]['error']  = err
+                    log.warning('Download Fehler: job=%s rc=%d err=%s', job_id, proc.returncode, err)
+            break
 
     except Exception as e:
         log.error('Download Exception: job=%s err=%s', job_id, e)
