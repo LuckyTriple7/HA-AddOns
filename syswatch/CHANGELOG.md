@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.25] - 2026-06-05
+
+### Added
+- Zurück-Button (←) im Temperatur-Chart-Header: navigiert direkt zurück zum SYS CPU Chart
+
 ## [1.0.24] - 2026-06-05
 
 ### Changed
