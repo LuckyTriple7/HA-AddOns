@@ -688,6 +688,24 @@ app.post('/api/fetch-video', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/delete-video', (req, res) => {
+  const { msgId } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId required' });
+  const parts = msgId.split('_');
+  parts.pop();
+  const chatId = parts.join('_');
+  const msgs = messagesByChatId.get(chatId);
+  const storedMsg = msgs?.find(m => m.id === msgId);
+  if (!storedMsg) return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+  if (storedMsg.mediaFile) {
+    const fp = `${MEDIA_DIR}/${storedMsg.mediaFile}`;
+    try { fs.unlinkSync(fp); } catch(e) {}
+    storedMsg.mediaFile = null;
+    scheduleSave();
+  }
+  res.json({ success: true });
+});
+
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
   const { to, caption } = req.body;
   if (!to || !req.file) return res.status(400).json({ error: 'to und file erforderlich' });
@@ -1891,7 +1909,7 @@ function renderMessages(msgs) {
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if(isVideo){
       content = m.mediaFile
-        ? \`<video controls style="max-width:320px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video>\`
+        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>\`
         : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.75;user-select:none" title="Klicken zum Laden">📹 Video</span>\`;
       if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
@@ -1949,6 +1967,16 @@ async function fetchVideo(el) {
   } catch(e) {
     el.textContent = '❌ Fehler';
   }
+}
+
+async function deleteVideo(msgId) {
+  try {
+    await fetch(api('/api/delete-video'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId })
+    });
+    await loadMessages(selectedChatId);
+  } catch(e) { console.error('deleteVideo:', e.message); }
 }
 
 async function openContactInfo(chatId, fallbackName) {

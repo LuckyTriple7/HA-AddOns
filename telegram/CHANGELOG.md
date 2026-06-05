@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.21] - 2026-06-05
+- Neu: 🗑️-Button neben dem Video-Player — löscht Datei von Disk, zeigt 📹 Video Placeholder wieder an
+
 ## [1.5.20] - 2026-06-05
 - Kritisch: Videos werden nur noch bei echten Neueingängen auto-geladen (source=NewMessage), nie beim Reload — verhindert FloodWait-Kaskadenausfall
 - Neu: Klick auf 📹 Video Placeholder → on-demand Download mit ⏳ Sanduhr (/api/fetch-video)
