@@ -1,17 +1,5 @@
 # Changelog
 
-## [1.6.14] - 2026-06-05
-- Fix: SyntaxError beim Start — Backtick-Template-Literals in loadStorage() terminierten das äußere getHtml()-Template vorzeitig
-
-## [1.6.13] - 2026-06-05
-- 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS"; blendet jetzt auch Videos aus
-
-## [1.6.12] - 2026-06-05
-- Speicher-Tooltip: Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete (DE+EN)
-
-## [1.6.11] - 2026-06-05
-- Neu: media_max_mb Config (Standard 500 MB) — bei Überschreitung werden automatisch die ältesten Mediendateien gelöscht (LRU)
-
 ## [1.6.10] - 2026-06-05
 - Kontaktinfo-Modal: savedName (Telefonbuch) als Hauptname, waName (WhatsApp-Profilname) als Label wenn abweichend; shortName als Fallback
 

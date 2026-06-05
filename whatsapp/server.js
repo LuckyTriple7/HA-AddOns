@@ -63,7 +63,6 @@ let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, prev
 
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
-const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -240,33 +239,12 @@ function addMsg(chatId, msg) {
   return true;
 }
 
-function enforceMediaLimit() {
-  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
-  const targetBytes = limitBytes * 0.8;
-  let current = 0, files = [];
-  try {
-    for (const f of fs.readdirSync(MEDIA_DIR)) {
-      const fp = `${MEDIA_DIR}/${f}`;
-      try { const st = fs.statSync(fp); files.push({ fp, size: st.size, mtime: st.mtimeMs }); current += st.size; } catch(e) {}
-    }
-  } catch(e) { return; }
-  if (current <= limitBytes) return;
-  files.sort((a, b) => a.mtime - b.mtime);
-  let freed = 0;
-  for (const f of files) {
-    if (current - freed <= targetBytes) break;
-    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
-  }
-  if (freed) console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
-}
-
 async function downloadWAMedia(msg, msgId) {
   try {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
     const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
-      enforceMediaLimit();
       dbg(`Downloading media: ${safeId}.${ext}`);
       const media = await msg.downloadMedia();
       if (media?.data) fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
@@ -903,14 +881,7 @@ function getDirSize(dir) {
 
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
-  const mediaBytes = getDirSize(MEDIA_DIR);
-  const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
-    bytes, mb: (bytes / 1024 / 1024).toFixed(1),
-    mediaMb: mediaMb.toFixed(1),
-    limitMb: MEDIA_MAX_MB,
-    mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
 });
 
 app.post('/api/cleanup-media', (req, res) => {
@@ -1257,8 +1228,7 @@ app.get('/', (req, res) => {
     .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; opacity: 0.55; line-height: 1; }
     .scroll-btn:hover { opacity: 0.8; }
     .photo-placeholder { display: none; }
-    body.hide-photos .msg-img,
-    body.hide-photos video { display: none !important; }
+    body.hide-photos .msg-img { display: none !important; }
     body.hide-photos .photo-placeholder { display: inline; }
 
     /* Main two-panel layout */
@@ -1614,7 +1584,7 @@ app.get('/', (req, res) => {
     <h1>WhatsApp</h1>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
-    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
+    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
     ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
@@ -1743,7 +1713,7 @@ app.get('/', (req, res) => {
         spinnerConnecting:'Verbinde mit WhatsApp…', btnReset:'Session zurücksetzen',
         statusConnected:'Verbunden', statusQR:'QR scannen', statusAuth:'Authentifiziert…',
         statusInit:'Starte…', statusDisc:'Getrennt', statusAuthFail:'Auth-Fehler', statusError:'Fehler',
-        photosOn:'Medien AN', photosOff:'Medien AUS', btnCleanup:'Verwaiste Mediendateien löschen',
+        photosOn:'Fotos AN', photosOff:'Fotos AUS', btnCleanup:'Verwaiste Mediendateien löschen',
         btnScrollUp:'Nach oben', btnScrollDown:'Nach unten', btnLogout:'Abmelden',
         filterAll:'Alle', filterPrivate:'Privat', filterGroups:'Gruppen',
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
@@ -1776,7 +1746,7 @@ app.get('/', (req, res) => {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
         statusConnected:'Connected', statusQR:'Scan QR', statusAuth:'Authenticating…',
         statusInit:'Starting…', statusDisc:'Disconnected', statusAuthFail:'Auth error', statusError:'Error',
-        photosOn:'Media ON', photosOff:'Media OFF', btnCleanup:'Delete orphaned media files',
+        photosOn:'Photos ON', photosOff:'Photos OFF', btnCleanup:'Delete orphaned media files',
         btnScrollUp:'Scroll up', btnScrollDown:'Scroll down', btnLogout:'Logout',
         filterAll:'All', filterPrivate:'Private', filterGroups:'Groups',
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
@@ -1939,14 +1909,7 @@ app.get('/', (req, res) => {
       try {
         const d = await fetch('api/storage').then(r => r.json());
         const el = document.getElementById('storage-info');
-        if (!el) return;
-        el.textContent = '💾 ' + d.mb + ' MB';
-        if (d.mediaMb !== undefined) {
-          const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
-          el.title = lang === 'de'
-            ? 'Gesamt /config: ' + d.mb + ' MB\nMedienordner: ' + d.mediaMb + ' MB von ' + autoAt + ' MB (' + d.mediaPct + '%)\nAuto-Delete startet bei ' + autoAt + ' MB → löscht auf ' + autoTo + ' MB'
-            : 'Total /config: ' + d.mb + ' MB\nMedia folder: ' + d.mediaMb + ' MB of ' + autoAt + ' MB (' + d.mediaPct + '%)\nAuto-delete starts at ' + autoAt + ' MB → cleans to ' + autoTo + ' MB';
-        }
+        if (el) el.textContent = '💾 ' + d.mb + ' MB';
       } catch(e) {}
     }
     loadStorage();
@@ -1971,7 +1934,7 @@ app.get('/', (req, res) => {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
       localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
     }
     if (localStorage.getItem('wa-hide-photos')) {
