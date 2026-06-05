@@ -423,9 +423,13 @@ def _supervisor_addon_slug(name: str) -> str | None:
         req = urllib.request.Request(f'{SUPERVISOR_API}/addons', headers=headers)
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
+        # Docker-Containernamen beginnen mit 'addon_', Supervisor-Slugs nicht
+        name_as_slug = name.removeprefix('addon_')
         for addon in data.get('data', {}).get('addons', []):
-            if addon.get('name', '').lower() == name.lower() or addon.get('slug', '') == name:
-                return addon.get('slug', '')
+            slug = addon.get('slug', '')
+            if (addon.get('name', '').lower() == name.lower()
+                    or slug == name or slug == name_as_slug):
+                return slug
     except Exception:
         pass
     return None

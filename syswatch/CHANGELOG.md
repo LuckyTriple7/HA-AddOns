@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.0.13] - 2026-06-05
+
+### Fixed
+- Telegram ▶ Starten schlug mit "Container nicht gefunden" fehl: Docker-Containernamen beginnen mit `addon_`, Supervisor-Slugs nicht — `_supervisor_addon_slug()` strippt jetzt das Prefix vor dem Vergleich
+
 ## [1.0.12] - 2026-06-05
 
 ### Changed
