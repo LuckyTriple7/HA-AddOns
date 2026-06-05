@@ -488,14 +488,14 @@ def api_status():
     config  = get_config()
     api_key = config.get('api_key', '').strip()
     if not api_key:
-        log.debug('API /status: api_key nicht konfiguriert — Zugriff abgelehnt (%s)', request.remote_addr)
         return jsonify({'error': 'api_disabled'}), 403
     provided = (request.args.get('api_key') or request.headers.get('X-API-Key', '')).strip()
     if not provided or provided != api_key:
         log.warning('API /status: ungültiger API-Key von %s', request.remote_addr)
         return jsonify({'error': 'unauthorized'}), 401
 
-    log.debug('API /status: Zugriff von %s', request.remote_addr)
+    if config.get('verbose_log'):
+        log.info('API /status: Zugriff von %s', request.remote_addr)
 
     try:
         MEDIA_DIR.mkdir(parents=True, exist_ok=True)

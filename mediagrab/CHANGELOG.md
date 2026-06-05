@@ -4,7 +4,7 @@
 ### Fixed
 - API `/api/status`: yt-dlp-Version wird 1h gecacht (kein subprocess bei jedem Sensor-Poll mehr)
 - API `/api/status`: try-except schützt vor "unavailable" im HA-Sensor bei unerwarteten Fehlern
-- API Logging: ungültige Key-Versuche als WARNING, erfolgreiche Zugriffe als DEBUG
+- API Logging: ungültige Key-Versuche immer als WARNING; erfolgreiche Zugriffe als INFO wenn verbose_log aktiv
 
 ## [0.2.0] — 2026-06-05
 ### Fixed
