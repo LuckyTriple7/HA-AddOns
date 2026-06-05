@@ -31,7 +31,13 @@ configuration:
     description: Chat-ID des Empfängers (Benutzer, Gruppe oder Kanal). Eigene Chat-ID ermitteln via @userinfobot.
   notify_cpu_threshold:
     name: CPU-Alarm-Schwellenwert (%)
-    description: "Telegram-Alarm wenn System-CPU diesen Wert überschreitet. Entwarnung nach 2 Min. unter dem Schwellenwert. 0 = deaktiviert. Beispiel: 80 (Alarm ab 80% CPU)."
+    description: "Telegram-Alarm wenn System-CPU diesen Wert überschreitet. 0 = deaktiviert. Beispiel: 80 (Alarm ab 80% CPU)."
   notify_ram_threshold:
     name: RAM-Alarm-Schwellenwert (%)
-    description: "Telegram-Alarm wenn System-RAM diesen Wert überschreitet. Entwarnung nach 2 Min. unter dem Schwellenwert. 0 = deaktiviert. Beispiel: 85 (Alarm ab 85% RAM)."
+    description: "Telegram-Alarm wenn System-RAM diesen Wert überschreitet. 0 = deaktiviert. Beispiel: 85 (Alarm ab 85% RAM)."
+  notify_over_duration:
+    name: Alarm-Verzögerung Überschreitung (Sekunden)
+    description: "Wie lange CPU/RAM ununterbrochen über dem Schwellenwert liegen muss bevor der Alarm ausgelöst wird. 0 = sofort beim ersten Überschreiten. Beispiel: 60 = Alarm erst nach 60s dauerhafter Überlast."
+  notify_clear_duration:
+    name: Entwarnung-Verzögerung (Sekunden)
+    description: "Wie lange CPU/RAM ununterbrochen unter dem Schwellenwert liegen muss bevor die Entwarnung gesendet wird. Standard: 120 (2 Minuten). 0 = sofortige Entwarnung."

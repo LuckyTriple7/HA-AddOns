@@ -31,7 +31,13 @@ configuration:
     description: Chat ID of the recipient (user, group or channel). Find your own chat ID via @userinfobot.
   notify_cpu_threshold:
     name: CPU Alert Threshold (%)
-    description: "Send a Telegram alert when system CPU exceeds this value. All-clear after 2 min below threshold. 0 = disabled. Example: 80 (alert above 80% CPU)."
+    description: "Send a Telegram alert when system CPU exceeds this value. 0 = disabled. Example: 80 (alert above 80% CPU)."
   notify_ram_threshold:
     name: RAM Alert Threshold (%)
-    description: "Send a Telegram alert when system RAM exceeds this value. All-clear after 2 min below threshold. 0 = disabled. Example: 85 (alert above 85% RAM)."
+    description: "Send a Telegram alert when system RAM exceeds this value. 0 = disabled. Example: 85 (alert above 85% RAM)."
+  notify_over_duration:
+    name: Alert Trigger Delay (seconds)
+    description: "How many seconds CPU/RAM must continuously exceed the threshold before the alert fires. 0 = alert immediately on first breach. Example: 60 = alert only after 60s of sustained overload."
+  notify_clear_duration:
+    name: All-Clear Delay (seconds)
+    description: "How many seconds CPU/RAM must continuously stay below the threshold before the all-clear is sent. Default: 120 (2 minutes). 0 = immediate all-clear."

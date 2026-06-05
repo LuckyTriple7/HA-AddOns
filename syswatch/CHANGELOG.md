@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.0.9] - 2026-06-05
+
+### Added
+- `notify_over_duration` (Sek., Standard 0): CPU/RAM muss diese Zeit dauerhaft über Schwellenwert liegen bevor Alarm ausgelöst wird
+- `notify_clear_duration` (Sek., Standard 120): CPU/RAM muss diese Zeit dauerhaft unter Schwellenwert liegen bevor Entwarnung gesendet wird
+- Translations DE/EN für beide neuen Optionen
+
 ## [1.0.8] - 2026-06-05
 
 ### Changed

@@ -120,12 +120,13 @@ _ha_status_cache: dict  = {}
 _ha_status_ts:    float = 0.0
 _notif_cpu_ts:      float = 0.0   # letzter Versand CPU-Alert
 _notif_ram_ts:      float = 0.0   # letzter Versand RAM-Alert
-_notif_cpu_above:   bool  = False  # war CPU zuletzt über Schwellenwert?
-_notif_ram_above:   bool  = False  # war RAM zuletzt über Schwellenwert?
-_notif_cpu_ok_since: float = 0.0  # seit wann CPU unter Schwellenwert
-_notif_ram_ok_since: float = 0.0  # seit wann RAM unter Schwellenwert
-NOTIF_COOLDOWN              = 600  # 10 Min zwischen gleichen Alerts
-NOTIF_CLEAR_DELAY           = 120  # 2 Min unter Threshold → Entwarnung
+_notif_cpu_above:    bool  = False  # war CPU zuletzt über Schwellenwert?
+_notif_ram_above:    bool  = False  # war RAM zuletzt über Schwellenwert?
+_notif_cpu_over_since: float = 0.0  # seit wann CPU über Schwellenwert (für Verzögerung)
+_notif_ram_over_since: float = 0.0
+_notif_cpu_ok_since:  float = 0.0  # seit wann CPU unter Schwellenwert (für Entwarnung)
+_notif_ram_ok_since:  float = 0.0
+NOTIF_COOLDOWN               = 600  # 10 Min Cooldown zwischen gleichen Alerts
 
 # Container-Zustandsüberwachung
 _prev_running:      set[str]        = set()
@@ -760,66 +761,81 @@ def _check_container_changes() -> None:
 
 
 def _check_thresholds() -> None:
-    """Prüft CPU/RAM-Schwellenwerte, sendet Alarm bei Überschreitung und Entwarnung nach 2 Min."""
+    """Prüft CPU/RAM-Schwellenwerte mit konfigurierbarer Auslöse- und Entwarungsverzögerung."""
     global _notif_cpu_ts, _notif_ram_ts
     global _notif_cpu_above, _notif_ram_above
+    global _notif_cpu_over_since, _notif_ram_over_since
     global _notif_cpu_ok_since, _notif_ram_ok_since
     now = time.time()
     cfg = load_config()
-    cpu_limit = int(cfg.get('notify_cpu_threshold', 0))
-    ram_limit = int(cfg.get('notify_ram_threshold', 0))
+    cpu_limit   = int(cfg.get('notify_cpu_threshold',   0))
+    ram_limit   = int(cfg.get('notify_ram_threshold',   0))
     if not cpu_limit and not ram_limit:
         return
+    over_delay  = max(0, int(cfg.get('notify_over_duration',  0)))
+    clear_delay = max(0, int(cfg.get('notify_clear_duration', 120)))
     with _stats_lock:
         si = _stats_cache.get('sysinfo', {})
     cpu_pct = si.get('cpu_pct', 0.0)
     ram_pct = si.get('mem_pct', 0.0)
 
+    def _alert(metric: str, pct: float, limit: int) -> None:
+        label = 'CPU-Last' if metric == 'cpu' else 'RAM-Auslastung'
+        sym   = 'CPU'      if metric == 'cpu' else 'RAM'
+        threading.Thread(target=_send_telegram, daemon=True, args=(
+            f'⚠️ <b>HA SysWatch</b> — Hohe {label}\n'
+            f'System-{sym}: <b>{pct:.1f}%</b> (Schwellenwert: {limit}%, seit {over_delay}s)',
+        )).start()
+
+    def _clear(metric: str, pct: float, limit: int) -> None:
+        label = 'CPU-Last' if metric == 'cpu' else 'RAM-Auslastung'
+        sym   = 'CPU'      if metric == 'cpu' else 'RAM'
+        threading.Thread(target=_send_telegram, daemon=True, args=(
+            f'✅ <b>HA SysWatch</b> — {label} normal\n'
+            f'System-{sym}: <b>{pct:.1f}%</b> (unter {limit}% seit {clear_delay}s)',
+        )).start()
+
     # CPU
     if cpu_limit:
         if cpu_pct >= cpu_limit:
             _notif_cpu_ok_since = 0.0
-            if not _notif_cpu_above or now - _notif_cpu_ts > NOTIF_COOLDOWN:
+            if _notif_cpu_over_since == 0.0:
+                _notif_cpu_over_since = now
+            if (not _notif_cpu_above or now - _notif_cpu_ts > NOTIF_COOLDOWN) \
+                    and now - _notif_cpu_over_since >= over_delay:
                 _notif_cpu_above = True
                 _notif_cpu_ts    = now
-                threading.Thread(target=_send_telegram, daemon=True, args=(
-                    f'⚠️ <b>HA SysWatch</b> — Hohe CPU-Last\n'
-                    f'System-CPU: <b>{cpu_pct:.1f}%</b> (Schwellenwert: {cpu_limit}%)',
-                )).start()
+                _alert('cpu', cpu_pct, cpu_limit)
         else:
+            _notif_cpu_over_since = 0.0
             if _notif_cpu_above:
                 if _notif_cpu_ok_since == 0.0:
                     _notif_cpu_ok_since = now
-                elif now - _notif_cpu_ok_since >= NOTIF_CLEAR_DELAY:
+                elif now - _notif_cpu_ok_since >= clear_delay:
                     _notif_cpu_above    = False
                     _notif_cpu_ok_since = 0.0
-                    threading.Thread(target=_send_telegram, daemon=True, args=(
-                        f'✅ <b>HA SysWatch</b> — CPU-Last normal\n'
-                        f'System-CPU: <b>{cpu_pct:.1f}%</b> (unter {cpu_limit}%)',
-                    )).start()
+                    _clear('cpu', cpu_pct, cpu_limit)
 
     # RAM
     if ram_limit:
         if ram_pct >= ram_limit:
             _notif_ram_ok_since = 0.0
-            if not _notif_ram_above or now - _notif_ram_ts > NOTIF_COOLDOWN:
+            if _notif_ram_over_since == 0.0:
+                _notif_ram_over_since = now
+            if (not _notif_ram_above or now - _notif_ram_ts > NOTIF_COOLDOWN) \
+                    and now - _notif_ram_over_since >= over_delay:
                 _notif_ram_above = True
                 _notif_ram_ts    = now
-                threading.Thread(target=_send_telegram, daemon=True, args=(
-                    f'⚠️ <b>HA SysWatch</b> — Hohe RAM-Auslastung\n'
-                    f'System-RAM: <b>{ram_pct:.1f}%</b> (Schwellenwert: {ram_limit}%)',
-                )).start()
+                _alert('ram', ram_pct, ram_limit)
         else:
+            _notif_ram_over_since = 0.0
             if _notif_ram_above:
                 if _notif_ram_ok_since == 0.0:
                     _notif_ram_ok_since = now
-                elif now - _notif_ram_ok_since >= NOTIF_CLEAR_DELAY:
+                elif now - _notif_ram_ok_since >= clear_delay:
                     _notif_ram_above    = False
                     _notif_ram_ok_since = 0.0
-                    threading.Thread(target=_send_telegram, daemon=True, args=(
-                        f'✅ <b>HA SysWatch</b> — RAM-Auslastung normal\n'
-                        f'System-RAM: <b>{ram_pct:.1f}%</b> (unter {ram_limit}%)',
-                    )).start()
+                    _clear('ram', ram_pct, ram_limit)
 
 
 def _background_collector() -> None:
