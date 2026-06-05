@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.10] - 2026-06-05
+- Neu: Nachrichten weiterleiten (↪, via forwardMessages) und beantworten (↩, via replyTo); Hover-Buttons, Forward-Modal mit Suchfeld, Zitat-Block in der Bubble
+
 ## [1.5.9] - 2026-06-05
 - Neu: Sprachnachrichten (voice) werden empfangen, als .ogg gespeichert und als abspielbarer Audio-Player angezeigt (erfordert download_media: true); Erkennung via DocumentAttributeAudio.voice
 

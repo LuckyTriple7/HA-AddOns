@@ -273,7 +273,13 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
 
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   const msgs = messagesByChatId.get(chatId);
-  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0 };
+  let quotedMsg = null;
+  if (rawMsg.replyTo?.replyToMsgId) {
+    const qId = `${chatId}_${rawMsg.replyTo.replyToMsgId}`;
+    const qStored = messagesByChatId.get(chatId)?.find(m => m.id === qId);
+    if (qStored) quotedMsg = { body: (qStored.body || '').slice(0, 100), contact: qStored.fromMe ? 'Ich' : (chatMap.get(chatId)?.name || chatId) };
+  }
+  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0, quotedMsg };
   if (Object.keys(msgReactions).length) msgObj.reactions = msgReactions;
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   msgs.push(msgObj);
@@ -598,6 +604,45 @@ app.post('/api/send', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post('/api/reply', async (req, res) => {
+  const { to, message, replyToTgId } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'to und message erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    let entity = peerMap.get(to);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(to); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const result = await client.sendMessage(entity, { message, replyTo: replyToTgId ? Number(replyToTgId) : undefined });
+    const msgId = `${to}_${result.id}`;
+    if (!seenMsgIds.has(msgId)) {
+      seenMsgIds.add(msgId);
+      const ts = Date.now();
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push({ id: msgId, from: myId, body: message, timestamp: ts, fromMe: true, ack: 1 });
+      if (chatMap.has(to)) { chatMap.get(to).lastMsg = message; chatMap.get(to).lastTime = ts; }
+      scheduleSave();
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/forward', async (req, res) => {
+  const { msgId, to } = req.body;
+  if (!msgId || !to) return res.status(400).json({ error: 'msgId und to erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const tgMsgId = parseInt(msgId.split('_').pop(), 10);
+    const fromChatId = msgId.split('_').slice(0, -1).join('_');
+    let fromEntity = peerMap.get(fromChatId);
+    if (!fromEntity) { await loadDialogs(); fromEntity = peerMap.get(fromChatId); }
+    let toEntity = peerMap.get(to);
+    if (!toEntity) { await loadDialogs(); toEntity = peerMap.get(to); }
+    if (!fromEntity || !toEntity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    await client.forwardMessages(toEntity, { messages: [tgMsgId], fromPeer: fromEntity });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
@@ -999,6 +1044,51 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 html.dark .del-btn { color: rgba(193,201,212,0.6); }
 html.light .del-btn { color: rgba(0,0,0,0.4); }
 .del-btn:hover { color: #e74c3c !important; }
+.fwd-btn, .reply-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .fwd-btn, .bubble-row:hover .reply-btn { display: block; }
+html.dark .fwd-btn, html.dark .reply-btn { color: rgba(193,201,212,0.5); }
+html.light .fwd-btn, html.light .reply-btn { color: rgba(0,0,0,0.35); }
+.fwd-btn:hover { color: #2AABEE !important; }
+.reply-btn:hover { color: #2AABEE !important; }
+.quoted-block { border-left: 3px solid #2AABEE; background: rgba(42,171,238,0.08); border-radius: 4px; padding: 4px 8px; margin-bottom: 5px; overflow: hidden; }
+.quoted-sender { font-size: 11px; font-weight: 600; color: #2AABEE; margin-bottom: 1px; }
+.quoted-text { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .quoted-text { color: rgba(193,201,212,0.7); }
+html.light .quoted-text { color: rgba(0,0,0,0.55); }
+#reply-bar { display: none; border-left: 3px solid #2AABEE; padding: 6px 16px; align-items: center; gap: 10px; flex-shrink: 0; }
+html.dark #reply-bar { background: #1a2533; }
+html.light #reply-bar { background: #e8f4fb; }
+#reply-bar.active { display: flex; }
+.reply-bar-content { flex: 1; overflow: hidden; }
+#reply-bar-sender { font-size: 11px; font-weight: 600; color: #2AABEE; }
+#reply-bar-text { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark #reply-bar-text { color: #8696a0; }
+html.light #reply-bar-text { color: #666; }
+#reply-close { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px; flex-shrink: 0; }
+#reply-close:hover { color: #e74c3c; }
+#fwd-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#fwd-modal.open { display: flex; }
+.fwd-modal-box { border-radius: 12px; padding: 20px; max-width: 400px; width: 92%; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.dark .fwd-modal-box { background: #232E3C; }
+html.light .fwd-modal-box { background: #fff; }
+.fwd-modal-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+html.dark .fwd-modal-box h3 { color: #fff; }
+html.light .fwd-modal-box h3 { color: #111; }
+#fwd-search { width: 100%; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; margin-bottom: 10px; }
+html.dark #fwd-search { background: #17212B; color: #C1C9D4; }
+html.light #fwd-search { background: #f0f2f5; color: #111; }
+#fwd-search::placeholder { color: #6B7B8D; }
+#fwd-chat-list { flex: 1; overflow-y: auto; }
+.fwd-chat-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-radius: 8px; }
+html.dark .fwd-chat-item:hover { background: #2B3A4A; }
+html.light .fwd-chat-item:hover { background: #f0f2f5; }
+.fwd-chat-item-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .fwd-chat-item-name { color: #C1C9D4; }
+html.light .fwd-chat-item-name { color: #111; }
+.fwd-modal-cancel { margin-top: 12px; border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; cursor: pointer; width: 100%; }
+html.dark .fwd-modal-cancel { background: #2B3A4A; color: #C1C9D4; }
+html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
+.fwd-modal-cancel:hover { opacity: 0.8; }
 html.dark .bubble.in { background: #182533; color: #C1C9D4; }
 html.dark .bubble.out { background: #2B5278; color: #fff; }
 html.light .bubble.in { background: #fff; color: #222; }
@@ -1156,6 +1246,13 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
     </div>
     <div id="messages"></div>
+    <div id="reply-bar">
+      <div class="reply-bar-content">
+        <div id="reply-bar-sender"></div>
+        <div id="reply-bar-text"></div>
+      </div>
+      <button id="reply-close" onclick="clearReply()">✕</button>
+    </div>
     <div id="attach-bar">
       <span>📎</span>
       <span class="attach-name" id="attach-name"></span>
@@ -1553,6 +1650,7 @@ function renderMessages(msgs) {
     const isPhoto = m.type==='photo'&&m.mediaFile;
     const isDoc = m.type==='document'&&m.filename;
     const isVoice = m.type==='voice';
+    const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
     if(isVoice){
       content = m.mediaFile
         ? \`<audio controls style="min-width:220px;max-width:300px;width:100%" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
@@ -1569,12 +1667,58 @@ function renderMessages(msgs) {
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
+    const chatForReply = allChats.find(c=>c.id===selectedChatId);
+    const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name||selectedChatId||'');
+    const replyPreview = escHtml((m.body||(m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':'')).slice(0,60));
+    const tgMsgRawId = m.id.split('_').pop();
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;
+let _replyMsgId = null, _replyTgId = null, _replyContact = null, _replyPreview = null;
+
+function setReply(msgId, contact, preview, tgId) {
+  _replyMsgId = msgId; _replyTgId = tgId; _replyContact = contact; _replyPreview = preview;
+  document.getElementById('reply-bar-sender').textContent = contact;
+  document.getElementById('reply-bar-text').textContent = preview;
+  document.getElementById('reply-bar').classList.add('active');
+  document.getElementById('msg-input').focus();
+}
+function clearReply() {
+  _replyMsgId = null; _replyTgId = null; _replyContact = null; _replyPreview = null;
+  document.getElementById('reply-bar').classList.remove('active');
+}
+
+let _fwdMsgId = null;
+function openFwdModal(msgId) {
+  _fwdMsgId = msgId;
+  document.getElementById('fwd-search').value = '';
+  renderFwdList(allChats);
+  document.getElementById('fwd-modal').classList.add('open');
+  setTimeout(() => document.getElementById('fwd-search').focus(), 50);
+}
+function closeFwdModal() { document.getElementById('fwd-modal').classList.remove('open'); _fwdMsgId = null; }
+function filterFwdChats() {
+  const q = document.getElementById('fwd-search').value.toLowerCase();
+  renderFwdList(q ? allChats.filter(c=>(c.name||'').toLowerCase().includes(q)) : allChats);
+}
+function renderFwdList(chats) {
+  const list = document.getElementById('fwd-chat-list');
+  list.innerHTML = chats.map(c => {
+    const bg = avatarColor(c.name||c.id);
+    return \`<div class="fwd-chat-item" onclick="forwardTo('\${escHtml(c.id)}')"><div class="avatar" style="width:34px;height:34px;font-size:13px;background:\${bg};flex-shrink:0">\${avatarInitial(c.name||c.id)}</div><div class="fwd-chat-item-name">\${escHtml(c.name||c.id)}</div></div>\`;
+  }).join('');
+}
+async function forwardTo(chatId) {
+  const msgId = _fwdMsgId;
+  closeFwdModal();
+  if (!msgId) return;
+  try {
+    await fetch(api('/api/forward'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ msgId, to: chatId }) });
+  } catch(e) { console.error('Forward error:', e.message); }
+}
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -1623,9 +1767,15 @@ async function sendMsg() {
     return;
   }
   if (!text) return;
+  const replyId = _replyMsgId, replyTgId = _replyTgId;
+  clearReply();
   inp.value=''; inp.style.height='';
   try {
-    await fetch(api('/api/send'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:selectedChatId,message:text})});
+    const endpoint = replyId ? api('/api/reply') : api('/api/send');
+    const payload = replyId
+      ? { to: selectedChatId, message: text, replyToTgId: replyTgId }
+      : { to: selectedChatId, message: text };
+    await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     await loadMessages(selectedChatId);
     await loadChats();
   } catch(e) {}
@@ -1641,11 +1791,12 @@ async function deleteMsg(chatId, msgId) {
   } catch(e) {}
 }
 document.getElementById('messages').addEventListener('click', e => {
-  const btn = e.target.closest('.del-btn');
-  if (!btn) return;
-  const row = btn.closest('.bubble-row');
-  if (!row) return;
-  deleteMsg(row.dataset.chatid, row.dataset.msgid);
+  const del = e.target.closest('.del-btn');
+  if (del) { const row = del.closest('.bubble-row'); if (row) deleteMsg(row.dataset.chatid, row.dataset.msgid); return; }
+  const fwd = e.target.closest('.fwd-btn');
+  if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
+  const rpl = e.target.closest('.reply-btn');
+  if (rpl) { setReply(rpl.dataset.msgid, rpl.dataset.contact, rpl.dataset.preview, rpl.dataset.tgid); return; }
 });
 
 // ── Emoji picker ───────────────────────────────────────────────────────────────
@@ -1800,6 +1951,14 @@ applyLang();
   document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
 })();
 </script>
+<div id="fwd-modal">
+  <div class="fwd-modal-box">
+    <h3>↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <div id="fwd-chat-list"></div>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+  </div>
+</div>
 <div id="logout-modal">
   <div class="logout-modal-box">
     <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>
