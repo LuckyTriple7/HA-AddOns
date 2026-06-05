@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.17] - 2026-06-05
+- 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS"; blendet jetzt auch Videos aus (body.hide-photos video)
+
 ## [1.5.16] - 2026-06-05
 - Fix: FloodWait beim Video-Download — downloadMedia workers:1 verhindert parallele upload.GetFile-Requests
 

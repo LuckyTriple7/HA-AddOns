@@ -1070,7 +1070,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <h1>Signal</h1>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
   ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
@@ -1147,7 +1147,7 @@ const LANG = {
     qrInstr: 'Signal öffnen → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen',
     qrLoading: 'Lade QR-Code…', qrLoadingLong: 'Lade QR-Code… (kann bis zu 60s dauern)',
     qrError: (e) => 'Fehler: ' + e, qrRefreshBtn: 'QR-Code neu laden',
-    photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
+    photosOn: 'Medien AN', photosOff: 'Medien AUS',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', btnLogout: 'Abmelden',
     logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
@@ -1171,7 +1171,7 @@ const LANG = {
     qrInstr: 'Open Signal → Settings → Linked Devices → Link a Device → Scan QR code',
     qrLoading: 'Loading QR code…', qrLoadingLong: 'Loading QR code… (may take up to 60s)',
     qrError: (e) => 'Error: ' + e, qrRefreshBtn: 'Reload QR code',
-    photosOn: 'Photos ON', photosOff: 'Photos OFF',
+    photosOn: 'Media ON', photosOff: 'Media OFF',
     cleanupTitle: 'Delete orphaned media files',
     btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', btnLogout: 'Log out',
     logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
@@ -1681,7 +1681,7 @@ function togglePhotos() {
   showPhotos = !showPhotos;
   localStorage.setItem('signal_show_photos', showPhotos ? 'true' : 'false');
   const btn = document.getElementById('photo-toggle-btn');
-  if (btn) { btn.textContent = showPhotos ? '📷' : '🚫'; btn.title = showPhotos ? t('photosOn') : t('photosOff'); btn.classList.toggle('active', showPhotos); }
+  if (btn) { btn.textContent = showPhotos ? '🎬' : '🚫'; btn.title = showPhotos ? t('photosOn') : t('photosOff'); btn.classList.toggle('active', showPhotos); }
   if (selectedChatId) loadMessages(selectedChatId);
 }
 

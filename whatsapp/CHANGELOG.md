@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.13] - 2026-06-05
+- 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS"; blendet jetzt auch Videos aus
+
 ## [1.6.12] - 2026-06-05
 - Speicher-Tooltip: Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete (DE+EN)
 

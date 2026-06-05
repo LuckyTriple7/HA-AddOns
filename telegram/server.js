@@ -1062,7 +1062,8 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .photo-placeholder { display: none; }
-body.hide-photos .msg-img { display: none !important; }
+body.hide-photos .msg-img,
+body.hide-photos video { display: none !important; }
 body.hide-photos .photo-placeholder { display: inline; }
 
 /* ── Main layout ── */
@@ -1355,7 +1356,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <h1>Telegram</h1>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
   ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">↺</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
@@ -1434,7 +1435,7 @@ const LANG = {
     pwTitle: '2-Faktor-Passwort', pwInstr: 'Dein Konto ist durch ein Cloud-Passwort geschützt.',
     btnConfirm: 'Bestätigen', overlayErrorTitle: 'Fehler', btnReconnect: 'Erneut verbinden',
     unknownError: 'Unbekannter Fehler',
-    photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
+    photosOn: 'Medien AN', photosOff: 'Medien AUS',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
@@ -1455,7 +1456,7 @@ const LANG = {
     pwTitle: '2-Factor Password', pwInstr: 'Your account is protected by a cloud password.',
     btnConfirm: 'Confirm', overlayErrorTitle: 'Error', btnReconnect: 'Reconnect',
     unknownError: 'Unknown error',
-    photosOn: 'Photos ON', photosOff: 'Photos OFF',
+    photosOn: 'Media ON', photosOff: 'Media OFF',
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
@@ -1589,7 +1590,7 @@ function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
   document.body.classList.toggle('hide-photos', hiding);
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
   localStorage.setItem('tg-hide-photos', hiding ? '1' : '');
 }
 if (localStorage.getItem('tg-hide-photos')) {
