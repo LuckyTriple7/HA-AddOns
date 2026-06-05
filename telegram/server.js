@@ -1997,6 +1997,7 @@ async function fetchVideo(el) {
     if (r.success) {
       _lastMsgFingerprint[selectedChatId] = ''; // Cache invalidieren → forceRender
       await loadMessages(selectedChatId);
+      loadStorage();
     } else {
       el.textContent = '❌ ' + (r.error || 'Fehler');
       el.style.cursor = 'default';
