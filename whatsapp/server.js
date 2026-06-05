@@ -1808,7 +1808,7 @@ app.get('/', (req, res) => {
         document.querySelectorAll('[data-avid="' + chatId + '"]').forEach(el => applyAvatar(el, chatId));
       };
       img.onerror = () => { _avatarState.set(chatId, 'failed'); };
-      img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+      img.src = 'api/avatar/' + encodeURIComponent(chatId);
     }
     function applyAvatar(avEl, chatId) {
       const src = _avatarUrl.get(chatId);
@@ -2381,7 +2381,7 @@ app.get('/', (req, res) => {
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
       modal.classList.add('open');
       try {
-        const data = await fetch(api('/api/contact/' + encodeURIComponent(chatId))).then(r => r.json());
+        const data = await fetch('api/contact/' + encodeURIComponent(chatId)).then(r => r.json());
         const name = data.name || fallbackName || chatId;
         nameEl.textContent = name;
         pushnameEl.textContent = data.pushname && data.pushname !== data.name ? '"' + data.pushname + '"' : '';

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.7] - 2026-06-05
+- Fix: api() in WhatsApp-Client nicht definiert → ReferenceError brach renderChatList-Schleife ab; alle Avatar/Kontakt-Pfade auf direkte Relative-URL umgestellt
+
 ## [1.6.6] - 2026-06-05
 - Fix: Leere Chat-Liste nach Avatar-Update — renderChatList feuerte bei jedem Poll-Zyklus N parallele getContactById-Requests; jetzt einmaliger Load pro Chat mit client-seitigem State-Cache und server-seitigem Request-Dedup
 
