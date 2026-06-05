@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.10] - 2026-06-05
+- Kontaktinfo-Modal: savedName (Telefonbuch) als Hauptname, waName (WhatsApp-Profilname) als Label wenn abweichend; shortName als Fallback
+
 ## [1.6.9] - 2026-06-05
 - Fix: Telefonnummer im Kontaktinfo-Modal war falsch (contact.number liefert Müll); jetzt contact.id.user aus der chatId extrahiert
 

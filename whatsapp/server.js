@@ -1163,10 +1163,13 @@ app.get('/api/contact/:chatId', async (req, res) => {
     const about = await contact.getAbout().catch(() => null);
     const rawId = contact.id?.user || chatId.split('@')[0];
     const number = /^\d{6,15}$/.test(rawId) ? rawId : '';
+    const savedName = contact.name || contact.shortName || '';
+    const waName = contact.pushname || '';
     res.json({
       id: chatId,
-      name: contact.name || contact.pushname || rawId,
-      pushname: contact.pushname || '',
+      name: savedName || waName || rawId,
+      savedName,
+      waName,
       number,
       about: about || '',
       isMyContact: contact.isMyContact || false,
@@ -2403,7 +2406,12 @@ app.get('/', (req, res) => {
         const data = await fetch('api/contact/' + encodeURIComponent(chatId)).then(r => r.json());
         const name = data.name || fallbackName || chatId;
         nameEl.textContent = name;
-        pushnameEl.textContent = data.pushname && data.pushname !== data.name ? '"' + data.pushname + '"' : '';
+        // Zeige WhatsApp-Profilname (waName) nur wenn er vom Telefonbuch-Namen abweicht
+        if (data.waName && data.waName !== data.savedName) {
+          pushnameEl.innerHTML = '<span style="font-size:11px;opacity:0.6">WhatsApp-Name</span><br>' + esc(data.waName);
+        } else {
+          pushnameEl.textContent = '';
+        }
         numberEl.textContent = data.number ? '+' + data.number : '';
         aboutEl.textContent = data.about || '';
         picEl.textContent = '';
