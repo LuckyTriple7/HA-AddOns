@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.13] - 2026-06-05
+- Neu: Videos anzeigen — Download (max 50 MB, mp4/webm), <video controls> im Chat und im HTML-Export
+
 ## [1.5.12] - 2026-06-05
 - Fix: Kontaktinfo-Modal und Profilbilder jetzt auch für Gruppen, Kanäle und Bots
 

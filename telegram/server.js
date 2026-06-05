@@ -163,8 +163,13 @@ async function downloadMedia(rawMsg, msgId) {
       const mime = rawMsg.media.document?.mimeType || '';
       const attrs = rawMsg.media.document?.attributes || [];
       const isVoice = attrs.some(a => a.className === 'DocumentAttributeAudio' && a.voice);
+      const isVideo = !isVoice && (attrs.some(a => a.className === 'DocumentAttributeVideo') || mime.startsWith('video/'));
       if (isVoice) {
         ext = 'ogg';
+      } else if (isVideo) {
+        const fileSize = rawMsg.media.document?.size || 0;
+        if (fileSize > 50 * 1024 * 1024) return null; // max 50 MB
+        ext = mime === 'video/webm' ? 'webm' : mime === 'video/ogg' ? 'ogv' : 'mp4';
       } else if (mime.startsWith('image/')) {
         ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
       } else {
@@ -255,6 +260,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     } else if (isVideo) {
       type = 'video';
+      if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     }
   }
 
@@ -556,6 +562,14 @@ app.get('/api/export/:chatId', (req, res) => {
       content = fs.existsSync(fp)
         ? `<audio controls style="min-width:200px;max-width:280px;width:100%" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if (m.type === 'video' && m.mediaFile) {
+      const fp = `${MEDIA_DIR}/${m.mediaFile}`;
+      const ext = m.mediaFile.split('.').pop().toLowerCase();
+      const vmime = ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'video/mp4';
+      content = fs.existsSync(fp)
+        ? `<video controls style="max-width:280px;max-height:280px;border-radius:6px;display:block" src="data:${vmime};base64,${fs.readFileSync(fp).toString('base64')}"></video>`
+        : '<span style="opacity:0.6">📹 Video</span>';
+      if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'photo' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
       if (fs.existsSync(fp)) {
@@ -859,7 +873,7 @@ app.get('/api/media/:filename', (req, res) => {
   const filePath = `${MEDIA_DIR}/${filename}`;
   if (!fs.existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
-  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : 'image/jpeg';
+  const mime = ext==='webp'?'image/webp':ext==='png'?'image/png':ext==='ogg'?'audio/ogg':ext==='mp4'?'video/mp4':ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'image/jpeg';
   res.setHeader('Content-Type', mime);
   res.setHeader('Cache-Control', 'max-age=86400');
   res.sendFile(filePath);
@@ -1799,11 +1813,17 @@ function renderMessages(msgs) {
     const isPhoto = m.type==='photo'&&m.mediaFile;
     const isDoc = m.type==='document'&&m.filename;
     const isVoice = m.type==='voice';
+    const isVideo = m.type==='video';
     const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
     if(isVoice){
       content = m.mediaFile
         ? \`<audio controls style="min-width:220px;max-width:300px;width:100%" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if(isVideo){
+      content = m.mediaFile
+        ? \`<video controls style="max-width:320px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video>\`
+        : '<span style="opacity:0.6">📹 Video</span>';
+      if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
@@ -1818,7 +1838,7 @@ function renderMessages(msgs) {
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
     const chatForReply = allChats.find(c=>c.id===selectedChatId);
     const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name||selectedChatId||'');
-    const replyPreview = escHtml((m.body||(m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':'')).slice(0,60));
+    const replyPreview = escHtml((m.body||(m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':m.type==='video'?'📹 Video':'')).slice(0,60));
     const tgMsgRawId = m.id.split('_').pop();
     return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
   }).join('');
