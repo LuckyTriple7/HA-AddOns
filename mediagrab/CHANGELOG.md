@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [0.1.3] — 2026-06-05
+### Improved
+- Dateiliste: zweizeiliges Layout — Dateiname oben (volle Breite), Größe/Datum/Buttons unten
+- Bessere Lesbarkeit auf Mobile und Desktop
+
 ## [0.1.2] — 2026-06-05
 ### Added
 - Play-Button (▶) in der Dateiliste für Video- und Audio-Dateien

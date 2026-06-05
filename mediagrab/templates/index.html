@@ -113,13 +113,15 @@
     .sort-btn { font-size:.72rem; padding:3px 8px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
     .sort-btn.active { border-color:var(--accent); color:var(--accent); }
     .sort-btn:hover { border-color:var(--accent); color:var(--accent); }
-    .file-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .file-item { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); }
     .file-item:last-child { border-bottom:none; }
-    .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; }
-    .file-name { flex:1; min-width:0; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; padding-top:1px; }
+    .file-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+    .file-name { font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .file-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .file-size { font-size:.73rem; color:var(--muted); white-space:nowrap; }
     .file-date { font-size:.73rem; color:var(--muted); white-space:nowrap; }
-    .file-acts { display:flex; gap:6px; flex-shrink:0; }
+    .file-acts { display:flex; gap:6px; flex-shrink:0; margin-left:auto; }
     .path-note { font-size:.73rem; color:var(--muted); margin-bottom:8px; }
 
     /* ── Player modal ── */
@@ -506,13 +508,17 @@
       list.innerHTML = files.map(f => `
         <div class="file-item">
           <span class="file-icon">${icon(f)}</span>
-          <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
-          <span class="file-size">${fmtSize(f.size)}</span>
-          <span class="file-date">${fmtDate(f.mtime)}</span>
-          <div class="file-acts">
-            ${isPlayable(f) ? `<button class="sm-btn" onclick="playFile('${esc(f.name)}')">▶</button>` : ''}
-            <a class="sm-btn" href="/files/${encodeURIComponent(f.name)}" download>${esc(T.btn_download_file)}</a>
-            <button class="sm-btn danger" onclick="deleteFile('${esc(f.name)}')">${esc(T.btn_delete)}</button>
+          <div class="file-body">
+            <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
+            <div class="file-meta">
+              <span class="file-size">${fmtSize(f.size)}</span>
+              <span class="file-date">${fmtDate(f.mtime)}</span>
+              <div class="file-acts">
+                ${isPlayable(f) ? `<button class="sm-btn" onclick="playFile('${esc(f.name)}')">▶</button>` : ''}
+                <a class="sm-btn" href="/files/${encodeURIComponent(f.name)}" download>${esc(T.btn_download_file)}</a>
+                <button class="sm-btn danger" onclick="deleteFile('${esc(f.name)}')">${esc(T.btn_delete)}</button>
+              </div>
+            </div>
           </div>
         </div>`).join('');
     }
