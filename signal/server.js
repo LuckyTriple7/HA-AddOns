@@ -1338,12 +1338,15 @@ function formatFileSize(bytes) {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
-function onFileSelected(input) {
-  const file = input.files[0];
+function attachFile(file) {
   if (!file) return;
   _attachFile = file;
   document.getElementById('attach-name').textContent = file.name + ' (' + formatFileSize(file.size) + ')';
   document.getElementById('attach-bar').classList.add('visible');
+}
+
+function onFileSelected(input) {
+  attachFile(input.files[0]);
   input.value = '';
 }
 
@@ -1535,6 +1538,19 @@ function insertEmoji(emoji) {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#emoji-picker') && e.target.id !== 'emoji-toggle') {
     document.getElementById('emoji-picker').classList.remove('open');
+  }
+});
+
+document.getElementById('msg-input').addEventListener('paste', function(e) {
+  var items = (e.clipboardData && e.clipboardData.items) || [];
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image/') === 0) {
+      e.preventDefault();
+      var blob = items[i].getAsFile();
+      var ext = items[i].type.split('/')[1].replace('jpeg', 'jpg');
+      attachFile(new File([blob], 'bild.' + ext, { type: items[i].type }));
+      return;
+    }
   }
 });
 

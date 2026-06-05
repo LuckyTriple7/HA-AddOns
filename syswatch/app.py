@@ -1247,6 +1247,11 @@ def _background_collector() -> None:
             else:
                 # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert
                 _collect_once(max_workers=2, abort=_collect_event)
+                _update_hw_sensors()
+                with _stats_lock:
+                    _si_idle = _stats_cache.get('sysinfo', {})
+                _tick_history(_si_idle.get('cpu_pct', 0.0), _si_idle.get('mem_pct', 0.0),
+                              _hw_cache.get('cpu_temp'))
                 interval = 60
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)

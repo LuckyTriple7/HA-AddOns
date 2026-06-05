@@ -1,0 +1,52 @@
+{
+  "title": "MediaGrab",
+  "subtitle": "Video & Audio Downloader",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "username": "Benutzername",
+  "password": "Passwort",
+  "error_credentials": "Ungültige Anmeldedaten.",
+  "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
+
+  "section_download": "Download",
+  "url_placeholder": "URL eingeben (YouTube, Vimeo, SoundCloud, TikTok ...)",
+  "btn_download": "Herunterladen",
+  "label_format": "Format",
+  "label_subtitles": "Untertitel",
+  "label_playlist": "Ganze Playlist",
+
+  "fmt_best_video": "Bestes Video (MP4)",
+  "fmt_1080p": "1080p (MP4)",
+  "fmt_720p": "720p (MP4)",
+  "fmt_480p": "480p (MP4)",
+  "fmt_360p": "360p (MP4)",
+  "fmt_mp3": "Audio (MP3)",
+  "fmt_m4a": "Audio (M4A)",
+
+  "section_queue": "Download-Queue",
+  "queue_empty": "Keine aktiven Downloads.",
+  "status_pending": "Wartend",
+  "status_running": "Läuft",
+  "status_done": "Fertig",
+  "status_error": "Fehler",
+  "status_cancelled": "Abgebrochen",
+  "btn_cancel": "Abbrechen",
+  "btn_remove": "Entfernen",
+  "lbl_speed": "Geschw.",
+  "lbl_eta": "ETA",
+
+  "section_files": "Dateien",
+  "files_path": "Gespeichert in /media/mediagrab",
+  "files_empty": "Noch keine Dateien vorhanden.",
+  "btn_refresh": "Aktualisieren",
+  "btn_delete": "Löschen",
+  "btn_download_file": "Download",
+  "confirm_delete": "Datei \"{name}\" wirklich löschen?",
+
+  "error_no_url": "Bitte eine URL eingeben.",
+  "error_queue_full": "Download-Queue voll. Bitte warten.",
+  "error_network": "Netzwerkfehler",
+  "error_unknown": "Unbekannter Fehler",
+
+  "install_banner": "MediaGrab als App installieren"
+}

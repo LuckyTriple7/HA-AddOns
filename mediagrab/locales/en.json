@@ -1,0 +1,52 @@
+{
+  "title": "MediaGrab",
+  "subtitle": "Video & Audio Downloader",
+  "login": "Sign in",
+  "logout": "Sign out",
+  "username": "Username",
+  "password": "Password",
+  "error_credentials": "Invalid credentials.",
+  "error_locked": "Too many failed attempts. Please wait 15 minutes.",
+
+  "section_download": "Download",
+  "url_placeholder": "Enter URL (YouTube, Vimeo, SoundCloud, TikTok ...)",
+  "btn_download": "Download",
+  "label_format": "Format",
+  "label_subtitles": "Subtitles",
+  "label_playlist": "Entire playlist",
+
+  "fmt_best_video": "Best Video (MP4)",
+  "fmt_1080p": "1080p (MP4)",
+  "fmt_720p": "720p (MP4)",
+  "fmt_480p": "480p (MP4)",
+  "fmt_360p": "360p (MP4)",
+  "fmt_mp3": "Audio (MP3)",
+  "fmt_m4a": "Audio (M4A)",
+
+  "section_queue": "Download Queue",
+  "queue_empty": "No active downloads.",
+  "status_pending": "Pending",
+  "status_running": "Running",
+  "status_done": "Done",
+  "status_error": "Error",
+  "status_cancelled": "Cancelled",
+  "btn_cancel": "Cancel",
+  "btn_remove": "Remove",
+  "lbl_speed": "Speed",
+  "lbl_eta": "ETA",
+
+  "section_files": "Files",
+  "files_path": "Saved to /media/mediagrab",
+  "files_empty": "No files yet.",
+  "btn_refresh": "Refresh",
+  "btn_delete": "Delete",
+  "btn_download_file": "Download",
+  "confirm_delete": "Really delete \"{name}\"?",
+
+  "error_no_url": "Please enter a URL.",
+  "error_queue_full": "Download queue is full. Please wait.",
+  "error_network": "Network error",
+  "error_unknown": "Unknown error",
+
+  "install_banner": "Install MediaGrab as app"
+}

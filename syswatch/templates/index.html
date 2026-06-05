@@ -1474,21 +1474,29 @@ function drawSysChart(canvas, history, metric) {
     ctx.fillText(g + yUnit, PAD.left - 6, y + 4);
   });
 
-  // Zeitachse — Stunden-Markierungen
-  const nowMs = Date.now();
+  // Zeitachse — Stunden-Markierungen aus Datenbereich
   ctx.textAlign = 'center';
-  for (let h = 0; h <= 24; h += 4) {
-    const t = nowMs - h * 3600000;
-    if (t < minT - 120000) continue;
+  ctx.font = '11px system-ui,sans-serif';
+  const spanH = Math.max(1, (maxT - minT) / 3600000);
+  const stepH = spanH <= 3 ? 1 : spanH <= 6 ? 2 : spanH <= 12 ? 3 : spanH <= 18 ? 4 : 6;
+  const startH = Math.ceil(minT / 3600000);
+  const endH   = Math.floor(maxT / 3600000);
+  for (let h = startH; h <= endH; h += stepH) {
+    const t = h * 3600000;
     const x = px(t);
-    if (x < PAD.left || x > PAD.left + cW) continue;
-    ctx.strokeStyle = bdr + '55'; ctx.lineWidth = 1;
+    if (x < PAD.left + 12 || x > PAD.left + cW - 12) continue;
+    ctx.strokeStyle = bdr + '88'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + cH); ctx.stroke();
     const d = new Date(t);
-    const lbl = h === 0 ? 'jetzt' : `${String(d.getHours()).padStart(2,'0')}:00`;
-    ctx.fillStyle = muted;
-    ctx.fillText(lbl, x, PAD.top + cH + 16);
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText(`${String(d.getHours()).padStart(2,'0')}:00`, x, PAD.top + cH + 16);
   }
+  // Aktuelle Uhrzeit am rechten Rand
+  const nowD = new Date(maxT);
+  const nowLbl = `${String(nowD.getHours()).padStart(2,'0')}:${String(nowD.getMinutes()).padStart(2,'0')}`;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(nowLbl, PAD.left + cW, PAD.top + cH + 16);
 
   // Dominante Farbe basierend auf Durchschnitt → für Fill
   const avgVal  = vals.reduce((a, b) => a + b, 0) / vals.length;

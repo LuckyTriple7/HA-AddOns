@@ -1,0 +1,93 @@
+name: Check yt-dlp Update
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # täglich um 2:00 UTC (4:00 CEST)
+    - cron: '0 14 * * *'  # täglich um 14:00 UTC (16:00 CEST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest yt-dlp version (GitHub API)
+        id: upstream
+        run: |
+          VERSION=$(curl -s "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest" | jq -r '.tag_name')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Upstream yt-dlp: ${VERSION}"
+
+      - name: Get tracked version
+        id: tracked
+        run: |
+          if [ -f .ytdlp-version ]; then
+            echo "version=$(cat .ytdlp-version | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+          else
+            echo "version=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if already up to date
+        if: steps.upstream.outputs.version == steps.tracked.outputs.version
+        run: echo "yt-dlp ${{ steps.upstream.outputs.version }} wird bereits gebaut — nichts zu tun."
+
+      - name: Compute new add-on version
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        id: versions
+        run: |
+          ADDON_VER=$(grep '^version:' mediagrab/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MAJOR=$(echo $ADDON_VER | cut -d. -f1)
+          MINOR=$(echo $ADDON_VER | cut -d. -f2)
+          PATCH=$(echo $ADDON_VER | cut -d. -f3)
+          NEW_ADDON_VER="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "old=${ADDON_VER}" >> $GITHUB_OUTPUT
+          echo "new=${NEW_ADDON_VER}" >> $GITHUB_OUTPUT
+
+      - name: Prepare files
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        env:
+          YTDLP_VER: ${{ steps.upstream.outputs.version }}
+          OLD_ADDON_VER: ${{ steps.versions.outputs.old }}
+          NEW_ADDON_VER: ${{ steps.versions.outputs.new }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+
+          sed -i "s/version: \"${OLD_ADDON_VER}\"/version: \"${NEW_ADDON_VER}\"/" mediagrab/config.yaml
+          sed -i "s/yt-dlp==.*/yt-dlp==${YTDLP_VER}/" mediagrab/requirements.txt
+          echo "${YTDLP_VER}" > .ytdlp-version
+
+          ENTRY="## [${NEW_ADDON_VER}] — ${DATE}\n\n### Geändert\n- Rebuild für yt-dlp ${YTDLP_VER}\n"
+          sed -i "0,/^## \[/{s/^## \[/ENTRY_PLACEHOLDER\n\n## [/}" mediagrab/CHANGELOG.md
+          sed -i "s|ENTRY_PLACEHOLDER|${ENTRY}|" mediagrab/CHANGELOG.md
+
+      - name: Create Pull Request
+        if: steps.upstream.outputs.version != steps.tracked.outputs.version
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
+          branch: update/mediagrab-ytdlp-${{ steps.upstream.outputs.version }}
+          delete-branch: true
+          commit-message: "Bump MediaGrab zu v${{ steps.versions.outputs.new }} — yt-dlp ${{ steps.upstream.outputs.version }}"
+          title: "Update yt-dlp ${{ steps.upstream.outputs.version }} (MediaGrab v${{ steps.versions.outputs.new }})"
+          body: |
+            ## yt-dlp Update
+
+            Neue yt-dlp Version **${{ steps.upstream.outputs.version }}** verfügbar.
+
+            ### Änderungen
+            - Add-on Version: `${{ steps.versions.outputs.old }}` → `${{ steps.versions.outputs.new }}`
+            - yt-dlp: `${{ steps.tracked.outputs.version }}` → `${{ steps.upstream.outputs.version }}`
+
+            Nach dem Merge wird das Image automatisch via `build-mediagrab.yml` gebaut (nach Merge in `main`).
+
+            ---
+            _Automatisch erstellt von GitHub Actions._
+          labels: "auto-update"

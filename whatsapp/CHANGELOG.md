@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.3] - 2026-06-05
+- Fix: Audio-Player zu schmal — Chrome zeigte nur Drei-Punkte-Menü statt voller Controls; min-width:220px gesetzt
+
+## [1.6.2] - 2026-06-05
+- Fix: Sprachnachrichten nicht abspielbar — Media-Endpoint lieferte .ogg als image/jpeg; MIME-Type für ogg + mp3 ergänzt
+
+## [1.6.1] - 2026-06-05
+- Fix: Ältere Sprachnachrichten werden beim Start automatisch nachgeladen (Auto-Download auf voice erweitert)
+- Fix: Audio-Player-Darstellung korrigiert (feste Höhe entfernt, Browser rendert Controls vollständig)
+- Fix: Log-Meldungen für Auto-Download auf photo+voice verallgemeinert
+
+## [1.6.0] - 2026-06-05
+- Fix: Sprachnachrichten wurden im Chat nicht angezeigt — Voice-Rendering fehlte im Client-seitigen Render-Zweig; Audio-Player und Fallback-Text jetzt korrekt
+
+## [1.5.9] - 2026-06-05
+- Neu: Sprachnachrichten (ptt/audio) werden empfangen, als .ogg auf Disk gespeichert und im Chat als abspielbarer Audio-Player angezeigt; Fallback-Platzhalter wenn Download fehlschlägt
+
 ## [1.5.8] - 2026-06-04
 - fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
 

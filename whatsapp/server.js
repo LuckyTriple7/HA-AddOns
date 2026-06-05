@@ -230,7 +230,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? `📄 ${msg.filename || 'Dokument'}` : '[Medien]');
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -242,7 +242,7 @@ function addMsg(chatId, msg) {
 async function downloadWAMedia(msg, msgId) {
   try {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
-    const ext = msg.type === 'sticker' ? 'webp' : 'jpg';
+    const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
       dbg(`Downloading media: ${safeId}.${ext}`);
@@ -322,8 +322,9 @@ client.on('ready', async () => {
       for (const msg of msgs) {
         const isText = msg.type === 'chat' || msg.type === 'text';
         const isImage = msg.type === 'image' || msg.type === 'sticker';
-        if (!isText && !isImage) continue;
-        if (!msg.body && !isImage) continue;
+        const isPtt = msg.type === 'ptt' || msg.type === 'audio';
+        if (!isText && !isImage && !isPtt) continue;
+        if (!msg.body && !isImage && !isPtt) continue;
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
@@ -343,7 +344,7 @@ client.on('ready', async () => {
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
-          type: isImage ? 'photo' : 'text',
+          type: isImage ? 'photo' : isPtt ? 'voice' : 'text',
           mediaFile: null,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
@@ -364,14 +365,14 @@ client.on('ready', async () => {
         const pending = [];
         let cached = 0;
         for (const [chatId, msgs] of messagesByChatId) {
-          for (const m of msgs.filter(m => m.type === 'photo')) {
+          for (const m of msgs.filter(m => m.type === 'photo' || m.type === 'voice')) {
             if (m.mediaFile) cached++;
             else pending.push({ chatId, m });
           }
         }
-        if (cached) console.log(`[INFO] ${cached} photo(s) already on disk — no download needed`);
+        if (cached) console.log(`[INFO] ${cached} media file(s) already on disk — no download needed`);
         if (!pending.length) return;
-        console.log(`[INFO] Auto-downloading media for ${pending.length} photo message(s) in background…`);
+        console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
         let count = 0;
         for (const { m } of pending) {
           try {
@@ -383,7 +384,7 @@ client.on('ready', async () => {
           } catch (e) { dbg(`auto-media: error for ${m.id}: ${e.message}`); }
           await new Promise(r => setTimeout(r, 600));
         }
-        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} photo(s) downloaded`);
+        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} media file(s) downloaded`);
         if (count) saveMsgs();
       })();
     }
@@ -412,8 +413,9 @@ client.on('message', async (msg) => {
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   const isDocument = msg.type === 'document';
-  if (!isText && !isImage && !isDocument) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
-  if (!msg.body && !isImage && !isDocument) return;
+  const isPtt = msg.type === 'ptt' || msg.type === 'audio';
+  if (!isText && !isImage && !isDocument && !isPtt) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
+  if (!msg.body && !isImage && !isDocument && !isPtt) return;
   const chat = await msg.getChat().catch(() => null);
   const chatId = chat ? chat.id._serialized : msg.from;
   if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
@@ -434,6 +436,9 @@ client.on('message', async (msg) => {
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
+  } else if (isPtt) {
+    type = 'voice';
+    mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   }
   let quotedMsgData = null;
   if (msg.hasQuotedMsg) {
@@ -855,7 +860,7 @@ app.get('/api/media/:filename', (req, res) => {
   const filePath = `${MEDIA_DIR}/${filename}`;
   if (!existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
-  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'image/jpeg';
   res.setHeader('Content-Type', mime);
   res.setHeader('Cache-Control', 'max-age=86400');
   res.sendFile(filePath);
@@ -982,6 +987,10 @@ app.get('/api/export/:chatId', (req, res) => {
         content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
       } else { content = '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else if (m.type === 'voice') {
+      content = m.mediaFile
+        ? '<audio controls style="min-width:220px;max-width:300px;width:100%" src="api/media/' + escH(m.mediaFile) + '"></audio>'
+        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
@@ -2019,6 +2028,12 @@ app.get('/', (req, res) => {
           bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
         } else if (m.type === 'document') {
           bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
+        } else if (m.type === 'voice') {
+          const audioSrc = m.mediaFile ? 'api/media/' + encodeURIComponent(m.mediaFile) : '';
+          bub.innerHTML = (audioSrc
+            ? '<audio controls style="min-width:220px;max-width:300px;width:100%" src="' + audioSrc + '"></audio>'
+            : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>')
+            + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'photo' && m.mediaFile) {
           bub.classList.add('bubble-photo');
           if (m.isForwarded) {
