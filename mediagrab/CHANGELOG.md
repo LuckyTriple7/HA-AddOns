@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.1.1] — 2026-06-05
+### Fixed
+- URL-Textarea: Resize-Griff rechts unten entfernt
+
 ## [0.1.0] — 2026-06-05
 ### Improved
 - Cookies-Anzeige zeigt jetzt die enthaltenen Domains (z.B. "instagram.com, tiktok.com") statt nur die Dateigröße
