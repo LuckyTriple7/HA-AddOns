@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>{{ t.title }}</title>
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    :root {
+      --bg:     #0d1117;
+      --surf:   #161b22;
+      --surf2:  #1c2128;
+      --border: #30363d;
+      --text:   #c9d1d9;
+      --muted:  #8b949e;
+      --accent: #58a6ff;
+      --green:  #3fb950;
+      --yellow: #d29922;
+      --red:    #f85149;
+      --r: 6px;
+    }
+    [data-theme="light"] {
+      --bg:     #f0f2f5;
+      --surf:   #ffffff;
+      --surf2:  #f6f8fa;
+      --border: #d0d7de;
+      --text:   #1f2328;
+      --muted:  #636c76;
+      --accent: #0969da;
+      --green:  #1a7f37;
+      --yellow: #9a6700;
+      --red:    #cf222e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { transition: background-color .2s, border-color .2s, color .2s; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); font-size: 14px;
+      display: flex; flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: var(--surf); border-bottom: 1px solid var(--border);
+      padding: 9px 14px; display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0; z-index: 200;
+    }
+    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+    .hdr-spacer { flex: 1; }
+    .lang-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;
+      text-decoration: none; transition: border-color .15s, color .15s;
+    }
+    .lang-btn.active, .lang-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .theme-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 3px 6px; border-radius: 4px; cursor: pointer;
+      display: inline-flex; align-items: center;
+    }
+    .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-moon { display: block; }
+    .icon-sun  { display: none; }
+    [data-theme="light"] .icon-moon { display: none; }
+    [data-theme="light"] .icon-sun  { display: block; }
+    .logout-btn {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 2px 10px; border-radius: 4px; font-size: 0.75rem;
+      cursor: pointer; text-decoration: none;
+      transition: border-color .15s, color .15s;
+    }
+    .logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+    /* Scroll container */
+    #main-scroll {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      -webkit-overflow-scrolling: touch; padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surf); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 16px;
+    }
+    .card-title {
+      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .badge {
+      background: var(--surf2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1px 7px; font-size: 0.7rem;
+      color: var(--muted); font-weight: 500; text-transform: none;
+    }
+    .card-title .spacer { flex: 1; }
+
+    /* Download form */
+    .dl-row {
+      display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap;
+    }
+    .dl-url {
+      flex: 1; min-width: 200px;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: var(--r); font-size: 0.9rem;
+    }
+    .dl-url:focus { outline: none; border-color: var(--accent); }
+    .dl-select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 10px; border-radius: var(--r); font-size: 0.85rem; cursor: pointer;
+    }
+    .dl-select:focus { outline: none; border-color: var(--accent); }
+    .dl-btn {
+      background: var(--accent); border: none; color: #fff;
+      padding: 9px 18px; border-radius: var(--r); font-size: 0.9rem;
+      font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: opacity .15s;
+    }
+    .dl-btn:hover { opacity: .85; }
+    .dl-btn:disabled { opacity: .4; cursor: default; }
+    .dl-opts {
+      display: flex; gap: 20px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .dl-opts label {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.85rem; color: var(--muted); cursor: pointer; user-select: none;
+    }
+    .dl-opts input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--surf2); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 18px; border-radius: var(--r); font-size: 0.85rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4); z-index: 999;
+      opacity: 0; pointer-events: none; transition: opacity .3s;
+    }
+    #toast.show { opacity: 1; }
+    #toast.err { border-color: var(--red); color: var(--red); }
+
+    /* Queue */
+    .job-item {
+      background: var(--surf2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 12px 14px; margin-bottom: 8px;
+    }
+    .job-item:last-child { margin-bottom: 0; }
+    .job-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .job-name { font-size: 0.85rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .job-fmt { font-size: 0.7rem; color: var(--muted); background: var(--surf); border: 1px solid var(--border); padding: 1px 6px; border-radius: 3px; }
+    .job-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .s-pending  { background: rgba(210,153,34,.15);  color: var(--yellow); }
+    .s-running  { background: rgba(88,166,255,.15);  color: var(--accent); }
+    .s-done     { background: rgba(63,185,80,.15);   color: var(--green);  }
+    .s-error    { background: rgba(248,81,73,.15);   color: var(--red);    }
+    .s-cancelled{ background: rgba(139,148,158,.15); color: var(--muted);  }
+    .job-bar-wrap {
+      height: 4px; background: var(--border); border-radius: 2px;
+      overflow: hidden; margin-bottom: 6px;
+    }
+    .job-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; }
+    .job-bar.done { background: var(--green); }
+    .job-bar.err  { background: var(--red); }
+    .job-meta { font-size: 0.75rem; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+    .job-actions { margin-top: 8px; display: flex; gap: 8px; }
+    .sm-btn {
+      font-size: 0.75rem; padding: 3px 10px; border-radius: 4px;
+      cursor: pointer; border: 1px solid var(--border); background: none; color: var(--muted);
+      transition: border-color .15s, color .15s;
+    }
+    .sm-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .sm-btn.danger:hover { border-color: var(--red); color: var(--red); }
+    .empty-note { color: var(--muted); font-size: 0.83rem; padding: 8px 0; }
+
+    /* File list */
+    .file-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .file-item:last-child { border-bottom: none; }
+    .file-icon { color: var(--muted); font-size: 1rem; flex-shrink: 0; }
+    .file-name { flex: 1; min-width: 0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+    .file-date { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+    .file-acts { display: flex; gap: 6px; flex-shrink: 0; }
+    .path-note { font-size: 0.75rem; color: var(--muted); margin-bottom: 10px; }
+
+    /* PWA install */
+    #pwa-banner {
+      display: none; background: var(--surf2); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 14px;
+      font-size: 0.82rem; align-items: center; gap: 10px;
+    }
+    #pwa-banner.visible { display: flex; }
+    #pwa-install { background: var(--accent); color: #fff; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    #pwa-dismiss { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; margin-left: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">MediaGrab</div>
+    <div class="hdr-spacer"></div>
+    <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+    <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <button class="theme-btn" onclick="toggleTheme()" type="button">
+      <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+      <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+    </button>
+    <a href="/logout" class="logout-btn">{{ t.logout }}</a>
+  </header>
+
+  <div id="main-scroll">
+
+    <!-- PWA install banner -->
+    <div id="pwa-banner">
+      <span>{{ t.install_banner }}</span>
+      <button id="pwa-install">{{ t.btn_download_file }}</button>
+      <button id="pwa-dismiss">&times;</button>
+    </div>
+
+    <!-- Download form -->
+    <div class="card">
+      <div class="card-title">{{ t.section_download }}</div>
+      <div class="dl-row">
+        <input id="url-input" class="dl-url" type="url"
+               placeholder="{{ t.url_placeholder }}"
+               autocomplete="off" spellcheck="false">
+        <select id="fmt-select" class="dl-select">
+          <option value="best_video">{{ t.fmt_best_video }}</option>
+          <option value="1080p">{{ t.fmt_1080p }}</option>
+          <option value="720p">{{ t.fmt_720p }}</option>
+          <option value="480p">{{ t.fmt_480p }}</option>
+          <option value="360p">{{ t.fmt_360p }}</option>
+          <option value="mp3">{{ t.fmt_mp3 }}</option>
+          <option value="m4a">{{ t.fmt_m4a }}</option>
+        </select>
+        <button id="dl-btn" class="dl-btn" onclick="startDownload()">{{ t.btn_download }}</button>
+      </div>
+      <div class="dl-opts">
+        <label><input type="checkbox" id="cb-subtitles"> {{ t.label_subtitles }}</label>
+        <label><input type="checkbox" id="cb-playlist"> {{ t.label_playlist }}</label>
+      </div>
+    </div>
+
+    <!-- Queue -->
+    <div class="card">
+      <div class="card-title">
+        {{ t.section_queue }}
+        <span class="badge" id="queue-badge">0</span>
+      </div>
+      <div id="jobs-list">
+        <p class="empty-note" id="queue-empty">{{ t.queue_empty }}</p>
+      </div>
+    </div>
+
+    <!-- Files -->
+    <div class="card">
+      <div class="card-title">
+        {{ t.section_files }}
+        <span class="badge" id="files-badge">0</span>
+        <span class="spacer"></span>
+        <button class="sm-btn" onclick="loadFiles()">{{ t.btn_refresh }}</button>
+      </div>
+      <p class="path-note">{{ t.files_path }}</p>
+      <div id="files-list">
+        <p class="empty-note" id="files-empty">{{ t.files_empty }}</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── i18n strings injected from Jinja ──────────────────────────────────────
+    const T = {
+      queue_empty:    {{ t.queue_empty | tojson }},
+      files_empty:    {{ t.files_empty | tojson }},
+      error_no_url:   {{ t.error_no_url | tojson }},
+      error_queue_full: {{ t.error_queue_full | tojson }},
+      error_network:  {{ t.error_network | tojson }},
+      error_unknown:  {{ t.error_unknown | tojson }},
+      confirm_delete: {{ t.confirm_delete | tojson }},
+      btn_cancel:     {{ t.btn_cancel | tojson }},
+      btn_remove:     {{ t.btn_remove | tojson }},
+      btn_delete:     {{ t.btn_delete | tojson }},
+      btn_download_file: {{ t.btn_download_file | tojson }},
+      lbl_speed:      {{ t.lbl_speed | tojson }},
+      lbl_eta:        {{ t.lbl_eta | tojson }},
+      status_pending:   {{ t.status_pending | tojson }},
+      status_running:   {{ t.status_running | tojson }},
+      status_done:      {{ t.status_done | tojson }},
+      status_error:     {{ t.status_error | tojson }},
+      status_cancelled: {{ t.status_cancelled | tojson }},
+      install_banner:   {{ t.install_banner | tojson }},
+    };
+
+    // ── Theme ─────────────────────────────────────────────────────────────────
+    (function(){ const t = localStorage.getItem('mg-theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
+    function toggleTheme(){ const c = document.documentElement.getAttribute('data-theme') || 'dark'; const n = c === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); localStorage.setItem('mg-theme', n); }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    let _toastTimer = null;
+    function toast(msg, isErr = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'show' + (isErr ? ' err' : '');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function fmtSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+      if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
+      return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+    }
+    function fmtDate(ts) {
+      return new Date(ts * 1000).toLocaleString();
+    }
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Download ──────────────────────────────────────────────────────────────
+    async function startDownload() {
+      const url = document.getElementById('url-input').value.trim();
+      if (!url) { toast(T.error_no_url, true); return; }
+      const fmt       = document.getElementById('fmt-select').value;
+      const subtitles = document.getElementById('cb-subtitles').checked;
+      const playlist  = document.getElementById('cb-playlist').checked;
+      const btn = document.getElementById('dl-btn');
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/download', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url, fmt, subtitles, playlist})
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          if (data.error === 'queue_full') toast(T.error_queue_full, true);
+          else toast(T.error_unknown + ': ' + (data.error || r.status), true);
+          return;
+        }
+        document.getElementById('url-input').value = '';
+        loadJobs();
+      } catch(e) {
+        toast(T.error_network, true);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('url-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') startDownload();
+      });
+    });
+
+    // ── Jobs ──────────────────────────────────────────────────────────────────
+    const STATUS_LABEL = {
+      pending:   T.status_pending,
+      running:   T.status_running,
+      done:      T.status_done,
+      error:     T.status_error,
+      cancelled: T.status_cancelled,
+    };
+
+    let _prevDoneIds = new Set();
+
+    async function loadJobs() {
+      try {
+        const r = await fetch('/api/jobs');
+        if (!r.ok) return;
+        const jobs = await r.json();
+        renderJobs(jobs);
+
+        // Reload files when a new job finishes
+        const nowDone = new Set(jobs.filter(j => j.status === 'done').map(j => j.id));
+        const newlyDone = [...nowDone].filter(id => !_prevDoneIds.has(id));
+        if (newlyDone.length) loadFiles();
+        _prevDoneIds = nowDone;
+      } catch(e) {}
+    }
+
+    function renderJobs(jobs) {
+      const list   = document.getElementById('jobs-list');
+      const badge  = document.getElementById('queue-badge');
+      const active = jobs.filter(j => j.status === 'pending' || j.status === 'running');
+      badge.textContent = active.length;
+
+      if (!jobs.length) {
+        list.innerHTML = '<p class="empty-note">' + esc(T.queue_empty) + '</p>';
+        return;
+      }
+      list.innerHTML = jobs.map(j => {
+        const pct = Math.min(100, Math.max(0, j.progress || 0));
+        const barCls = j.status === 'done' ? 'done' : j.status === 'error' ? 'err' : '';
+        const name = j.filename || j.url;
+        const meta = j.status === 'running'
+          ? (j.speed ? T.lbl_speed + ': ' + esc(j.speed) : '') +
+            (j.eta   ? (j.speed ? '&nbsp;&nbsp;' : '') + T.lbl_eta + ': ' + esc(j.eta) : '')
+          : j.error ? esc(j.error) : '';
+        const canCancel  = j.status === 'pending' || j.status === 'running';
+        const canRemove  = !canCancel;
+        return `
+          <div class="job-item">
+            <div class="job-header">
+              <span class="job-name" title="${esc(name)}">${esc(name)}</span>
+              <span class="job-fmt">${esc(j.fmt)}</span>
+              <span class="job-status s-${j.status}">${esc(STATUS_LABEL[j.status] || j.status)}</span>
+            </div>
+            <div class="job-bar-wrap">
+              <div class="job-bar ${barCls}" style="width:${pct}%"></div>
+            </div>
+            <div class="job-meta">${pct.toFixed(1)}%${meta ? '&nbsp;&nbsp;' + meta : ''}</div>
+            <div class="job-actions">
+              ${canCancel ? `<button class="sm-btn danger" onclick="cancelJob('${esc(j.id)}')">${esc(T.btn_cancel)}</button>` : ''}
+              ${canRemove ? `<button class="sm-btn" onclick="removeJob('${esc(j.id)}')">${esc(T.btn_remove)}</button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function cancelJob(id) {
+      await fetch('/api/cancel/' + id, {method: 'POST'});
+      loadJobs();
+    }
+    async function removeJob(id) {
+      await fetch('/api/remove/' + id, {method: 'POST'});
+      loadJobs();
+    }
+
+    // ── Files ─────────────────────────────────────────────────────────────────
+    async function loadFiles() {
+      try {
+        const r = await fetch('/api/files');
+        if (!r.ok) return;
+        const files = await r.json();
+        renderFiles(files);
+      } catch(e) {}
+    }
+
+    function renderFiles(files) {
+      const list  = document.getElementById('files-list');
+      const badge = document.getElementById('files-badge');
+      badge.textContent = files.length;
+      if (!files.length) {
+        list.innerHTML = '<p class="empty-note">' + esc(T.files_empty) + '</p>';
+        return;
+      }
+      const icon = f => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        if (['mp4','mkv','webm','avi','mov'].includes(ext)) return '🎬';
+        if (['mp3','m4a','ogg','opus','aac','flac','wav'].includes(ext)) return '🎵';
+        return '📄';
+      };
+      list.innerHTML = files.map(f => `
+        <div class="file-item">
+          <span class="file-icon">${icon(f)}</span>
+          <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
+          <span class="file-size">${fmtSize(f.size)}</span>
+          <span class="file-date">${fmtDate(f.mtime)}</span>
+          <div class="file-acts">
+            <a class="sm-btn" href="/files/${encodeURIComponent(f.name)}" download>${esc(T.btn_download_file)}</a>
+            <button class="sm-btn danger" onclick="deleteFile('${esc(f.name)}')">${esc(T.btn_delete)}</button>
+          </div>
+        </div>`).join('');
+    }
+
+    async function deleteFile(name) {
+      if (!confirm(T.confirm_delete.replace('{name}', name))) return;
+      try {
+        const r = await fetch('/api/file/delete/' + encodeURIComponent(name), {method: 'POST'});
+        if (r.ok) { loadFiles(); }
+        else toast(T.error_unknown, true);
+      } catch(e) { toast(T.error_network, true); }
+    }
+
+    // ── PWA ───────────────────────────────────────────────────────────────────
+    let _deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault(); _deferredPrompt = e;
+      document.getElementById('pwa-banner').classList.add('visible');
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('pwa-install').textContent = T.install_banner;
+      document.getElementById('pwa-install').addEventListener('click', async () => {
+        if (!_deferredPrompt) return;
+        _deferredPrompt.prompt();
+        await _deferredPrompt.userChoice;
+        _deferredPrompt = null;
+        document.getElementById('pwa-banner').classList.remove('visible');
+      });
+      document.getElementById('pwa-dismiss').addEventListener('click', () => {
+        document.getElementById('pwa-banner').classList.remove('visible');
+      });
+
+      // Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+
+      // Initial load
+      loadJobs();
+      loadFiles();
+
+      // Poll jobs every 2 seconds
+      setInterval(loadJobs, 2000);
+    });
+  </script>
+</body>
+</html>
