@@ -1105,29 +1105,51 @@ app.post('/api/delete-batch/:chatId', async (req, res) => {
 
 // ── Avatar + Kontaktinfo ──────────────────────────────────────────────────────
 
-const avatarCache = new Map(); // chatId → { buf: Buffer, ts: number }
+const avatarCache = new Map();    // chatId → { buf: Buffer, ts: number }
+const avatarPending = new Map();  // chatId → Promise (dedup parallel requests)
 
 app.get('/api/avatar/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   const cached = avatarCache.get(chatId);
-  if (cached && Date.now() - cached.ts < 3600000) {
+  if (cached !== undefined && Date.now() - cached.ts < 3600000) {
+    if (!cached.buf) return res.status(404).end(); // cached "no pic"
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     return res.send(cached.buf);
   }
   if (status !== 'connected') return res.status(503).end();
-  try {
+
+  // Dedup: if another request for this chatId is already in-flight, wait for it
+  if (avatarPending.has(chatId)) {
+    try {
+      const buf = await avatarPending.get(chatId);
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(buf);
+    } catch { return res.status(404).end(); }
+  }
+
+  const promise = (async () => {
     const contact = await client.getContactById(chatId);
     const picUrl = await contact.getProfilePicUrl();
-    if (!picUrl) return res.status(404).end();
+    if (!picUrl) throw new Error('no pic');
     const r = await fetch(picUrl);
-    if (!r.ok) return res.status(404).end();
+    if (!r.ok) throw new Error('fetch failed');
     const buf = Buffer.from(await r.arrayBuffer());
     avatarCache.set(chatId, { buf, ts: Date.now() });
+    return buf;
+  })();
+
+  avatarPending.set(chatId, promise);
+  promise.finally(() => avatarPending.delete(chatId));
+
+  try {
+    const buf = await promise;
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(buf);
   } catch(e) {
+    avatarCache.set(chatId, { buf: null, ts: Date.now() }); // Mark as no-pic so we don't retry immediately
     res.status(404).end();
   }
 });
@@ -1768,6 +1790,38 @@ app.get('/', (req, res) => {
       applyLang();
     }
     // ────────────────────────────────────────────────────────────────────────────
+    const _avatarState = new Map(); // chatId → 'loading'|'loaded'|'failed'
+    const _avatarUrl = new Map();   // chatId → object-url or src string
+    function loadAvatar(chatId, avEl) {
+      const state = _avatarState.get(chatId);
+      if (state === 'loaded') {
+        applyAvatar(avEl, chatId);
+        return;
+      }
+      if (state === 'loading' || state === 'failed') return;
+      _avatarState.set(chatId, 'loading');
+      const img = new Image();
+      img.onload = () => {
+        _avatarState.set(chatId, 'loaded');
+        _avatarUrl.set(chatId, img.src);
+        // Apply to all avatar elements for this chat
+        document.querySelectorAll('[data-avid="' + chatId + '"]').forEach(el => applyAvatar(el, chatId));
+      };
+      img.onerror = () => { _avatarState.set(chatId, 'failed'); };
+      img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+    }
+    function applyAvatar(avEl, chatId) {
+      const src = _avatarUrl.get(chatId);
+      if (!src) return;
+      if (!avEl.querySelector('img[data-avatar]')) {
+        const i = document.createElement('img');
+        i.setAttribute('data-avatar', '1');
+        i.src = src;
+        avEl.textContent = '';
+        avEl.style.background = 'none';
+        avEl.appendChild(i);
+      }
+    }
     let currentStatus = '';
     let selectedChatId = null;
     let selectedChatPhone = null;
@@ -1956,13 +2010,10 @@ app.get('/', (req, res) => {
           av.textContent = '👥';
         } else {
           av.className = 'avatar';
+          av.setAttribute('data-avid', chat.id);
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
-          const img = document.createElement('img');
-          img.onload = () => { av.textContent = ''; av.style.background = 'none'; };
-          img.onerror = () => img.remove();
-          img.src = api('/api/avatar/' + encodeURIComponent(chat.id));
-          av.appendChild(img);
+          loadAvatar(chat.id, av);
         }
 
         const info = document.createElement('div');
@@ -2006,20 +2057,18 @@ app.get('/', (req, res) => {
       const av = document.getElementById('ch-avatar');
       av.onclick = null;
       av.style.cursor = '';
-      av.querySelectorAll('img').forEach(i => i.remove());
+      av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
       if (chat.isGroup) {
         av.className = 'avatar group-avatar';
         av.textContent = '👥';
         av.style.background = '';
+        av.removeAttribute('data-avid');
       } else {
         av.className = 'avatar';
+        av.setAttribute('data-avid', chat.id);
         av.style.background = avatarColor(chat.name);
         av.textContent = avatarInitials(chat.name);
-        const img = document.createElement('img');
-        img.onload = () => { av.textContent = ''; av.style.background = 'none'; };
-        img.onerror = () => img.remove();
-        img.src = api('/api/avatar/' + encodeURIComponent(chat.id));
-        av.appendChild(img);
+        loadAvatar(chat.id, av);
         av.onclick = () => openContactInfo(chat.id, chat.name);
         av.style.cursor = 'pointer';
       }
@@ -2339,12 +2388,23 @@ app.get('/', (req, res) => {
         numberEl.textContent = data.number ? '+' + data.number : '';
         aboutEl.textContent = data.about || '';
         picEl.textContent = '';
+        picEl.removeAttribute('data-avid');
         if (data.hasProfilePic) {
-          picEl.style.background = 'none';
-          const img = document.createElement('img');
-          img.onerror = () => { picEl.style.background = avatarColor(name); picEl.textContent = avatarInitials(name); };
-          img.src = api('/api/avatar/' + encodeURIComponent(chatId));
-          picEl.appendChild(img);
+          const cached = _avatarState.get(chatId);
+          if (cached === 'loaded') {
+            picEl.style.background = 'none';
+            const img = document.createElement('img');
+            img.src = _avatarUrl.get(chatId);
+            picEl.appendChild(img);
+          } else if (cached !== 'failed') {
+            picEl.style.background = avatarColor(name);
+            picEl.textContent = avatarInitials(name);
+            picEl.setAttribute('data-avid', chatId);
+            loadAvatar(chatId, picEl);
+          } else {
+            picEl.style.background = avatarColor(name);
+            picEl.textContent = avatarInitials(name);
+          }
         } else {
           picEl.style.background = avatarColor(name);
           picEl.textContent = avatarInitials(name);

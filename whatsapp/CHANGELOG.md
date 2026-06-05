@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.6] - 2026-06-05
+- Fix: Leere Chat-Liste nach Avatar-Update — renderChatList feuerte bei jedem Poll-Zyklus N parallele getContactById-Requests; jetzt einmaliger Load pro Chat mit client-seitigem State-Cache und server-seitigem Request-Dedup
+
 ## [1.6.5] - 2026-06-05
 - Neu: Profilbilder als echte Avatare (lazy-load, 1h-Cache server+Browser); Klick auf Header-Avatar öffnet Kontaktinfo-Modal mit Foto, Name, Nummer und About
 
