@@ -473,14 +473,15 @@ client.on('message', async (msg) => {
         chatId,
         chatName: _ci?.name || chatId,
         contact: contactName,
-        preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
+        type,
+        preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
       };
       sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
     }
   }
   if (process.env.WEBHOOK_INCOMING) {
     dbg(`Firing incoming webhook: ${process.env.WEBHOOK_INCOMING}`);
-    postWebhook(process.env.WEBHOOK_INCOMING, { from: msg.from, body: msg.body, type: msg.type, timestamp: msg.timestamp });
+    postWebhook(process.env.WEBHOOK_INCOMING, { from: msg.from, body: msg.body, type, timestamp: msg.timestamp });
   }
 });
 
@@ -957,7 +958,8 @@ app.get('/api/last-received', (req, res) => {
       chatId,
       chatName: chat?.name || chatId,
       contact: last.contact || '',
-      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'document' ? `📄 ${last.filename || 'Dokument'}` : '[Medien]'),
+      type: last.type || 'text',
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'document' ? `📄 ${last.filename || 'Dokument'}` : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
   res.json(lastReceivedMsg);

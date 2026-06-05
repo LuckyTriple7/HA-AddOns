@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.8] - 2026-06-05
+- Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo)
+
 ## [1.5.7] - 2026-06-05
 - Neu: Bilder aus der Zwischenablage direkt ins Chat-Eingabefeld einfügen (Strg+V / Cmd+V)
 

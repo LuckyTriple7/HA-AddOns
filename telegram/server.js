@@ -286,7 +286,8 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
         chatId,
         chatName,
         contact: chatName,
-        preview: preview,
+        type,
+        preview,
       };
       sendHANotification(chatId, chatName, body || (type === 'photo' ? '📷 Foto' : ''));
     }
@@ -296,7 +297,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: chatId, name: chatName, message: body || '[Foto]', timestamp: ts }),
+      body: JSON.stringify({ from: chatId, name: chatName, message: body || '[Foto]', type, timestamp: ts }),
     }).catch(() => {});
   }
 }
@@ -703,7 +704,8 @@ app.get('/api/last-received', (req, res) => {
       chatId,
       chatName: chat?.name || chatId,
       contact: chat?.name || chatId,
-      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'video' ? '📹 Video' : '[Medien]'),
+      type: last.type || 'text',
+      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'video' ? '📹 Video' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
   res.json(lastReceivedMsg);

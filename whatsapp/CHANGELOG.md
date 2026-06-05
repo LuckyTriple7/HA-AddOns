@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.4] - 2026-06-05
+- Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo/document/voice)
+
 ## [1.6.3] - 2026-06-05
 - Fix: Audio-Player zu schmal — Chrome zeigte nur Drei-Punkte-Menü statt voller Controls; min-width:220px gesetzt
 
