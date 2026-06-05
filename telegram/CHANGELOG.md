@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.37] - 2026-06-06
+- Fix: Keine Bubble-Umrandung bei Audionachrichten — Audio-Player steht frei ohne Hintergrund
+
 ## [1.5.36] - 2026-06-06
 - Fix: Audio-Player kollabierte auf minimale Breite — feste Breite 260px mit max-width als Grenze statt width:100%
 
