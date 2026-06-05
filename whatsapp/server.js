@@ -230,7 +230,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? `📄 ${msg.filename || 'Dokument'}` : '[Medien]');
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎤 Sprachnachricht' : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -242,7 +242,7 @@ function addMsg(chatId, msg) {
 async function downloadWAMedia(msg, msgId) {
   try {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
-    const ext = msg.type === 'sticker' ? 'webp' : 'jpg';
+    const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
       dbg(`Downloading media: ${safeId}.${ext}`);
@@ -322,8 +322,9 @@ client.on('ready', async () => {
       for (const msg of msgs) {
         const isText = msg.type === 'chat' || msg.type === 'text';
         const isImage = msg.type === 'image' || msg.type === 'sticker';
-        if (!isText && !isImage) continue;
-        if (!msg.body && !isImage) continue;
+        const isPtt = msg.type === 'ptt' || msg.type === 'audio';
+        if (!isText && !isImage && !isPtt) continue;
+        if (!msg.body && !isImage && !isPtt) continue;
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
@@ -343,7 +344,7 @@ client.on('ready', async () => {
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
-          type: isImage ? 'photo' : 'text',
+          type: isImage ? 'photo' : isPtt ? 'voice' : 'text',
           mediaFile: null,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
@@ -412,8 +413,9 @@ client.on('message', async (msg) => {
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   const isDocument = msg.type === 'document';
-  if (!isText && !isImage && !isDocument) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
-  if (!msg.body && !isImage && !isDocument) return;
+  const isPtt = msg.type === 'ptt' || msg.type === 'audio';
+  if (!isText && !isImage && !isDocument && !isPtt) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
+  if (!msg.body && !isImage && !isDocument && !isPtt) return;
   const chat = await msg.getChat().catch(() => null);
   const chatId = chat ? chat.id._serialized : msg.from;
   if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
@@ -434,6 +436,9 @@ client.on('message', async (msg) => {
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
+  } else if (isPtt) {
+    type = 'voice';
+    mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   }
   let quotedMsgData = null;
   if (msg.hasQuotedMsg) {
@@ -982,6 +987,12 @@ app.get('/api/export/:chatId', (req, res) => {
         content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
       } else { content = '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else if (m.type === 'voice') {
+      if (m.mediaFile) {
+        content = '<audio controls style="max-width:260px;width:100%;height:36px" src="api/media/' + escH(m.mediaFile) + '"></audio>';
+      } else {
+        content = '<span style="opacity:0.6">🎤 Sprachnachricht</span>';
+      }
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.9] - 2026-06-05
+- Neu: Sprachnachrichten (ptt/audio) werden empfangen, als .ogg auf Disk gespeichert und im Chat als abspielbarer Audio-Player angezeigt; Fallback-Platzhalter wenn Download fehlschlägt
+
 ## [1.5.8] - 2026-06-04
 - fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
 
