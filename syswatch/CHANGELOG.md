@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [1.0.8] - 2026-06-05
+
+### Changed
+- Container-Stop/Start-Notification umgebaut auf State-Tracking (Option A):
+  Nur unerwartete Stops/Starts lösen Telegram aus — eigene SysWatch-Aktionen (Stop/Kill/Start-Button) werden als "manuell" markiert und unterdrückt (90s TTL)
+- Keine Notification mehr bei manuellem Stop/Kill über SysWatch-UI
+- 💥 bei unerwartetem Stop, ▶️ bei unerwartetem Start, ✅ CPU/RAM-Entwarnung nach 2 Min.
+
 ## [1.0.7] - 2026-06-05
 
 ### Added

@@ -126,6 +126,13 @@ _notif_cpu_ok_since: float = 0.0  # seit wann CPU unter Schwellenwert
 _notif_ram_ok_since: float = 0.0  # seit wann RAM unter Schwellenwert
 NOTIF_COOLDOWN              = 600  # 10 Min zwischen gleichen Alerts
 NOTIF_CLEAR_DELAY           = 120  # 2 Min unter Threshold → Entwarnung
+
+# Container-Zustandsüberwachung
+_prev_running:      set[str]        = set()
+_prev_running_init: bool            = False
+_manually_stopped:  dict[str, float] = {}  # name → timestamp (vom SysWatch-Button ausgelöst)
+_manually_started:  dict[str, float] = {}  # name → timestamp
+MANUAL_ACTION_TTL                   = 90   # Sekunden bis manueller Eintrag verfällt
 _last_elapsed: float = 0.0
 _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
@@ -711,6 +718,47 @@ def _send_telegram(msg: str) -> None:
         log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
 
 
+def _check_container_changes() -> None:
+    """Erkennt unerwartete Container-Stops und Starts, sendet Telegram-Benachrichtigung."""
+    global _prev_running, _prev_running_init
+    with _stats_lock:
+        containers = _stats_cache.get('containers', [])
+    current_running = {c['name'] for c in containers if c['status'] == 'running'}
+
+    if not _prev_running_init:
+        _prev_running_init = True
+        _prev_running = current_running
+        return
+
+    now = time.time()
+
+    # veraltete manuelle Einträge bereinigen
+    for d in (_manually_stopped, _manually_started):
+        for k in [k for k, ts in d.items() if now - ts > MANUAL_ACTION_TTL]:
+            del d[k]
+
+    newly_stopped = _prev_running - current_running
+    newly_started = current_running - _prev_running
+
+    for name in newly_stopped:
+        if name in _manually_stopped:
+            del _manually_stopped[name]   # manuell ausgelöst → keine Notification
+        else:
+            threading.Thread(target=_send_telegram, daemon=True, args=(
+                f'💥 <b>HA SysWatch</b> — Container unerwartet gestoppt\n<code>{name}</code>',
+            )).start()
+
+    for name in newly_started:
+        if name in _manually_started:
+            del _manually_started[name]   # manuell ausgelöst → keine Notification
+        else:
+            threading.Thread(target=_send_telegram, daemon=True, args=(
+                f'▶️ <b>HA SysWatch</b> — Container gestartet\n<code>{name}</code>',
+            )).start()
+
+    _prev_running = current_running
+
+
 def _check_thresholds() -> None:
     """Prüft CPU/RAM-Schwellenwerte, sendet Alarm bei Überschreitung und Entwarnung nach 2 Min."""
     global _notif_cpu_ts, _notif_ram_ts
@@ -800,6 +848,7 @@ def _background_collector() -> None:
                 _collect_once(
                     max_workers=max(4, min(64, int(cfg.get('collect_workers', MAX_WORKERS_DEFAULT))))
                 )
+                _check_container_changes()
                 _check_thresholds()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
@@ -1052,9 +1101,7 @@ def api_kill(name: str):
         container = client.containers.get(name)
         container.kill()
         log.info("Container gekillt (SIGKILL): %s", name)
-        threading.Thread(target=_send_telegram,
-            args=(f'💀 <b>HA SysWatch</b> — Container gekillt\n<code>{name}</code>',),
-            daemon=True).start()
+        _manually_stopped[name] = time.time()
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Kill-Fehler für '%s': %s", name, e)
@@ -1077,6 +1124,7 @@ def api_start(name: str):
             container = client.containers.get(name)
             container.start()
             log.info("Container gestartet: %s", name)
+            _manually_started[name] = time.time()
             return jsonify({'ok': True})
         except docker_lib.errors.NotFound:
             pass  # kein Docker-Container → Supervisor-Fallback
@@ -1088,6 +1136,7 @@ def api_start(name: str):
     slug = _supervisor_addon_slug(name)
     if slug and _supervisor_action(slug, 'start'):
         log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
+        _manually_started[name] = time.time()
         return jsonify({'ok': True})
     return jsonify({'error': f'Container nicht gefunden: {name}'}), 404
 
@@ -1109,9 +1158,7 @@ def api_stop(name: str):
         container = client.containers.get(name)
         container.stop(timeout=10)
         log.info("Container gestoppt: %s", name)
-        threading.Thread(target=_send_telegram,
-            args=(f'🛑 <b>HA SysWatch</b> — Container gestoppt\n<code>{name}</code>',),
-            daemon=True).start()
+        _manually_stopped[name] = time.time()
         return jsonify({'ok': True})
     except Exception as e:
         log.error("Stop-Fehler für '%s': %s", name, e)
