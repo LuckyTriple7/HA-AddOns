@@ -1789,37 +1789,53 @@ app.get('/', (req, res) => {
       localStorage.setItem('wa_lang', lang);
       applyLang();
     }
-    // ────────────────────────────────────────────────────────────────────────────
+    // ── Avatar-System: nachgelagert, max 2 parallel ──────────────────────────────
     const _avatarState = new Map(); // chatId → 'loading'|'loaded'|'failed'
-    const _avatarUrl = new Map();   // chatId → object-url or src string
-    function loadAvatar(chatId, avEl) {
-      const state = _avatarState.get(chatId);
-      if (state === 'loaded') {
-        applyAvatar(avEl, chatId);
-        return;
-      }
-      if (state === 'loading' || state === 'failed') return;
-      _avatarState.set(chatId, 'loading');
-      const img = new Image();
-      img.onload = () => {
-        _avatarState.set(chatId, 'loaded');
-        _avatarUrl.set(chatId, img.src);
-        // Apply to all avatar elements for this chat
-        document.querySelectorAll('[data-avid="' + chatId + '"]').forEach(el => applyAvatar(el, chatId));
-      };
-      img.onerror = () => { _avatarState.set(chatId, 'failed'); };
-      img.src = 'api/avatar/' + encodeURIComponent(chatId);
-    }
+    const _avatarUrl   = new Map(); // chatId → resolved img.src (absolute URL)
+    const _avatarQueue = [];
+    let   _avatarActive = 0;
+    const AVATAR_CONCURRENCY = 2;
+
     function applyAvatar(avEl, chatId) {
       const src = _avatarUrl.get(chatId);
-      if (!src) return;
-      if (!avEl.querySelector('img[data-avatar]')) {
-        const i = document.createElement('img');
-        i.setAttribute('data-avatar', '1');
-        i.src = src;
-        avEl.textContent = '';
-        avEl.style.background = 'none';
-        avEl.appendChild(i);
+      if (!src || avEl.querySelector('img[data-avatar]')) return;
+      const i = document.createElement('img');
+      i.setAttribute('data-avatar', '1');
+      i.src = src;
+      avEl.textContent = '';
+      avEl.style.background = 'none';
+      avEl.appendChild(i);
+    }
+
+    function queueAvatars(chats) {
+      for (const chat of chats) {
+        if (!chat.isGroup && !_avatarState.has(chat.id)) {
+          _avatarQueue.push(chat.id);
+        }
+      }
+      drainAvatarQueue();
+    }
+
+    function drainAvatarQueue() {
+      while (_avatarQueue.length && _avatarActive < AVATAR_CONCURRENCY) {
+        const chatId = _avatarQueue.shift();
+        if (_avatarState.has(chatId)) { drainAvatarQueue(); return; }
+        _avatarActive++;
+        _avatarState.set(chatId, 'loading');
+        const img = new Image();
+        img.onload = () => {
+          _avatarState.set(chatId, 'loaded');
+          _avatarUrl.set(chatId, img.src);
+          document.querySelectorAll('[data-avid="' + chatId + '"]').forEach(el => applyAvatar(el, chatId));
+          _avatarActive--;
+          drainAvatarQueue();
+        };
+        img.onerror = () => {
+          _avatarState.set(chatId, 'failed');
+          _avatarActive--;
+          drainAvatarQueue();
+        };
+        img.src = 'api/avatar/' + encodeURIComponent(chatId);
       }
     }
     let currentStatus = '';
@@ -2013,7 +2029,7 @@ app.get('/', (req, res) => {
           av.setAttribute('data-avid', chat.id);
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
-          loadAvatar(chat.id, av);
+          if (_avatarState.get(chat.id) === 'loaded') applyAvatar(av, chat.id);
         }
 
         const info = document.createElement('div');
@@ -2068,7 +2084,8 @@ app.get('/', (req, res) => {
         av.setAttribute('data-avid', chat.id);
         av.style.background = avatarColor(chat.name);
         av.textContent = avatarInitials(chat.name);
-        loadAvatar(chat.id, av);
+        if (_avatarState.get(chat.id) === 'loaded') applyAvatar(av, chat.id);
+        else queueAvatars([chat]);
         av.onclick = () => openContactInfo(chat.id, chat.name);
         av.style.cursor = 'pointer';
       }
@@ -2462,7 +2479,8 @@ app.get('/', (req, res) => {
           else if (c.id === selectedChatId) lastSeenTime[c.id] = c.lastTime || lastSeenTime[c.id];
         });
         allChats = chats;
-        renderChatList(chats);
+        renderChatList(chats);           // 1. Kontakte sofort anzeigen (Initialen)
+        setTimeout(() => queueAvatars(chats), 200); // 2. Avatare nachgelagert laden
       } catch(e) {}
     }
 

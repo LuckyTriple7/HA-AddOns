@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.8] - 2026-06-05
+- Lade-Reihenfolge: Kontakte sofort (Initialen) → Nachrichten → Avatare nachgelagert (max 2 parallel, 200ms Verzögerung); renderChatList blockiert keine HTTP-Slots mehr
+
 ## [1.6.7] - 2026-06-05
 - Fix: api() in WhatsApp-Client nicht definiert → ReferenceError brach renderChatList-Schleife ab; alle Avatar/Kontakt-Pfade auf direkte Relative-URL umgestellt
 
