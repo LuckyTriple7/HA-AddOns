@@ -17,9 +17,6 @@ configuration:
   media_max_mb:
     name: Media Storage Limit (MB)
     description: "Maximum size of the media folder in MB. When exceeded, the oldest files are deleted automatically. Default: 500 MB."
-  video_max_per_chat:
-    name: Max Videos per Chat
-    description: "Maximum number of stored videos per chat. Older videos are deleted automatically when the limit is reached. Default: 20."
   fetch_messages_limit:
     name: Messages per Chat
     description: "Number of messages loaded when a chat is first opened. Recommended: 50. Maximum: 300."

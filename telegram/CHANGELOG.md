@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.20] - 2026-06-05
+- Kritisch: Videos werden nur noch bei echten Neueingängen auto-geladen (source=NewMessage), nie beim Reload — verhindert FloodWait-Kaskadenausfall
+- Neu: Klick auf 📹 Video Placeholder → on-demand Download mit ⏳ Sanduhr (/api/fetch-video)
+- Entfernt: video_max_per_chat Option (mit on-demand unnötig)
+- Avatar-Concurrency auf 1 reduziert (weniger upload.GetFile-Druck)
+
 ## [1.5.19] - 2026-06-05
 - Fix: Video-Limit prüft VOR dem Download ob Platz ist (nicht danach) — verhindert nutzlose Downloads die sofort wieder gelöscht werden
 

@@ -37,7 +37,6 @@ const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
-const VIDEO_MAX_PER_CHAT = Math.max(parseInt(process.env.VIDEO_MAX_PER_CHAT || '20', 10), 1);
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -263,8 +262,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     } else if (isVideo) {
       type = 'video';
-      if (DOWNLOAD_MEDIA) {
-        enforceVideoLimitBefore(chatId); // erst Platz schaffen, dann laden
+      if (DOWNLOAD_MEDIA && source === 'NewMessage') {
         mediaFile = await downloadMedia(rawMsg, msgId);
       }
     }
@@ -665,6 +663,31 @@ app.post('/api/forward', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/fetch-video', async (req, res) => {
+  const { msgId } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  const parts = msgId.split('_');
+  const tgId = parseInt(parts.pop(), 10);
+  const chatId = parts.join('_');
+  const msgs = messagesByChatId.get(chatId);
+  const storedMsg = msgs?.find(m => m.id === msgId);
+  if (!storedMsg) return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+  if (storedMsg.mediaFile) return res.json({ success: true, mediaFile: storedMsg.mediaFile });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const tgMsgs = await client.getMessages(entity, { ids: [tgId] });
+    if (!tgMsgs?.[0]) return res.status(404).json({ error: 'TG-Nachricht nicht gefunden' });
+    const mediaFile = await downloadMedia(tgMsgs[0], msgId);
+    if (!mediaFile) return res.status(500).json({ error: 'Download fehlgeschlagen' });
+    storedMsg.mediaFile = mediaFile;
+    scheduleSave();
+    res.json({ success: true, mediaFile });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
   const { to, caption } = req.body;
   if (!to || !req.file) return res.status(400).json({ error: 'to und file erforderlich' });
@@ -874,22 +897,6 @@ function enforceMediaLimit() {
     try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
   }
   console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
-}
-
-function enforceVideoLimitBefore(chatId) {
-  // Wird VOR dem Download aufgerufen — löscht ältestes Video wenn Limit voll ist
-  const msgs = messagesByChatId.get(chatId) || [];
-  const videos = msgs.filter(m => m.type === 'video' && m.mediaFile);
-  if (videos.length < VIDEO_MAX_PER_CHAT) return; // noch Platz
-  videos.sort((a, b) => a.timestamp - b.timestamp);
-  const toDelete = videos.slice(0, videos.length - VIDEO_MAX_PER_CHAT + 1); // +1 für das neue Video
-  for (const m of toDelete) {
-    const fp = `${MEDIA_DIR}/${m.mediaFile}`;
-    try { fs.unlinkSync(fp); } catch(e) {}
-    m.mediaFile = null;
-  }
-  console.log(`[INFO] Video-Limit: ${toDelete.length} Video(s) aus Chat ${chatId} entfernt (Limit: ${VIDEO_MAX_PER_CHAT}/Chat)`);
-  scheduleSave();
 }
 
 app.get('/api/storage', (req, res) => {
@@ -1518,7 +1525,7 @@ const _avatarState = new Map();
 const _avatarUrl   = new Map();
 const _avatarQueue = [];
 let   _avatarActive = 0;
-const AVATAR_CONCURRENCY = 2;
+const AVATAR_CONCURRENCY = 1;
 
 function applyAvatar(avEl, chatId) {
   const src = _avatarUrl.get(chatId);
@@ -1885,7 +1892,7 @@ function renderMessages(msgs) {
     } else if(isVideo){
       content = m.mediaFile
         ? \`<video controls style="max-width:320px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video>\`
-        : '<span style="opacity:0.6">📹 Video</span>';
+        : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.75;user-select:none" title="Klicken zum Laden">📹 Video</span>\`;
       if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
@@ -1921,6 +1928,27 @@ function setReply(msgId, contact, preview, tgId) {
 function clearReply() {
   _replyMsgId = null; _replyTgId = null; _replyContact = null; _replyPreview = null;
   document.getElementById('reply-bar').classList.remove('active');
+}
+
+async function fetchVideo(el) {
+  const msgId = el.dataset.msgid;
+  if (!msgId) return;
+  el.textContent = '⏳';
+  el.style.cursor = 'default';
+  el.onclick = null;
+  try {
+    const r = await fetch(api('/api/fetch-video'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId })
+    }).then(r => r.json());
+    if (r.success) {
+      await loadMessages(selectedChatId);
+    } else {
+      el.textContent = '❌ ' + (r.error || 'Fehler');
+    }
+  } catch(e) {
+    el.textContent = '❌ Fehler';
+  }
 }
 
 async function openContactInfo(chatId, fallbackName) {
