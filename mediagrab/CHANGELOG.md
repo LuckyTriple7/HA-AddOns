@@ -1,5 +1,18 @@
 # Changelog — MediaGrab
 
+## [0.0.4] — 2026-06-05
+### Added
+- Batch-Download: mehrere URLs gleichzeitig (eine pro Zeile)
+- Video-Info-Vorschau: Titel, Kanal, Dauer, Thumbnail vor dem Download
+- Speicherplatz-Anzeige mit farbiger Fortschrittsleiste
+- Datei-Suche und Sortierung (Datum / Name / Größe)
+- Cookies-Support für private und altersgeschützte Videos
+- yt-dlp manuell updaten per Button
+- Queue überlebt Add-on Neustart (Persistenz via /data/jobs.json)
+- Auto-Clear Queue konfigurierbar (auto_clear_hours)
+- Geschwindigkeitsbegrenzung konfigurierbar (speed_limit)
+- Verständliche Fehlermeldungen (Altersschutz, privat, nicht verfügbar, ...)
+
 ## [0.0.3] — 2026-06-05
 ### Added
 - "Queue leeren"-Button: entfernt alle fertigen/fehlerhaften/abgebrochenen Jobs auf einmal (laufende Downloads bleiben)

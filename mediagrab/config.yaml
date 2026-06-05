@@ -1,6 +1,6 @@
 name: MediaGrab
 description: yt-dlp Web-GUI — Videos und Audio herunterladen (YouTube, Vimeo, SoundCloud u.v.m.)
-version: "0.0.3"
+version: "0.0.4"
 slug: mediagrab
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mediagrab"
@@ -27,6 +27,8 @@ options:
   password: "secret"
   session_hours: 24
   max_concurrent: 3
+  auto_clear_hours: 0
+  speed_limit: ""
   verbose_log: false
 
 schema:
@@ -34,4 +36,6 @@ schema:
   password: str
   session_hours: int?
   max_concurrent: int?
+  auto_clear_hours: int?
+  speed_limit: str?
   verbose_log: bool?

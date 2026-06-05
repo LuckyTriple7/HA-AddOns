@@ -10,197 +10,133 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
     :root {
-      --bg:     #0d1117;
-      --surf:   #161b22;
-      --surf2:  #1c2128;
-      --border: #30363d;
-      --text:   #c9d1d9;
-      --muted:  #8b949e;
-      --accent: #58a6ff;
-      --green:  #3fb950;
-      --yellow: #d29922;
-      --red:    #f85149;
-      --r: 6px;
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2128; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff;
+      --green:#3fb950; --yellow:#d29922; --red:#f85149; --r:6px;
     }
     [data-theme="light"] {
-      --bg:     #f0f2f5;
-      --surf:   #ffffff;
-      --surf2:  #f6f8fa;
-      --border: #d0d7de;
-      --text:   #1f2328;
-      --muted:  #636c76;
-      --accent: #0969da;
-      --green:  #1a7f37;
-      --yellow: #9a6700;
-      --red:    #cf222e;
+      --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76; --accent:#0969da;
+      --green:#1a7f37; --yellow:#9a6700; --red:#cf222e;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    *, *::before, *::after { transition: background-color .2s, border-color .2s, color .2s; }
-    html, body { height: 100%; overflow: hidden; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text); font-size: 14px;
-      display: flex; flex-direction: column;
-    }
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; transition:background-color .2s,border-color .2s,color .2s; }
+    html,body { height:100%; overflow:hidden; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; display:flex; flex-direction:column; }
 
-    /* Header */
-    header {
-      background: var(--surf); border-bottom: 1px solid var(--border);
-      padding: 9px 14px; display: flex; align-items: center; gap: 8px;
-      flex-shrink: 0; z-index: 200;
-    }
-    .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
-    .hdr-spacer { flex: 1; }
-    .lang-btn {
-      background: none; border: 1px solid var(--border); color: var(--muted);
-      padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;
-      text-decoration: none; transition: border-color .15s, color .15s;
-    }
-    .lang-btn.active, .lang-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .theme-btn {
-      background: none; border: 1px solid var(--border); color: var(--muted);
-      padding: 3px 6px; border-radius: 4px; cursor: pointer;
-      display: inline-flex; align-items: center;
-    }
-    .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
-    .icon-moon { display: block; }
-    .icon-sun  { display: none; }
-    [data-theme="light"] .icon-moon { display: none; }
-    [data-theme="light"] .icon-sun  { display: block; }
-    .logout-btn {
-      background: none; border: 1px solid var(--border); color: var(--muted);
-      padding: 2px 10px; border-radius: 4px; font-size: 0.75rem;
-      cursor: pointer; text-decoration: none;
-      transition: border-color .15s, color .15s;
-    }
-    .logout-btn:hover { border-color: var(--red); color: var(--red); }
+    /* ── Header ── */
+    header { background:var(--surf); border-bottom:1px solid var(--border); padding:9px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0; z-index:200; }
+    .logo { font-size:1.05rem; font-weight:700; color:var(--accent); white-space:nowrap; }
+    .hdr-spacer { flex:1; }
+    .lang-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:.75rem; cursor:pointer; text-decoration:none; }
+    .lang-btn.active,.lang-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .theme-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:3px 6px; border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; }
+    .theme-btn svg { width:13px; height:13px; fill:currentColor; }
+    .icon-moon { display:block; } .icon-sun { display:none; }
+    [data-theme="light"] .icon-moon { display:none; } [data-theme="light"] .icon-sun { display:block; }
+    .logout-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 10px; border-radius:4px; font-size:.75rem; cursor:pointer; text-decoration:none; }
+    .logout-btn:hover { border-color:var(--red); color:var(--red); }
 
-    /* Scroll container */
-    #main-scroll {
-      flex: 1; overflow-y: auto; overflow-x: hidden;
-      -webkit-overflow-scrolling: touch; padding: 16px;
-      display: flex; flex-direction: column; gap: 14px;
-    }
+    /* ── Scroll ── */
+    #main-scroll { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; padding:14px; display:flex; flex-direction:column; gap:12px; }
 
-    /* Cards */
-    .card {
-      background: var(--surf); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 16px;
-    }
-    .card-title {
-      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .05em; color: var(--muted); margin-bottom: 12px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .card-title .badge {
-      background: var(--surf2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 1px 7px; font-size: 0.7rem;
-      color: var(--muted); font-weight: 500; text-transform: none;
-    }
-    .card-title .spacer { flex: 1; }
+    /* ── Cards ── */
+    .card { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); padding:14px 16px; }
+    .card-title { font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-bottom:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .badge { background:var(--surf2); border:1px solid var(--border); border-radius:10px; padding:1px 7px; font-size:.7rem; color:var(--muted); font-weight:500; text-transform:none; }
+    .spacer { flex:1; }
 
-    /* Download form */
-    .dl-row {
-      display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap;
-    }
-    .dl-url {
-      flex: 1; min-width: 200px;
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 12px; border-radius: var(--r); font-size: 0.9rem;
-    }
-    .dl-url:focus { outline: none; border-color: var(--accent); }
-    .dl-select {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 10px; border-radius: var(--r); font-size: 0.85rem; cursor: pointer;
-    }
-    .dl-select:focus { outline: none; border-color: var(--accent); }
-    .dl-btn {
-      background: var(--accent); border: none; color: #fff;
-      padding: 9px 18px; border-radius: var(--r); font-size: 0.9rem;
-      font-weight: 600; cursor: pointer; white-space: nowrap;
-      transition: opacity .15s;
-    }
-    .dl-btn:hover { opacity: .85; }
-    .dl-btn:disabled { opacity: .4; cursor: default; }
-    .dl-opts {
-      display: flex; gap: 20px; margin-top: 10px; flex-wrap: wrap;
-    }
-    .dl-opts label {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 0.85rem; color: var(--muted); cursor: pointer; user-select: none;
-    }
-    .dl-opts input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
+    /* ── Download form ── */
+    .dl-textarea { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:var(--r); font-size:.9rem; font-family:inherit; resize:vertical; min-height:40px; max-height:160px; line-height:1.5; }
+    .dl-textarea:focus { outline:none; border-color:var(--accent); }
+    .dl-row { display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; margin-top:8px; }
+    .dl-select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:var(--r); font-size:.85rem; cursor:pointer; }
+    .dl-select:focus { outline:none; border-color:var(--accent); }
+    .dl-btn { background:var(--accent); border:none; color:#fff; padding:8px 16px; border-radius:var(--r); font-size:.9rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+    .dl-btn:hover { opacity:.85; } .dl-btn:disabled { opacity:.4; cursor:default; }
+    .info-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:8px 12px; border-radius:var(--r); font-size:.85rem; cursor:pointer; white-space:nowrap; }
+    .info-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .dl-opts { display:flex; gap:18px; margin-top:10px; flex-wrap:wrap; }
+    .dl-opts label { display:flex; align-items:center; gap:6px; font-size:.85rem; color:var(--muted); cursor:pointer; user-select:none; }
+    .dl-opts input[type="checkbox"] { cursor:pointer; accent-color:var(--accent); }
 
-    /* Toast */
-    #toast {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: var(--surf2); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 18px; border-radius: var(--r); font-size: 0.85rem;
-      box-shadow: 0 4px 20px rgba(0,0,0,.4); z-index: 999;
-      opacity: 0; pointer-events: none; transition: opacity .3s;
-    }
-    #toast.show { opacity: 1; }
-    #toast.err { border-color: var(--red); color: var(--red); }
+    /* ── Info card ── */
+    #info-card { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:12px; margin-top:10px; }
+    #info-card.visible { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+    #info-thumb { width:100px; height:56px; object-fit:cover; border-radius:4px; flex-shrink:0; background:var(--border); }
+    .info-meta { flex:1; min-width:120px; }
+    .info-title { font-size:.88rem; font-weight:600; margin-bottom:4px; }
+    .info-sub { font-size:.75rem; color:var(--muted); }
+    .info-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1.1rem; margin-left:auto; align-self:flex-start; padding:0 4px; }
+    .info-close:hover { color:var(--text); }
+    .info-loading { font-size:.83rem; color:var(--muted); margin-top:10px; }
 
-    /* Queue */
-    .job-item {
-      background: var(--surf2); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 12px 14px; margin-bottom: 8px;
-    }
-    .job-item:last-child { margin-bottom: 0; }
-    .job-header {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-      flex-wrap: wrap;
-    }
-    .job-name { font-size: 0.85rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .job-fmt { font-size: 0.7rem; color: var(--muted); background: var(--surf); border: 1px solid var(--border); padding: 1px 6px; border-radius: 3px; }
-    .job-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .s-pending  { background: rgba(210,153,34,.15);  color: var(--yellow); }
-    .s-running  { background: rgba(88,166,255,.15);  color: var(--accent); }
-    .s-done     { background: rgba(63,185,80,.15);   color: var(--green);  }
-    .s-error    { background: rgba(248,81,73,.15);   color: var(--red);    }
-    .s-cancelled{ background: rgba(139,148,158,.15); color: var(--muted);  }
-    .job-bar-wrap {
-      height: 4px; background: var(--border); border-radius: 2px;
-      overflow: hidden; margin-bottom: 6px;
-    }
-    .job-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s; }
-    .job-bar.done { background: var(--green); }
-    .job-bar.err  { background: var(--red); }
-    .job-meta { font-size: 0.75rem; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
-    .job-actions { margin-top: 8px; display: flex; gap: 8px; }
-    .sm-btn {
-      font-size: 0.75rem; padding: 3px 10px; border-radius: 4px;
-      cursor: pointer; border: 1px solid var(--border); background: none; color: var(--muted);
-      transition: border-color .15s, color .15s;
-    }
-    .sm-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .sm-btn.danger:hover { border-color: var(--red); color: var(--red); }
-    .empty-note { color: var(--muted); font-size: 0.83rem; padding: 8px 0; }
+    /* ── Toast ── */
+    #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--surf2); border:1px solid var(--border); color:var(--text); padding:8px 18px; border-radius:var(--r); font-size:.85rem; box-shadow:0 4px 20px rgba(0,0,0,.4); z-index:999; opacity:0; pointer-events:none; transition:opacity .3s; white-space:nowrap; }
+    #toast.show { opacity:1; } #toast.err { border-color:var(--red); color:var(--red); }
 
-    /* File list */
-    .file-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 0; border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
-    }
-    .file-item:last-child { border-bottom: none; }
-    .file-icon { color: var(--muted); font-size: 1rem; flex-shrink: 0; }
-    .file-name { flex: 1; min-width: 0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .file-size { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
-    .file-date { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
-    .file-acts { display: flex; gap: 6px; flex-shrink: 0; }
-    .path-note { font-size: 0.75rem; color: var(--muted); margin-bottom: 10px; }
+    /* ── Queue ── */
+    .job-item { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:11px 13px; margin-bottom:8px; }
+    .job-item:last-child { margin-bottom:0; }
+    .job-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+    .job-name { font-size:.85rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .job-fmt { font-size:.7rem; color:var(--muted); background:var(--surf); border:1px solid var(--border); padding:1px 6px; border-radius:3px; }
+    .job-status { font-size:.72rem; padding:2px 8px; border-radius:10px; font-weight:600; }
+    .s-pending  { background:rgba(210,153,34,.15); color:var(--yellow); }
+    .s-running  { background:rgba(88,166,255,.15);  color:var(--accent); }
+    .s-done     { background:rgba(63,185,80,.15);   color:var(--green); }
+    .s-error    { background:rgba(248,81,73,.15);   color:var(--red); }
+    .s-cancelled{ background:rgba(139,148,158,.15); color:var(--muted); }
+    .job-bar-wrap { height:4px; background:var(--border); border-radius:2px; overflow:hidden; margin-bottom:6px; }
+    .job-bar { height:100%; background:var(--accent); border-radius:2px; transition:width .4s; }
+    .job-bar.done { background:var(--green); } .job-bar.err { background:var(--red); }
+    .job-meta { font-size:.75rem; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; }
+    .job-error { font-size:.75rem; color:var(--red); margin-top:3px; }
+    .job-actions { margin-top:8px; display:flex; gap:8px; }
 
-    /* PWA install */
-    #pwa-banner {
-      display: none; background: var(--surf2); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 10px 14px;
-      font-size: 0.82rem; align-items: center; gap: 10px;
-    }
-    #pwa-banner.visible { display: flex; }
-    #pwa-install { background: var(--accent); color: #fff; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-    #pwa-dismiss { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; margin-left: auto; }
+    /* ── Buttons small ── */
+    .sm-btn { font-size:.75rem; padding:3px 10px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
+    .sm-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .sm-btn.danger:hover { border-color:var(--red); color:var(--red); }
+    .empty-note { color:var(--muted); font-size:.83rem; padding:6px 0; }
+
+    /* ── Disk bar ── */
+    .disk-bar-wrap { height:5px; background:var(--border); border-radius:3px; overflow:hidden; margin:6px 0 10px; }
+    .disk-bar { height:100%; background:var(--accent); border-radius:3px; transition:width .5s; }
+    .disk-bar.warn { background:var(--yellow); } .disk-bar.crit { background:var(--red); }
+    .disk-info { font-size:.73rem; color:var(--muted); margin-bottom:8px; }
+
+    /* ── File list ── */
+    .files-toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+    .files-search { flex:1; min-width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:var(--r); font-size:.83rem; }
+    .files-search:focus { outline:none; border-color:var(--accent); }
+    .sort-btn { font-size:.72rem; padding:3px 8px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
+    .sort-btn.active { border-color:var(--accent); color:var(--accent); }
+    .sort-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .file-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .file-item:last-child { border-bottom:none; }
+    .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; }
+    .file-name { flex:1; min-width:0; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .file-size { font-size:.73rem; color:var(--muted); white-space:nowrap; }
+    .file-date { font-size:.73rem; color:var(--muted); white-space:nowrap; }
+    .file-acts { display:flex; gap:6px; flex-shrink:0; }
+    .path-note { font-size:.73rem; color:var(--muted); margin-bottom:8px; }
+
+    /* ── Settings ── */
+    .settings-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .settings-row:last-child { border-bottom:none; }
+    .settings-label { font-size:.8rem; color:var(--muted); width:90px; flex-shrink:0; }
+    .settings-value { font-size:.85rem; flex:1; }
+    .settings-hint { font-size:.72rem; color:var(--muted); margin-top:2px; }
+    .cookie-status { font-size:.78rem; padding:2px 8px; border-radius:10px; font-weight:600; }
+    .cookie-ok  { background:rgba(63,185,80,.15);  color:var(--green); }
+    .cookie-no  { background:rgba(139,148,158,.15); color:var(--muted); }
+    #cookie-upload-input { display:none; }
+
+    /* ── PWA banner ── */
+    #pwa-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:9px 13px; font-size:.82rem; align-items:center; gap:10px; }
+    #pwa-banner.visible { display:flex; }
+    #pwa-install { background:var(--accent); color:#fff; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:.8rem; }
+    #pwa-dismiss { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; margin-left:auto; }
   </style>
 </head>
 <body>
@@ -218,20 +154,19 @@
 
   <div id="main-scroll">
 
-    <!-- PWA install banner -->
     <div id="pwa-banner">
       <span>{{ t.install_banner }}</span>
-      <button id="pwa-install">{{ t.btn_download_file }}</button>
+      <button id="pwa-install">Install</button>
       <button id="pwa-dismiss">&times;</button>
     </div>
 
-    <!-- Download form -->
+    <!-- Download -->
     <div class="card">
       <div class="card-title">{{ t.section_download }}</div>
+      <textarea id="url-input" class="dl-textarea" rows="1"
+                placeholder="{{ t.url_placeholder }}"
+                autocomplete="off" spellcheck="false"></textarea>
       <div class="dl-row">
-        <input id="url-input" class="dl-url" type="url"
-               placeholder="{{ t.url_placeholder }}"
-               autocomplete="off" spellcheck="false">
         <select id="fmt-select" class="dl-select">
           <option value="best_video">{{ t.fmt_best_video }}</option>
           <option value="1080p">{{ t.fmt_1080p }}</option>
@@ -241,11 +176,21 @@
           <option value="mp3">{{ t.fmt_mp3 }}</option>
           <option value="m4a">{{ t.fmt_m4a }}</option>
         </select>
+        <button class="info-btn" onclick="fetchInfo()">{{ t.btn_info }}</button>
         <button id="dl-btn" class="dl-btn" onclick="startDownload()">{{ t.btn_download }}</button>
       </div>
       <div class="dl-opts">
         <label><input type="checkbox" id="cb-subtitles"> {{ t.label_subtitles }}</label>
         <label><input type="checkbox" id="cb-playlist"> {{ t.label_playlist }}</label>
+      </div>
+      <!-- Info card -->
+      <div id="info-card">
+        <img id="info-thumb" src="" alt="">
+        <div class="info-meta">
+          <div class="info-title" id="info-title"></div>
+          <div class="info-sub" id="info-sub"></div>
+        </div>
+        <button class="info-close" onclick="closeInfo()">&times;</button>
       </div>
     </div>
 
@@ -257,9 +202,7 @@
         <span class="spacer"></span>
         <button class="sm-btn" onclick="clearQueue()">{{ t.btn_clear_queue }}</button>
       </div>
-      <div id="jobs-list">
-        <p class="empty-note" id="queue-empty">{{ t.queue_empty }}</p>
-      </div>
+      <div id="jobs-list"><p class="empty-note">{{ t.queue_empty }}</p></div>
     </div>
 
     <!-- Files -->
@@ -271,8 +214,37 @@
         <button class="sm-btn" onclick="loadFiles()">{{ t.btn_refresh }}</button>
       </div>
       <p class="path-note">{{ t.files_path }}</p>
-      <div id="files-list">
-        <p class="empty-note" id="files-empty">{{ t.files_empty }}</p>
+      <div class="disk-info" id="disk-info"></div>
+      <div class="disk-bar-wrap"><div class="disk-bar" id="disk-bar" style="width:0%"></div></div>
+      <div class="files-toolbar">
+        <input id="file-search" class="files-search" type="search" placeholder="{{ t.lbl_search }}" oninput="renderFiles()">
+        <button class="sort-btn active" id="sort-date" onclick="setSort('date')">{{ t.sort_date }}</button>
+        <button class="sort-btn" id="sort-name" onclick="setSort('name')">{{ t.sort_name }}</button>
+        <button class="sort-btn" id="sort-size" onclick="setSort('size')">{{ t.sort_size }}</button>
+      </div>
+      <div id="files-list"><p class="empty-note">{{ t.files_empty }}</p></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <div class="card-title">{{ t.section_settings }}</div>
+      <div class="settings-row">
+        <span class="settings-label">{{ t.ytdlp_label }}</span>
+        <span class="settings-value" id="ytdlp-ver">—</span>
+        <button class="sm-btn" id="ytdlp-update-btn" onclick="updateYtdlp()">{{ t.btn_update_ytdlp }}</button>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">{{ t.cookies_label }}</span>
+        <span class="settings-value">
+          <span class="cookie-status cookie-no" id="cookie-status">{{ t.cookies_none }}</span>
+        </span>
+        <button class="sm-btn" onclick="document.getElementById('cookie-upload-input').click()">{{ t.btn_upload_cookies }}</button>
+        <button class="sm-btn danger" id="cookie-del-btn" onclick="deleteCookies()" style="display:none">{{ t.btn_delete_cookies }}</button>
+        <input type="file" id="cookie-upload-input" accept=".txt,text/plain" onchange="uploadCookies(this)">
+      </div>
+      <div class="settings-row" style="border:none;padding-top:2px">
+        <span class="settings-label"></span>
+        <span class="settings-hint">{{ t.cookies_hint }}</span>
       </div>
     </div>
 
@@ -281,7 +253,6 @@
   <div id="toast"></div>
 
   <script>
-    // ── i18n strings injected from Jinja ──────────────────────────────────────
     const T = {
       queue_empty:    {{ t.queue_empty | tojson }},
       files_empty:    {{ t.files_empty | tojson }},
@@ -290,9 +261,9 @@
       error_network:  {{ t.error_network | tojson }},
       error_unknown:  {{ t.error_unknown | tojson }},
       confirm_delete: {{ t.confirm_delete | tojson }},
+      confirm_delete_cookies: {{ t.confirm_delete_cookies | tojson }},
       btn_cancel:     {{ t.btn_cancel | tojson }},
       btn_remove:     {{ t.btn_remove | tojson }},
-      btn_clear_queue: {{ t.btn_clear_queue | tojson }},
       btn_delete:     {{ t.btn_delete | tojson }},
       btn_download_file: {{ t.btn_download_file | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
@@ -302,82 +273,117 @@
       status_done:      {{ t.status_done | tojson }},
       status_error:     {{ t.status_error | tojson }},
       status_cancelled: {{ t.status_cancelled | tojson }},
-      install_banner:   {{ t.install_banner | tojson }},
+      cookies_loaded: {{ t.cookies_loaded | tojson }},
+      cookies_none:   {{ t.cookies_none | tojson }},
+      ytdlp_updating: {{ t.ytdlp_updating | tojson }},
+      ytdlp_updated:  {{ t.ytdlp_updated | tojson }},
+      disk_free:      {{ t.disk_free | tojson }},
+      disk_used_by_folder: {{ t.disk_used_by_folder | tojson }},
+      info_loading:   {{ t.info_loading | tojson }},
+      info_error:     {{ t.info_error | tojson }},
+      info_duration:  {{ t.info_duration | tojson }},
+      info_timeout:   {{ t.info_timeout | tojson }},
+      // error keys
+      err_age_restricted: {{ t.err_age_restricted | tojson }},
+      err_private:        {{ t.err_private | tojson }},
+      err_unavailable:    {{ t.err_unavailable | tojson }},
+      err_removed:        {{ t.err_removed | tojson }},
+      err_format:         {{ t.err_format | tojson }},
+      err_rate_limited:   {{ t.err_rate_limited | tojson }},
+      err_network:        {{ t.err_network | tojson }},
+      err_extract:        {{ t.err_extract | tojson }},
+      err_not_found:      {{ t.err_not_found | tojson }},
+      err_invalid_url:    {{ t.err_invalid_url | tojson }},
+      err_unsupported:    {{ t.err_unsupported | tojson }},
+      err_interrupted:    {{ t.err_interrupted | tojson }},
+      err_unknown:        {{ t.err_unknown | tojson }},
     };
 
     // ── Theme ─────────────────────────────────────────────────────────────────
-    (function(){ const t = localStorage.getItem('mg-theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
-    function toggleTheme(){ const c = document.documentElement.getAttribute('data-theme') || 'dark'; const n = c === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); localStorage.setItem('mg-theme', n); }
+    (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('mg-theme') || 'dark'); })();
+    function toggleTheme(){ const n = (document.documentElement.getAttribute('data-theme')||'dark') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); localStorage.setItem('mg-theme', n); }
 
     // ── Toast ─────────────────────────────────────────────────────────────────
     let _toastTimer = null;
-    function toast(msg, isErr = false) {
+    function toast(msg, isErr=false) {
       const el = document.getElementById('toast');
-      el.textContent = msg;
-      el.className = 'show' + (isErr ? ' err' : '');
+      el.textContent = msg; el.className = 'show' + (isErr ? ' err' : '');
       clearTimeout(_toastTimer);
-      _toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+      _toastTimer = setTimeout(() => el.className = '', 3500);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    function fmtSize(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
-      if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(1) + ' MB';
-      return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+    function fmtSize(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+      if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+      return (b/1073741824).toFixed(2) + ' GB';
     }
-    function fmtDate(ts) {
-      return new Date(ts * 1000).toLocaleString();
-    }
-    function esc(s) {
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
+    function fmtDate(ts) { return new Date(ts*1000).toLocaleString(); }
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function errMsg(key) { return T[key] || key; }
 
     // ── Download ──────────────────────────────────────────────────────────────
     async function startDownload() {
       const url = document.getElementById('url-input').value.trim();
       if (!url) { toast(T.error_no_url, true); return; }
-      const fmt       = document.getElementById('fmt-select').value;
-      const subtitles = document.getElementById('cb-subtitles').checked;
-      const playlist  = document.getElementById('cb-playlist').checked;
       const btn = document.getElementById('dl-btn');
       btn.disabled = true;
+      closeInfo();
       try {
         const r = await fetch('/api/download', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({url, fmt, subtitles, playlist})
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            url,
+            fmt: document.getElementById('fmt-select').value,
+            subtitles: document.getElementById('cb-subtitles').checked,
+            playlist:  document.getElementById('cb-playlist').checked,
+          })
         });
         const data = await r.json();
         if (!r.ok) {
-          if (data.error === 'queue_full') toast(T.error_queue_full, true);
-          else toast(T.error_unknown + ': ' + (data.error || r.status), true);
+          toast(data.error === 'queue_full' ? T.error_queue_full : T.error_unknown + ': ' + data.error, true);
           return;
         }
         document.getElementById('url-input').value = '';
         loadJobs();
-      } catch(e) {
-        toast(T.error_network, true);
-      } finally {
-        btn.disabled = false;
-      }
+      } catch(e) { toast(T.error_network, true); }
+      finally { btn.disabled = false; }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('url-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') startDownload();
-      });
-    });
+    // ── Video Info ────────────────────────────────────────────────────────────
+    async function fetchInfo() {
+      const url = document.getElementById('url-input').value.trim();
+      if (!url) { toast(T.error_no_url, true); return; }
+      const card = document.getElementById('info-card');
+      card.className = 'visible';
+      document.getElementById('info-thumb').src = '';
+      document.getElementById('info-title').textContent = T.info_loading;
+      document.getElementById('info-sub').textContent = '';
+      try {
+        const r = await fetch('/api/info', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({url})
+        });
+        const d = await r.json();
+        if (!r.ok || d.error) {
+          document.getElementById('info-title').textContent = d.error === 'timeout' ? T.info_timeout : T.info_error;
+          return;
+        }
+        if (d.thumbnail) document.getElementById('info-thumb').src = d.thumbnail;
+        document.getElementById('info-title').textContent = d.title || '—';
+        document.getElementById('info-sub').textContent =
+          [d.uploader, d.duration ? T.info_duration + ': ' + d.duration : '', d.extractor]
+          .filter(Boolean).join(' · ');
+      } catch(e) { document.getElementById('info-title').textContent = T.info_error; }
+    }
+    function closeInfo() {
+      document.getElementById('info-card').className = '';
+      document.getElementById('info-thumb').src = '';
+    }
 
-    // ── Jobs ──────────────────────────────────────────────────────────────────
-    const STATUS_LABEL = {
-      pending:   T.status_pending,
-      running:   T.status_running,
-      done:      T.status_done,
-      error:     T.status_error,
-      cancelled: T.status_cancelled,
-    };
-
+    // ── Queue ─────────────────────────────────────────────────────────────────
+    const STATUS_LABEL = { pending:T.status_pending, running:T.status_running, done:T.status_done, error:T.status_error, cancelled:T.status_cancelled };
     let _prevDoneIds = new Set();
 
     async function loadJobs() {
@@ -386,86 +392,97 @@
         if (!r.ok) return;
         const jobs = await r.json();
         renderJobs(jobs);
-
-        // Reload files when a new job finishes
         const nowDone = new Set(jobs.filter(j => j.status === 'done').map(j => j.id));
-        const newlyDone = [...nowDone].filter(id => !_prevDoneIds.has(id));
-        if (newlyDone.length) loadFiles();
+        if ([...nowDone].some(id => !_prevDoneIds.has(id))) { loadFiles(); loadDiskSpace(); }
         _prevDoneIds = nowDone;
       } catch(e) {}
     }
 
     function renderJobs(jobs) {
-      const list   = document.getElementById('jobs-list');
-      const badge  = document.getElementById('queue-badge');
-      const active = jobs.filter(j => j.status === 'pending' || j.status === 'running');
-      badge.textContent = active.length;
-
-      if (!jobs.length) {
-        list.innerHTML = '<p class="empty-note">' + esc(T.queue_empty) + '</p>';
-        return;
-      }
+      const list  = document.getElementById('jobs-list');
+      const badge = document.getElementById('queue-badge');
+      badge.textContent = jobs.filter(j => j.status === 'pending' || j.status === 'running').length;
+      if (!jobs.length) { list.innerHTML = '<p class="empty-note">' + esc(T.queue_empty) + '</p>'; return; }
       list.innerHTML = jobs.map(j => {
-        const pct = Math.min(100, Math.max(0, j.progress || 0));
+        const pct    = Math.min(100, Math.max(0, j.progress || 0));
         const barCls = j.status === 'done' ? 'done' : j.status === 'error' ? 'err' : '';
-        const name = j.filename || j.url;
-        const meta = j.status === 'running'
-          ? (j.speed ? T.lbl_speed + ': ' + esc(j.speed) : '') +
-            (j.eta   ? (j.speed ? '&nbsp;&nbsp;' : '') + T.lbl_eta + ': ' + esc(j.eta) : '')
-          : j.error ? esc(j.error) : '';
-        const canCancel  = j.status === 'pending' || j.status === 'running';
-        const canRemove  = !canCancel;
+        const name   = j.filename || j.url;
+        const metaParts = [];
+        if (j.status === 'running') {
+          if (j.speed) metaParts.push(T.lbl_speed + ': ' + esc(j.speed));
+          if (j.eta)   metaParts.push(T.lbl_eta   + ': ' + esc(j.eta));
+        }
+        const canCancel = j.status === 'pending' || j.status === 'running';
         return `
           <div class="job-item">
             <div class="job-header">
               <span class="job-name" title="${esc(name)}">${esc(name)}</span>
               <span class="job-fmt">${esc(j.fmt)}</span>
-              <span class="job-status s-${j.status}">${esc(STATUS_LABEL[j.status] || j.status)}</span>
+              <span class="job-status s-${j.status}">${esc(STATUS_LABEL[j.status]||j.status)}</span>
             </div>
-            <div class="job-bar-wrap">
-              <div class="job-bar ${barCls}" style="width:${pct}%"></div>
-            </div>
-            <div class="job-meta">${pct.toFixed(1)}%${meta ? '&nbsp;&nbsp;' + meta : ''}</div>
+            <div class="job-bar-wrap"><div class="job-bar ${barCls}" style="width:${pct}%"></div></div>
+            <div class="job-meta">${pct.toFixed(1)}%${metaParts.length ? '&nbsp;&nbsp;' + metaParts.join('&nbsp;&nbsp;') : ''}</div>
+            ${j.status === 'error' ? `<div class="job-error">${esc(errMsg(j.error))}</div>` : ''}
             <div class="job-actions">
-              ${canCancel ? `<button class="sm-btn danger" onclick="cancelJob('${esc(j.id)}')">${esc(T.btn_cancel)}</button>` : ''}
-              ${canRemove ? `<button class="sm-btn" onclick="removeJob('${esc(j.id)}')">${esc(T.btn_remove)}</button>` : ''}
+              ${canCancel  ? `<button class="sm-btn danger" onclick="cancelJob('${esc(j.id)}')">${esc(T.btn_cancel)}</button>` : ''}
+              ${!canCancel ? `<button class="sm-btn"        onclick="removeJob('${esc(j.id)}')">${esc(T.btn_remove)}</button>` : ''}
             </div>
           </div>`;
       }).join('');
     }
 
-    async function clearQueue() {
-      await fetch('/api/jobs/clear', {method: 'POST'});
-      loadJobs();
-    }
+    async function cancelJob(id) { await fetch('/api/cancel/'+id,{method:'POST'}); loadJobs(); }
+    async function removeJob(id) { await fetch('/api/remove/'+id,{method:'POST'}); loadJobs(); }
+    async function clearQueue() { await fetch('/api/jobs/clear',{method:'POST'}); loadJobs(); }
 
-    async function cancelJob(id) {
-      await fetch('/api/cancel/' + id, {method: 'POST'});
-      loadJobs();
-    }
-    async function removeJob(id) {
-      await fetch('/api/remove/' + id, {method: 'POST'});
-      loadJobs();
+    // ── Disk space ────────────────────────────────────────────────────────────
+    async function loadDiskSpace() {
+      try {
+        const r = await fetch('/api/diskspace');
+        if (!r.ok) return;
+        const d = await r.json();
+        const pct = d.total > 0 ? (d.used / d.total * 100) : 0;
+        const bar = document.getElementById('disk-bar');
+        bar.style.width = pct.toFixed(1) + '%';
+        bar.className = 'disk-bar' + (pct > 90 ? ' crit' : pct > 75 ? ' warn' : '');
+        document.getElementById('disk-info').textContent =
+          fmtSize(d.folder) + ' ' + T.disk_used_by_folder + ' · ' + fmtSize(d.free) + ' ' + T.disk_free;
+      } catch(e) {}
     }
 
     // ── Files ─────────────────────────────────────────────────────────────────
+    let _allFiles = [];
+    let _sortKey  = 'date';
+
+    function setSort(key) {
+      _sortKey = key;
+      document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('sort-' + key).classList.add('active');
+      renderFiles();
+    }
+
     async function loadFiles() {
       try {
         const r = await fetch('/api/files');
         if (!r.ok) return;
-        const files = await r.json();
-        renderFiles(files);
+        _allFiles = await r.json();
+        document.getElementById('files-badge').textContent = _allFiles.length;
+        renderFiles();
       } catch(e) {}
     }
 
-    function renderFiles(files) {
-      const list  = document.getElementById('files-list');
-      const badge = document.getElementById('files-badge');
-      badge.textContent = files.length;
-      if (!files.length) {
-        list.innerHTML = '<p class="empty-note">' + esc(T.files_empty) + '</p>';
-        return;
-      }
+    function renderFiles() {
+      const list   = document.getElementById('files-list');
+      const q      = (document.getElementById('file-search').value || '').toLowerCase();
+      let   files  = q ? _allFiles.filter(f => f.name.toLowerCase().includes(q)) : [..._allFiles];
+
+      if (_sortKey === 'name') files.sort((a,b) => a.name.localeCompare(b.name));
+      else if (_sortKey === 'size') files.sort((a,b) => b.size - a.size);
+      else files.sort((a,b) => b.mtime - a.mtime);
+
+      document.getElementById('files-badge').textContent = _allFiles.length;
+
+      if (!files.length) { list.innerHTML = '<p class="empty-note">' + esc(T.files_empty) + '</p>'; return; }
       const icon = f => {
         const ext = f.name.split('.').pop().toLowerCase();
         if (['mp4','mkv','webm','avi','mov'].includes(ext)) return '🎬';
@@ -488,9 +505,79 @@
     async function deleteFile(name) {
       if (!confirm(T.confirm_delete.replace('{name}', name))) return;
       try {
-        const r = await fetch('/api/file/delete/' + encodeURIComponent(name), {method: 'POST'});
-        if (r.ok) { loadFiles(); }
+        const r = await fetch('/api/file/delete/' + encodeURIComponent(name), {method:'POST'});
+        if (r.ok) { loadFiles(); loadDiskSpace(); }
         else toast(T.error_unknown, true);
+      } catch(e) { toast(T.error_network, true); }
+    }
+
+    // ── Settings: yt-dlp ─────────────────────────────────────────────────────
+    async function loadYtdlpVersion() {
+      try {
+        const r = await fetch('/api/ytdlp/version');
+        if (!r.ok) return;
+        const d = await r.json();
+        document.getElementById('ytdlp-ver').textContent = d.version || '—';
+      } catch(e) {}
+    }
+
+    async function updateYtdlp() {
+      const btn = document.getElementById('ytdlp-update-btn');
+      const ver = document.getElementById('ytdlp-ver');
+      btn.disabled = true;
+      ver.textContent = T.ytdlp_updating;
+      try {
+        const r = await fetch('/api/ytdlp/update', {method:'POST'});
+        const d = await r.json();
+        if (r.ok && d.version) {
+          ver.textContent = d.version;
+          toast(T.ytdlp_updated + ' ' + d.version);
+        } else {
+          ver.textContent = '—';
+          toast(T.error_unknown, true);
+        }
+      } catch(e) { toast(T.error_network, true); ver.textContent = '—'; }
+      finally { btn.disabled = false; loadYtdlpVersion(); }
+    }
+
+    // ── Settings: Cookies ─────────────────────────────────────────────────────
+    async function loadCookiesStatus() {
+      try {
+        const r = await fetch('/api/cookies/status');
+        if (!r.ok) return;
+        const d = await r.json();
+        const el  = document.getElementById('cookie-status');
+        const del = document.getElementById('cookie-del-btn');
+        if (d.loaded) {
+          el.textContent = T.cookies_loaded + ' (' + fmtSize(d.size) + ')';
+          el.className = 'cookie-status cookie-ok';
+          del.style.display = '';
+        } else {
+          el.textContent = T.cookies_none;
+          el.className = 'cookie-status cookie-no';
+          del.style.display = 'none';
+        }
+      } catch(e) {}
+    }
+
+    async function uploadCookies(input) {
+      if (!input.files.length) return;
+      const form = new FormData();
+      form.append('file', input.files[0]);
+      input.value = '';
+      try {
+        const r = await fetch('/api/cookies/upload', {method:'POST', body:form});
+        const d = await r.json();
+        if (r.ok) { toast('Cookies hochgeladen (' + fmtSize(d.size) + ')'); loadCookiesStatus(); }
+        else toast(T.error_unknown + ': ' + d.error, true);
+      } catch(e) { toast(T.error_network, true); }
+    }
+
+    async function deleteCookies() {
+      if (!confirm(T.confirm_delete_cookies)) return;
+      try {
+        await fetch('/api/cookies/delete', {method:'POST'});
+        loadCookiesStatus();
       } catch(e) { toast(T.error_network, true); }
     }
 
@@ -500,8 +587,17 @@
       e.preventDefault(); _deferredPrompt = e;
       document.getElementById('pwa-banner').classList.add('visible');
     });
+
+    // ── Init ──────────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('pwa-install').textContent = T.install_banner;
+      // Keyboard shortcut: Enter in textarea (single line) starts download
+      document.getElementById('url-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+          const lines = e.target.value.split('\n').filter(l => l.trim()).length;
+          if (lines <= 1) { e.preventDefault(); startDownload(); }
+        }
+      });
+
       document.getElementById('pwa-install').addEventListener('click', async () => {
         if (!_deferredPrompt) return;
         _deferredPrompt.prompt();
@@ -513,12 +609,9 @@
         document.getElementById('pwa-banner').classList.remove('visible');
       });
 
-      // Service Worker
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
-      }
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
-      // Web Share Target — auto-fill URL from ?url= param
+      // Web Share Target
       const sharedUrl = new URLSearchParams(window.location.search).get('url');
       if (sharedUrl) {
         document.getElementById('url-input').value = sharedUrl;
@@ -526,11 +619,12 @@
         startDownload();
       }
 
-      // Initial load
       loadJobs();
       loadFiles();
+      loadDiskSpace();
+      loadYtdlpVersion();
+      loadCookiesStatus();
 
-      // Poll jobs every 2 seconds
       setInterval(loadJobs, 2000);
     });
   </script>

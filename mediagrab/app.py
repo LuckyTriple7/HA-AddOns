@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import threading
 import time
@@ -28,11 +29,13 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 MEDIA_DIR     = Path('/media/mediagrab')
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
+JOBS_PATH     = '/data/jobs.json'
+COOKIES_PATH  = '/data/cookies.txt'
 LOCALES_PATH  = '/app/locales'
 PORT          = 17791
 
 RATE_LIMIT_MAX    = 5
-RATE_LIMIT_WINDOW = 900   # 15 minutes lockout
+RATE_LIMIT_WINDOW = 900
 
 _config_cache: dict | None = None
 _config_mtime: float = 0.0
@@ -125,18 +128,93 @@ def record_failed(ip: str) -> None:
 def clear_failed(ip: str) -> None:
     _failed.pop(ip, None)
 
+# ── Jobs persistence ───────────────────────────────────────────────────────────
+
+def save_jobs() -> None:
+    try:
+        with _jobs_lock:
+            data = [{k: v for k, v in j.items() if k != 'proc'} for j in _jobs.values()]
+        with open(JOBS_PATH, 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        log.warning('Jobs konnten nicht gespeichert werden: %s', e)
+
+def load_jobs() -> None:
+    global _jobs
+    try:
+        with open(JOBS_PATH) as f:
+            data = json.load(f)
+        restored: dict[str, dict] = {}
+        for j in data:
+            j['proc'] = None
+            if j.get('status') in ('pending', 'running'):
+                j['status'] = 'error'
+                j['error']  = 'err_interrupted'
+            restored[j['id']] = j
+        with _jobs_lock:
+            _jobs = restored
+        if restored:
+            log.info('Jobs wiederhergestellt: %d Einträge', len(restored))
+    except Exception:
+        pass
+
+# ── Auto-clear background thread ───────────────────────────────────────────────
+
+def _auto_clear_worker() -> None:
+    while True:
+        time.sleep(60)
+        config = get_config()
+        hours = int(config.get('auto_clear_hours', 0))
+        if hours <= 0:
+            continue
+        cutoff = time.time() - hours * 3600
+        with _jobs_lock:
+            to_remove = [
+                jid for jid, j in _jobs.items()
+                if j['status'] not in ('pending', 'running') and j.get('created_at', 0) < cutoff
+            ]
+            for jid in to_remove:
+                del _jobs[jid]
+        if to_remove:
+            log.info('Auto-Clear: %d Jobs entfernt (älter als %dh)', len(to_remove), hours)
+            save_jobs()
+
+# ── Error parsing ──────────────────────────────────────────────────────────────
+
+_ERROR_PATTERNS = [
+    (r'Sign in to confirm your age|age.restricted',     'err_age_restricted'),
+    (r'Private video|This video is private',             'err_private'),
+    (r'Video unavailable|This video is not available',   'err_unavailable'),
+    (r'has been removed',                                'err_removed'),
+    (r'Requested format is not available',               'err_format'),
+    (r'HTTP Error 429|Too Many Requests',                'err_rate_limited'),
+    (r'urlopen error',                                   'err_network'),
+    (r'Unable to extract',                               'err_extract'),
+    (r'No such channel',                                 'err_not_found'),
+    (r'is not a valid URL',                              'err_invalid_url'),
+    (r'Unsupported URL',                                 'err_unsupported'),
+]
+
+def _parse_error(lines: list[str]) -> str:
+    text = '\n'.join(lines)
+    for pattern, key in _ERROR_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return key
+    return 'err_unknown'
+
 # ── yt-dlp download logic ──────────────────────────────────────────────────────
+
+VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
 _PROGRESS_RE = re.compile(
     r'\[download\]\s+([\d.]+)%\s+of\s+[\d.~]+\S*\s+at\s+([\d.]+\S+)\s+ETA\s+(\S+)'
 )
-_DEST_RE   = re.compile(r'\[download\] Destination:\s+(.+)')
-_MERGE_RE  = re.compile(r'\[Merger\] Merging formats into "(.+)"')
+_DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
+_MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
 _ALREADY_RE = re.compile(r'\[download\] (.+) has already been downloaded')
 
-VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
-
 def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool) -> list[str]:
+    config = get_config()
     cmd = [
         'yt-dlp',
         '--no-color', '--newline', '--progress',
@@ -146,6 +224,13 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool) -> list[str]
         cmd.append('--no-playlist')
     if subtitles:
         cmd += ['--write-sub', '--write-auto-sub', '--sub-langs', 'de,en']
+
+    speed = config.get('speed_limit', '').strip()
+    if speed:
+        cmd += ['--limit-rate', speed]
+
+    if Path(COOKIES_PATH).exists():
+        cmd += ['--cookies', COOKIES_PATH]
 
     if fmt == 'mp3':
         cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
@@ -176,14 +261,15 @@ def _run_download(job_id: str) -> None:
         if not job:
             return
         job['status'] = 'running'
+    save_jobs()
 
     cmd = _build_cmd(job['url'], job['fmt'], job['subtitles'], job['playlist'])
     log.info('Download startet: job=%s fmt=%s url=%s', job_id, job['fmt'], job['url'])
 
+    output_lines: list[str] = []
     try:
         proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1
         )
         with _jobs_lock:
@@ -191,6 +277,7 @@ def _run_download(job_id: str) -> None:
 
         for line in proc.stdout:  # type: ignore[union-attr]
             line = line.rstrip()
+            output_lines.append(line)
             if get_config().get('verbose_log'):
                 log.info('[yt-dlp] %s', line)
 
@@ -230,9 +317,10 @@ def _run_download(job_id: str) -> None:
                 _jobs[job_id]['eta']      = ''
                 log.info('Download fertig: job=%s file=%s', job_id, _jobs[job_id]['filename'])
             else:
+                err = _parse_error(output_lines)
                 _jobs[job_id]['status'] = 'error'
-                _jobs[job_id]['error']  = f'yt-dlp exited with code {proc.returncode}'
-                log.warning('Download Fehler: job=%s rc=%d', job_id, proc.returncode)
+                _jobs[job_id]['error']  = err
+                log.warning('Download Fehler: job=%s rc=%d err=%s', job_id, proc.returncode, err)
 
     except Exception as e:
         log.error('Download Exception: job=%s err=%s', job_id, e)
@@ -240,14 +328,15 @@ def _run_download(job_id: str) -> None:
             if job_id in _jobs:
                 _jobs[job_id]['status'] = 'error'
                 _jobs[job_id]['error']  = str(e)
+    finally:
+        save_jobs()
 
-# ── Auth helper ────────────────────────────────────────────────────────────────
+# ── Auth helpers ───────────────────────────────────────────────────────────────
 
 def _require_auth() -> bool:
     return not is_valid_session(request.cookies.get('mg_session'))
 
 def _safe_next(url: str) -> str:
-    """Only allow internal redirects — no open-redirect to external URLs."""
     if url and url.startswith('/') and not url.startswith('//'):
         return url
     return ''
@@ -264,11 +353,10 @@ def set_lang(lang):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    lang = get_lang(request)
-    t    = get_locale(lang)
-    config = get_config()
-    error = None
-
+    lang    = get_lang(request)
+    t       = get_locale(lang)
+    config  = get_config()
+    error   = None
     next_url = request.args.get('next', '')
 
     if is_valid_session(request.cookies.get('mg_session')):
@@ -321,7 +409,6 @@ def index():
 
 @app.route('/share')
 def share():
-    # Web Share Target — receives URL from native share sheet
     shared_url = (request.args.get('url') or request.args.get('text') or '').strip()
     if _require_auth():
         next_path = '/share?' + urllib.parse.urlencode({'url': shared_url})
@@ -339,51 +426,92 @@ def api_download():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     data = request.json or {}
-    url  = (data.get('url') or '').strip()
-    if not url:
+
+    urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
+    if not urls:
         return jsonify({'error': 'no_url'}), 400
+
     fmt = data.get('fmt', 'best_video')
     if fmt not in VALID_FORMATS:
         fmt = 'best_video'
 
     config = get_config()
     max_concurrent = int(config.get('max_concurrent', 3))
-    with _jobs_lock:
-        running = sum(1 for j in _jobs.values() if j['status'] in ('pending', 'running'))
-    if running >= max_concurrent:
-        return jsonify({'error': 'queue_full'}), 429
 
-    job_id = secrets.token_hex(8)
-    job: dict = {
-        'id':         job_id,
-        'url':        url,
-        'fmt':        fmt,
-        'subtitles':  bool(data.get('subtitles', False)),
-        'playlist':   bool(data.get('playlist', False)),
-        'status':     'pending',
-        'progress':   0.0,
-        'speed':      '',
-        'eta':        '',
-        'filename':   '',
-        'error':      '',
-        'proc':       None,
-        'created_at': time.time(),
-    }
-    with _jobs_lock:
-        _jobs[job_id] = job
+    job_ids = []
+    for url in urls:
+        with _jobs_lock:
+            running = sum(1 for j in _jobs.values() if j['status'] in ('pending', 'running'))
+        if running >= max_concurrent:
+            return jsonify({'error': 'queue_full', 'started': job_ids}), 429
 
-    threading.Thread(target=_run_download, args=(job_id,), daemon=True).start()
-    return jsonify({'job_id': job_id})
+        job_id = secrets.token_hex(8)
+        job: dict = {
+            'id':         job_id,
+            'url':        url,
+            'fmt':        fmt,
+            'subtitles':  bool(data.get('subtitles', False)),
+            'playlist':   bool(data.get('playlist', False)),
+            'status':     'pending',
+            'progress':   0.0,
+            'speed':      '',
+            'eta':        '',
+            'filename':   '',
+            'error':      '',
+            'proc':       None,
+            'created_at': time.time(),
+        }
+        with _jobs_lock:
+            _jobs[job_id] = job
+        job_ids.append(job_id)
+        threading.Thread(target=_run_download, args=(job_id,), daemon=True).start()
+
+    save_jobs()
+    return jsonify({'job_ids': job_ids})
+
+@app.route('/api/info', methods=['POST'])
+def api_info():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    data = request.json or {}
+    url  = (data.get('url') or '').strip()
+    if not url:
+        return jsonify({'error': 'no_url'}), 400
+
+    cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
+    if Path(COOKIES_PATH).exists():
+        cmd += ['--cookies', COOKIES_PATH]
+    cmd.append(url)
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            return jsonify({'error': 'fetch_failed'}), 400
+        info = json.loads(result.stdout.splitlines()[0])
+        duration = info.get('duration')
+        dur_str  = ''
+        if duration:
+            m, s = divmod(int(duration), 60)
+            h, m = divmod(m, 60)
+            dur_str = f'{h}:{m:02d}:{s:02d}' if h else f'{m}:{s:02d}'
+        return jsonify({
+            'title':     info.get('title', ''),
+            'uploader':  info.get('uploader') or info.get('channel', ''),
+            'duration':  dur_str,
+            'thumbnail': info.get('thumbnail', ''),
+            'extractor': info.get('extractor_key', ''),
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'timeout'}), 504
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/jobs')
 def api_jobs():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     with _jobs_lock:
-        result = [
-            {k: v for k, v in j.items() if k != 'proc'}
-            for j in _jobs.values()
-        ]
+        result = [{k: v for k, v in j.items() if k != 'proc'} for j in _jobs.values()]
     result.sort(key=lambda j: j['created_at'], reverse=True)
     return jsonify(result)
 
@@ -399,6 +527,7 @@ def api_cancel(job_id):
         proc = job.get('proc')
     if proc:
         proc.terminate()
+    save_jobs()
     return jsonify({'ok': True})
 
 @app.route('/api/remove/<job_id>', methods=['POST'])
@@ -407,6 +536,7 @@ def api_remove(job_id):
         return jsonify({'error': 'unauthorized'}), 401
     with _jobs_lock:
         _jobs.pop(job_id, None)
+    save_jobs()
     return jsonify({'ok': True})
 
 @app.route('/api/jobs/clear', methods=['POST'])
@@ -417,7 +547,75 @@ def api_jobs_clear():
         finished = [jid for jid, j in _jobs.items() if j['status'] not in ('pending', 'running')]
         for jid in finished:
             del _jobs[jid]
+    save_jobs()
     return jsonify({'ok': True, 'removed': len(finished)})
+
+@app.route('/api/diskspace')
+def api_diskspace():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    usage  = shutil.disk_usage(str(MEDIA_DIR))
+    folder = sum(f.stat().st_size for f in MEDIA_DIR.rglob('*') if f.is_file())
+    return jsonify({'total': usage.total, 'used': usage.used, 'free': usage.free, 'folder': folder})
+
+@app.route('/api/ytdlp/version')
+def api_ytdlp_version():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
+        return jsonify({'version': r.stdout.strip()})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/ytdlp/update', methods=['POST'])
+def api_ytdlp_update():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    try:
+        subprocess.run(['pip', 'install', '--upgrade', 'yt-dlp'],
+                       capture_output=True, text=True, timeout=120, check=True)
+        r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
+        new_ver = r.stdout.strip()
+        log.info('yt-dlp aktualisiert auf %s', new_ver)
+        return jsonify({'ok': True, 'version': new_ver})
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'timeout'}), 504
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cookies/status')
+def api_cookies_status():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    p = Path(COOKIES_PATH)
+    return jsonify({'loaded': p.exists(), 'size': p.stat().st_size if p.exists() else 0})
+
+@app.route('/api/cookies/upload', methods=['POST'])
+def api_cookies_upload():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    if 'file' not in request.files:
+        return jsonify({'error': 'no_file'}), 400
+    f = request.files['file']
+    if not f.filename:
+        return jsonify({'error': 'no_file'}), 400
+    content = f.read()
+    if len(content) < 10:
+        return jsonify({'error': 'invalid_file'}), 400
+    with open(COOKIES_PATH, 'wb') as out:
+        out.write(content)
+    log.info('Cookies hochgeladen: %d bytes', len(content))
+    return jsonify({'ok': True, 'size': len(content)})
+
+@app.route('/api/cookies/delete', methods=['POST'])
+def api_cookies_delete():
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    Path(COOKIES_PATH).unlink(missing_ok=True)
+    log.info('Cookies gelöscht')
+    return jsonify({'ok': True})
 
 @app.route('/api/files')
 def api_files():
@@ -470,5 +668,7 @@ def service_worker():
 if __name__ == '__main__':
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     load_sessions()
+    load_jobs()
+    threading.Thread(target=_auto_clear_worker, daemon=True).start()
     log.info('MediaGrab startet auf Port %d ...', PORT)
     app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
