@@ -206,9 +206,7 @@ def _parse_error(lines: list[str]) -> str:
 
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
-_PROGRESS_RE = re.compile(
-    r'\[download\]\s+([\d.]+)%\s+of\s+[\d.~]+\S*\s+at\s+(\S+)\s+ETA\s+(\S+)'
-)
+_PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
 _ALREADY_RE = re.compile(r'\[download\] (.+) has already been downloaded')
@@ -218,6 +216,7 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
     cmd = [
         'yt-dlp',
         '--no-color', '--newline', '--progress',
+        '--progress-template', 'download:MGPROG|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s',
         '-o', '/media/mediagrab/%(title)s.%(ext)s',
     ]
     if not playlist:
@@ -288,12 +287,16 @@ def _run_download(job_id: str) -> None:
             if get_config().get('verbose_log'):
                 log.info('[yt-dlp] %s', line)
 
-            m = _PROGRESS_RE.search(line)
+            m = _PROG_RE.match(line)
             if m:
+                try:
+                    pct = float(m.group(1).strip())
+                except ValueError:
+                    pct = 0.0
                 with _jobs_lock:
-                    _jobs[job_id]['progress'] = float(m.group(1))
-                    _jobs[job_id]['speed']    = m.group(2)
-                    _jobs[job_id]['eta']      = m.group(3)
+                    _jobs[job_id]['progress'] = pct
+                    _jobs[job_id]['speed']    = m.group(2).strip()
+                    _jobs[job_id]['eta']      = m.group(3).strip()
                 continue
 
             m = _DEST_RE.search(line)

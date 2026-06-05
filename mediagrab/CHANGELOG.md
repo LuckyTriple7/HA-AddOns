@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.1.8] — 2026-06-05
+### Fixed
+- Fortschrittsbalken: --progress-template statt Regex-Parsing — yt-dlp schreibt jetzt ein eigenes sauberes Format (MGPROG|28.3%|2.50MiB/s|00:52) das zuverlässig geparst wird
+
 ## [0.1.7] — 2026-06-05
 ### Fixed
 - Temp-Dateien (.part, .ytdl) werden nach Abbruch, Fehler und Add-on-Neustart automatisch gelöscht
