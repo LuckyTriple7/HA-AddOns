@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.17] - 2026-06-06
+- Neu: media_max_mb im Startup-Log ausgeben
+
 ## [1.5.16] - 2026-06-05
 - Fix: MEDIA_MAX_MB fehlte in run.sh → Limit zeigte immer 500 MB statt konfiguriertem Wert
 
