@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.43] - 2026-06-06
+- Revert: Console auf stabilen v1.6.39-Stand zurückgesetzt (Filter/Export vorerst entfernt)
+
 ## [1.6.42] - 2026-06-06
 - Fix (3. Versuch): Console-Code auf exakten v1.6.39-Stand zurückgesetzt; Filter/Export ohne separaten Toolbar-div — Buttons direkt im Header, alle Events via addEventListener (kein inline onclick auf neuen Elementen)
 

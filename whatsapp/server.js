@@ -3163,19 +3163,10 @@ app.get('/', (req, res) => {
   <style>
     #wa-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}
     #wa-console.open{display:flex;}
-    #wa-console-header{display:flex;align-items:center;gap:4px;padding:5px 6px 5px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;cursor:move;user-select:none;border-radius:7px 7px 0 0;}
-    #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;flex:1;white-space:nowrap;}
+    #wa-console-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;cursor:move;user-select:none;border-radius:7px 7px 0 0;}
+    #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
     #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
     #wa-console-close:hover{color:#f85149;}
-    .wc-fb{background:none;border:1px solid #30363d;color:#6e7681;border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace;padding:1px 5px;line-height:1.6;flex-shrink:0;}
-    .wc-fb:hover{border-color:#8b949e;color:#c9d1d9;}
-    .wc-fb.on[data-f="ALL"]{color:#c9d1d9;border-color:#c9d1d9;}
-    .wc-fb.on[data-f="DEBUG"]{color:#6e7681;border-color:#6e7681;}
-    .wc-fb.on[data-f="INFO"]{color:#3fb950;border-color:#3fb950;}
-    .wc-fb.on[data-f="WARN"]{color:#d29922;border-color:#d29922;}
-    .wc-fb.on[data-f="ERROR"]{color:#f85149;border-color:#f85149;}
-    #wc-exp{background:none;border:1px solid #30363d;color:#58a6ff;border-radius:3px;cursor:pointer;font-size:10px;padding:1px 5px;line-height:1.6;flex-shrink:0;}
-    #wc-exp:hover{border-color:#58a6ff;}
     #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
     #wa-console-body::-webkit-scrollbar{width:5px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
     .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#6e7681;}
@@ -3184,26 +3175,20 @@ app.get('/', (req, res) => {
   <div id="wa-console">
     <div id="wa-console-header">
       <span id="wa-console-title">⬛ CONSOLE — WhatsApp</span>
-      <button class="wc-fb on" data-f="ALL">ALL</button>
-      <button class="wc-fb" data-f="DEBUG">DBG</button>
-      <button class="wc-fb" data-f="INFO">INFO</button>
-      <button class="wc-fb" data-f="WARN">WARN</button>
-      <button class="wc-fb" data-f="ERROR">ERR</button>
-      <button id="wc-exp">⬇</button>
-      <button id="wa-console-close">✕</button>
+      <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
     </div>
     <div id="wa-console-body"></div>
   </div>
   <script>
     (function(){
-      var _open=false,_lastTs=0,_timer=null,_filter='ALL';
+      var _open=false,_lastTs=0,_timer=null;
       var panel=document.getElementById('wa-console');
       var header=document.getElementById('wa-console-header');
       var body=document.getElementById('wa-console-body');
+      // Drag
       var _dx=0,_dy=0,_dragging=false;
       header.addEventListener('mousedown',function(e){
         if(e.target===document.getElementById('wa-console-close'))return;
-        if(e.target.classList.contains('wc-fb')||e.target.id==='wc-exp')return;
         _dragging=true;
         _dx=e.clientX-panel.offsetLeft;
         _dy=e.clientY-panel.offsetTop;
@@ -3217,25 +3202,6 @@ app.get('/', (req, res) => {
         panel.style.right='auto'; panel.style.bottom='auto';
       });
       document.addEventListener('mouseup',function(){_dragging=false;});
-      document.getElementById('wa-console-close').addEventListener('click',function(){waConsoleToggle();});
-      header.addEventListener('click',function(e){
-        var btn=e.target.closest('.wc-fb');
-        if(!btn)return;
-        header.querySelectorAll('.wc-fb').forEach(function(b){b.classList.remove('on');});
-        btn.classList.add('on');
-        _filter=btn.dataset.f;
-        Array.from(body.children).forEach(function(l){
-          l.style.display=(_filter==='ALL'||l.dataset.level===_filter)?'':'none';
-        });
-      });
-      document.getElementById('wc-exp').addEventListener('click',function(){
-        var lines=Array.from(body.children).map(function(l){return l.textContent;}).join('\n');
-        if(!lines)return;
-        var a=document.createElement('a');
-        a.href=URL.createObjectURL(new Blob([lines],{type:'text/plain'}));
-        a.download='whatsapp-console-'+new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-')+'.txt';
-        a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
-      });
       function waConsoleToggle(){
         if(window.innerWidth<768)return;
         _open=!_open;
@@ -3254,12 +3220,10 @@ app.get('/', (req, res) => {
             _lastTs=Math.max(_lastTs,e.ts);
             var line=document.createElement('div');
             line.className=_cls(e.level);
-            line.dataset.level=e.level;
             line.textContent=e.msg;
-            if(_filter!=='ALL'&&e.level!==_filter)line.style.display='none';
             body.appendChild(line);
           });
-          if(atBottom&&_filter==='ALL')body.scrollTop=body.scrollHeight;
+          if(atBottom)body.scrollTop=body.scrollHeight;
           if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
         }catch(e){}
       }
