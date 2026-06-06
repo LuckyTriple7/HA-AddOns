@@ -7,7 +7,10 @@ configuration:
     description: Empfangene Fotos automatisch herunterladen und anzeigen. Funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten.
   media_max_mb:
     name: Medienspeicher-Limit (MB)
-    description: "Maximale Größe des Medienordners in MB. Wird das Limit überschritten, werden automatisch die ältesten Dateien (Fotos, Sprachnachrichten) gelöscht, bis der Ordner wieder auf 80 % des Limits schrumpft. Standard: 500 MB."
+    description: "Maximale Größe des Medienordners in MB. Wird das Limit überschritten, werden automatisch die ältesten Dateien (Fotos, Videos, Sprachnachrichten) gelöscht, bis der Ordner wieder auf 80 % des Limits schrumpft. Standard: 500 MB."
+  video_max_mb:
+    name: Video-Größen-Limit (MB)
+    description: "Maximale Größe eines Videos das automatisch heruntergeladen wird. Größere Videos werden als Platzhalter angezeigt und können bei Bedarf manuell geladen werden. Standard: 50 MB."
   webhook_incoming:
     name: Webhook-URL
     description: URL für eingehende Nachrichten (z.B. http://homeassistant:8123/api/webhook/whatsapp).

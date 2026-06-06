@@ -17,7 +17,7 @@
   });
 })();
 
-const { Client, NoAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, NoAuth, MessageMedia, Location } = require('whatsapp-web.js');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 const path = require('path');
@@ -64,6 +64,7 @@ let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, prev
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
+const VIDEO_MAX_MB = Math.max(parseInt(process.env.VIDEO_MAX_MB || '50', 10), 1);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -79,6 +80,7 @@ console.log('[INFO] ── Configuration ─────────────
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
+console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
@@ -165,7 +167,8 @@ try {
           chatId,
           chatName: chat?.name || chatId,
           contact: m.contact || '',
-          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'document' ? `📄 ${m.filename || 'Dokument'}` : '[Medien]'),
+          type: m.type || 'text',
+          preview: m.type === 'location' ? (m.locName ? '📍 ' + m.locName : '📍 Standort') : m.type === 'video' ? '📹 Video' : m.type === 'voice' ? '🎵 Sprachnachricht' : m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'document' ? `📄 ${m.filename || 'Dokument'}` : '[Medien]'),
         };
       }
     }
@@ -232,7 +235,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]');
+    const preview = msg.type === 'location' ? (msg.locName ? '📍 ' + msg.locName : '📍 Standort') : msg.type === 'voice' ? '🎵 Sprachnachricht' : msg.type === 'video' ? '📹 Video' : msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -244,7 +247,8 @@ function addMsg(chatId, msg) {
 async function downloadWAMedia(msg, msgId) {
   try {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
-    const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : 'jpg';
+    const mime = msg._data?.mimetype || '';
+    const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : msg.type === 'video' ? (mime.includes('webm') ? 'webm' : 'mp4') : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
       dbg(`Downloading media: ${safeId}.${ext}`);
@@ -325,8 +329,10 @@ client.on('ready', async () => {
         const isText = msg.type === 'chat' || msg.type === 'text';
         const isImage = msg.type === 'image' || msg.type === 'sticker';
         const isPtt = msg.type === 'ptt' || msg.type === 'audio';
-        if (!isText && !isImage && !isPtt) continue;
-        if (!msg.body && !isImage && !isPtt) continue;
+        const isLoc = msg.type === 'location';
+        const isVid = msg.type === 'video';
+        if (!isText && !isImage && !isPtt && !isLoc && !isVid) continue;
+        if (!msg.body && !isImage && !isPtt && !isLoc && !isVid) continue;
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
@@ -346,7 +352,11 @@ client.on('ready', async () => {
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
-          type: isImage ? 'photo' : isPtt ? 'voice' : 'text',
+          type: isImage ? 'photo' : isPtt ? 'voice' : isLoc ? 'location' : isVid ? 'video' : 'text',
+          locLat: isLoc ? (msg.location?.latitude ?? null) : null,
+          locLng: isLoc ? (msg.location?.longitude ?? null) : null,
+          locName: isLoc ? (msg.location?.description || '') : '',
+          videoSize: isVid ? (msg._data?.size || 0) : undefined,
           mediaFile: null,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
@@ -416,8 +426,10 @@ client.on('message', async (msg) => {
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   const isDocument = msg.type === 'document';
   const isPtt = msg.type === 'ptt' || msg.type === 'audio';
-  if (!isText && !isImage && !isDocument && !isPtt) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
-  if (!msg.body && !isImage && !isDocument && !isPtt) return;
+  const isLocation = msg.type === 'location';
+  const isVideo = msg.type === 'video';
+  if (!isText && !isImage && !isDocument && !isPtt && !isLocation && !isVideo) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
+  if (!msg.body && !isImage && !isDocument && !isPtt && !isLocation && !isVideo) return;
   const chat = await msg.getChat().catch(() => null);
   const chatId = chat ? chat.id._serialized : msg.from;
   if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
@@ -431,7 +443,7 @@ client.on('message', async (msg) => {
     phone: chat?.id.user || cachedChat?.phone || '',
     isGroup: chat?.isGroup ?? cachedChat?.isGroup ?? chatId.endsWith('@g.us'),
   });
-  let type = 'text', mediaFile = null, filename = null;
+  let type = 'text', mediaFile = null, filename = null, locLat = null, locLng = null, locName = '';
   if (isImage) {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
@@ -441,6 +453,13 @@ client.on('message', async (msg) => {
   } else if (isPtt) {
     type = 'voice';
     mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+  } else if (isLocation) {
+    type = 'location';
+    locLat = msg.location?.latitude ?? null;
+    locLng = msg.location?.longitude ?? null;
+    locName = msg.location?.description || '';
+  } else if (isVideo) {
+    type = 'video';
   }
   let quotedMsgData = null;
   if (msg.hasQuotedMsg) {
@@ -457,6 +476,8 @@ client.on('message', async (msg) => {
     id: msg.id._serialized,
     body: msg.body || '',
     type, mediaFile, filename,
+    locLat, locLng, locName,
+    videoSize: isVideo ? (msg._data?.size || 0) : undefined,
     timestamp: msg.timestamp * 1000,
     fromMe: false,
     contact: contactName,
@@ -476,7 +497,7 @@ client.on('message', async (msg) => {
         chatName: _ci?.name || chatId,
         contact: contactName,
         type,
-        preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
+        preview: type === 'location' ? (locName ? '📍 ' + locName : '📍 Standort') : type === 'video' ? '📹 Video' : type === 'voice' ? '🎵 Sprachnachricht' : msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
       };
       sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
     }
@@ -881,6 +902,25 @@ function getDirSize(dir) {
   return total;
 }
 
+function enforceMediaLimit() {
+  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
+  const targetBytes = limitBytes * 0.8;
+  let current = 0, files = [];
+  try {
+    for (const f of fs.readdirSync(MEDIA_DIR)) {
+      const fp = `${MEDIA_DIR}/${f}`;
+      try { const st = fs.statSync(fp); files.push({ fp, size: st.size, mtime: st.mtimeMs }); current += st.size; } catch(e) {}
+    }
+  } catch(e) { return; }
+  if (current <= limitBytes) return;
+  files.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const f of files) {
+    if (current - freed <= targetBytes) break;
+    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
+  }
+}
+
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
@@ -995,7 +1035,14 @@ app.get('/api/export/:chatId', (req, res) => {
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'voice') {
+    if (m.type === 'video') {
+      content = `<span style="opacity:0.6">📹 ${isEn ? 'Video' : 'Video'}</span>`;
+      if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else if (m.type === 'location' && m.locLat != null) {
+      const mapsUrl = `https://maps.google.com/?q=${m.locLat},${m.locLng}`;
+      const label = m.locName || `${parseFloat(m.locLat).toFixed(4)}, ${parseFloat(m.locLng).toFixed(4)}`;
+      content = `<a href="${mapsUrl}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit"><span>📍</span><span style="text-decoration:underline">${escH(label)}</span></a>`;
+    } else if (m.type === 'voice') {
       content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
     } else if (m.mediaFile && m.type === 'photo') {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
@@ -1055,6 +1102,54 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post('/api/fetch-video', async (req, res) => {
+  const { msgId, chatId } = req.body;
+  if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const stored = getChatMsgs(chatId).find(m => m.id === msgId);
+  if (!stored) return res.status(404).json({ error: 'Message not found' });
+  if (stored.mediaFile) return res.json({ success: true, mediaFile: stored.mediaFile });
+  try {
+    const waMsg = await client.getMessageById(msgId).catch(() => null);
+    if (!waMsg) return res.status(404).json({ error: 'WA message not found' });
+    const videoBytes = waMsg._data?.size || 0;
+    if (videoBytes > VIDEO_MAX_MB * 1024 * 1024) return res.status(413).json({ error: `too_large`, maxMb: VIDEO_MAX_MB });
+    enforceMediaLimit();
+    const mediaFile = await downloadWAMedia(waMsg, msgId);
+    if (!mediaFile) return res.status(500).json({ error: 'Download failed' });
+    stored.mediaFile = mediaFile;
+    saveMsgs();
+    res.json({ success: true, mediaFile });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/delete-video', async (req, res) => {
+  const { msgId, chatId } = req.body;
+  if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
+  const stored = getChatMsgs(chatId).find(m => m.id === msgId);
+  if (stored?.mediaFile) {
+    try { fs.unlinkSync(`${MEDIA_DIR}/${stored.mediaFile}`); } catch(e) {}
+    stored.mediaFile = null;
+    saveMsgs();
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/send-location', async (req, res) => {
+  const { to, lat, lng, locName } = req.body;
+  if (!to || lat == null || lng == null) return res.status(400).json({ error: 'to, lat, lng required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const loc = new Location(parseFloat(lat), parseFloat(lng), locName || '');
+    const result = await client.sendMessage(to, loc);
+    result.__logged = true;
+    const ts = Date.now();
+    addMsg(to, { id: result.id._serialized, body: '', type: 'location', locLat: parseFloat(lat), locLng: parseFloat(lng), locName: locName || '', timestamp: ts, fromMe: true });
+    saveMsgs();
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/reply', async (req, res) => {
@@ -1260,6 +1355,8 @@ app.get('/', (req, res) => {
     .photo-placeholder { display: none; }
     body.hide-photos .msg-img { display: none !important; }
     body.hide-photos .photo-placeholder { display: inline; }
+    body.hide-photos video { display: none !important; }
+    body.hide-photos .wa-video-placeholder { display: none !important; }
 
     /* Main two-panel layout */
     #main { flex: 1; display: flex; overflow: hidden; }
@@ -1394,8 +1491,8 @@ app.get('/', (req, res) => {
     #attach-icon { font-size:28px; flex-shrink:0; }
     #attach-cancel { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
     #attach-cancel:hover { color:#e9edef; }
-    #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
-    #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
+    #send-bar #attach-btn, #send-bar #location-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
+    #send-bar #attach-btn:hover, #send-bar #location-btn:hover { background:rgba(255,255,255,0.08); }
     .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
     .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
     html.light .bubble-deleted { color:rgba(0,0,0,0.55); }
@@ -1616,7 +1713,7 @@ app.get('/', (req, res) => {
     <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
-    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
     ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
@@ -1677,8 +1774,11 @@ app.get('/', (req, res) => {
       <div id="send-bar" style="display:none;">
         <input type="file" id="file-input" style="display:none;" onchange="onFileSelected(event)">
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
-        <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
-        <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
+        <div style="display:flex;align-items:center;gap:0;flex-shrink:0;">
+          <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
+          <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
+          <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">📍</button>
+        </div>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>
@@ -1717,6 +1817,20 @@ app.get('/', (req, res) => {
       </div>
     </div>
   </div>
+  <div id="location-modal" onclick="if(event.target===this)closeLocationModal()" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:#202c33;border-radius:12px;padding:20px;width:min(340px,92%);display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <h3 style="font-size:15px;font-weight:600;color:#e9edef;margin:0" data-i18n="locModalTitle">📍 Standort senden</h3>
+      <button onclick="useGPSLocation()" style="background:#2a3942;border:none;color:#3cdb7c;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left;" data-i18n="locUseGPS">📡 Aktuelle Position</button>
+      <input id="loc-lat" type="number" step="any" placeholder="Breitengrad (z.B. 48.137)" style="background:#2a3942;border:none;color:#e9edef;padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" data-i18n-pl="locLat">
+      <input id="loc-lng" type="number" step="any" placeholder="Längengrad (z.B. 11.575)" style="background:#2a3942;border:none;color:#e9edef;padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" data-i18n-pl="locLng">
+      <input id="loc-name" type="text" placeholder="Name (optional)" style="background:#2a3942;border:none;color:#e9edef;padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" data-i18n-pl="locNameLbl">
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="closeLocationModal()" style="flex:1;background:#2a3942;border:none;color:#8696a0;padding:8px;border-radius:8px;cursor:pointer;font-size:14px;" data-i18n="locCancel">Abbrechen</button>
+        <button onclick="sendLocationMsg()" style="flex:1;background:#00a884;border:none;color:#fff;padding:8px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;" data-i18n="locSend">Senden</button>
+      </div>
+    </div>
+  </div>
+
   <div id="logout-modal">
     <div class="spam-modal-box">
       <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>
@@ -1746,7 +1860,7 @@ app.get('/', (req, res) => {
         spinnerConnecting:'Verbinde mit WhatsApp…', btnReset:'Session zurücksetzen',
         statusConnected:'Verbunden', statusQR:'QR scannen', statusAuth:'Authentifiziert…',
         statusInit:'Starte…', statusDisc:'Getrennt', statusAuthFail:'Auth-Fehler', statusError:'Fehler',
-        photosOn:'Fotos AN', photosOff:'Fotos AUS', btnCleanup:'Verwaiste Mediendateien löschen',
+        photosOn:'Medien AN', photosOff:'Medien AUS', btnCleanup:'Verwaiste Mediendateien löschen',
         btnScrollUp:'Nach oben', btnScrollDown:'Nach unten', btnLogout:'Abmelden',
         filterAll:'Alle', filterPrivate:'Privat', filterGroups:'Gruppen',
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
@@ -1754,7 +1868,9 @@ app.get('/', (req, res) => {
         btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🚮 Spam löschen',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
-        btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
+        btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
+        locModalTitle:'📍 Standort senden', locLat:'Breitengrad', locLng:'Längengrad', locNameLbl:'Name (optional)', locUseGPS:'📡 Aktuelle Position', locSend:'Senden', locCancel:'Abbrechen', locGPSErr:'GPS nicht verfügbar', locLabel:'Standort',
+        videoDownload:'⬇ Video herunterladen', videoTooBig:'📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
         logoutConfirmMsg:'Möchtest du dich wirklich abmelden?', btnYes:'Ja', btnNo:'Nein',
@@ -1780,7 +1896,7 @@ app.get('/', (req, res) => {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
         statusConnected:'Connected', statusQR:'Scan QR', statusAuth:'Authenticating…',
         statusInit:'Starting…', statusDisc:'Disconnected', statusAuthFail:'Auth error', statusError:'Error',
-        photosOn:'Photos ON', photosOff:'Photos OFF', btnCleanup:'Delete orphaned media files',
+        photosOn:'Media ON', photosOff:'Media OFF', btnCleanup:'Delete orphaned media files',
         btnScrollUp:'Scroll up', btnScrollDown:'Scroll down', btnLogout:'Logout',
         filterAll:'All', filterPrivate:'Private', filterGroups:'Groups',
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
@@ -1788,7 +1904,9 @@ app.get('/', (req, res) => {
         btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🚮 Delete Spam',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
-        btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
+        btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
+        locModalTitle:'📍 Send Location', locLat:'Latitude', locLng:'Longitude', locNameLbl:'Name (optional)', locUseGPS:'📡 Use current position', locSend:'Send', locCancel:'Cancel', locGPSErr:'GPS not available', locLabel:'Location',
+        videoDownload:'⬇ Download video', videoTooBig:'📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
         logoutConfirmMsg:'Do you really want to log out?', btnYes:'Yes', btnNo:'No',
@@ -1939,6 +2057,52 @@ app.get('/', (req, res) => {
       });
       await reloadMessages(chatId);
     }
+    function openLocationModal() {
+      document.getElementById('loc-lat').value = '';
+      document.getElementById('loc-lng').value = '';
+      document.getElementById('loc-name').value = '';
+      document.getElementById('location-modal').style.display = 'flex';
+      document.getElementById('loc-lat').focus();
+    }
+    function closeLocationModal() { document.getElementById('location-modal').style.display = 'none'; }
+    function useGPSLocation() {
+      if (!navigator.geolocation) { alert(t('locGPSErr')); return; }
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        document.getElementById('loc-lat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('loc-lng').value = pos.coords.longitude.toFixed(6);
+      }, function() { alert(t('locGPSErr')); });
+    }
+    async function sendLocationMsg() {
+      var lat = parseFloat(document.getElementById('loc-lat').value);
+      var lng = parseFloat(document.getElementById('loc-lng').value);
+      var name = document.getElementById('loc-name').value.trim();
+      if (isNaN(lat) || isNaN(lng)) return;
+      closeLocationModal();
+      try {
+        await fetch('api/send-location', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: selectedChatId, lat: lat, lng: lng, locName: name }) });
+        await reloadMessages(selectedChatId);
+      } catch(e) { console.error('sendLocation:', e.message); }
+    }
+    async function fetchWAVideo(el) {
+      const msgId = el.dataset.msgid;
+      const chatId = el.dataset.chatid || selectedChatId;
+      el.textContent = '⏳';
+      el.style.pointerEvents = 'none';
+      try {
+        const r = await fetch('api/fetch-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, chatId }) }).then(r => r.json());
+        if (r.error === 'too_large') { el.textContent = t('videoTooBig'); el.style.textDecoration = 'none'; el.style.cursor = 'default'; el.onclick = null; return; }
+        if (r.success) { await reloadMessages(selectedChatId); loadStorage(); }
+        else { el.textContent = '❌'; }
+      } catch(e) { el.textContent = '❌'; }
+    }
+    async function deleteWAVideo(msgId) {
+      try {
+        await fetch('api/delete-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, chatId: selectedChatId }) });
+        await reloadMessages(selectedChatId);
+        loadStorage();
+      } catch(e) { console.error('deleteWAVideo:', e.message); }
+    }
     let lastMsgTime = {};
     let allChats = [];
     let lastSeenTime = {};
@@ -2034,7 +2198,7 @@ app.get('/', (req, res) => {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
       localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
     }
     if (localStorage.getItem('wa-hide-photos')) {
@@ -2294,6 +2458,22 @@ app.get('/', (req, res) => {
         if (m.deleted && !m.body) {
           // Standard: Body ersetzt durch 🚫-Text (KEEP_DELETED=false)
           bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
+        } else if (m.type === 'video') {
+          if (m.mediaFile) {
+            const vSrc = 'api/media/' + encodeURIComponent(m.mediaFile);
+            bub.innerHTML = '<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="' + vSrc + '"></video><button data-msgid="' + esc(m.id) + '" onclick="deleteWAVideo(this.dataset.msgid)" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>' + (m.body ? '<div style="margin-top:4px;font-size:13px">' + esc(m.body) + '</div>' : '') + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          } else {
+            const sz = m.videoSize || 0;
+            const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
+            const tooBig = sz > ${VIDEO_MAX_MB}*1024*1024;
+            bub.innerHTML = tooBig
+              ? '<span style="opacity:0.5;cursor:default">' + t('videoTooBig') + mb + '</span><span class="time">' + fmtTime(m.timestamp) + ack + '</span>'
+              : '<span class="wa-video-placeholder" data-msgid="' + esc(m.id) + '" data-chatid="' + esc(m.fromMe ? selectedChatId : m.from || selectedChatId) + '" onclick="fetchWAVideo(this)" style="cursor:pointer;opacity:0.85;text-decoration:underline">' + t('videoDownload') + mb + '</span><span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          }
+        } else if (m.type === 'location' && m.locLat != null) {
+          const mapsUrl = 'https://maps.google.com/?q=' + m.locLat + ',' + m.locLng;
+          const label = m.locName || (m.locLat.toFixed(4) + ', ' + m.locLng.toFixed(4));
+          bub.innerHTML = '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;"><span style="font-size:22px">📍</span><span style="font-size:13px;text-decoration:underline;opacity:0.9">' + esc(label) + '</span></a><span class="time" style="float:right;margin-top:4px">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'document') {
           bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'voice') {

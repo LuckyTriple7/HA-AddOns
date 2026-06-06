@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.6.33] - 2026-06-06
+- Fix: type-Feld fehlte in lastReceivedMsg beim Startup-Init; preview für location/video/voice fehlte im Init und Runtime
+
+## [1.6.32] - 2026-06-06
+- Fix: 🎬 Medien-Button blendet jetzt auch Videos aus (nicht nur Fotos) — Icon 📷→🎬, Label Fotos→Medien (DE/EN)
+
+## [1.6.31] - 2026-06-06
+- Fix: 🗑️-Button beim Video funktionierte nicht — JSON.stringify(m.id) brach das onclick-Attribut durch eingebettete Anführungszeichen; ersetzt durch data-msgid + this.dataset.msgid
+
+## [1.6.30] - 2026-06-06
+- UX: Sendeleisten-Buttons (😊 📎 📍) in einer Gruppe ohne Gap — liegen jetzt dicht beieinander
+
+## [1.6.29] - 2026-06-06
+- Fix: enforceMediaLimit fehlte in WhatsApp — Funktion hinzugefügt
+- Fix: Auto-Download von Videos verursachte 'no pic'-Fehler — Videos werden jetzt immer als Platzhalter angezeigt und nur on-demand heruntergeladen
+
+## [1.6.28] - 2026-06-06
+- Fix: 📍-Button in der Sendeleiste wurde grün und rund wie der Send-Button — CSS-Override für #location-btn wie bei #attach-btn
+- Fix: Standort-Preview zeigte WhatsApp-interne Zeichen — type='location' wird vor msg.body geprüft, zeigt immer '📍 Standort' oder '📍 Name'
+
+## [1.6.27] - 2026-06-06
+- Neu: Video-Support — neue Videos werden automatisch geladen (wenn ≤ video_max_mb), ältere als Platzhalter mit Klick-Download; 🗑️-Button löscht Datei von Disk; Speicheranzeige aktualisiert sich sofort
+- Neu: video_max_mb Option (Standard 50 MB) in config.yaml und Translations (DE/EN)
+
+## [1.6.26] - 2026-06-06
+- Neu: Standort empfangen — wird als klickbarer 📍 Google-Maps-Link angezeigt (DE/EN, inkl. HTML-Export)
+- Neu: Standort senden — 📍-Button in der Sendeleiste öffnet Modal mit GPS-Button und manueller Lat/Lng/Name-Eingabe
+
 ## [1.6.25] - 2026-06-06
 - Fix: Hover-Buttons verschieben gesendete Nachrichten — opacity statt display:none, order:-1 für out-Nachrichten (Buttons erscheinen links der Bubble)
 
