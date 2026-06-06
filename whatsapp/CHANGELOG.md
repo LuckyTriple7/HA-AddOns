@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.30] - 2026-06-06
+- UX: Sendeleisten-Buttons (😊 📎 📍) in einer Gruppe ohne Gap — liegen jetzt dicht beieinander
+
 ## [1.6.29] - 2026-06-06
 - Fix: enforceMediaLimit fehlte in WhatsApp — Funktion hinzugefügt
 - Fix: Auto-Download von Videos verursachte 'no pic'-Fehler — Videos werden jetzt immer als Platzhalter angezeigt und nur on-demand heruntergeladen

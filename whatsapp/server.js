@@ -1771,9 +1771,11 @@ app.get('/', (req, res) => {
       <div id="send-bar" style="display:none;">
         <input type="file" id="file-input" style="display:none;" onchange="onFileSelected(event)">
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
-        <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
-        <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
-        <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">📍</button>
+        <div style="display:flex;align-items:center;gap:0;flex-shrink:0;">
+          <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
+          <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
+          <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">📍</button>
+        </div>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>
