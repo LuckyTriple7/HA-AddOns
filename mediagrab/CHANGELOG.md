@@ -1,5 +1,8 @@
 # Changelog — MediaGrab
 
+## [0.3.5] — 2026-06-06
+- Neu: In-App Console (Doppelklick auf "MediaGrab") — draggbares Floating-Window; Python _BufferHandler erfasst alle Log-Aufrufe inkl. yt-dlp Output-Zeilen; GET /api/logs?since=; localStorage-Persistenz
+
 ## [0.3.4] — 2026-06-05
 ### Fixed
 - Dateikonflikt: die NEUE Datei bekommt den Zeitstempel (Video_20260605_165031.mp4), die bestehende Datei bleibt unverändert — Tags/Plattform-Metadaten der Originaldatei bleiben erhalten

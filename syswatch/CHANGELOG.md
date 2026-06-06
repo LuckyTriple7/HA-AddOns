@@ -1,5 +1,8 @@
 # Changelog — HA SysWatch
 
+## [1.1.3] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "HA SysWatch") — draggbares Floating-Window; Python _BufferHandler erfasst alle Log-Aufrufe inkl. Docker/Supervisor-Events; GET /api/logs?since=; localStorage-Persistenz
+
 ## [1.1.2] - 2026-06-05
 
 ### Fixed
