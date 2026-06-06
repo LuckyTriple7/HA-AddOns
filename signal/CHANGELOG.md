@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.19] - 2026-06-06
+- Neu: ☀️/🌙-Button neben "Signal" zum Umschalten Dark/Light Mode; Auswahl per localStorage (signal_theme) gespeichert
+
 ## [1.5.18] - 2026-06-06
 - Fix: HTML-Export brach bei Sprachnachrichten ab — base64-Einbettung entfernt, werden als Platzhalter (🎵) angezeigt
 - Neu: HTML-Export vollständig lokalisiert (DE/EN)

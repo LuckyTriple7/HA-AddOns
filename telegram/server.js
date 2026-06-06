@@ -1413,6 +1413,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 <div id="topbar">
   <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
   <h1>Telegram</h1>
+  <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
   ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
@@ -1587,6 +1588,24 @@ function switchLang() {
   localStorage.setItem('tg_lang', lang);
   applyLang();
 }
+function applyTheme() {
+  var isDark = document.documentElement.classList.contains('dark');
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  var html = document.documentElement;
+  var nowDark = html.classList.contains('dark');
+  html.classList.toggle('dark', !nowDark);
+  html.classList.toggle('light', nowDark);
+  localStorage.setItem('tg_theme', nowDark ? 'light' : 'dark');
+  applyTheme();
+}
+(function() {
+  var saved = localStorage.getItem('tg_theme');
+  if (saved) { document.documentElement.classList.remove('dark', 'light'); document.documentElement.classList.add(saved); }
+  applyTheme();
+})();
 
 const BASE = location.pathname.replace(/\\/+$/, '');
 

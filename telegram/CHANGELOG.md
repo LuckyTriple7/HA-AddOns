@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.45] - 2026-06-06
+- Neu: ☀️/🌙-Button neben "Telegram" zum Umschalten Dark/Light Mode; Auswahl per localStorage (tg_theme) gespeichert
+
 ## [1.5.44] - 2026-06-06
 - Fix: Weitergeleitete Nachricht erscheint jetzt sofort — nach erfolgreichem Forward ?refresh=1 (frischer Telegram-Abruf) statt Cache
 
