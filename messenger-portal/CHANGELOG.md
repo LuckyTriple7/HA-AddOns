@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.13] - 2026-06-06
+- Fix: Console-Fenster immer noch sofort weg — dblclick feuert erst nach zwei click-Events die bereits navigieren; onclick auf Span blockiert jetzt ebenfalls die Navigation
+
 ## [1.1.12] - 2026-06-06
 - Fix: Console-Fenster erschien kurz und verschwand sofort — Doppelklick auf Span innerhalb <a href="/"> löste Seitennavigation aus; event.preventDefault() + stopPropagation() hinzugefügt
 
