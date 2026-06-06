@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.47] - 2026-06-06
+- Fix: Filter/Export Toolbar wird beim ersten Öffnen der Console hinzugefügt (waConsoleToggle gewrappt) — Element ist dann garantiert sichtbar; zweite Zeile im Header via flex-wrap
+
 ## [1.6.46] - 2026-06-06
 - Fix: Buttons in sichtbaren Header verschoben statt in separaten Toolbar-div — insertBefore(btn, closeBtn) in bestehendem Header-Element
 

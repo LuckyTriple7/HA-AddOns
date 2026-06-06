@@ -3231,67 +3231,66 @@ app.get('/', (req, res) => {
   </script>
   <script>
     (function(){
-      var _filter='ALL';
+      var _filter='ALL',_init=false;
       var _c={'ALL':'#c9d1d9','DEBUG':'#6e7681','INFO':'#3fb950','WARN':'#d29922','ERROR':'#f85149'};
-      var _bs='background:none;border:1px solid #30363d;color:#6e7681;border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace;padding:1px 5px;line-height:1.5;';
-      var cb=document.getElementById('wa-console-body');
-      var hdr=document.getElementById('wa-console-header');
-      var closeBtn=document.getElementById('wa-console-close');
-      // Spacer vor Close-Button
-      var sp=document.createElement('span');
-      sp.style.flex='1';
-      hdr.insertBefore(sp,closeBtn);
-      // Export vor Close-Button
-      var exp=document.createElement('button');
-      exp.style.cssText=_bs+'color:#58a6ff;margin-left:4px;';
-      exp.textContent='⬇';
-      exp.title='Export als .txt';
-      exp.addEventListener('mousedown',function(e){e.stopPropagation();});
-      exp.addEventListener('click',function(){
-        var lines=Array.from(cb.children).map(function(l){return l.textContent;}).join('\n');
-        if(!lines)return;
-        var a=document.createElement('a');
-        a.href=URL.createObjectURL(new Blob([lines],{type:'text/plain'}));
-        a.download='whatsapp-console-'+new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-')+'.txt';
-        a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
-      });
-      hdr.insertBefore(exp,closeBtn);
-      // Filter-Buttons vor Export (in umgekehrter Reihenfolge via insertBefore(btn, exp))
-      var _btns={};
-      [['ERROR','ERR'],['WARN','WARN'],['INFO','INFO'],['DEBUG','DBG'],['ALL','ALL']].forEach(function(fi){
-        var btn=document.createElement('button');
-        btn.style.cssText=_bs+(fi[0]==='ALL'?'border-color:'+_c.ALL+';color:'+_c.ALL+';':'');
-        btn.textContent=fi[1];
-        btn.title='Filter: '+fi[0];
-        btn.addEventListener('mousedown',function(e){e.stopPropagation();});
-        btn.addEventListener('click',function(){
-          Object.keys(_btns).forEach(function(k){_btns[k].style.cssText=_bs;});
-          btn.style.cssText=_bs+'border-color:'+_c[fi[0]]+';color:'+_c[fi[0]]+';';
-          _filter=fi[0];
-          Array.from(cb.children).forEach(function(l){
-            l.style.display=(_filter==='ALL'||l.dataset.level===_filter)?'':'none';
+      var _s='background:#21262d;border:1px solid #444c56;color:#adbac7;border-radius:3px;cursor:pointer;font-size:11px;padding:2px 6px;';
+      // Toolbar erst beim ersten Öffnen einfügen (dann ist Element garantiert sichtbar)
+      var _orig=window.waConsoleToggle;
+      window.waConsoleToggle=function(){
+        _orig();
+        if(!_init){_init=true;_setup();}
+      };
+      function _setup(){
+        var hdr=document.getElementById('wa-console-header');
+        var cb=document.getElementById('wa-console-body');
+        // Zweite Zeile im Header via flex-wrap
+        hdr.style.flexWrap='wrap';
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;width:100%;gap:4px;padding:3px 0 1px;border-top:1px solid #30363d;margin-top:3px;flex-shrink:0;';
+        var _btns={};
+        ['ALL','DEBUG','INFO','WARN','ERROR'].forEach(function(f,i){
+          var btn=document.createElement('button');
+          btn.style.cssText=_s+(f==='ALL'?'border-color:'+_c.ALL+';color:'+_c.ALL+';':'');
+          btn.textContent=['ALL','DBG','INFO','WARN','ERR'][i];
+          btn.addEventListener('mousedown',function(e){e.stopPropagation();});
+          btn.addEventListener('click',function(){
+            Object.keys(_btns).forEach(function(k){_btns[k].style.cssText=_s;});
+            btn.style.cssText=_s+'border-color:'+_c[f]+';color:'+_c[f]+';';
+            _filter=f;
+            Array.from(cb.children).forEach(function(l){
+              l.style.display=(_filter==='ALL'||l.dataset.level===_filter)?'':'none';
+            });
           });
+          _btns[f]=btn;row.appendChild(btn);
         });
-        _btns[fi[0]]=btn;
-        hdr.insertBefore(btn,exp);
-      });
-      // MutationObserver: data-level auf neue Zeilen setzen
-      function _lvl(t){
-        if(t.indexOf('[ERROR]')!==-1)return'ERROR';
-        if(t.indexOf('[WARN]')!==-1)return'WARN';
-        if(t.indexOf('[DEBUG]')!==-1)return'DEBUG';
-        return'INFO';
+        var sp=document.createElement('span');sp.style.flex='1';row.appendChild(sp);
+        var exp=document.createElement('button');
+        exp.style.cssText=_s+'border-color:#58a6ff;color:#58a6ff;';
+        exp.textContent='⬇ Export';
+        exp.addEventListener('mousedown',function(e){e.stopPropagation();});
+        exp.addEventListener('click',function(){
+          var lines=Array.from(cb.children).map(function(l){return l.textContent;}).join('\n');
+          if(!lines)return;
+          var a=document.createElement('a');
+          a.href=URL.createObjectURL(new Blob([lines],{type:'text/plain'}));
+          a.download='whatsapp-console-'+new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-')+'.txt';
+          a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+        });
+        row.appendChild(exp);
+        hdr.appendChild(row);
+        // MutationObserver: data-level auf neue Zeilen
+        new MutationObserver(function(ms){
+          ms.forEach(function(m){
+            m.addedNodes.forEach(function(n){
+              if(n.nodeType!==1)return;
+              var t=n.textContent||'';
+              var lv=t.indexOf('[ERROR]')!==-1?'ERROR':t.indexOf('[WARN]')!==-1?'WARN':t.indexOf('[DEBUG]')!==-1?'DEBUG':'INFO';
+              n.dataset.level=lv;
+              if(_filter!=='ALL'&&lv!==_filter)n.style.display='none';
+            });
+          });
+        }).observe(cb,{childList:true});
       }
-      new MutationObserver(function(ms){
-        ms.forEach(function(m){
-          m.addedNodes.forEach(function(n){
-            if(n.nodeType!==1)return;
-            var lv=_lvl(n.textContent||'');
-            n.dataset.level=lv;
-            if(_filter!=='ALL'&&lv!==_filter)n.style.display='none';
-          });
-        });
-      }).observe(cb,{childList:true});
     })();
   </script>
 </body>
