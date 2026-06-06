@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.35] - 2026-06-06
+- Fix: Medien-Log-Meldung auf Englisch (photo/voice message/video on disk)
+
 ## [1.6.34] - 2026-06-06
 - Fix: Unhandled rejection 'no pic' — promise.finally() durch .then(del,del) ersetzt (Avatar-Endpoint)
 - Neu: Startup-Log zeigt Medien-Breakdown: X Foto(s), Y Sprachnachricht(en), Z Video(s) auf Disk

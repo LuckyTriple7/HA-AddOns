@@ -387,10 +387,10 @@ client.on('ready', async () => {
         const cachedTotal = cachedPhotos + cachedVoice + cachedVideo;
         if (cachedTotal) {
           const parts = [];
-          if (cachedPhotos) parts.push(cachedPhotos + ' Foto(s)');
-          if (cachedVoice)  parts.push(cachedVoice  + ' Sprachnachricht(en)');
-          if (cachedVideo)  parts.push(cachedVideo  + ' Video(s)');
-          console.log(`[INFO] ${cachedTotal} Mediendatei(en) auf Disk: ${parts.join(', ')}`);
+          if (cachedPhotos) parts.push(cachedPhotos + ' photo(s)');
+          if (cachedVoice)  parts.push(cachedVoice  + ' voice message(s)');
+          if (cachedVideo)  parts.push(cachedVideo  + ' video(s)');
+          console.log(`[INFO] ${cachedTotal} media file(s) on disk: ${parts.join(', ')}`);
         }
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
