@@ -922,8 +922,6 @@ def api_file_platform(filename):
         return jsonify({'error': 'unauthorized'}), 401
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    if platform and platform not in PLATFORMS:
-        return jsonify({'error': 'invalid_platform'}), 400
     p = (MEDIA_DIR / filename).resolve()
     try:
         p.relative_to(MEDIA_DIR.resolve())

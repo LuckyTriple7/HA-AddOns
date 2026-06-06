@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.4.1] — 2026-06-06
+### Fixed
+- Plattform-Picker: Backend lehnte eigene Plattformnamen mit "invalid_platform" ab — Validierung gegen feste Liste entfernt
+
 ## [0.4.0] — 2026-06-06
 ### Added
 - Plattform-Picker: Texteingabe für eigene Plattformnamen unterhalb der vordefinierten Buttons — analog zum Custom-Tag-Popup; vorhandener Custom-Wert wird beim Öffnen vorausgefüllt
