@@ -1,5 +1,8 @@
 # Changelog — HA SysWatch
 
+## [1.1.5] - 2026-06-06
+- Fix: DEBUG-Logs in Console sichtbar — Root-StreamHandler auf INFO, Root-Logger auf DEBUG; _buf_h (DEBUG) erfasst alle Level ohne HA-Log zu überschwemmen
+
 ## [1.1.4] - 2026-06-06
 - Fix: Crash beim Start — Flask-Endpoint api_logs kollidierte mit vorhandener /api/container/<name>/logs Funktion; umbenannt in api_console_logs
 

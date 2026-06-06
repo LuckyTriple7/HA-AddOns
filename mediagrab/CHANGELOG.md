@@ -1,5 +1,8 @@
 # Changelog — MediaGrab
 
+## [0.3.6] — 2026-06-06
+- Fix: Nur INFO-Logs in Console — Root-StreamHandler auf INFO gesetzt, Root-Logger auf DEBUG; _buf_h (DEBUG) sieht alle Level, HA-Log bleibt bei INFO+. yt-dlp Zeilen immer als DEBUG in Buffer (unabhängig von verbose_log)
+
 ## [0.3.5] — 2026-06-06
 - Neu: In-App Console (Doppelklick auf "MediaGrab") — draggbares Floating-Window; Python _BufferHandler erfasst alle Log-Aufrufe inkl. yt-dlp Output-Zeilen; GET /api/logs?since=; localStorage-Persistenz
 

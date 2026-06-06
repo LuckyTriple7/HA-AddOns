@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.15] - 2026-06-06
+- Fix: DEBUG-Logs in Console sichtbar — Root-StreamHandler auf INFO, Root-Logger auf DEBUG; DEBUG bleibt aus HA-Log heraus
+
 ## [1.1.14] - 2026-06-06
 - Fix: Console-Zustand (offen/geschlossen) wird in localStorage gespeichert und beim Laden der Seite wiederhergestellt — Console bleibt offen wenn zu einem Messenger navigiert und zurückgekehrt wird
 

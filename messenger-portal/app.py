@@ -33,8 +33,12 @@ class _BufferHandler(logging.Handler):
 
 _buf_h = _BufferHandler()
 _buf_h.setLevel(logging.DEBUG)
-logging.getLogger().addHandler(_buf_h)
-log.setLevel(logging.DEBUG)
+_root = logging.getLogger()
+_root.setLevel(logging.DEBUG)
+for _h in _root.handlers:
+    if _h.level == logging.NOTSET:
+        _h.setLevel(logging.INFO)
+_root.addHandler(_buf_h)
 
 app = Flask(__name__,
             template_folder='/app/templates',
