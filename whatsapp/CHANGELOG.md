@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.24] - 2026-06-06
+- Fix: Hover-✕-Button zum Löschen entfernt — Löschen läuft jetzt ausschließlich über den Multi-Select-Modus
+
 ## [1.6.23] - 2026-06-06
 - Fix: Multi-Löschen überspringt Nachrichten — neuer Batch-Endpoint verarbeitet Löschungen sequenziell mit 400ms Delay, WhatsApp Web.js kommt mit schnellen parallelen delete()-Aufrufen nicht klar
 

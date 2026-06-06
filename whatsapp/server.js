@@ -1428,12 +1428,6 @@ app.get('/', (req, res) => {
     }
     .bubble-row-inner { display: flex; align-items: center; gap: 6px; width: 100%; }
     .bubble-wrap.out .bubble-row-inner { justify-content: flex-end; }
-    .bubble-wrap.out .del-btn,
-    .bubble-wrap.in  .del-btn { order: -1; }
-    .del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
-    .bubble-row-inner:hover .del-btn { display: block; }
-    html.light .del-btn { color: rgba(0,0,0,0.4); }
-    .del-btn:hover { color: #f15c5c !important; }
     .react-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; border-radius: 50%; color: rgba(233,237,239,0.55); flex-shrink: 0; }
     .bubble-row-inner:hover .react-btn { display: inline-flex; align-items: center; }
     html.light .react-btn { color: rgba(0,0,0,0.35); }
@@ -2345,13 +2339,6 @@ app.get('/', (req, res) => {
         const bri = document.createElement('div');
         bri.className = 'bubble-row-inner';
         bri.appendChild(bub);
-        const delBtn = document.createElement('button');
-        delBtn.className = 'del-btn';
-        delBtn.title = t('ttDelete');
-        delBtn.textContent = '✕';
-        delBtn.dataset.msgid = m.id;
-        if (m.deleted) delBtn.style.display = 'none';
-        bri.appendChild(delBtn);
         const reactBtn = document.createElement('button');
         reactBtn.className = 'react-btn';
         reactBtn.title = t('ttReact');
@@ -2720,8 +2707,6 @@ app.get('/', (req, res) => {
         }
         return;
       }
-      const del = e.target.closest('.del-btn');
-      if (del) { deleteMsg(selectedChatId, del.dataset.msgid); return; }
       const react = e.target.closest('.react-btn');
       if (react) { openReactionPicker(react, react.dataset.msgid); return; }
       const fwd = e.target.closest('.fwd-btn');
