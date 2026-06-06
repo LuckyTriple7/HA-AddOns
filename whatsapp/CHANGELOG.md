@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.23] - 2026-06-06
+- Fix: Multi-Löschen überspringt Nachrichten — neuer Batch-Endpoint verarbeitet Löschungen sequenziell mit 400ms Delay, WhatsApp Web.js kommt mit schnellen parallelen delete()-Aufrufen nicht klar
+
 ## [1.6.22] - 2026-06-06
 - Neu: ☀️/🌙-Button neben "WhatsApp" zum Umschalten Dark/Light Mode; Auswahl wird per localStorage gespeichert
 

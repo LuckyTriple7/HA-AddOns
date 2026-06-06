@@ -1021,6 +1021,24 @@ app.get('/api/export/:chatId', (req, res) => {
   res.send(html);
 });
 
+app.post('/api/messages/delete-batch', async (req, res) => {
+  const { chatId, msgIds } = req.body;
+  if (!chatId || !Array.isArray(msgIds) || !msgIds.length) return res.status(400).json({ error: 'chatId and msgIds required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  let deleted = 0;
+  for (const msgId of msgIds) {
+    try {
+      const msg = await client.getMessageById(msgId).catch(() => null);
+      if (msg) { await msg.delete(true).catch(e => console.log(`[WARN] delete-batch: ${e.message}`)); deleted++; }
+      const msgs = messagesByChatId.get(chatId);
+      if (msgs) { const s = msgs.find(m => m.id === msgId); if (s) { s.deleted = true; s.body = ''; } }
+      await new Promise(r => setTimeout(r, 400));
+    } catch(e) { console.log(`[WARN] delete-batch error for ${msgId}: ${e.message}`); }
+  }
+  saveMsgs();
+  res.json({ success: true, deleted });
+});
+
 app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   const { chatId, msgId } = req.params;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1919,9 +1937,11 @@ app.get('/', (req, res) => {
       var chatId = selectedChatId;
       var ids = Array.from(selectedMsgs);
       exitDeleteMode();
-      for (var _di = 0; _di < ids.length; _di++) {
-        await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(ids[_di]), {method:'DELETE'});
-      }
+      await fetch('api/messages/delete-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: chatId, msgIds: ids })
+      });
       await reloadMessages(chatId);
     }
     let lastMsgTime = {};
