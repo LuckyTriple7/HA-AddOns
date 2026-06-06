@@ -1516,8 +1516,8 @@ function drawSysChart(canvas, history, metric) {
   grad.addColorStop(1, fillCol + '08');   // fast transparent unten
   ctx.fillStyle = grad; ctx.fill();
 
-  // Farbige Linie — pro Segment nach Schwellenwert, deutlich dicker
-  ctx.lineWidth = 2.5;
+  // Farbige Linie — pro Segment nach Schwellenwert
+  ctx.lineWidth = 1;
   ctx.lineJoin  = 'round';
   ctx.lineCap   = 'round';
   for (let i = 1; i < history.length; i++) {

@@ -1,5 +1,9 @@
 # Changelog — HA SysWatch
 
+## [1.1.6] - 2026-06-06
+
+- fix: Chart-Linie von 2.5px auf 1px reduziert — bei 1440 Datenpunkten überlappten die Segmente stark
+
 ## [1.1.5] - 2026-06-06
 - Fix: DEBUG-Logs in Console sichtbar — Root-StreamHandler auf INFO, Root-Logger auf DEBUG; _buf_h (DEBUG) erfasst alle Level ohne HA-Log zu überschwemmen
 
