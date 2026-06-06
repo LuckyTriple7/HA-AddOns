@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.49] - 2026-06-06
+- Fix: Album-Reactions wurden von pollReactions gelöscht — data-albumids im DOM, updateReactionsInDOM mergt Reactions aller Album-Fotos
+
 ## [1.5.48] - 2026-06-06
 - Fix: Reactions bei Album-Fotos fehlten — Reactions aller Album-Nachrichten werden jetzt zusammengeführt und unter dem Grid angezeigt
 

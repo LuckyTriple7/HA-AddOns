@@ -2065,7 +2065,8 @@ function renderMessages(msgs) {
     const innerDiv = isVoice
       ? \`<div class="voice-wrap \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`
       : \`<div class="bubble \${m.fromMe?'out':'in'}\${(isPhoto&&!item.isAlbum)?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`;
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button></div></div>\`;
+    var _albumAttr = item.isAlbum ? ' data-albumids="'+item.albumMsgs.map(function(am){return escHtml(am.id);}).join(',')+'"' : '';
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
@@ -2397,7 +2398,13 @@ document.getElementById('msg-input').addEventListener('paste', function(e) {
   function updateReactionsInDOM(map) {
     for (const row of document.querySelectorAll('#messages .bubble-row[data-msgid]')) {
       const msgId = row.dataset.msgid;
-      const entry = map[msgId];
+      const albumIds = row.dataset.albumids ? row.dataset.albumids.split(',').filter(Boolean) : [];
+      let entry;
+      if (albumIds.length > 1) {
+        var _m2 = {}, _my2 = null;
+        albumIds.forEach(function(aid){ var e=map[aid]; if(!e) return; Object.entries(e.reactions||{}).forEach(function(kv){ _m2[kv[0]]=(_m2[kv[0]]||0)+kv[1]; }); if(e.myReaction&&!_my2)_my2=e.myReaction; });
+        entry = Object.keys(_m2).length ? { reactions: _m2, myReaction: _my2 } : null;
+      } else { entry = map[msgId]; }
       let bar = row.querySelector('.reactions-bar');
       const reactBtn = row.querySelector('.react-btn');
       if (!entry || !Object.keys(entry.reactions).length) {
