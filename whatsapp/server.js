@@ -1775,7 +1775,7 @@ app.get('/', (req, res) => {
 
   <div class="topbar" id="topbar" style="display:none;">
     <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <h1>WhatsApp</h1>
+    <h1 ondblclick="waConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">WhatsApp</h1>
     <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
@@ -3174,7 +3174,7 @@ app.get('/', (req, res) => {
   </style>
   <div id="wa-console">
     <div id="wa-console-header">
-      <span id="wa-console-title">CONSOLE — WhatsApp &nbsp;·&nbsp; Ctrl+Shift+L</span>
+      <span id="wa-console-title">CONSOLE — WhatsApp &nbsp;·&nbsp; Doppelklick auf "WhatsApp"</span>
       <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
     </div>
     <div id="wa-console-body"></div>
@@ -3209,9 +3209,6 @@ app.get('/', (req, res) => {
           if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
         }catch(e){}
       }
-      document.addEventListener('keydown',function(e){
-        if(e.ctrlKey&&e.shiftKey&&e.key==='L'){e.preventDefault();waConsoleToggle();}
-      });
     })();
   </script>
 </body>
