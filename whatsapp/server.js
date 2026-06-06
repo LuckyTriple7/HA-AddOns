@@ -3161,20 +3161,20 @@ app.get('/', (req, res) => {
     }
   </script>
   <style>
-    #wa-console{display:none;position:fixed;bottom:0;left:0;right:0;height:38vh;background:#0d1117;border-top:2px solid #30363d;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;}
+    #wa-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}
     #wa-console.open{display:flex;}
-    #wa-console-header{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;}
+    #wa-console-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;cursor:move;user-select:none;border-radius:7px 7px 0 0;}
     #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
-    #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;}
-    #wa-console-close:hover{color:#e6edf3;}
-    #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.5;}
-    #wa-console-body::-webkit-scrollbar{width:6px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;}
-    .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#8b949e;}
+    #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
+    #wa-console-close:hover{color:#f85149;}
+    #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
+    #wa-console-body::-webkit-scrollbar{width:5px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
+    .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#6e7681;}
     @media(max-width:767px){#wa-console{display:none!important;}}
   </style>
   <div id="wa-console">
     <div id="wa-console-header">
-      <span id="wa-console-title">CONSOLE — WhatsApp &nbsp;·&nbsp; Doppelklick auf "WhatsApp"</span>
+      <span id="wa-console-title">⬛ CONSOLE — WhatsApp</span>
       <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
     </div>
     <div id="wa-console-body"></div>
@@ -3182,8 +3182,26 @@ app.get('/', (req, res) => {
   <script>
     (function(){
       var _open=false,_lastTs=0,_timer=null;
-      var body=document.getElementById('wa-console-body');
       var panel=document.getElementById('wa-console');
+      var header=document.getElementById('wa-console-header');
+      var body=document.getElementById('wa-console-body');
+      // Drag
+      var _dx=0,_dy=0,_dragging=false;
+      header.addEventListener('mousedown',function(e){
+        if(e.target===document.getElementById('wa-console-close'))return;
+        _dragging=true;
+        _dx=e.clientX-panel.offsetLeft;
+        _dy=e.clientY-panel.offsetTop;
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove',function(e){
+        if(!_dragging)return;
+        var x=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth));
+        var y=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight));
+        panel.style.left=x+'px'; panel.style.top=y+'px';
+        panel.style.right='auto'; panel.style.bottom='auto';
+      });
+      document.addEventListener('mouseup',function(){_dragging=false;});
       function waConsoleToggle(){
         if(window.innerWidth<768)return;
         _open=!_open;

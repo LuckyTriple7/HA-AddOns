@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.39] - 2026-06-06
+- Fix: Console als frei draggbares Floating-Window (560×340px, resize:both) statt festem Bottom-Panel — blockiert Sendeleiste nicht mehr; Header ziehen zum Verschieben
+
 ## [1.6.38] - 2026-06-06
 - Fix: Console-Shortcut Ctrl+Shift+L → Doppelklick auf "WhatsApp" im Header
 
