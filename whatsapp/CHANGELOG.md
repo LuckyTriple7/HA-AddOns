@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.37] - 2026-06-06
+- Neu: Stille Debug-Logs nur in der In-App Console (nicht im HA-Log): alle API-Requests mit Antwortzeit, eingehende Nachrichten mit Typ+Preview, message_ack (sent/received/read/played), call/group_join/group_leave/contact_changed Events, downloadWAMedia Start+Dauer+Größe, Keep-alive OK alle 10 Min
+
 ## [1.6.36] - 2026-06-06
 - Neu: In-App Console — Ctrl+Shift+L öffnet/schließt Log-Panel (nur Desktop); zeigt alle server-seitigen Log-Meldungen farbkodiert (INFO grün / WARN gelb / ERROR rot / DEBUG grau); GET /api/logs?since= Endpoint mit Circular Buffer (300 Einträge)
 

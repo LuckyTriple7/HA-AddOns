@@ -30,6 +30,11 @@ const _LOG_MAX = 300;
   });
 })();
 
+function _logSilent(level, msg) {
+  _logBuffer.push({ ts: Date.now(), level: level || 'DEBUG', msg: '[' + (level||'DEBUG') + '] ' + msg });
+  if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
+}
+
 const { Client, NoAuth, MessageMedia, Location } = require('whatsapp-web.js');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
@@ -67,6 +72,14 @@ console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
+  const t0 = Date.now();
+  res.on('finish', () => {
+    _logSilent('DEBUG', `API ${req.method} ${req.path} → ${res.statusCode} (${Date.now()-t0}ms)`);
+  });
+  next();
+});
 
 let qrCodeDataUrl = null;
 let status = 'initializing';
@@ -264,14 +277,21 @@ async function downloadWAMedia(msg, msgId) {
     const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : msg.type === 'video' ? (mime.includes('webm') ? 'webm' : 'mp4') : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
-      dbg(`Downloading media: ${safeId}.${ext}`);
+      _logSilent('DEBUG', `downloadWAMedia: start ${safeId}.${ext} (${mime||'?'})`);
+      const t0 = Date.now();
       const media = await msg.downloadMedia();
-      if (media?.data) fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+      if (media?.data) {
+        fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+        _logSilent('DEBUG', `downloadWAMedia: ok ${safeId}.${ext} ${(Buffer.from(media.data,'base64').length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
+      } else {
+        _logSilent('WARN', `downloadWAMedia: no data for ${safeId}.${ext}`);
+      }
     } else {
-      dbg(`Media already cached: ${safeId}.${ext}`);
+      _logSilent('DEBUG', `downloadWAMedia: cached ${safeId}.${ext}`);
     }
     return existsSync(filePath) ? `${safeId}.${ext}` : null;
   } catch (e) {
+    _logSilent('ERROR', `downloadWAMedia: failed ${msgId} — ${e.message}`);
     console.error('[ERROR] downloadWAMedia:', e.message);
     return null;
   }
@@ -507,6 +527,7 @@ client.on('message', async (msg) => {
     forwardingScore: msg.forwardingScore || 0,
     quotedMsg: quotedMsgData,
   });
+  _logSilent('DEBUG', `msg_in: from=${contactName} chat=${chatId} type=${type}${msg.body?' body="'+msg.body.slice(0,60)+'"':''}`);
   if (added) {
     const _ci = chatMap.get(chatId);
     const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
@@ -640,17 +661,33 @@ client.on('message_revoke_me', (msg) => {
 });
 
 client.on('message_ack', (msg, ack) => {
-  dbg(`message_ack: ${msg.id._serialized} ack=${ack}`);
+  const ackNames = {1:'sent',2:'received',3:'read',4:'played'};
+  _logSilent('DEBUG', `message_ack: ${msg.id._serialized} → ${ackNames[ack]||ack}`);
   const msgs = messagesByChatId.get(msg.to);
   if (msgs) {
     const stored = msgs.find(m => m.id === msg.id._serialized);
     if (stored) { stored.ack = ack; return; }
   }
-  // Fallback: Gruppen-Chats haben andere chatId-Struktur
   for (const list of messagesByChatId.values()) {
     const stored = list.find(m => m.id === msg.id._serialized);
     if (stored) { stored.ack = ack; break; }
   }
+});
+
+client.on('call', (call) => {
+  _logSilent('INFO', `Incoming call from ${call.from} — type=${call.isVideo?'video':'audio'} id=${call.id}`);
+});
+
+client.on('group_join', (notification) => {
+  _logSilent('INFO', `group_join: ${notification.chatId} — ${notification.recipientIds?.join(', ')}`);
+});
+
+client.on('group_leave', (notification) => {
+  _logSilent('INFO', `group_leave: ${notification.chatId} — ${notification.recipientIds?.join(', ')}`);
+});
+
+client.on('contact_changed', (msg, oldId, newId, isContact) => {
+  _logSilent('INFO', `contact_changed: ${oldId} → ${newId} isContact=${isContact}`);
 });
 
 client.initialize().catch((err) => {
@@ -864,6 +901,8 @@ setInterval(async () => {
     if (state !== 'CONNECTED') {
       console.warn('[WARN] State check: state=%s — reconnecting…', state);
       doReconnect('state check: ' + state);
+    } else {
+      _logSilent('INFO', `Keep-alive OK — state=${state} chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
     }
   } catch (e) {
     console.warn('[WARN] State check failed (%s) — reconnecting…', e.message);
