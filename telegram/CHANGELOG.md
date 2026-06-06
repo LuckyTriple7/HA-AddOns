@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.43] - 2026-06-06
+- Fix: Weitergeleitete Nachricht erschien nicht sofort in der App — Server verarbeitet das Forward-Ergebnis via processMessage(), Client lädt den aktiven Chat neu
+
 ## [1.5.42] - 2026-06-06
 - Fix: Gesendete Nachrichten nicht mehr rechts anliegend — Hover-Buttons bei out-Nachrichten per order:-1 links der Bubble platziert statt rechts
 
