@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.3.8] — 2026-06-06
+### Changed
+- DE: Download-Button heißt jetzt "Download" statt "Herunterladen"
+
 ## [0.3.7] — 2026-06-06
 ### Fixed
 - Apostroph/Sonderzeichen in Dateinamen (z.B. "What's up.mp4") brachen alle onclick-Handler (Play, Delete, Tags) lautlos — escJs() Funktion ergänzt die ' und \ für JS-String-Kontext escaped
