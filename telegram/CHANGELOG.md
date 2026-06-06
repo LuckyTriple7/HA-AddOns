@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.39] - 2026-06-06
+- Neu: HTML-Export vollständig lokalisiert (DE/EN) — Datum, Uhrzeit, Labels und Platzhalter folgen der gewählten UI-Sprache
+
 ## [1.5.38] - 2026-06-06
 - Fix: HTML-Export brach bei Videos/Sprachnachrichten ab — base64-Einbettung entfernt, werden jetzt als Platzhalter (📹/🎵) angezeigt
 
