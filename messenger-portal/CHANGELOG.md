@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.14] - 2026-06-06
+- Fix: Console-Zustand (offen/geschlossen) wird in localStorage gespeichert und beim Laden der Seite wiederhergestellt — Console bleibt offen wenn zu einem Messenger navigiert und zurückgekehrt wird
+
 ## [1.1.13] - 2026-06-06
 - Fix: Console-Fenster immer noch sofort weg — dblclick feuert erst nach zwei click-Events die bereits navigieren; onclick auf Span blockiert jetzt ebenfalls die Navigation
 

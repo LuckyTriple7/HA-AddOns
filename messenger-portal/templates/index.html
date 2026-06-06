@@ -797,13 +797,19 @@
         panel.style.right='auto';panel.style.bottom='auto';
       });
       document.addEventListener('mouseup',function(){_drag=false;});
-      function mpConsoleToggle(){
-        if(window.innerWidth<768)return;
-        _open=!_open;panel.classList.toggle('open',_open);
+      function _setOpen(val){
+        _open=val;panel.classList.toggle('open',_open);
+        try{localStorage.setItem('mp-console-open',_open?'1':'0');}catch(e){}
         if(_open){_poll();_timer=setInterval(_poll,3000);}
         else{clearInterval(_timer);_timer=null;}
       }
+      function mpConsoleToggle(){
+        if(window.innerWidth<768)return;
+        _setOpen(!_open);
+      }
       window.mpConsoleToggle=mpConsoleToggle;
+      // Zustand wiederherstellen
+      try{if(localStorage.getItem('mp-console-open')==='1')setTimeout(function(){_setOpen(true);},100);}catch(e){}
       function _cls(l){return l==='WARNING'||l==='WARN'?'mpc-warn':l==='ERROR'||l==='CRITICAL'?'mpc-error':l==='DEBUG'?'mpc-debug':'mpc-info';}
       async function _poll(){
         try{
