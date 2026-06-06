@@ -234,7 +234,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : msg.type === 'video' ? '📹 Video' : msg.type === 'location' ? '📍 Standort' : '[Medien]');
+    const preview = msg.type === 'location' ? (msg.locName ? '📍 ' + msg.locName : '📍 Standort') : msg.type === 'voice' ? '🎵 Sprachnachricht' : msg.type === 'video' ? '📹 Video' : msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -1475,8 +1475,8 @@ app.get('/', (req, res) => {
     #attach-icon { font-size:28px; flex-shrink:0; }
     #attach-cancel { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
     #attach-cancel:hover { color:#e9edef; }
-    #send-bar #attach-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
-    #send-bar #attach-btn:hover { background:rgba(255,255,255,0.08); }
+    #send-bar #attach-btn, #send-bar #location-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
+    #send-bar #attach-btn:hover, #send-bar #location-btn:hover { background:rgba(255,255,255,0.08); }
     .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
     .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
     html.light .bubble-deleted { color:rgba(0,0,0,0.55); }
@@ -1760,7 +1760,7 @@ app.get('/', (req, res) => {
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
         <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
         <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
-        <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden" style="background:none;border:none;font-size:20px;cursor:pointer;padding:6px;border-radius:50%;flex-shrink:0;line-height:1;color:#8696a0;">📍</button>
+        <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">📍</button>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>

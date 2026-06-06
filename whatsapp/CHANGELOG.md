@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.28] - 2026-06-06
+- Fix: 📍-Button in der Sendeleiste wurde grün und rund wie der Send-Button — CSS-Override für #location-btn wie bei #attach-btn
+- Fix: Standort-Preview zeigte WhatsApp-interne Zeichen — type='location' wird vor msg.body geprüft, zeigt immer '📍 Standort' oder '📍 Name'
+
 ## [1.6.27] - 2026-06-06
 - Neu: Video-Support — neue Videos werden automatisch geladen (wenn ≤ video_max_mb), ältere als Platzhalter mit Klick-Download; 🗑️-Button löscht Datei von Disk; Speicheranzeige aktualisiert sich sofort
 - Neu: video_max_mb Option (Standard 50 MB) in config.yaml und Translations (DE/EN)
