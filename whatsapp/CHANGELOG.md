@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.40] - 2026-06-06
+- Console: Log-Level-Filter (ALL/DBG/INFO/WARN/ERR) + Export-Button (⬇ .txt-Download aller sichtbaren Zeilen)
+
 ## [1.6.39] - 2026-06-06
 - Fix: Console als frei draggbares Floating-Window (560×340px, resize:both) statt festem Bottom-Panel — blockiert Sendeleiste nicht mehr; Header ziehen zum Verschieben
 
