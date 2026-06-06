@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.45] - 2026-06-06
+- Fix: Filter/Export-Buttons unsichtbar — CSS-Klassen griffen nicht; alle Styles jetzt als inline style-Attribute direkt auf Elementen
+
 ## [1.6.44] - 2026-06-06
 - Console: Filter (ALL/DBG/INFO/WARN/ERR) + Export (⬇ .txt) als separater Script-Block — bestehender Toggle-Code unverändert, MutationObserver setzt data-level auf neue Zeilen
 
