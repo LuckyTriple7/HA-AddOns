@@ -1354,6 +1354,8 @@ app.get('/', (req, res) => {
     .photo-placeholder { display: none; }
     body.hide-photos .msg-img { display: none !important; }
     body.hide-photos .photo-placeholder { display: inline; }
+    body.hide-photos video { display: none !important; }
+    body.hide-photos .wa-video-placeholder { display: none !important; }
 
     /* Main two-panel layout */
     #main { flex: 1; display: flex; overflow: hidden; }
@@ -1710,7 +1712,7 @@ app.get('/', (req, res) => {
     <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
-    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
     ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
@@ -1857,7 +1859,7 @@ app.get('/', (req, res) => {
         spinnerConnecting:'Verbinde mit WhatsApp…', btnReset:'Session zurücksetzen',
         statusConnected:'Verbunden', statusQR:'QR scannen', statusAuth:'Authentifiziert…',
         statusInit:'Starte…', statusDisc:'Getrennt', statusAuthFail:'Auth-Fehler', statusError:'Fehler',
-        photosOn:'Fotos AN', photosOff:'Fotos AUS', btnCleanup:'Verwaiste Mediendateien löschen',
+        photosOn:'Medien AN', photosOff:'Medien AUS', btnCleanup:'Verwaiste Mediendateien löschen',
         btnScrollUp:'Nach oben', btnScrollDown:'Nach unten', btnLogout:'Abmelden',
         filterAll:'Alle', filterPrivate:'Privat', filterGroups:'Gruppen',
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
@@ -1893,7 +1895,7 @@ app.get('/', (req, res) => {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
         statusConnected:'Connected', statusQR:'Scan QR', statusAuth:'Authenticating…',
         statusInit:'Starting…', statusDisc:'Disconnected', statusAuthFail:'Auth error', statusError:'Error',
-        photosOn:'Photos ON', photosOff:'Photos OFF', btnCleanup:'Delete orphaned media files',
+        photosOn:'Media ON', photosOff:'Media OFF', btnCleanup:'Delete orphaned media files',
         btnScrollUp:'Scroll up', btnScrollDown:'Scroll down', btnLogout:'Logout',
         filterAll:'All', filterPrivate:'Private', filterGroups:'Groups',
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
@@ -2195,7 +2197,7 @@ app.get('/', (req, res) => {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
       localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
     }
     if (localStorage.getItem('wa-hide-photos')) {

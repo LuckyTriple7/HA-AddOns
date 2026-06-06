@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.32] - 2026-06-06
+- Fix: 🎬 Medien-Button blendet jetzt auch Videos aus (nicht nur Fotos) — Icon 📷→🎬, Label Fotos→Medien (DE/EN)
+
 ## [1.6.31] - 2026-06-06
 - Fix: 🗑️-Button beim Video funktionierte nicht — JSON.stringify(m.id) brach das onclick-Attribut durch eingebettete Anführungszeichen; ersetzt durch data-msgid + this.dataset.msgid
 
