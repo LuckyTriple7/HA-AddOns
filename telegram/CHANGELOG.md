@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.47] - 2026-06-06
+- Fix: Forward sofort sichtbar (3. Versuch) — nach forwardMessages() direkt getMessages({limit:1}) aufrufen statt aus TypeUpdates zu extrahieren (GramJS verarbeitet Updates asynchron)
+
 ## [1.5.46] - 2026-06-06
 - Fix: Weitergeleitete Nachricht sofort sichtbar (2. Versuch) — TypeUpdates korrekt ausgewertet (UpdateNewMessage.message extrahiert), processMessage() danach, Client loadMessages()
 

@@ -662,14 +662,11 @@ app.post('/api/forward', async (req, res) => {
     let toEntity = peerMap.get(to);
     if (!toEntity) { await loadDialogs(); toEntity = peerMap.get(to); }
     if (!fromEntity || !toEntity) return res.status(404).json({ error: 'Chat nicht gefunden' });
-    const upds = await client.forwardMessages(toEntity, { messages: [tgMsgId], fromPeer: fromEntity });
-    let fwdRaw = null;
-    if (upds && upds.updates) {
-      for (const u of upds.updates) {
-        if ((u.className === 'UpdateNewMessage' || u.className === 'UpdateNewChannelMessage') && u.message) { fwdRaw = u.message; break; }
-      }
-    } else if (upds && upds.message) { fwdRaw = upds.message; }
-    if (fwdRaw) await processMessage(fwdRaw, to, chatMap.get(to)?.name || to, 'Forward').catch(e => console.log('[WARN] forward processMessage:', e.message));
+    await client.forwardMessages(toEntity, { messages: [tgMsgId], fromPeer: fromEntity });
+    try {
+      const latest = await client.getMessages(toEntity, { limit: 1 });
+      if (latest && latest[0]) await processMessage(latest[0], to, chatMap.get(to)?.name || to, 'Forward');
+    } catch(e) { console.log('[WARN] forward getMessages:', e.message); }
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
