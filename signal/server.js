@@ -1,18 +1,31 @@
 'use strict';
+const _logBuffer = [];
+const _LOG_MAX = 300;
+function _logSilent(level, msg) {
+  _logBuffer.push({ ts: Date.now(), level: level||'DEBUG', msg: '['+(level||'DEBUG')+'] '+msg });
+  if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
+}
 (function () {
   const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const _lmap = { log:'INFO', warn:'WARN', error:'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
     console[m] = (...a) => {
+      let level = _lmap[m]||'INFO', out;
       if (a.length && typeof a[0] === 'string') {
-        const match = a[0].match(/^(\[(?:INFO|WARN|ERROR|DEBUG)\])(.*)/s);
+        const match = a[0].match(/^(\[(INFO|WARN|ERROR|DEBUG)\])(.*)/s);
         if (match) {
-          const rest = match[2].trimStart();
-          orig(`${match[1]} [${_ts()}]${rest ? ' ' + rest : ''}`, ...a.slice(1));
-          return;
+          level = match[2];
+          const rest = match[3].trimStart();
+          out = `[${level}] [${_ts()}]${rest?' '+rest:''}`;
+          orig(out, ...a.slice(1));
+        } else {
+          out = `[${level}] [${_ts()}] ${a[0]}`;
+          orig(out, ...a.slice(1));
         }
-      }
-      orig(`[INFO] [${_ts()}]`, ...a);
+      } else { out = `[${level}] [${_ts()}]`; orig(out, ...a); }
+      _logBuffer.push({ ts: Date.now(), level, msg: out+(a.length>1?' '+a.slice(1).map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' '):'') });
+      if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
     };
   });
 })();
@@ -25,6 +38,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
+  const t0 = Date.now();
+  res.on('finish', () => _logSilent('DEBUG', `API ${req.method} ${req.path} → ${res.statusCode} (${Date.now()-t0}ms)`));
+  next();
+});
 
 const PORT = process.env.PORT || 3000;
 const SIGNAL_API = process.env.SIGNAL_API_URL || 'http://localhost:8080';
@@ -294,6 +313,7 @@ function processEnvelope(envelope) {
     }
   }
 
+  _logSilent('DEBUG', `signal-cli msg: from=${senderName||chatId} type=${msgType} fromMe=${isOwn}${dm.message?' "'+dm.message.slice(0,60)+'"':''}`);
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   messagesByChatId.get(chatId).push(msg);
 
@@ -334,14 +354,18 @@ function processEnvelope(envelope) {
   }
 }
 
+let _pollCount = 0;
 async function pollMessages() {
   if (status !== 'linked' || !PHONE_NUMBER) return;
   try {
     const r = await fetch(`${SIGNAL_API}/v1/receive/${encodeURIComponent(PHONE_NUMBER)}`, { timeout: 5000 });
     if (!r.ok) return;
+    _pollCount++;
+    if (_pollCount % 30 === 0) _logSilent('INFO', `signal-cli Keep-alive OK — API reachable chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
     const messages = await r.json();
     if (Array.isArray(messages) && messages.length > 0) {
       dbg(`pollMessages: received ${messages.length} envelope(s)`);
+      _logSilent('INFO', `signal-cli /v1/receive: ${messages.length} envelope(s)`);
       messages.forEach(processEnvelope);
     }
   } catch (e) {}
@@ -353,12 +377,13 @@ async function downloadAttachment(attId, contentType, msgId) {
     const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
     const filepath = MEDIA_DIR + filename;
     if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); scheduleSave(); return; }
-    dbg(`Downloading attachment ${attId}...`);
+    _logSilent('DEBUG', `signal-cli downloadAttachment: start ${filename}`);
+    const _t0 = Date.now();
     const r = await fetch(`${SIGNAL_API}/v1/attachments/${encodeURIComponent(attId)}`, { timeout: 30000 });
     if (!r.ok) { console.warn(`[WARN] Attachment download failed: HTTP ${r.status}`); return; }
     const buf = await r.buffer();
     fs.writeFileSync(filepath, buf);
-    dbg(`Attachment saved: ${filename} (${buf.length} bytes)`);
+    _logSilent('DEBUG', `signal-cli downloadAttachment: ok ${filename} ${(buf.length/1024).toFixed(1)}KB in ${Date.now()-_t0}ms`);
     updateMsgMedia(msgId, filename);
     scheduleSave();
   } catch (e) {
@@ -563,6 +588,11 @@ function getDirSize(dir) {
   } catch (e) {}
   return total;
 }
+
+app.get('/api/logs', (req, res) => {
+  const since = parseInt(req.query.since || '0', 10);
+  res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
+});
 
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
@@ -1070,7 +1100,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 
 <div id="topbar">
   <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <h1>Signal</h1>
+  <h1 ondblclick="sigConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">Signal</h1>
   <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
@@ -1817,6 +1847,66 @@ applyLang();
     </div>
   </div>
 </div>
+  <style>
+    #sig-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}
+    #sig-console.open{display:flex;}
+    #sig-console-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;cursor:move;user-select:none;border-radius:7px 7px 0 0;}
+    #sig-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
+    #sig-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
+    #sig-console-close:hover{color:#f85149;}
+    #sig-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
+    #sig-console-body::-webkit-scrollbar{width:5px;}#sig-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
+    .sgc-info{color:#3fb950;}.sgc-warn{color:#d29922;}.sgc-error{color:#f85149;}.sgc-debug{color:#6e7681;}
+    @media(max-width:767px){#sig-console{display:none!important;}}
+  </style>
+  <div id="sig-console">
+    <div id="sig-console-header">
+      <span id="sig-console-title">⬛ CONSOLE — Signal · signal-cli</span>
+      <button id="sig-console-close" onclick="sigConsoleToggle()">✕</button>
+    </div>
+    <div id="sig-console-body"></div>
+  </div>
+  <script>
+    (function(){
+      var _open=false,_lastTs=0,_timer=null;
+      var panel=document.getElementById('sig-console');
+      var header=document.getElementById('sig-console-header');
+      var body=document.getElementById('sig-console-body');
+      var _dx=0,_dy=0,_drag=false;
+      header.addEventListener('mousedown',function(e){
+        if(e.target.id==='sig-console-close')return;
+        _drag=true;_dx=e.clientX-panel.offsetLeft;_dy=e.clientY-panel.offsetTop;e.preventDefault();
+      });
+      document.addEventListener('mousemove',function(e){
+        if(!_drag)return;
+        panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth))+'px';
+        panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight))+'px';
+        panel.style.right='auto';panel.style.bottom='auto';
+      });
+      document.addEventListener('mouseup',function(){_drag=false;});
+      function sigConsoleToggle(){
+        if(window.innerWidth<768)return;
+        _open=!_open;panel.classList.toggle('open',_open);
+        if(_open){_poll();_timer=setInterval(_poll,2000);}
+        else{clearInterval(_timer);_timer=null;}
+      }
+      window.sigConsoleToggle=sigConsoleToggle;
+      function _cls(l){return l==='WARN'?'sgc-warn':l==='ERROR'?'sgc-error':l==='DEBUG'?'sgc-debug':'sgc-info';}
+      async function _poll(){
+        try{
+          var entries=await fetch(api('/api/logs')+'?since='+_lastTs).then(function(r){return r.json();});
+          if(!entries.length)return;
+          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+          entries.forEach(function(e){
+            _lastTs=Math.max(_lastTs,e.ts);
+            var line=document.createElement('div');line.className=_cls(e.level);line.textContent=e.msg;body.appendChild(line);
+          });
+          if(atBottom)body.scrollTop=body.scrollHeight;
+          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+        }catch(e){}
+      }
+    })();
+  </script>
 </body>
 </html>`;
 }

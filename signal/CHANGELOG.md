@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.20] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "Signal") — draggbares Floating-Window mit signal-cli-spezifischen Debug-Logs: alle API-Requests, /v1/receive Poll-Ergebnisse, processEnvelope mit Typ+Preview, downloadAttachment mit KB/ms, Keep-alive OK alle ~90s
+
 ## [1.5.19] - 2026-06-06
 - Neu: ☀️/🌙-Button neben "Signal" zum Umschalten Dark/Light Mode; Auswahl per localStorage (signal_theme) gespeichert
 
