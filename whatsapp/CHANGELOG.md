@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.44] - 2026-06-06
+- Console: Filter (ALL/DBG/INFO/WARN/ERR) + Export (⬇ .txt) als separater Script-Block — bestehender Toggle-Code unverändert, MutationObserver setzt data-level auf neue Zeilen
+
 ## [1.6.43] - 2026-06-06
 - Revert: Console auf stabilen v1.6.39-Stand zurückgesetzt (Filter/Export vorerst entfernt)
 
