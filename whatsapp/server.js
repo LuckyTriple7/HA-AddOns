@@ -1600,6 +1600,7 @@ app.get('/', (req, res) => {
   <div class="topbar" id="topbar" style="display:none;">
     <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
     <h1>WhatsApp</h1>
+    <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
@@ -1815,6 +1816,27 @@ app.get('/', (req, res) => {
       localStorage.setItem('wa_lang', lang);
       applyLang();
     }
+    function applyTheme() {
+      var isDark = document.documentElement.classList.contains('dark');
+      var btn = document.getElementById('theme-btn');
+      if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+    }
+    function toggleTheme() {
+      var html = document.documentElement;
+      var nowDark = html.classList.contains('dark');
+      html.classList.toggle('dark', !nowDark);
+      html.classList.toggle('light', nowDark);
+      localStorage.setItem('wa_theme', nowDark ? 'light' : 'dark');
+      applyTheme();
+    }
+    (function() {
+      var saved = localStorage.getItem('wa_theme');
+      if (saved) {
+        document.documentElement.classList.remove('dark', 'light');
+        document.documentElement.classList.add(saved);
+      }
+      applyTheme();
+    })();
     // ── Avatar-System: nachgelagert, max 2 parallel ──────────────────────────────
     const _avatarState = new Map(); // chatId → 'loading'|'loaded'|'failed'
     const _avatarUrl   = new Map(); // chatId → resolved img.src (absolute URL)

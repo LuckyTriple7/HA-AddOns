@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.22] - 2026-06-06
+- Neu: ☀️/🌙-Button neben "WhatsApp" zum Umschalten Dark/Light Mode; Auswahl wird per localStorage gespeichert
+
 ## [1.6.21] - 2026-06-06
 - Fix: Multi-Löschen löschte nur erste Nachricht auf dem Handy — Promise.all durch sequenzielle Schleife ersetzt, WhatsApp Web.js verarbeitet delete() nicht parallel
 
