@@ -19,6 +19,23 @@ log = logging.getLogger(__name__)
 # Werkzeug HTTP-Access-Logs unterdrücken – nginx übernimmt das
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
+# In-App Console: Log-Buffer (max 300 Einträge)
+from collections import deque
+_log_buffer: deque = deque(maxlen=300)
+
+class _BufferHandler(logging.Handler):
+    _fmt = logging.Formatter('[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    def emit(self, record):
+        try:
+            _log_buffer.append({'ts': int(record.created * 1000), 'level': record.levelname, 'msg': self._fmt.format(record)})
+        except Exception:
+            pass
+
+_buf_h = _BufferHandler()
+_buf_h.setLevel(logging.DEBUG)
+logging.getLogger().addHandler(_buf_h)
+log.setLevel(logging.DEBUG)
+
 app = Flask(__name__,
             template_folder='/app/templates',
             static_folder='/app/static')
@@ -233,9 +250,15 @@ def fetch_messenger_status(host: str, m: dict) -> dict:
     port      = m['port']
     reachable = check_port(host, port)
     last      = fetch_last_received(host, port) if reachable else None
+    name      = m.get('name', m['icon'])
+    if reachable:
+        preview = (last or {}).get('preview', '')
+        log.debug('Poll %s:%s — online last="%s"', name, port, preview[:60] if preview else '—')
+    else:
+        log.debug('Poll %s:%s — nicht erreichbar', name, port)
     return {
         'icon':         m['icon'].lower(),
-        'name':         m.get('name', m['icon']),
+        'name':         name,
         'reachable':    reachable,
         'last_received': last,
     }
@@ -282,6 +305,13 @@ def sw():
 @app.route('/health')
 def health():
     return 'ok', 200
+
+
+@app.route('/api/logs')
+def api_logs():
+    since = int(request.args.get('since', 0))
+    entries = [e for e in _log_buffer if e['ts'] > since]
+    return jsonify(entries)
 
 
 @app.route('/status')

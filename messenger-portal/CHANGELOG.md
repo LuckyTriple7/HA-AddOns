@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.10] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "MessengerPortal") — draggbares Floating-Window; Python logging.Handler schreibt in Deque-Buffer (300 Einträge); GET /api/logs?since= Flask-Route; stille DEBUG-Logs beim Messenger-Status-Poll
+
 ## [1.1.9] - 2026-06-06
 - Fix: TYPE_ICONS ergänzt um video (📹) und location (📍) — wurden bisher ohne Icon angezeigt
 
