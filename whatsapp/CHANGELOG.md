@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.36] - 2026-06-06
+- Neu: In-App Console — Ctrl+Shift+L öffnet/schließt Log-Panel (nur Desktop); zeigt alle server-seitigen Log-Meldungen farbkodiert (INFO grün / WARN gelb / ERROR rot / DEBUG grau); GET /api/logs?since= Endpoint mit Circular Buffer (300 Einträge)
+
 ## [1.6.35] - 2026-06-06
 - Fix: Medien-Log-Meldung auf Englisch (photo/voice message/video on disk)
 

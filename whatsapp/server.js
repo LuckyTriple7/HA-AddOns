@@ -1,18 +1,31 @@
 'use strict';
+const _logBuffer = [];
+const _LOG_MAX = 300;
 (function () {
   const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const _levelMap = { log: 'INFO', warn: 'WARN', error: 'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
     console[m] = (...a) => {
+      let level = _levelMap[m] || 'INFO';
+      let msg;
       if (a.length && typeof a[0] === 'string') {
-        const match = a[0].match(/^(\[(?:INFO|WARN|ERROR|DEBUG)\])(.*)/s);
+        const match = a[0].match(/^(\[(INFO|WARN|ERROR|DEBUG)\])(.*)/s);
         if (match) {
-          const rest = match[2].trimStart();
-          orig(`${match[1]} [${_ts()}]${rest ? ' ' + rest : ''}`, ...a.slice(1));
-          return;
+          level = match[2];
+          const rest = match[3].trimStart();
+          msg = `[${level}] [${_ts()}]${rest ? ' ' + rest : ''}`;
+          orig(msg, ...a.slice(1));
+        } else {
+          msg = `[${level}] [${_ts()}] ${a[0]}`;
+          orig(msg, ...a.slice(1));
         }
+      } else {
+        msg = `[${level}] [${_ts()}]`;
+        orig(msg, ...a);
       }
-      orig(`[INFO] [${_ts()}]`, ...a);
+      _logBuffer.push({ ts: Date.now(), level, msg: msg + (a.length > 1 ? ' ' + a.slice(1).map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ') : '') });
+      if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
     };
   });
 })();
@@ -940,6 +953,11 @@ app.get('/api/storage', (req, res) => {
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
   });
+});
+
+app.get('/api/logs', (req, res) => {
+  const since = parseInt(req.query.since || '0', 10);
+  res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
 });
 
 app.post('/api/cleanup-media', (req, res) => {
@@ -3102,6 +3120,60 @@ app.get('/', (req, res) => {
         }
       }
     }
+  </script>
+  <style>
+    #wa-console{display:none;position:fixed;bottom:0;left:0;right:0;height:38vh;background:#0d1117;border-top:2px solid #30363d;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;}
+    #wa-console.open{display:flex;}
+    #wa-console-header{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;}
+    #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
+    #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;}
+    #wa-console-close:hover{color:#e6edf3;}
+    #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.5;}
+    #wa-console-body::-webkit-scrollbar{width:6px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;}
+    .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#8b949e;}
+    @media(max-width:767px){#wa-console{display:none!important;}}
+  </style>
+  <div id="wa-console">
+    <div id="wa-console-header">
+      <span id="wa-console-title">CONSOLE — WhatsApp &nbsp;·&nbsp; Ctrl+Shift+L</span>
+      <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
+    </div>
+    <div id="wa-console-body"></div>
+  </div>
+  <script>
+    (function(){
+      var _open=false,_lastTs=0,_timer=null;
+      var body=document.getElementById('wa-console-body');
+      var panel=document.getElementById('wa-console');
+      function waConsoleToggle(){
+        if(window.innerWidth<768)return;
+        _open=!_open;
+        panel.classList.toggle('open',_open);
+        if(_open){_poll();_timer=setInterval(_poll,2000);}
+        else{clearInterval(_timer);_timer=null;}
+      }
+      window.waConsoleToggle=waConsoleToggle;
+      function _cls(l){return l==='WARN'?'wc-warn':l==='ERROR'?'wc-error':l==='DEBUG'?'wc-debug':'wc-info';}
+      async function _poll(){
+        try{
+          var entries=await fetch('api/logs?since='+_lastTs).then(function(r){return r.json();});
+          if(!entries.length)return;
+          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+          entries.forEach(function(e){
+            _lastTs=Math.max(_lastTs,e.ts);
+            var line=document.createElement('div');
+            line.className=_cls(e.level);
+            line.textContent=e.msg;
+            body.appendChild(line);
+          });
+          if(atBottom)body.scrollTop=body.scrollHeight;
+          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+        }catch(e){}
+      }
+      document.addEventListener('keydown',function(e){
+        if(e.ctrlKey&&e.shiftKey&&e.key==='L'){e.preventDefault();waConsoleToggle();}
+      });
+    })();
   </script>
 </body>
 </html>`);
