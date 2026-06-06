@@ -2458,7 +2458,7 @@ app.get('/', (req, res) => {
         } else if (m.type === 'video') {
           if (m.mediaFile) {
             const vSrc = 'api/media/' + encodeURIComponent(m.mediaFile);
-            bub.innerHTML = '<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="' + vSrc + '"></video><button onclick="deleteWAVideo(' + JSON.stringify(m.id) + ')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>' + (m.body ? '<div style="margin-top:4px;font-size:13px">' + esc(m.body) + '</div>' : '') + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+            bub.innerHTML = '<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="' + vSrc + '"></video><button data-msgid="' + esc(m.id) + '" onclick="deleteWAVideo(this.dataset.msgid)" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>' + (m.body ? '<div style="margin-top:4px;font-size:13px">' + esc(m.body) + '</div>' : '') + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
           } else {
             const sz = m.videoSize || 0;
             const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';

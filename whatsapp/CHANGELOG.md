@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.31] - 2026-06-06
+- Fix: 🗑️-Button beim Video funktionierte nicht — JSON.stringify(m.id) brach das onclick-Attribut durch eingebettete Anführungszeichen; ersetzt durch data-msgid + this.dataset.msgid
+
 ## [1.6.30] - 2026-06-06
 - UX: Sendeleisten-Buttons (😊 📎 📍) in einer Gruppe ohne Gap — liegen jetzt dicht beieinander
 
