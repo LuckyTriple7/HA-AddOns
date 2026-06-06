@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.48] - 2026-06-06
+- Fix: Reactions bei Album-Fotos fehlten — Reactions aller Album-Nachrichten werden jetzt zusammengeführt und unter dem Grid angezeigt
+
 ## [1.5.47] - 2026-06-06
 - Fix: Forward sofort sichtbar (3. Versuch) — nach forwardMessages() direkt getMessages({limit:1}) aufrufen statt aus TypeUpdates zu extrahieren (GramJS verarbeitet Updates asynchron)
 

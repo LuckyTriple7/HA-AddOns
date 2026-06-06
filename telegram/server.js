@@ -2044,7 +2044,19 @@ function renderMessages(msgs) {
       content=formatText(m.body);
     }
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
-    const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
+    // Album: Reactions aller Fotos zusammenführen
+    var _reactSrc = m.reactions, _myReactSrc = m.myReaction;
+    if (item.isAlbum) {
+      var _merged = {};
+      var _myMerged = null;
+      item.albumMsgs.forEach(function(am){
+        if (am.reactions) Object.entries(am.reactions).forEach(function(e){ _merged[e[0]] = (_merged[e[0]]||0) + e[1]; });
+        if (am.myReaction && !_myMerged) _myMerged = am.myReaction;
+      });
+      _reactSrc = Object.keys(_merged).length ? _merged : null;
+      _myReactSrc = _myMerged;
+    }
+    const reactBadges = _reactSrc ? Object.entries(_reactSrc).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=_myReactSrc===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
     const chatForReply = allChats.find(c=>c.id===selectedChatId);
     const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name||selectedChatId||'');
