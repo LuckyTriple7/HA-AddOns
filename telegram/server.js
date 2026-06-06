@@ -1211,7 +1211,7 @@ html.light #chat-header { background: #517DA2; }
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
 .bubble-row-inner { display: flex; align-items: flex-end; gap: 6px; }
-.bubble-row-inner .del-btn { order: -1; }
+.bubble-row.out .react-btn, .bubble-row.out .fwd-btn, .bubble-row.out .reply-btn { order: -1; }
 #lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
 #lightbox.open { display: flex; }
 #lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }

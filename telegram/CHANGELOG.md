@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.42] - 2026-06-06
+- Fix: Gesendete Nachrichten nicht mehr rechts anliegend — Hover-Buttons bei out-Nachrichten per order:-1 links der Bubble platziert statt rechts
+
 ## [1.5.41] - 2026-06-06
 - Fix: Bubble verschiebt sich beim Hover — Buttons nutzen jetzt opacity statt display:none, belegen immer Platz
 - Neu: Album-Fotos (gleiche groupedId) werden als Foto-Grid (140×140 px) in einer Bubble dargestellt statt gestapelt
