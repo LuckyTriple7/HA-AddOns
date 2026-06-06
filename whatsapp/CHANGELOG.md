@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.19] - 2026-06-06
+- Fix: HTML-Export brach bei Sprachnachrichten ab — base64-Einbettung entfernt, werden als Platzhalter (🎵) angezeigt
+- Fix: Sprachnachrichten mit mediaFile wurden fälschlich als Foto exportiert
+- Neu: HTML-Export vollständig lokalisiert (DE/EN)
+
+## [1.6.18] - 2026-06-06
+- Neu: media_max_mb im Startup-Log ausgeben
+
 ## [1.6.17] - 2026-06-06
 - Fix: SyntaxError durch \\n in Template-Literal — Tooltip-Strings verwendeten \\n (Literal-Newline) statt \\\\n (Escape-Sequenz)
 

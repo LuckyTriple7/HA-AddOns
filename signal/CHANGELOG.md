@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.18] - 2026-06-06
+- Fix: HTML-Export brach bei Sprachnachrichten ab — base64-Einbettung entfernt, werden als Platzhalter (🎵) angezeigt
+- Neu: HTML-Export vollständig lokalisiert (DE/EN)
+
 ## [1.5.17] - 2026-06-06
 - Neu: media_max_mb im Startup-Log ausgeben
 

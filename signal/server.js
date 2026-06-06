@@ -475,33 +475,35 @@ app.get('/api/last-received', (req, res) => {
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
+  const isEn = (req.query.lang || 'de') === 'en';
+  const loc = isEn ? 'en-GB' : 'de-DE';
   const chat = chatMap.get(chatId);
   const msgs = messagesByChatId.get(chatId) || [];
   const chatName = chat ? (chat.name || chatId) : chatId;
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const exportDate = new Date().toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const meLabel = isEn ? 'Me' : 'Du';
+  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
+  const messagesLabel = isEn ? 'messages' : 'Nachrichten';
   let lastDate = '';
   const msgsHtml = msgs.map(m => {
     const tsNum = Number(m.timestamp);
     const tsMs = tsNum > 1e12 ? tsNum : tsNum * 1000;
     const d = new Date(tsMs);
-    const dateStr = d.toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-    const time = d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+    const dateStr = d.toLocaleDateString(loc, { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    const time = d.toLocaleTimeString(loc, { hour:'2-digit', minute:'2-digit' });
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'voice' && m.mediaFile) {
-      const fp = MEDIA_DIR + m.mediaFile;
-      content = fs.existsSync(fp)
-        ? `<audio controls style="min-width:200px;max-width:280px;width:100%" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
-        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    if (m.type === 'voice') {
+      content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
     } else if (m.mediaFile) {
       const fp = MEDIA_DIR + m.mediaFile;
       if (fs.existsSync(fp)) {
         const ext = m.mediaFile.split('.').pop().toLowerCase();
         const mime = ext==='png'?'image/png':ext==='webp'?'image/webp':ext==='gif'?'image/gif':'image/jpeg';
         content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
-      } else { content = '📷 Foto'; }
+      } else { content = isEn ? '📷 Photo' : '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
@@ -509,10 +511,10 @@ app.get('/api/export/:chatId', (req, res) => {
     } else {
       content = escH(m.body||'').replace(/\n/g,'<br>');
     }
-    const sender = m.fromMe ? 'Du' : escH(chatName);
+    const sender = m.fromMe ? meLabel : escH(chatName);
     return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d1e3ff;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#3a76f0}.msg.out .sender{color:#2960d6}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#ddeeff}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">Exportiert am ${exportDate} &bull; ${msgs.length} Nachrichten</p>${msgsHtml}</body></html>`;
+  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d1e3ff;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#3a76f0}.msg.out .sender{color:#2960d6}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#ddeeff}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
   const fname = `signal_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
@@ -1393,7 +1395,7 @@ function renderChats(chats) {
 
 function exportChat() {
   if (!selectedChatId) return;
-  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId));
+  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId) + '?lang=' + lang);
 }
 
 function filterChats() {
