@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.33] - 2026-06-06
+- Fix: type-Feld fehlte in lastReceivedMsg beim Startup-Init; preview für location/video/voice fehlte im Init und Runtime
+
 ## [1.6.32] - 2026-06-06
 - Fix: 🎬 Medien-Button blendet jetzt auch Videos aus (nicht nur Fotos) — Icon 📷→🎬, Label Fotos→Medien (DE/EN)
 

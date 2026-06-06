@@ -167,7 +167,8 @@ try {
           chatId,
           chatName: chat?.name || chatId,
           contact: m.contact || '',
-          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'document' ? `📄 ${m.filename || 'Dokument'}` : '[Medien]'),
+          type: m.type || 'text',
+          preview: m.type === 'location' ? (m.locName ? '📍 ' + m.locName : '📍 Standort') : m.type === 'video' ? '📹 Video' : m.type === 'voice' ? '🎵 Sprachnachricht' : m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'document' ? `📄 ${m.filename || 'Dokument'}` : '[Medien]'),
         };
       }
     }
@@ -496,7 +497,7 @@ client.on('message', async (msg) => {
         chatName: _ci?.name || chatId,
         contact: contactName,
         type,
-        preview: msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
+        preview: type === 'location' ? (locName ? '📍 ' + locName : '📍 Standort') : type === 'video' ? '📹 Video' : type === 'voice' ? '🎵 Sprachnachricht' : msg.body || (type === 'photo' ? '📷 Foto' : type === 'document' ? `📄 ${filename || 'Dokument'}` : '[Medien]'),
       };
       sendHANotification(chatId, contactName, msg.body || (type === 'photo' ? '📷 Foto' : ''));
     }

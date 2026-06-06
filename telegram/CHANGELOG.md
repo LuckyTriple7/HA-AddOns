@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.50] - 2026-06-06
+- Fix: type-Feld fehlte in lastReceivedMsg beim Startup-Init — video/voice/photo werden jetzt korrekt übergeben
+
 ## [1.5.49] - 2026-06-06
 - Fix: Album-Reactions wurden von pollReactions gelöscht — data-albumids im DOM, updateReactionsInDOM mergt Reactions aller Album-Fotos
 

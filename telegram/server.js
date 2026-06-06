@@ -2498,7 +2498,8 @@ try {
           chatId,
           chatName: chat?.name || chatId,
           contact: chat?.name || chatId,
-          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'video' ? '📹 Video' : '[Medien]'),
+          type: m.type || 'text',
+          preview: m.body || (m.type === 'photo' ? '📷 Foto' : m.type === 'video' ? '📹 Video' : m.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
         };
       }
     }
