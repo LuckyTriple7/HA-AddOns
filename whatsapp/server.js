@@ -64,6 +64,7 @@ let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, prev
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
+const VIDEO_MAX_MB = Math.max(parseInt(process.env.VIDEO_MAX_MB || '50', 10), 1);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -79,6 +80,7 @@ console.log('[INFO] ── Configuration ─────────────
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
+console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
@@ -232,7 +234,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : msg.type === 'location' ? '📍 Standort' : '[Medien]');
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : msg.type === 'video' ? '📹 Video' : msg.type === 'location' ? '📍 Standort' : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -244,7 +246,8 @@ function addMsg(chatId, msg) {
 async function downloadWAMedia(msg, msgId) {
   try {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
-    const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : 'jpg';
+    const mime = msg._data?.mimetype || '';
+    const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : msg.type === 'video' ? (mime.includes('webm') ? 'webm' : 'mp4') : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
       dbg(`Downloading media: ${safeId}.${ext}`);
@@ -326,8 +329,9 @@ client.on('ready', async () => {
         const isImage = msg.type === 'image' || msg.type === 'sticker';
         const isPtt = msg.type === 'ptt' || msg.type === 'audio';
         const isLoc = msg.type === 'location';
-        if (!isText && !isImage && !isPtt && !isLoc) continue;
-        if (!msg.body && !isImage && !isPtt && !isLoc) continue;
+        const isVid = msg.type === 'video';
+        if (!isText && !isImage && !isPtt && !isLoc && !isVid) continue;
+        if (!msg.body && !isImage && !isPtt && !isLoc && !isVid) continue;
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
@@ -347,10 +351,11 @@ client.on('ready', async () => {
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
-          type: isImage ? 'photo' : isPtt ? 'voice' : isLoc ? 'location' : 'text',
+          type: isImage ? 'photo' : isPtt ? 'voice' : isLoc ? 'location' : isVid ? 'video' : 'text',
           locLat: isLoc ? (msg.location?.latitude ?? null) : null,
           locLng: isLoc ? (msg.location?.longitude ?? null) : null,
           locName: isLoc ? (msg.location?.description || '') : '',
+          videoSize: isVid ? (msg._data?.size || 0) : undefined,
           mediaFile: null,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
@@ -421,8 +426,9 @@ client.on('message', async (msg) => {
   const isDocument = msg.type === 'document';
   const isPtt = msg.type === 'ptt' || msg.type === 'audio';
   const isLocation = msg.type === 'location';
-  if (!isText && !isImage && !isDocument && !isPtt && !isLocation) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
-  if (!msg.body && !isImage && !isDocument && !isPtt && !isLocation) return;
+  const isVideo = msg.type === 'video';
+  if (!isText && !isImage && !isDocument && !isPtt && !isLocation && !isVideo) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
+  if (!msg.body && !isImage && !isDocument && !isPtt && !isLocation && !isVideo) return;
   const chat = await msg.getChat().catch(() => null);
   const chatId = chat ? chat.id._serialized : msg.from;
   if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
@@ -451,6 +457,14 @@ client.on('message', async (msg) => {
     locLat = msg.location?.latitude ?? null;
     locLng = msg.location?.longitude ?? null;
     locName = msg.location?.description || '';
+  } else if (isVideo) {
+    type = 'video';
+    const videoBytes = msg._data?.size || 0;
+    if (DOWNLOAD_MEDIA && videoBytes > 0 && videoBytes <= VIDEO_MAX_MB * 1024 * 1024) {
+      enforceMediaLimit();
+      mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    }
+    Object.assign(msg, { _videoSize: videoBytes });
   }
   let quotedMsgData = null;
   if (msg.hasQuotedMsg) {
@@ -468,6 +482,7 @@ client.on('message', async (msg) => {
     body: msg.body || '',
     type, mediaFile, filename,
     locLat, locLng, locName,
+    videoSize: isVideo ? (msg._data?.size || msg._videoSize || 0) : undefined,
     timestamp: msg.timestamp * 1000,
     fromMe: false,
     contact: contactName,
@@ -1006,7 +1021,10 @@ app.get('/api/export/:chatId', (req, res) => {
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'location' && m.locLat != null) {
+    if (m.type === 'video') {
+      content = `<span style="opacity:0.6">📹 ${isEn ? 'Video' : 'Video'}</span>`;
+      if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else if (m.type === 'location' && m.locLat != null) {
       const mapsUrl = `https://maps.google.com/?q=${m.locLat},${m.locLng}`;
       const label = m.locName || `${parseFloat(m.locLat).toFixed(4)}, ${parseFloat(m.locLng).toFixed(4)}`;
       content = `<a href="${mapsUrl}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit"><span>📍</span><span style="text-decoration:underline">${escH(label)}</span></a>`;
@@ -1070,6 +1088,39 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post('/api/fetch-video', async (req, res) => {
+  const { msgId, chatId } = req.body;
+  if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const stored = getChatMsgs(chatId).find(m => m.id === msgId);
+  if (!stored) return res.status(404).json({ error: 'Message not found' });
+  if (stored.mediaFile) return res.json({ success: true, mediaFile: stored.mediaFile });
+  try {
+    const waMsg = await client.getMessageById(msgId).catch(() => null);
+    if (!waMsg) return res.status(404).json({ error: 'WA message not found' });
+    const videoBytes = waMsg._data?.size || 0;
+    if (videoBytes > VIDEO_MAX_MB * 1024 * 1024) return res.status(413).json({ error: `too_large`, maxMb: VIDEO_MAX_MB });
+    enforceMediaLimit();
+    const mediaFile = await downloadWAMedia(waMsg, msgId);
+    if (!mediaFile) return res.status(500).json({ error: 'Download failed' });
+    stored.mediaFile = mediaFile;
+    saveMsgs();
+    res.json({ success: true, mediaFile });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/delete-video', async (req, res) => {
+  const { msgId, chatId } = req.body;
+  if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
+  const stored = getChatMsgs(chatId).find(m => m.id === msgId);
+  if (stored?.mediaFile) {
+    try { fs.unlinkSync(`${MEDIA_DIR}/${stored.mediaFile}`); } catch(e) {}
+    stored.mediaFile = null;
+    saveMsgs();
+  }
+  res.json({ success: true });
 });
 
 app.post('/api/send-location', async (req, res) => {
@@ -1801,6 +1852,7 @@ app.get('/', (req, res) => {
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         locModalTitle:'📍 Standort senden', locLat:'Breitengrad', locLng:'Längengrad', locNameLbl:'Name (optional)', locUseGPS:'📡 Aktuelle Position', locSend:'Senden', locCancel:'Abbrechen', locGPSErr:'GPS nicht verfügbar', locLabel:'Standort',
+        videoDownload:'⬇ Video herunterladen', videoTooBig:'📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
         logoutConfirmMsg:'Möchtest du dich wirklich abmelden?', btnYes:'Ja', btnNo:'Nein',
@@ -1836,6 +1888,7 @@ app.get('/', (req, res) => {
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
         btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         locModalTitle:'📍 Send Location', locLat:'Latitude', locLng:'Longitude', locNameLbl:'Name (optional)', locUseGPS:'📡 Use current position', locSend:'Send', locCancel:'Cancel', locGPSErr:'GPS not available', locLabel:'Location',
+        videoDownload:'⬇ Download video', videoTooBig:'📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
         logoutConfirmMsg:'Do you really want to log out?', btnYes:'Yes', btnNo:'No',
@@ -2012,6 +2065,25 @@ app.get('/', (req, res) => {
           body: JSON.stringify({ to: selectedChatId, lat: lat, lng: lng, locName: name }) });
         await reloadMessages(selectedChatId);
       } catch(e) { console.error('sendLocation:', e.message); }
+    }
+    async function fetchWAVideo(el) {
+      const msgId = el.dataset.msgid;
+      const chatId = el.dataset.chatid || selectedChatId;
+      el.textContent = '⏳';
+      el.style.pointerEvents = 'none';
+      try {
+        const r = await fetch('api/fetch-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, chatId }) }).then(r => r.json());
+        if (r.error === 'too_large') { el.textContent = t('videoTooBig'); el.style.textDecoration = 'none'; el.style.cursor = 'default'; el.onclick = null; return; }
+        if (r.success) { await reloadMessages(selectedChatId); loadStorage(); }
+        else { el.textContent = '❌'; }
+      } catch(e) { el.textContent = '❌'; }
+    }
+    async function deleteWAVideo(msgId) {
+      try {
+        await fetch('api/delete-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, chatId: selectedChatId }) });
+        await reloadMessages(selectedChatId);
+        loadStorage();
+      } catch(e) { console.error('deleteWAVideo:', e.message); }
     }
     let lastMsgTime = {};
     let allChats = [];
@@ -2368,6 +2440,18 @@ app.get('/', (req, res) => {
         if (m.deleted && !m.body) {
           // Standard: Body ersetzt durch 🚫-Text (KEEP_DELETED=false)
           bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
+        } else if (m.type === 'video') {
+          if (m.mediaFile) {
+            const vSrc = 'api/media/' + encodeURIComponent(m.mediaFile);
+            bub.innerHTML = '<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="' + vSrc + '"></video><button onclick="deleteWAVideo(' + JSON.stringify(m.id) + ')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>' + (m.body ? '<div style="margin-top:4px;font-size:13px">' + esc(m.body) + '</div>' : '') + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          } else {
+            const sz = m.videoSize || 0;
+            const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
+            const tooBig = sz > ${VIDEO_MAX_MB}*1024*1024;
+            bub.innerHTML = tooBig
+              ? '<span style="opacity:0.5;cursor:default">' + t('videoTooBig') + mb + '</span><span class="time">' + fmtTime(m.timestamp) + ack + '</span>'
+              : '<span class="wa-video-placeholder" data-msgid="' + esc(m.id) + '" data-chatid="' + esc(m.fromMe ? selectedChatId : m.from || selectedChatId) + '" onclick="fetchWAVideo(this)" style="cursor:pointer;opacity:0.85;text-decoration:underline">' + t('videoDownload') + mb + '</span><span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
+          }
         } else if (m.type === 'location' && m.locLat != null) {
           const mapsUrl = 'https://maps.google.com/?q=' + m.locLat + ',' + m.locLng;
           const label = m.locName || (m.locLat.toFixed(4) + ', ' + m.locLng.toFixed(4));

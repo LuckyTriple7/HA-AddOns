@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.27] - 2026-06-06
+- Neu: Video-Support — neue Videos werden automatisch geladen (wenn ≤ video_max_mb), ältere als Platzhalter mit Klick-Download; 🗑️-Button löscht Datei von Disk; Speicheranzeige aktualisiert sich sofort
+- Neu: video_max_mb Option (Standard 50 MB) in config.yaml und Translations (DE/EN)
+
 ## [1.6.26] - 2026-06-06
 - Neu: Standort empfangen — wird als klickbarer 📍 Google-Maps-Link angezeigt (DE/EN, inkl. HTML-Export)
 - Neu: Standort senden — 📍-Button in der Sendeleiste öffnet Modal mit GPS-Button und manueller Lat/Lng/Name-Eingabe
