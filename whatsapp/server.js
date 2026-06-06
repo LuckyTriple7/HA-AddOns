@@ -1,21 +1,39 @@
 'use strict';
+const _logBuffer = [];
+const _LOG_MAX = 300;
 (function () {
   const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const _levelMap = { log: 'INFO', warn: 'WARN', error: 'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
     console[m] = (...a) => {
+      let level = _levelMap[m] || 'INFO';
+      let msg;
       if (a.length && typeof a[0] === 'string') {
-        const match = a[0].match(/^(\[(?:INFO|WARN|ERROR|DEBUG)\])(.*)/s);
+        const match = a[0].match(/^(\[(INFO|WARN|ERROR|DEBUG)\])(.*)/s);
         if (match) {
-          const rest = match[2].trimStart();
-          orig(`${match[1]} [${_ts()}]${rest ? ' ' + rest : ''}`, ...a.slice(1));
-          return;
+          level = match[2];
+          const rest = match[3].trimStart();
+          msg = `[${level}] [${_ts()}]${rest ? ' ' + rest : ''}`;
+          orig(msg, ...a.slice(1));
+        } else {
+          msg = `[${level}] [${_ts()}] ${a[0]}`;
+          orig(msg, ...a.slice(1));
         }
+      } else {
+        msg = `[${level}] [${_ts()}]`;
+        orig(msg, ...a);
       }
-      orig(`[INFO] [${_ts()}]`, ...a);
+      _logBuffer.push({ ts: Date.now(), level, msg: msg + (a.length > 1 ? ' ' + a.slice(1).map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ') : '') });
+      if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
     };
   });
 })();
+
+function _logSilent(level, msg) {
+  _logBuffer.push({ ts: Date.now(), level: level || 'DEBUG', msg: '[' + (level||'DEBUG') + '] ' + msg });
+  if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
+}
 
 const { Client, NoAuth, MessageMedia, Location } = require('whatsapp-web.js');
 const multer = require('multer');
@@ -54,6 +72,14 @@ console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
+  const t0 = Date.now();
+  res.on('finish', () => {
+    _logSilent('DEBUG', `API ${req.method} ${req.path} → ${res.statusCode} (${Date.now()-t0}ms)`);
+  });
+  next();
+});
 
 let qrCodeDataUrl = null;
 let status = 'initializing';
@@ -251,14 +277,21 @@ async function downloadWAMedia(msg, msgId) {
     const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : msg.type === 'video' ? (mime.includes('webm') ? 'webm' : 'mp4') : 'jpg';
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!existsSync(filePath)) {
-      dbg(`Downloading media: ${safeId}.${ext}`);
+      _logSilent('DEBUG', `downloadWAMedia: start ${safeId}.${ext} (${mime||'?'})`);
+      const t0 = Date.now();
       const media = await msg.downloadMedia();
-      if (media?.data) fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+      if (media?.data) {
+        fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
+        _logSilent('DEBUG', `downloadWAMedia: ok ${safeId}.${ext} ${(Buffer.from(media.data,'base64').length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
+      } else {
+        _logSilent('WARN', `downloadWAMedia: no data for ${safeId}.${ext}`);
+      }
     } else {
-      dbg(`Media already cached: ${safeId}.${ext}`);
+      _logSilent('DEBUG', `downloadWAMedia: cached ${safeId}.${ext}`);
     }
     return existsSync(filePath) ? `${safeId}.${ext}` : null;
   } catch (e) {
+    _logSilent('ERROR', `downloadWAMedia: failed ${msgId} — ${e.message}`);
     console.error('[ERROR] downloadWAMedia:', e.message);
     return null;
   }
@@ -375,14 +408,23 @@ client.on('ready', async () => {
     if (DOWNLOAD_MEDIA) {
       (async () => {
         const pending = [];
-        let cached = 0;
+        let cachedPhotos = 0, cachedVoice = 0, cachedVideo = 0;
         for (const [chatId, msgs] of messagesByChatId) {
-          for (const m of msgs.filter(m => m.type === 'photo' || m.type === 'voice')) {
-            if (m.mediaFile) cached++;
-            else pending.push({ chatId, m });
+          for (const m of msgs) {
+            if (m.type === 'photo' || m.type === 'voice') {
+              if (m.mediaFile) { if (m.type === 'photo') cachedPhotos++; else cachedVoice++; }
+              else pending.push({ chatId, m });
+            } else if (m.type === 'video' && m.mediaFile) { cachedVideo++; }
           }
         }
-        if (cached) console.log(`[INFO] ${cached} media file(s) already on disk — no download needed`);
+        const cachedTotal = cachedPhotos + cachedVoice + cachedVideo;
+        if (cachedTotal) {
+          const parts = [];
+          if (cachedPhotos) parts.push(cachedPhotos + ' photo(s)');
+          if (cachedVoice)  parts.push(cachedVoice  + ' voice message(s)');
+          if (cachedVideo)  parts.push(cachedVideo  + ' video(s)');
+          console.log(`[INFO] ${cachedTotal} media file(s) on disk: ${parts.join(', ')}`);
+        }
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
         let count = 0;
@@ -485,6 +527,7 @@ client.on('message', async (msg) => {
     forwardingScore: msg.forwardingScore || 0,
     quotedMsg: quotedMsgData,
   });
+  _logSilent('DEBUG', `msg_in: from=${contactName} chat=${chatId} type=${type}${msg.body?' body="'+msg.body.slice(0,60)+'"':''}`);
   if (added) {
     const _ci = chatMap.get(chatId);
     const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
@@ -618,17 +661,33 @@ client.on('message_revoke_me', (msg) => {
 });
 
 client.on('message_ack', (msg, ack) => {
-  dbg(`message_ack: ${msg.id._serialized} ack=${ack}`);
+  const ackNames = {1:'sent',2:'received',3:'read',4:'played'};
+  _logSilent('DEBUG', `message_ack: ${msg.id._serialized} → ${ackNames[ack]||ack}`);
   const msgs = messagesByChatId.get(msg.to);
   if (msgs) {
     const stored = msgs.find(m => m.id === msg.id._serialized);
     if (stored) { stored.ack = ack; return; }
   }
-  // Fallback: Gruppen-Chats haben andere chatId-Struktur
   for (const list of messagesByChatId.values()) {
     const stored = list.find(m => m.id === msg.id._serialized);
     if (stored) { stored.ack = ack; break; }
   }
+});
+
+client.on('call', (call) => {
+  _logSilent('INFO', `Incoming call from ${call.from} — type=${call.isVideo?'video':'audio'} id=${call.id}`);
+});
+
+client.on('group_join', (notification) => {
+  _logSilent('INFO', `group_join: ${notification.chatId} — ${notification.recipientIds?.join(', ')}`);
+});
+
+client.on('group_leave', (notification) => {
+  _logSilent('INFO', `group_leave: ${notification.chatId} — ${notification.recipientIds?.join(', ')}`);
+});
+
+client.on('contact_changed', (msg, oldId, newId, isContact) => {
+  _logSilent('INFO', `contact_changed: ${oldId} → ${newId} isContact=${isContact}`);
 });
 
 client.initialize().catch((err) => {
@@ -842,6 +901,8 @@ setInterval(async () => {
     if (state !== 'CONNECTED') {
       console.warn('[WARN] State check: state=%s — reconnecting…', state);
       doReconnect('state check: ' + state);
+    } else {
+      _logSilent('INFO', `Keep-alive OK — state=${state} chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
     }
   } catch (e) {
     console.warn('[WARN] State check failed (%s) — reconnecting…', e.message);
@@ -931,6 +992,11 @@ app.get('/api/storage', (req, res) => {
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
   });
+});
+
+app.get('/api/logs', (req, res) => {
+  const since = parseInt(req.query.since || '0', 10);
+  res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
 });
 
 app.post('/api/cleanup-media', (req, res) => {
@@ -1266,7 +1332,7 @@ app.get('/api/avatar/:chatId', async (req, res) => {
   })();
 
   avatarPending.set(chatId, promise);
-  promise.finally(() => avatarPending.delete(chatId));
+  promise.then(() => avatarPending.delete(chatId), () => avatarPending.delete(chatId));
 
   try {
     const buf = await promise;
@@ -1709,7 +1775,7 @@ app.get('/', (req, res) => {
 
   <div class="topbar" id="topbar" style="display:none;">
     <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <h1>WhatsApp</h1>
+    <h1 ondblclick="waConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">WhatsApp</h1>
     <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
@@ -3093,6 +3159,75 @@ app.get('/', (req, res) => {
         }
       }
     }
+  </script>
+  <style>
+    #wa-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}
+    #wa-console.open{display:flex;}
+    #wa-console-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;cursor:move;user-select:none;border-radius:7px 7px 0 0;}
+    #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
+    #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
+    #wa-console-close:hover{color:#f85149;}
+    #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
+    #wa-console-body::-webkit-scrollbar{width:5px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
+    .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#6e7681;}
+    @media(max-width:767px){#wa-console{display:none!important;}}
+  </style>
+  <div id="wa-console">
+    <div id="wa-console-header">
+      <span id="wa-console-title">⬛ CONSOLE — WhatsApp</span>
+      <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
+    </div>
+    <div id="wa-console-body"></div>
+  </div>
+  <script>
+    (function(){
+      var _open=false,_lastTs=0,_timer=null;
+      var panel=document.getElementById('wa-console');
+      var header=document.getElementById('wa-console-header');
+      var body=document.getElementById('wa-console-body');
+      // Drag
+      var _dx=0,_dy=0,_dragging=false;
+      header.addEventListener('mousedown',function(e){
+        if(e.target===document.getElementById('wa-console-close'))return;
+        _dragging=true;
+        _dx=e.clientX-panel.offsetLeft;
+        _dy=e.clientY-panel.offsetTop;
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove',function(e){
+        if(!_dragging)return;
+        var x=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth));
+        var y=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight));
+        panel.style.left=x+'px'; panel.style.top=y+'px';
+        panel.style.right='auto'; panel.style.bottom='auto';
+      });
+      document.addEventListener('mouseup',function(){_dragging=false;});
+      function waConsoleToggle(){
+        if(window.innerWidth<768)return;
+        _open=!_open;
+        panel.classList.toggle('open',_open);
+        if(_open){_poll();_timer=setInterval(_poll,2000);}
+        else{clearInterval(_timer);_timer=null;}
+      }
+      window.waConsoleToggle=waConsoleToggle;
+      function _cls(l){return l==='WARN'?'wc-warn':l==='ERROR'?'wc-error':l==='DEBUG'?'wc-debug':'wc-info';}
+      async function _poll(){
+        try{
+          var entries=await fetch('api/logs?since='+_lastTs).then(function(r){return r.json();});
+          if(!entries.length)return;
+          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+          entries.forEach(function(e){
+            _lastTs=Math.max(_lastTs,e.ts);
+            var line=document.createElement('div');
+            line.className=_cls(e.level);
+            line.textContent=e.msg;
+            body.appendChild(line);
+          });
+          if(atBottom)body.scrollTop=body.scrollHeight;
+          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+        }catch(e){}
+      }
+    })();
   </script>
 </body>
 </html>`);

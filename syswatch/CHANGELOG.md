@@ -1,5 +1,27 @@
 # Changelog — HA SysWatch
 
+## [1.2.0] - 2026-06-06
+### Added
+- In-App Console: Doppelklick auf „HA SysWatch" öffnet draggbares Floating-Window mit Backend-Logs (Docker/Supervisor-Events)
+### Fixed
+- 24h-Verlaufscharts für CPU, RAM und Temperatur werden jetzt auch im Idle-Modus korrekt befüllt
+- Telegram-Benachrichtigungen (Container-Stop/CPU/RAM-Alarm) werden jetzt auch im Idle-Modus ausgelöst
+- Zeitachse im Chart: Labels aus tatsächlichem Datenbereich berechnet, aktuelle Uhrzeit am rechten Rand
+- Chart-Linienstärke reduziert (2.5px → 1px) für bessere Lesbarkeit bei 1440 Datenpunkten
+
+## [1.1.6] - 2026-06-06
+
+- fix: Chart-Linie von 2.5px auf 1px reduziert — bei 1440 Datenpunkten überlappten die Segmente stark
+
+## [1.1.5] - 2026-06-06
+- Fix: DEBUG-Logs in Console sichtbar — Root-StreamHandler auf INFO, Root-Logger auf DEBUG; _buf_h (DEBUG) erfasst alle Level ohne HA-Log zu überschwemmen
+
+## [1.1.4] - 2026-06-06
+- Fix: Crash beim Start — Flask-Endpoint api_logs kollidierte mit vorhandener /api/container/<name>/logs Funktion; umbenannt in api_console_logs
+
+## [1.1.3] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "HA SysWatch") — draggbares Floating-Window; Python _BufferHandler erfasst alle Log-Aufrufe inkl. Docker/Supervisor-Events; GET /api/logs?since=; localStorage-Persistenz
+
 ## [1.1.2] - 2026-06-05
 
 ### Fixed

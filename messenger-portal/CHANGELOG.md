@@ -1,5 +1,32 @@
 # Changelog – MessengerPortal
 
+## [1.2.0] - 2026-06-06
+### Added
+- Nachrichtentyp-Icons in der Übersicht: 💬 Text, 🖼️ Foto, 📄 Dokument, 🎙️ Sprachnachricht, 📹 Video, 📍 Standort
+- Offline-Messenger: Karte ausgegraut, Hover deaktiviert, Klick blockiert
+- Status wird sofort aktualisiert wenn der Tab wieder in den Vordergrund kommt (visibilitychange)
+- In-App Console: Doppelklick auf „MessengerPortal" öffnet draggbares Floating-Window mit Backend-Logs
+### Improved
+- Browser-Benachrichtigungen robuster: Timing-Tracking per Timestamp, Benachrichtigung auch bei zweiter Nachricht im selben Messenger
+
+## [1.1.15] - 2026-06-06
+- Fix: DEBUG-Logs in Console sichtbar — Root-StreamHandler auf INFO, Root-Logger auf DEBUG; DEBUG bleibt aus HA-Log heraus
+
+## [1.1.14] - 2026-06-06
+- Fix: Console-Zustand (offen/geschlossen) wird in localStorage gespeichert und beim Laden der Seite wiederhergestellt — Console bleibt offen wenn zu einem Messenger navigiert und zurückgekehrt wird
+
+## [1.1.13] - 2026-06-06
+- Fix: Console-Fenster immer noch sofort weg — dblclick feuert erst nach zwei click-Events die bereits navigieren; onclick auf Span blockiert jetzt ebenfalls die Navigation
+
+## [1.1.12] - 2026-06-06
+- Fix: Console-Fenster erschien kurz und verschwand sofort — Doppelklick auf Span innerhalb <a href="/"> löste Seitennavigation aus; event.preventDefault() + stopPropagation() hinzugefügt
+
+## [1.1.11] - 2026-06-06
+- Fix: Jinja2 TemplateSyntaxError — @media(){#...} wurde als Kommentar-Anfang interpretiert; Leerzeichen nach { eingefügt
+
+## [1.1.10] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "MessengerPortal") — draggbares Floating-Window; Python logging.Handler schreibt in Deque-Buffer (300 Einträge); GET /api/logs?since= Flask-Route; stille DEBUG-Logs beim Messenger-Status-Poll
+
 ## [1.1.9] - 2026-06-06
 - Fix: TYPE_ICONS ergänzt um video (📹) und location (📍) — wurden bisher ohne Icon angezeigt
 

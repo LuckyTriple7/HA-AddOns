@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.11] - 2026-06-06
+
+### Geändert
+- Rebuild für FileBrowser 2.63.13
+
+
 ## [1.2.10] - 2026-06-04
 - Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 

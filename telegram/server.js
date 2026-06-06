@@ -1,18 +1,31 @@
 'use strict';
+const _logBuffer = [];
+const _LOG_MAX = 300;
+function _logSilent(level, msg) {
+  _logBuffer.push({ ts: Date.now(), level: level||'DEBUG', msg: '['+(level||'DEBUG')+'] '+msg });
+  if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
+}
 (function () {
   const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const _lmap = { log:'INFO', warn:'WARN', error:'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
     console[m] = (...a) => {
+      let level = _lmap[m]||'INFO', out;
       if (a.length && typeof a[0] === 'string') {
-        const match = a[0].match(/^(\[(?:INFO|WARN|ERROR|DEBUG)\])(.*)/s);
+        const match = a[0].match(/^(\[(INFO|WARN|ERROR|DEBUG)\])(.*)/s);
         if (match) {
-          const rest = match[2].trimStart();
-          orig(`${match[1]} [${_ts()}]${rest ? ' ' + rest : ''}`, ...a.slice(1));
-          return;
+          level = match[2];
+          const rest = match[3].trimStart();
+          out = `[${level}] [${_ts()}]${rest?' '+rest:''}`;
+          orig(out, ...a.slice(1));
+        } else {
+          out = `[${level}] [${_ts()}] ${a[0]}`;
+          orig(out, ...a.slice(1));
         }
-      }
-      orig(`[INFO] [${_ts()}]`, ...a);
+      } else { out = `[${level}] [${_ts()}]`; orig(out, ...a); }
+      _logBuffer.push({ ts: Date.now(), level, msg: out+(a.length>1?' '+a.slice(1).map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' '):'') });
+      if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
     };
   });
 })();
@@ -28,6 +41,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
+  const t0 = Date.now();
+  res.on('finish', () => _logSilent('DEBUG', `API ${req.method} ${req.path} → ${res.statusCode} (${Date.now()-t0}ms)`));
+  next();
+});
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const API_ID = parseInt(process.env.API_ID || '0', 10);
@@ -184,12 +203,20 @@ async function downloadMedia(rawMsg, msgId) {
     }
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!fs.existsSync(filePath)) {
+      _logSilent('DEBUG', `GramJS downloadMedia: start ${safeId}.${ext}`);
       enforceMediaLimit();
+      const t0 = Date.now();
       const buf = await client.downloadMedia(rawMsg, { workers: 1 });
-      if (buf) fs.writeFileSync(filePath, buf);
+      if (buf) {
+        fs.writeFileSync(filePath, buf);
+        _logSilent('DEBUG', `GramJS downloadMedia: ok ${safeId}.${ext} ${(buf.length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
+      } else {
+        _logSilent('WARN', `GramJS downloadMedia: no data for ${safeId}.${ext}`);
+      }
     }
     return fs.existsSync(filePath) ? `${safeId}.${ext}` : null;
   } catch (e) {
+    _logSilent('ERROR', `GramJS downloadMedia: failed ${msgId} — ${e.message}`);
     console.error('[ERROR] downloadMedia:', e.message);
     return null;
   }
@@ -299,6 +326,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
+  _logSilent('DEBUG', `GramJS msg [${source}]: id=${rawMsg.id} from=${chatName} type=${type} fromMe=${fromMe}${body?' "'+body.slice(0,60)+'"':''}`);
 
   if (!chatMap.has(chatId)) {
     chatMap.set(chatId, { id: chatId, name: chatName, phone: '', lastMsg: preview, lastTime: ts });
@@ -372,7 +400,9 @@ async function fetchMessages(chatId, limit = FETCH_LIMIT) {
     let entity = peerMap.get(chatId);
     if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
     if (!entity) return;
+    _logSilent('DEBUG', `GramJS getMessages: chatId=${chatId} limit=${limit}`);
     const msgs = await client.getMessages(entity, { limit });
+    _logSilent('DEBUG', `GramJS getMessages: got ${msgs.length} messages for ${chatId}`);
     const chatName = chatMap.get(chatId)?.name || chatId;
     for (const msg of msgs) processMessage(msg, chatId, chatName, 'fetchMessages');
   } catch (e) { console.error(`[ERROR] fetchMessages(${chatId}):`, e.message); }
@@ -871,6 +901,7 @@ setInterval(async () => {
       client.getMe(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('ping timeout')), 10000)),
     ]);
+    _logSilent('INFO', `GramJS Keep-alive OK — connected chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
   } catch (e) {
     if (status !== 'connected') return; // zwischenzeitlich geändert
     console.warn('[WARN] Keep-alive fehlgeschlagen (%s) — reconnecting…', e.message);
@@ -932,6 +963,11 @@ function enforceMediaLimit() {
   }
   console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
 }
+
+app.get('/api/logs', (req, res) => {
+  const since = parseInt(req.query.since || '0', 10);
+  res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
+});
 
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
@@ -1416,7 +1452,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 
 <div id="topbar">
   <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <h1>Telegram</h1>
+  <h1 ondblclick="tgConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">Telegram</h1>
   <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
@@ -2475,6 +2511,66 @@ applyLang();
     </div>
   </div>
 </div>
+  <style>
+    #tg-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}
+    #tg-console.open{display:flex;}
+    #tg-console-header{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:#161b22;border-bottom:1px solid #30363d;flex-shrink:0;cursor:move;user-select:none;border-radius:7px 7px 0 0;}
+    #tg-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
+    #tg-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
+    #tg-console-close:hover{color:#f85149;}
+    #tg-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
+    #tg-console-body::-webkit-scrollbar{width:5px;}#tg-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
+    .tgc-info{color:#3fb950;}.tgc-warn{color:#d29922;}.tgc-error{color:#f85149;}.tgc-debug{color:#6e7681;}
+    @media(max-width:767px){#tg-console{display:none!important;}}
+  </style>
+  <div id="tg-console">
+    <div id="tg-console-header">
+      <span id="tg-console-title">⬛ CONSOLE — Telegram · GramJS</span>
+      <button id="tg-console-close" onclick="tgConsoleToggle()">✕</button>
+    </div>
+    <div id="tg-console-body"></div>
+  </div>
+  <script>
+    (function(){
+      var _open=false,_lastTs=0,_timer=null;
+      var panel=document.getElementById('tg-console');
+      var header=document.getElementById('tg-console-header');
+      var body=document.getElementById('tg-console-body');
+      var _dx=0,_dy=0,_drag=false;
+      header.addEventListener('mousedown',function(e){
+        if(e.target.id==='tg-console-close')return;
+        _drag=true;_dx=e.clientX-panel.offsetLeft;_dy=e.clientY-panel.offsetTop;e.preventDefault();
+      });
+      document.addEventListener('mousemove',function(e){
+        if(!_drag)return;
+        panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth))+'px';
+        panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight))+'px';
+        panel.style.right='auto';panel.style.bottom='auto';
+      });
+      document.addEventListener('mouseup',function(){_drag=false;});
+      function tgConsoleToggle(){
+        if(window.innerWidth<768)return;
+        _open=!_open;panel.classList.toggle('open',_open);
+        if(_open){_poll();_timer=setInterval(_poll,2000);}
+        else{clearInterval(_timer);_timer=null;}
+      }
+      window.tgConsoleToggle=tgConsoleToggle;
+      function _cls(l){return l==='WARN'?'tgc-warn':l==='ERROR'?'tgc-error':l==='DEBUG'?'tgc-debug':'tgc-info';}
+      async function _poll(){
+        try{
+          var entries=await fetch(api('/api/logs')+'?since='+_lastTs).then(function(r){return r.json();});
+          if(!entries.length)return;
+          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+          entries.forEach(function(e){
+            _lastTs=Math.max(_lastTs,e.ts);
+            var line=document.createElement('div');line.className=_cls(e.level);line.textContent=e.msg;body.appendChild(line);
+          });
+          if(atBottom)body.scrollTop=body.scrollHeight;
+          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+        }catch(e){}
+      }
+    })();
+  </script>
 </body>
 </html>`;
 }

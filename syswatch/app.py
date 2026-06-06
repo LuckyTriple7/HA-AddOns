@@ -24,6 +24,26 @@ logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=lo
 log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
+# In-App Console: Log-Buffer (max 300 Einträge)
+_log_buffer: deque = deque(maxlen=300)
+
+class _BufferHandler(logging.Handler):
+    _fmt = logging.Formatter('[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    def emit(self, record):
+        try:
+            _log_buffer.append({'ts': int(record.created * 1000), 'level': record.levelname, 'msg': self._fmt.format(record)})
+        except Exception:
+            pass
+
+_buf_h = _BufferHandler()
+_buf_h.setLevel(logging.DEBUG)
+_root = logging.getLogger()
+_root.setLevel(logging.DEBUG)
+for _h in _root.handlers:
+    if _h.level == logging.NOTSET:
+        _h.setLevel(logging.INFO)
+_root.addHandler(_buf_h)
+
 app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
@@ -1293,6 +1313,13 @@ def sw():
 @app.route('/health')
 def health():
     return 'ok', 200
+
+
+@app.route('/api/logs')
+def api_console_logs():
+    since = int(request.args.get('since', 0))
+    entries = [e for e in _log_buffer if e['ts'] > since]
+    return jsonify(entries)
 
 
 @app.route('/')

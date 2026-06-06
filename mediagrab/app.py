@@ -24,6 +24,30 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
+# In-App Console: Log-Buffer (max 300 Einträge)
+from collections import deque as _deque
+_log_buffer: _deque = _deque(maxlen=300)
+
+class _BufferHandler(logging.Handler):
+    _fmt = logging.Formatter('[%(levelname)s] [%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    def emit(self, record):
+        try:
+            _log_buffer.append({'ts': int(record.created * 1000), 'level': record.levelname, 'msg': self._fmt.format(record)})
+        except Exception:
+            pass
+
+_buf_h = _BufferHandler()
+_buf_h.setLevel(logging.DEBUG)
+# Root-Level auf DEBUG damit Debug-Records Handler erreichen können —
+# bestehender StreamHandler (HA Log) wird explizit auf INFO gesetzt,
+# sodass nur _buf_h die DEBUG-Meldungen sieht.
+_root = logging.getLogger()
+_root.setLevel(logging.DEBUG)
+for _h in _root.handlers:
+    if _h.level == logging.NOTSET:
+        _h.setLevel(logging.INFO)
+_root.addHandler(_buf_h)
+
 app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
@@ -326,6 +350,7 @@ def _run_download(job_id: str) -> None:
                     continue
                 line = line.rstrip()
                 output_lines.append(line)
+                log.debug('[yt-dlp] %s', line)
                 if get_config().get('verbose_log'):
                     log.info('[yt-dlp] %s', line)
 
@@ -548,6 +573,13 @@ def share():
 @app.route('/health')
 def health():
     return 'ok'
+
+
+@app.route('/api/logs')
+def api_logs():
+    since = int(request.args.get('since', 0))
+    entries = [e for e in _log_buffer if e['ts'] > since]
+    return jsonify(entries)
 
 def _get_ytdlp_version() -> str:
     now = time.time()
@@ -890,8 +922,6 @@ def api_file_platform(filename):
         return jsonify({'error': 'unauthorized'}), 401
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    if platform and platform not in PLATFORMS:
-        return jsonify({'error': 'invalid_platform'}), 400
     p = (MEDIA_DIR / filename).resolve()
     try:
         p.relative_to(MEDIA_DIR.resolve())

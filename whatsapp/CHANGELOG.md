@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.7.0] - 2026-06-06
+### Added
+- Standort empfangen (📍 Google-Maps-Link) und senden (📍-Button mit GPS-Abfrage oder manueller Lat/Lng/Name-Eingabe)
+- Video-Support: Auto-Download bis video_max_mb (Standard 50 MB), On-Demand-Download per Klick auf Platzhalter, 🗑️-Button löscht Datei; neue Option `video_max_mb`
+- Profilbilder als echte Avatare (lazy-load, 1h-Cache); Klick → Kontaktinfo-Modal mit Foto, Name, Nummer, About
+- Multi-Select-Löschmodus: ✕-Button in der Toolbar, Nachrichten markieren, Batch-Löschen mit Bestätigungsdialog
+- Dark/Light-Mode-Toggle (☀️/🌙) im Header, wird in localStorage gespeichert
+- In-App Console: Doppelklick auf „WhatsApp" öffnet draggbares Floating-Window mit farbkodierten Logs (DEBUG/INFO/WARN/ERROR); stille Debug-Logs für API-Requests, Medien-Downloads und Events
+- Option `media_max_mb` (Standard 500 MB): älteste Mediendateien werden automatisch gelöscht bei Überschreitung; Speicher-Tooltip auf 💾 zeigt Limit und Auslastung
+### Improved
+- HTML-Export vollständig lokalisiert (DE/EN); Sprachnachrichten als 🎵-Platzhalter
+- Sprachnachrichten zuverlässig: MIME-Type-Fix (ogg), Auto-Download beim Start, min-width für Audio-Player
+
+## [1.6.48] - 2026-06-06
+- Revert: Filter/Export-Versuche zurückgesetzt, Console auf stabilem v1.6.39-Stand
+
+## [1.6.39] - 2026-06-06
+- Fix: Console als frei draggbares Floating-Window (560×340px, resize:both) statt festem Bottom-Panel — blockiert Sendeleiste nicht mehr; Header ziehen zum Verschieben
+
+## [1.6.38] - 2026-06-06
+- Fix: Console-Shortcut Ctrl+Shift+L → Doppelklick auf "WhatsApp" im Header
+
+## [1.6.37] - 2026-06-06
+- Neu: Stille Debug-Logs nur in der In-App Console (nicht im HA-Log): alle API-Requests mit Antwortzeit, eingehende Nachrichten mit Typ+Preview, message_ack (sent/received/read/played), call/group_join/group_leave/contact_changed Events, downloadWAMedia Start+Dauer+Größe, Keep-alive OK alle 10 Min
+
+## [1.6.36] - 2026-06-06
+- Neu: In-App Console — Ctrl+Shift+L öffnet/schließt Log-Panel (nur Desktop); zeigt alle server-seitigen Log-Meldungen farbkodiert (INFO grün / WARN gelb / ERROR rot / DEBUG grau); GET /api/logs?since= Endpoint mit Circular Buffer (300 Einträge)
+
+## [1.6.35] - 2026-06-06
+- Fix: Medien-Log-Meldung auf Englisch (photo/voice message/video on disk)
+
+## [1.6.34] - 2026-06-06
+- Fix: Unhandled rejection 'no pic' — promise.finally() durch .then(del,del) ersetzt (Avatar-Endpoint)
+- Neu: Startup-Log zeigt Medien-Breakdown: X Foto(s), Y Sprachnachricht(en), Z Video(s) auf Disk
+
 ## [1.6.33] - 2026-06-06
 - Fix: type-Feld fehlte in lastReceivedMsg beim Startup-Init; preview für location/video/voice fehlte im Init und Runtime
 

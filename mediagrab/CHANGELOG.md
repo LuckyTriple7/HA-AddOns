@@ -1,5 +1,41 @@
 # Changelog — MediaGrab
 
+## [1.0.0] — 2026-06-06
+### First Stable Release
+- **Platform-Tags**: automatische Erkennung (YouTube, TikTok, Instagram, X, Vimeo, SoundCloud, Twitch, Reddit, Dailymotion) + manuell zuweisbar per Klick; eigene Plattformnamen per Freitexteingabe möglich; Plattform-Filter in der Dateiliste
+- **Custom-Tags**: freier Texttag pro Datei (gelb); Schnellauswahl aus vorhandenen Tags; unabhängig vom Plattform-Tag
+- **Dateikonflikt-Handling**: neue Datei bekommt Zeitstempel-Suffix (`Video_20260606_123456.mp4`), bestehende Datei bleibt unverändert (Tags/Metadaten erhalten)
+- **yt-dlp Update-Button**: prüft PyPI auf neue Version vor dem Update; zeigt „Bereits aktuell" wenn keine neuere Version vorhanden
+- **PWA Share Format-Picker**: beim Teilen via PWA erscheint Bottom-Sheet mit 7 Format-Buttons statt sofortigem Download
+- **In-App Console**: Doppelklick auf „MediaGrab" öffnet draggbares Floating-Window mit yt-dlp-Logs
+- Sonderzeichen (Apostrophe etc.) in Dateinamen brechen keine onclick-Handler mehr (escJs-Fix)
+
+## [0.4.1] — 2026-06-06
+### Fixed
+- Plattform-Picker: Backend lehnte eigene Plattformnamen mit "invalid_platform" ab — Validierung gegen feste Liste entfernt
+
+## [0.4.0] — 2026-06-06
+### Added
+- Plattform-Picker: Texteingabe für eigene Plattformnamen unterhalb der vordefinierten Buttons — analog zum Custom-Tag-Popup; vorhandener Custom-Wert wird beim Öffnen vorausgefüllt
+
+## [0.3.9] — 2026-06-06
+### Added
+- PWA Share: Format-Picker Modal erscheint beim Teilen eines Links — 7 Buttons (Bestes Video, 1080p–360p, MP3, M4A); kein automatischer Download mehr direkt nach dem Teilen
+
+## [0.3.8] — 2026-06-06
+### Changed
+- DE: Download-Button heißt jetzt "Download" statt "Herunterladen"
+
+## [0.3.7] — 2026-06-06
+### Fixed
+- Apostroph/Sonderzeichen in Dateinamen (z.B. "What's up.mp4") brachen alle onclick-Handler (Play, Delete, Tags) lautlos — escJs() Funktion ergänzt die ' und \ für JS-String-Kontext escaped
+
+## [0.3.6] — 2026-06-06
+- Fix: Nur INFO-Logs in Console — Root-StreamHandler auf INFO gesetzt, Root-Logger auf DEBUG; _buf_h (DEBUG) sieht alle Level, HA-Log bleibt bei INFO+. yt-dlp Zeilen immer als DEBUG in Buffer (unabhängig von verbose_log)
+
+## [0.3.5] — 2026-06-06
+- Neu: In-App Console (Doppelklick auf "MediaGrab") — draggbares Floating-Window; Python _BufferHandler erfasst alle Log-Aufrufe inkl. yt-dlp Output-Zeilen; GET /api/logs?since=; localStorage-Persistenz
+
 ## [0.3.4] — 2026-06-05
 ### Fixed
 - Dateikonflikt: die NEUE Datei bekommt den Zeitstempel (Video_20260605_165031.mp4), die bestehende Datei bleibt unverändert — Tags/Plattform-Metadaten der Originaldatei bleiben erhalten

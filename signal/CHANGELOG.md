@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0] - 2026-06-06
+### Added
+- Sprachnachrichten: Download als .ogg, abspielbarer Audio-Player im Chat (erfordert `download_media: true`)
+- Nachrichten weiterleiten (↪ Forward-Modal mit Suchfeld) und beantworten (↩ via Signal quote-API)
+- Bilder aus der Zwischenablage einfügen (Strg+V / Cmd+V)
+- Dark/Light-Mode-Toggle (☀️/🌙) im Header
+- Option `media_max_mb` (Standard 500 MB): älteste Mediendateien werden automatisch gelöscht; Speicher-Tooltip auf 💾
+- In-App Console: Doppelklick auf „Signal" öffnet draggbares Floating-Window mit signal-cli-Debug-Logs
+### Improved
+- HTML-Export vollständig lokalisiert (DE/EN); Sprachnachrichten als 🎵-Platzhalter
+- Vom Handy gesendete Nachrichten/Bilder werden korrekt im Chat angezeigt (SyncMessage-Handling)
+
+## [1.5.20] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "Signal") — draggbares Floating-Window mit signal-cli-spezifischen Debug-Logs: alle API-Requests, /v1/receive Poll-Ergebnisse, processEnvelope mit Typ+Preview, downloadAttachment mit KB/ms, Keep-alive OK alle ~90s
+
 ## [1.5.19] - 2026-06-06
 - Neu: ☀️/🌙-Button neben "Signal" zum Umschalten Dark/Light Mode; Auswahl per localStorage (signal_theme) gespeichert
 
