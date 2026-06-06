@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.51] - 2026-06-06
+- Neu: In-App Console (Doppelklick auf "Telegram") — draggbares Floating-Window mit GramJS-spezifischen Debug-Logs: alle API-Requests, processMessage, getMessages, downloadMedia (KB/ms), Keep-alive OK, stille Logs nur in Console (nicht im HA-Log)
+
 ## [1.5.50] - 2026-06-06
 - Fix: type-Feld fehlte in lastReceivedMsg beim Startup-Init — video/voice/photo werden jetzt korrekt übergeben
 
