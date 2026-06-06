@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.41] - 2026-06-06
+- Fix: Bubble verschiebt sich beim Hover — Buttons nutzen jetzt opacity statt display:none, belegen immer Platz
+- Neu: Album-Fotos (gleiche groupedId) werden als Foto-Grid (140×140 px) in einer Bubble dargestellt statt gestapelt
+
 ## [1.5.40] - 2026-06-06
 - Neu: Multi-Select-Löschmodus — ✕-Button in der Toolbar, Nachrichten anklicken zum Markieren (rote Hervorhebung), 🗑️-Button löscht alle markierten mit Bestätigungsdialog (DE/EN); Escape oder Chat-Wechsel bricht Modus ab
 
