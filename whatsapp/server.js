@@ -1336,6 +1336,12 @@ app.get('/', (req, res) => {
     #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
+    #delete-mode-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; transition: color 0.15s, border-color 0.15s; }
+    #delete-mode-btn:hover { border-color: #f15c5c; color: #f15c5c; }
+    #delete-mode-btn.active { border-color: #f15c5c; color: #f15c5c; }
+    #messages.delete-mode .bubble-wrap { cursor: pointer; }
+    #messages.delete-mode .del-btn, #messages.delete-mode .react-btn, #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn { display: none !important; }
+    .bubble-wrap.selected .bubble { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 8px; }
     #spam-modal, #logout-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
     #spam-modal.open, #logout-modal.open { display:flex; }
     .spam-modal-box { background:#202c33; border-radius:12px; padding:24px; max-width:360px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
@@ -1632,7 +1638,8 @@ app.get('/', (req, res) => {
           <div id="ch-stats"></div>
         </div>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
-        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🗑️</button>
+        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🚮</button>
+        <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="reply-bar">
@@ -1731,7 +1738,8 @@ app.get('/', (req, res) => {
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück',
-        ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🗑️ Spam löschen',
+        ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🚮 Spam löschen',
+        deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
@@ -1764,7 +1772,8 @@ app.get('/', (req, res) => {
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back',
-        ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🗑️ Delete Spam',
+        ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🚮 Delete Spam',
+        deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
         btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
@@ -1858,6 +1867,39 @@ app.get('/', (req, res) => {
     let currentStatus = '';
     let selectedChatId = null;
     let selectedChatPhone = null;
+    let isDeleteMode = false;
+    const selectedMsgs = new Set();
+    function toggleDeleteMode() {
+      if (!isDeleteMode) { enterDeleteMode(); return; }
+      if (selectedMsgs.size > 0) confirmDeleteSelected(); else exitDeleteMode();
+    }
+    function enterDeleteMode() {
+      isDeleteMode = true; selectedMsgs.clear(); updateDeleteBtn();
+      document.getElementById('messages').classList.add('delete-mode');
+    }
+    function exitDeleteMode() {
+      isDeleteMode = false; selectedMsgs.clear();
+      document.querySelectorAll('#messages .bubble-wrap.selected').forEach(function(w){ w.classList.remove('selected'); });
+      updateDeleteBtn();
+      document.getElementById('messages').classList.remove('delete-mode');
+    }
+    function updateDeleteBtn() {
+      var btn = document.getElementById('delete-mode-btn');
+      if (!btn) return;
+      var n = selectedMsgs.size;
+      if (!isDeleteMode) { btn.textContent = '✕'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
+      else if (n === 0) { btn.textContent = '✕'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
+      else { btn.textContent = '🗑️'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
+    }
+    async function confirmDeleteSelected() {
+      var n = selectedMsgs.size;
+      if (!confirm(tf('deleteConfirm', n))) return;
+      var chatId = selectedChatId;
+      var ids = Array.from(selectedMsgs);
+      exitDeleteMode();
+      await Promise.all(ids.map(function(id){ return fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(id), {method:'DELETE'}); }));
+      await reloadMessages(chatId);
+    }
     let lastMsgTime = {};
     let allChats = [];
     let lastSeenTime = {};
@@ -2082,6 +2124,7 @@ app.get('/', (req, res) => {
     function filterChats() { renderChatList(allChats); }
 
     async function openChat(chat) {
+      exitDeleteMode();
       clearReply();
       selectedChatId = chat.id;
       selectedChatPhone = chat.phone;
@@ -2623,6 +2666,16 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
     msgList.addEventListener('click', e => {
+      if (isDeleteMode) {
+        var wrap = e.target.closest('.bubble-wrap');
+        if (wrap && wrap.dataset.msgid) {
+          var id = wrap.dataset.msgid;
+          if (selectedMsgs.has(id)) { selectedMsgs.delete(id); wrap.classList.remove('selected'); }
+          else { selectedMsgs.add(id); wrap.classList.add('selected'); }
+          updateDeleteBtn();
+        }
+        return;
+      }
       const del = e.target.closest('.del-btn');
       if (del) { deleteMsg(selectedChatId, del.dataset.msgid); return; }
       const react = e.target.closest('.react-btn');
@@ -2734,6 +2787,7 @@ app.get('/', (req, res) => {
     lbImg.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
+        if (isDeleteMode) { exitDeleteMode(); return; }
         lightbox.classList.remove('open');
         document.getElementById('contact-modal')?.classList.remove('open');
       }
