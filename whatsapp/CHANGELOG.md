@@ -1,28 +1,7 @@
 # Changelog
 
-## [1.6.47] - 2026-06-06
-- Fix: Filter/Export Toolbar wird beim ersten Öffnen der Console hinzugefügt (waConsoleToggle gewrappt) — Element ist dann garantiert sichtbar; zweite Zeile im Header via flex-wrap
-
-## [1.6.46] - 2026-06-06
-- Fix: Buttons in sichtbaren Header verschoben statt in separaten Toolbar-div — insertBefore(btn, closeBtn) in bestehendem Header-Element
-
-## [1.6.45] - 2026-06-06
-- Fix: Filter/Export-Buttons unsichtbar — CSS-Klassen griffen nicht; alle Styles jetzt als inline style-Attribute direkt auf Elementen
-
-## [1.6.44] - 2026-06-06
-- Console: Filter (ALL/DBG/INFO/WARN/ERR) + Export (⬇ .txt) als separater Script-Block — bestehender Toggle-Code unverändert, MutationObserver setzt data-level auf neue Zeilen
-
-## [1.6.43] - 2026-06-06
-- Revert: Console auf stabilen v1.6.39-Stand zurückgesetzt (Filter/Export vorerst entfernt)
-
-## [1.6.42] - 2026-06-06
-- Fix (3. Versuch): Console-Code auf exakten v1.6.39-Stand zurückgesetzt; Filter/Export ohne separaten Toolbar-div — Buttons direkt im Header, alle Events via addEventListener (kein inline onclick auf neuen Elementen)
-
-## [1.6.41] - 2026-06-06
-- Fix: Console öffnete sich nicht mehr — wcFilter/wcExport nicht global exponiert; body-Variable umbenannt zu _cb (Konflikt mit document.body); alle Funktionen direkt auf window gesetzt
-
-## [1.6.40] - 2026-06-06
-- Console: Log-Level-Filter (ALL/DBG/INFO/WARN/ERR) + Export-Button (⬇ .txt-Download aller sichtbaren Zeilen)
+## [1.6.48] - 2026-06-06
+- Revert: Filter/Export-Versuche zurückgesetzt, Console auf stabilem v1.6.39-Stand
 
 ## [1.6.39] - 2026-06-06
 - Fix: Console als frei draggbares Floating-Window (560×340px, resize:both) statt festem Bottom-Panel — blockiert Sendeleiste nicht mehr; Header ziehen zum Verschieben
