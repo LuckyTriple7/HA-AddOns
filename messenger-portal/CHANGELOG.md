@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.9] - 2026-06-06
+- Fix: TYPE_ICONS ergänzt um video (📹) und location (📍) — wurden bisher ohne Icon angezeigt
+
 ## [1.1.8] - 2026-06-05
 - feat: Nachrichtentyp-Icon in Übersicht (💬 text, 🖼️ photo, 📄 document, 🎙️ voice)
 
