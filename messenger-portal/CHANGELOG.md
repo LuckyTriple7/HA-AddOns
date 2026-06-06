@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.1.12] - 2026-06-06
+- Fix: Console-Fenster erschien kurz und verschwand sofort — Doppelklick auf Span innerhalb <a href="/"> löste Seitennavigation aus; event.preventDefault() + stopPropagation() hinzugefügt
+
 ## [1.1.11] - 2026-06-06
 - Fix: Jinja2 TemplateSyntaxError — @media(){#...} wurde als Kommentar-Anfang interpretiert; Leerzeichen nach { eingefügt
 
