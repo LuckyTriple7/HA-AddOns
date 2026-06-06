@@ -1312,7 +1312,7 @@ def health():
 
 
 @app.route('/api/logs')
-def api_logs():
+def api_console_logs():
     since = int(request.args.get('since', 0))
     entries = [e for e in _log_buffer if e['ts'] > since]
     return jsonify(entries)
