@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.3.7] — 2026-06-06
+### Fixed
+- Apostroph/Sonderzeichen in Dateinamen (z.B. "What's up.mp4") brachen alle onclick-Handler (Play, Delete, Tags) lautlos — escJs() Funktion ergänzt die ' und \ für JS-String-Kontext escaped
+
 ## [0.3.6] — 2026-06-06
 - Fix: Nur INFO-Logs in Console — Root-StreamHandler auf INFO gesetzt, Root-Logger auf DEBUG; _buf_h (DEBUG) sieht alle Level, HA-Log bleibt bei INFO+. yt-dlp Zeilen immer als DEBUG in Buffer (unabhängig von verbose_log)
 

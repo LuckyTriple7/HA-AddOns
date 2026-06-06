@@ -365,6 +365,7 @@
     }
     function fmtDate(ts) { return new Date(ts*1000).toLocaleString(); }
     function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
     function errMsg(key) { return T[key] || key; }
 
     // ── Download ──────────────────────────────────────────────────────────────
@@ -709,17 +710,17 @@
             <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
             <div class="file-meta">
               ${f.platform
-                ? `<span class="file-platform" onclick="openPlatformPicker(event,'${esc(f.name)}','${esc(f.platform)}')">${esc(f.platform)}</span>`
-                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')" title="Plattform zuweisen">＋</button>`}
+                ? `<span class="file-platform" onclick="openPlatformPicker(event,'${escJs(f.name)}','${escJs(f.platform)}')">${esc(f.platform)}</span>`
+                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${escJs(f.name)}','')" title="Plattform zuweisen">＋</button>`}
               ${f.tag
-                ? `<span class="file-custom-tag" onclick="openTagEditor(event,'${esc(f.name)}','${esc(f.tag)}')">${esc(f.tag)}</span>`
-                : `<button class="file-tag-btn custom" onclick="openTagEditor(event,'${esc(f.name)}','')" title="Custom Tag zuweisen">${esc(T.tag_add)}</button>`}
+                ? `<span class="file-custom-tag" onclick="openTagEditor(event,'${escJs(f.name)}','${escJs(f.tag)}')">${esc(f.tag)}</span>`
+                : `<button class="file-tag-btn custom" onclick="openTagEditor(event,'${escJs(f.name)}','')" title="Custom Tag zuweisen">${esc(T.tag_add)}</button>`}
               <span class="file-size">${fmtSize(f.size)}</span>
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">
-                ${isPlayable(f) ? `<button class="sm-btn" onclick="playFile('${esc(f.name)}')">▶</button>` : ''}
+                ${isPlayable(f) ? `<button class="sm-btn" onclick="playFile('${escJs(f.name)}')">▶</button>` : ''}
                 <a class="sm-btn" href="/files/${encodeURIComponent(f.name)}" download>${esc(T.btn_download_file)}</a>
-                <button class="sm-btn danger" onclick="deleteFile('${esc(f.name)}')">${esc(T.btn_delete)}</button>
+                <button class="sm-btn danger" onclick="deleteFile('${escJs(f.name)}')">${esc(T.btn_delete)}</button>
               </div>
             </div>
           </div>
