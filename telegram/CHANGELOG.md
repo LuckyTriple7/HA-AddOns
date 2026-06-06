@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.46] - 2026-06-06
+- Fix: Weitergeleitete Nachricht sofort sichtbar (2. Versuch) — TypeUpdates korrekt ausgewertet (UpdateNewMessage.message extrahiert), processMessage() danach, Client loadMessages()
+
 ## [1.5.45] - 2026-06-06
 - Neu: ☀️/🌙-Button neben "Telegram" zum Umschalten Dark/Light Mode; Auswahl per localStorage (tg_theme) gespeichert
 
