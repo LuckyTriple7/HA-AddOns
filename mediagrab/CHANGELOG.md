@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.4.0] — 2026-06-06
+### Added
+- Plattform-Picker: Texteingabe für eigene Plattformnamen unterhalb der vordefinierten Buttons — analog zum Custom-Tag-Popup; vorhandener Custom-Wert wird beim Öffnen vorausgefüllt
+
 ## [0.3.9] — 2026-06-06
 ### Added
 - PWA Share: Format-Picker Modal erscheint beim Teilen eines Links — 7 Buttons (Bestes Video, 1080p–360p, MP3, M4A); kein automatischer Download mehr direkt nach dem Teilen

@@ -130,6 +130,12 @@
     .plat-popup .pp-opt:hover, .plat-popup .pp-opt.active { border-color:var(--accent); background:var(--accent); color:#fff; }
     .plat-popup .pp-remove { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--red); background:var(--surf2); color:var(--red); cursor:pointer; font-weight:500; width:100%; text-align:center; }
     .plat-popup .pp-remove:hover { background:var(--red); color:#fff; }
+    .plat-popup .pp-divider { width:100%; border:none; border-top:1px solid var(--border); margin:4px 0; }
+    .plat-popup .pp-row { display:flex; gap:6px; width:100%; }
+    .plat-popup .pp-input { flex:1; padding:5px 8px; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; font-size:.82rem; outline:none; min-width:0; }
+    .plat-popup .pp-input:focus { border-color:var(--accent); }
+    .plat-popup .pp-save { padding:5px 10px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:.82rem; font-weight:600; white-space:nowrap; }
+    .plat-popup .pp-save:hover { opacity:.85; }
     .tag-popup { position:fixed; z-index:9999; background:var(--surf); border:1px solid var(--yellow); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.55); padding:10px; display:flex; flex-direction:column; gap:6px; min-width:200px; max-width:300px; }
     .tag-popup .tp-opts { display:flex; flex-wrap:wrap; gap:5px; }
     .tag-popup .tp-opt { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--yellow); background:var(--surf2); color:var(--yellow); cursor:pointer; font-weight:500; }
@@ -598,6 +604,26 @@
         btn.onclick = (e) => { e.stopPropagation(); savePlatform(filename, p); };
         popup.appendChild(btn);
       });
+      // custom input row
+      const divider = document.createElement('hr');
+      divider.className = 'pp-divider';
+      popup.appendChild(divider);
+      const row = document.createElement('div');
+      row.className = 'pp-row';
+      const inp = document.createElement('input');
+      inp.className = 'pp-input';
+      inp.type = 'text';
+      inp.placeholder = T.tag_placeholder;
+      if (current && !_PLATFORMS.includes(current)) { inp.value = current; }
+      inp.onclick = e => e.stopPropagation();
+      inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const v = inp.value.trim(); if (v) savePlatform(filename, v); } };
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'pp-save';
+      saveBtn.textContent = '✓';
+      saveBtn.onclick = e => { e.stopPropagation(); const v = inp.value.trim(); if (v) savePlatform(filename, v); };
+      row.appendChild(inp); row.appendChild(saveBtn);
+      popup.appendChild(row);
+
       if (current) {
         const rem = document.createElement('button');
         rem.className = 'pp-remove';
@@ -607,10 +633,10 @@
       }
       const rect = evt.target.getBoundingClientRect();
       popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
-      popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 270) + 'px';
+      popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 280) + 'px';
       document.body.appendChild(popup);
       _platPopup = popup;
-      setTimeout(() => document.addEventListener('click', closePlatformPicker, {once:true}), 0);
+      setTimeout(() => { inp.focus(); if (inp.value) inp.select(); document.addEventListener('click', closePlatformPicker, {once:true}); }, 0);
     }
 
     function closePlatformPicker() {
