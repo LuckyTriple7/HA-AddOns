@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0] - 2026-06-06
+### Added
+- Standort empfangen (📍 Google-Maps-Link) und senden (📍-Button mit GPS-Abfrage oder manueller Lat/Lng/Name-Eingabe)
+- Video-Support: Auto-Download bis video_max_mb (Standard 50 MB), On-Demand-Download per Klick auf Platzhalter, 🗑️-Button löscht Datei; neue Option `video_max_mb`
+- Profilbilder als echte Avatare (lazy-load, 1h-Cache); Klick → Kontaktinfo-Modal mit Foto, Name, Nummer, About
+- Multi-Select-Löschmodus: ✕-Button in der Toolbar, Nachrichten markieren, Batch-Löschen mit Bestätigungsdialog
+- Dark/Light-Mode-Toggle (☀️/🌙) im Header, wird in localStorage gespeichert
+- In-App Console: Doppelklick auf „WhatsApp" öffnet draggbares Floating-Window mit farbkodierten Logs (DEBUG/INFO/WARN/ERROR); stille Debug-Logs für API-Requests, Medien-Downloads und Events
+- Option `media_max_mb` (Standard 500 MB): älteste Mediendateien werden automatisch gelöscht bei Überschreitung; Speicher-Tooltip auf 💾 zeigt Limit und Auslastung
+### Improved
+- HTML-Export vollständig lokalisiert (DE/EN); Sprachnachrichten als 🎵-Platzhalter
+- Sprachnachrichten zuverlässig: MIME-Type-Fix (ogg), Auto-Download beim Start, min-width für Audio-Player
+
 ## [1.6.48] - 2026-06-06
 - Revert: Filter/Export-Versuche zurückgesetzt, Console auf stabilem v1.6.39-Stand
 

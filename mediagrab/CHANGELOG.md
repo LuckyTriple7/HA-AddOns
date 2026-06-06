@@ -1,5 +1,15 @@
 # Changelog — MediaGrab
 
+## [1.0.0] — 2026-06-06
+### First Stable Release
+- **Platform-Tags**: automatische Erkennung (YouTube, TikTok, Instagram, X, Vimeo, SoundCloud, Twitch, Reddit, Dailymotion) + manuell zuweisbar per Klick; eigene Plattformnamen per Freitexteingabe möglich; Plattform-Filter in der Dateiliste
+- **Custom-Tags**: freier Texttag pro Datei (gelb); Schnellauswahl aus vorhandenen Tags; unabhängig vom Plattform-Tag
+- **Dateikonflikt-Handling**: neue Datei bekommt Zeitstempel-Suffix (`Video_20260606_123456.mp4`), bestehende Datei bleibt unverändert (Tags/Metadaten erhalten)
+- **yt-dlp Update-Button**: prüft PyPI auf neue Version vor dem Update; zeigt „Bereits aktuell" wenn keine neuere Version vorhanden
+- **PWA Share Format-Picker**: beim Teilen via PWA erscheint Bottom-Sheet mit 7 Format-Buttons statt sofortigem Download
+- **In-App Console**: Doppelklick auf „MediaGrab" öffnet draggbares Floating-Window mit yt-dlp-Logs
+- Sonderzeichen (Apostrophe etc.) in Dateinamen brechen keine onclick-Handler mehr (escJs-Fix)
+
 ## [0.4.1] — 2026-06-06
 ### Fixed
 - Plattform-Picker: Backend lehnte eigene Plattformnamen mit "invalid_platform" ab — Validierung gegen feste Liste entfernt

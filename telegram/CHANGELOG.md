@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0] - 2026-06-06
+### Added
+- Sprachnachrichten: Download als .ogg, abspielbarer Audio-Player im Chat (erfordert `download_media: true`)
+- Video-Support: Auto-Download bei Neueingängen, On-Demand per Klick auf 📹-Platzhalter, 🗑️-Button, Optionen `video_max_mb` + `media_max_mb`
+- Album-Fotos (gleiche groupedId) als kompaktes Foto-Grid (140×140 px) in einer Bubble
+- Profilbilder als echte Avatare (auch für Gruppen, Kanäle, Bots); Klick → Kontaktinfo-Modal mit Foto, Name, @username, Telefon, Bio
+- Nachrichten weiterleiten (↪ Forward-Modal mit Suchfeld) und beantworten (↩ Zitat-Block in der Bubble)
+- Multi-Select-Löschmodus: ✕-Button in der Toolbar, Batch-Löschen mit Bestätigungsdialog (DE/EN)
+- Dark/Light-Mode-Toggle (☀️/🌙) im Header
+- In-App Console: Doppelklick auf „Telegram" öffnet draggbares Floating-Window mit GramJS-Debug-Logs
+- Speicher-Tooltip auf 💾: Medienordner-Größe, Limit und % bis Auto-Delete
+### Improved
+- HTML-Export vollständig lokalisiert (DE/EN); Videos und Sprachnachrichten als Platzhalter
+- renderMessages nur bei geändertem Fingerprint → Video-Wiedergabe wird nicht mehr durch Poll unterbrochen
+
 ## [1.5.51] - 2026-06-06
 - Neu: In-App Console (Doppelklick auf "Telegram") — draggbares Floating-Window mit GramJS-spezifischen Debug-Logs: alle API-Requests, processMessage, getMessages, downloadMedia (KB/ms), Keep-alive OK, stille Logs nur in Console (nicht im HA-Log)
 

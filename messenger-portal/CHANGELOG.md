@@ -1,5 +1,14 @@
 # Changelog – MessengerPortal
 
+## [1.2.0] - 2026-06-06
+### Added
+- Nachrichtentyp-Icons in der Übersicht: 💬 Text, 🖼️ Foto, 📄 Dokument, 🎙️ Sprachnachricht, 📹 Video, 📍 Standort
+- Offline-Messenger: Karte ausgegraut, Hover deaktiviert, Klick blockiert
+- Status wird sofort aktualisiert wenn der Tab wieder in den Vordergrund kommt (visibilitychange)
+- In-App Console: Doppelklick auf „MessengerPortal" öffnet draggbares Floating-Window mit Backend-Logs
+### Improved
+- Browser-Benachrichtigungen robuster: Timing-Tracking per Timestamp, Benachrichtigung auch bei zweiter Nachricht im selben Messenger
+
 ## [1.1.15] - 2026-06-06
 - Fix: DEBUG-Logs in Console sichtbar — Root-StreamHandler auf INFO, Root-Logger auf DEBUG; DEBUG bleibt aus HA-Log heraus
 

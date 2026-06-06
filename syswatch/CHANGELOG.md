@@ -1,5 +1,14 @@
 # Changelog — HA SysWatch
 
+## [1.2.0] - 2026-06-06
+### Added
+- In-App Console: Doppelklick auf „HA SysWatch" öffnet draggbares Floating-Window mit Backend-Logs (Docker/Supervisor-Events)
+### Fixed
+- 24h-Verlaufscharts für CPU, RAM und Temperatur werden jetzt auch im Idle-Modus korrekt befüllt
+- Telegram-Benachrichtigungen (Container-Stop/CPU/RAM-Alarm) werden jetzt auch im Idle-Modus ausgelöst
+- Zeitachse im Chart: Labels aus tatsächlichem Datenbereich berechnet, aktuelle Uhrzeit am rechten Rand
+- Chart-Linienstärke reduziert (2.5px → 1px) für bessere Lesbarkeit bei 1440 Datenpunkten
+
 ## [1.1.6] - 2026-06-06
 
 - fix: Chart-Linie von 2.5px auf 1px reduziert — bei 1440 Datenpunkten überlappten die Segmente stark
