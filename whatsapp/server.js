@@ -375,14 +375,23 @@ client.on('ready', async () => {
     if (DOWNLOAD_MEDIA) {
       (async () => {
         const pending = [];
-        let cached = 0;
+        let cachedPhotos = 0, cachedVoice = 0, cachedVideo = 0;
         for (const [chatId, msgs] of messagesByChatId) {
-          for (const m of msgs.filter(m => m.type === 'photo' || m.type === 'voice')) {
-            if (m.mediaFile) cached++;
-            else pending.push({ chatId, m });
+          for (const m of msgs) {
+            if (m.type === 'photo' || m.type === 'voice') {
+              if (m.mediaFile) { if (m.type === 'photo') cachedPhotos++; else cachedVoice++; }
+              else pending.push({ chatId, m });
+            } else if (m.type === 'video' && m.mediaFile) { cachedVideo++; }
           }
         }
-        if (cached) console.log(`[INFO] ${cached} media file(s) already on disk — no download needed`);
+        const cachedTotal = cachedPhotos + cachedVoice + cachedVideo;
+        if (cachedTotal) {
+          const parts = [];
+          if (cachedPhotos) parts.push(cachedPhotos + ' Foto(s)');
+          if (cachedVoice)  parts.push(cachedVoice  + ' Sprachnachricht(en)');
+          if (cachedVideo)  parts.push(cachedVideo  + ' Video(s)');
+          console.log(`[INFO] ${cachedTotal} Mediendatei(en) auf Disk: ${parts.join(', ')}`);
+        }
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
         let count = 0;
@@ -1266,7 +1275,7 @@ app.get('/api/avatar/:chatId', async (req, res) => {
   })();
 
   avatarPending.set(chatId, promise);
-  promise.finally(() => avatarPending.delete(chatId));
+  promise.then(() => avatarPending.delete(chatId), () => avatarPending.delete(chatId));
 
   try {
     const buf = await promise;

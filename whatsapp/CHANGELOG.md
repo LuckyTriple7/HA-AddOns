@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.34] - 2026-06-06
+- Fix: Unhandled rejection 'no pic' — promise.finally() durch .then(del,del) ersetzt (Avatar-Endpoint)
+- Neu: Startup-Log zeigt Medien-Breakdown: X Foto(s), Y Sprachnachricht(en), Z Video(s) auf Disk
+
 ## [1.6.33] - 2026-06-06
 - Fix: type-Feld fehlte in lastReceivedMsg beim Startup-Init; preview für location/video/voice fehlte im Init und Runtime
 
