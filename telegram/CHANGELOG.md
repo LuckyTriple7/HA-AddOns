@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.40] - 2026-06-06
+- Neu: Multi-Select-Löschmodus — ✕-Button in der Toolbar, Nachrichten anklicken zum Markieren (rote Hervorhebung), 🗑️-Button löscht alle markierten mit Bestätigungsdialog (DE/EN); Escape oder Chat-Wechsel bricht Modus ab
+
 ## [1.5.39] - 2026-06-06
 - Neu: HTML-Export vollständig lokalisiert (DE/EN) — Datum, Uhrzeit, Labels und Platzhalter folgen der gewählten UI-Sprache
 

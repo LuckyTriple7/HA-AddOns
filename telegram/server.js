@@ -1242,11 +1242,12 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble-doc .doc-icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
 .bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
-.del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
-.bubble-row:hover .del-btn { display: block; }
-html.dark .del-btn { color: rgba(193,201,212,0.6); }
-html.light .del-btn { color: rgba(0,0,0,0.4); }
-.del-btn:hover { color: #e74c3c !important; }
+#delete-mode-btn { background: none; border: none; cursor: pointer; font-size: 17px; padding: 4px 6px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, color 0.15s; }
+#delete-mode-btn:hover { opacity: 1; }
+#delete-mode-btn.active { color: #e74c3c; opacity: 1; }
+#messages.delete-mode .bubble-row { cursor: pointer; }
+#messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { display: none !important; }
+.bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
 .fwd-btn, .reply-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .fwd-btn, .bubble-row:hover .reply-btn { display: block; }
 html.dark .fwd-btn, html.dark .reply-btn { color: rgba(193,201,212,0.5); }
@@ -1447,6 +1448,7 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="ch-stats"></div>
       </div>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
+      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
     </div>
     <div id="messages"></div>
     <div id="reply-bar">
@@ -1503,6 +1505,7 @@ const LANG = {
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
     emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
+    deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -1525,6 +1528,7 @@ const LANG = {
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
     emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file',
     btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
+    deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -1533,6 +1537,39 @@ const LANG = {
 };
 const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
 let lang = localStorage.getItem('tg_lang') || _browserLang;
+let isDeleteMode = false;
+const selectedMsgs = new Set();
+function toggleDeleteMode() {
+  if (!isDeleteMode) { enterDeleteMode(); return; }
+  if (selectedMsgs.size > 0) confirmDeleteSelected(); else exitDeleteMode();
+}
+function enterDeleteMode() {
+  isDeleteMode = true; selectedMsgs.clear(); updateDeleteBtn();
+  document.getElementById('messages').classList.add('delete-mode');
+}
+function exitDeleteMode() {
+  isDeleteMode = false; selectedMsgs.clear();
+  document.querySelectorAll('#messages .bubble-row.selected').forEach(function(r){ r.classList.remove('selected'); });
+  updateDeleteBtn();
+  document.getElementById('messages').classList.remove('delete-mode');
+}
+function updateDeleteBtn() {
+  var btn = document.getElementById('delete-mode-btn');
+  if (!btn) return;
+  var n = selectedMsgs.size;
+  if (!isDeleteMode) { btn.textContent = '✕'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
+  else if (n === 0) { btn.textContent = '✕'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
+  else { btn.textContent = '🗑️'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
+}
+async function confirmDeleteSelected() {
+  var n = selectedMsgs.size;
+  if (!confirm(tf('deleteConfirm', n))) return;
+  var chatId = selectedChatId;
+  var ids = Array.from(selectedMsgs);
+  exitDeleteMode();
+  await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
+  await loadMessages(chatId);
+}
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
 function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
@@ -1822,6 +1859,7 @@ function filterChats() { renderChats(allChats); }
 function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openChat(c); }
 
 function openChat(chat) {
+  exitDeleteMode();
   selectedChatId = chat.id;
   _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
@@ -1916,6 +1954,7 @@ async function updateChatStats(chatId) {
 }
 
 function renderMessages(msgs) {
+  if (isDeleteMode) return;
   const el = document.getElementById('messages');
   if (!msgs||!msgs.length) { el.innerHTML='<div style="text-align:center;padding:24px;opacity:0.5">'+t('noMessages')+'</div>'; return; }
   const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
@@ -1969,7 +2008,7 @@ function renderMessages(msgs) {
     const innerDiv = isVoice
       ? \`<div class="voice-wrap \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`
       : \`<div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`;
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
@@ -2170,8 +2209,16 @@ async function deleteMsg(chatId, msgId) {
   } catch(e) {}
 }
 document.getElementById('messages').addEventListener('click', e => {
-  const del = e.target.closest('.del-btn');
-  if (del) { const row = del.closest('.bubble-row'); if (row) deleteMsg(row.dataset.chatid, row.dataset.msgid); return; }
+  if (isDeleteMode) {
+    var row = e.target.closest('.bubble-row');
+    if (row && row.dataset.msgid) {
+      var id = row.dataset.msgid;
+      if (selectedMsgs.has(id)) { selectedMsgs.delete(id); row.classList.remove('selected'); }
+      else { selectedMsgs.add(id); row.classList.add('selected'); }
+      updateDeleteBtn();
+    }
+    return;
+  }
   const fwd = e.target.closest('.fwd-btn');
   if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
   const rpl = e.target.closest('.reply-btn');
@@ -2329,6 +2376,7 @@ applyLang();
   lbImg.addEventListener('click',e=>e.stopPropagation());
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'){
+      if(isDeleteMode){ exitDeleteMode(); return; }
       lb.classList.remove('open');
       document.getElementById('contact-modal')?.classList.remove('open');
     }
