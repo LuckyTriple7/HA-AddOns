@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.21] - 2026-06-06
+- Fix: Multi-Löschen löschte nur erste Nachricht auf dem Handy — Promise.all durch sequenzielle Schleife ersetzt, WhatsApp Web.js verarbeitet delete() nicht parallel
+
 ## [1.6.20] - 2026-06-06
 - Neu: Multi-Select-Löschmodus — ✕-Button in der Toolbar, Nachrichten anklicken zum Markieren (rote Hervorhebung), 🗑️-Button löscht alle markierten mit Bestätigungsdialog (DE/EN); Escape oder Chat-Wechsel bricht Modus ab
 - Fix: Spam-Delete-Button von 🗑️ auf 🚮 geändert um Verwechslung mit Löschmodus zu vermeiden

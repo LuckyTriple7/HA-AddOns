@@ -1897,7 +1897,9 @@ app.get('/', (req, res) => {
       var chatId = selectedChatId;
       var ids = Array.from(selectedMsgs);
       exitDeleteMode();
-      await Promise.all(ids.map(function(id){ return fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(id), {method:'DELETE'}); }));
+      for (var _di = 0; _di < ids.length; _di++) {
+        await fetch('api/messages/' + encodeURIComponent(chatId) + '/' + encodeURIComponent(ids[_di]), {method:'DELETE'});
+      }
       await reloadMessages(chatId);
     }
     let lastMsgTime = {};
