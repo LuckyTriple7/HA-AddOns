@@ -3201,59 +3201,58 @@ app.get('/', (req, res) => {
   <script>
     (function(){
       var _open=false,_lastTs=0,_timer=null,_filter='ALL';
-      var panel=document.getElementById('wa-console');
-      var header=document.getElementById('wa-console-header');
-      var body=document.getElementById('wa-console-body');
-      var _dx=0,_dy=0,_dragging=false;
-      header.addEventListener('mousedown',function(e){
-        if(e.target===document.getElementById('wa-console-close'))return;
-        _dragging=true;_dx=e.clientX-panel.offsetLeft;_dy=e.clientY-panel.offsetTop;e.preventDefault();
+      var _panel=document.getElementById('wa-console');
+      var _hdr=document.getElementById('wa-console-header');
+      var _cb=document.getElementById('wa-console-body');
+      var _dx=0,_dy=0,_drag=false;
+      _hdr.addEventListener('mousedown',function(e){
+        if(e.target.id==='wa-console-close')return;
+        _drag=true;_dx=e.clientX-_panel.offsetLeft;_dy=e.clientY-_panel.offsetTop;e.preventDefault();
       });
       document.addEventListener('mousemove',function(e){
-        if(!_dragging)return;
-        panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth))+'px';
-        panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight))+'px';
-        panel.style.right='auto';panel.style.bottom='auto';
+        if(!_drag)return;
+        _panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-_panel.offsetWidth))+'px';
+        _panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-_panel.offsetHeight))+'px';
+        _panel.style.right='auto';_panel.style.bottom='auto';
       });
-      document.addEventListener('mouseup',function(){_dragging=false;});
-      function waConsoleToggle(){
+      document.addEventListener('mouseup',function(){_drag=false;});
+      window.waConsoleToggle=function(){
         if(window.innerWidth<768)return;
-        _open=!_open;panel.classList.toggle('open',_open);
-        if(_open){_poll();_timer=setInterval(_poll,2000);}
+        _open=!_open;_panel.classList.toggle('open',_open);
+        if(_open){_waConsolePoll();_timer=setInterval(_waConsolePoll,2000);}
         else{clearInterval(_timer);_timer=null;}
-      }
-      window.waConsoleToggle=waConsoleToggle;
-      function wcFilter(btn){
+      };
+      window.wcFilter=function(btn){
         document.querySelectorAll('#wa-console-toolbar .wct-btn').forEach(function(b){b.classList.remove('active');});
         btn.classList.add('active');
         _filter=btn.dataset.filter;
-        Array.from(body.children).forEach(function(l){
+        Array.from(_cb.children).forEach(function(l){
           l.style.display=(_filter==='ALL'||l.dataset.level===_filter)?'':'none';
         });
-      }
-      function wcExport(){
-        var lines=Array.from(body.children).map(function(l){return l.textContent;}).join('\n');
+      };
+      window.wcExport=function(){
+        var lines=Array.from(_cb.children).map(function(l){return l.textContent;}).join('\n');
         if(!lines)return;
         var a=document.createElement('a');
         a.href=URL.createObjectURL(new Blob([lines],{type:'text/plain'}));
         a.download='whatsapp-console-'+new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-')+'.txt';
         a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
-      }
+      };
       function _cls(l){return l==='WARN'?'wc-warn':l==='ERROR'?'wc-error':l==='DEBUG'?'wc-debug':'wc-info';}
-      async function _poll(){
+      async function _waConsolePoll(){
         try{
           var entries=await fetch('api/logs?since='+_lastTs).then(function(r){return r.json();});
           if(!entries.length)return;
-          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+          var atBottom=_cb.scrollHeight-_cb.scrollTop-_cb.clientHeight<40;
           entries.forEach(function(e){
             _lastTs=Math.max(_lastTs,e.ts);
             var line=document.createElement('div');
             line.className=_cls(e.level);line.dataset.level=e.level;line.textContent=e.msg;
             if(_filter!=='ALL'&&e.level!==_filter)line.style.display='none';
-            body.appendChild(line);
+            _cb.appendChild(line);
           });
-          if(atBottom&&_filter==='ALL')body.scrollTop=body.scrollHeight;
-          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+          if(atBottom&&_filter==='ALL')_cb.scrollTop=_cb.scrollHeight;
+          if(_cb.children.length>600)for(var i=0;i<100;i++)_cb.removeChild(_cb.firstChild);
         }catch(e){}
       }
     })();

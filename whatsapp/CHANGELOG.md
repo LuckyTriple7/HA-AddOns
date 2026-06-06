@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.41] - 2026-06-06
+- Fix: Console öffnete sich nicht mehr — wcFilter/wcExport nicht global exponiert; body-Variable umbenannt zu _cb (Konflikt mit document.body); alle Funktionen direkt auf window gesetzt
+
 ## [1.6.40] - 2026-06-06
 - Console: Log-Level-Filter (ALL/DBG/INFO/WARN/ERR) + Export-Button (⬇ .txt-Download aller sichtbaren Zeilen)
 
