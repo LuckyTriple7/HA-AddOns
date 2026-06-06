@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.29] - 2026-06-06
+
+### Fixed
+- `notify_on_update`, `auto_update_claude`, `enable_mcp`, `session_persistence`: jq `//`-Operator behandelte `false` als falsy und lieferte immer den Standardwert `true` — Option auf `false` hatte keinen Effekt
+
+## [1.0.28] - 2026-06-06
+
+### Changed
+- Rebuild für Claude Code 2.1.167
+
+
 ## [1.0.27] - 2026-06-05
 
 ### Changed

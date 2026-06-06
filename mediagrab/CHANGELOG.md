@@ -1,5 +1,73 @@
 # Changelog — MediaGrab
 
+## [0.3.4] — 2026-06-05
+### Fixed
+- Dateikonflikt: die NEUE Datei bekommt den Zeitstempel (Video_20260605_165031.mp4), die bestehende Datei bleibt unverändert — Tags/Plattform-Metadaten der Originaldatei bleiben erhalten
+
+## [0.3.3] — 2026-06-05
+### Fixed
+- Dateikonflikt: --force-overwrites entfernt (hatte die Datei überschrieben bevor Umbenennung möglich war)
+- Neues Verhalten: yt-dlp meldet "already downloaded" → bestehende Datei wird mit Zeitstempel umbenannt → Download startet automatisch erneut → beide Dateien bleiben erhalten
+
+## [0.3.2] — 2026-06-05
+### Improved
+- Custom-Tag-Popup zeigt alle bereits verwendeten Tags als Schnellauswahl-Buttons (gelb), analog zu den Plattform-Buttons im Platform-Picker
+- Aktiver Tag wird hervorgehoben; Trennlinie vor dem Texteingabefeld
+
+## [0.3.1] — 2026-06-05
+### Fixed
+- Dateikonflikt: bestehende Datei wird mit Zeitstempel-Suffix umbenannt (z.B. Video_20260605_165031.mp4) statt überschrieben; yt-dlp speichert den neuen Download unter dem Originalnamen
+- Nur echte Zieldateien werden umbenannt — temporäre Streams (Video.f137.mp4) werden ignoriert
+- yt-dlp Version-Vergleich: PyPI liefert 2026.3.17, yt-dlp binary 2026.03.17 — führende Nullen werden vor Vergleich normalisiert → "Bereits aktuell" wird korrekt erkannt
+
+## [0.3.0] — 2026-06-05
+### Fixed
+- Dateikonflikt: yt-dlp lud Streams herunter, konnte aber die Zieldatei nicht speichern wenn ein gleichnamiger Dateiname schon existierte — behoben mit --force-overwrites
+
+## [0.2.9] — 2026-06-05
+### Fixed
+- Custom-Tag-Editor: bestehender Tag wird beim Öffnen vorausgefüllt und selektiert (war leer wirkend durch fehlenden inp.select())
+
+## [0.2.8] — 2026-06-05
+### Changed
+- Platform-Tag und Custom-Tag sind jetzt getrennte, unabhängige Felder pro Datei
+- Platform-Tag (blau): Klick auf ＋ öffnet Plattform-Picker (YouTube, TikTok, …)
+- Custom-Tag (gelb): Klick auf ＋ Tag öffnet Texteingabe für freien Tag
+- Beide Tags werden gleichzeitig angezeigt; Filter-Buttons zeigen beide Typen
+- Neuer API-Endpunkt `/api/file/tag/<filename>` für Custom Tags
+- Meta-Datei speichert `platform` und `tag` getrennt
+
+## [0.2.7] — 2026-06-05
+### Improved
+- yt-dlp Update-Button prüft zuerst PyPI auf neue Version; Update wird nur durchgeführt wenn tatsächlich eine neuere Version verfügbar ist
+- Toast "Bereits aktuell: x.x.x" wenn nichts zu tun, "Aktualisiert auf x.x.x" nach echtem Update
+- Versions-Cache wird nach Update invalidiert
+### Fixed
+- Tag-Strings (＋ Tag, ✕ Entfernen, Eigener Tag …) fehlten in Übersetzungen — jetzt in DE/EN Locale-Dateien
+
+## [0.2.6] — 2026-06-05
+### Added
+- Custom Tags: freie Texteingabe im Plattform-Picker — beliebiger Tag statt nur vordefinierter Plattformen
+- Custom Tags erscheinen in Gelb (Plattform-Tags bleiben Blau) zur visuellen Unterscheidung
+- Plattform-Filter zeigt auch Custom Tags automatisch an
+
+## [0.2.5] — 2026-06-05
+### Fixed
+- Plattform-Popover: var(--card) existiert nicht → transparenter Hintergrund, kaum lesbar; auf var(--surf)/var(--surf2) umgestellt
+- Popover: stärkerer Schatten, Accent-Border, besserer Kontrast für Dark/Light-Mode
+
+## [0.2.4] — 2026-06-05
+### Added
+- Plattform-Tag manuell zuweisen oder ändern: Klick auf Badge oder "＋ Tag"-Button öffnet Popover mit allen Plattformen
+- "✕ Entfernen" löscht den Tag wieder
+- Bestehende Dateien (ohne automatischen Tag) können so nachträglich kategorisiert werden
+
+## [0.2.3] — 2026-06-05
+### Added
+- Plattform-Filter in der Dateiliste: Filter-Buttons (YouTube, TikTok, Instagram, X, …) erscheinen automatisch wenn Dateien aus verschiedenen Quellen vorhanden sind
+- Kleines Plattform-Badge je Datei (z.B. "YouTube") in der Datei-Metazeile
+- Plattform wird beim Download in `.mediagrab_meta.json` gespeichert und beim Löschen bereinigt
+
 ## [0.2.2] — 2026-06-05
 ### Fixed
 - API-Logging: log.debug() funktionierte nicht (Logger läuft auf INFO) — jetzt verbose_log-Prüfung wie beim yt-dlp-Logging

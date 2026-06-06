@@ -9,6 +9,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -27,6 +28,7 @@ app = Flask(__name__, template_folder='/app/templates', static_folder='/app/stat
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 MEDIA_DIR     = Path('/media/mediagrab')
+META_PATH     = MEDIA_DIR / '.mediagrab_meta.json'
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
 JOBS_PATH     = '/data/jobs.json'
@@ -43,8 +45,41 @@ sessions: dict[str, float] = {}
 _failed: dict[str, list[float]] = defaultdict(list)
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
+_meta_lock = threading.Lock()
 
 _ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
+
+# ── Platform detection ────────────────────────────────────────────────────────
+
+PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'X', 'Vimeo', 'SoundCloud', 'Twitch', 'Reddit', 'Dailymotion', 'Sonstiges']
+
+def _detect_platform(url: str) -> str:
+    u = url.lower()
+    if 'youtube.com' in u or 'youtu.be' in u: return 'YouTube'
+    if 'tiktok.com' in u:                      return 'TikTok'
+    if 'instagram.com' in u:                   return 'Instagram'
+    if 'twitter.com' in u or 'x.com' in u:    return 'X'
+    if 'vimeo.com' in u:                       return 'Vimeo'
+    if 'soundcloud.com' in u:                  return 'SoundCloud'
+    if 'twitch.tv' in u:                       return 'Twitch'
+    if 'reddit.com' in u:                      return 'Reddit'
+    if 'dailymotion.com' in u:                 return 'Dailymotion'
+    return 'Sonstiges'
+
+def _load_meta() -> dict:
+    try:
+        if META_PATH.exists():
+            return json.loads(META_PATH.read_text())
+    except Exception:
+        pass
+    return {}
+
+def _save_meta(meta: dict) -> None:
+    try:
+        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+        META_PATH.write_text(json.dumps(meta))
+    except Exception as e:
+        log.warning('Meta-Datei konnte nicht gespeichert werden: %s', e)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -271,68 +306,98 @@ def _run_download(job_id: str) -> None:
     try:
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, env=env
-        )
-        with _jobs_lock:
-            _jobs[job_id]['proc'] = proc
 
-        while True:
-            line = proc.stdout.readline()  # type: ignore[union-attr]
-            if not line:
-                if proc.poll() is not None:
-                    break
-                continue
-            line = line.rstrip()
-            output_lines.append(line)
-            if get_config().get('verbose_log'):
-                log.info('[yt-dlp] %s', line)
+        for attempt in range(2):
+            output_lines = []
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, env=env
+            )
+            with _jobs_lock:
+                _jobs[job_id]['proc'] = proc
 
-            m = _PROG_RE.match(line)
-            if m:
-                try:
-                    pct = float(m.group(1).strip())
-                except ValueError:
-                    pct = 0.0
-                with _jobs_lock:
-                    _jobs[job_id]['progress'] = pct
-                    _jobs[job_id]['speed']    = m.group(2).strip()
-                    _jobs[job_id]['eta']      = m.group(3).strip()
-                continue
+            _needs_retry = False
 
-            m = _DEST_RE.search(line)
-            if m:
-                with _jobs_lock:
-                    _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
-                continue
+            while True:
+                line = proc.stdout.readline()  # type: ignore[union-attr]
+                if not line:
+                    if proc.poll() is not None:
+                        break
+                    continue
+                line = line.rstrip()
+                output_lines.append(line)
+                if get_config().get('verbose_log'):
+                    log.info('[yt-dlp] %s', line)
 
-            m = _MERGE_RE.search(line)
-            if m:
-                with _jobs_lock:
-                    _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
-                continue
+                m = _PROG_RE.match(line)
+                if m:
+                    try:
+                        pct = float(m.group(1).strip())
+                    except ValueError:
+                        pct = 0.0
+                    with _jobs_lock:
+                        _jobs[job_id]['progress'] = pct
+                        _jobs[job_id]['speed']    = m.group(2).strip()
+                        _jobs[job_id]['eta']      = m.group(3).strip()
+                    continue
 
-            m = _ALREADY_RE.search(line)
-            if m:
-                with _jobs_lock:
-                    _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                m = _DEST_RE.search(line)
+                if m:
+                    with _jobs_lock:
+                        _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                    continue
 
-        proc.wait()
+                m = _MERGE_RE.search(line)
+                if m:
+                    with _jobs_lock:
+                        _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                    continue
 
-        with _jobs_lock:
-            if _jobs[job_id]['status'] == 'cancelled':
+                m = _ALREADY_RE.search(line)
+                if m:
+                    _needs_retry = True
+                    with _jobs_lock:
+                        _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+
+            proc.wait()
+
+            with _jobs_lock:
+                cancelled = _jobs[job_id]['status'] == 'cancelled'
+
+            if cancelled:
                 log.info('Download abgebrochen: job=%s', job_id)
-            elif proc.returncode == 0:
-                _jobs[job_id]['status']   = 'done'
-                _jobs[job_id]['progress'] = 100.0
-                _jobs[job_id]['eta']      = ''
-                log.info('Download fertig: job=%s file=%s', job_id, _jobs[job_id]['filename'])
-            else:
-                err = _parse_error(output_lines)
-                _jobs[job_id]['status'] = 'error'
-                _jobs[job_id]['error']  = err
-                log.warning('Download Fehler: job=%s rc=%d err=%s', job_id, proc.returncode, err)
+                break
+
+            if _needs_retry and attempt == 0:
+                # New file gets timestamp suffix; existing file (with its tags) stays untouched
+                ts = time.strftime('%Y%m%d_%H%M%S')
+                cmd = [a.replace('/%(title)s.%(ext)s', f'/%(title)s_{ts}.%(ext)s')
+                       if a.endswith('/%(title)s.%(ext)s') else a for a in cmd]
+                with _jobs_lock:
+                    _jobs[job_id]['progress'] = 0.0
+                    _jobs[job_id]['filename'] = ''
+                log.info('Download-Retry mit Zeitstempel-Suffix: job=%s ts=%s', job_id, ts)
+                continue
+
+            with _jobs_lock:
+                if proc.returncode == 0:
+                    _jobs[job_id]['status']   = 'done'
+                    _jobs[job_id]['progress'] = 100.0
+                    _jobs[job_id]['eta']      = ''
+                    fname   = _jobs[job_id].get('filename', '')
+                    job_url = _jobs[job_id].get('url', '')
+                    log.info('Download fertig: job=%s file=%s', job_id, fname)
+                    if fname:
+                        with _meta_lock:
+                            meta = _load_meta()
+                            meta[fname] = {'platform': _detect_platform(job_url)}
+                            _save_meta(meta)
+                else:
+                    err = _parse_error(output_lines)
+                    _jobs[job_id]['status'] = 'error'
+                    _jobs[job_id]['error']  = err
+                    log.warning('Download Fehler: job=%s rc=%d err=%s', job_id, proc.returncode, err)
+            break
 
     except Exception as e:
         log.error('Download Exception: job=%s err=%s', job_id, e)
@@ -347,6 +412,20 @@ def _run_download(job_id: str) -> None:
 # ── Temp file cleanup ──────────────────────────────────────────────────────────
 
 TEMP_SUFFIXES = ('.part', '.ytdl', '.part-Frag0', '.part-Frag1', '.part-Frag2', '.part-Frag3')
+
+def _is_stream_tmp(p: Path) -> bool:
+    return bool(re.search(r'\.f\d+$', p.stem))
+
+def _safe_rename_existing(p: Path) -> None:
+    if not p.exists() or _is_stream_tmp(p):
+        return
+    ts = time.strftime('%Y%m%d_%H%M%S')
+    candidate = p.parent / f'{p.stem}_{ts}{p.suffix}'
+    try:
+        p.rename(candidate)
+        log.info('Dateikonflikt: "%s" → "%s" umbenannt', p.name, candidate.name)
+    except Exception as e:
+        log.warning('Umbenennen bei Konflikt fehlgeschlagen: %s — %s', p.name, e)
 
 def _cleanup_temp_files() -> None:
     """Remove .part/.ytdl leftovers not belonging to an active download."""
@@ -506,7 +585,7 @@ def api_status():
         done     = sum(1 for j in jobs if j['status'] == 'done')
         errors   = sum(1 for j in jobs if j['status'] == 'error')
 
-        files = [p for p in MEDIA_DIR.iterdir() if p.is_file()] if MEDIA_DIR.exists() else []
+        files = [p for p in MEDIA_DIR.iterdir() if p.is_file() and p.name != '.mediagrab_meta.json'] if MEDIA_DIR.exists() else []
         files_count = len(files)
         folder_size = sum(f.stat().st_size for f in files)
         last_file   = max(files, key=lambda f: f.stat().st_mtime).name if files else ''
@@ -687,12 +766,28 @@ def api_ytdlp_update():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     try:
+        current = _get_ytdlp_version()
+        latest = ''
+        try:
+            with urllib.request.urlopen('https://pypi.org/pypi/yt-dlp/json', timeout=8) as resp:
+                latest = json.loads(resp.read())['info']['version']
+        except Exception as e:
+            log.warning('PyPI-Versionsabfrage fehlgeschlagen: %s', e)
+        def _norm_ver(v: str) -> str:
+            parts = v.split('.')
+            try:
+                return '.'.join(str(int(x)) for x in parts) if len(parts) == 3 else v
+            except ValueError:
+                return v
+        if latest and _norm_ver(latest) == _norm_ver(current):
+            log.info('yt-dlp bereits aktuell: %s', current)
+            return jsonify({'ok': True, 'up_to_date': True, 'version': current})
         subprocess.run(['pip', 'install', '--upgrade', 'yt-dlp'],
                        capture_output=True, text=True, timeout=120, check=True)
-        r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
-        new_ver = r.stdout.strip()
+        _ytdlp_ver_cache['ver'] = None  # cache invalidieren
+        new_ver = _get_ytdlp_version()
         log.info('yt-dlp aktualisiert auf %s', new_ver)
-        return jsonify({'ok': True, 'version': new_ver})
+        return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
     except Exception as e:
@@ -758,11 +853,15 @@ def api_files():
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    with _meta_lock:
+        meta = _load_meta()
     files = []
     for p in sorted(MEDIA_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if p.is_file():
+        if p.is_file() and p.name != '.mediagrab_meta.json':
             st = p.stat()
-            files.append({'name': p.name, 'size': st.st_size, 'mtime': int(st.st_mtime)})
+            entry    = meta.get(p.name, {})
+            files.append({'name': p.name, 'size': st.st_size, 'mtime': int(st.st_mtime),
+                          'platform': entry.get('platform', ''), 'tag': entry.get('tag', '')})
     return jsonify(files)
 
 @app.route('/api/file/delete/<path:filename>', methods=['POST'])
@@ -777,8 +876,71 @@ def api_file_delete(filename):
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     p.unlink()
+    with _meta_lock:
+        meta = _load_meta()
+        if filename in meta:
+            meta.pop(filename)
+            _save_meta(meta)
     log.info('Datei gelöscht: %s', filename)
     return jsonify({'ok': True})
+
+@app.route('/api/file/platform/<path:filename>', methods=['POST'])
+def api_file_platform(filename):
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    data     = request.json or {}
+    platform = data.get('platform', '').strip()
+    if platform and platform not in PLATFORMS:
+        return jsonify({'error': 'invalid_platform'}), 400
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
+        return jsonify({'error': 'invalid_path'}), 400
+    if not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    with _meta_lock:
+        meta = _load_meta()
+        entry = meta.get(filename, {})
+        if platform:
+            entry['platform'] = platform
+        else:
+            entry.pop('platform', None)
+        if entry:
+            meta[filename] = entry
+        else:
+            meta.pop(filename, None)
+        _save_meta(meta)
+    return jsonify({'ok': True, 'platform': platform})
+
+@app.route('/api/file/tag/<path:filename>', methods=['POST'])
+def api_file_tag(filename):
+    if _require_auth():
+        return jsonify({'error': 'unauthorized'}), 401
+    data = request.json or {}
+    tag  = data.get('tag', '').strip()
+    if len(tag) > 50:
+        return jsonify({'error': 'tag_too_long'}), 400
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
+        return jsonify({'error': 'invalid_path'}), 400
+    if not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    with _meta_lock:
+        meta = _load_meta()
+        entry = meta.get(filename, {})
+        if tag:
+            entry['tag'] = tag
+        else:
+            entry.pop('tag', None)
+        if entry:
+            meta[filename] = entry
+        else:
+            meta.pop(filename, None)
+        _save_meta(meta)
+    return jsonify({'ok': True, 'tag': tag})
 
 @app.route('/stream/<path:filename>')
 def stream_file(filename):

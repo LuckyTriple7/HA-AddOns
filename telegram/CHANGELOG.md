@@ -1,5 +1,127 @@
 # Changelog
 
+## [1.5.47] - 2026-06-06
+- Fix: Forward sofort sichtbar (3. Versuch) — nach forwardMessages() direkt getMessages({limit:1}) aufrufen statt aus TypeUpdates zu extrahieren (GramJS verarbeitet Updates asynchron)
+
+## [1.5.46] - 2026-06-06
+- Fix: Weitergeleitete Nachricht sofort sichtbar (2. Versuch) — TypeUpdates korrekt ausgewertet (UpdateNewMessage.message extrahiert), processMessage() danach, Client loadMessages()
+
+## [1.5.45] - 2026-06-06
+- Neu: ☀️/🌙-Button neben "Telegram" zum Umschalten Dark/Light Mode; Auswahl per localStorage (tg_theme) gespeichert
+
+## [1.5.44] - 2026-06-06
+- Fix: Weitergeleitete Nachricht erscheint jetzt sofort — nach erfolgreichem Forward ?refresh=1 (frischer Telegram-Abruf) statt Cache
+
+## [1.5.43] - 2026-06-06
+- Fix: Weitergeleitete Nachricht erschien nicht sofort in der App — Server verarbeitet das Forward-Ergebnis via processMessage(), Client lädt den aktiven Chat neu
+
+## [1.5.42] - 2026-06-06
+- Fix: Gesendete Nachrichten nicht mehr rechts anliegend — Hover-Buttons bei out-Nachrichten per order:-1 links der Bubble platziert statt rechts
+
+## [1.5.41] - 2026-06-06
+- Fix: Bubble verschiebt sich beim Hover — Buttons nutzen jetzt opacity statt display:none, belegen immer Platz
+- Neu: Album-Fotos (gleiche groupedId) werden als Foto-Grid (140×140 px) in einer Bubble dargestellt statt gestapelt
+
+## [1.5.40] - 2026-06-06
+- Neu: Multi-Select-Löschmodus — ✕-Button in der Toolbar, Nachrichten anklicken zum Markieren (rote Hervorhebung), 🗑️-Button löscht alle markierten mit Bestätigungsdialog (DE/EN); Escape oder Chat-Wechsel bricht Modus ab
+
+## [1.5.39] - 2026-06-06
+- Neu: HTML-Export vollständig lokalisiert (DE/EN) — Datum, Uhrzeit, Labels und Platzhalter folgen der gewählten UI-Sprache
+
+## [1.5.38] - 2026-06-06
+- Fix: HTML-Export brach bei Videos/Sprachnachrichten ab — base64-Einbettung entfernt, werden jetzt als Platzhalter (📹/🎵) angezeigt
+
+## [1.5.37] - 2026-06-06
+- Fix: Keine Bubble-Umrandung bei Audionachrichten — Audio-Player steht frei ohne Hintergrund
+
+## [1.5.36] - 2026-06-06
+- Fix: Audio-Player kollabierte auf minimale Breite — feste Breite 260px mit max-width als Grenze statt width:100%
+
+## [1.5.35] - 2026-06-06
+- Fix: Audio-Player ragte über Bubble-Rahmen hinaus — min-width entfernt, player passt sich per width:100% der Bubble an
+
+## [1.5.34] - 2026-06-06
+- Fix: Speicheranzeige aktualisiert sich jetzt auch nach Video-Löschen sofort
+
+## [1.5.33] - 2026-06-06
+- Fix: Unhandled rejection "not found" — promise.finally() erzeugte zweite rejecting Promise ohne catch; ersetzt durch .then(del, del)
+
+## [1.5.32] - 2026-06-06
+- feat: media_max_mb/video_max_mb im Startup-Log
+
+## [1.5.31] - 2026-06-06
+- Fix: Reload-Button ersetzte heruntergeladene Videos durch Placeholder — mediaFile und videoSize werden beim Refresh jetzt wie Reactions gespeichert und wiederhergestellt
+
+## [1.5.30] - 2026-06-06
+- Fix: Chat-Wechsel zeigte leeres Fenster — openChat() löscht Fingerprint damit loadMessages() immer neu rendert
+
+## [1.5.29] - 2026-06-06
+- Speicheranzeige aktualisiert sich nach Video-Download
+
+## [1.5.28] - 2026-06-06
+- Fix: videoTooBig-Text zeigte hardcodiert "max 10 MB" statt konfiguriertem video_max_mb-Wert
+
+## [1.5.27] - 2026-06-05
+- Fix: Video-Wiedergabe wurde alle 2s durch pollMessages-Re-Render unterbrochen — renderMessages nur noch bei geändertem Nachrichten-Fingerprint (Anzahl + IDs + Video-mediaFile)
+
+## [1.5.26] - 2026-06-05
+- Neu: video_max_mb Option (Standard 50 MB) — ersetzt hardcoded 10 MB Limit für Video-Downloads
+
+## [1.5.25] - 2026-06-05
+- Fix: MEDIA_MAX_MB fehlte in run.sh → Limit zeigte immer 500 MB statt konfiguriertem Wert
+
+## [1.5.24] - 2026-06-05
+- Video-Placeholder: "⬇ Video herunterladen · X.X MB" statt doppeltem "Video"; Body nur anzeigen wenn Video geladen; DE+EN
+
+## [1.5.23] - 2026-06-05
+- Kritischer Fix: messages.GetHistory FloodWait — /api/messages rief bei jedem pollMessages (2s) fetchMessages() auf wenn Chat < FETCH_LIMIT hatte; jetzt nur noch beim ersten Öffnen (wenn Chat nie geladen)
+
+## [1.5.22] - 2026-06-05
+- Fix: Video-Download > 10 MB trennt Verbindung — Limit auf 10 MB reduziert, Timeout 25s, Größe im Placeholder "(X.X MB)", zu-groß-Videos grau ohne Klick
+
+## [1.5.21] - 2026-06-05
+- Neu: 🗑️-Button neben dem Video-Player — löscht Datei von Disk, zeigt 📹 Video Placeholder wieder an
+
+## [1.5.20] - 2026-06-05
+- Kritisch: Videos werden nur noch bei echten Neueingängen auto-geladen (source=NewMessage), nie beim Reload — verhindert FloodWait-Kaskadenausfall
+- Neu: Klick auf 📹 Video Placeholder → on-demand Download mit ⏳ Sanduhr (/api/fetch-video)
+- Entfernt: video_max_per_chat Option (mit on-demand unnötig)
+- Avatar-Concurrency auf 1 reduziert (weniger upload.GetFile-Druck)
+
+## [1.5.19] - 2026-06-05
+- Fix: Video-Limit prüft VOR dem Download ob Platz ist (nicht danach) — verhindert nutzlose Downloads die sofort wieder gelöscht werden
+- Neu: DE+EN Übersetzungen für media_max_mb und video_max_per_chat in config.yaml
+
+## [1.5.18] - 2026-06-05
+- Neu: video_max_per_chat Option (Standard 20) — älteste Videos pro Chat werden automatisch gelöscht wenn das Limit überschritten wird
+
+## [1.5.17] - 2026-06-05
+- 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS"; blendet jetzt auch Videos aus (body.hide-photos video)
+
+## [1.5.16] - 2026-06-05
+- Fix: FloodWait beim Video-Download — downloadMedia workers:1 verhindert parallele upload.GetFile-Requests
+
+## [1.5.15] - 2026-06-05
+- Speicher-Tooltip: Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete (DE+EN)
+
+## [1.5.14] - 2026-06-05
+- Neu: media_max_mb Config (Standard 500 MB) — bei Überschreitung werden automatisch die ältesten Mediendateien gelöscht (LRU)
+
+## [1.5.13] - 2026-06-05
+- Neu: Videos anzeigen — Download (max 50 MB, mp4/webm), <video controls> im Chat und im HTML-Export
+
+## [1.5.12] - 2026-06-05
+- Fix: Kontaktinfo-Modal und Profilbilder jetzt auch für Gruppen, Kanäle und Bots
+
+## [1.5.11] - 2026-06-05
+- Neu: Profilbilder als Avatare (downloadProfilePhoto, lazy, 2 parallel); Klick auf Header-Avatar → Kontaktinfo-Modal mit Foto, Name, @username, Telefon, Bio
+
+## [1.5.10] - 2026-06-05
+- Neu: Nachrichten weiterleiten (↪, via forwardMessages) und beantworten (↩, via replyTo); Hover-Buttons, Forward-Modal mit Suchfeld, Zitat-Block in der Bubble
+
+## [1.5.9] - 2026-06-05
+- Neu: Sprachnachrichten (voice) werden empfangen, als .ogg gespeichert und als abspielbarer Audio-Player angezeigt (erfordert download_media: true); Erkennung via DocumentAttributeAudio.voice
+
 ## [1.5.8] - 2026-06-05
 - Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo/document/voice)
 

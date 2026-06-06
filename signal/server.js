@@ -33,6 +33,7 @@ let PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const DARK_MODE = process.env.DARK_MODE === 'true';
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_TOKEN = process.env.HA_TOKEN || '';
@@ -43,6 +44,7 @@ console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'set' : 'not set
 console.log(`[INFO]   signal_api_url         = ${SIGNAL_API}`);
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -269,13 +271,22 @@ function processEnvelope(envelope) {
   const msgId = `${isOwn ? PHONE_NUMBER : chatId}_${dm.timestamp}`;
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
-  const previewText = dm.message || (hasAttachments ? '📷 Foto' : '');
+  const isVoice = hasAttachments && dm.attachments.some(a => (a.contentType || '').startsWith('audio/'));
+  const msgType = isVoice ? 'voice' : hasAttachments ? 'photo' : 'text';
+  const previewText = dm.message || (isVoice ? '🎵 Sprachnachricht' : hasAttachments ? '📷 Foto' : '');
 
   const attIds = hasAttachments
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
     : undefined;
   const msgFrom = isOwn ? PHONE_NUMBER : chatId;
-  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, attIds };
+  let quotedMsg = null;
+  if (dm.quote) {
+    quotedMsg = {
+      body: (dm.quote.text || dm.quote.message || '').slice(0, 100),
+      contact: normPhone(dm.quote.author) === PHONE_NUMBER ? 'Ich' : (dm.quote.author || ''),
+    };
+  }
+  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, quotedMsg };
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
@@ -301,7 +312,6 @@ function processEnvelope(envelope) {
   dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
 
   if (!isOwn) {
-    const msgType = hasAttachments ? 'photo' : 'text';
     lastReceivedMsg = {
       timestamp: dm.timestamp,
       iso: new Date(dm.timestamp).toISOString(),
@@ -316,7 +326,6 @@ function processEnvelope(envelope) {
 
   if (WEBHOOK_INCOMING && !isOwn) {
     dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
-    const msgType = hasAttachments ? 'photo' : 'text';
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -340,7 +349,7 @@ async function pollMessages() {
 
 async function downloadAttachment(attId, contentType, msgId) {
   try {
-    const ext = contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const ext = contentType.includes('ogg') ? 'ogg' : contentType.includes('aac') ? 'aac' : contentType.includes('mpeg') ? 'mp3' : contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
     const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
     const filepath = MEDIA_DIR + filename;
     if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); scheduleSave(); return; }
@@ -466,28 +475,35 @@ app.get('/api/last-received', (req, res) => {
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
+  const isEn = (req.query.lang || 'de') === 'en';
+  const loc = isEn ? 'en-GB' : 'de-DE';
   const chat = chatMap.get(chatId);
   const msgs = messagesByChatId.get(chatId) || [];
   const chatName = chat ? (chat.name || chatId) : chatId;
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const exportDate = new Date().toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const meLabel = isEn ? 'Me' : 'Du';
+  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
+  const messagesLabel = isEn ? 'messages' : 'Nachrichten';
   let lastDate = '';
   const msgsHtml = msgs.map(m => {
     const tsNum = Number(m.timestamp);
     const tsMs = tsNum > 1e12 ? tsNum : tsNum * 1000;
     const d = new Date(tsMs);
-    const dateStr = d.toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-    const time = d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+    const dateStr = d.toLocaleDateString(loc, { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    const time = d.toLocaleTimeString(loc, { hour:'2-digit', minute:'2-digit' });
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.mediaFile) {
+    if (m.type === 'voice') {
+      content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
+    } else if (m.mediaFile) {
       const fp = MEDIA_DIR + m.mediaFile;
       if (fs.existsSync(fp)) {
         const ext = m.mediaFile.split('.').pop().toLowerCase();
         const mime = ext==='png'?'image/png':ext==='webp'?'image/webp':ext==='gif'?'image/gif':'image/jpeg';
         content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
-      } else { content = '📷 Foto'; }
+      } else { content = isEn ? '📷 Photo' : '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
@@ -495,10 +511,10 @@ app.get('/api/export/:chatId', (req, res) => {
     } else {
       content = escH(m.body||'').replace(/\n/g,'<br>');
     }
-    const sender = m.fromMe ? 'Du' : escH(chatName);
+    const sender = m.fromMe ? meLabel : escH(chatName);
     return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d1e3ff;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#3a76f0}.msg.out .sender{color:#2960d6}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#ddeeff}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">Exportiert am ${exportDate} &bull; ${msgs.length} Nachrichten</p>${msgsHtml}</body></html>`;
+  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#e5ddd5;min-height:100vh;padding:16px}h1{text-align:center;font-size:18px;color:#333;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#888;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#666;background:rgba(255,255,255,.6);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#fff;border-bottom-left-radius:2px}.msg.out .bubble{background:#d1e3ff;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#3a76f0}.msg.out .sender{color:#2960d6}.time{color:#999;flex-shrink:0}@media print{body{background:#fff}.msg.out .bubble{background:#ddeeff}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
   const fname = `signal_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
@@ -511,10 +527,30 @@ app.get('/api/media/:filename', (req, res) => {
   const filepath = MEDIA_DIR + filename;
   if (!fs.existsSync(filepath)) return res.status(404).send('Not found');
   const ext = filename.split('.').pop().toLowerCase();
-  const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+  const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', aac: 'audio/aac', mp3: 'audio/mpeg' };
   res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
   fs.createReadStream(filepath).pipe(res);
 });
+
+function enforceMediaLimit() {
+  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
+  const targetBytes = limitBytes * 0.8;
+  let current = 0, files = [];
+  try {
+    for (const f of fs.readdirSync(MEDIA_DIR)) {
+      const fp = `${MEDIA_DIR}${f}`;
+      try { const st = fs.statSync(fp); files.push({ fp, size: st.size, mtime: st.mtimeMs }); current += st.size; } catch(e) {}
+    }
+  } catch(e) { return; }
+  if (current <= limitBytes) return;
+  files.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const f of files) {
+    if (current - freed <= targetBytes) break;
+    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
+  }
+  if (freed) console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
+}
 
 function getDirSize(dir) {
   let total = 0;
@@ -530,7 +566,14 @@ function getDirSize(dir) {
 
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
-  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+  const mediaBytes = getDirSize(MEDIA_DIR);
+  const mediaMb = mediaBytes / 1024 / 1024;
+  res.json({
+    bytes, mb: (bytes / 1024 / 1024).toFixed(1),
+    mediaMb: mediaMb.toFixed(1),
+    limitMb: MEDIA_MAX_MB,
+    mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
+  });
 });
 
 app.post('/api/cleanup-media', (req, res) => {
@@ -611,6 +654,77 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+app.post('/api/reply', async (req, res) => {
+  const { to, message, quoteTimestamp, quoteAuthor, quoteBody } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
+  try {
+    const r = await fetch(`${SIGNAL_API}/v2/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, number: PHONE_NUMBER, recipients: [to], quote: { id: quoteTimestamp, author: quoteAuthor, message: quoteBody || '' } }),
+      timeout: 10000,
+    });
+    const result = await r.json();
+    if (!r.ok) return res.status(500).json({ error: result });
+    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const msgId = `${PHONE_NUMBER}_${signalTs}`;
+    if (!seenMsgIds.has(msgId)) {
+      seenMsgIds.add(msgId);
+      const storedQuote = quoteBody ? { body: quoteBody.slice(0, 100), contact: normPhone(quoteAuthor) === PHONE_NUMBER ? 'Ich' : (quoteAuthor || '') } : undefined;
+      const msg = { id: msgId, from: PHONE_NUMBER, body: message, timestamp: signalTs, fromMe: true, ack: 0, signalTimestamp: signalTs, quotedMsg: storedQuote };
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push(msg);
+      if (!chatMap.has(to)) {
+        chatMap.set(to, { id: to, name: to, phone: to, lastMsg: message, lastTime: signalTs, lastFromMe: true });
+      } else {
+        const chat = chatMap.get(to);
+        chat.lastMsg = message; chat.lastTime = signalTs; chat.lastFromMe = true;
+      }
+      scheduleSave();
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
+
+app.post('/api/forward', async (req, res) => {
+  const { msgId, to } = req.body;
+  if (!msgId || !to) return res.status(400).json({ error: 'msgId and to required' });
+  let origMsg = null;
+  for (const msgs of messagesByChatId.values()) { origMsg = msgs.find(m => m.id === msgId); if (origMsg) break; }
+  if (!origMsg) return res.status(404).json({ error: 'Message not found' });
+  try {
+    let payload;
+    if ((origMsg.type === 'photo' || origMsg.type === 'voice') && origMsg.mediaFile) {
+      const fp = MEDIA_DIR + origMsg.mediaFile;
+      if (fs.existsSync(fp)) {
+        const ext = origMsg.mediaFile.split('.').pop();
+        const mimeMap = { jpg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', mp3: 'audio/mpeg' };
+        payload = { message: origMsg.body || '', number: PHONE_NUMBER, recipients: [to], base64_attachments: [`data:${mimeMap[ext] || 'image/jpeg'};base64,${fs.readFileSync(fp).toString('base64')}`] };
+      }
+    }
+    if (!payload) payload = { message: origMsg.body || '', number: PHONE_NUMBER, recipients: [to] };
+    const r = await fetch(`${SIGNAL_API}/v2/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), timeout: 30000 });
+    if (!r.ok) return res.status(500).json({ error: await r.json() });
+    const result = await r.json();
+    const signalTs = Number(result.timestamp) > 0 ? Number(result.timestamp) : Date.now();
+    const newMsgId = `${PHONE_NUMBER}_${signalTs}`;
+    if (!seenMsgIds.has(newMsgId)) {
+      seenMsgIds.add(newMsgId);
+      const preview = origMsg.body || (origMsg.type === 'photo' ? '📷 Foto' : origMsg.type === 'voice' ? '🎵 Sprachnachricht' : '');
+      const newMsg = { id: newMsgId, from: PHONE_NUMBER, body: origMsg.body || '', timestamp: signalTs, fromMe: true, ack: 0, signalTimestamp: signalTs, type: origMsg.type || 'text', mediaFile: origMsg.mediaFile || null };
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push(newMsg);
+      if (!chatMap.has(to)) {
+        chatMap.set(to, { id: to, name: to, phone: to, lastMsg: preview, lastTime: signalTs, lastFromMe: true });
+      } else {
+        const chat = chatMap.get(to); chat.lastMsg = preview; chat.lastTime = signalTs; chat.lastFromMe = true;
+      }
+      scheduleSave();
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: String(e.message || e) }); }
+});
+
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
   const { to, caption } = req.body;
   if (!to || !req.file) return res.status(400).json({ error: 'Missing to/file' });
@@ -634,13 +748,14 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       seenMsgIds.add(msgId);
       let mediaFile = null;
       if (isImg && DOWNLOAD_MEDIA) {
+        enforceMediaLimit();
         const fname = `${signalTs}_${safeName}`;
         fs.writeFileSync(`${MEDIA_DIR}${fname}`, buffer);
         mediaFile = fname;
       }
       const msg = isImg
-        ? { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'photo', timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile }
-        : { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'document', filename: safeName, timestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile: null };
+        ? { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'photo', timestamp: signalTs, signalTimestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile }
+        : { id: msgId, from: PHONE_NUMBER, body: caption || '', type: 'document', filename: safeName, timestamp: signalTs, signalTimestamp: signalTs, fromMe: true, ack: 0, attIds: [], mediaFile: null };
       if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
       messagesByChatId.get(to).push(msg);
       if (chatMap.has(to)) {
@@ -812,6 +927,42 @@ html.dark .unread-dot { background: #3cdb7c; }
 html.dark .del-btn { color: rgba(233,237,239,0.6); }
 html.light .del-btn { color: rgba(0,0,0,0.4); }
 .del-btn:hover { color: #e74c3c !important; }
+.fwd-btn, .reply-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .fwd-btn, .bubble-row:hover .reply-btn { display: block; }
+html.dark .fwd-btn, html.dark .reply-btn { color: rgba(134,150,160,0.85); }
+html.light .fwd-btn, html.light .reply-btn { color: rgba(0,0,0,0.4); }
+.fwd-btn:hover { color: #3a76f8 !important; }
+.reply-btn:hover { color: #3a76f8 !important; }
+.quoted-block { border-left: 3px solid #3a76f8; background: rgba(58,118,248,0.08); border-radius: 4px; padding: 4px 8px; margin-bottom: 5px; overflow: hidden; }
+.quoted-sender { font-size: 11px; font-weight: 600; color: #3a76f8; margin-bottom: 1px; }
+.quoted-text { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .quoted-text { color: rgba(134,150,160,0.85); }
+#reply-bar { display: none; background: #e8eef4; border-left: 3px solid #3a76f8; padding: 6px 16px; align-items: center; gap: 10px; flex-shrink: 0; }
+html.dark #reply-bar { background: #1a2533; }
+#reply-bar.active { display: flex; }
+.reply-bar-content { flex: 1; overflow: hidden; }
+#reply-bar-sender { font-size: 11px; font-weight: 600; color: #3a76f8; }
+#reply-bar-text { font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#reply-close { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px; flex-shrink: 0; }
+#reply-close:hover { color: #e74c3c; }
+#fwd-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#fwd-modal.open { display: flex; }
+.fwd-modal-box { background: #202c33; border-radius: 12px; padding: 20px; max-width: 400px; width: 92%; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.light .fwd-modal-box { background: #fff; }
+.fwd-modal-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #e9edef; }
+html.light .fwd-modal-box h3 { color: #111; }
+#fwd-search { width: 100%; background: #2a3942; border: none; border-radius: 8px; padding: 8px 12px; color: #e9edef; font-size: 14px; outline: none; margin-bottom: 10px; }
+html.light #fwd-search { background: #f0f2f5; color: #111; }
+#fwd-search::placeholder { color: #8696a0; }
+#fwd-chat-list { flex: 1; overflow-y: auto; }
+.fwd-chat-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-radius: 8px; }
+.fwd-chat-item:hover { background: #2a3942; }
+html.light .fwd-chat-item:hover { background: #f0f2f5; }
+.fwd-chat-item-name { font-size: 14px; color: #e9edef; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.light .fwd-chat-item-name { color: #111; }
+.fwd-modal-cancel { margin-top: 12px; background: #2a3942; color: #e9edef; border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; cursor: pointer; width: 100%; }
+html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
+.fwd-modal-cancel:hover { background: #3d5259; }
 .bubble-time { font-size: 11px; color: #999; text-align: right; margin-top: 2px; }
 .msg-ack { font-size: 11px; margin-left: 2px; vertical-align: middle; }
 .ack-1, .ack-2 { color: rgba(0,0,0,0.4); }
@@ -920,9 +1071,10 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 <div id="topbar">
   <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
   <h1>Signal</h1>
+  <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
   <span class="phone" id="my-phone"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle-btn" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
   ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
@@ -955,6 +1107,13 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
     </div>
     <div id="messages"><div id="no-chat" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div></div>
+    <div id="reply-bar">
+      <div class="reply-bar-content">
+        <div id="reply-bar-sender"></div>
+        <div id="reply-bar-text"></div>
+      </div>
+      <button id="reply-close" onclick="clearReply()">✕</button>
+    </div>
     <div id="attach-bar">
       <span>📎</span>
       <span class="attach-name" id="attach-name"></span>
@@ -992,7 +1151,7 @@ const LANG = {
     qrInstr: 'Signal öffnen → Einstellungen → Verknüpfte Geräte → Gerät hinzufügen → QR-Code scannen',
     qrLoading: 'Lade QR-Code…', qrLoadingLong: 'Lade QR-Code… (kann bis zu 60s dauern)',
     qrError: (e) => 'Fehler: ' + e, qrRefreshBtn: 'QR-Code neu laden',
-    photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
+    photosOn: 'Medien AN', photosOff: 'Medien AUS',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', btnLogout: 'Abmelden',
     logoutConfirmMsg: 'Möchtest du dich wirklich abmelden?', btnYes: 'Ja', btnNo: 'Nein',
@@ -1001,7 +1160,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Fehlende Fotos herunterladen',
     fetchMediaLoading: '⏳ Lade…', fetchMediaDone: '✓ Alle geladen',
     fetchMediaCount: (n) => '⏳ ' + n + ' Fotos…',
-    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
+    msgPlaceholder: 'Nachricht…', btnDelete: 'Löschen', ttReply: 'Antworten', ttForward: 'Weiterleiten', emojiTitle: 'Emoji', attachTitle: 'Datei anhängen', ttExport: 'Chat als HTML exportieren',
     errSend: (e) => 'Fehler: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
@@ -1016,7 +1175,7 @@ const LANG = {
     qrInstr: 'Open Signal → Settings → Linked Devices → Link a Device → Scan QR code',
     qrLoading: 'Loading QR code…', qrLoadingLong: 'Loading QR code… (may take up to 60s)',
     qrError: (e) => 'Error: ' + e, qrRefreshBtn: 'Reload QR code',
-    photosOn: 'Photos ON', photosOff: 'Photos OFF',
+    photosOn: 'Media ON', photosOff: 'Media OFF',
     cleanupTitle: 'Delete orphaned media files',
     btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', btnLogout: 'Log out',
     logoutConfirmMsg: 'Do you really want to log out?', btnYes: 'Yes', btnNo: 'No',
@@ -1025,7 +1184,7 @@ const LANG = {
     btnFetchMedia: '📥', fetchMediaTitle: 'Download missing photos',
     fetchMediaLoading: '⏳ Loading…', fetchMediaDone: '✓ All loaded',
     fetchMediaCount: (n) => '⏳ ' + n + ' photos…',
-    msgPlaceholder: 'Message…', btnDelete: 'Delete', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
+    msgPlaceholder: 'Message…', btnDelete: 'Delete', ttReply: 'Reply', ttForward: 'Forward', emojiTitle: 'Emoji', attachTitle: 'Attach file', ttExport: 'Export chat as HTML',
     errSend: (e) => 'Error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
@@ -1055,6 +1214,24 @@ function switchLang() {
   localStorage.setItem('signal_lang', lang);
   applyLang();
 }
+function applyTheme() {
+  var isDark = document.documentElement.classList.contains('dark');
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  var html = document.documentElement;
+  var nowDark = html.classList.contains('dark');
+  html.classList.toggle('dark', !nowDark);
+  html.classList.toggle('light', nowDark);
+  localStorage.setItem('signal_theme', nowDark ? 'light' : 'dark');
+  applyTheme();
+}
+(function() {
+  var saved = localStorage.getItem('signal_theme');
+  if (saved) { document.documentElement.classList.remove('dark', 'light'); document.documentElement.classList.add(saved); }
+  applyTheme();
+})();
 
 const BASE = location.pathname.replace(/\\/$/, '');
 let currentStatus = '';
@@ -1237,7 +1414,7 @@ function renderChats(chats) {
 
 function exportChat() {
   if (!selectedChatId) return;
-  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId));
+  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId) + '?lang=' + lang);
 }
 
 function filterChats() {
@@ -1315,7 +1492,12 @@ function renderMessages(msgs) {
     const time = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
     const ack = m.fromMe ? ackMark(m.ack ?? -1) : '';
     let content;
-    if (m.mediaFile) {
+    if (m.type === 'voice' && m.mediaFile) {
+      content = \`<audio controls style="min-width:220px;max-width:280px;width:100%" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></audio>\`;
+      if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
+    } else if (m.type === 'voice') {
+      content = '<span class="photo-placeholder">🎵 Sprachnachricht</span>';
+    } else if (m.mediaFile) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
@@ -1329,12 +1511,60 @@ function renderMessages(msgs) {
     } else {
       content = formatText(m.body || '');
     }
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">✕</button></div>\`;
+    const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
+    const chatForReply = allChats.find(c => c.id === selectedChatId);
+    const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name || selectedChatId || '');
+    const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':'')).slice(0,60));
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">✕</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">↩</button></div>\`;
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;
+let _replyMsgId = null, _replyFrom = null, _replyTs = null, _replyBody = null;
+
+function setReply(msgId, contact, preview, from, ts) {
+  _replyMsgId = msgId; _replyFrom = from; _replyTs = ts; _replyBody = preview;
+  document.getElementById('reply-bar-sender').textContent = contact;
+  document.getElementById('reply-bar-text').textContent = preview;
+  document.getElementById('reply-bar').classList.add('active');
+  document.getElementById('msg-input').focus();
+}
+function clearReply() {
+  _replyMsgId = null; _replyFrom = null; _replyTs = null; _replyBody = null;
+  document.getElementById('reply-bar').classList.remove('active');
+}
+
+let _fwdMsgId = null;
+function openFwdModal(msgId) {
+  _fwdMsgId = msgId;
+  document.getElementById('fwd-search').value = '';
+  renderFwdList(allChats);
+  document.getElementById('fwd-modal').classList.add('open');
+  setTimeout(() => document.getElementById('fwd-search').focus(), 50);
+}
+function closeFwdModal() { document.getElementById('fwd-modal').classList.remove('open'); _fwdMsgId = null; }
+function filterFwdChats() {
+  const q = document.getElementById('fwd-search').value.toLowerCase();
+  renderFwdList(q ? allChats.filter(c => (c.name||'').toLowerCase().includes(q)) : allChats);
+}
+function renderFwdList(chats) {
+  const list = document.getElementById('fwd-chat-list');
+  list.innerHTML = chats.map(c => {
+    const bg = avatarColor(c.name||c.id);
+    return \`<div class="fwd-chat-item" onclick="forwardTo('\${escHtml(c.id)}')"><div class="avatar" style="width:34px;height:34px;font-size:13px;background:\${bg};flex-shrink:0">\${avatarInitial(c.name||c.id)}</div><div class="fwd-chat-item-name">\${escHtml(c.name||c.id)}</div></div>\`;
+  }).join('');
+}
+async function forwardTo(chatId) {
+  const msgId = _fwdMsgId;
+  closeFwdModal();
+  if (!msgId) return;
+  try {
+    await fetch(api('/api/forward'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ msgId, to: chatId }) });
+    if (chatId === selectedChatId) await loadMessages(selectedChatId);
+    await loadChats();
+  } catch(e) { console.error('Forward error:', e.message); }
+}
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -1384,14 +1614,16 @@ async function sendMsg() {
     return;
   }
   if (!text) return;
+  const replyId = _replyMsgId, replyFrom = _replyFrom, replyTs = _replyTs, replyBody = _replyBody;
+  clearReply();
   inp.value = '';
   inp.style.height = '';
   try {
-    await fetch(api('/api/send'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: selectedChatId, message: text }),
-    });
+    const endpoint = replyId ? api('/api/reply') : api('/api/send');
+    const payload = replyId
+      ? { to: selectedChatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody }
+      : { to: selectedChatId, message: text };
+    await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     lastSeenTime[selectedChatId] = Date.now();
     localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
     fetch(api('/api/poll'), { method: 'POST' });
@@ -1423,7 +1655,14 @@ async function loadStorage() {
   try {
     const d = await fetch(api('/api/storage')).then(r => r.json());
     const el = document.getElementById('storage-info');
-    if (el) el.textContent = '💾 ' + d.mb + ' MB';
+    if (!el) return;
+    el.textContent = '💾 ' + d.mb + ' MB';
+    if (d.mediaMb !== undefined) {
+      const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
+      el.title = locale() === 'de'
+        ? \`Gesamt /config: \${d.mb} MB\nMedienordner: \${d.mediaMb} MB von \${autoAt} MB (\${d.mediaPct}%)\nAuto-Delete startet bei \${autoAt} MB → löscht auf \${autoTo} MB\`
+        : \`Total /config: \${d.mb} MB\nMedia folder: \${d.mediaMb} MB of \${autoAt} MB (\${d.mediaPct}%)\nAuto-delete starts at \${autoAt} MB → cleans to \${autoTo} MB\`;
+    }
   } catch(e) {}
 }
 loadStorage();
@@ -1464,7 +1703,7 @@ function togglePhotos() {
   showPhotos = !showPhotos;
   localStorage.setItem('signal_show_photos', showPhotos ? 'true' : 'false');
   const btn = document.getElementById('photo-toggle-btn');
-  if (btn) { btn.textContent = showPhotos ? '📷' : '🚫'; btn.title = showPhotos ? t('photosOn') : t('photosOff'); btn.classList.toggle('active', showPhotos); }
+  if (btn) { btn.textContent = showPhotos ? '🎬' : '🚫'; btn.title = showPhotos ? t('photosOn') : t('photosOff'); btn.classList.toggle('active', showPhotos); }
   if (selectedChatId) loadMessages(selectedChatId);
 }
 
@@ -1486,11 +1725,12 @@ async function deleteMsg(chatId, msgId) {
   } catch(e) {}
 }
 document.getElementById('messages').addEventListener('click', e => {
-  const btn = e.target.closest('.del-btn');
-  if (!btn) return;
-  const row = btn.closest('.bubble-row');
-  if (!row) return;
-  deleteMsg(row.dataset.chatid, row.dataset.msgid);
+  const del = e.target.closest('.del-btn');
+  if (del) { const row = del.closest('.bubble-row'); if (row) deleteMsg(row.dataset.chatid, row.dataset.msgid); return; }
+  const fwd = e.target.closest('.fwd-btn');
+  if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
+  const rpl = e.target.closest('.reply-btn');
+  if (rpl) { setReply(rpl.dataset.msgid, rpl.dataset.contact, rpl.dataset.preview, rpl.dataset.from, rpl.dataset.ts); return; }
 });
 
 function handleKey(e) {
@@ -1560,6 +1800,14 @@ document.getElementById('msg-input').addEventListener('paste', function(e) {
 
 applyLang();
 </script>
+<div id="fwd-modal">
+  <div class="fwd-modal-box">
+    <h3>↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <div id="fwd-chat-list"></div>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+  </div>
+</div>
 <div id="logout-modal">
   <div class="logout-modal-box">
     <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>

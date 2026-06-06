@@ -113,6 +113,35 @@
     .sort-btn { font-size:.72rem; padding:3px 8px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
     .sort-btn.active { border-color:var(--accent); color:var(--accent); }
     .sort-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .platform-filters { display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 4px; }
+    .plat-btn { font-size:.72rem; padding:3px 9px; border-radius:10px; cursor:pointer; border:1px solid var(--border); background:none; color:var(--muted); }
+    .plat-btn.active { border-color:var(--accent); background:var(--accent); color:#fff; }
+    .plat-btn:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
+    .file-platform { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--accent); color:#fff; opacity:.75; white-space:nowrap; cursor:pointer; }
+    .file-platform:hover { opacity:1; }
+    .file-custom-tag { font-size:.68rem; padding:1px 6px; border-radius:8px; background:var(--yellow); color:#fff; opacity:.85; white-space:nowrap; cursor:pointer; }
+    .file-custom-tag:hover { opacity:1; }
+    .file-tag-btn { font-size:.68rem; padding:1px 6px; border-radius:8px; border:1px dashed var(--muted); background:none; color:var(--muted); cursor:pointer; white-space:nowrap; }
+    .file-tag-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .file-tag-btn.custom { border-color:var(--yellow); color:var(--yellow); opacity:.7; }
+    .file-tag-btn.custom:hover { opacity:1; }
+    .plat-popup { position:fixed; z-index:9999; background:var(--surf); border:1px solid var(--accent); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.55); padding:10px; display:flex; flex-wrap:wrap; gap:6px; max-width:270px; }
+    .plat-popup .pp-opt { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--border); background:var(--surf2); color:var(--text); cursor:pointer; font-weight:500; }
+    .plat-popup .pp-opt:hover, .plat-popup .pp-opt.active { border-color:var(--accent); background:var(--accent); color:#fff; }
+    .plat-popup .pp-remove { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--red); background:var(--surf2); color:var(--red); cursor:pointer; font-weight:500; width:100%; text-align:center; }
+    .plat-popup .pp-remove:hover { background:var(--red); color:#fff; }
+    .tag-popup { position:fixed; z-index:9999; background:var(--surf); border:1px solid var(--yellow); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.55); padding:10px; display:flex; flex-direction:column; gap:6px; min-width:200px; max-width:300px; }
+    .tag-popup .tp-opts { display:flex; flex-wrap:wrap; gap:5px; }
+    .tag-popup .tp-opt { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--yellow); background:var(--surf2); color:var(--yellow); cursor:pointer; font-weight:500; }
+    .tag-popup .tp-opt:hover, .tag-popup .tp-opt.active { background:var(--yellow); color:#fff; }
+    .tag-popup .tp-divider { border-top:1px solid var(--border); margin:2px 0; }
+    .tag-popup .tp-input-wrap { display:flex; gap:5px; }
+    .tag-popup .tp-input { flex:1; min-width:0; padding:5px 9px; font-size:.82rem; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none; font-family:inherit; }
+    .tag-popup .tp-input:focus { border-color:var(--yellow); }
+    .tag-popup .tp-save { padding:5px 10px; background:var(--yellow); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:.82rem; font-weight:600; }
+    .tag-popup .tp-save:hover { opacity:.85; }
+    .tag-popup .tp-remove { font-size:.78rem; padding:4px 11px; border-radius:10px; border:1px solid var(--red); background:var(--surf2); color:var(--red); cursor:pointer; font-weight:500; text-align:center; }
+    .tag-popup .tp-remove:hover { background:var(--red); color:#fff; }
     .file-item { display:flex; align-items:flex-start; gap:8px; padding:9px 0; border-bottom:1px solid var(--border); }
     .file-item:last-child { border-bottom:none; }
     .file-icon { color:var(--muted); font-size:1rem; flex-shrink:0; padding-top:1px; }
@@ -224,6 +253,7 @@
         <button class="sort-btn" id="sort-name" onclick="setSort('name')">{{ t.sort_name }}</button>
         <button class="sort-btn" id="sort-size" onclick="setSort('size')">{{ t.sort_size }}</button>
       </div>
+      <div class="platform-filters" id="platform-filters" style="display:none"></div>
       <div id="files-list"><p class="empty-note">{{ t.files_empty }}</p></div>
     </div>
 
@@ -284,8 +314,13 @@
       status_cancelled: {{ t.status_cancelled | tojson }},
       cookies_loaded: {{ t.cookies_loaded | tojson }},
       cookies_none:   {{ t.cookies_none | tojson }},
-      ytdlp_updating: {{ t.ytdlp_updating | tojson }},
-      ytdlp_updated:  {{ t.ytdlp_updated | tojson }},
+      ytdlp_checking:    {{ t.ytdlp_checking | tojson }},
+      ytdlp_updating:    {{ t.ytdlp_updating | tojson }},
+      ytdlp_updated:     {{ t.ytdlp_updated | tojson }},
+      ytdlp_up_to_date:  {{ t.ytdlp_up_to_date | tojson }},
+      tag_add:           {{ t.tag_add | tojson }},
+      tag_remove:        {{ t.tag_remove | tojson }},
+      tag_placeholder:   {{ t.tag_placeholder | tojson }},
       disk_free:      {{ t.disk_free | tojson }},
       disk_used_by_folder: {{ t.disk_used_by_folder | tojson }},
       info_loading:   {{ t.info_loading | tojson }},
@@ -471,8 +506,9 @@
     }
 
     // ── Files ─────────────────────────────────────────────────────────────────
-    let _allFiles = [];
-    let _sortKey  = 'date';
+    let _allFiles       = [];
+    let _sortKey        = 'date';
+    let _platformFilter = null;
 
     function setSort(key) {
       _sortKey = key;
@@ -487,14 +523,165 @@
         if (!r.ok) return;
         _allFiles = await r.json();
         document.getElementById('files-badge').textContent = _allFiles.length;
+        _buildPlatformFilters();
         renderFiles();
       } catch(e) {}
+    }
+
+    function _buildPlatformFilters() {
+      const wrap = document.getElementById('platform-filters');
+      const platforms = [...new Set(_allFiles.map(f => f.platform).filter(Boolean))].sort();
+      const tags      = [...new Set(_allFiles.map(f => f.tag).filter(Boolean))].sort();
+      if (!platforms.length && !tags.length) { wrap.style.display = 'none'; return; }
+      if (_platformFilter && !platforms.includes(_platformFilter) && !tags.includes(_platformFilter)) _platformFilter = null;
+      wrap.style.display = 'flex';
+      const platBtns = platforms.map(p =>
+        `<button class="plat-btn${_platformFilter === p ? ' active' : ''}" onclick="setPlatformFilter('${p}')">${p}</button>`
+      ).join('');
+      const tagBtns = tags.map(t =>
+        `<button class="plat-btn${_platformFilter === t ? ' active' : ''}" style="${_platformFilter !== t ? 'border-color:var(--yellow);color:var(--yellow);opacity:.8' : ''}" onclick="setPlatformFilter('${t}')">${t}</button>`
+      ).join('');
+      wrap.innerHTML = platBtns + tagBtns;
+    }
+
+    function setPlatformFilter(p) {
+      _platformFilter = (_platformFilter === p) ? null : p;
+      _buildPlatformFilters();
+      renderFiles();
+    }
+
+    const _PLATFORMS = ['YouTube','TikTok','Instagram','X','Vimeo','SoundCloud','Twitch','Reddit','Dailymotion','Sonstiges'];
+    let _platPopup = null;
+    let _tagPopup  = null;
+
+    function openPlatformPicker(evt, filename, current) {
+      evt.stopPropagation();
+      closePlatformPicker(); closeTagEditor();
+      const popup = document.createElement('div');
+      popup.className = 'plat-popup';
+      _PLATFORMS.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'pp-opt' + (p === current ? ' active' : '');
+        btn.textContent = p;
+        btn.onclick = (e) => { e.stopPropagation(); savePlatform(filename, p); };
+        popup.appendChild(btn);
+      });
+      if (current) {
+        const rem = document.createElement('button');
+        rem.className = 'pp-remove';
+        rem.textContent = T.tag_remove;
+        rem.onclick = (e) => { e.stopPropagation(); savePlatform(filename, ''); };
+        popup.appendChild(rem);
+      }
+      const rect = evt.target.getBoundingClientRect();
+      popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+      popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 270) + 'px';
+      document.body.appendChild(popup);
+      _platPopup = popup;
+      setTimeout(() => document.addEventListener('click', closePlatformPicker, {once:true}), 0);
+    }
+
+    function closePlatformPicker() {
+      if (_platPopup) { _platPopup.remove(); _platPopup = null; }
+    }
+
+    async function savePlatform(filename, platform) {
+      closePlatformPicker();
+      try {
+        const r = await fetch('/api/file/platform/' + encodeURIComponent(filename), {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({platform})
+        });
+        if (r.ok) {
+          const f = _allFiles.find(x => x.name === filename);
+          if (f) f.platform = platform;
+          _buildPlatformFilters();
+          renderFiles();
+        } else { toast(T.error_unknown, true); }
+      } catch(e) { toast(T.error_network, true); }
+    }
+
+    function openTagEditor(evt, filename, current) {
+      evt.stopPropagation();
+      closeTagEditor(); closePlatformPicker();
+      const popup = document.createElement('div');
+      popup.className = 'tag-popup';
+
+      // Existing tags as quick-select buttons
+      const existingTags = [...new Set(_allFiles.map(f => f.tag).filter(Boolean))].sort();
+      if (existingTags.length) {
+        const opts = document.createElement('div');
+        opts.className = 'tp-opts';
+        existingTags.forEach(t => {
+          const btn = document.createElement('button');
+          btn.className = 'tp-opt' + (t === current ? ' active' : '');
+          btn.textContent = t;
+          btn.onclick = e => { e.stopPropagation(); saveTag(filename, t); };
+          opts.appendChild(btn);
+        });
+        popup.appendChild(opts);
+        const div = document.createElement('div');
+        div.className = 'tp-divider';
+        popup.appendChild(div);
+      }
+
+      const wrap = document.createElement('div');
+      wrap.className = 'tp-input-wrap';
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'tp-input';
+      inp.placeholder = T.tag_placeholder;
+      inp.maxLength = 50;
+      inp.value = current || '';
+      inp.onclick = e => e.stopPropagation();
+      inp.onkeydown = e => { if (e.key === 'Enter') { e.stopPropagation(); saveTag(filename, inp.value.trim()); } };
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'tp-save';
+      saveBtn.textContent = '✓';
+      saveBtn.onclick = e => { e.stopPropagation(); saveTag(filename, inp.value.trim()); };
+      wrap.appendChild(inp); wrap.appendChild(saveBtn);
+      popup.appendChild(wrap);
+      if (current) {
+        const rem = document.createElement('button');
+        rem.className = 'tp-remove';
+        rem.textContent = T.tag_remove;
+        rem.onclick = e => { e.stopPropagation(); saveTag(filename, ''); };
+        popup.appendChild(rem);
+      }
+      const rect = evt.target.getBoundingClientRect();
+      popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+      popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 260) + 'px';
+      document.body.appendChild(popup);
+      _tagPopup = popup;
+      setTimeout(() => { inp.focus(); if (inp.value) inp.select(); document.addEventListener('click', closeTagEditor, {once:true}); }, 0);
+    }
+
+    function closeTagEditor() {
+      if (_tagPopup) { _tagPopup.remove(); _tagPopup = null; }
+    }
+
+    async function saveTag(filename, tag) {
+      closeTagEditor();
+      try {
+        const r = await fetch('/api/file/tag/' + encodeURIComponent(filename), {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({tag})
+        });
+        if (r.ok) {
+          const f = _allFiles.find(x => x.name === filename);
+          if (f) f.tag = tag;
+          _buildPlatformFilters();
+          renderFiles();
+        } else { toast(T.error_unknown, true); }
+      } catch(e) { toast(T.error_network, true); }
     }
 
     function renderFiles() {
       const list   = document.getElementById('files-list');
       const q      = (document.getElementById('file-search').value || '').toLowerCase();
-      let   files  = q ? _allFiles.filter(f => f.name.toLowerCase().includes(q)) : [..._allFiles];
+      let   files  = [..._allFiles];
+      if (q)               files = files.filter(f => f.name.toLowerCase().includes(q));
+      if (_platformFilter) files = files.filter(f => f.platform === _platformFilter || f.tag === _platformFilter);
 
       if (_sortKey === 'name') files.sort((a,b) => a.name.localeCompare(b.name));
       else if (_sortKey === 'size') files.sort((a,b) => b.size - a.size);
@@ -521,6 +708,12 @@
           <div class="file-body">
             <span class="file-name" title="${esc(f.name)}">${esc(f.name)}</span>
             <div class="file-meta">
+              ${f.platform
+                ? `<span class="file-platform" onclick="openPlatformPicker(event,'${esc(f.name)}','${esc(f.platform)}')">${esc(f.platform)}</span>`
+                : `<button class="file-tag-btn" onclick="openPlatformPicker(event,'${esc(f.name)}','')" title="Plattform zuweisen">＋</button>`}
+              ${f.tag
+                ? `<span class="file-custom-tag" onclick="openTagEditor(event,'${esc(f.name)}','${esc(f.tag)}')">${esc(f.tag)}</span>`
+                : `<button class="file-tag-btn custom" onclick="openTagEditor(event,'${esc(f.name)}','')" title="Custom Tag zuweisen">${esc(T.tag_add)}</button>`}
               <span class="file-size">${fmtSize(f.size)}</span>
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">
@@ -576,13 +769,13 @@
       const btn = document.getElementById('ytdlp-update-btn');
       const ver = document.getElementById('ytdlp-ver');
       btn.disabled = true;
-      ver.textContent = T.ytdlp_updating;
+      ver.textContent = T.ytdlp_checking;
       try {
         const r = await fetch('/api/ytdlp/update', {method:'POST'});
         const d = await r.json();
         if (r.ok && d.version) {
           ver.textContent = d.version;
-          toast(T.ytdlp_updated + ' ' + d.version);
+          toast(d.up_to_date ? T.ytdlp_up_to_date + ' ' + d.version : T.ytdlp_updated + ' ' + d.version);
         } else {
           ver.textContent = '—';
           toast(T.error_unknown, true);

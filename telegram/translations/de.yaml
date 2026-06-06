@@ -13,7 +13,13 @@ configuration:
     description: Dunkles Theme in der Web-UI aktivieren.
   download_media:
     name: Medien herunterladen
-    description: Empfangene Fotos automatisch herunterladen und anzeigen. Funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten.
+    description: Empfangene Fotos und Videos automatisch herunterladen und anzeigen. Funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten.
+  media_max_mb:
+    name: Medienspeicher-Limit (MB)
+    description: "Maximale Größe des Medienordners in MB. Wird das Limit überschritten, werden automatisch die ältesten Dateien (Fotos, Videos, Sprachnachrichten) gelöscht, bis der Ordner wieder auf 80 % des Limits schrumpft. Standard: 500 MB."
+  video_max_mb:
+    name: Max. Video-Größe (MB)
+    description: "Maximale Dateigröße für herunterladbare Videos in MB. Größere Videos zeigen einen Platzhalter ohne Download-Möglichkeit. Standard: 50 MB."
   fetch_messages_limit:
     name: Nachrichten pro Chat
     description: "Anzahl Nachrichten die beim ersten Öffnen eines Chats geladen werden. Empfehlung: 50. Maximum: 300."

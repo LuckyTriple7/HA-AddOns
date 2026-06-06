@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.5.19] - 2026-06-06
+- Neu: ☀️/🌙-Button neben "Signal" zum Umschalten Dark/Light Mode; Auswahl per localStorage (signal_theme) gespeichert
+
+## [1.5.18] - 2026-06-06
+- Fix: HTML-Export brach bei Sprachnachrichten ab — base64-Einbettung entfernt, werden als Platzhalter (🎵) angezeigt
+- Neu: HTML-Export vollständig lokalisiert (DE/EN)
+
+## [1.5.17] - 2026-06-06
+- Neu: media_max_mb im Startup-Log ausgeben
+
+## [1.5.16] - 2026-06-05
+- Fix: MEDIA_MAX_MB fehlte in run.sh → Limit zeigte immer 500 MB statt konfiguriertem Wert
+
+## [1.5.15] - 2026-06-05
+- 📷→🎬 Button umbenannt: "Fotos AN/AUS" → "Medien AN/AUS" (DE+EN)
+
+## [1.5.14] - 2026-06-05
+- Speicher-Tooltip: Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete (DE+EN)
+
+## [1.5.13] - 2026-06-05
+- Neu: media_max_mb Config (Standard 500 MB) — bei Überschreitung werden automatisch die ältesten Mediendateien gelöscht
+
+## [1.5.12] - 2026-06-05
+- Fix: Weitergeleitete Nachricht wird jetzt lokal gespeichert und UI aktualisiert — war nach dem Weiterleiten unsichtbar im AddOn
+
+## [1.5.11] - 2026-06-05
+- Neu: Nachrichten weiterleiten (↪) und beantworten (↩) — Hover-Buttons, Forward-Modal mit Suchfeld, Zitat-Block in der Bubble; Reply nutzt Signal quote-API
+
+## [1.5.10] - 2026-06-05
+- Neu: Sprachnachrichten werden empfangen, als .ogg gespeichert und als abspielbarer Audio-Player angezeigt (erfordert download_media: true); Fallback-Platzhalter wenn Datei fehlt
+
+## [1.5.9] - 2026-06-05
+- fix: Bestätigungs-Haken (✓/✓✓) werden jetzt auch bei gesendeten Bildern und Dokumenten angezeigt — `signalTimestamp` fehlte in send-media-Nachrichten
+
 ## [1.5.8] - 2026-06-05
 - Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo)
 

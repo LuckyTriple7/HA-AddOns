@@ -36,6 +36,8 @@ const PHONE_NUMBER = process.env.PHONE_NUMBER || '';
 const WEBHOOK_INCOMING = process.env.WEBHOOK_INCOMING || '';
 const DARK_MODE = process.env.DARK_MODE !== 'false';
 const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
+const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
+const VIDEO_MAX_MB  = Math.max(parseInt(process.env.VIDEO_MAX_MB  || '50',  10), 1);
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
@@ -51,6 +53,8 @@ console.log(`[INFO]   api_hash               = ${API_HASH ? 'set' : 'not set'}`)
 console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'set' : 'not set'}`);
 console.log(`[INFO]   dark_mode              = ${DARK_MODE}`);
 console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
+console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
+console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -161,14 +165,27 @@ async function downloadMedia(rawMsg, msgId) {
     let ext = 'jpg';
     if (mediaClass === 'MessageMediaDocument') {
       const mime = rawMsg.media.document?.mimeType || '';
-      if (!mime.startsWith('image/')) return null;
-      ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
+      const attrs = rawMsg.media.document?.attributes || [];
+      const isVoice = attrs.some(a => a.className === 'DocumentAttributeAudio' && a.voice);
+      const isVideo = !isVoice && (attrs.some(a => a.className === 'DocumentAttributeVideo') || mime.startsWith('video/'));
+      if (isVoice) {
+        ext = 'ogg';
+      } else if (isVideo) {
+        const fileSize = rawMsg.media.document?.size || 0;
+        if (fileSize > VIDEO_MAX_MB * 1024 * 1024) return null;
+        ext = mime === 'video/webm' ? 'webm' : mime === 'video/ogg' ? 'ogv' : 'mp4';
+      } else if (mime.startsWith('image/')) {
+        ext = mime === 'image/webp' ? 'webp' : mime === 'image/png' ? 'png' : 'jpg';
+      } else {
+        return null;
+      }
     } else if (mediaClass !== 'MessageMediaPhoto') {
       return null;
     }
     const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
     if (!fs.existsSync(filePath)) {
-      const buf = await client.downloadMedia(rawMsg, {});
+      enforceMediaLimit();
+      const buf = await client.downloadMedia(rawMsg, { workers: 1 });
       if (buf) fs.writeFileSync(filePath, buf);
     }
     return fs.existsSync(filePath) ? `${safeId}.${ext}` : null;
@@ -232,17 +249,27 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
 
   let type = 'text';
   let mediaFile = null;
+  let videoSize = 0;
   if (hasMedia) {
     const mc = rawMsg.media?.className;
-    const isImage = mc === 'MessageMediaPhoto' ||
-      (mc === 'MessageMediaDocument' && rawMsg.media.document?.mimeType?.startsWith('image/'));
-    const isVideo = !isImage && mc === 'MessageMediaDocument' &&
+    const attrs = rawMsg.media?.document?.attributes || [];
+    const isVoice = mc === 'MessageMediaDocument' && attrs.some(a => a.className === 'DocumentAttributeAudio' && a.voice);
+    const isImage = !isVoice && (mc === 'MessageMediaPhoto' ||
+      (mc === 'MessageMediaDocument' && rawMsg.media.document?.mimeType?.startsWith('image/')));
+    const isVideo = !isVoice && !isImage && mc === 'MessageMediaDocument' &&
       rawMsg.media.document?.mimeType?.startsWith('video/');
-    if (isImage) {
+    if (isVoice) {
+      type = 'voice';
+      if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
+    } else if (isImage) {
       type = 'photo';
       if (DOWNLOAD_MEDIA) mediaFile = await downloadMedia(rawMsg, msgId);
     } else if (isVideo) {
       type = 'video';
+      videoSize = rawMsg.media?.document?.size || 0;
+      if (DOWNLOAD_MEDIA && source === 'NewMessage') {
+        mediaFile = await downloadMedia(rawMsg, msgId);
+      }
     }
   }
 
@@ -261,7 +288,13 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
 
   if (!messagesByChatId.has(chatId)) messagesByChatId.set(chatId, []);
   const msgs = messagesByChatId.get(chatId);
-  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, timestamp: ts, fromMe, ack: fromMe ? 1 : 0 };
+  let quotedMsg = null;
+  if (rawMsg.replyTo?.replyToMsgId) {
+    const qId = `${chatId}_${rawMsg.replyTo.replyToMsgId}`;
+    const qStored = messagesByChatId.get(chatId)?.find(m => m.id === qId);
+    if (qStored) quotedMsg = { body: (qStored.body || '').slice(0, 100), contact: qStored.fromMe ? 'Ich' : (chatMap.get(chatId)?.name || chatId) };
+  }
+  const msgObj = { id: msgId, from: fromMe ? myId : chatId, body, type, mediaFile, videoSize: videoSize || undefined, timestamp: ts, fromMe, ack: fromMe ? 1 : 0, quotedMsg, groupedId: rawMsg.groupedId ? rawMsg.groupedId.toString() : undefined };
   if (Object.keys(msgReactions).length) msgObj.reactions = msgReactions;
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   msgs.push(msgObj);
@@ -498,20 +531,22 @@ app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
   if (req.query.refresh === '1' && status === 'connected') {
     const prevMsgs = messagesByChatId.get(chatId) || [];
-    const savedReactions = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction }]));
+    const savedData = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction, mediaFile: m.mediaFile || null, videoSize: m.videoSize }]));
     prevMsgs.forEach(m => seenMsgIds.delete(m.id));
     messagesByChatId.delete(chatId);
     await fetchMessages(chatId);
     for (const m of (messagesByChatId.get(chatId) || [])) {
-      const saved = savedReactions.get(m.id);
+      const saved = savedData.get(m.id);
       if (!saved) continue;
       if (!m.myReaction && saved.myReaction) m.myReaction = saved.myReaction;
       if ((!m.reactions || !Object.keys(m.reactions).length) && Object.keys(saved.reactions || {}).length) m.reactions = saved.reactions;
+      if (!m.mediaFile && saved.mediaFile) m.mediaFile = saved.mediaFile; // heruntergeladene Videos behalten
+      if (!m.videoSize && saved.videoSize) m.videoSize = saved.videoSize;
     }
     return res.json(messagesByChatId.get(chatId) || []);
   }
   const existing = messagesByChatId.get(chatId) || [];
-  if (existing.length < FETCH_LIMIT && status === 'connected') {
+  if (!messagesByChatId.has(chatId) && status === 'connected') {
     await fetchMessages(chatId);
     return res.json(messagesByChatId.get(chatId) || []);
   }
@@ -520,26 +555,36 @@ app.get('/api/messages/:chatId', async (req, res) => {
 
 app.get('/api/export/:chatId', (req, res) => {
   const chatId = decodeURIComponent(req.params.chatId);
+  const isEn = (req.query.lang || 'de') === 'en';
+  const loc = isEn ? 'en-GB' : 'de-DE';
   const chat = chatMap.get(chatId);
   const msgs = messagesByChatId.get(chatId) || [];
   const chatName = chat ? (chat.name || chatId) : chatId;
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const exportDate = new Date().toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const meLabel = isEn ? 'Me' : 'Du';
+  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
+  const messagesLabel = isEn ? 'messages' : 'Nachrichten';
   let lastDate = '';
   const msgsHtml = msgs.map(m => {
     const d = new Date(m.timestamp);
-    const dateStr = d.toLocaleDateString('de-DE', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-    const time = d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+    const dateStr = d.toLocaleDateString(loc, { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    const time = d.toLocaleTimeString(loc, { hour:'2-digit', minute:'2-digit' });
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'photo' && m.mediaFile) {
+    if (m.type === 'voice') {
+      content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
+    } else if (m.type === 'video') {
+      content = `<span style="opacity:0.6">📹 ${isEn ? 'Video' : 'Video'}</span>`;
+      if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
+    } else if (m.type === 'photo' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
       if (fs.existsSync(fp)) {
         const ext = m.mediaFile.split('.').pop().toLowerCase();
         const mime = ext==='png'?'image/png':ext==='webp'?'image/webp':'image/jpeg';
         content = `<img src="data:${mime};base64,${fs.readFileSync(fp).toString('base64')}" style="max-width:280px;max-height:280px;border-radius:6px;display:block;">`;
-      } else { content = '📷 Foto'; }
+      } else { content = isEn ? '📷 Photo' : '📷 Foto'; }
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'document' && m.filename) {
       content = `<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">📄</span><span style="font-weight:500">${escH(m.filename)}</span></div>`;
@@ -547,10 +592,10 @@ app.get('/api/export/:chatId', (req, res) => {
     } else {
       content = escH(m.body||'').replace(/\n/g,'<br>');
     }
-    const sender = m.fromMe ? 'Du' : escH(chatName);
+    const sender = m.fromMe ? meLabel : escH(chatName);
     return `${sep}<div class="msg ${m.fromMe?'out':'in'}"><div class="bubble"><div class="meta"><span class="sender">${sender}</span><span class="time">${time}</span></div><div class="content">${content}</div></div></div>`;
   }).join('\n');
-  const html = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a2633;min-height:100vh;padding:16px;color:#e0e0e0}h1{text-align:center;font-size:18px;color:#fff;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#8696a0;background:rgba(255,255,255,.06);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#232e3c;border-bottom-left-radius:2px}.msg.out .bubble{background:#2b5278;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#2AABEE}.msg.out .sender{color:#6ec6f5}.time{color:#8696a0;flex-shrink:0}@media print{body{background:#fff;color:#000}.msg.in .bubble{background:#f0f0f0}.msg.out .bubble{background:#d6eaf8}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">Exportiert am ${exportDate} &bull; ${msgs.length} Nachrichten</p>${msgsHtml}</body></html>`;
+  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat: ${escH(chatName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a2633;min-height:100vh;padding:16px;color:#e0e0e0}h1{text-align:center;font-size:18px;color:#fff;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:16px}.day-sep{text-align:center;margin:12px 0;font-size:12px;color:#8696a0;background:rgba(255,255,255,.06);border-radius:8px;display:inline-block;padding:2px 10px;width:100%}.msg{display:flex;margin:3px 0}.msg.in{justify-content:flex-start}.msg.out{justify-content:flex-end}.bubble{max-width:70%;padding:7px 10px;border-radius:8px;font-size:14px;line-height:1.45;word-break:break-word}.msg.in .bubble{background:#232e3c;border-bottom-left-radius:2px}.msg.out .bubble{background:#2b5278;border-bottom-right-radius:2px}.meta{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;font-size:12px}.sender{font-weight:600;color:#2AABEE}.msg.out .sender{color:#6ec6f5}.time{color:#8696a0;flex-shrink:0}@media print{body{background:#fff;color:#000}.msg.in .bubble{background:#f0f0f0}.msg.out .bubble{background:#d6eaf8}}</style></head><body><h1>${escH(chatName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${msgs.length} ${messagesLabel}</p>${msgsHtml}</body></html>`;
   const fname = `telegram_${chatName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.html`;
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Content-Disposition',`attachment; filename="${fname}"`);
@@ -581,6 +626,100 @@ app.post('/api/send', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post('/api/reply', async (req, res) => {
+  const { to, message, replyToTgId } = req.body;
+  if (!to || !message) return res.status(400).json({ error: 'to und message erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    let entity = peerMap.get(to);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(to); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const result = await client.sendMessage(entity, { message, replyTo: replyToTgId ? Number(replyToTgId) : undefined });
+    const msgId = `${to}_${result.id}`;
+    if (!seenMsgIds.has(msgId)) {
+      seenMsgIds.add(msgId);
+      const ts = Date.now();
+      if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
+      messagesByChatId.get(to).push({ id: msgId, from: myId, body: message, timestamp: ts, fromMe: true, ack: 1 });
+      if (chatMap.has(to)) { chatMap.get(to).lastMsg = message; chatMap.get(to).lastTime = ts; }
+      scheduleSave();
+    }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/forward', async (req, res) => {
+  const { msgId, to } = req.body;
+  if (!msgId || !to) return res.status(400).json({ error: 'msgId und to erforderlich' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  try {
+    const tgMsgId = parseInt(msgId.split('_').pop(), 10);
+    const fromChatId = msgId.split('_').slice(0, -1).join('_');
+    let fromEntity = peerMap.get(fromChatId);
+    if (!fromEntity) { await loadDialogs(); fromEntity = peerMap.get(fromChatId); }
+    let toEntity = peerMap.get(to);
+    if (!toEntity) { await loadDialogs(); toEntity = peerMap.get(to); }
+    if (!fromEntity || !toEntity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    await client.forwardMessages(toEntity, { messages: [tgMsgId], fromPeer: fromEntity });
+    try {
+      const latest = await client.getMessages(toEntity, { limit: 1 });
+      if (latest && latest[0]) await processMessage(latest[0], to, chatMap.get(to)?.name || to, 'Forward');
+    } catch(e) { console.log('[WARN] forward getMessages:', e.message); }
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fetch-video', async (req, res) => {
+  const { msgId } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
+  const parts = msgId.split('_');
+  const tgId = parseInt(parts.pop(), 10);
+  const chatId = parts.join('_');
+  const msgs = messagesByChatId.get(chatId);
+  const storedMsg = msgs?.find(m => m.id === msgId);
+  if (!storedMsg) return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+  if (storedMsg.mediaFile) return res.json({ success: true, mediaFile: storedMsg.mediaFile });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Chat nicht gefunden' });
+    const tgMsgs = await client.getMessages(entity, { ids: [tgId] });
+    if (!tgMsgs?.[0]) return res.status(404).json({ error: 'TG-Nachricht nicht gefunden' });
+    const rawTgMsg = tgMsgs[0];
+    const fileSize = rawTgMsg.media?.document?.size || 0;
+    if (fileSize > VIDEO_MAX_MB * 1024 * 1024) {
+      return res.status(413).json({ error: `Video zu groß (${(fileSize/1024/1024).toFixed(1)} MB, max ${VIDEO_MAX_MB} MB)` });
+    }
+    const mediaFile = await Promise.race([
+      downloadMedia(rawTgMsg, msgId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout nach 25s')), 25000)),
+    ]);
+    if (!mediaFile) return res.status(500).json({ error: 'Download fehlgeschlagen' });
+    storedMsg.mediaFile = mediaFile;
+    scheduleSave();
+    res.json({ success: true, mediaFile });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/delete-video', (req, res) => {
+  const { msgId } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId required' });
+  const parts = msgId.split('_');
+  parts.pop();
+  const chatId = parts.join('_');
+  const msgs = messagesByChatId.get(chatId);
+  const storedMsg = msgs?.find(m => m.id === msgId);
+  if (!storedMsg) return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+  if (storedMsg.mediaFile) {
+    const fp = `${MEDIA_DIR}/${storedMsg.mediaFile}`;
+    try { fs.unlinkSync(fp); } catch(e) {}
+    storedMsg.mediaFile = null;
+    scheduleSave();
+  }
+  res.json({ success: true });
 });
 
 app.post('/api/send-media', upload.single('file'), async (req, res) => {
@@ -768,9 +907,42 @@ function getDirSize(dir) {
   return total;
 }
 
+function enforceMediaLimit() {
+  const limitBytes = MEDIA_MAX_MB * 1024 * 1024;
+  const targetBytes = limitBytes * 0.8; // auf 80% des Limits zurückschneiden
+  let current = 0;
+  let files = [];
+  try {
+    for (const f of fs.readdirSync(MEDIA_DIR)) {
+      const fp = `${MEDIA_DIR}/${f}`;
+      try {
+        const st = fs.statSync(fp);
+        files.push({ fp, size: st.size, mtime: st.mtimeMs });
+        current += st.size;
+      } catch(e) {}
+    }
+  } catch(e) { return; }
+  if (current <= limitBytes) return;
+  // Älteste zuerst löschen
+  files.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const f of files) {
+    if (current - freed <= targetBytes) break;
+    try { fs.unlinkSync(f.fp); freed += f.size; console.log(`[INFO] Media-Limit: gelöscht ${f.fp} (${(f.size/1024/1024).toFixed(1)} MB)`); } catch(e) {}
+  }
+  console.log(`[INFO] Media-Limit: ${(freed/1024/1024).toFixed(1)} MB freigegeben (Limit: ${MEDIA_MAX_MB} MB)`);
+}
+
 app.get('/api/storage', (req, res) => {
   const bytes = getDirSize('/config');
-  res.json({ bytes, mb: (bytes / (1024 * 1024)).toFixed(1) });
+  const mediaBytes = getDirSize(MEDIA_DIR);
+  const mediaMb = mediaBytes / 1024 / 1024;
+  res.json({
+    bytes, mb: (bytes / 1024 / 1024).toFixed(1),
+    mediaMb: mediaMb.toFixed(1),
+    limitMb: MEDIA_MAX_MB,
+    mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
+  });
 });
 
 app.post('/api/cleanup-media', (req, res) => {
@@ -797,10 +969,87 @@ app.get('/api/media/:filename', (req, res) => {
   const filePath = `${MEDIA_DIR}/${filename}`;
   if (!fs.existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
-  const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+  const mime = ext==='webp'?'image/webp':ext==='png'?'image/png':ext==='ogg'?'audio/ogg':ext==='mp4'?'video/mp4':ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'image/jpeg';
   res.setHeader('Content-Type', mime);
   res.setHeader('Cache-Control', 'max-age=86400');
   res.sendFile(filePath);
+});
+
+// ── Avatar + Kontaktinfo ──────────────────────────────────────────────────────
+
+const tgAvatarCache   = new Map(); // chatId → { buf: Buffer|null, ts: number }
+const tgAvatarPending = new Map(); // chatId → Promise
+
+app.get('/api/avatar/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  const cached = tgAvatarCache.get(chatId);
+  if (cached !== undefined && Date.now() - cached.ts < 3600000) {
+    if (!cached.buf) return res.status(404).end();
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.send(cached.buf);
+  }
+  if (status !== 'connected') return res.status(503).end();
+  if (tgAvatarPending.has(chatId)) {
+    try {
+      const buf = await tgAvatarPending.get(chatId);
+      if (!buf) return res.status(404).end();
+      res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(buf);
+    } catch { return res.status(404).end(); }
+  }
+  const promise = (async () => {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) throw new Error('not found');
+    const buf = await client.downloadProfilePhoto(entity, { isBig: false });
+    return (buf && buf.length) ? buf : null;
+  })();
+  tgAvatarPending.set(chatId, promise);
+  promise.then(() => tgAvatarPending.delete(chatId), () => tgAvatarPending.delete(chatId));
+  try {
+    const buf = await promise;
+    tgAvatarCache.set(chatId, { buf: buf || null, ts: Date.now() });
+    if (!buf) return res.status(404).end();
+    res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(buf);
+  } catch(e) {
+    tgAvatarCache.set(chatId, { buf: null, ts: Date.now() });
+    res.status(404).end();
+  }
+});
+
+app.get('/api/contact/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    let entity = peerMap.get(chatId);
+    if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
+    if (!entity) return res.status(404).json({ error: 'Not found' });
+    let bio = '';
+    try {
+      if (entity.className === 'User') {
+        const full = await client.invoke(new Api.users.GetFullUser({ id: entity }));
+        bio = full.fullUser?.about || '';
+      } else if (entity.className === 'Channel' || entity.className === 'Chat') {
+        const full = await client.invoke(new Api.channels.GetFullChannel({ channel: entity })).catch(() => null);
+        bio = full?.fullChat?.about || '';
+      }
+    } catch(e) {}
+    const picBuf = await client.downloadProfilePhoto(entity, { isBig: false }).catch(() => null);
+    const name = entity.firstName ? [entity.firstName, entity.lastName].filter(Boolean).join(' ') : (entity.title || chatId);
+    res.json({
+      id: chatId,
+      name,
+      firstName: entity.firstName || '',
+      lastName: entity.lastName || '',
+      username: entity.username || '',
+      phone: entity.phone || '',
+      about: bio,
+      hasProfilePic: !!(picBuf && picBuf.length),
+      chatType: entity.className === 'Channel' ? (entity.megagroup ? 'group' : 'channel') : entity.className === 'Chat' ? 'group' : 'private',
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── UI ────────────────────────────────────────────────────────────────────────
@@ -874,7 +1123,8 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .photo-placeholder { display: none; }
-body.hide-photos .msg-img { display: none !important; }
+body.hide-photos .msg-img,
+body.hide-photos video { display: none !important; }
 body.hide-photos .photo-placeholder { display: inline; }
 
 /* ── Main layout ── */
@@ -912,7 +1162,25 @@ html.dark .chat-item:hover { background: #2B3A4A; }
 html.dark .chat-item.active { background: #2B5278; }
 html.light .chat-item:hover { background: #F1F1F1; }
 html.light .chat-item.active { background: #E3F2FD; }
-.avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; color: #fff; flex-shrink: 0; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; color: #fff; flex-shrink: 0; position: relative; overflow: hidden; }
+.avatar img[data-avatar] { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+#contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
+#contact-modal.open { display: flex; }
+.contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.dark .contact-modal-box { background: #232E3C; }
+html.light .contact-modal-box { background: #fff; }
+.contact-modal-pic { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
+.contact-modal-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
+html.dark .contact-modal-name { color: #fff; }
+html.light .contact-modal-name { color: #111; }
+.contact-modal-sub { font-size: 13px; color: #6B7B8D; text-align: center; }
+.contact-modal-number { font-size: 14px; color: #2AABEE; font-weight: 500; }
+.contact-modal-about { font-size: 13px; color: #6B7B8D; text-align: center; max-width: 260px; word-break: break-word; }
+.contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
+html.dark .contact-modal-close { background: #2B3A4A; color: #C1C9D4; }
+html.light .contact-modal-close { background: #f0f2f5; color: #111; }
+.contact-modal-close:hover { opacity: 0.8; }
 .chat-info { flex: 1; overflow: hidden; }
 .chat-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html.dark .chat-name { color: #fff; }
@@ -947,7 +1215,7 @@ html.light #chat-header { background: #517DA2; }
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
 .bubble-row-inner { display: flex; align-items: flex-end; gap: 6px; }
-.bubble-row-inner .del-btn { order: -1; }
+.bubble-row.out .react-btn, .bubble-row.out .fwd-btn, .bubble-row.out .reply-btn { order: -1; }
 #lightbox { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.88); cursor: zoom-out; align-items: center; justify-content: center; }
 #lightbox.open { display: flex; }
 #lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 32px rgba(0,0,0,0.6); cursor: default; }
@@ -956,8 +1224,8 @@ html.dark #reaction-picker { background: #232E3C; border: 1px solid #1A2432; }
 html.light #reaction-picker { background: #fff; border: 1px solid #d9dbdf; }
 #reaction-picker button { background: none; border: none; font-size: 24px; cursor: pointer; padding: 3px 4px; border-radius: 50%; line-height: 1; transition: transform 0.12s; }
 #reaction-picker button:hover { transform: scale(1.4); }
-.react-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 5px; line-height: 1; border-radius: 50%; flex-shrink: 0; }
-.bubble-row:hover .react-btn { display: block; }
+.react-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 5px; line-height: 1; border-radius: 50%; flex-shrink: 0; }
+.bubble-row:hover .react-btn { opacity: 1; pointer-events: auto; }
 html.dark .react-btn { color: rgba(193,201,212,0.5); }
 html.light .react-btn { color: rgba(0,0,0,0.35); }
 html.dark .react-btn:hover { color: #C1C9D4; }
@@ -973,15 +1241,62 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble.photo-bubble { padding: 0; overflow: hidden; position: relative; }
 .bubble.photo-bubble .bubble-time { position: absolute; bottom: 3px; right: 5px; background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.95) !important; border-radius: 8px; padding: 0 5px; float: none; margin: 0; }
 .bubble.photo-bubble .msg-ack { color: rgba(255,255,255,0.95) !important; }
+.voice-wrap { padding: 2px 0; }
 .bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .bubble-doc .doc-icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
 .bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
-.del-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
-.bubble-row:hover .del-btn { display: block; }
-html.dark .del-btn { color: rgba(193,201,212,0.6); }
-html.light .del-btn { color: rgba(0,0,0,0.4); }
-.del-btn:hover { color: #e74c3c !important; }
+#delete-mode-btn { background: none; border: none; cursor: pointer; font-size: 17px; padding: 4px 6px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, color 0.15s; }
+#delete-mode-btn:hover { opacity: 1; }
+#delete-mode-btn.active { color: #e74c3c; opacity: 1; }
+#messages.delete-mode .bubble-row { cursor: pointer; }
+#messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
+.bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
+.fwd-btn, .reply-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.bubble-row:hover .fwd-btn, .bubble-row:hover .reply-btn { opacity: 1; pointer-events: auto; }
+html.dark .fwd-btn, html.dark .reply-btn { color: rgba(193,201,212,0.5); }
+html.light .fwd-btn, html.light .reply-btn { color: rgba(0,0,0,0.35); }
+.fwd-btn:hover { color: #2AABEE !important; }
+.reply-btn:hover { color: #2AABEE !important; }
+.quoted-block { border-left: 3px solid #2AABEE; background: rgba(42,171,238,0.08); border-radius: 4px; padding: 4px 8px; margin-bottom: 5px; overflow: hidden; }
+.quoted-sender { font-size: 11px; font-weight: 600; color: #2AABEE; margin-bottom: 1px; }
+.quoted-text { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .quoted-text { color: rgba(193,201,212,0.7); }
+html.light .quoted-text { color: rgba(0,0,0,0.55); }
+#reply-bar { display: none; border-left: 3px solid #2AABEE; padding: 6px 16px; align-items: center; gap: 10px; flex-shrink: 0; }
+html.dark #reply-bar { background: #1a2533; }
+html.light #reply-bar { background: #e8f4fb; }
+#reply-bar.active { display: flex; }
+.reply-bar-content { flex: 1; overflow: hidden; }
+#reply-bar-sender { font-size: 11px; font-weight: 600; color: #2AABEE; }
+#reply-bar-text { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark #reply-bar-text { color: #8696a0; }
+html.light #reply-bar-text { color: #666; }
+#reply-close { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px; flex-shrink: 0; }
+#reply-close:hover { color: #e74c3c; }
+#fwd-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+#fwd-modal.open { display: flex; }
+.fwd-modal-box { border-radius: 12px; padding: 20px; max-width: 400px; width: 92%; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+html.dark .fwd-modal-box { background: #232E3C; }
+html.light .fwd-modal-box { background: #fff; }
+.fwd-modal-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+html.dark .fwd-modal-box h3 { color: #fff; }
+html.light .fwd-modal-box h3 { color: #111; }
+#fwd-search { width: 100%; border: none; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; margin-bottom: 10px; }
+html.dark #fwd-search { background: #17212B; color: #C1C9D4; }
+html.light #fwd-search { background: #f0f2f5; color: #111; }
+#fwd-search::placeholder { color: #6B7B8D; }
+#fwd-chat-list { flex: 1; overflow-y: auto; }
+.fwd-chat-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-radius: 8px; }
+html.dark .fwd-chat-item:hover { background: #2B3A4A; }
+html.light .fwd-chat-item:hover { background: #f0f2f5; }
+.fwd-chat-item-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .fwd-chat-item-name { color: #C1C9D4; }
+html.light .fwd-chat-item-name { color: #111; }
+.fwd-modal-cancel { margin-top: 12px; border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; cursor: pointer; width: 100%; }
+html.dark .fwd-modal-cancel { background: #2B3A4A; color: #C1C9D4; }
+html.light .fwd-modal-cancel { background: #e0e0e0; color: #111; }
+.fwd-modal-cancel:hover { opacity: 0.8; }
 html.dark .bubble.in { background: #182533; color: #C1C9D4; }
 html.dark .bubble.out { background: #2B5278; color: #fff; }
 html.light .bubble.in { background: #fff; color: #222; }
@@ -1102,9 +1417,10 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 <div id="topbar">
   <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
   <h1>Telegram</h1>
+  <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Fotos AN">📷</button>' : ''}
+  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
   ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
   <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">↺</button>
   <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
@@ -1137,8 +1453,16 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="ch-stats"></div>
       </div>
       <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
+      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
     </div>
     <div id="messages"></div>
+    <div id="reply-bar">
+      <div class="reply-bar-content">
+        <div id="reply-bar-sender"></div>
+        <div id="reply-bar-text"></div>
+      </div>
+      <button id="reply-close" onclick="clearReply()">✕</button>
+    </div>
     <div id="attach-bar">
       <span>📎</span>
       <span class="attach-name" id="attach-name"></span>
@@ -1176,7 +1500,8 @@ const LANG = {
     pwTitle: '2-Faktor-Passwort', pwInstr: 'Dein Konto ist durch ein Cloud-Passwort geschützt.',
     btnConfirm: 'Bestätigen', overlayErrorTitle: 'Fehler', btnReconnect: 'Erneut verbinden',
     unknownError: 'Unbekannter Fehler',
-    photosOn: 'Fotos AN', photosOff: 'Fotos AUS',
+    photosOn: 'Medien AN', photosOff: 'Medien AUS',
+    videoDownload: '⬇ Video herunterladen', videoTooBig: '📹 Video — zu groß (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Verwaiste Mediendateien löschen',
     btnReload: 'Chat neu laden', btnScrollUp: 'Nach oben', btnScrollDown: 'Nach unten', ttExport: 'Chat als HTML exportieren',
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen', filterChannels: 'Kanäle', filterBots: 'Bots',
@@ -1185,6 +1510,7 @@ const LANG = {
     noChatSelected: 'Wähle einen Chat aus der Liste', noMessages: 'Noch keine Nachrichten',
     emojiTitle: 'Emoji', msgPlaceholder: 'Nachricht…', attachTitle: 'Datei anhängen',
     btnDelete: 'Löschen', btnReact: 'Reagieren', reactionRemove: 'Klicken zum Entfernen',
+    deleteMode: 'Nachrichten löschen', deleteModeCancel: 'Abbrechen', deleteConfirm: (n) => n + (n===1?' Nachricht':' Nachrichten') + ' wirklich löschen?',
     cleanupConfirm: 'Verwaiste Mediendateien löschen (nicht mehr referenzierte Fotos)?',
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
@@ -1197,7 +1523,8 @@ const LANG = {
     pwTitle: '2-Factor Password', pwInstr: 'Your account is protected by a cloud password.',
     btnConfirm: 'Confirm', overlayErrorTitle: 'Error', btnReconnect: 'Reconnect',
     unknownError: 'Unknown error',
-    photosOn: 'Photos ON', photosOff: 'Photos OFF',
+    photosOn: 'Media ON', photosOff: 'Media OFF',
+    videoDownload: '⬇ Download video', videoTooBig: '📹 Video — too large (max ${VIDEO_MAX_MB} MB)',
     cleanupTitle: 'Delete orphaned media files',
     btnReload: 'Reload chat', btnScrollUp: 'Scroll up', btnScrollDown: 'Scroll down', ttExport: 'Export chat as HTML',
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups', filterChannels: 'Channels', filterBots: 'Bots',
@@ -1206,6 +1533,7 @@ const LANG = {
     noChatSelected: 'Select a chat from the list', noMessages: 'No messages yet',
     emojiTitle: 'Emoji', msgPlaceholder: 'Message…', attachTitle: 'Attach file',
     btnDelete: 'Delete', btnReact: 'React', reactionRemove: 'Click to remove',
+    deleteMode: 'Delete messages', deleteModeCancel: 'Cancel', deleteConfirm: (n) => 'Really delete ' + n + ' message' + (n===1?'':'s') + '?',
     cleanupConfirm: 'Delete orphaned media files (photos no longer referenced)?',
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
@@ -1214,6 +1542,39 @@ const LANG = {
 };
 const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
 let lang = localStorage.getItem('tg_lang') || _browserLang;
+let isDeleteMode = false;
+const selectedMsgs = new Set();
+function toggleDeleteMode() {
+  if (!isDeleteMode) { enterDeleteMode(); return; }
+  if (selectedMsgs.size > 0) confirmDeleteSelected(); else exitDeleteMode();
+}
+function enterDeleteMode() {
+  isDeleteMode = true; selectedMsgs.clear(); updateDeleteBtn();
+  document.getElementById('messages').classList.add('delete-mode');
+}
+function exitDeleteMode() {
+  isDeleteMode = false; selectedMsgs.clear();
+  document.querySelectorAll('#messages .bubble-row.selected').forEach(function(r){ r.classList.remove('selected'); });
+  updateDeleteBtn();
+  document.getElementById('messages').classList.remove('delete-mode');
+}
+function updateDeleteBtn() {
+  var btn = document.getElementById('delete-mode-btn');
+  if (!btn) return;
+  var n = selectedMsgs.size;
+  if (!isDeleteMode) { btn.textContent = '✕'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
+  else if (n === 0) { btn.textContent = '✕'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
+  else { btn.textContent = '🗑️'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
+}
+async function confirmDeleteSelected() {
+  var n = selectedMsgs.size;
+  if (!confirm(tf('deleteConfirm', n))) return;
+  var chatId = selectedChatId;
+  var ids = Array.from(selectedMsgs);
+  exitDeleteMode();
+  await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
+  await loadMessages(chatId);
+}
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
 function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
@@ -1231,8 +1592,67 @@ function switchLang() {
   localStorage.setItem('tg_lang', lang);
   applyLang();
 }
+function applyTheme() {
+  var isDark = document.documentElement.classList.contains('dark');
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+}
+function toggleTheme() {
+  var html = document.documentElement;
+  var nowDark = html.classList.contains('dark');
+  html.classList.toggle('dark', !nowDark);
+  html.classList.toggle('light', nowDark);
+  localStorage.setItem('tg_theme', nowDark ? 'light' : 'dark');
+  applyTheme();
+}
+(function() {
+  var saved = localStorage.getItem('tg_theme');
+  if (saved) { document.documentElement.classList.remove('dark', 'light'); document.documentElement.classList.add(saved); }
+  applyTheme();
+})();
 
 const BASE = location.pathname.replace(/\\/+$/, '');
+
+// ── Avatar-System ─────────────────────────────────────────────────────────────
+const _avatarState = new Map();
+const _avatarUrl   = new Map();
+const _avatarQueue = [];
+let   _avatarActive = 0;
+const AVATAR_CONCURRENCY = 1;
+
+function applyAvatar(avEl, chatId) {
+  const src = _avatarUrl.get(chatId);
+  if (!src || avEl.querySelector('img[data-avatar]')) return;
+  const i = document.createElement('img');
+  i.setAttribute('data-avatar', '1');
+  i.src = src;
+  avEl.textContent = '';
+  avEl.style.background = 'none';
+  avEl.appendChild(i);
+}
+function queueAvatars(chats) {
+  for (const chat of chats) {
+    if (!_avatarState.has(chat.id)) _avatarQueue.push(chat.id);
+  }
+  drainAvatarQueue();
+}
+function drainAvatarQueue() {
+  while (_avatarQueue.length && _avatarActive < AVATAR_CONCURRENCY) {
+    const chatId = _avatarQueue.shift();
+    if (_avatarState.has(chatId)) { drainAvatarQueue(); return; }
+    _avatarActive++;
+    _avatarState.set(chatId, 'loading');
+    const img = new Image();
+    img.onload = () => {
+      _avatarState.set(chatId, 'loaded'); _avatarUrl.set(chatId, img.src);
+      document.querySelectorAll('[data-avid="'+chatId+'"]').forEach(el => applyAvatar(el, chatId));
+      _avatarActive--; drainAvatarQueue();
+    };
+    img.onerror = () => { _avatarState.set(chatId, 'failed'); _avatarActive--; drainAvatarQueue(); };
+    img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+  }
+}
+
 let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
@@ -1273,7 +1693,14 @@ async function loadStorage() {
   try {
     const d = await fetch(api('/api/storage')).then(r => r.json());
     const el = document.getElementById('storage-info');
-    if (el) el.textContent = '💾 ' + d.mb + ' MB';
+    if (!el) return;
+    el.textContent = '💾 ' + d.mb + ' MB';
+    if (d.mediaMb !== undefined) {
+      const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
+      el.title = lang === 'de'
+        ? \`Gesamt /config: \${d.mb} MB\nMedienordner: \${d.mediaMb} MB von \${autoAt} MB (\${d.mediaPct}%)\nAuto-Delete startet bei \${autoAt} MB → löscht auf \${autoTo} MB\`
+        : \`Total /config: \${d.mb} MB\nMedia folder: \${d.mediaMb} MB of \${autoAt} MB (\${d.mediaPct}%)\nAuto-delete starts at \${autoAt} MB → cleans to \${autoTo} MB\`;
+    }
   } catch(e) {}
 }
 loadStorage();
@@ -1283,7 +1710,7 @@ function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
   document.body.classList.toggle('hide-photos', hiding);
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '📷'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
   localStorage.setItem('tg-hide-photos', hiding ? '1' : '');
 }
 if (localStorage.getItem('tg-hide-photos')) {
@@ -1414,10 +1841,11 @@ function setFilter(f) {
 
 function chatAvatar(c) {
   const type = c.chatType || (c.isBot ? 'bot' : 'private');
-  if (type === 'group')   return '<div class="avatar type-group" style="background:#2b5278">👥</div>';
-  if (type === 'channel') return '<div class="avatar type-channel" style="background:#1e6b8c">📢</div>';
-  if (type === 'bot')     return '<div class="avatar type-bot" style="background:#4a3f8c">🤖</div>';
-  return \`<div class="avatar" style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
+  const avid = \`data-avid="\${escHtml(c.id)}"\`;
+  if (type === 'group')   return \`<div class="avatar type-group" \${avid} style="background:#2b5278">👥</div>\`;
+  if (type === 'channel') return \`<div class="avatar type-channel" \${avid} style="background:#1e6b8c">📢</div>\`;
+  if (type === 'bot')     return \`<div class="avatar type-bot" \${avid} style="background:#4a3f8c">🤖</div>\`;
+  return \`<div class="avatar" \${avid} style="background:\${avatarColor(c.name||c.id)}">\${avatarInitial(c.name||c.id)}</div>\`;
 }
 
 function renderChats(chats) {
@@ -1441,6 +1869,12 @@ function renderChats(chats) {
       </div>
     </div>
   \`).join('');
+  // Gecachte Avatare sofort anwenden, Rest nachgelagert
+  document.querySelectorAll('[data-avid]').forEach(el => {
+    const id = el.getAttribute('data-avid');
+    if (_avatarState.get(id) === 'loaded') applyAvatar(el, id);
+  });
+  setTimeout(() => queueAvatars(filtered), 300);
 }
 
 function filterChats() { renderChats(allChats); }
@@ -1448,7 +1882,9 @@ function filterChats() { renderChats(allChats); }
 function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openChat(c); }
 
 function openChat(chat) {
+  exitDeleteMode();
   selectedChatId = chat.id;
+  _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
   lastMsgCount[chat.id] = 0;
   document.body.classList.add('chat-open');
@@ -1461,12 +1897,18 @@ function openChat(chat) {
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
   const av = document.getElementById('ch-avatar');
-  av.onclick = null;
+  av.onclick = null; av.style.cursor = '';
+  av.querySelectorAll('img[data-avatar]').forEach(i => i.remove());
   const type = chat.chatType || (chat.isBot ? 'bot' : 'private');
   if (type === 'group')        { av.textContent = '👥'; av.style.background = '#2b5278'; av.style.fontSize = '22px'; }
   else if (type === 'channel') { av.textContent = '📢'; av.style.background = '#1e6b8c'; av.style.fontSize = '22px'; }
   else if (type === 'bot')     { av.textContent = '🤖'; av.style.background = '#4a3f8c'; av.style.fontSize = '22px'; }
   else { av.textContent = avatarInitial(chat.name||chat.id); av.style.background = avatarColor(chat.name||chat.id); av.style.fontSize = ''; }
+  av.setAttribute('data-avid', chat.id);
+  if (_avatarState.get(chat.id) === 'loaded') applyAvatar(av, chat.id);
+  else queueAvatars([chat]);
+  av.onclick = () => openContactInfo(chat.id, chat.name);
+  av.style.cursor = 'pointer';
   renderChats(allChats);
   loadMessages(chat.id);
 }
@@ -1484,7 +1926,7 @@ function closeChat() {
 
 function exportChat() {
   if (!selectedChatId) return;
-  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId));
+  window.location.href = api('/api/export/' + encodeURIComponent(selectedChatId) + '?lang=' + lang);
 }
 
 async function refreshChat() {
@@ -1493,15 +1935,30 @@ async function refreshChat() {
   btn.classList.add('spinning');
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?refresh=1')).then(r=>r.json());
+    _lastMsgFingerprint[selectedChatId] = '';
     renderMessages(msgs);
   } catch(e) {}
   btn.classList.remove('spinning');
 }
 
-async function loadMessages(chatId) {
+// Fingerprint der letzten gerenderten Nachrichten — verhindert unnötige Re-Renders
+const _lastMsgFingerprint = {};
+
+function msgFingerprint(msgs) {
+  if (!msgs || !msgs.length) return '';
+  const last = msgs[msgs.length - 1];
+  // Anzahl + letzte ID + ob letztes Video eine mediaFile hat (für fetchVideo-Updates)
+  const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey;
+}
+
+async function loadMessages(chatId, forceRender = false) {
   if (!chatId) return;
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
+    const fp = msgFingerprint(msgs);
+    if (!forceRender && _lastMsgFingerprint[chatId] === fp) return; // nichts geändert
+    _lastMsgFingerprint[chatId] = fp;
     renderMessages(msgs);
     if (window.pollReactions) window.pollReactions();
     updateChatStats(chatId);
@@ -1520,13 +1977,28 @@ async function updateChatStats(chatId) {
 }
 
 function renderMessages(msgs) {
+  if (isDeleteMode) return;
   const el = document.getElementById('messages');
   if (!msgs||!msgs.length) { el.innerHTML='<div style="text-align:center;padding:24px;opacity:0.5">'+t('noMessages')+'</div>'; return; }
   const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   const prevCount = lastMsgCount[selectedChatId] || 0;
   lastMsgCount[selectedChatId] = msgs.length;
+  // Album-Gruppierung: gleiche groupedId → gemeinsames Foto-Grid
+  var _albumSeen = {}, _absorbed = {}, _items = [];
+  for (var _i = 0; _i < msgs.length; _i++) {
+    var _m = msgs[_i];
+    if (_m.groupedId && _m.type === 'photo' && !_albumSeen[_m.groupedId]) {
+      var _al = msgs.filter(function(am){ return am.groupedId === _m.groupedId && am.type === 'photo'; });
+      _albumSeen[_m.groupedId] = true;
+      _al.slice(1).forEach(function(am){ _absorbed[am.id] = true; });
+      _items.push({ isAlbum: true, albumMsgs: _al, m: _al[0] });
+    } else if (!_absorbed[_m.id]) {
+      _items.push({ isAlbum: false, m: _m });
+    }
+  }
   let lastDate='';
-  el.innerHTML = msgs.map(m => {
+  el.innerHTML = _items.map(function(item) {
+    var m = item.m;
     const d=new Date(m.timestamp);
     const dateStr=d.toLocaleDateString(locale(),{day:'2-digit',month:'2-digit',year:'numeric'});
     let sep='';
@@ -1535,7 +2007,34 @@ function renderMessages(msgs) {
     let content='';
     const isPhoto = m.type==='photo'&&m.mediaFile;
     const isDoc = m.type==='document'&&m.filename;
-    if(isPhoto){
+    const isVoice = m.type==='voice';
+    const isVideo = m.type==='video';
+    const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
+    if (item.isAlbum) {
+      var _grid = item.albumMsgs.map(function(am){
+        if (!am.mediaFile) return '<div style="width:140px;height:140px;background:rgba(0,0,0,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:24px">📷</div>';
+        return '<img class="msg-img" src="'+BASE+'/api/media/'+encodeURIComponent(am.mediaFile)+'" style="width:140px;height:140px;object-fit:cover;border-radius:6px;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">';
+      }).join('');
+      content = '<div style="display:flex;flex-wrap:wrap;gap:3px;padding:2px">'+_grid+'</div>';
+      var _cap = ''; for (var _ci=item.albumMsgs.length-1;_ci>=0;_ci--){ if(item.albumMsgs[_ci].body){_cap=item.albumMsgs[_ci].body;break;} }
+      if (_cap) content += '<div class="photo-caption">'+formatText(_cap)+'</div>';
+    } else if(isVoice){
+      content = m.mediaFile
+        ? \`<audio controls style="width:260px;max-width:calc(80vw - 80px);display:block" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></audio>\`
+        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if(isVideo){
+      content = m.mediaFile
+        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>\`
+        : (() => {
+            const sz = m.videoSize || 0;
+            const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
+            const tooBig = sz > ${VIDEO_MAX_MB}*1024*1024;
+            return tooBig
+              ? \`<span style="opacity:0.5;cursor:default" title="\${t('videoTooBig')}\${mb}">\${t('videoTooBig')}\${mb}</span>\`
+              : \`<span class="video-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.85;user-select:none;text-decoration:underline" title="\${t('videoDownload')}">\${t('videoDownload')}\${mb}</span>\`;
+          })()
+      if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
+    } else if(isPhoto){
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
     } else if(isDoc){
@@ -1547,12 +2046,143 @@ function renderMessages(msgs) {
     const ack = m.fromMe ? ackMark(m.ack || 0) : '';
     const reactBadges = m.reactions ? Object.entries(m.reactions).filter(function(e){return e[1]>0;}).map(function(e){var em=e[0],cnt=e[1],own=m.myReaction===em;return '<span class="reaction-badge'+(own?' own':'')+'" data-emoji="'+em+'" data-own="'+own+'">'+em+(cnt>1?' '+cnt:'')+'</span>';}).join('') : '';
     const reactBar = reactBadges ? '<div class="reactions-bar">'+reactBadges+'</div>' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack"><div class="bubble \${m.fromMe?'out':'in'}\${isPhoto?' photo-bubble':''}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="del-btn" title="\${t('btnDelete')}">✕</button></div></div>\`;
+    const chatForReply = allChats.find(c=>c.id===selectedChatId);
+    const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name||selectedChatId||'');
+    const replyPreview = escHtml((m.body||(m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':m.type==='video'?'📹 Video':'')).slice(0,60));
+    const tgMsgRawId = m.id.split('_').pop();
+    const innerDiv = isVoice
+      ? \`<div class="voice-wrap \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`
+      : \`<div class="bubble \${m.fromMe?'out':'in'}\${(isPhoto&&!item.isAlbum)?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;
+let _replyMsgId = null, _replyTgId = null, _replyContact = null, _replyPreview = null;
+
+function setReply(msgId, contact, preview, tgId) {
+  _replyMsgId = msgId; _replyTgId = tgId; _replyContact = contact; _replyPreview = preview;
+  document.getElementById('reply-bar-sender').textContent = contact;
+  document.getElementById('reply-bar-text').textContent = preview;
+  document.getElementById('reply-bar').classList.add('active');
+  document.getElementById('msg-input').focus();
+}
+function clearReply() {
+  _replyMsgId = null; _replyTgId = null; _replyContact = null; _replyPreview = null;
+  document.getElementById('reply-bar').classList.remove('active');
+}
+
+async function fetchVideo(el) {
+  const msgId = el.dataset.msgid;
+  if (!msgId) return;
+  el.textContent = '⏳';
+  el.style.cursor = 'default';
+  el.onclick = null;
+  try {
+    const r = await fetch(api('/api/fetch-video'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId })
+    }).then(r => r.json());
+    if (r.success) {
+      _lastMsgFingerprint[selectedChatId] = ''; // Cache invalidieren → forceRender
+      await loadMessages(selectedChatId);
+      loadStorage();
+    } else {
+      el.textContent = '❌ ' + (r.error || 'Fehler');
+      el.style.cursor = 'default';
+      el.title = r.error || 'Fehler';
+    }
+  } catch(e) {
+    el.textContent = '❌ Fehler';
+  }
+}
+
+async function deleteVideo(msgId) {
+  try {
+    await fetch(api('/api/delete-video'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId })
+    });
+    await loadMessages(selectedChatId);
+    loadStorage();
+  } catch(e) { console.error('deleteVideo:', e.message); }
+}
+
+async function openContactInfo(chatId, fallbackName) {
+  const modal = document.getElementById('contact-modal');
+  const picEl = document.getElementById('contact-modal-pic');
+  const nameEl = document.getElementById('contact-modal-name');
+  const subEl  = document.getElementById('contact-modal-sub');
+  const numEl  = document.getElementById('contact-modal-number');
+  const aboutEl = document.getElementById('contact-modal-about');
+  picEl.innerHTML = '…'; picEl.style.background = '#2B3A4A';
+  nameEl.textContent = '…'; subEl.textContent = ''; numEl.textContent = ''; aboutEl.textContent = '';
+  modal.classList.add('open');
+  try {
+    const data = await fetch(api('/api/contact/' + encodeURIComponent(chatId))).then(r => r.json());
+    const name = data.name || fallbackName || chatId;
+    nameEl.textContent = name;
+    subEl.textContent = data.username ? '@' + data.username : '';
+    numEl.textContent = data.phone ? '+' + data.phone : '';
+    aboutEl.textContent = data.about || '';
+    picEl.textContent = '';
+    if (data.hasProfilePic) {
+      const cached = _avatarState.get(chatId);
+      if (cached === 'loaded') {
+        picEl.style.background = 'none';
+        const img = document.createElement('img'); img.src = _avatarUrl.get(chatId);
+        picEl.appendChild(img);
+      } else {
+        picEl.style.background = avatarColor(name); picEl.textContent = avatarInitial(name);
+        const img = new Image();
+        img.onload = () => {
+          picEl.style.background = 'none'; picEl.textContent = '';
+          const i2 = document.createElement('img'); i2.src = img.src; picEl.appendChild(i2);
+          _avatarState.set(chatId, 'loaded'); _avatarUrl.set(chatId, img.src);
+        };
+        img.src = api('/api/avatar/' + encodeURIComponent(chatId));
+      }
+    } else {
+      picEl.style.background = avatarColor(name); picEl.textContent = avatarInitial(name);
+    }
+  } catch(e) {
+    nameEl.textContent = fallbackName || chatId;
+    picEl.style.background = avatarColor(fallbackName || chatId);
+    picEl.textContent = avatarInitial(fallbackName || chatId);
+  }
+}
+function closeContactModal() { document.getElementById('contact-modal').classList.remove('open'); }
+
+let _fwdMsgId = null;
+function openFwdModal(msgId) {
+  _fwdMsgId = msgId;
+  document.getElementById('fwd-search').value = '';
+  renderFwdList(allChats);
+  document.getElementById('fwd-modal').classList.add('open');
+  setTimeout(() => document.getElementById('fwd-search').focus(), 50);
+}
+function closeFwdModal() { document.getElementById('fwd-modal').classList.remove('open'); _fwdMsgId = null; }
+function filterFwdChats() {
+  const q = document.getElementById('fwd-search').value.toLowerCase();
+  renderFwdList(q ? allChats.filter(c=>(c.name||'').toLowerCase().includes(q)) : allChats);
+}
+function renderFwdList(chats) {
+  const list = document.getElementById('fwd-chat-list');
+  list.innerHTML = chats.map(c => {
+    const bg = avatarColor(c.name||c.id);
+    return \`<div class="fwd-chat-item" onclick="forwardTo('\${escHtml(c.id)}')"><div class="avatar" style="width:34px;height:34px;font-size:13px;background:\${bg};flex-shrink:0">\${avatarInitial(c.name||c.id)}</div><div class="fwd-chat-item-name">\${escHtml(c.name||c.id)}</div></div>\`;
+  }).join('');
+}
+async function forwardTo(chatId) {
+  const msgId = _fwdMsgId;
+  closeFwdModal();
+  if (!msgId) return;
+  try {
+    const r = await fetch(api('/api/forward'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ msgId, to: chatId }) });
+    if (r.ok && chatId === selectedChatId) { _lastMsgFingerprint[chatId] = ''; await loadMessages(chatId); }
+  } catch(e) { console.error('Forward error:', e.message); }
+}
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -1601,9 +2231,15 @@ async function sendMsg() {
     return;
   }
   if (!text) return;
+  const replyId = _replyMsgId, replyTgId = _replyTgId;
+  clearReply();
   inp.value=''; inp.style.height='';
   try {
-    await fetch(api('/api/send'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:selectedChatId,message:text})});
+    const endpoint = replyId ? api('/api/reply') : api('/api/send');
+    const payload = replyId
+      ? { to: selectedChatId, message: text, replyToTgId: replyTgId }
+      : { to: selectedChatId, message: text };
+    await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     await loadMessages(selectedChatId);
     await loadChats();
   } catch(e) {}
@@ -1619,11 +2255,20 @@ async function deleteMsg(chatId, msgId) {
   } catch(e) {}
 }
 document.getElementById('messages').addEventListener('click', e => {
-  const btn = e.target.closest('.del-btn');
-  if (!btn) return;
-  const row = btn.closest('.bubble-row');
-  if (!row) return;
-  deleteMsg(row.dataset.chatid, row.dataset.msgid);
+  if (isDeleteMode) {
+    var row = e.target.closest('.bubble-row');
+    if (row && row.dataset.msgid) {
+      var id = row.dataset.msgid;
+      if (selectedMsgs.has(id)) { selectedMsgs.delete(id); row.classList.remove('selected'); }
+      else { selectedMsgs.add(id); row.classList.add('selected'); }
+      updateDeleteBtn();
+    }
+    return;
+  }
+  const fwd = e.target.closest('.fwd-btn');
+  if (fwd) { openFwdModal(fwd.dataset.msgid); return; }
+  const rpl = e.target.closest('.reply-btn');
+  if (rpl) { setReply(rpl.dataset.msgid, rpl.dataset.contact, rpl.dataset.preview, rpl.dataset.tgid); return; }
 });
 
 // ── Emoji picker ───────────────────────────────────────────────────────────────
@@ -1775,9 +2420,33 @@ applyLang();
   window.openLightbox=function(src){lbImg.src=src;lb.classList.add('open');};
   lb.addEventListener('click',()=>lb.classList.remove('open'));
   lbImg.addEventListener('click',e=>e.stopPropagation());
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      if(isDeleteMode){ exitDeleteMode(); return; }
+      lb.classList.remove('open');
+      document.getElementById('contact-modal')?.classList.remove('open');
+    }
+  });
 })();
 </script>
+<div id="contact-modal" onclick="if(event.target===this)closeContactModal()">
+  <div class="contact-modal-box">
+    <div class="contact-modal-pic" id="contact-modal-pic"></div>
+    <div class="contact-modal-name" id="contact-modal-name">…</div>
+    <div class="contact-modal-sub" id="contact-modal-sub"></div>
+    <div class="contact-modal-number" id="contact-modal-number"></div>
+    <div class="contact-modal-about" id="contact-modal-about"></div>
+    <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+  </div>
+</div>
+<div id="fwd-modal">
+  <div class="fwd-modal-box">
+    <h3>↪ Weiterleiten an…</h3>
+    <input type="text" id="fwd-search" placeholder="🔍 Chat suchen…" oninput="filterFwdChats()">
+    <div id="fwd-chat-list"></div>
+    <button class="fwd-modal-cancel" onclick="closeFwdModal()">Abbrechen</button>
+  </div>
+</div>
 <div id="logout-modal">
   <div class="logout-modal-box">
     <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>

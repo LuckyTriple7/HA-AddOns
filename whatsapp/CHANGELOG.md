@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.6.25] - 2026-06-06
+- Fix: Hover-Buttons verschieben gesendete Nachrichten — opacity statt display:none, order:-1 für out-Nachrichten (Buttons erscheinen links der Bubble)
+
+## [1.6.24] - 2026-06-06
+- Fix: Hover-✕-Button zum Löschen entfernt — Löschen läuft jetzt ausschließlich über den Multi-Select-Modus
+
+## [1.6.23] - 2026-06-06
+- Fix: Multi-Löschen überspringt Nachrichten — neuer Batch-Endpoint verarbeitet Löschungen sequenziell mit 400ms Delay, WhatsApp Web.js kommt mit schnellen parallelen delete()-Aufrufen nicht klar
+
+## [1.6.22] - 2026-06-06
+- Neu: ☀️/🌙-Button neben "WhatsApp" zum Umschalten Dark/Light Mode; Auswahl wird per localStorage gespeichert
+
+## [1.6.21] - 2026-06-06
+- Fix: Multi-Löschen löschte nur erste Nachricht auf dem Handy — Promise.all durch sequenzielle Schleife ersetzt, WhatsApp Web.js verarbeitet delete() nicht parallel
+
+## [1.6.20] - 2026-06-06
+- Neu: Multi-Select-Löschmodus — ✕-Button in der Toolbar, Nachrichten anklicken zum Markieren (rote Hervorhebung), 🗑️-Button löscht alle markierten mit Bestätigungsdialog (DE/EN); Escape oder Chat-Wechsel bricht Modus ab
+- Fix: Spam-Delete-Button von 🗑️ auf 🚮 geändert um Verwechslung mit Löschmodus zu vermeiden
+
+## [1.6.19] - 2026-06-06
+- Fix: HTML-Export brach bei Sprachnachrichten ab — base64-Einbettung entfernt, werden als Platzhalter (🎵) angezeigt
+- Fix: Sprachnachrichten mit mediaFile wurden fälschlich als Foto exportiert
+- Neu: HTML-Export vollständig lokalisiert (DE/EN)
+
+## [1.6.18] - 2026-06-06
+- Neu: media_max_mb im Startup-Log ausgeben
+
+## [1.6.17] - 2026-06-06
+- Fix: SyntaxError durch \\n in Template-Literal — Tooltip-Strings verwendeten \\n (Literal-Newline) statt \\\\n (Escape-Sequenz)
+
+## [1.6.16] - 2026-06-06
+- Neu: media_max_mb Option (Standard 500 MB) + Speicher-Tooltip (Mouseover auf 💾 zeigt Medienordner-Größe, Limit und % bis Auto-Delete, DE+EN)
+
+## [1.6.15] - 2026-06-05
+- Revert auf stabile Basis v1.6.10 (Version-Bump für HA-Update-Erkennung)
+
+## [1.6.10] - 2026-06-05
+- Kontaktinfo-Modal: savedName (Telefonbuch) als Hauptname, waName (WhatsApp-Profilname) als Label wenn abweichend; shortName als Fallback
+
+## [1.6.9] - 2026-06-05
+- Fix: Telefonnummer im Kontaktinfo-Modal war falsch (contact.number liefert Müll); jetzt contact.id.user aus der chatId extrahiert
+
+## [1.6.8] - 2026-06-05
+- Lade-Reihenfolge: Kontakte sofort (Initialen) → Nachrichten → Avatare nachgelagert (max 2 parallel, 200ms Verzögerung); renderChatList blockiert keine HTTP-Slots mehr
+
+## [1.6.7] - 2026-06-05
+- Fix: api() in WhatsApp-Client nicht definiert → ReferenceError brach renderChatList-Schleife ab; alle Avatar/Kontakt-Pfade auf direkte Relative-URL umgestellt
+
+## [1.6.6] - 2026-06-05
+- Fix: Leere Chat-Liste nach Avatar-Update — renderChatList feuerte bei jedem Poll-Zyklus N parallele getContactById-Requests; jetzt einmaliger Load pro Chat mit client-seitigem State-Cache und server-seitigem Request-Dedup
+
+## [1.6.5] - 2026-06-05
+- Neu: Profilbilder als echte Avatare (lazy-load, 1h-Cache server+Browser); Klick auf Header-Avatar öffnet Kontaktinfo-Modal mit Foto, Name, Nummer und About
+
 ## [1.6.4] - 2026-06-05
 - Neu: `type`-Feld in `GET /api/last-received` und Webhook-Payload (text/photo/document/voice)
 

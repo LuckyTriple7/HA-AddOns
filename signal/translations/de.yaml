@@ -8,6 +8,9 @@ configuration:
   download_media:
     name: Medien herunterladen
     description: Empfangene Fotos automatisch herunterladen und anzeigen. Funktioniert nur zuverlässig bei neu eingehenden Nachrichten, nicht für historische Nachrichten.
+  media_max_mb:
+    name: Medienspeicher-Limit (MB)
+    description: "Maximale Größe des Medienordners in MB. Wird das Limit überschritten, werden automatisch die ältesten Dateien (Fotos, Sprachnachrichten) gelöscht, bis der Ordner wieder auf 80 % des Limits schrumpft. Standard: 500 MB."
   phone_number:
     name: Telefonnummer
     description: Deine Signal-Telefonnummer mit Ländervorwahl (z.B. +4917612345678). Optional — wird nach der Verknüpfung automatisch erkannt.
