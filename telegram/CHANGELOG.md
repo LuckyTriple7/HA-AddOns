@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.44] - 2026-06-06
+- Fix: Weitergeleitete Nachricht erscheint jetzt sofort — nach erfolgreichem Forward ?refresh=1 (frischer Telegram-Abruf) statt Cache
+
 ## [1.5.43] - 2026-06-06
 - Fix: Weitergeleitete Nachricht erschien nicht sofort in der App — Server verarbeitet das Forward-Ergebnis via processMessage(), Client lädt den aktiven Chat neu
 

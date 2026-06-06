@@ -662,9 +662,7 @@ app.post('/api/forward', async (req, res) => {
     let toEntity = peerMap.get(to);
     if (!toEntity) { await loadDialogs(); toEntity = peerMap.get(to); }
     if (!fromEntity || !toEntity) return res.status(404).json({ error: 'Chat nicht gefunden' });
-    const results = await client.forwardMessages(toEntity, { messages: [tgMsgId], fromPeer: fromEntity });
-    const fwdMsg = Array.isArray(results) ? results[0] : results;
-    if (fwdMsg) await processMessage(fwdMsg, to, chatMap.get(to)?.name || to, 'Forward').catch(() => {});
+    await client.forwardMessages(toEntity, { messages: [tgMsgId], fromPeer: fromEntity });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2159,7 +2157,11 @@ async function forwardTo(chatId) {
   if (!msgId) return;
   try {
     const r = await fetch(api('/api/forward'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ msgId, to: chatId }) });
-    if (r.ok && chatId === selectedChatId) { _lastMsgFingerprint[chatId] = ''; await loadMessages(chatId); }
+    if (r.ok && chatId === selectedChatId) {
+      _lastMsgFingerprint[chatId] = '';
+      const fresh = await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'?refresh=1')).then(r=>r.json());
+      renderMessages(fresh);
+    }
   } catch(e) { console.error('Forward error:', e.message); }
 }
 
