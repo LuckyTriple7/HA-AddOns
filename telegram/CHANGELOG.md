@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.38] - 2026-06-06
+- Fix: HTML-Export brach bei Videos/Sprachnachrichten ab — base64-Einbettung entfernt, werden jetzt als Platzhalter (📹/🎵) angezeigt
+
 ## [1.5.37] - 2026-06-06
 - Fix: Keine Bubble-Umrandung bei Audionachrichten — Audio-Player steht frei ohne Hintergrund
 

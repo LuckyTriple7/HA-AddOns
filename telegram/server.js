@@ -568,18 +568,10 @@ app.get('/api/export/:chatId', (req, res) => {
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'voice' && m.mediaFile) {
-      const fp = `${MEDIA_DIR}/${m.mediaFile}`;
-      content = fs.existsSync(fp)
-        ? `<audio controls style="width:260px;max-width:100%;display:block" src="data:audio/ogg;base64,${fs.readFileSync(fp).toString('base64')}"></audio>`
-        : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
-    } else if (m.type === 'video' && m.mediaFile) {
-      const fp = `${MEDIA_DIR}/${m.mediaFile}`;
-      const ext = m.mediaFile.split('.').pop().toLowerCase();
-      const vmime = ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'video/mp4';
-      content = fs.existsSync(fp)
-        ? `<video controls style="max-width:280px;max-height:280px;border-radius:6px;display:block" src="data:${vmime};base64,${fs.readFileSync(fp).toString('base64')}"></video>`
-        : '<span style="opacity:0.6">📹 Video</span>';
+    if (m.type === 'voice') {
+      content = '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
+    } else if (m.type === 'video') {
+      content = '<span style="opacity:0.6">📹 Video</span>';
       if (m.body) content += `<div style="margin-top:4px">${escH(m.body)}</div>`;
     } else if (m.type === 'photo' && m.mediaFile) {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
