@@ -17,7 +17,7 @@
   });
 })();
 
-const { Client, NoAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, NoAuth, MessageMedia, Location } = require('whatsapp-web.js');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 const path = require('path');
@@ -232,7 +232,7 @@ function addMsg(chatId, msg) {
   msgs.sort((a, b) => a.timestamp - b.timestamp);
   const chat = chatMap.get(chatId);
   if (chat && msg.timestamp >= (chat.lastTime || 0)) {
-    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]');
+    const preview = msg.body || (msg.type === 'photo' ? '📷 Foto' : msg.type === 'document' ? '📄 ' + (msg.filename || 'Dokument') : msg.type === 'voice' ? '🎵 Sprachnachricht' : msg.type === 'location' ? '📍 Standort' : '[Medien]');
     chat.lastMsg = preview.length > 60 ? preview.slice(0, 60) + '…' : preview;
     chat.lastTime = msg.timestamp;
     chat.lastFromMe = !!msg.fromMe;
@@ -325,8 +325,9 @@ client.on('ready', async () => {
         const isText = msg.type === 'chat' || msg.type === 'text';
         const isImage = msg.type === 'image' || msg.type === 'sticker';
         const isPtt = msg.type === 'ptt' || msg.type === 'audio';
-        if (!isText && !isImage && !isPtt) continue;
-        if (!msg.body && !isImage && !isPtt) continue;
+        const isLoc = msg.type === 'location';
+        if (!isText && !isImage && !isPtt && !isLoc) continue;
+        if (!msg.body && !isImage && !isPtt && !isLoc) continue;
         let contactName = msg.fromMe ? 'Ich' : (chat.name || chat.id.user);
         if (!msg.fromMe && chat.isGroup) {
           const c = await msg.getContact().catch(() => null);
@@ -346,7 +347,10 @@ client.on('ready', async () => {
         addMsg(chatId, {
           id: msg.id._serialized,
           body: msg.body || '',
-          type: isImage ? 'photo' : isPtt ? 'voice' : 'text',
+          type: isImage ? 'photo' : isPtt ? 'voice' : isLoc ? 'location' : 'text',
+          locLat: isLoc ? (msg.location?.latitude ?? null) : null,
+          locLng: isLoc ? (msg.location?.longitude ?? null) : null,
+          locName: isLoc ? (msg.location?.description || '') : '',
           mediaFile: null,
           timestamp: msg.timestamp * 1000,
           fromMe: msg.fromMe,
@@ -416,8 +420,9 @@ client.on('message', async (msg) => {
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   const isDocument = msg.type === 'document';
   const isPtt = msg.type === 'ptt' || msg.type === 'audio';
-  if (!isText && !isImage && !isDocument && !isPtt) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
-  if (!msg.body && !isImage && !isDocument && !isPtt) return;
+  const isLocation = msg.type === 'location';
+  if (!isText && !isImage && !isDocument && !isPtt && !isLocation) { dbg(`Skipping unsupported type: ${msg.type}`); return; }
+  if (!msg.body && !isImage && !isDocument && !isPtt && !isLocation) return;
   const chat = await msg.getChat().catch(() => null);
   const chatId = chat ? chat.id._serialized : msg.from;
   if (!chatId || isFilteredChat(chatId)) { dbg(`Skipping filtered chat: ${chatId}`); return; }
@@ -431,7 +436,7 @@ client.on('message', async (msg) => {
     phone: chat?.id.user || cachedChat?.phone || '',
     isGroup: chat?.isGroup ?? cachedChat?.isGroup ?? chatId.endsWith('@g.us'),
   });
-  let type = 'text', mediaFile = null, filename = null;
+  let type = 'text', mediaFile = null, filename = null, locLat = null, locLng = null, locName = '';
   if (isImage) {
     type = 'photo';
     if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
@@ -441,6 +446,11 @@ client.on('message', async (msg) => {
   } else if (isPtt) {
     type = 'voice';
     mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+  } else if (isLocation) {
+    type = 'location';
+    locLat = msg.location?.latitude ?? null;
+    locLng = msg.location?.longitude ?? null;
+    locName = msg.location?.description || '';
   }
   let quotedMsgData = null;
   if (msg.hasQuotedMsg) {
@@ -457,6 +467,7 @@ client.on('message', async (msg) => {
     id: msg.id._serialized,
     body: msg.body || '',
     type, mediaFile, filename,
+    locLat, locLng, locName,
     timestamp: msg.timestamp * 1000,
     fromMe: false,
     contact: contactName,
@@ -995,7 +1006,11 @@ app.get('/api/export/:chatId', (req, res) => {
     let sep = '';
     if (dateStr !== lastDate) { sep = `<div class="day-sep">${escH(dateStr)}</div>`; lastDate = dateStr; }
     let content = '';
-    if (m.type === 'voice') {
+    if (m.type === 'location' && m.locLat != null) {
+      const mapsUrl = `https://maps.google.com/?q=${m.locLat},${m.locLng}`;
+      const label = m.locName || `${parseFloat(m.locLat).toFixed(4)}, ${parseFloat(m.locLng).toFixed(4)}`;
+      content = `<a href="${mapsUrl}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit"><span>📍</span><span style="text-decoration:underline">${escH(label)}</span></a>`;
+    } else if (m.type === 'voice') {
       content = `<span style="opacity:0.6">🎵 ${isEn ? 'Voice message' : 'Sprachnachricht'}</span>`;
     } else if (m.mediaFile && m.type === 'photo') {
       const fp = `${MEDIA_DIR}/${m.mediaFile}`;
@@ -1055,6 +1070,21 @@ app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post('/api/send-location', async (req, res) => {
+  const { to, lat, lng, locName } = req.body;
+  if (!to || lat == null || lng == null) return res.status(400).json({ error: 'to, lat, lng required' });
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const loc = new Location(parseFloat(lat), parseFloat(lng), locName || '');
+    const result = await client.sendMessage(to, loc);
+    result.__logged = true;
+    const ts = Date.now();
+    addMsg(to, { id: result.id._serialized, body: '', type: 'location', locLat: parseFloat(lat), locLng: parseFloat(lng), locName: locName || '', timestamp: ts, fromMe: true });
+    saveMsgs();
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/reply', async (req, res) => {
@@ -1679,6 +1709,7 @@ app.get('/', (req, res) => {
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
         <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
         <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
+        <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden" style="background:none;border:none;font-size:20px;cursor:pointer;padding:6px;border-radius:50%;flex-shrink:0;line-height:1;color:#8696a0;">📍</button>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
           oninput="autoResize(this)"></textarea>
@@ -1717,6 +1748,20 @@ app.get('/', (req, res) => {
       </div>
     </div>
   </div>
+  <div id="location-modal" onclick="if(event.target===this)closeLocationModal()" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:#202c33;border-radius:12px;padding:20px;width:min(340px,92%);display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <h3 style="font-size:15px;font-weight:600;color:#e9edef;margin:0" data-i18n="locModalTitle">📍 Standort senden</h3>
+      <button onclick="useGPSLocation()" style="background:#2a3942;border:none;color:#3cdb7c;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:14px;text-align:left;" data-i18n="locUseGPS">📡 Aktuelle Position</button>
+      <input id="loc-lat" type="number" step="any" placeholder="Breitengrad (z.B. 48.137)" style="background:#2a3942;border:none;color:#e9edef;padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" data-i18n-pl="locLat">
+      <input id="loc-lng" type="number" step="any" placeholder="Längengrad (z.B. 11.575)" style="background:#2a3942;border:none;color:#e9edef;padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" data-i18n-pl="locLng">
+      <input id="loc-name" type="text" placeholder="Name (optional)" style="background:#2a3942;border:none;color:#e9edef;padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" data-i18n-pl="locNameLbl">
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="closeLocationModal()" style="flex:1;background:#2a3942;border:none;color:#8696a0;padding:8px;border-radius:8px;cursor:pointer;font-size:14px;" data-i18n="locCancel">Abbrechen</button>
+        <button onclick="sendLocationMsg()" style="flex:1;background:#00a884;border:none;color:#fff;padding:8px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;" data-i18n="locSend">Senden</button>
+      </div>
+    </div>
+  </div>
+
   <div id="logout-modal">
     <div class="spam-modal-box">
       <p data-i18n="logoutConfirmMsg">Möchtest du dich wirklich abmelden?</p>
@@ -1754,7 +1799,8 @@ app.get('/', (req, res) => {
         btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🚮 Spam löschen',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
-        btnEmoji:'Emoji', btnAttach:'Datei anhängen', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
+        btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
+        locModalTitle:'📍 Standort senden', locLat:'Breitengrad', locLng:'Längengrad', locNameLbl:'Name (optional)', locUseGPS:'📡 Aktuelle Position', locSend:'Senden', locCancel:'Abbrechen', locGPSErr:'GPS nicht verfügbar', locLabel:'Standort',
         fwdTitle:'↪ Weiterleiten an…', searchForward:'🔍 Chat suchen…',
         btnCancel:'Abbrechen', btnDeleteYes:'Ja, löschen',
         logoutConfirmMsg:'Möchtest du dich wirklich abmelden?', btnYes:'Ja', btnNo:'Nein',
@@ -1788,7 +1834,8 @@ app.get('/', (req, res) => {
         btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🚮 Delete Spam',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
-        btnEmoji:'Emoji', btnAttach:'Attach file', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
+        btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
+        locModalTitle:'📍 Send Location', locLat:'Latitude', locLng:'Longitude', locNameLbl:'Name (optional)', locUseGPS:'📡 Use current position', locSend:'Send', locCancel:'Cancel', locGPSErr:'GPS not available', locLabel:'Location',
         fwdTitle:'↪ Forward to…', searchForward:'🔍 Search chat…',
         btnCancel:'Cancel', btnDeleteYes:'Yes, delete',
         logoutConfirmMsg:'Do you really want to log out?', btnYes:'Yes', btnNo:'No',
@@ -1938,6 +1985,33 @@ app.get('/', (req, res) => {
         body: JSON.stringify({ chatId: chatId, msgIds: ids })
       });
       await reloadMessages(chatId);
+    }
+    function openLocationModal() {
+      document.getElementById('loc-lat').value = '';
+      document.getElementById('loc-lng').value = '';
+      document.getElementById('loc-name').value = '';
+      document.getElementById('location-modal').style.display = 'flex';
+      document.getElementById('loc-lat').focus();
+    }
+    function closeLocationModal() { document.getElementById('location-modal').style.display = 'none'; }
+    function useGPSLocation() {
+      if (!navigator.geolocation) { alert(t('locGPSErr')); return; }
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        document.getElementById('loc-lat').value = pos.coords.latitude.toFixed(6);
+        document.getElementById('loc-lng').value = pos.coords.longitude.toFixed(6);
+      }, function() { alert(t('locGPSErr')); });
+    }
+    async function sendLocationMsg() {
+      var lat = parseFloat(document.getElementById('loc-lat').value);
+      var lng = parseFloat(document.getElementById('loc-lng').value);
+      var name = document.getElementById('loc-name').value.trim();
+      if (isNaN(lat) || isNaN(lng)) return;
+      closeLocationModal();
+      try {
+        await fetch('api/send-location', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: selectedChatId, lat: lat, lng: lng, locName: name }) });
+        await reloadMessages(selectedChatId);
+      } catch(e) { console.error('sendLocation:', e.message); }
     }
     let lastMsgTime = {};
     let allChats = [];
@@ -2294,6 +2368,10 @@ app.get('/', (req, res) => {
         if (m.deleted && !m.body) {
           // Standard: Body ersetzt durch 🚫-Text (KEEP_DELETED=false)
           bub.innerHTML = '<span class="bubble-deleted"><span class="del-icon">🚫</span>' + t('msgDeleted') + '</span><span class="time">' + fmtTime(m.timestamp) + '</span>';
+        } else if (m.type === 'location' && m.locLat != null) {
+          const mapsUrl = 'https://maps.google.com/?q=' + m.locLat + ',' + m.locLng;
+          const label = m.locName || (m.locLat.toFixed(4) + ', ' + m.locLng.toFixed(4));
+          bub.innerHTML = '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;"><span style="font-size:22px">📍</span><span style="font-size:13px;text-decoration:underline;opacity:0.9">' + esc(label) + '</span></a><span class="time" style="float:right;margin-top:4px">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'document') {
           bub.innerHTML = '<div class="bubble-document"><span class="doc-icon">📄</span><div class="doc-info"><span class="doc-name">' + esc(m.filename || 'Dokument') + '</span>' + (m.body ? '<div class="doc-caption">' + esc(m.body) + '</div>' : '') + '</div></div><span class="time" style="float:right;padding:0 0 4px;">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'voice') {

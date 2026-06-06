@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.26] - 2026-06-06
+- Neu: Standort empfangen — wird als klickbarer 📍 Google-Maps-Link angezeigt (DE/EN, inkl. HTML-Export)
+- Neu: Standort senden — 📍-Button in der Sendeleiste öffnet Modal mit GPS-Button und manueller Lat/Lng/Name-Eingabe
+
 ## [1.6.25] - 2026-06-06
 - Fix: Hover-Buttons verschieben gesendete Nachrichten — opacity statt display:none, order:-1 für out-Nachrichten (Buttons erscheinen links der Bubble)
 
