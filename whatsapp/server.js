@@ -3232,37 +3232,21 @@ app.get('/', (req, res) => {
   <script>
     (function(){
       var _filter='ALL';
-      var _colors={'ALL':'#c9d1d9','DEBUG':'#6e7681','INFO':'#3fb950','WARN':'#d29922','ERROR':'#f85149'};
+      var _c={'ALL':'#c9d1d9','DEBUG':'#6e7681','INFO':'#3fb950','WARN':'#d29922','ERROR':'#f85149'};
+      var _bs='background:none;border:1px solid #30363d;color:#6e7681;border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace;padding:1px 5px;line-height:1.5;';
       var cb=document.getElementById('wa-console-body');
-      var con=document.getElementById('wa-console');
-      var tb=document.createElement('div');
-      tb.setAttribute('style','display:flex;align-items:center;gap:4px;padding:3px 8px;background:#0d1117;border-bottom:1px solid #30363d;flex-shrink:0;');
-      con.insertBefore(tb,cb);
-      var _btns={};
-      [['ALL','ALL'],['DEBUG','DBG'],['INFO','INFO'],['WARN','WARN'],['ERROR','ERR']].forEach(function(fi){
-        var btn=document.createElement('button');
-        var col=_colors[fi[0]];
-        btn.setAttribute('style','background:none;border:1px solid '+(fi[0]==='ALL'?col:'#30363d')+';color:'+(fi[0]==='ALL'?col:'#6e7681')+';border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace;padding:1px 6px;line-height:1.6;');
-        btn.textContent=fi[1];
-        btn.addEventListener('click',function(){
-          Object.keys(_btns).forEach(function(k){
-            var c=_colors[k];
-            _btns[k].setAttribute('style','background:none;border:1px solid #30363d;color:#6e7681;border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace;padding:1px 6px;line-height:1.6;');
-          });
-          var c=_colors[fi[0]];
-          btn.setAttribute('style','background:none;border:1px solid '+c+';color:'+c+';border-radius:3px;cursor:pointer;font-size:10px;font-family:monospace;padding:1px 6px;line-height:1.6;');
-          _filter=fi[0];
-          Array.from(cb.children).forEach(function(l){
-            l.style.display=(_filter==='ALL'||l.dataset.level===_filter)?'':'none';
-          });
-        });
-        _btns[fi[0]]=btn;
-        tb.appendChild(btn);
-      });
-      var sp=document.createElement('span');sp.setAttribute('style','flex:1;');tb.appendChild(sp);
+      var hdr=document.getElementById('wa-console-header');
+      var closeBtn=document.getElementById('wa-console-close');
+      // Spacer vor Close-Button
+      var sp=document.createElement('span');
+      sp.style.flex='1';
+      hdr.insertBefore(sp,closeBtn);
+      // Export vor Close-Button
       var exp=document.createElement('button');
-      exp.setAttribute('style','background:none;border:1px solid #30363d;color:#58a6ff;border-radius:3px;cursor:pointer;font-size:10px;padding:1px 6px;line-height:1.6;');
-      exp.textContent='⬇ Export';
+      exp.style.cssText=_bs+'color:#58a6ff;margin-left:4px;';
+      exp.textContent='⬇';
+      exp.title='Export als .txt';
+      exp.addEventListener('mousedown',function(e){e.stopPropagation();});
       exp.addEventListener('click',function(){
         var lines=Array.from(cb.children).map(function(l){return l.textContent;}).join('\n');
         if(!lines)return;
@@ -3271,7 +3255,27 @@ app.get('/', (req, res) => {
         a.download='whatsapp-console-'+new Date().toISOString().slice(0,16).replace('T','_').replace(/:/g,'-')+'.txt';
         a.click();setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
       });
-      tb.appendChild(exp);
+      hdr.insertBefore(exp,closeBtn);
+      // Filter-Buttons vor Export (in umgekehrter Reihenfolge via insertBefore(btn, exp))
+      var _btns={};
+      [['ERROR','ERR'],['WARN','WARN'],['INFO','INFO'],['DEBUG','DBG'],['ALL','ALL']].forEach(function(fi){
+        var btn=document.createElement('button');
+        btn.style.cssText=_bs+(fi[0]==='ALL'?'border-color:'+_c.ALL+';color:'+_c.ALL+';':'');
+        btn.textContent=fi[1];
+        btn.title='Filter: '+fi[0];
+        btn.addEventListener('mousedown',function(e){e.stopPropagation();});
+        btn.addEventListener('click',function(){
+          Object.keys(_btns).forEach(function(k){_btns[k].style.cssText=_bs;});
+          btn.style.cssText=_bs+'border-color:'+_c[fi[0]]+';color:'+_c[fi[0]]+';';
+          _filter=fi[0];
+          Array.from(cb.children).forEach(function(l){
+            l.style.display=(_filter==='ALL'||l.dataset.level===_filter)?'':'none';
+          });
+        });
+        _btns[fi[0]]=btn;
+        hdr.insertBefore(btn,exp);
+      });
+      // MutationObserver: data-level auf neue Zeilen setzen
       function _lvl(t){
         if(t.indexOf('[ERROR]')!==-1)return'ERROR';
         if(t.indexOf('[WARN]')!==-1)return'WARN';

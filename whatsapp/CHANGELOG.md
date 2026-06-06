@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.46] - 2026-06-06
+- Fix: Buttons in sichtbaren Header verschoben statt in separaten Toolbar-div — insertBefore(btn, closeBtn) in bestehendem Header-Element
+
 ## [1.6.45] - 2026-06-06
 - Fix: Filter/Export-Buttons unsichtbar — CSS-Klassen griffen nicht; alle Styles jetzt als inline style-Attribute direkt auf Elementen
 
