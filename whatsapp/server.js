@@ -1370,9 +1370,10 @@ app.get('/', (req, res) => {
     .spam-modal-cancel:hover { background:#3d5259; }
     .spam-modal-confirm { background:#f15c5c; color:#fff; }
     .spam-modal-confirm:hover { background:#d94444; }
-    .reply-btn { display:none; background:none; border:none; cursor:pointer; font-size:15px; padding:4px 6px; line-height:1; border-radius:6px; flex-shrink:0; color:rgba(233,237,239,0.6); }
-    .bubble-row-inner:hover .reply-btn { display:block; }
+    .reply-btn { opacity:0; pointer-events:none; background:none; border:none; cursor:pointer; font-size:15px; padding:4px 6px; line-height:1; border-radius:6px; flex-shrink:0; color:rgba(233,237,239,0.6); }
+    .bubble-row-inner:hover .reply-btn { opacity:1; pointer-events:auto; }
     html.light .reply-btn { color:rgba(0,0,0,0.4); }
+    .bubble-wrap.out .react-btn, .bubble-wrap.out .fwd-btn, .bubble-wrap.out .reply-btn { order: -1; }
     .reply-btn:hover { color:#3cdb7c !important; }
     .quoted-block { border-left:3px solid #3cdb7c; background:rgba(0,0,0,0.25); border-radius:4px; padding:4px 8px; margin-bottom:6px; overflow:hidden; }
     .bubble-wrap.out .quoted-block { border-left-color:rgba(255,255,255,0.4); background:rgba(0,0,0,0.2); }
@@ -1428,13 +1429,13 @@ app.get('/', (req, res) => {
     }
     .bubble-row-inner { display: flex; align-items: center; gap: 6px; width: 100%; }
     .bubble-wrap.out .bubble-row-inner { justify-content: flex-end; }
-    .react-btn { display: none; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; border-radius: 50%; color: rgba(233,237,239,0.55); flex-shrink: 0; }
-    .bubble-row-inner:hover .react-btn { display: inline-flex; align-items: center; }
+    .react-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; border-radius: 50%; color: rgba(233,237,239,0.55); flex-shrink: 0; display: inline-flex; align-items: center; }
+    .bubble-row-inner:hover .react-btn { opacity: 1; pointer-events: auto; }
     html.light .react-btn { color: rgba(0,0,0,0.35); }
     .react-btn:hover { background: rgba(134,150,160,0.18); color: #e9edef; }
     html.light .react-btn:hover { color: #111; }
-    .fwd-btn { display: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
-    .bubble-row-inner:hover .fwd-btn { display: block; }
+    .fwd-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; color: rgba(233,237,239,0.6); }
+    .bubble-row-inner:hover .fwd-btn { opacity: 1; pointer-events: auto; }
     html.light .fwd-btn { color: rgba(0,0,0,0.4); }
     .fwd-btn:hover { color: #3cdb7c !important; }
     #fwd-modal { display:none; position:fixed; inset:0; z-index:400; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }

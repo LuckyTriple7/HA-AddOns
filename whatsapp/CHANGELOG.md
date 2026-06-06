@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.25] - 2026-06-06
+- Fix: Hover-Buttons verschieben gesendete Nachrichten — opacity statt display:none, order:-1 für out-Nachrichten (Buttons erscheinen links der Bubble)
+
 ## [1.6.24] - 2026-06-06
 - Fix: Hover-✕-Button zum Löschen entfernt — Löschen läuft jetzt ausschließlich über den Multi-Select-Modus
 
