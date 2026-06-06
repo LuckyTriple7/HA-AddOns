@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.42] - 2026-06-06
+- Fix (3. Versuch): Console-Code auf exakten v1.6.39-Stand zurückgesetzt; Filter/Export ohne separaten Toolbar-div — Buttons direkt im Header, alle Events via addEventListener (kein inline onclick auf neuen Elementen)
+
 ## [1.6.41] - 2026-06-06
 - Fix: Console öffnete sich nicht mehr — wcFilter/wcExport nicht global exponiert; body-Variable umbenannt zu _cb (Konflikt mit document.body); alle Funktionen direkt auf window gesetzt
 
