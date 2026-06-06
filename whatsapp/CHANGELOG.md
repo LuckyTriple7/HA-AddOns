@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.29] - 2026-06-06
+- Fix: enforceMediaLimit fehlte in WhatsApp — Funktion hinzugefügt
+- Fix: Auto-Download von Videos verursachte 'no pic'-Fehler — Videos werden jetzt immer als Platzhalter angezeigt und nur on-demand heruntergeladen
+
 ## [1.6.28] - 2026-06-06
 - Fix: 📍-Button in der Sendeleiste wurde grün und rund wie der Send-Button — CSS-Override für #location-btn wie bei #attach-btn
 - Fix: Standort-Preview zeigte WhatsApp-interne Zeichen — type='location' wird vor msg.body geprüft, zeigt immer '📍 Standort' oder '📍 Name'
