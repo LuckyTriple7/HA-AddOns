@@ -153,6 +153,18 @@
     .file-acts { display:flex; gap:6px; flex-shrink:0; margin-left:auto; }
     .path-note { font-size:.73rem; color:var(--muted); margin-bottom:8px; }
 
+    /* ── Share Format Modal ── */
+    #share-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:600; align-items:flex-end; justify-content:center; }
+    #share-modal.open { display:flex; }
+    .share-panel { background:var(--surf); border-radius:12px 12px 0 0; padding:18px 16px 32px; width:100%; max-width:480px; }
+    .share-panel-title { font-size:.75rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+    .share-panel-title button { background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0 4px; }
+    .share-panel-title button:hover { color:var(--text); }
+    .share-url-text { font-size:.75rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:var(--bg); border:1px solid var(--border); border-radius:var(--r); padding:6px 10px; margin-bottom:14px; }
+    .share-fmt-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .share-fmt-btn { padding:13px 8px; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:var(--r); font-size:.9rem; cursor:pointer; font-weight:500; text-align:center; }
+    .share-fmt-btn:hover, .share-fmt-btn:active { border-color:var(--accent); background:var(--accent); color:#fff; }
+
     /* ── Player modal ── */
     #player-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:500; align-items:center; justify-content:center; flex-direction:column; padding:16px; }
     #player-modal.open { display:flex; }
@@ -282,6 +294,18 @@
 
   </div>
 
+  <!-- Share Format Modal -->
+  <div id="share-modal" onclick="closeShareModal()">
+    <div class="share-panel" onclick="event.stopPropagation()">
+      <div class="share-panel-title">
+        <span>Format wählen</span>
+        <button onclick="closeShareModal()">&times;</button>
+      </div>
+      <div class="share-url-text" id="share-url-display"></div>
+      <div class="share-fmt-grid" id="share-fmt-grid"></div>
+    </div>
+  </div>
+
   <!-- Player modal -->
   <div id="player-modal" onclick="closePlayer(event)">
     <button class="player-close" onclick="closePlayer()">&times;</button>
@@ -321,6 +345,13 @@
       tag_add:           {{ t.tag_add | tojson }},
       tag_remove:        {{ t.tag_remove | tojson }},
       tag_placeholder:   {{ t.tag_placeholder | tojson }},
+      fmt_best_video: {{ t.fmt_best_video | tojson }},
+      fmt_1080p:      {{ t.fmt_1080p | tojson }},
+      fmt_720p:       {{ t.fmt_720p | tojson }},
+      fmt_480p:       {{ t.fmt_480p | tojson }},
+      fmt_360p:       {{ t.fmt_360p | tojson }},
+      fmt_mp3:        {{ t.fmt_mp3 | tojson }},
+      fmt_m4a:        {{ t.fmt_m4a | tojson }},
       disk_free:      {{ t.disk_free | tojson }},
       disk_used_by_folder: {{ t.disk_used_by_folder | tojson }},
       info_loading:   {{ t.info_loading | tojson }},
@@ -831,6 +862,32 @@
       } catch(e) { toast(T.error_network, true); }
     }
 
+    // ── Share Format Modal ────────────────────────────────────────────────────
+    function openShareModal(url) {
+      document.getElementById('share-url-display').textContent = url;
+      const fmts = [
+        {val:'best_video', label:T.fmt_best_video},
+        {val:'1080p',      label:T.fmt_1080p},
+        {val:'720p',       label:T.fmt_720p},
+        {val:'480p',       label:T.fmt_480p},
+        {val:'360p',       label:T.fmt_360p},
+        {val:'mp3',        label:T.fmt_mp3},
+        {val:'m4a',        label:T.fmt_m4a},
+      ];
+      document.getElementById('share-fmt-grid').innerHTML = fmts.map(f =>
+        `<button class="share-fmt-btn" onclick="startSharedDownload('${f.val}')">${esc(f.label)}</button>`
+      ).join('');
+      document.getElementById('share-modal').classList.add('open');
+    }
+    function closeShareModal() {
+      document.getElementById('share-modal').classList.remove('open');
+    }
+    function startSharedDownload(fmt) {
+      closeShareModal();
+      document.getElementById('fmt-select').value = fmt;
+      startDownload();
+    }
+
     // ── Init ──────────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('url-input').addEventListener('keydown', e => {
@@ -847,7 +904,7 @@
       if (sharedUrl) {
         document.getElementById('url-input').value = sharedUrl;
         history.replaceState({}, '', '/');
-        startDownload();
+        openShareModal(sharedUrl);
       }
 
       loadJobs();

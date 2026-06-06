@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [0.3.9] — 2026-06-06
+### Added
+- PWA Share: Format-Picker Modal erscheint beim Teilen eines Links — 7 Buttons (Bestes Video, 1080p–360p, MP3, M4A); kein automatischer Download mehr direkt nach dem Teilen
+
 ## [0.3.8] — 2026-06-06
 ### Changed
 - DE: Download-Button heißt jetzt "Download" statt "Herunterladen"
