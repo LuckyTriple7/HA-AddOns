@@ -43,7 +43,10 @@ const cleanupRateLimit = rateLimit({ windowMs: 60_000, limit: 5 });
 
 const app = express();
 app.use(express.json());
-app.use(rateLimit({ windowMs: 60_000, limit: 200 }));
+app.use((req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  return rateLimit({ windowMs: 60_000, limit: 200 })(req, res, next);
+});
 app.use((req, res, next) => {
   if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
   const t0 = Date.now();
