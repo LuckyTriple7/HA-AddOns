@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.1] - 2026-06-07
+### Added
+- Disconnect-Erkennung: `visibilitychange`-Event aktualisiert Tab sofort beim Aufklappen des Laptops / Tab-Wechsel
+- `online`/`offline`-Events: sofortiges Polling bei Netzwerk-Reconnect, sofortiger Banner bei Netzwerk-Verlust
+- Offline-Banner: abdunkelndes Overlay mit animiertem 📡, „Verbindung unterbrochen"-Text und „Neu laden"-Button (erscheint nach 3 aufeinanderfolgenden fehlgeschlagenen Status-Polls)
+
 ## [1.7.0] - 2026-06-06
 ### Added
 - Standort empfangen (📍 Google-Maps-Link) und senden (📍-Button mit GPS-Abfrage oder manueller Lat/Lng/Name-Eingabe)

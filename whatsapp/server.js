@@ -1749,6 +1749,15 @@ app.get('/', (req, res) => {
     html.light #emoji-picker { background: #fff; border-color: #e0e0e0; }
     html.light #send-bar .emoji-btn:hover { background: #f0f2f5; }
     html.light #send-bar #emoji-toggle { color: #555; }
+
+    /* ── Offline-Banner ── */
+    #offline-banner { display:none; position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+    .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
+    .ob-title { font-size:16px; font-weight:600; color:#e9edef; }
+    .ob-sub { font-size:13px; color:#8696a0; }
+    .ob-reload { background:#2a3942; border:1px solid #3d5259; color:#e9edef; border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+    .ob-reload:hover { background:#3d5259; border-color:#5a7a87; }
+    @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   </style>
 </head>
 <body>
@@ -1905,6 +1914,13 @@ app.get('/', (req, res) => {
         <button class="spam-modal-confirm" data-i18n="btnYes" onclick="logout()">Ja</button>
       </div>
     </div>
+  </div>
+
+  <div id="offline-banner">
+    <div class="ob-icon">📡</div>
+    <div class="ob-title">Verbindung unterbrochen</div>
+    <div class="ob-sub">Stelle Verbindung wieder her…</div>
+    <button class="ob-reload" onclick="window.location.reload()">Neu laden</button>
   </div>
 
   <script>
@@ -2989,9 +3005,15 @@ app.get('/', (req, res) => {
       await fetch('api/reset', { method: 'POST' }).catch(() => {});
     }
 
+    let _offlineFails = 0;
+    function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
+    function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
+
     async function refresh() {
       try {
         const s = await fetch('api/status').then(r => r.json());
+        _offlineFails = 0;
+        hideOfflineBanner();
         const dotLabel = ({
           connected: t('statusConnected'), waiting_for_scan: t('statusQR'),
           authenticated: t('statusAuth'), initializing: t('statusInit'),
@@ -3024,7 +3046,10 @@ app.get('/', (req, res) => {
           }
           if (connected) await pollChats();
         }
-      } catch(e) {}
+      } catch(e) {
+        _offlineFails++;
+        if (_offlineFails >= 3) showOfflineBanner();
+      }
     }
 
     applyLang();
@@ -3033,6 +3058,19 @@ app.get('/', (req, res) => {
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
     setInterval(pollReactions, 5000);
+
+    // Tab wird wieder sichtbar (Laptop aufgeklappt, Tab-Wechsel) → sofort aktualisieren
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      _offlineFails = 0;
+      refresh();
+      pollChats();
+      if (selectedChatId) loadMessages(selectedChatId);
+    });
+    // Netzwerk wieder da
+    window.addEventListener('online', () => { _offlineFails = 0; refresh(); pollChats(); });
+    // Netzwerk weg → Banner sofort zeigen
+    window.addEventListener('offline', () => showOfflineBanner());
 
     // ── Reactions ──────────────────────────────────────────────────────────────
     const REACTION_EMOJIS = ['👍','❤️','😂','😮','😢','🙏'];
