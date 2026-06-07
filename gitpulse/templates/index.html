@@ -861,7 +861,8 @@
     new_release:  '{{ t.notif_new_release }}',
     btn_merge:    '{{ t.btn_merge }}',
     btn_rerun:    '{{ t.btn_rerun }}',
-    btn_dispatch:      '{{ t.btn_dispatch }}',
+    btn_dispatch:          '{{ t.btn_dispatch }}',
+    btn_select_workflow:   '{{ t.btn_select_workflow }}',
     btn_cancel_run:    '{{ t.btn_cancel_run }}',
     btn_delete_run:    '{{ t.btn_delete_run }}',
     btn_close_issue:   '{{ t.btn_close_issue }}',
@@ -1257,7 +1258,7 @@
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><div>${T.no_runs}</div></div>`;
       return;
     }
-    const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_dispatch}</button>`;
+    const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_select_workflow}</button>`;
 
     // Zeitfilter anwenden
     const now = Date.now();

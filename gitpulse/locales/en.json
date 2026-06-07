@@ -59,6 +59,7 @@
   "btn_merge": "Merge",
   "btn_rerun": "Re-run",
   "btn_dispatch": "Dispatch",
+  "btn_select_workflow": "Select Workflow",
   "btn_cancel": "Cancel",
   "btn_cancel_run": "Stop",
   "btn_delete_run": "Delete",

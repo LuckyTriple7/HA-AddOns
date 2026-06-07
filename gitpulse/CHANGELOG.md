@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34] - 2026-06-07
+
+### Changed
+- CI/Actions: Dispatch-Button umbenannt von „▶ Starten" → „▶ Workflow auswählen" (EN: „Select Workflow") — unterscheidet sich jetzt klar vom Favoriten-Button der einen bekannten Workflow direkt startet
+
+---
+
 ## [0.1.33] - 2026-06-07
 
 ### Changed
