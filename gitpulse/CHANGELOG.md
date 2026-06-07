@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29] - 2026-06-07
+
+### Fixed
+- Webhook-Server auf Port 17793 startet nur wenn `webhook_secret` konfiguriert ist — ohne Secret läuft ausschließlich Polling wie gewohnt
+
+---
+
 ## [0.1.28] - 2026-06-07
 
 ### Fixed

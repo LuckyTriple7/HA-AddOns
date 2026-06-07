@@ -1611,9 +1611,12 @@ if __name__ == '__main__':
     t = threading.Thread(target=_poll_worker, daemon=True)
     t.start()
 
-    # Webhook-Server auf Port 17793
-    wh = threading.Thread(target=_run_webhook_server, daemon=True)
-    wh.start()
+    # Webhook-Server auf Port 17793 — nur wenn Secret konfiguriert
+    if cfg.get('webhook_secret', '').strip():
+        wh = threading.Thread(target=_run_webhook_server, daemon=True)
+        wh.start()
+    else:
+        log.info("Kein Webhook-Secret konfiguriert — Webhook deaktiviert, nur Polling aktiv")
 
     log.info("GitPulse bereit auf Port 17792")
     app.run(host='0.0.0.0', port=17792, debug=False, threaded=True)
