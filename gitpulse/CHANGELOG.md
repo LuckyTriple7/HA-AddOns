@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10] - 2026-06-07
+
+### Fixed
+- Token-Badge Mouseover: `token_expires_on` und `token_days` fehlten im JS-Übersetzungsobjekt `T` → "undefined" im Tooltip
+
+---
+
 ## [0.1.9] - 2026-06-07
 
 ### Changed
