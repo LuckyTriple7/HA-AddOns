@@ -427,7 +427,7 @@ def _compute_review_state(reviews: list) -> str:
     return 'none'
 
 
-def _fetch_repo_data(repo: str, token: str) -> dict:
+def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
 
@@ -471,9 +471,9 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
             'updated': iss['updated_at'],
         })
 
-    runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': 25}) or {}
+    runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': run_limit}) or {}
     runs = []
-    for run in (runs_raw.get('workflow_runs') or [])[:25]:
+    for run in (runs_raw.get('workflow_runs') or [])[:run_limit]:
         head_msg = (run.get('head_commit') or {}).get('message', '')
         runs.append({
             'id':           run['id'],
@@ -656,6 +656,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     incl_betas = bool(cfg.get('include_ha_betas', True))
     tg_token   = cfg.get('telegram_bot_token', '').strip()
     tg_chat    = cfg.get('telegram_chat_id', '').strip()
+    run_limit  = min(50, max(1, int(cfg.get('workflow_run_limit', 25))))
 
     if _verbose():
         log.info("Polling %d eigene Repos, %d Watch-Repos", len(my_repos), len(watch_repos))
@@ -664,7 +665,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     repo_data = []
     for repo in my_repos:
         try:
-            data = _fetch_repo_data(repo, token)
+            data = _fetch_repo_data(repo, token, run_limit)
             repo_data.append(data)
             if _verbose():
                 log.info("%s — %d PRs, %d Issues", repo, data['open_prs'], data['open_issues'])

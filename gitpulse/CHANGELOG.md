@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25] - 2026-06-07
+
+### Added
+- Neues Config-Feld `workflow_run_limit` (Standard 25, Maximum 50): steuert wie viele Workflow-Runs je Repo geladen werden — konfigurierbar in den HA Add-on-Einstellungen
+
+---
+
 ## [0.1.24] - 2026-06-07
 
 ### Added

@@ -26,6 +26,9 @@ configuration:
   verbose_log:
     name: Verbose Logging
     description: Logs repo count and details on every poll cycle. Default false — only errors and important events are logged.
+  workflow_run_limit:
+    name: Workflow Run Limit
+    description: "How many workflow runs per repo are loaded in the CI/Actions tab. Default 25, maximum 50."
   telegram_bot_token:
     name: Telegram Bot Token
     description: "Token of the Telegram bot for notifications (format: 123456789:ABC-...). Leave empty to disable Telegram. Create a bot via @BotFather in Telegram."
