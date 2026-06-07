@@ -1142,8 +1142,8 @@
             ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
-        <button class="act-btn act-btn-dispatch" onclick="openCommentModal('${escHtml(repo.repo)}',${pr.number},'#${pr.number} ${escHtml(pr.title).replace(/'/g,"\\'")}')">💬 ${T.btn_comment}</button>
-        ${!pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal('${escHtml(repo.repo)}',${pr.number},'#${pr.number} ${escHtml(pr.title).replace(/'/g,"\\'")}')">⎇ ${T.btn_merge}</button>` : ''}
+        <button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>
+        ${!pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
       </div>`).join('') + '</div></div>';
   }
 
@@ -1591,6 +1591,9 @@
   // ── Utils ─────────────────────────────────────────────────────────
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function safeJsArg(v) {
+    return JSON.stringify(String(v)).replace(/"/g, '&quot;');
   }
 
   // ── Init ──────────────────────────────────────────────────────────

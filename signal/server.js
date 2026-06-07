@@ -37,21 +37,9 @@ const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
-function makeRateLimiter(maxReqs, windowMs) {
-  const hits = new Map();
-  return (req, res, next) => {
-    const key = req.ip || req.socket?.remoteAddress || 'unknown';
-    const now = Date.now();
-    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
-    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
-    entry.count++;
-    hits.set(key, entry);
-    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
-    next();
-  };
-}
-const deleteRateLimit = makeRateLimiter(30, 60_000);
-const cleanupRateLimit = makeRateLimiter(5, 60_000);
+const rateLimit = require('express-rate-limit');
+const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
+const cleanupRateLimit = rateLimit({ windowMs: 60_000, limit: 5 });
 
 const app = express();
 app.use(express.json());
@@ -74,7 +62,7 @@ const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_TOKEN = process.env.HA_TOKEN || '';
 const MEDIA_DIR = '/config/media/';
-function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
+function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a)))); }
 console.log('[INFO] ── Configuration ──────────────────────────────────');
 console.log(`[INFO]   phone_number           = ${PHONE_NUMBER ? 'set' : 'not set'}`);
 console.log(`[INFO]   signal_api_url         = ${SIGNAL_API}`);
@@ -175,7 +163,7 @@ async function checkStatus() {
       qrSvg = null;
       qrUri = null;
       qrDataUrl = null;
-      console.log(`[INFO] Linked as ${PHONE_NUMBER}`);
+      console.log(`[INFO] Linked as ${PHONE_NUMBER ? PHONE_NUMBER.slice(0, 4) + '***' : '(not set)'}`);
       if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
       loadContacts();
       loadGroups();
@@ -446,7 +434,7 @@ function sendHANotification(senderName, body) {
   req.on('error', e => console.warn('[WARN] HA notification error:', e.message));
   req.write(payload);
   req.end();
-  console.log(`[INFO] HA notification: Signal${HA_PRIVACY ? '' : `: ${senderName}`}`);
+  console.log('[INFO] HA notification: Signal sent');
 }
 
 function updateMsgAck(signalTs, ackLevel) {

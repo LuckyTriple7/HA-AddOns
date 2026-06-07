@@ -756,7 +756,9 @@ def _do_poll(cfg: dict, token: str) -> None:
             data = _fetch_repo_data(repo, token, run_limit)
             repo_data.append(data)
             if _verbose():
-                log.info("%s — %d PRs, %d Issues", repo, data['open_prs'], data['open_issues'])
+                pr_cnt = int(data['open_prs'])
+                issue_cnt = int(data['open_issues'])
+                log.info("%s — %d PRs, %d Issues", repo, pr_cnt, issue_cnt)
         except Exception as e:
             log.error("Repo %s Fehler: %s", repo, e)
 
@@ -1417,7 +1419,7 @@ def api_workflow_delete():
         return jsonify({'error': msg}), r.status_code
     except Exception as e:
         log.error("Workflow-Delete Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'internal_error'}), 500
 
 
 @app.route('/webhook', methods=['POST'])
@@ -1560,7 +1562,7 @@ def github_webhook():
             'resolved':        ('✅', 'Behoben'),
         }
         icon, label = _action_map.get(action, ('⚠️', action))
-        log.warning("Secret Scanning Alert [%s] in %s: %s (#%s)", action, repo_full, secret_type, alert_num)
+        log.warning("Secret Scanning Alert [%s] in %s (#%s)", action, repo_full, alert_num)
         if tg_token and tg_chat:
             _send_telegram(tg_token, tg_chat,
                 f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n"

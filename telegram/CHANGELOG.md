@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5] - 2026-06-07
+
+### Security
+- `express-rate-limit` statt eigener Implementierung: CodeQL-erkannte Rate-Limiting-Lösung (#113, #114)
+
+---
+
 ## [1.6.4] - 2026-06-07
 
 ### Security
