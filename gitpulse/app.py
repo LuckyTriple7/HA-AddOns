@@ -931,9 +931,15 @@ def api_reset_seen():
     if redir:
         return jsonify({'error': 'unauthorized'}), 401
     global _seen_releases
-    _seen_releases = set()
+    # Alle aktuell bekannten Releases als gesehen markieren (nicht löschen)
+    # → nächster Poll meldet sie nicht mehr als neu, kein Telegram doppelt
+    with _gh_lock:
+        releases = list(_gh_cache.get('releases', []))
+        _gh_cache['new_releases'] = []   # Badge sofort weg
+    for rel in releases:
+        _seen_releases.add(f"{rel['repo']}@{rel['tag']}")
     save_seen_releases()
-    log.info("Gesehene Releases zurückgesetzt")
+    log.info("Releases als gelesen markiert: %d Einträge gesamt", len(_seen_releases))
     return jsonify({'status': 'ok'})
 
 

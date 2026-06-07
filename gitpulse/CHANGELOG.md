@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16] - 2026-06-07
+
+### Fixed
+- "Als gelesen markieren" hat fälschlicherweise die gesamte Seen-Liste geleert → beim nächsten Poll galten alle Releases wieder als neu und Telegram feuerte erneut; jetzt werden alle aktuell sichtbaren Releases zur Seen-Liste hinzugefügt (nicht gelöscht) — nur echte neue Releases lösen künftig Telegram aus
+
+---
+
 ## [0.1.15] - 2026-06-07
 
 ### Fixed
