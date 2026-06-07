@@ -47,6 +47,22 @@ const { URL } = require('url');
 const fs = require('fs');
 const { existsSync, rmSync } = fs;
 
+// Simple in-memory rate limiter (no extra dependency needed)
+function makeRateLimiter(maxReqs, windowMs) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
+    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
+    entry.count++;
+    hits.set(key, entry);
+    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
+    next();
+  };
+}
+const deleteRateLimit = makeRateLimiter(30, 60_000);
+
 // ── Chromium detection ────────────────────────────────────────────────────────
 
 function findChromium() {
@@ -1194,7 +1210,7 @@ app.post('/api/fetch-video', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/delete-video', async (req, res) => {
+app.post('/api/delete-video', deleteRateLimit, async (req, res) => {
   const { msgId, chatId } = req.body;
   if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
   const stored = getChatMsgs(chatId).find(m => m.id === msgId);
