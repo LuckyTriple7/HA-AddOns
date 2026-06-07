@@ -1263,7 +1263,8 @@ def api_workflow_delete():
                 for rd in _gh_cache.get('my_repos', []):
                     if rd['repo'] == repo:
                         rd['runs'] = [run for run in rd.get('runs', []) if run['id'] != run_id]
-            _known_run_conclusions.pop(run_id, None)
+            # _known_run_conclusions bewusst NICHT löschen: würde den Run beim nächsten
+            # Poll als "neu" erscheinen lassen und Telegram fälschlicherweise auslösen
             return jsonify({'status': 'deleted'})
         try:
             msg = r.json().get('message', f'HTTP {r.status_code}')

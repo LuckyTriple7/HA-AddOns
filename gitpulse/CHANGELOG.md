@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21] - 2026-06-07
+
+### Fixed
+- Workflow-Run löschen löste danach eine Telegram-Benachrichtigung aus: `_known_run_conclusions` wurde nach dem Löschen geleert, wodurch der Run beim nächsten Poll als "neu" galt; Eintrag bleibt jetzt erhalten
+
+---
+
 ## [0.1.20] - 2026-06-07
 
 ### Added
