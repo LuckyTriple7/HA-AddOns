@@ -547,7 +547,14 @@ def _do_poll(cfg: dict, token: str) -> None:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+def _is_ingress() -> bool:
+    """True wenn der Request durch den HA Supervisor Ingress-Proxy kam."""
+    return bool(request.script_root)
+
+
 def _auth_required(req):
+    if _is_ingress():
+        return None  # HA übernimmt die Authentifizierung
     token = req.cookies.get('session')
     if not is_valid_session(token):
         return redirect(url_for('login'))
@@ -612,8 +619,8 @@ def login():
     t    = load_translations(lang)
     cfg  = load_config()
 
-    if is_valid_session(request.cookies.get('session')):
-        return redirect('/')
+    if _is_ingress() or is_valid_session(request.cookies.get('session')):
+        return redirect(url_for('index'))
 
     error = None
     if request.method == 'POST':

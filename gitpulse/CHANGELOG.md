@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.6] - 2026-06-07
+
+### Changed
+- Kein Login erforderlich hinter HA Ingress — HA übernimmt die Authentifizierung
+- Direkter Port-Zugang (17792) erfordert weiterhin Login
+
+---
+
 ## [0.0.5] - 2026-06-07
 
 ### Fixed
