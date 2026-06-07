@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.5] - 2026-06-07
+### Security
+- Path-Traversal-Schwachstelle behoben: `safe_child()` prüft jetzt explizit auf absolute Pfade und `..`-Segmente **vor** dem `resolve()`-Aufruf — CodeQL-anerkanntes Sanitizer-Pattern (CodeQL: py/path-injection)
+- `shutil.rmtree` und `user_dir.mkdir` in Admin-Endpunkten verwenden jetzt `safe_child()` statt direkter Pfadkonstruktion
+
+---
+
 ## [1.0.4] - 2026-06-07
 ### Added
 - Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start

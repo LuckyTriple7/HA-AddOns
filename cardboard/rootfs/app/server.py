@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import shutil
 import sqlite3
@@ -178,8 +179,13 @@ def get_serializer() -> URLSafeTimedSerializer:
 def safe_child(base: Path, *parts: str) -> Path | None:
     """Gibt einen Pfad nur zurück wenn er innerhalb von base liegt (verhindert Path Traversal)."""
     try:
+        for part in parts:
+            p = str(part)
+            if not p or os.path.isabs(p) or '..' in p.replace('\\', '/').split('/'):
+                return None
         resolved = base.joinpath(*parts).resolve()
-        if resolved.is_relative_to(base.resolve()):
+        base_resolved = base.resolve()
+        if str(resolved).startswith(str(base_resolved) + os.sep) or resolved == base_resolved:
             return resolved
     except Exception:
         pass
@@ -1312,8 +1318,8 @@ async def _admin_cleanup_orphaned(request: Request):
         if not name or name.lower() in known:
             errors.append({"dir": name, "reason": "active_user"})
             continue
-        target = CONFIG_DIR / name
-        if not target.exists() or not target.is_dir():
+        target = safe_child(CONFIG_DIR, name)
+        if not target or not target.exists() or not target.is_dir():
             errors.append({"dir": name, "reason": "not_found"})
             continue
         try:
@@ -1494,8 +1500,9 @@ async def _admin_create_user(request: Request):
     yaml_data["users"] = users
     write_users(yaml_data)
 
-    user_dir = CONFIG_DIR / username
-    user_dir.mkdir(parents=True, exist_ok=True)
+    user_dir = safe_child(CONFIG_DIR, username)
+    if user_dir:
+        user_dir.mkdir(parents=True, exist_ok=True)
 
     log.info("Admin: Benutzer '%s' erstellt", username)
     return JSONResponse({"success": True, "username": username}, status_code=201)
