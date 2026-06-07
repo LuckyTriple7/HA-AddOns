@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.1.46] - 2026-06-07
+
+### Fixed
+- Webhook `workflow_run`: UI-Update kommt jetzt sofort wenn die Telegram-Nachricht eintrifft — Run-Status wird direkt im Cache gepatcht + SSE gefeuert, ohne auf den vollständigen GitHub-API-Poll zu warten
+- Gleiches gilt für neue Runs (`requested`): werden sofort in die Run-Liste eingefügt
+
+---
+
+## [0.1.45] - 2026-06-07
+
+### Changed
+- Tab-Reihenfolge: Security jetzt direkt neben Issues (wie in den Stat-Kacheln)
+
+---
+
+## [0.1.44] - 2026-06-07
+
+### Fixed
+- Dependabot-Alerts: HTTP 400 bei `per_page=100&page=1` — Dependabot-API akzeptiert diese Kombination nicht; eigener Paginator mit `per_page=30` ohne expliziten `page`-Parameter, Pagination über Link-Header
+
+---
+
+## [0.1.43] - 2026-06-07
+
+### Improved
+- Refresh-Countdown wird sofort abgebrochen wenn ein Webhook-SSE-Update eintrifft — kein unnötiges Warten bei aktiven Webhooks
+
+---
+
+## [0.1.42] - 2026-06-07
+
+### Added
+- Security-Tab: Dependabot-Zugriffscheck — zeigt Hinweis wenn Token den Scope `security_events` fehlt (statt stiller leerer Liste)
+- Locale: `security_dep_no_access` (DE + EN) mit Link-Hinweis zum Token-Bearbeiten
+
+---
+
 ## [0.1.41] - 2026-06-07
 
 ### Fixed

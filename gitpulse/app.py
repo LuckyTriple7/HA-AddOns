@@ -603,13 +603,48 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             'url':    a.get('html_url', ''),
         }
 
-    dep = _safe(f'/repos/{repo}/dependabot/alerts')
+    def _safe_dep(path: str) -> tuple[list, bool]:
+        """Fetch Dependabot alerts. Returns (data, access_ok).
+        Uses its own paginator (no explicit &page=N) because the Dependabot
+        API returns HTTP 400 when per_page=100 + page=1 are combined."""
+        url = f'{GITHUB_API}{path}' if path.startswith('/') else path
+        try:
+            r = http.get(url, headers=_gh_headers(token),
+                         params={'state': 'open', 'per_page': 30}, timeout=10)
+            if r.status_code in (403, 404, 451):
+                return [], False
+            if r.status_code != 200:
+                return [], True
+            results = list(r.json()) if isinstance(r.json(), list) else []
+            for _ in range(20):
+                link = r.headers.get('Link', '')
+                next_url = None
+                for part in link.split(','):
+                    if 'rel="next"' in part and len(part) <= 4096:
+                        m = re.search(r'<(https?://[^>\s]{1,2048})>', part)
+                        if m:
+                            next_url = m.group(1)
+                if not next_url:
+                    break
+                r = http.get(next_url, headers=_gh_headers(token), timeout=15)
+                if r.status_code != 200:
+                    break
+                page_data = r.json() if isinstance(r.json(), list) else []
+                if not page_data:
+                    break
+                results.extend(page_data)
+            return results, True
+        except Exception:
+            return [], True
+
+    dep, dep_access = _safe_dep(f'/repos/{repo}/dependabot/alerts')
     cs  = _safe(f'/repos/{repo}/code-scanning/alerts')
     ss  = _safe(f'/repos/{repo}/secret-scanning/alerts')
     return {
-        'dependabot':      [_fmt_dep(a) for a in dep],
-        'code_scanning':   [_fmt_cs(a)  for a in cs],
-        'secret_scanning': [_fmt_ss(a)  for a in ss],
+        'dependabot':        [_fmt_dep(a) for a in dep],
+        'dependabot_access': dep_access,
+        'code_scanning':     [_fmt_cs(a)  for a in cs],
+        'secret_scanning':   [_fmt_ss(a)  for a in ss],
     }
 
 
@@ -1514,6 +1549,33 @@ def github_webhook():
                     f"▶️ <b>Workflow gestartet:</b> {repo_full}\n"
                     + run_info
                     + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+            # Neuen Run sofort in den Cache einfügen damit die UI ihn sofort sieht
+            head_msg = (run.get('head_commit') or {}).get('message', '')
+            new_entry = {
+                'id':           run_id,
+                'run_number':   run.get('run_number'),
+                'workflow_id':  run.get('workflow_id'),
+                'name':         run.get('name', ''),
+                'status':       run.get('status', 'queued'),
+                'conclusion':   run.get('conclusion'),
+                'url':          run.get('html_url', ''),
+                'branch':       run.get('head_branch', ''),
+                'created':      run.get('created_at', ''),
+                'updated':      run.get('updated_at', ''),
+                'event':        run.get('event', ''),
+                'actor':        (run.get('actor') or {}).get('login', ''),
+                'actor_avatar': (run.get('actor') or {}).get('avatar_url', ''),
+                'head_sha':     run.get('head_sha', '')[:7],
+                'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
+            }
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo_full:
+                        existing = {r.get('id') for r in rd.get('runs', [])}
+                        if run_id and run_id not in existing:
+                            rd.setdefault('runs', []).insert(0, new_entry)
+                        break
+            _notify_sse()
         elif action == 'completed':
             if run_id:
                 _known_run_conclusions[run_id] = curr_con  # Duplikat-Schutz
@@ -1525,6 +1587,18 @@ def github_webhook():
                     + run_info
                     + f"Status: {label}\n"
                     + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+            # Run-Status sofort im Cache patchen — kein Warten auf den vollen Poll
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo_full:
+                        for cr in rd.get('runs', []):
+                            if cr.get('id') == run_id:
+                                cr['status']     = run.get('status', cr['status'])
+                                cr['conclusion'] = run.get('conclusion', cr.get('conclusion'))
+                                cr['updated']    = run.get('updated_at', cr.get('updated', ''))
+                                break
+                        break
+            _notify_sse()
         threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event in ('push', 'create', 'delete'):

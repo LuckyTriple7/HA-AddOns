@@ -277,6 +277,11 @@
       {{ t.tab_issues }}
       <span id="badge-issues" class="badge badge-yellow" style="display:none">0</span>
     </div>
+    <div class="tab" data-tab="security" onclick="switchTab('security')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+      {{ t.tab_security }}
+      <span id="badge-security" class="badge badge-red" style="display:none">0</span>
+    </div>
     <div class="tab" data-tab="ci" onclick="switchTab('ci')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       {{ t.tab_ci }}
@@ -285,11 +290,6 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
       {{ t.tab_releases }}
       <span id="badge-releases" class="badge" style="display:none">0</span>
-    </div>
-    <div class="tab" data-tab="security" onclick="switchTab('security')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-      {{ t.tab_security }}
-      <span id="badge-security" class="badge badge-red" style="display:none">0</span>
     </div>
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
@@ -1423,7 +1423,8 @@
 
     const allRepos = (data.my_repos || []).filter(r => {
       const sec = r.security || {};
-      return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length;
+      return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length
+          || sec.dependabot_access === false;
     });
 
     if (!allRepos.length) {
@@ -1468,12 +1469,13 @@
       return {
         ...repo,
         security: {
+          dependabot_access: sec.dependabot_access,
           dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      : [],
           code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   : [],
           secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) : [],
         }
       };
-    }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length);
+    }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length || r.security.dependabot_access === false);
 
     if (!repos.length) {
       el.innerHTML = `<div class="empty" style="padding:32px">{{ t.security_none_filtered }}</div>`;
@@ -1486,6 +1488,7 @@
       const cs  = sec.code_scanning   || [];
       const ss  = sec.secret_scanning || [];
 
+      const depAccessOk = sec.dependabot_access !== false;
       const depHtml = dep.length ? `
         <div style="margin-bottom:8px">
           <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
@@ -1501,7 +1504,11 @@
               ${a.fixed_in ? `<span style="font-size:.72rem;color:var(--green);white-space:nowrap">→ ${escHtml(a.fixed_in)}</span>` : ''}
               ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
-        </div>` : '';
+        </div>` : (!depAccessOk ? `
+        <div style="margin-bottom:8px;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:8px">
+          <span style="font-size:1rem">🔒</span>
+          <span>{{ t.security_dep_no_access }}</span>
+        </div>` : '');
 
       const csHtml = cs.length ? `
         <div style="margin-bottom:8px">
@@ -1608,7 +1615,16 @@
   // ── SSE ───────────────────────────────────────────────────────────
   function connectSSE() {
     const es = new EventSource(u('/events'));
-    es.onmessage = e => { if (e.data === 'update') loadData(); };
+    es.onmessage = e => {
+      if (e.data !== 'update') return;
+      if (_refreshTimer) {
+        clearTimeout(_refreshTimer);
+        clearInterval(_countdownTimer);
+        _refreshTimer = null;
+        document.getElementById('refresh-badge').classList.remove('show');
+      }
+      loadData();
+    };
     es.onerror = () => {
       document.getElementById('offline-banner').classList.add('show');
       es.close();
