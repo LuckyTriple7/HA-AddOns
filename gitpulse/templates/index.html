@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>GitPulse</title>
-  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  <link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
   <meta name="theme-color" content="#0d1117">
+  <meta name="app-base" content="{{ script_root }}" id="app-base">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
@@ -39,6 +40,10 @@
     .token-badge { font-size:0.7rem; padding:2px 7px; border-radius:10px; font-weight:600; }
     .token-ok   { background:rgba(63,185,80,.15); color:var(--green); border:1px solid rgba(63,185,80,.3); }
     .token-err  { background:rgba(248,81,73,.15); color:var(--red);   border:1px solid rgba(248,81,73,.3); }
+    .rl-badge   { font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:600; font-family:monospace; cursor:default; }
+    .rl-ok      { background:rgba(63,185,80,.12);  color:var(--green);  border:1px solid rgba(63,185,80,.25); }
+    .rl-warn    { background:rgba(210,153,34,.12); color:var(--yellow); border:1px solid rgba(210,153,34,.25); }
+    .rl-crit    { background:rgba(248,81,73,.15);  color:var(--red);    border:1px solid rgba(248,81,73,.3); }
 
     /* ── Tabs ───────────────────────────────────────────────── */
     .tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--surf); flex-shrink:0; overflow-x:auto; }
@@ -59,10 +64,17 @@
     .section-title { font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:12px 14px 6px; }
 
     /* ── Summary Bar ────────────────────────────────────────── */
-    .summary-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-    .stat-chip { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); padding:8px 14px; display:flex; flex-direction:column; align-items:center; min-width:80px; }
-    .stat-chip .num { font-size:1.5rem; font-weight:700; line-height:1; }
-    .stat-chip .lbl { font-size:0.7rem; color:var(--muted); margin-top:2px; }
+    .summary-bar { display:flex; gap:8px; flex-wrap:nowrap; padding:8px 14px; background:var(--surf); border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
+    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; cursor:pointer; user-select:none; }
+    .stat-chip:hover { border-color:var(--accent); }
+    @keyframes chip-pulse-green  { 0%,100%{box-shadow:0 0 0 0 rgba(63,185,80,0);  border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(63,185,80,.25);  border-color:var(--green)} }
+    @keyframes chip-pulse-yellow { 0%,100%{box-shadow:0 0 0 0 rgba(210,153,34,0); border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(210,153,34,.25); border-color:var(--yellow)} }
+    @keyframes chip-pulse-purple { 0%,100%{box-shadow:0 0 0 0 rgba(163,113,247,0);border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(163,113,247,.25);border-color:var(--purple)} }
+    .chip-new-prs      { animation:chip-pulse-green  1.4s ease-in-out infinite; }
+    .chip-new-issues   { animation:chip-pulse-yellow 1.4s ease-in-out infinite; }
+    .chip-new-releases { animation:chip-pulse-purple 1.4s ease-in-out infinite; }
+    .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; }
+    .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
 
     /* ── PR / Issue rows ────────────────────────────────────── */
     .item-row { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
@@ -81,7 +93,6 @@
 
     /* ── CI Runs ────────────────────────────────────────────── */
     .run-row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:0.83rem; }
-    .run-row:last-child { border-bottom:none; }
     .run-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
     .ci-success  { background:var(--green); }
     .ci-failure  { background:var(--red); }
@@ -90,8 +101,18 @@
     .ci-pending  { background:var(--muted); }
     .ci-cancelled{ background:var(--muted); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-    .run-name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .run-branch { font-size:0.72rem; color:var(--muted); background:var(--surf2); padding:1px 6px; border-radius:4px; }
+    .run-name { flex:1; min-width:0; }
+    .run-name-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .run-commit { font-size:.7rem; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px; }
+    .run-branch { font-size:0.72rem; color:var(--muted); background:var(--surf2); padding:1px 6px; border-radius:4px; white-space:nowrap; flex-shrink:0; }
+    .run-event-badge { font-size:.65rem; padding:1px 6px; border-radius:10px; background:rgba(88,166,255,.1); color:var(--accent); border:1px solid rgba(88,166,255,.2); font-weight:600; white-space:nowrap; flex-shrink:0; }
+    .run-jobs-wrap { background:var(--surf2); border-bottom:1px solid var(--border); }
+    .run-job-row  { display:flex; align-items:center; gap:8px; padding:6px 14px 6px 30px; font-size:.8rem; border-bottom:1px solid var(--border); }
+    .run-job-row:last-child { border-bottom:none; }
+    .run-job-dur  { font-size:.68rem; color:var(--muted); margin-left:auto; white-space:nowrap; }
+    .run-step-row { display:flex; align-items:center; gap:6px; padding:2px 14px 2px 54px; font-size:.71rem; color:var(--muted); }
+    .act-btn-detail { color:var(--muted); border-color:var(--border); padding:2px 7px; font-size:.75rem; }
+    .act-btn-detail:hover { border-color:var(--accent); color:var(--accent); }
 
     /* ── Releases ───────────────────────────────────────────── */
     .release-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
@@ -148,10 +169,60 @@
     .spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
 
+    /* ── Action buttons (Merge / Rerun / Dispatch) ──────────── */
+    .act-btn { font-size:0.72rem; padding:3px 9px; border-radius:4px; border:1px solid; cursor:pointer; font-weight:600; white-space:nowrap; background:none; transition:opacity .15s; }
+    .act-btn:hover { opacity:.8; }
+    .act-btn-merge   { color:var(--purple); border-color:rgba(163,113,247,.4); }
+    .act-btn-merge:hover { background:rgba(163,113,247,.1); }
+    .act-btn-rerun   { color:var(--yellow); border-color:rgba(210,153,34,.4); }
+    .act-btn-rerun:hover { background:rgba(210,153,34,.1); }
+    .act-btn-cancel  { color:var(--red); border-color:rgba(248,81,73,.4); }
+    .act-btn-cancel:hover { background:rgba(248,81,73,.1); }
+    .act-btn-dispatch{ color:var(--accent); border-color:rgba(88,166,255,.4); }
+    .act-btn-dispatch:hover { background:rgba(88,166,255,.1); }
+    .merge-select { font-size:0.72rem; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--surf2); color:var(--text); cursor:pointer; }
+
+    /* ── Modal ──────────────────────────────────────────────── */
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; align-items:center; justify-content:center; }
+    .modal-backdrop.show { display:flex; }
+    .modal { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:24px; width:100%; max-width:400px; margin:16px; }
+    .modal h3 { font-size:1rem; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+    .modal label { display:block; font-size:0.78rem; color:var(--muted); margin-bottom:4px; margin-top:12px; }
+    .modal input, .modal select { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:5px; font-size:0.88rem; }
+    .modal input:focus, .modal select:focus { outline:none; border-color:var(--accent); }
+    .modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+    .modal-btn { padding:7px 16px; border-radius:5px; font-size:0.85rem; font-weight:600; cursor:pointer; border:1px solid; }
+    .modal-btn-cancel { background:none; border-color:var(--border); color:var(--muted); }
+    .modal-btn-confirm { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .modal-btn-confirm.danger { background:var(--red); border-color:var(--red); }
+    .modal-err { font-size:0.78rem; color:var(--red); margin-top:8px; }
+
+    /* ── Auto-Refresh Countdown ─────────────────────────────── */
+    #refresh-badge { display:none; align-items:center; gap:5px; font-size:0.72rem; color:var(--muted); padding:3px 8px; border:1px solid var(--border); border-radius:4px; }
+    #refresh-badge.show { display:flex; }
+    #refresh-badge .rb-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:pulse 1s infinite; flex-shrink:0; }
+
+    /* ── Settings Modal ────────────────────────────────────── */
+    .settings-section-label { font-size:.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:14px 0 6px; }
+    .repo-chips { display:flex; flex-wrap:wrap; gap:4px; min-height:26px; }
+    .repo-chip { display:inline-flex; align-items:center; gap:3px; background:var(--surf2); border:1px solid var(--border); border-radius:20px; padding:3px 6px 3px 10px; font-size:.78rem; }
+    .repo-chip button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:0 2px; line-height:1; }
+    .repo-chip button:hover { color:var(--red); }
+    .repo-add-row { display:flex; gap:6px; margin-top:8px; }
+    .repo-add-row input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-size:.82rem; }
+    .repo-add-row input:focus { outline:none; border-color:var(--accent); }
+    .repo-add-row button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:.82rem; font-weight:600; }
+    .settings-source { font-size:.72rem; padding:5px 10px; border-radius:4px; margin-bottom:12px; }
+    .settings-source.user    { background:rgba(63,185,80,.1); color:var(--green); border:1px solid rgba(63,185,80,.25); }
+    .settings-source.options { background:rgba(210,153,34,.1); color:var(--yellow); border:1px solid rgba(210,153,34,.25); }
+
     /* ── Scrollbar ──────────────────────────────────────────── */
     ::-webkit-scrollbar { width:5px; height:5px; }
     ::-webkit-scrollbar-track { background:transparent; }
     ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+    /* ── Mobile: Sprach-Buttons ausblenden ──────────────────── */
+    @media (max-width: 600px) { .lang-btn { display:none; } }
   </style>
 </head>
 <body>
@@ -162,19 +233,28 @@
       GitPulse
     </div>
     <span id="token-badge" class="token-badge" style="display:none"></span>
+    <span id="rl-badge" style="font-size:.7rem;color:var(--muted);display:none"></span>
+    <div id="refresh-badge"><div class="rb-dot"></div><span id="refresh-countdown"></span></div>
     <div class="hdr-spacer"></div>
     <button class="hdr-btn" onclick="pollNow()" title="{{ t.btn_refresh }}">
       <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-      {{ t.btn_refresh }}
     </button>
-    <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
-    <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <button class="hdr-btn" onclick="openSettings()" title="{{ t.settings_title }}">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </button>
+    <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+    <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
     <button class="hdr-btn" onclick="toggleTheme()">
       <svg class="icon-moon" viewBox="0 0 24 24" style="display:block"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
       <svg class="icon-sun" viewBox="0 0 24 24" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
     </button>
-    <a href="/logout" class="hdr-btn">{{ t.logout }}</a>
+    <a href="{{ url_for('logout') }}" class="hdr-btn" title="{{ t.logout }}">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+    </a>
   </header>
+
+  <!-- ── Summary Bar ──────────────────────────────────────────────── -->
+  <div id="summary-bar" class="summary-bar"></div>
 
   <!-- ── Tabs ────────────────────────────────────────────────────── -->
   <div class="tabs">
@@ -209,6 +289,94 @@
     <button onclick="location.reload()">{{ t.banner_offline_reload }}</button>
   </div>
 
+  <!-- ── Dispatch Modal ─────────────────────────────────────────── -->
+  <div id="dispatch-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M8 5v14l11-7z"/></svg>
+        {{ t.dispatch_title }}
+      </h3>
+      <label>{{ t.dispatch_workflow }}</label>
+      <select id="dispatch-wf-select"></select>
+      <label>{{ t.dispatch_ref }}</label>
+      <select id="dispatch-ref-select"><option value="main">main</option></select>
+      <div id="dispatch-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('dispatch-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="confirmDispatch()">{{ t.btn_dispatch }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Merge Modal ──────────────────────────────────────────────── -->
+  <div id="merge-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--purple)"><path d="M17 3c-2.21 0-4 1.79-4 4 0 1.48.82 2.77 2 3.46V13c0 1.1-.9 2-2 2H9.46C8.77 13.82 7.48 13 6 13c-2.21 0-4 1.79-4 4s1.79 4 4 4c1.48 0 2.77-.82 3.46-2H13c2.21 0 4-1.79 4-4v-2.54c1.18-.69 2-1.98 2-3.46 0-2.21-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM6 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+        {{ t.merge_title }}
+      </h3>
+      <p id="merge-pr-title" style="font-size:.85rem;color:var(--muted);margin-bottom:4px"></p>
+      <label>{{ t.merge_method }}</label>
+      <select id="merge-method-select">
+        <option value="merge">{{ t.merge_method_merge }}</option>
+        <option value="squash">{{ t.merge_method_squash }}</option>
+        <option value="rebase">{{ t.merge_method_rebase }}</option>
+      </select>
+      <div id="merge-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('merge-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm danger" onclick="confirmMerge()">{{ t.btn_merge }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings Modal ───────────────────────────────────────────── -->
+  <div id="settings-modal" class="modal-backdrop">
+    <div class="modal" style="max-width:480px">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        {{ t.settings_title }}
+      </h3>
+      <div id="settings-source" class="settings-source"></div>
+      <div class="settings-section-label">{{ t.settings_my_repos }}</div>
+      <div id="settings-my-list" class="repo-chips"></div>
+      <div class="repo-add-row">
+        <input id="settings-my-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+               onkeydown="if(event.key==='Enter') settingsAdd('my')">
+        <button onclick="settingsAdd('my')">{{ t.settings_add }}</button>
+      </div>
+      <div class="settings-section-label">{{ t.settings_watch_repos }}</div>
+      <div id="settings-watch-list" class="repo-chips"></div>
+      <div class="repo-add-row">
+        <input id="settings-watch-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+               onkeydown="if(event.key==='Enter') settingsAdd('watch')">
+        <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="saveRepoConfig()">{{ t.settings_save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Comment Modal ─────────────────────────────────────────────── -->
+  <div id="comment-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        {{ t.comment_title }}
+      </h3>
+      <p id="comment-issue-title" style="font-size:.85rem;color:var(--muted);margin-bottom:4px"></p>
+      <textarea id="comment-body-input" rows="4" placeholder="{{ t.comment_placeholder }}"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:.88rem;resize:vertical;font-family:inherit"></textarea>
+      <div id="comment-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('comment-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="confirmComment()">{{ t.btn_comment }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Main ────────────────────────────────────────────────────── -->
   <div id="main-scroll">
     <div id="install-banner">
@@ -224,7 +392,6 @@
 
     <!-- ── Tab: Repos / PRs ──────────────────────────────────── -->
     <div id="tab-repos">
-      <div id="summary-bar" class="summary-bar"></div>
       <div id="token-alert"></div>
       <div id="repo-selector" class="repo-tabs"></div>
       <div id="pr-list"></div>
@@ -263,6 +430,13 @@
   </div>
 
   <script>
+  // Externe Links: echter Klick auf echtes <a target="_blank"> —
+  // kein programmatischer window.open(), damit PWA-Popup-Blocker nicht greift
+
+  // ── Ingress base path ─────────────────────────────────────────────
+  const BASE = (document.getElementById('app-base')?.content || '').replace(/\/$/, '');
+  const u = path => BASE + path;
+
   // ── Theme ─────────────────────────────────────────────────────────
   (function(){
     const t = localStorage.getItem('gp-theme') || 'dark';
@@ -284,12 +458,21 @@
   // ── Tab switching ─────────────────────────────────────────────────
   const TABS = ['repos','issues','ci','releases','console'];
   let activeTab = 'repos';
+  const _tabChipMap = { repos: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases' };
+  const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases' };
+
   function switchTab(name) {
     TABS.forEach(t => {
       document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
       document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === name);
     });
     activeTab = name;
+    // Blink-Klasse entfernen wenn zugehöriger Tab geöffnet wird
+    const chipId = _tabChipMap[name];
+    if (chipId) {
+      const chip = document.getElementById(chipId);
+      if (chip) chip.classList.remove(_chipClsMap[chipId]);
+    }
     if (name === 'console') startConsole();
   }
 
@@ -297,6 +480,227 @@
   let ghData = null;
   let activeRepo = null;
   let notifEnabled = false;
+
+  // ── Modal helpers ─────────────────────────────────────────────────
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('show');
+  }
+  document.querySelectorAll('.modal-backdrop').forEach(m =>
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); })
+  );
+
+  // ── Merge Modal ───────────────────────────────────────────────────
+  let _mergeRepo = null, _mergePRnr = null;
+  function openMergeModal(repo, number, title) {
+    _mergeRepo = repo; _mergePRnr = number;
+    document.getElementById('merge-pr-title').textContent = title;
+    document.getElementById('merge-err').style.display = 'none';
+    document.getElementById('merge-modal').classList.add('show');
+  }
+  function confirmMerge() {
+    const method = document.getElementById('merge-method-select').value;
+    const errEl  = document.getElementById('merge-err');
+    errEl.style.display = 'none';
+    fetch(u('/api/pr/merge'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _mergeRepo, number: _mergePRnr, method}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) {
+        closeModal('merge-modal');
+        triggerRefresh(5);
+      } else {
+        errEl.textContent = data.error || '{{ t.error_unknown }}';
+        errEl.style.display = 'block';
+      }
+    })
+    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
+  // ── Dispatch Modal ────────────────────────────────────────────────
+  let _dispatchRepo = null;
+  function openDispatchModal(repo) {
+    _dispatchRepo = repo;
+    const repoData = (ghData?.my_repos || []).find(r => r.repo === repo);
+    const wfs = repoData?.workflows || [];
+    const wfSel = document.getElementById('dispatch-wf-select');
+    wfSel.innerHTML = wfs.length
+      ? wfs.map(w => `<option value="${w.id}">${escHtml(w.name)}</option>`).join('')
+      : '<option value="">{{ t.no_workflows }}</option>';
+    const defaultBranch = repoData?.default_branch || 'main';
+    const refSel = document.getElementById('dispatch-ref-select');
+    refSel.innerHTML = `<option value="${defaultBranch}">${defaultBranch} (wird geladen…)</option>`;
+    document.getElementById('dispatch-err').style.display = 'none';
+    document.getElementById('dispatch-modal').classList.add('show');
+    fetch(u('/api/branches?repo=' + encodeURIComponent(repo)))
+      .then(r => r.json())
+      .then(branches => {
+        if (!Array.isArray(branches) || !branches.length) return;
+        refSel.innerHTML = branches.map(b =>
+          `<option value="${escHtml(b)}"${b === defaultBranch ? ' selected' : ''}>${escHtml(b)}</option>`
+        ).join('');
+      })
+      .catch(() => {
+        refSel.innerHTML = `<option value="${defaultBranch}">${defaultBranch}</option>`;
+      });
+  }
+  function confirmDispatch() {
+    const wfId  = document.getElementById('dispatch-wf-select').value;
+    const ref   = document.getElementById('dispatch-ref-select').value || 'main';
+    const errEl = document.getElementById('dispatch-err');
+    errEl.style.display = 'none';
+    if (!wfId) { errEl.textContent = '{{ t.no_workflows }}'; errEl.style.display = 'block'; return; }
+    fetch(u('/api/workflow/dispatch'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _dispatchRepo, workflow_id: wfId, ref}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) {
+        closeModal('dispatch-modal');
+        triggerRefresh(5);
+      } else {
+        errEl.textContent = data.error || '{{ t.error_unknown }}';
+        errEl.style.display = 'block';
+      }
+    })
+    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
+  // ── Settings: Repo-Verwaltung ─────────────────────────────────────
+  let _sMyRepos = [], _sWatchRepos = [];
+
+  function openSettings() {
+    fetch(u('/api/config/repos'))
+      .then(r => r.json())
+      .then(data => {
+        _sMyRepos    = data.my_repos || [];
+        _sWatchRepos = data.watch_repos || [];
+        _renderSettingsList('my',    _sMyRepos,    'settings-my-list');
+        _renderSettingsList('watch', _sWatchRepos, 'settings-watch-list');
+        const srcEl = document.getElementById('settings-source');
+        srcEl.className = 'settings-source ' + (data.source === 'user' ? 'user' : 'options');
+        srcEl.textContent = data.source === 'user'
+          ? '{{ t.settings_source_user }}'
+          : '{{ t.settings_source_options }}';
+        document.getElementById('settings-modal').classList.add('show');
+      })
+      .catch(e => alert(String(e)));
+  }
+
+  function _renderSettingsList(type, repos, elId) {
+    const el = document.getElementById(elId);
+    el.innerHTML = repos.length
+      ? repos.map((r, i) =>
+          `<span class="repo-chip">${escHtml(r)}<button onclick="settingsRemove('${type}',${i})" title="Entfernen">×</button></span>`
+        ).join('')
+      : `<span style="font-size:.78rem;color:var(--muted)">—</span>`;
+  }
+
+  function settingsAdd(type) {
+    const inputId = type === 'my' ? 'settings-my-input' : 'settings-watch-input';
+    const input   = document.getElementById(inputId);
+    const val     = input.value.trim();
+    if (!val || !val.includes('/')) return;
+    const arr = type === 'my' ? _sMyRepos : _sWatchRepos;
+    if (!arr.includes(val)) arr.push(val);
+    input.value = '';
+    _renderSettingsList(type, arr, type === 'my' ? 'settings-my-list' : 'settings-watch-list');
+  }
+
+  function settingsRemove(type, idx) {
+    const arr = type === 'my' ? _sMyRepos : _sWatchRepos;
+    arr.splice(idx, 1);
+    _renderSettingsList(type, arr, type === 'my' ? 'settings-my-list' : 'settings-watch-list');
+  }
+
+  function saveRepoConfig() {
+    fetch(u('/api/config/repos'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'saved') { closeModal('settings-modal'); triggerRefresh(3); }
+    })
+    .catch(e => alert(String(e)));
+  }
+
+  // ── Issue schließen ───────────────────────────────────────────────
+  function closeIssue(repo, number) {
+    fetch(u('/api/issue/close'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, number}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) triggerRefresh(3);
+      else alert(data.error || T.error_unknown);
+    })
+    .catch(e => alert(String(e)));
+  }
+
+  // ── Comment Modal ─────────────────────────────────────────────────
+  let _commentRepo = null, _commentNr = null;
+  function openCommentModal(repo, number, title) {
+    _commentRepo = repo; _commentNr = number;
+    document.getElementById('comment-issue-title').textContent = title;
+    document.getElementById('comment-body-input').value = '';
+    document.getElementById('comment-err').style.display = 'none';
+    document.getElementById('comment-modal').classList.add('show');
+  }
+  function confirmComment() {
+    const body  = document.getElementById('comment-body-input').value.trim();
+    const errEl = document.getElementById('comment-err');
+    errEl.style.display = 'none';
+    if (!body) return;
+    fetch(u('/api/issue/comment'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _commentRepo, number: _commentNr, body}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) { closeModal('comment-modal'); triggerRefresh(3); }
+      else { errEl.textContent = data.error || T.error_unknown; errEl.style.display = 'block'; }
+    })
+    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
+  // ── Cancel Workflow ───────────────────────────────────────────────
+  function cancelWorkflow(repo, runId) {
+    fetch(u('/api/workflow/cancel'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, run_id: runId}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) triggerRefresh(5);
+      else alert(data.error || T.error_unknown);
+    })
+    .catch(e => alert(String(e)));
+  }
+
+  // ── Rerun Workflow ────────────────────────────────────────────────
+  function rerunWorkflow(repo, runId) {
+    fetch(u('/api/workflow/rerun'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, run_id: runId}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) triggerRefresh(5);
+      else alert(data.error || '{{ t.error_unknown }}');
+    })
+    .catch(e => alert(String(e)));
+  }
 
   // ── i18n helpers ──────────────────────────────────────────────────
   const T = {
@@ -311,10 +715,26 @@
     run_failure:  '{{ t.run_failure }}',
     run_running:  '{{ t.run_running }}',
     pre_release:  '{{ t.pre_release }}',
-    token_missing:'{{ t.token_missing }}',
-    token_invalid:'{{ t.token_invalid }}',
-    token_expires:'{{ t.token_expires }}',
+    token_missing:     '{{ t.token_missing }}',
+    token_invalid:     '{{ t.token_invalid }}',
+    token_expires:     '{{ t.token_expires }}',
+    token_expires_on:  '{{ t.token_expires_on }}',
+    token_days:        '{{ t.token_days }}',
     new_release:  '{{ t.notif_new_release }}',
+    btn_merge:    '{{ t.btn_merge }}',
+    btn_rerun:    '{{ t.btn_rerun }}',
+    btn_dispatch:      '{{ t.btn_dispatch }}',
+    btn_cancel_run:    '{{ t.btn_cancel_run }}',
+    btn_close_issue:   '{{ t.btn_close_issue }}',
+    btn_comment:       '{{ t.btn_comment }}',
+    review_approved:   '{{ t.review_approved }}',
+    review_changes:    '{{ t.review_changes }}',
+    review_pending:    '{{ t.review_pending }}',
+    error_unknown:     '{{ t.error_unknown }}',
+    rl_of:             '{{ t.rl_of }}',
+    rl_remaining:      '{{ t.rl_remaining }}',
+    rl_reset_in:       '{{ t.rl_reset_in }}',
+    rl_min:            '{{ t.rl_min }}',
   };
 
   function relTime(iso) {
@@ -336,21 +756,74 @@
     return '#8b949e';
   }
 
+  // ── Render: Rate-Limit Badge ──────────────────────────────────────
+  function renderRateLimit(data) {
+    const rl  = data.rate_limit;
+    const el  = document.getElementById('rl-badge');
+    if (!rl || !el || rl.remaining === undefined) return;
+    const rem     = rl.remaining;
+    const lim     = rl.limit || 5000;
+    const pct     = Math.round(rem / lim * 100);
+    const resetIn = rl.reset ? Math.max(0, Math.ceil((rl.reset * 1000 - Date.now()) / 60000)) : 0;
+    const cls     = rem < 200 ? 'rl-crit' : rem < 500 ? 'rl-warn' : 'rl-ok';
+    const resetStr = resetIn > 0 ? ` ⏱ ${resetIn}m` : '';
+    el.className   = `rl-badge ${cls}`;
+    el.textContent = `⚡ ${rem}/${lim}${resetStr}`;
+    el.title       = `GitHub API: ${rem} ${T.rl_of} ${lim} ${T.rl_remaining} (${pct}%)${resetIn > 0 ? ' · ' + T.rl_reset_in + ' ' + resetIn + ' ' + T.rl_min : ''}`;
+    el.style.display = '';
+  }
+
+  // ── Review Badge ──────────────────────────────────────────────────
+  function reviewBadge(state) {
+    const map = {
+      approved:           `<span style="color:var(--green);font-size:.72rem;font-weight:600">✓ ${T.review_approved}</span>`,
+      changes_requested:  `<span style="color:var(--red);font-size:.72rem;font-weight:600">✗ ${T.review_changes}</span>`,
+      pending:            `<span style="color:var(--yellow);font-size:.72rem;font-weight:600">○ ${T.review_pending}</span>`,
+    };
+    return map[state] || '';
+  }
+
+  // ── Chip-Blink Tracking ───────────────────────────────────────────
+  let _chipCounts = null; // null = erster Render, noch kein Vergleich
+
+  function _applyChipBlink(id, cls, isNew) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (isNew) el.classList.add(cls);
+    // Klasse wird in switchTab entfernt
+  }
+
   // ── Render: Summary Bar ───────────────────────────────────────────
   function renderSummary(data) {
-    let totalPRs = 0, totalIssues = 0;
+    let totalPRs = 0, totalIssues = 0, totalRuns = 0, hasActive = false, hasFailed = false;
     (data.my_repos || []).forEach(r => {
-      totalPRs += r.open_prs || 0;
+      totalPRs    += r.open_prs    || 0;
       totalIssues += r.open_issues || 0;
+      (r.runs || []).forEach(run => {
+        totalRuns++;
+        if (['in_progress','queued','waiting'].includes(run.status)) hasActive = true;
+        if (run.conclusion === 'failure') hasFailed = true;
+      });
     });
-    const newRel = (data.new_releases || []).length;
+    const totalReleases = (data.releases || []).length;
+    const runsColor = hasActive ? 'var(--yellow)' : hasFailed ? 'var(--red)' : 'var(--green)';
     const el = document.getElementById('summary-bar');
     el.innerHTML = `
-      <div class="stat-chip"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
-      <div class="stat-chip"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
-      <div class="stat-chip"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
-      <div class="stat-chip"><div class="num" style="color:var(--purple)">${(data.releases||[]).length}</div><div class="lbl">{{ t.stat_releases }}</div></div>
+      <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
+      <div class="stat-chip" id="chip-prs"      onclick="switchTab('repos')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
+      <div class="stat-chip" id="chip-issues"   onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
+      <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
+      <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
     `;
+    // Blinken bei Anstieg (nicht beim ersten Render)
+    if (_chipCounts !== null) {
+      _applyChipBlink('chip-prs',      'chip-new-prs',      totalPRs      > _chipCounts.prs);
+      _applyChipBlink('chip-issues',   'chip-new-issues',   totalIssues   > _chipCounts.issues);
+      _applyChipBlink('chip-releases', 'chip-new-releases', totalReleases > _chipCounts.releases);
+    }
+    _chipCounts = { prs: totalPRs, issues: totalIssues, releases: totalReleases };
+
+    const newRel   = (data.new_releases || []).length;
     const badgePR  = document.getElementById('badge-prs');
     const badgeIss = document.getElementById('badge-issues');
     const badgeRel = document.getElementById('badge-releases');
@@ -362,20 +835,34 @@
   // ── Render: Token alert ───────────────────────────────────────────
   function renderTokenAlert(data) {
     const el = document.getElementById('token-alert');
+    const badge = document.getElementById('token-badge');
     if (data.token_ok === false) {
       el.innerHTML = `<div class="token-error">${T.token_invalid}</div>`;
-    } else if (data.token_expires) {
-      const exp = new Date(data.token_expires);
-      const days = Math.ceil((exp - Date.now()) / 86400000);
-      if (days <= 14) {
-        el.innerHTML = `<div class="token-warning">${T.token_expires.replace('{days}', days)}</div>`;
-      } else el.innerHTML = '';
-    } else el.innerHTML = '';
-    const badge = document.getElementById('token-badge');
+      badge.className = 'token-badge token-err'; badge.textContent = 'Token ERROR';
+      badge.title = ''; badge.style.display = '';
+      return;
+    }
     if (data.token_ok === true) {
-      badge.className = 'token-badge token-ok'; badge.textContent = 'Token OK'; badge.style.display = '';
-    } else if (data.token_ok === false) {
-      badge.className = 'token-badge token-err'; badge.textContent = 'Token ERROR'; badge.style.display = '';
+      let days = null, tooltip = '';
+      if (data.token_expires) {
+        const exp = new Date(data.token_expires.replace(' UTC', 'Z').replace(' ', 'T'));
+        days = Math.ceil((exp - Date.now()) / 86400000);
+        const fmt = exp.toLocaleDateString(undefined, {day:'2-digit', month:'2-digit', year:'numeric'})
+                  + ' ' + exp.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+        tooltip = `${T.token_expires_on} ${fmt} (${days} ${T.token_days})`;
+        if (days <= 14) {
+          el.innerHTML = `<div class="token-warning">${T.token_expires.replace('{days}', days)}</div>`;
+        } else {
+          el.innerHTML = '';
+        }
+      } else {
+        el.innerHTML = '';
+      }
+      const expiringSoon = days !== null && days <= 14;
+      badge.className = 'token-badge ' + (expiringSoon ? 'token-err' : 'token-ok');
+      badge.textContent = 'Token OK';
+      badge.title = tooltip;
+      badge.style.display = '';
     }
   }
 
@@ -414,14 +901,17 @@
       <div class="item-row">
         <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
         <div class="item-main">
-          <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener">#${pr.number} ${escHtml(pr.title)}</a></div>
+          <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
           <div class="item-meta">
             <span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>
             <span>@${escHtml(pr.user)}</span>
             <span>${relTime(pr.updated)}</span>
+            ${reviewBadge(pr.review_state)}
+            ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
             ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
+        ${!pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal('${escHtml(repo.repo)}',${pr.number},'#${pr.number} ${escHtml(pr.title).replace(/'/g,"\\'")}')">⎇ ${T.btn_merge}</button>` : ''}
       </div>`).join('') + '</div></div>';
   }
 
@@ -442,7 +932,7 @@
       <div class="item-row">
         <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
         <div class="item-main">
-          <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener">#${iss.number} ${escHtml(iss.title)}</a></div>
+          <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
           <div class="item-meta">
             <span class="pr-state-open">● ${T.iss_open}</span>
             <span>@${escHtml(iss.user)}</span>
@@ -450,7 +940,65 @@
             ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
+        <button class="act-btn act-btn-dispatch" onclick="openCommentModal('${escHtml(repo.repo)}',${iss.number},'#${iss.number} ${escHtml(iss.title).replace(/'/g,"\\'")}')">💬 ${T.btn_comment}</button>
+        <button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>
       </div>`).join('') + '</div></div>';
+  }
+
+  // ── CI helpers ────────────────────────────────────────────────────
+  const ciStatusClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
+  const ciEventLabel  = e => ({ push:'Push', pull_request:'PR', workflow_dispatch:'Manuell', schedule:'Zeitplan', release:'Release', create:'Branch', delete:'Delete' })[e] || e;
+
+  function ciDuration(started, completed) {
+    if (!started) return '';
+    const secs = Math.round((new Date(completed || Date.now()) - new Date(started)) / 1000);
+    if (secs < 60) return secs + 's';
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + 'm' + (s ? ' ' + s + 's' : '');
+  }
+
+  // ── Jobs expandieren ──────────────────────────────────────────────
+  function toggleJobs(repo, runId) {
+    const el = document.getElementById('jobs-' + runId);
+    if (!el) return;
+    if (el.style.display === 'none') {
+      el.style.display = '';
+      if (!el.dataset.loaded) {
+        el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Lade…</div>';
+        fetch(u('/api/ci/jobs?repo=' + encodeURIComponent(repo) + '&run_id=' + runId))
+          .then(r => r.json())
+          .then(jobs => {
+            el.dataset.loaded = '1';
+            if (!Array.isArray(jobs) || !jobs.length) {
+              el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Keine Jobs gefunden</div>';
+              return;
+            }
+            el.innerHTML = jobs.map(job => {
+              const jStatus = job.status === 'in_progress' ? 'in_progress' : job.conclusion || job.status;
+              const jDur    = ciDuration(job.started, job.completed);
+              const steps   = (job.steps || []).map(s => {
+                const sStatus = s.status === 'in_progress' ? 'in_progress' : s.conclusion || s.status;
+                const sDur    = ciDuration(s.started, s.completed);
+                return `<div class="run-step-row">
+                  <div class="run-dot ${ciStatusClass(sStatus)}" style="width:7px;height:7px"></div>
+                  <span>${escHtml(s.name)}</span>
+                  ${sDur ? `<span style="margin-left:auto;font-size:.68rem">${sDur}</span>` : ''}
+                </div>`;
+              }).join('');
+              return `<div class="run-job-row">
+                <div class="run-dot ${ciStatusClass(jStatus)}" style="flex-shrink:0"></div>
+                <span style="font-weight:500">${escHtml(job.name)}</span>
+                ${jDur ? `<span class="run-job-dur">${jDur}</span>` : ''}
+              </div>${steps}`;
+            }).join('');
+          })
+          .catch(() => {
+            el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--red)">Fehler beim Laden</div>';
+          });
+      }
+    } else {
+      el.style.display = 'none';
+    }
   }
 
   // ── Render: CI ────────────────────────────────────────────────────
@@ -462,20 +1010,37 @@
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><div>${T.no_runs}</div></div>`;
       return;
     }
-    const ciClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
-    el.innerHTML = `<div class="card"><div class="card-header">
+    const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_dispatch}</button>`;
+    const rows = repo.runs.map(run => {
+      const status    = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
+      const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
+      const canCancel = ['in_progress','queued','waiting'].includes(run.status);
+      const dur       = ciDuration(run.created, run.updated || (run.status !== 'completed' ? null : run.updated));
+      return `
+        <div class="run-row">
+          <div class="run-dot ${ciStatusClass(status)}"></div>
+          <div class="run-name">
+            <div class="run-name-top">
+              <a href="${run.url}" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:none;font-weight:500">${escHtml(run.name)}</a>
+              ${run.event ? `<span class="run-event-badge">${escHtml(ciEventLabel(run.event))}</span>` : ''}
+              ${run.run_number ? `<span style="font-size:.7rem;color:var(--muted)">#${run.run_number}</span>` : ''}
+            </div>
+            ${run.head_message ? `<div class="run-commit" title="${escHtml(run.head_message)}">${run.head_sha ? `<code style="font-size:.68rem">${escHtml(run.head_sha)}</code> ` : ''}${escHtml(run.head_message)}</div>` : ''}
+          </div>
+          ${run.actor_avatar ? `<img class="avatar" src="${escHtml(run.actor_avatar)}" alt="${escHtml(run.actor)}" title="@${escHtml(run.actor)}" style="width:20px;height:20px;flex-shrink:0" loading="lazy">` : ''}
+          <span class="run-branch">${escHtml(run.branch)}</span>
+          <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;flex-shrink:0">${dur || relTime(run.created)}</span>
+          ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow('${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
+          ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
+          <button class="act-btn act-btn-detail" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs">▾</button>
+        </div>
+        <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
+    }).join('');
+    el.innerHTML = `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
-    </div><div class="card-body">` +
-    repo.runs.map(run => {
-      const status = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
-      return `<div class="run-row">
-        <div class="run-dot ${ciClass(status)}"></div>
-        <div class="run-name"><a href="${run.url}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">${escHtml(run.name)}</a></div>
-        <span class="run-branch">${escHtml(run.branch)}</span>
-        <span style="font-size:.72rem;color:var(--muted)">${relTime(run.created)}</span>
-      </div>`;
-    }).join('') + '</div></div>';
+      ${dispatchBtn}
+    </div><div class="card-body">${rows}</div></div>`;
   }
 
   // ── Render: Releases ──────────────────────────────────────────────
@@ -493,7 +1058,7 @@
         ${newKeys.has(rel.repo+'@'+rel.tag)?'<div class="new-dot" title="{{ t.badge_new }}"></div>':'<div style="width:8px"></div>'}
         <span class="release-tag ${rel.prerelease?'release-pre':''}">${escHtml(rel.tag)}</span>
         <span class="release-repo">${escHtml(rel.repo)}</span>
-        <a href="${rel.url}" target="_blank" rel="noopener" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
+        <a href="${rel.url}" target="_blank" rel="noopener noreferrer" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
         <span class="release-date">${relTime(rel.date)}</span>
       </div>`).join('') + '</div></div>';
   }
@@ -505,6 +1070,7 @@
       activeRepo = data.my_repos[0].repo;
     renderSummary(data);
     renderTokenAlert(data);
+    renderRateLimit(data);
     renderRepoSelector(data.my_repos || []);
     renderPRs(data);
     renderIssues(data);
@@ -514,29 +1080,50 @@
     (data.new_releases||[]).forEach(rel => fireNotification(rel));
   }
 
+  // ── Auto-Refresh nach Aktionen ────────────────────────────────────
+  let _refreshTimer = null;
+  let _countdownTimer = null;
+  function triggerRefresh(delaySec = 5) {
+    if (_refreshTimer) { clearTimeout(_refreshTimer); clearInterval(_countdownTimer); }
+    const badge = document.getElementById('refresh-badge');
+    const cd    = document.getElementById('refresh-countdown');
+    let remaining = delaySec;
+    cd.textContent = `{{ t.refresh_in }} ${remaining}s`;
+    badge.classList.add('show');
+    _countdownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) { clearInterval(_countdownTimer); return; }
+      cd.textContent = `{{ t.refresh_in }} ${remaining}s`;
+    }, 1000);
+    _refreshTimer = setTimeout(() => {
+      badge.classList.remove('show');
+      pollNow();
+    }, delaySec * 1000);
+  }
+
   // ── Fetch data ────────────────────────────────────────────────────
   function loadData() {
-    fetch('/api/data')
+    fetch(u('/api/data'))
       .then(r => r.json())
       .then(data => render(data))
       .catch(err => console.error('API Fehler', err));
   }
 
   function pollNow() {
-    fetch('/api/poll-now', {method:'POST'})
+    fetch(u('/api/poll-now'), {method:'POST'})
       .then(() => setTimeout(loadData, 2000))
       .catch(() => {});
   }
 
   function resetSeen() {
-    fetch('/api/seen-releases/reset', {method:'POST'})
+    fetch(u('/api/seen-releases/reset'), {method:'POST'})
       .then(() => loadData())
       .catch(() => {});
   }
 
   // ── SSE ───────────────────────────────────────────────────────────
   function connectSSE() {
-    const es = new EventSource('/events');
+    const es = new EventSource(u('/events'));
     es.onmessage = e => { if (e.data === 'update') loadData(); };
     es.onerror = () => {
       document.getElementById('offline-banner').classList.add('show');
@@ -558,7 +1145,7 @@
   }
 
   function fetchConsole() {
-    fetch('/api/console?since=' + conSince)
+    fetch(u('/api/console?since=' + conSince))
       .then(r => r.json())
       .then(entries => {
         if (!entries.length) return;
@@ -631,7 +1218,7 @@
 
   // ── Service Worker ────────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
+    navigator.serviceWorker.register(u('/sw.js'), { scope: BASE + '/' });
   }
 
   // ── Utils ─────────────────────────────────────────────────────────

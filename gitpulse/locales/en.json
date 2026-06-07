@@ -18,6 +18,7 @@
   "stat_prs": "Open PRs",
   "stat_issues": "Open Issues",
   "stat_releases": "Watch Releases",
+  "stat_workflows": "Workflows",
 
   "no_prs": "No open pull requests",
   "no_issues": "No open issues",
@@ -35,11 +36,57 @@
   "token_missing": "No GitHub token configured. Please add it in the add-on settings.",
   "token_invalid": "GitHub token is invalid or expired. Please renew the token.",
   "token_expires": "GitHub token expires in {days} days. Please renew it.",
+  "token_expires_on": "Expires on:",
+  "token_days": "days",
 
   "releases_hint": "Shows the latest release of each watched repository",
   "btn_reset_seen": "Mark all as seen",
   "badge_new": "New since last poll",
   "link_view": "View →",
+
+  "btn_merge": "Merge",
+  "btn_rerun": "Re-run",
+  "btn_dispatch": "Dispatch",
+  "btn_cancel": "Cancel",
+  "btn_cancel_run": "Stop",
+  "btn_close_issue": "Close",
+  "btn_comment": "Comment",
+
+  "review_approved": "Approved",
+  "review_changes": "Changes requested",
+  "review_pending": "Review pending",
+
+  "comment_title": "Add comment",
+  "comment_placeholder": "Write a comment…",
+
+  "rl_calls": "API calls",
+  "rl_of": "of",
+  "rl_remaining": "remaining",
+  "rl_reset_in": "Reset in",
+  "rl_min": "min",
+
+  "settings_title": "Settings",
+  "settings_my_repos": "My Repos (full access)",
+  "settings_watch_repos": "Watch Repos (releases only)",
+  "settings_repo_placeholder": "owner/repo",
+  "settings_add": "Add",
+  "settings_save": "Save",
+  "settings_source_user": "✓ Managed by GitPulse (persistent)",
+  "settings_source_options": "From HA add-on options (may reset on updates)",
+
+  "merge_title": "Merge Pull Request",
+  "merge_method": "Merge method",
+  "merge_method_merge": "Merge commit",
+  "merge_method_squash": "Squash and merge",
+  "merge_method_rebase": "Rebase and merge",
+
+  "dispatch_title": "Trigger workflow",
+  "dispatch_workflow": "Workflow",
+  "dispatch_ref": "Branch / Tag",
+  "no_workflows": "No dispatchable workflows found",
+
+  "error_unknown": "Unknown error",
+  "refresh_in": "Refreshing in",
 
   "btn_refresh": "Poll now",
   "btn_install": "Install",

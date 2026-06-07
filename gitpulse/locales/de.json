@@ -18,6 +18,7 @@
   "stat_prs": "Offene PRs",
   "stat_issues": "Offene Issues",
   "stat_releases": "Watch-Releases",
+  "stat_workflows": "Workflows",
 
   "no_prs": "Keine offenen Pull Requests",
   "no_issues": "Keine offenen Issues",
@@ -35,11 +36,57 @@
   "token_missing": "Kein GitHub-Token konfiguriert. Bitte in den Add-on-Einstellungen eintragen.",
   "token_invalid": "GitHub-Token ist ungültig oder abgelaufen. Bitte Token erneuern.",
   "token_expires": "GitHub-Token läuft in {days} Tagen ab. Bitte erneuern.",
+  "token_expires_on": "Läuft ab am:",
+  "token_days": "Tage",
 
   "releases_hint": "Zeigt das neueste Release jedes beobachteten Repos",
   "btn_reset_seen": "Als gelesen markieren",
   "badge_new": "Neu seit letztem Poll",
   "link_view": "Ansehen →",
+
+  "btn_merge": "Mergen",
+  "btn_rerun": "Wiederholen",
+  "btn_dispatch": "Starten",
+  "btn_cancel": "Abbrechen",
+  "btn_cancel_run": "Stopp",
+  "btn_close_issue": "Schließen",
+  "btn_comment": "Kommentieren",
+
+  "review_approved": "Approved",
+  "review_changes": "Changes requested",
+  "review_pending": "Review ausstehend",
+
+  "comment_title": "Kommentar hinzufügen",
+  "comment_placeholder": "Kommentar schreiben…",
+
+  "rl_calls": "API-Aufrufe",
+  "rl_of": "von",
+  "rl_remaining": "verbleibend",
+  "rl_reset_in": "Reset in",
+  "rl_min": "Min",
+
+  "settings_title": "Einstellungen",
+  "settings_my_repos": "Eigene Repos (vollständiger Zugriff)",
+  "settings_watch_repos": "Watch-Repos (nur Releases)",
+  "settings_repo_placeholder": "owner/repo",
+  "settings_add": "Hinzufügen",
+  "settings_save": "Speichern",
+  "settings_source_user": "✓ Verwaltet durch GitPulse (persistent)",
+  "settings_source_options": "Aus HA Add-on Einstellungen (wird bei Updates überschrieben)",
+
+  "merge_title": "Pull Request mergen",
+  "merge_method": "Merge-Methode",
+  "merge_method_merge": "Merge Commit",
+  "merge_method_squash": "Squash & Merge",
+  "merge_method_rebase": "Rebase & Merge",
+
+  "dispatch_title": "Workflow starten",
+  "dispatch_workflow": "Workflow",
+  "dispatch_ref": "Branch / Tag",
+  "no_workflows": "Keine dispatchbaren Workflows gefunden",
+
+  "error_unknown": "Unbekannter Fehler",
+  "refresh_in": "Aktualisierung in",
 
   "btn_refresh": "Jetzt abfragen",
   "btn_install": "Installieren",

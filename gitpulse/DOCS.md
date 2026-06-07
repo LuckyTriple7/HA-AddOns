@@ -11,9 +11,9 @@ GitPulse benötigt einen **Fine-Grained Personal Access Token** (PAT).
 3. **Repository access**: Nur deine Repos auswählen
 4. **Permissions** (Repository):
    - Issues: Read
-   - Pull requests: Read
+   - Pull requests: **Write** (für Merge)
    - Contents: Read (für Releases)
-   - Actions: Read (für CI-Runs)
+   - Actions: **Write** (für Dispatch + Re-run)
    - Metadata: Read (automatisch, für Watch-Repos)
 5. Token kopieren und in den Add-on-Einstellungen eintragen
 
