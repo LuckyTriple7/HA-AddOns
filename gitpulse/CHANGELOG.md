@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.1.23] - 2026-06-07
+
+### Added
+- Workflow-Favoriten: Im Dispatch-Modal "⭐ Favorit speichern" Button — speichert Workflow + Branch dauerhaft in `/data/workflow_favorites.json`
+- Favoriten erscheinen im CI/Actions-Tab als eigene Karte über den Runs; per ▶-Button direkt auslösen, per 🗑-Button löschen
+- Duplikat-Schutz: gleicher Workflow + Branch wird nicht doppelt gespeichert
+- Backend: neue Routen `GET/POST /api/workflow/favorites` und `DELETE /api/workflow/favorites/<id>`
+
+---
+
+## [0.1.22] - 2026-06-07
+
+### Added
+- Repos-Tab: Stars ⭐, Forks 🍴 und Watchers 👁 je Repo als kompakte Statistik-Zeile im Übersichts-Card
+- Telegram: Benachrichtigung wenn sich Stars, Forks oder Watchers eines eigenen Repos ändern (mit Vorher/Nachher und Differenz)
+
+---
+
+## [0.1.21] - 2026-06-07
+
+### Fixed
+- Workflow-Run löschen löste danach eine Telegram-Benachrichtigung aus: `_known_run_conclusions` wurde nach dem Löschen geleert, wodurch der Run beim nächsten Poll als "neu" galt; Eintrag bleibt jetzt erhalten
+
+---
+
+## [0.1.20] - 2026-06-07
+
+### Added
+- CI/Actions: 🗑 Löschen-Button für abgeschlossene Workflow-Runs — entfernt den Run direkt auf GitHub und aus dem lokalen Cache ohne neuen Poll
+
+---
+
+## [0.1.19] - 2026-06-07
+
+### Changed
+- Repos-Tab: Repo-Name ist jetzt als Link sichtbar (accent-Farbe + Extern-Pfeil-Icon) und öffnet GitHub im neuen Tab
+
+---
+
+## [0.1.18] - 2026-06-07
+
+### Added
+- Neuer **Repos**-Tab als Startseite: zeigt alle eigenen Repos mit offenen PRs, Issues und letztem CI-Run auf einen Blick; Klick auf eine Zahl öffnet den zugehörigen Detail-Tab
+- PR-Kachel öffnet jetzt den Pull-Requests-Tab (statt Repos-Tab)
+
+---
+
+## [0.1.17] - 2026-06-07
+
+### Changed
+- "Neu"-Indikator bei Releases: roter Punkt → grüner pulsierender Punkt (passt besser zu "neue gute Neuigkeit")
+
+---
+
+## [0.1.16] - 2026-06-07
+
+### Fixed
+- "Als gelesen markieren" hat fälschlicherweise die gesamte Seen-Liste geleert → beim nächsten Poll galten alle Releases wieder als neu und Telegram feuerte erneut; jetzt werden alle aktuell sichtbaren Releases zur Seen-Liste hinzugefügt (nicht gelöscht) — nur echte neue Releases lösen künftig Telegram aus
+
+---
+
 ## [0.1.15] - 2026-06-07
 
 ### Fixed

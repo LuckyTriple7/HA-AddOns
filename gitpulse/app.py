@@ -69,8 +69,9 @@ app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_h
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
-REPOS_PATH    = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
-LOCALES_PATH  = '/app/locales'
+REPOS_PATH      = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
+FAVORITES_PATH  = '/data/workflow_favorites.json'
+LOCALES_PATH    = '/app/locales'
 
 GITHUB_API    = 'https://api.github.com'
 POLL_INTERVAL_DEFAULT = 300  # seconds
@@ -116,6 +117,7 @@ _first_poll_done: bool = False
 _seen_prs:   dict[str, set] = defaultdict(set)   # repo → {pr_number, …}
 _seen_issues: dict[str, set] = defaultdict(set)  # repo → {issue_number, …}
 _known_run_conclusions: dict[int, str | None] = {}  # run_id → conclusion
+_repo_stats: dict[str, dict] = {}  # repo → {stars, forks, watchers} für Änderungserkennung
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -281,6 +283,27 @@ def save_seen_releases() -> None:
             json.dump(list(_seen_releases), f)
     except Exception as e:
         log.warning("seen_releases konnte nicht gespeichert werden: %s", e)
+
+
+# ── Workflow-Favoriten (Persistence) ──────────────────────────────────────────
+
+def load_favorites() -> list:
+    try:
+        with open(FAVORITES_PATH) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        log.warning("workflow_favorites.json konnte nicht geladen werden: %s", e)
+        return []
+
+
+def save_favorites(favs: list) -> None:
+    try:
+        with open(FAVORITES_PATH, 'w') as f:
+            json.dump(favs, f, indent=2)
+    except Exception as e:
+        log.warning("workflow_favorites.json konnte nicht gespeichert werden: %s", e)
 
 
 # ── GitHub API ────────────────────────────────────────────────────────────────
@@ -515,6 +538,9 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
         'latest_release': latest_release,
         'open_prs':       len(pulls),
         'open_issues':    len(issues),
+        'stars':          repo_meta.get('stargazers_count', 0),
+        'forks':          repo_meta.get('forks_count', 0),
+        'watchers':       repo_meta.get('watchers_count', 0),
     }
 
 
@@ -713,6 +739,34 @@ def _do_poll(cfg: dict, token: str) -> None:
                             + f"Status: {label}\n"
                             + f"<a href=\"{run['url']}\">Details</a>")
             _known_run_conclusions[run_id] = curr_con
+
+    # Telegram: Stars / Forks / Watchers Änderungen erkennen
+    for rd in repo_data:
+        rname = rd['repo']
+        curr_stats = {
+            'stars':    rd.get('stars', 0),
+            'forks':    rd.get('forks', 0),
+            'watchers': rd.get('watchers', 0),
+        }
+        if rname in _repo_stats and _first_poll_done and tg_token and tg_chat:
+            prev_stats = _repo_stats[rname]
+            changes = []
+            if curr_stats['stars'] != prev_stats['stars']:
+                diff = curr_stats['stars'] - prev_stats['stars']
+                sign = '+' if diff > 0 else ''
+                changes.append(f"⭐ Stars: {prev_stats['stars']} → {curr_stats['stars']} ({sign}{diff})")
+            if curr_stats['forks'] != prev_stats['forks']:
+                diff = curr_stats['forks'] - prev_stats['forks']
+                sign = '+' if diff > 0 else ''
+                changes.append(f"🍴 Forks: {prev_stats['forks']} → {curr_stats['forks']} ({sign}{diff})")
+            if curr_stats['watchers'] != prev_stats['watchers']:
+                diff = curr_stats['watchers'] - prev_stats['watchers']
+                sign = '+' if diff > 0 else ''
+                changes.append(f"👁 Watchers: {prev_stats['watchers']} → {curr_stats['watchers']} ({sign}{diff})")
+            if changes:
+                _send_telegram(tg_token, tg_chat,
+                    f"📊 <b>Repo-Statistiken:</b> <b>{rname}</b>\n" + '\n'.join(changes))
+        _repo_stats[rname] = curr_stats
 
     # Telegram Startup-Nachricht (einmalig beim ersten Poll)
     if not _first_poll_done and tg_token and tg_chat:
@@ -931,9 +985,15 @@ def api_reset_seen():
     if redir:
         return jsonify({'error': 'unauthorized'}), 401
     global _seen_releases
-    _seen_releases = set()
+    # Alle aktuell bekannten Releases als gesehen markieren (nicht löschen)
+    # → nächster Poll meldet sie nicht mehr als neu, kein Telegram doppelt
+    with _gh_lock:
+        releases = list(_gh_cache.get('releases', []))
+        _gh_cache['new_releases'] = []   # Badge sofort weg
+    for rel in releases:
+        _seen_releases.add(f"{rel['repo']}@{rel['tag']}")
     save_seen_releases()
-    log.info("Gesehene Releases zurückgesetzt")
+    log.info("Releases als gelesen markiert: %d Einträge gesamt", len(_seen_releases))
     return jsonify({'status': 'ok'})
 
 
@@ -1229,6 +1289,99 @@ def api_workflow_rerun():
     except Exception as e:
         log.error("Workflow-Rerun Fehler: %s", e)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workflow/delete', methods=['POST'])
+def api_workflow_delete():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body   = request.get_json(silent=True) or {}
+    repo   = body.get('repo', '').strip()
+    run_id = body.get('run_id')
+    if not repo or not run_id:
+        return jsonify({'error': 'repo und run_id erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.delete(
+            f'{GITHUB_API}/repos/{repo}/actions/runs/{run_id}',
+            headers=_gh_headers(token),
+            timeout=15,
+        )
+        if r.status_code == 204:
+            log.info("Workflow-Run %s in %s gelöscht", run_id, repo)
+            # Aus lokalem Cache entfernen
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo:
+                        rd['runs'] = [run for run in rd.get('runs', []) if run['id'] != run_id]
+            # _known_run_conclusions bewusst NICHT löschen: würde den Run beim nächsten
+            # Poll als "neu" erscheinen lassen und Telegram fälschlicherweise auslösen
+            return jsonify({'status': 'deleted'})
+        try:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+        except Exception:
+            msg = f'HTTP {r.status_code}'
+        log.warning("Workflow-Delete fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Workflow-Delete Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workflow/favorites', methods=['GET'])
+def api_favorites_get():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    return jsonify(load_favorites())
+
+
+@app.route('/api/workflow/favorites', methods=['POST'])
+def api_favorites_add():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body          = request.get_json(silent=True) or {}
+    repo          = body.get('repo', '').strip()
+    workflow_id   = body.get('workflow_id')
+    workflow_name = body.get('workflow_name', '').strip()
+    ref           = body.get('ref', '').strip()
+    if not repo or not workflow_id or not workflow_name or not ref:
+        return jsonify({'error': 'repo, workflow_id, workflow_name und ref erforderlich'}), 400
+    favs = load_favorites()
+    for fav in favs:
+        if (fav['repo'] == repo and
+                str(fav['workflow_id']) == str(workflow_id) and
+                fav['ref'] == ref):
+            return jsonify({'status': 'exists', 'id': fav['id']})
+    new_fav = {
+        'id':            secrets.token_hex(8),
+        'repo':          repo,
+        'workflow_id':   workflow_id,
+        'workflow_name': workflow_name,
+        'ref':           ref,
+    }
+    favs.append(new_fav)
+    save_favorites(favs)
+    log.info("Workflow-Favorit gespeichert: %s / %s @ %s", repo, workflow_name, ref)
+    return jsonify({'status': 'saved', 'id': new_fav['id']})
+
+
+@app.route('/api/workflow/favorites/<fav_id>', methods=['DELETE'])
+def api_favorites_delete(fav_id: str):
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    favs     = load_favorites()
+    new_favs = [f for f in favs if f['id'] != fav_id]
+    if len(new_favs) == len(favs):
+        return jsonify({'error': 'Favorit nicht gefunden'}), 404
+    save_favorites(new_favs)
+    log.info("Workflow-Favorit gelöscht: %s", fav_id)
+    return jsonify({'status': 'deleted'})
 
 
 @app.route('/events')

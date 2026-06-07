@@ -8,6 +8,7 @@
   "error_credentials": "Invalid credentials.",
   "error_locked": "Too many failed attempts. Please wait 15 minutes.",
 
+  "tab_repos_overview": "Repos",
   "tab_repos": "Pull Requests",
   "tab_issues": "Issues",
   "tab_ci": "CI / Actions",
@@ -19,6 +20,9 @@
   "stat_issues": "Open Issues",
   "stat_releases": "Watch Releases",
   "stat_workflows": "Workflows",
+  "stat_stars": "Stars",
+  "stat_forks": "Forks",
+  "stat_watchers": "Watchers",
 
   "no_prs": "No open pull requests",
   "no_issues": "No open issues",
@@ -49,6 +53,11 @@
   "btn_dispatch": "Dispatch",
   "btn_cancel": "Cancel",
   "btn_cancel_run": "Stop",
+  "btn_delete_run": "Delete",
+  "btn_save_favorite": "Save as favorite",
+  "fav_title": "Workflow Favorites",
+  "fav_saved": "Favorite saved",
+  "fav_already": "Already saved as favorite",
   "btn_close_issue": "Close",
   "btn_comment": "Comment",
 
