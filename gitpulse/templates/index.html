@@ -333,7 +333,23 @@
   <script>
   // ── External links (Ingress iframe-safe) ─────────────────────────
   function openExternal(url) {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    try {
+      if (window.top && window.top !== window) {
+        // Im HA-Ingress-Iframe: Link im Parent-Dokument erzeugen und klicken
+        // (gleiche Origin → kein Cross-Origin-Problem, kein Sandbox-Block)
+        const a = window.top.document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        window.top.document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { try { window.top.document.body.removeChild(a); } catch(_){} }, 100);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch(_) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   }
 
   // ── Ingress base path ─────────────────────────────────────────────

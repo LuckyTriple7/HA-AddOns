@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5] - 2026-06-07
+
+### Fixed
+- Externe Links öffnen hinter HA Ingress korrekt in neuem Fenster: Link wird im Parent-Frame (HA-Frontend) erzeugt und geklickt, umgeht Iframe-Sandbox zuverlässig
+
+---
+
 ## [0.0.4] - 2026-06-07
 
 ### Fixed
