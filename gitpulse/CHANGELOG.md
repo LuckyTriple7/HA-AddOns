@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3] - 2026-06-07
+
+### Changed
+- "Jetzt abfragen"-Button im Header: Text entfernt, nur noch Icon (Tooltip bleibt via `title`)
+- DE/EN-Sprachbuttons werden auf Mobilgeräten (≤600 px) ausgeblendet — Browsersprache wird bereits automatisch erkannt
+
+---
+
 ## [0.1.2] - 2026-06-07
 
 ### Added
