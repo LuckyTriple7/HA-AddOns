@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12] - 2026-06-07
+
+### Fixed
+- API Rate-Limit Tooltip: Text war hardcodiert auf Deutsch — jetzt lokalisiert (DE/EN)
+
+---
+
 ## [0.1.11] - 2026-06-07
 
 ### Fixed

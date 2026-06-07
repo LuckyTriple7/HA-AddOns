@@ -60,6 +60,10 @@
   "comment_placeholder": "Kommentar schreiben…",
 
   "rl_calls": "API-Aufrufe",
+  "rl_of": "von",
+  "rl_remaining": "verbleibend",
+  "rl_reset_in": "Reset in",
+  "rl_min": "Min",
 
   "settings_title": "Einstellungen",
   "settings_my_repos": "Eigene Repos (vollständiger Zugriff)",

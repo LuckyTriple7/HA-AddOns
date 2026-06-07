@@ -60,6 +60,10 @@
   "comment_placeholder": "Write a comment…",
 
   "rl_calls": "API calls",
+  "rl_of": "of",
+  "rl_remaining": "remaining",
+  "rl_reset_in": "Reset in",
+  "rl_min": "min",
 
   "settings_title": "Settings",
   "settings_my_repos": "My Repos (full access)",

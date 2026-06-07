@@ -716,6 +716,10 @@
     review_changes:    '{{ t.review_changes }}',
     review_pending:    '{{ t.review_pending }}',
     error_unknown:     '{{ t.error_unknown }}',
+    rl_of:             '{{ t.rl_of }}',
+    rl_remaining:      '{{ t.rl_remaining }}',
+    rl_reset_in:       '{{ t.rl_reset_in }}',
+    rl_min:            '{{ t.rl_min }}',
   };
 
   function relTime(iso) {
@@ -750,7 +754,7 @@
     const resetStr = resetIn > 0 ? ` ⏱ ${resetIn}m` : '';
     el.className   = `rl-badge ${cls}`;
     el.textContent = `⚡ ${rem}/${lim}${resetStr}`;
-    el.title       = `GitHub API: ${rem} von ${lim} Aufrufen verbleibend (${pct}%)${resetIn > 0 ? ' · Reset in ' + resetIn + ' Min' : ''}`;
+    el.title       = `GitHub API: ${rem} ${T.rl_of} ${lim} ${T.rl_remaining} (${pct}%)${resetIn > 0 ? ' · ' + T.rl_reset_in + ' ' + resetIn + ' ' + T.rl_min : ''}`;
     el.style.display = '';
   }
 
