@@ -82,7 +82,6 @@
 
     /* ── CI Runs ────────────────────────────────────────────── */
     .run-row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:0.83rem; }
-    .run-row:last-child { border-bottom:none; }
     .run-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
     .ci-success  { background:var(--green); }
     .ci-failure  { background:var(--red); }
@@ -91,8 +90,18 @@
     .ci-pending  { background:var(--muted); }
     .ci-cancelled{ background:var(--muted); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-    .run-name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .run-branch { font-size:0.72rem; color:var(--muted); background:var(--surf2); padding:1px 6px; border-radius:4px; }
+    .run-name { flex:1; min-width:0; }
+    .run-name-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .run-commit { font-size:.7rem; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px; }
+    .run-branch { font-size:0.72rem; color:var(--muted); background:var(--surf2); padding:1px 6px; border-radius:4px; white-space:nowrap; flex-shrink:0; }
+    .run-event-badge { font-size:.65rem; padding:1px 6px; border-radius:10px; background:rgba(88,166,255,.1); color:var(--accent); border:1px solid rgba(88,166,255,.2); font-weight:600; white-space:nowrap; flex-shrink:0; }
+    .run-jobs-wrap { background:var(--surf2); border-bottom:1px solid var(--border); }
+    .run-job-row  { display:flex; align-items:center; gap:8px; padding:6px 14px 6px 30px; font-size:.8rem; border-bottom:1px solid var(--border); }
+    .run-job-row:last-child { border-bottom:none; }
+    .run-job-dur  { font-size:.68rem; color:var(--muted); margin-left:auto; white-space:nowrap; }
+    .run-step-row { display:flex; align-items:center; gap:6px; padding:2px 14px 2px 54px; font-size:.71rem; color:var(--muted); }
+    .act-btn-detail { color:var(--muted); border-color:var(--border); padding:2px 7px; font-size:.75rem; }
+    .act-btn-detail:hover { border-color:var(--accent); color:var(--accent); }
 
     /* ── Releases ───────────────────────────────────────────── */
     .release-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
@@ -652,6 +661,62 @@
       </div>`).join('') + '</div></div>';
   }
 
+  // ── CI helpers ────────────────────────────────────────────────────
+  const ciStatusClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
+  const ciEventLabel  = e => ({ push:'Push', pull_request:'PR', workflow_dispatch:'Manuell', schedule:'Zeitplan', release:'Release', create:'Branch', delete:'Delete' })[e] || e;
+
+  function ciDuration(started, completed) {
+    if (!started) return '';
+    const secs = Math.round((new Date(completed || Date.now()) - new Date(started)) / 1000);
+    if (secs < 60) return secs + 's';
+    const m = Math.floor(secs / 60), s = secs % 60;
+    return m + 'm' + (s ? ' ' + s + 's' : '');
+  }
+
+  // ── Jobs expandieren ──────────────────────────────────────────────
+  function toggleJobs(repo, runId) {
+    const el = document.getElementById('jobs-' + runId);
+    if (!el) return;
+    if (el.style.display === 'none') {
+      el.style.display = '';
+      if (!el.dataset.loaded) {
+        el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Lade…</div>';
+        fetch(u('/api/ci/jobs?repo=' + encodeURIComponent(repo) + '&run_id=' + runId))
+          .then(r => r.json())
+          .then(jobs => {
+            el.dataset.loaded = '1';
+            if (!Array.isArray(jobs) || !jobs.length) {
+              el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Keine Jobs gefunden</div>';
+              return;
+            }
+            el.innerHTML = jobs.map(job => {
+              const jStatus = job.status === 'in_progress' ? 'in_progress' : job.conclusion || job.status;
+              const jDur    = ciDuration(job.started, job.completed);
+              const steps   = (job.steps || []).map(s => {
+                const sStatus = s.status === 'in_progress' ? 'in_progress' : s.conclusion || s.status;
+                const sDur    = ciDuration(s.started, s.completed);
+                return `<div class="run-step-row">
+                  <div class="run-dot ${ciStatusClass(sStatus)}" style="width:7px;height:7px"></div>
+                  <span>${escHtml(s.name)}</span>
+                  ${sDur ? `<span style="margin-left:auto;font-size:.68rem">${sDur}</span>` : ''}
+                </div>`;
+              }).join('');
+              return `<div class="run-job-row">
+                <div class="run-dot ${ciStatusClass(jStatus)}" style="flex-shrink:0"></div>
+                <span style="font-weight:500">${escHtml(job.name)}</span>
+                ${jDur ? `<span class="run-job-dur">${jDur}</span>` : ''}
+              </div>${steps}`;
+            }).join('');
+          })
+          .catch(() => {
+            el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--red)">Fehler beim Laden</div>';
+          });
+      }
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
   // ── Render: CI ────────────────────────────────────────────────────
   function renderCI(data) {
     const repos = data.my_repos || [];
@@ -661,26 +726,37 @@
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><div>${T.no_runs}</div></div>`;
       return;
     }
-    const ciClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
     const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_dispatch}</button>`;
+    const rows = repo.runs.map(run => {
+      const status    = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
+      const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
+      const canCancel = ['in_progress','queued','waiting'].includes(run.status);
+      const dur       = ciDuration(run.created, run.updated || (run.status !== 'completed' ? null : run.updated));
+      return `
+        <div class="run-row">
+          <div class="run-dot ${ciStatusClass(status)}"></div>
+          <div class="run-name">
+            <div class="run-name-top">
+              <a href="${run.url}" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:none;font-weight:500">${escHtml(run.name)}</a>
+              ${run.event ? `<span class="run-event-badge">${escHtml(ciEventLabel(run.event))}</span>` : ''}
+              ${run.run_number ? `<span style="font-size:.7rem;color:var(--muted)">#${run.run_number}</span>` : ''}
+            </div>
+            ${run.head_message ? `<div class="run-commit" title="${escHtml(run.head_message)}">${run.head_sha ? `<code style="font-size:.68rem">${escHtml(run.head_sha)}</code> ` : ''}${escHtml(run.head_message)}</div>` : ''}
+          </div>
+          ${run.actor_avatar ? `<img class="avatar" src="${escHtml(run.actor_avatar)}" alt="${escHtml(run.actor)}" title="@${escHtml(run.actor)}" style="width:20px;height:20px;flex-shrink:0" loading="lazy">` : ''}
+          <span class="run-branch">${escHtml(run.branch)}</span>
+          <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;flex-shrink:0">${dur || relTime(run.created)}</span>
+          ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow('${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
+          ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
+          <button class="act-btn act-btn-detail" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs">▾</button>
+        </div>
+        <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
+    }).join('');
     el.innerHTML = `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
       ${dispatchBtn}
-    </div><div class="card-body">` +
-    repo.runs.map(run => {
-      const status = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
-      const canRerun   = ['failure','cancelled','timed_out'].includes(run.conclusion);
-      const canCancel  = ['in_progress','queued','waiting'].includes(run.status);
-      return `<div class="run-row">
-        <div class="run-dot ${ciClass(status)}"></div>
-        <div class="run-name"><a href="${run.url}" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:none">${escHtml(run.name)}</a></div>
-        <span class="run-branch">${escHtml(run.branch)}</span>
-        <span style="font-size:.72rem;color:var(--muted)">${relTime(run.created)}</span>
-        ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow('${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
-        ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
-      </div>`;
-    }).join('') + '</div></div>';
+    </div><div class="card-body">${rows}</div></div>`;
   }
 
   // ── Render: Releases ──────────────────────────────────────────────

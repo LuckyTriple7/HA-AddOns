@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.14] - 2026-06-07
+
+### Added
+- CI/Actions: Workflow-Runs zeigen jetzt Trigger-Typ (Push/PR/Manuell/…), Commit-SHA + Message, Autor-Avatar und Laufzeit
+- CI/Actions: Klick auf ▾ klappt Jobs + Steps mit Einzellaufzeiten auf (on-demand, kein Extra-Poll)
+- Backend: neue Route `/api/ci/jobs` liefert Jobs + Steps eines Runs
+
+---
+
 ## [0.0.13] - 2026-06-07
 
 ### Fixed

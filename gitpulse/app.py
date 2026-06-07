@@ -361,16 +361,23 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
     runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': 10}) or {}
     runs = []
     for run in (runs_raw.get('workflow_runs') or [])[:10]:
+        head_msg = (run.get('head_commit') or {}).get('message', '')
         runs.append({
-            'id':          run['id'],
-            'workflow_id': run.get('workflow_id'),
-            'name':        run['name'],
-            'status':      run['status'],
-            'conclusion':  run.get('conclusion'),
-            'url':         run['html_url'],
-            'branch':      run.get('head_branch', ''),
-            'created':     run['created_at'],
-            'event':       run.get('event', ''),
+            'id':           run['id'],
+            'run_number':   run.get('run_number'),
+            'workflow_id':  run.get('workflow_id'),
+            'name':         run['name'],
+            'status':       run['status'],
+            'conclusion':   run.get('conclusion'),
+            'url':          run['html_url'],
+            'branch':       run.get('head_branch', ''),
+            'created':      run['created_at'],
+            'updated':      run.get('updated_at', ''),
+            'event':        run.get('event', ''),
+            'actor':        (run.get('actor') or {}).get('login', ''),
+            'actor_avatar': (run.get('actor') or {}).get('avatar_url', ''),
+            'head_sha':     run.get('head_sha', '')[:7],
+            'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
         })
 
     # Dispatchable workflows (haben workflow_dispatch trigger)
@@ -803,6 +810,42 @@ def api_workflow_dispatch():
     except Exception as e:
         log.error("Workflow-Dispatch Fehler: %s", e)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/ci/jobs')
+def api_ci_jobs():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    repo   = request.args.get('repo', '').strip()
+    run_id = request.args.get('run_id', '')
+    if not repo or not run_id:
+        return jsonify({'error': 'repo und run_id erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    data = _gh_get(f'/repos/{repo}/actions/runs/{run_id}/jobs', token) or {}
+    jobs = []
+    for job in (data.get('jobs') or []):
+        jobs.append({
+            'id':         job['id'],
+            'name':       job['name'],
+            'status':     job['status'],
+            'conclusion': job.get('conclusion'),
+            'started':    job.get('started_at'),
+            'completed':  job.get('completed_at'),
+            'steps': [
+                {
+                    'name':       s['name'],
+                    'status':     s['status'],
+                    'conclusion': s.get('conclusion'),
+                    'number':     s['number'],
+                    'started':    s.get('started_at'),
+                    'completed':  s.get('completed_at'),
+                } for s in (job.get('steps') or [])
+            ],
+        })
+    return jsonify(jobs)
 
 
 @app.route('/api/workflow/cancel', methods=['POST'])
