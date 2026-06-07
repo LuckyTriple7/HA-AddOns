@@ -457,6 +457,7 @@
 
     <!-- ── Tab: Security ──────────────────────────────────── -->
     <div id="tab-security" style="display:none">
+      <div id="security-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 6px;border-bottom:1px solid var(--border)"></div>
       <div id="security-list"></div>
     </div>
 
@@ -1350,17 +1351,92 @@
 
   // ── Main render ───────────────────────────────────────────────────
   // ── Render: Security ─────────────────────────────────────────────
+  // ── Security filter state ────────────────────────────────────────────
+  const _secSevOrder = ['critical','high','medium','low','unknown'];
+  const _secSevColor = { critical:'#da3633', high:'#e3b341', medium:'#f0883e', low:'#3fb950', unknown:'#8b949e' };
+  let _secActiveSev  = new Set();   // empty = show all
+  let _secActiveType = new Set();   // empty = show all  (dependabot, code_scanning, secret_scanning)
+
+  function _secSevOf(a, type) {
+    if (type === 'secret_scanning') return 'critical';
+    const sev = (a.severity || 'unknown').toLowerCase();
+    if (sev === 'error')   return 'high';
+    if (sev === 'warning') return 'medium';
+    if (sev === 'note')    return 'low';
+    return _secSevOrder.includes(sev) ? sev : 'unknown';
+  }
+
+  function _toggleSecSev(sev) {
+    if (_secActiveSev.has(sev)) _secActiveSev.delete(sev); else _secActiveSev.add(sev);
+    if (ghData) renderSecurity(ghData);
+  }
+  function _toggleSecType(type) {
+    if (_secActiveType.has(type)) _secActiveType.delete(type); else _secActiveType.add(type);
+    if (ghData) renderSecurity(ghData);
+  }
+
   function renderSecurity(data) {
     const el    = document.getElementById('security-list');
-    const repos = (data.my_repos || []).filter(r => {
+    const fb    = document.getElementById('security-filter-bar');
+    const _sevIcon  = { critical:'🔴', high:'🟠', medium:'🟡', low:'🟢', unknown:'⚪' };
+    const _sevLabel = { critical:'CRITICAL', high:'HIGH', medium:'MEDIUM', low:'LOW', unknown:'?' };
+
+    const allRepos = (data.my_repos || []).filter(r => {
       const sec = r.security || {};
-      return (sec.dependabot || []).length || (sec.code_scanning || []).length || (sec.secret_scanning || []).length;
+      return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length;
     });
-    const _sevIcon = { critical:'🔴', high:'🟠', medium:'🟡', low:'🟢', error:'🟠', warning:'🟡', note:'ℹ️', unknown:'⚪' };
-    const _sevLabel = { critical:'CRITICAL', high:'HIGH', medium:'MEDIUM', low:'LOW', error:'HIGH', warning:'MEDIUM', note:'NOTE' };
+
+    if (!allRepos.length) {
+      fb.innerHTML = '';
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><div style="color:var(--green)">{{ t.security_none }}</div></div>`;
+      return;
+    }
+
+    // ── Zähle alle Alerts pro Severity und Typ ──────────────────────
+    const sevCounts  = { critical:0, high:0, medium:0, low:0, unknown:0 };
+    const typeCounts = { dependabot:0, code_scanning:0, secret_scanning:0 };
+    for (const repo of allRepos) {
+      const sec = repo.security || {};
+      for (const a of (sec.dependabot     ||[])) { sevCounts[_secSevOf(a,'dependabot')]++; typeCounts.dependabot++; }
+      for (const a of (sec.code_scanning  ||[])) { sevCounts[_secSevOf(a,'code_scanning')]++; typeCounts.code_scanning++; }
+      for (const a of (sec.secret_scanning||[])) { sevCounts[_secSevOf(a,'secret_scanning')]++; typeCounts.secret_scanning++; }
+    }
+
+    // ── Filter-Bar rendern ──────────────────────────────────────────
+    const sevBtns = _secSevOrder
+      .filter(s => sevCounts[s] > 0)
+      .map(s => `<button class="ci-filter-btn${_secActiveSev.has(s)?' active':''}" onclick="_toggleSecSev('${s}')" style="${_secActiveSev.has(s)?'border-color:'+_secSevColor[s]+';color:'+_secSevColor[s]+';background:'+_secSevColor[s]+'18':''}">
+        ${_sevIcon[s]} ${_sevLabel[s]} <span style="opacity:.7">${sevCounts[s]}</span>
+      </button>`).join('');
+
+    const typeMap = { dependabot:'🤖 Dependabot', code_scanning:'🔍 Code Scanning', secret_scanning:'🔑 Secrets' };
+    const typeBtns = Object.entries(typeCounts)
+      .filter(([,n]) => n > 0)
+      .map(([k,n]) => `<button class="ci-filter-btn${_secActiveType.has(k)?' active':''}" onclick="_toggleSecType('${k}')">
+        ${typeMap[k]} <span style="opacity:.7">${n}</span>
+      </button>`).join('');
+
+    const sepHtml = sevBtns && typeBtns ? `<span style="width:1px;background:var(--border);align-self:stretch;margin:0 2px"></span>` : '';
+    fb.innerHTML = sevBtns + sepHtml + typeBtns;
+
+    // ── Alerts filtern ──────────────────────────────────────────────
+    const matchSev  = a => !_secActiveSev.size  || _secActiveSev.has(_secSevOf(a, ''));
+    const matchType = type => !_secActiveType.size || _secActiveType.has(type);
+
+    const repos = allRepos.map(repo => {
+      const sec = repo.security || {};
+      return {
+        ...repo,
+        security: {
+          dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      : [],
+          code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   : [],
+          secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) : [],
+        }
+      };
+    }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length);
 
     if (!repos.length) {
-      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg><div style="color:var(--green)">{{ t.security_none }}</div></div>`;
+      el.innerHTML = `<div class="empty" style="padding:32px">{{ t.security_none_filtered }}</div>`;
       return;
     }
 
@@ -1375,16 +1451,16 @@
           <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
             🤖 {{ t.security_dependabot }} (${dep.length})
           </div>
-          ${dep.map(a => `
+          ${dep.map(a => { const sev=_secSevOf(a,'dependabot'); return `
             <div class="row-item" style="gap:6px;padding:7px 10px;font-size:.8rem">
-              <span>${_sevIcon[a.severity]||'⚪'}</span>
-              <span style="font-size:.7rem;font-weight:600;color:var(--muted);min-width:54px">${_sevLabel[a.severity]||a.severity.toUpperCase()}</span>
+              <span>${_sevIcon[sev]||'⚪'}</span>
+              <span style="font-size:.7rem;font-weight:600;color:${_secSevColor[sev]||'var(--muted)'};min-width:54px">${_sevLabel[sev]||sev.toUpperCase()}</span>
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.summary)}">
                 <b>${escHtml(a.package)}</b>${a.ecosystem?' <span style="color:var(--muted)">('+escHtml(a.ecosystem)+')</span>':''} — ${escHtml(a.summary)}
               </span>
               ${a.fixed_in ? `<span style="font-size:.72rem;color:var(--green);white-space:nowrap">→ ${escHtml(a.fixed_in)}</span>` : ''}
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,'${escHtml(a.url)}')" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
-            </div>`).join('')}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+            </div>`; }).join('')}
         </div>` : '';
 
       const csHtml = cs.length ? `
@@ -1392,16 +1468,16 @@
           <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
             🔍 {{ t.security_codescanning }} (${cs.length})
           </div>
-          ${cs.map(a => `
+          ${cs.map(a => { const sev=_secSevOf(a,'code_scanning'); return `
             <div class="row-item" style="gap:6px;padding:7px 10px;font-size:.8rem">
-              <span>${_sevIcon[a.severity]||'⚪'}</span>
-              <span style="font-size:.7rem;font-weight:600;color:var(--muted);min-width:54px">${_sevLabel[a.severity]||a.severity.toUpperCase()}</span>
+              <span>${_sevIcon[sev]||'⚪'}</span>
+              <span style="font-size:.7rem;font-weight:600;color:${_secSevColor[sev]||'var(--muted)'};min-width:54px">${_sevLabel[sev]||sev.toUpperCase()}</span>
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(a.description)}">
                 <b>${escHtml(a.tool)}</b> — ${escHtml(a.description)}
               </span>
               ${a.path ? `<span style="font-size:.72rem;color:var(--muted);white-space:nowrap">${escHtml(a.path)}${a.line?':'+a.line:''}</span>` : ''}
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,'${escHtml(a.url)}')" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
-            </div>`).join('')}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+            </div>`; }).join('')}
         </div>` : '';
 
       const ssHtml = ss.length ? `
@@ -1412,8 +1488,9 @@
           ${ss.map(a => `
             <div class="row-item" style="gap:6px;padding:7px 10px;font-size:.8rem">
               <span>🚨</span>
+              <span style="font-size:.7rem;font-weight:600;color:${_secSevColor.critical};min-width:54px">CRITICAL</span>
               <span style="flex:1">${escHtml(a.type)}</span>
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,'${escHtml(a.url)}')" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`).join('')}
         </div>` : '';
 

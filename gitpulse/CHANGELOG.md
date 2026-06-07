@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.37] - 2026-06-07
+
+### Added
+- Security-Tab: Filter-Bar mit Severity-Chips (🔴 Critical / 🟠 High / 🟡 Medium / 🟢 Low) und Typ-Chips (🤖 Dependabot / 🔍 Code Scanning / 🔑 Secrets) — jeweils mit Anzahl, mehrere Filter kombinierbar
+- Severity-Badge in der Alertliste farbig hervorgehoben (Farbe je nach Schweregrad)
+- Secret-Scanning-Alerts erhalten automatisch Schweregrad „Critical"
+
+---
+
+## [0.1.36] - 2026-06-07
+
+### Fixed
+- Security-Alerts: Limit von 50 auf bis zu 1000 erhöht (10 Seiten × 100 pro Seite via Paginierung) — `_gh_get_paginated` unterstützt jetzt eigene `params` (z.B. `state=open`)
+
+---
+
 ## [0.1.35] - 2026-06-07
 
 ### Security
