@@ -331,6 +331,11 @@
   </div>
 
   <script>
+  // ── External links (Ingress iframe-safe) ─────────────────────────
+  function openExternal(url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   // ── Ingress base path ─────────────────────────────────────────────
   const BASE = (document.getElementById('app-base')?.content || '').replace(/\/$/, '');
   const u = path => BASE + path;
@@ -581,7 +586,7 @@
       <div class="item-row">
         <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
         <div class="item-main">
-          <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener">#${pr.number} ${escHtml(pr.title)}</a></div>
+          <div class="item-title"><a href="${pr.url}" onclick="openExternal(this.href);return false;" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
           <div class="item-meta">
             <span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>
             <span>@${escHtml(pr.user)}</span>
@@ -610,7 +615,7 @@
       <div class="item-row">
         <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
         <div class="item-main">
-          <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener">#${iss.number} ${escHtml(iss.title)}</a></div>
+          <div class="item-title"><a href="${iss.url}" onclick="openExternal(this.href);return false;" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
           <div class="item-meta">
             <span class="pr-state-open">● ${T.iss_open}</span>
             <span>@${escHtml(iss.user)}</span>
@@ -642,7 +647,7 @@
       const canRerun = ['failure','cancelled','timed_out'].includes(run.conclusion);
       return `<div class="run-row">
         <div class="run-dot ${ciClass(status)}"></div>
-        <div class="run-name"><a href="${run.url}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">${escHtml(run.name)}</a></div>
+        <div class="run-name"><a href="${run.url}" onclick="openExternal(this.href);return false;" rel="noopener noreferrer" style="color:var(--text);text-decoration:none">${escHtml(run.name)}</a></div>
         <span class="run-branch">${escHtml(run.branch)}</span>
         <span style="font-size:.72rem;color:var(--muted)">${relTime(run.created)}</span>
         ${canRerun ? `<button class="act-btn act-btn-rerun" onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>` : ''}
@@ -665,7 +670,7 @@
         ${newKeys.has(rel.repo+'@'+rel.tag)?'<div class="new-dot" title="{{ t.badge_new }}"></div>':'<div style="width:8px"></div>'}
         <span class="release-tag ${rel.prerelease?'release-pre':''}">${escHtml(rel.tag)}</span>
         <span class="release-repo">${escHtml(rel.repo)}</span>
-        <a href="${rel.url}" target="_blank" rel="noopener" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
+        <a href="${rel.url}" onclick="openExternal(this.href);return false;" rel="noopener noreferrer" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
         <span class="release-date">${relTime(rel.date)}</span>
       </div>`).join('') + '</div></div>';
   }

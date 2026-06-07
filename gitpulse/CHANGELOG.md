@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4] - 2026-06-07
+
+### Fixed
+- Externe GitHub-Links (PRs, Issues, CI-Runs, Releases) öffnen hinter HA Ingress korrekt in einem neuen Browserfenster via `window.open()` statt `target="_blank"` (Iframe-Limitierung)
+
+---
+
 ## [0.0.3] - 2026-06-07
 
 ### Added
