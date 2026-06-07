@@ -40,6 +40,10 @@
     .token-badge { font-size:0.7rem; padding:2px 7px; border-radius:10px; font-weight:600; }
     .token-ok   { background:rgba(63,185,80,.15); color:var(--green); border:1px solid rgba(63,185,80,.3); }
     .token-err  { background:rgba(248,81,73,.15); color:var(--red);   border:1px solid rgba(248,81,73,.3); }
+    .rl-badge   { font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:600; font-family:monospace; cursor:default; }
+    .rl-ok      { background:rgba(63,185,80,.12);  color:var(--green);  border:1px solid rgba(63,185,80,.25); }
+    .rl-warn    { background:rgba(210,153,34,.12); color:var(--yellow); border:1px solid rgba(210,153,34,.25); }
+    .rl-crit    { background:rgba(248,81,73,.15);  color:var(--red);    border:1px solid rgba(248,81,73,.3); }
 
     /* ── Tabs ───────────────────────────────────────────────── */
     .tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--surf); flex-shrink:0; overflow-x:auto; }
@@ -738,10 +742,13 @@
     if (!rl || !el || rl.remaining === undefined) return;
     const rem     = rl.remaining;
     const lim     = rl.limit || 5000;
+    const pct     = Math.round(rem / lim * 100);
     const resetIn = rl.reset ? Math.max(0, Math.ceil((rl.reset * 1000 - Date.now()) / 60000)) : 0;
-    const color   = rem < 200 ? 'var(--red)' : rem < 500 ? 'var(--yellow)' : 'var(--muted)';
-    el.style.color = color;
-    el.textContent = `API ${rem}/${lim}${resetIn > 0 ? ' ⏱ ' + resetIn + 'm' : ''}`;
+    const cls     = rem < 200 ? 'rl-crit' : rem < 500 ? 'rl-warn' : 'rl-ok';
+    const resetStr = resetIn > 0 ? ` ⏱ ${resetIn}m` : '';
+    el.className   = `rl-badge ${cls}`;
+    el.textContent = `⚡ ${rem}/${lim}${resetStr}`;
+    el.title       = `GitHub API: ${rem} von ${lim} Aufrufen verbleibend (${pct}%)${resetIn > 0 ? ' · Reset in ' + resetIn + ' Min' : ''}`;
     el.style.display = '';
   }
 

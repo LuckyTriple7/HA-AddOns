@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9] - 2026-06-07
+
+### Changed
+- API Rate-Limit-Anzeige im Header: styled Badge wie Token-Badge — grün (>500), gelb (<500), rot (<200); Mouseover zeigt verbleibende Prozent und Reset-Zeit
+
+---
+
 ## [0.1.8] - 2026-06-07
 
 ### Added
