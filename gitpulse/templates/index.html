@@ -61,7 +61,8 @@
 
     /* ── Summary Bar ────────────────────────────────────────── */
     .summary-bar { display:flex; gap:8px; flex-wrap:nowrap; padding:8px 14px; background:var(--surf); border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
-    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; }
+    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; cursor:pointer; user-select:none; }
+    .stat-chip:hover { border-color:var(--accent); }
     .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; }
     .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
 
@@ -741,18 +742,24 @@
 
   // ── Render: Summary Bar ───────────────────────────────────────────
   function renderSummary(data) {
-    let totalPRs = 0, totalIssues = 0;
+    let totalPRs = 0, totalIssues = 0, totalRuns = 0, hasActive = false, hasFailed = false;
     (data.my_repos || []).forEach(r => {
-      totalPRs += r.open_prs || 0;
+      totalPRs    += r.open_prs    || 0;
       totalIssues += r.open_issues || 0;
+      (r.runs || []).forEach(run => {
+        totalRuns++;
+        if (['in_progress','queued','waiting'].includes(run.status)) hasActive = true;
+        if (run.conclusion === 'failure') hasFailed = true;
+      });
     });
-    const newRel = (data.new_releases || []).length;
+    const runsColor = hasActive ? 'var(--yellow)' : hasFailed ? 'var(--red)' : 'var(--green)';
     const el = document.getElementById('summary-bar');
     el.innerHTML = `
-      <div class="stat-chip"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
-      <div class="stat-chip"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
-      <div class="stat-chip"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
-      <div class="stat-chip"><div class="num" style="color:var(--purple)">${(data.releases||[]).length}</div><div class="lbl">{{ t.stat_releases }}</div></div>
+      <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
+      <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
+      <div class="stat-chip" onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
+      <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
+      <div class="stat-chip" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${(data.releases||[]).length}</div><div class="lbl">{{ t.stat_releases }}</div></div>
     `;
     const badgePR  = document.getElementById('badge-prs');
     const badgeIss = document.getElementById('badge-issues');

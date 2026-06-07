@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2] - 2026-06-07
+
+### Added
+- Stat-Kacheln sind jetzt klickbar — direkter Sprung in den zugehörigen Tab (PRs → Pull Requests, Issues → Issues, Workflows → CI, Releases → Releases)
+- Neue Kachel "Workflows": zeigt Gesamtzahl der Runs; grün = alles OK, gelb = läuft, rot = Fehler vorhanden
+
+---
+
 ## [0.1.1] - 2026-06-07
 
 ### Added
