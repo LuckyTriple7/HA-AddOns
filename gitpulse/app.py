@@ -604,17 +604,38 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
         }
 
     def _safe_dep(path: str) -> tuple[list, bool]:
-        """Like _safe but returns (data, access_ok). access_ok=False means 403/404."""
+        """Fetch Dependabot alerts. Returns (data, access_ok).
+        Uses its own paginator (no explicit &page=N) because the Dependabot
+        API returns HTTP 400 when per_page=100 + page=1 are combined."""
         url = f'{GITHUB_API}{path}' if path.startswith('/') else path
         try:
-            chk = http.get(url, headers=_gh_headers(token),
-                           params={'state': 'open', 'per_page': 1}, timeout=10)
-            if chk.status_code in (403, 404, 451):
+            r = http.get(url, headers=_gh_headers(token),
+                         params={'state': 'open', 'per_page': 30}, timeout=10)
+            if r.status_code in (403, 404, 451):
                 return [], False
+            if r.status_code != 200:
+                return [], True
+            results = list(r.json()) if isinstance(r.json(), list) else []
+            for _ in range(20):
+                link = r.headers.get('Link', '')
+                next_url = None
+                for part in link.split(','):
+                    if 'rel="next"' in part and len(part) <= 4096:
+                        m = re.search(r'<(https?://[^>\s]{1,2048})>', part)
+                        if m:
+                            next_url = m.group(1)
+                if not next_url:
+                    break
+                r = http.get(next_url, headers=_gh_headers(token), timeout=15)
+                if r.status_code != 200:
+                    break
+                page_data = r.json() if isinstance(r.json(), list) else []
+                if not page_data:
+                    break
+                results.extend(page_data)
+            return results, True
         except Exception:
             return [], True
-        result = _gh_get_paginated(path, token, max_pages=10, params={'state': 'open'})
-        return (result if isinstance(result, list) else []), True
 
     dep, dep_access = _safe_dep(f'/repos/{repo}/dependabot/alerts')
     cs  = _safe(f'/repos/{repo}/code-scanning/alerts')

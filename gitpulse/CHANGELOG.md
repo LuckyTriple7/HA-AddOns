@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.44] - 2026-06-07
+
+### Fixed
+- Dependabot-Alerts: HTTP 400 bei `per_page=100&page=1` — Dependabot-API akzeptiert diese Kombination nicht; eigener Paginator mit `per_page=30` ohne expliziten `page`-Parameter, Pagination über Link-Header
+
+---
+
 ## [0.1.43] - 2026-06-07
 
 ### Improved
