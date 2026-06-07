@@ -415,6 +415,10 @@
     <div id="tab-prs" style="display:none">
       <div id="token-alert"></div>
       <div id="repo-selector" class="repo-tabs"></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <button id="pr-btn-open"   class="ci-filter-btn active" onclick="setPRState('open')">{{ t.filter_open }}</button>
+        <button id="pr-btn-closed" class="ci-filter-btn"        onclick="setPRState('closed')">{{ t.filter_closed }}</button>
+      </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div style="position:relative;flex:1">
           <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -429,6 +433,10 @@
 
     <!-- ── Tab: Issues ──────────────────────────────────────── -->
     <div id="tab-issues" style="display:none">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <button id="iss-btn-open"   class="ci-filter-btn active" onclick="setIssState('open')">{{ t.filter_open }}</button>
+        <button id="iss-btn-closed" class="ci-filter-btn"        onclick="setIssState('closed')">{{ t.filter_closed }}</button>
+      </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div style="position:relative;flex:1">
           <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -528,6 +536,8 @@
   let notifEnabled = false;
   let _prFilter = '';
   let _issueFilter = '';
+  let _prStateFilter  = 'open';
+  let _issStateFilter = 'open';
   let _ciTimeFilter = 'all';
   let _ciStatusFilter = 'all';
   let _ciPage = 1;
@@ -756,6 +766,18 @@
 
   // ── Workflow-Favoriten ────────────────────────────────────────────
   // ── Such-/Filterleiste ────────────────────────────────────────────
+  function setPRState(s) {
+    _prStateFilter = s;
+    document.getElementById('pr-btn-open').classList.toggle('active', s === 'open');
+    document.getElementById('pr-btn-closed').classList.toggle('active', s === 'closed');
+    if (ghData) renderPRs(ghData);
+  }
+  function setIssState(s) {
+    _issStateFilter = s;
+    document.getElementById('iss-btn-open').classList.toggle('active', s === 'open');
+    document.getElementById('iss-btn-closed').classList.toggle('active', s === 'closed');
+    if (ghData) renderIssues(ghData);
+  }
   function applyPRFilter() {
     _prFilter = (document.getElementById('pr-filter')?.value || '').toLowerCase();
     if (ghData) renderPRs(ghData);
@@ -856,13 +878,19 @@
 
   // ── i18n helpers ──────────────────────────────────────────────────
   const T = {
-    no_prs:       '{{ t.no_prs }}',
-    no_issues:    '{{ t.no_issues }}',
+    no_prs:          '{{ t.no_prs }}',
+    no_closed_prs:   '{{ t.no_closed_prs }}',
+    no_issues:       '{{ t.no_issues }}',
+    no_closed_issues:'{{ t.no_closed_issues }}',
     no_runs:      '{{ t.no_runs }}',
     no_releases:  '{{ t.no_releases }}',
-    pr_open:      '{{ t.pr_open }}',
-    pr_draft:     '{{ t.pr_draft }}',
-    iss_open:     '{{ t.iss_open }}',
+    pr_open:        '{{ t.pr_open }}',
+    pr_draft:       '{{ t.pr_draft }}',
+    pr_merged:      '{{ t.pr_merged }}',
+    pr_closed:      '{{ t.pr_closed }}',
+    iss_open:       '{{ t.iss_open }}',
+    filter_open:    '{{ t.filter_open }}',
+    filter_closed:  '{{ t.filter_closed }}',
     run_success:  '{{ t.run_success }}',
     run_failure:  '{{ t.run_failure }}',
     run_running:  '{{ t.run_running }}',
@@ -1121,80 +1149,94 @@
 
   // ── Render: PRs ───────────────────────────────────────────────────
   function renderPRs(data) {
-    const repos = data.my_repos || [];
-    const repo  = repos.find(r => r.repo === activeRepo) || repos[0];
-    const el    = document.getElementById('pr-list');
+    const repos   = data.my_repos || [];
+    const repo    = repos.find(r => r.repo === activeRepo) || repos[0];
+    const el      = document.getElementById('pr-list');
     const countEl = document.getElementById('pr-filter-count');
-    if (!repo || !repo.pulls || !repo.pulls.length) {
-      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${T.no_prs}</div></div>`;
+    const closed  = _prStateFilter === 'closed';
+    const allPRs  = closed ? (repo?.closed_pulls || []) : (repo?.pulls || []);
+    const emptyMsg = closed ? T.no_closed_prs : T.no_prs;
+    if (!repo || !allPRs.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${emptyMsg}</div></div>`;
       if (countEl) countEl.textContent = '';
       return;
     }
     const f = _prFilter.trim();
     const filtered = f
-      ? repo.pulls.filter(pr =>
+      ? allPRs.filter(pr =>
           pr.title.toLowerCase().includes(f) ||
           pr.user.toLowerCase().includes(f) ||
           String(pr.number).includes(f) ||
           pr.labels.some(l => l.toLowerCase().includes(f)))
-      : repo.pulls;
-    if (countEl) countEl.textContent = f && filtered.length !== repo.pulls.length
-      ? `${filtered.length} ${T.rl_of} ${repo.pulls.length}` : '';
+      : allPRs;
+    if (countEl) countEl.textContent = f && filtered.length !== allPRs.length
+      ? `${filtered.length} ${T.rl_of} ${allPRs.length}` : '';
     if (!filtered.length) {
-      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${T.no_prs}</div></div>`;
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${emptyMsg}</div></div>`;
       return;
     }
     el.innerHTML = `<div class="card"><div class="card-header">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--green)"><path d="M6 3c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 14c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12-9.78c-.22-.02-.45-.03-.67-.03C13.9 7.19 11 9.83 11 13.15v.67L8.93 11.7A3.996 3.996 0 0 0 6 10.5C3.79 10.5 2 12.29 2 14.5s1.79 4 4 4c1.44 0 2.7-.76 3.4-1.9l2.13 2.13A3.995 3.995 0 0 0 14 22c2.21 0 4-1.79 4-4 0-1.91-1.34-3.5-3.12-3.9-.07-.62-.11-1.25-.11-1.88 0-1.94 1.43-3.56 3.33-3.9v-.1c0-.58-.1-1.14-.1-1.72zm0 10.28c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
-      Pull Requests — ${repo.name} (${filtered.length}${f && filtered.length !== repo.pulls.length ? ' / ' + repo.pulls.length : ''})
+      Pull Requests — ${repo.name} (${filtered.length}${f && filtered.length !== allPRs.length ? ' / ' + allPRs.length : ''})
     </div><div class="card-body">` +
-    filtered.map(pr => `
+    filtered.map(pr => {
+      const isMerged = !!pr.merged_at;
+      const stateSpan = closed
+        ? (isMerged
+            ? `<span style="color:#a371f7">⎇ ${T.pr_merged}</span>`
+            : `<span style="color:var(--red)">✕ ${T.pr_closed}</span>`)
+        : `<span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>`;
+      return `
       <div class="item-row">
         <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
         <div class="item-main">
           <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
           <div class="item-meta">
-            <span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>
+            ${stateSpan}
             <span>@${escHtml(pr.user)}</span>
             <span>${relTime(pr.updated)}</span>
-            ${reviewBadge(pr.review_state)}
+            ${!closed ? reviewBadge(pr.review_state) : ''}
             ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
             ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
-        <button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>
-        ${!pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
-      </div>`).join('') + '</div></div>';
+        ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
+        ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
+      </div>`;
+    }).join('') + '</div></div>';
   }
 
   // ── Render: Issues ────────────────────────────────────────────────
   function renderIssues(data) {
-    const repos = data.my_repos || [];
-    const repo  = repos.find(r => r.repo === activeRepo) || repos[0];
-    const el    = document.getElementById('issue-list');
-    const countEl = document.getElementById('issue-filter-count');
-    if (!repo || !repo.issues || !repo.issues.length) {
-      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${T.no_issues}</div></div>`;
+    const repos    = data.my_repos || [];
+    const repo     = repos.find(r => r.repo === activeRepo) || repos[0];
+    const el       = document.getElementById('issue-list');
+    const countEl  = document.getElementById('issue-filter-count');
+    const closed   = _issStateFilter === 'closed';
+    const allIssues = closed ? (repo?.closed_issues || []) : (repo?.issues || []);
+    const emptyMsg  = closed ? T.no_closed_issues : T.no_issues;
+    if (!repo || !allIssues.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${emptyMsg}</div></div>`;
       if (countEl) countEl.textContent = '';
       return;
     }
     const f = _issueFilter.trim();
     const filtered = f
-      ? repo.issues.filter(iss =>
+      ? allIssues.filter(iss =>
           iss.title.toLowerCase().includes(f) ||
           iss.user.toLowerCase().includes(f) ||
           String(iss.number).includes(f) ||
           iss.labels.some(l => l.toLowerCase().includes(f)))
-      : repo.issues;
-    if (countEl) countEl.textContent = f && filtered.length !== repo.issues.length
-      ? `${filtered.length} ${T.rl_of} ${repo.issues.length}` : '';
+      : allIssues;
+    if (countEl) countEl.textContent = f && filtered.length !== allIssues.length
+      ? `${filtered.length} ${T.rl_of} ${allIssues.length}` : '';
     if (!filtered.length) {
-      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${T.no_issues}</div></div>`;
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${emptyMsg}</div></div>`;
       return;
     }
     el.innerHTML = `<div class="card"><div class="card-header">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-      Issues — ${repo.name} (${filtered.length}${f && filtered.length !== repo.issues.length ? ' / ' + repo.issues.length : ''})
+      Issues — ${repo.name} (${filtered.length}${f && filtered.length !== allIssues.length ? ' / ' + allIssues.length : ''})
     </div><div class="card-body">` +
     filtered.map(iss => `
       <div class="item-row">
@@ -1202,14 +1244,16 @@
         <div class="item-main">
           <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
           <div class="item-meta">
-            <span class="pr-state-open">● ${T.iss_open}</span>
+            ${closed
+              ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
+              : `<span class="pr-state-open">● ${T.iss_open}</span>`}
             <span>@${escHtml(iss.user)}</span>
-            <span>${relTime(iss.updated)}</span>
+            <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
             ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
-        <button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>
-        <button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>
+        ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
+        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
       </div>`).join('') + '</div></div>';
   }
 
