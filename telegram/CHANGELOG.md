@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.6] - 2026-06-07
+
+### Security
+- Globaler Rate-Limiter (200 Req/min) für alle API-Endpunkte via `app.use()` (CodeQL: Missing rate limiting #83, #65)
+
+---
+
 ## [1.6.5] - 2026-06-07
 
 ### Security
