@@ -1918,9 +1918,9 @@ app.get('/', (req, res) => {
 
   <div id="offline-banner">
     <div class="ob-icon">📡</div>
-    <div class="ob-title">Verbindung unterbrochen</div>
-    <div class="ob-sub">Stelle Verbindung wieder her…</div>
-    <button class="ob-reload" onclick="window.location.reload()">Neu laden</button>
+    <div class="ob-title" data-i18n="offlineTitle">Verbindung unterbrochen</div>
+    <div class="ob-sub" data-i18n="offlineSub">Stelle Verbindung wieder her…</div>
+    <button class="ob-reload" onclick="window.location.reload()" data-i18n="offlineReload">Neu laden</button>
   </div>
 
   <script>
@@ -1973,6 +1973,7 @@ app.get('/', (req, res) => {
         spamError:'✗ Fehler', spamNone:'✓ Kein Spam',
         errSend:(e)=>'Fehler: '+e, errNetwork:'Netzwerkfehler', locale:'de-DE',
         statsMsg:'Nachrichten', statsSince:'seit',
+        offlineTitle:'Verbindung unterbrochen', offlineSub:'Stelle Verbindung wieder her…', offlineReload:'Neu laden',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2009,6 +2010,7 @@ app.get('/', (req, res) => {
         spamError:'✗ Error', spamNone:'✓ No spam',
         errSend:(e)=>'Error: '+e, errNetwork:'Network error', locale:'en-US',
         statsMsg:'messages', statsSince:'since',
+        offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
