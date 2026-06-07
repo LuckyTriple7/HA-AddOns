@@ -20,24 +20,24 @@ https://github.com/LuckyTriple7/HA-AddOns
 
 ## Architektur
 
-| Add-on | amd64 | aarch64 |
-|---|:---:|:---:|
-| Claude Code | ✅ | ✅ |
-| Playwright Browser | ✅ | ✅ |
-| FileBox | ✅ | ❌ |
-| Firefox DE | ✅ | ❌ |
-| Webtop XFCE | ✅ | ✅ |
-| WhatsApp | ✅ | ✅ |
-| Telegram | ✅ | ✅ |
-| Signal | ✅ | ✅ |
-| Messenger Portal | ✅ | ✅ |
-| MariaDB 2 | ✅ | ✅ |
-| Collabora Online | ✅ | ❌ |
-| Nextcloud | ✅ | ❌ |
-| CardBoard | ✅ | ✅ |
-| HA SysWatch | ✅ | ✅ |
-| phpMyAdmin MariaDB 2 | ✅ | ✅ |
-| MediaGrab | ✅ | ✅ |
+| Add-on | amd64 | aarch64 | Linux |
+|---|:---:|:---:|:---:|
+| Claude Code | ✅ | ✅ | Alpine |
+| Playwright Browser | ✅ | ✅ | Debian 12 |
+| FileBox | ✅ | ❌ | Debian 12 |
+| Firefox DE | ✅ | ❌ | Debian 12 |
+| Webtop XFCE | ✅ | ✅ | Debian 12 |
+| WhatsApp | ✅ | ✅ | Alpine |
+| Telegram | ✅ | ✅ | Alpine |
+| Signal | ✅ | ✅ | Debian 12 |
+| Messenger Portal | ✅ | ✅ | Alpine |
+| MariaDB 2 | ✅ | ✅ | Alpine |
+| Collabora Online | ✅ | ❌ | Ubuntu |
+| Nextcloud | ✅ | ❌ | Alpine |
+| CardBoard | ✅ | ✅ | Alpine |
+| HA SysWatch | ✅ | ✅ | Alpine |
+| phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
+| MediaGrab | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -266,24 +266,24 @@ https://github.com/LuckyTriple7/HA-AddOns
 
 ## Architecture
 
-| Add-on | amd64 | aarch64 |
-|---|:---:|:---:|
-| Claude Code | ✅ | ✅ |
-| Playwright Browser | ✅ | ✅ |
-| FileBox | ✅ | ❌ |
-| Firefox DE | ✅ | ❌ |
-| Webtop XFCE | ✅ | ✅ |
-| WhatsApp | ✅ | ✅ |
-| Telegram | ✅ | ✅ |
-| Signal | ✅ | ✅ |
-| Messenger Portal | ✅ | ✅ |
-| MariaDB 2 | ✅ | ✅ |
-| Collabora Online | ✅ | ❌ |
-| Nextcloud | ✅ | ❌ |
-| CardBoard | ✅ | ✅ |
-| HA SysWatch | ✅ | ✅ |
-| phpMyAdmin MariaDB 2 | ✅ | ✅ |
-| MediaGrab | ✅ | ✅ |
+| Add-on | amd64 | aarch64 | Linux |
+|---|:---:|:---:|:---:|
+| Claude Code | ✅ | ✅ | Alpine |
+| Playwright Browser | ✅ | ✅ | Debian 12 |
+| FileBox | ✅ | ❌ | Debian 12 |
+| Firefox DE | ✅ | ❌ | Debian 12 |
+| Webtop XFCE | ✅ | ✅ | Debian 12 |
+| WhatsApp | ✅ | ✅ | Alpine |
+| Telegram | ✅ | ✅ | Alpine |
+| Signal | ✅ | ✅ | Debian 12 |
+| Messenger Portal | ✅ | ✅ | Alpine |
+| MariaDB 2 | ✅ | ✅ | Alpine |
+| Collabora Online | ✅ | ❌ | Ubuntu |
+| Nextcloud | ✅ | ❌ | Alpine |
+| CardBoard | ✅ | ✅ | Alpine |
+| HA SysWatch | ✅ | ✅ | Alpine |
+| phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
+| MediaGrab | ✅ | ✅ | Alpine |
 
 ## Apps
 
