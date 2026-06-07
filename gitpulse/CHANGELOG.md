@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.41] - 2026-06-07
+
+### Fixed
+- CI-Status-Filter: Übersetzungs-Keys (`ci_status_*`) fehlten im `T`-Objekt des Templates → Labels zeigten „undefined"
+
+---
+
 ## [0.1.40] - 2026-06-07
 
 ### Added
