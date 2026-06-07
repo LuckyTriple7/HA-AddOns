@@ -577,7 +577,7 @@ def _poll_worker() -> None:
     while True:
         cfg = load_config()
         token = cfg.get('github_token', '').strip()
-        interval = max(60, int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)))
+        interval = max(10, int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)))
 
         if not token:
             log.warning("Kein GitHub-Token konfiguriert — überspringe Poll")

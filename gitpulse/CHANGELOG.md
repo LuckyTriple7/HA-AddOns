@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15] - 2026-06-07
+
+### Fixed
+- Poll-Intervall wurde intern auf mindestens 60 Sekunden erzwungen (`max(60, ...)`) — der konfigurierte Wert wurde ignoriert; Minimum jetzt 10 Sekunden
+
+---
+
 ## [0.1.14] - 2026-06-07
 
 ### Changed

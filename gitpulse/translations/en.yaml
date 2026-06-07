@@ -22,7 +22,7 @@ configuration:
     description: Show Home Assistant beta and release candidate versions in the Watch Releases tab. Default true.
   poll_interval:
     name: Poll Interval (seconds)
-    description: "Pause between GitHub API queries. Lower = faster updates but more API calls (limit: 5000/hour). Default 300 (5 minutes). With few repos and a stable connection, 60–120 can be used."
+    description: "Pause between GitHub API queries. Lower = faster updates but more API calls (limit: 5000/hour). Default 300 (5 minutes). Minimum 10 seconds. With few repos, 30–60 seconds is recommended."
   verbose_log:
     name: Verbose Logging
     description: Logs repo count and details on every poll cycle. Default false — only errors and important events are logged.

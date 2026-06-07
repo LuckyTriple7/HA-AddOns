@@ -22,7 +22,7 @@ configuration:
     description: Beta- und Release-Candidate-Versionen von Home Assistant in den Watch-Releases anzeigen. Standard true.
   poll_interval:
     name: Abfrageintervall (Sekunden)
-    description: "Pause zwischen zwei GitHub-API-Abfragen. Kleiner = schnellere Updates, aber mehr API-Aufrufe (Limit: 5000/Stunde). Standard 300 (5 Minuten). Bei wenigen Repos und stabilem Netz kann 60–120 genutzt werden."
+    description: "Pause zwischen zwei GitHub-API-Abfragen. Kleiner = schnellere Updates, aber mehr API-Aufrufe (Limit: 5000/Stunde). Standard 300 (5 Minuten). Minimum 10 Sekunden. Bei wenigen Repos ist 30–60 empfehlenswert."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt pro Poll-Zyklus die Anzahl der Repos und Details im Log aus. Standard false — nur Fehler und wichtige Ereignisse werden geloggt.
