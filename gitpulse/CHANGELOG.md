@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.48] - 2026-06-07
+
+### Security
+- Flask 3.0.3 → 3.1.3 (Dependabot-Alert behoben)
+
+---
+
 ## [0.1.47] - 2026-06-07
 
 ### Added
