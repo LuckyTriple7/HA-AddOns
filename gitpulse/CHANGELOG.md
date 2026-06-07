@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5] - 2026-06-07
+
+### Added
+- HA Add-on Konfigurationsübersetzungen: `translations/de.yaml` und `translations/en.yaml` — alle Config-Optionen haben jetzt Namen und Beschreibungen in der HA UI (wie bei SysWatch)
+
+---
+
 ## [0.1.4] - 2026-06-07
 
 ### Fixed

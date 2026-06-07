@@ -1,0 +1,34 @@
+configuration:
+  username:
+    name: Username
+    description: Login username for the web interface (only relevant for direct access on port 17792 — behind HA Ingress, authentication is handled by Home Assistant).
+  password:
+    name: Password
+    description: Login password for the web interface (only relevant for direct access on port 17792).
+  session_hours:
+    name: Session Duration (hours)
+    description: How many hours a login session stays valid before requiring re-authentication. Default 24.
+  github_token:
+    name: GitHub Token (Fine-Grained PAT)
+    description: "GitHub Fine-Grained Personal Access Token. Required permissions: Contents (read), Pull Requests (read+write), Actions (read+write), Issues (read+write), Metadata (read). Create at: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens."
+  my_repos:
+    name: My Repos
+    description: "List of your own GitHub repositories in owner/repo format (e.g. LuckyTriple7/HA-AddOns). These repos are fully monitored: PRs, Issues, CI runs, Releases. Tip: Repos can also be managed directly in the dashboard via the ⚙ button — this setting is then ignored."
+  watch_repos:
+    name: Watch Repos (releases only)
+    description: "Repositories to monitor for new releases only (no access to PRs/Issues/CI needed). Ideal for external projects like home-assistant/core or Hyundai-Kia-Connect/kia_uvo."
+  include_ha_betas:
+    name: Show HA Beta/RC Releases
+    description: Show Home Assistant beta and release candidate versions in the Watch Releases tab. Default true.
+  poll_interval:
+    name: Poll Interval (seconds)
+    description: "Pause between GitHub API queries. Lower = faster updates but more API calls (limit: 5000/hour). Default 300 (5 minutes). With few repos and a stable connection, 60–120 can be used."
+  verbose_log:
+    name: Verbose Logging
+    description: Logs repo count and details on every poll cycle. Default false — only errors and important events are logged.
+  telegram_bot_token:
+    name: Telegram Bot Token
+    description: "Token of the Telegram bot for notifications (format: 123456789:ABC-...). Leave empty to disable Telegram. Create a bot via @BotFather in Telegram."
+  telegram_chat_id:
+    name: Telegram Chat ID
+    description: "Chat ID of the recipient for Telegram messages. Find it via @userinfobot in Telegram, or send /start to your bot and copy the ID from the response."

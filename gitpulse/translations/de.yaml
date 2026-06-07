@@ -1,0 +1,34 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Benutzername für das Web-Interface (nur beim Direktzugriff auf Port 17792 relevant — hinter HA Ingress übernimmt HA die Authentifizierung).
+  password:
+    name: Passwort
+    description: Passwort für das Web-Interface (nur beim Direktzugriff auf Port 17792 relevant).
+  session_hours:
+    name: Session-Dauer (Stunden)
+    description: Wie viele Stunden eine Login-Session gültig bleibt. Standard 24.
+  github_token:
+    name: GitHub Token (Fine-Grained PAT)
+    description: "GitHub Fine-Grained Personal Access Token. Benötigte Berechtigungen: Contents (read), Pull Requests (read+write), Actions (read+write), Issues (read+write), Metadata (read). Erstellen unter: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens."
+  my_repos:
+    name: Eigene Repos
+    description: "Liste der eigenen GitHub-Repositories im Format owner/repo (z.B. LuckyTriple7/HA-AddOns). Diese Repos werden vollständig überwacht: PRs, Issues, CI-Runs, Releases. Tipp: Repos können auch direkt im Dashboard über den ⚙-Button verwaltet werden — diese Einstellung wird dann ignoriert."
+  watch_repos:
+    name: Watch-Repos (nur Releases)
+    description: "Repositories die nur auf neue Releases überwacht werden (kein Zugriff auf PRs/Issues/CI nötig). Ideal für externe Projekte wie home-assistant/core oder Hyundai-Kia-Connect/kia_uvo."
+  include_ha_betas:
+    name: HA Beta/RC-Releases anzeigen
+    description: Beta- und Release-Candidate-Versionen von Home Assistant in den Watch-Releases anzeigen. Standard true.
+  poll_interval:
+    name: Abfrageintervall (Sekunden)
+    description: "Pause zwischen zwei GitHub-API-Abfragen. Kleiner = schnellere Updates, aber mehr API-Aufrufe (Limit: 5000/Stunde). Standard 300 (5 Minuten). Bei wenigen Repos und stabilem Netz kann 60–120 genutzt werden."
+  verbose_log:
+    name: Ausführliches Logging
+    description: Gibt pro Poll-Zyklus die Anzahl der Repos und Details im Log aus. Standard false — nur Fehler und wichtige Ereignisse werden geloggt.
+  telegram_bot_token:
+    name: Telegram Bot Token
+    description: "Token des Telegram-Bots für Benachrichtigungen (Format: 123456789:ABC-...). Leer lassen um Telegram zu deaktivieren. Bot erstellen via @BotFather in Telegram."
+  telegram_chat_id:
+    name: Telegram Chat ID
+    description: "Chat-ID des Empfängers für Telegram-Nachrichten. Ermitteln via @userinfobot in Telegram oder einfach dem Bot /start schicken und die ID aus der Antwort kopieren."
