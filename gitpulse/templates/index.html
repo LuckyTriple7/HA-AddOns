@@ -1423,7 +1423,8 @@
 
     const allRepos = (data.my_repos || []).filter(r => {
       const sec = r.security || {};
-      return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length;
+      return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length
+          || sec.dependabot_access === false;
     });
 
     if (!allRepos.length) {
@@ -1468,12 +1469,13 @@
       return {
         ...repo,
         security: {
+          dependabot_access: sec.dependabot_access,
           dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      : [],
           code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   : [],
           secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) : [],
         }
       };
-    }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length);
+    }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length || r.security.dependabot_access === false);
 
     if (!repos.length) {
       el.innerHTML = `<div class="empty" style="padding:32px">{{ t.security_none_filtered }}</div>`;
@@ -1486,6 +1488,7 @@
       const cs  = sec.code_scanning   || [];
       const ss  = sec.secret_scanning || [];
 
+      const depAccessOk = sec.dependabot_access !== false;
       const depHtml = dep.length ? `
         <div style="margin-bottom:8px">
           <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
@@ -1501,7 +1504,11 @@
               ${a.fixed_in ? `<span style="font-size:.72rem;color:var(--green);white-space:nowrap">→ ${escHtml(a.fixed_in)}</span>` : ''}
               ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
-        </div>` : '';
+        </div>` : (!depAccessOk ? `
+        <div style="margin-bottom:8px;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:8px">
+          <span style="font-size:1rem">🔒</span>
+          <span>{{ t.security_dep_no_access }}</span>
+        </div>` : '');
 
       const csHtml = cs.length ? `
         <div style="margin-bottom:8px">

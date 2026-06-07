@@ -603,13 +603,27 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             'url':    a.get('html_url', ''),
         }
 
-    dep = _safe(f'/repos/{repo}/dependabot/alerts')
+    def _safe_dep(path: str) -> tuple[list, bool]:
+        """Like _safe but returns (data, access_ok). access_ok=False means 403/404."""
+        url = f'{GITHUB_API}{path}' if path.startswith('/') else path
+        try:
+            chk = http.get(url, headers=_gh_headers(token),
+                           params={'state': 'open', 'per_page': 1}, timeout=10)
+            if chk.status_code in (403, 404, 451):
+                return [], False
+        except Exception:
+            return [], True
+        result = _gh_get_paginated(path, token, max_pages=10, params={'state': 'open'})
+        return (result if isinstance(result, list) else []), True
+
+    dep, dep_access = _safe_dep(f'/repos/{repo}/dependabot/alerts')
     cs  = _safe(f'/repos/{repo}/code-scanning/alerts')
     ss  = _safe(f'/repos/{repo}/secret-scanning/alerts')
     return {
-        'dependabot':      [_fmt_dep(a) for a in dep],
-        'code_scanning':   [_fmt_cs(a)  for a in cs],
-        'secret_scanning': [_fmt_ss(a)  for a in ss],
+        'dependabot':        [_fmt_dep(a) for a in dep],
+        'dependabot_access': dep_access,
+        'code_scanning':     [_fmt_cs(a)  for a in cs],
+        'secret_scanning':   [_fmt_ss(a)  for a in ss],
     }
 
 

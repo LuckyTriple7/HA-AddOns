@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.42] - 2026-06-07
+
+### Added
+- Security-Tab: Dependabot-Zugriffscheck — zeigt Hinweis wenn Token den Scope `security_events` fehlt (statt stiller leerer Liste)
+- Locale: `security_dep_no_access` (DE + EN) mit Link-Hinweis zum Token-Bearbeiten
+
+---
+
 ## [0.1.41] - 2026-06-07
 
 ### Fixed

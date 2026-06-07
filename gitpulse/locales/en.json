@@ -31,6 +31,7 @@
   "security_dependabot": "Dependabot",
   "security_codescanning": "Code Scanning",
   "security_secretscanning": "Secret Scanning",
+  "security_dep_no_access": "Dependabot: token requires »security_events« scope — GitHub → Settings → Developer settings → edit token",
 
   "no_prs": "No open pull requests",
   "no_issues": "No open issues",
