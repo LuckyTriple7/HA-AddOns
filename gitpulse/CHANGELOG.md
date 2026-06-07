@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0] - 2026-06-07
+
+### Added
+- **Rate-Limit-Badge** im Header: zeigt verbleibende GitHub API-Aufrufe + Zeit bis Reset; färbt sich gelb/rot bei Engpass
+- **PR Review-Status**: ✓ Approved / ✗ Changes requested / ○ Pending direkt in der PR-Zeile; Kommentaranzahl (PR + Review-Kommentare)
+- **Telegram-Benachrichtigungen** für neue PRs, neue Issues und CI-Failures (zusätzlich zu Releases)
+- **Issues schließen** direkt aus dem Dashboard (✕-Button)
+- **Issues kommentieren** direkt aus dem Dashboard (💬-Button + Modal)
+- **ETag-Support** in der GitHub API: bedingte Anfragen mit `If-None-Match` — 304-Antworten verbrauchen kein Rate-Limit
+- **Automatische Poll-Intervall-Anpassung**: bei <500 verbleibenden Calls wird der Intervall verdoppelt, bei <100 verdreifacht, bei Erschöpfung wird bis zum Reset gewartet
+
+---
+
 ## [0.0.14] - 2026-06-07
 
 ### Added

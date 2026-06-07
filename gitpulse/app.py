@@ -92,6 +92,7 @@ _gh_cache: dict = {
     'token_expires': '',
     'last_poll':   0,
     'error':       None,
+    'rate_limit':  {'remaining': 5000, 'limit': 5000, 'reset': 0},
 }
 _gh_lock = threading.Lock()
 
@@ -101,6 +102,19 @@ _seen_releases: set[str] = set()
 
 # Repos ohne Releases — 404 einmal bekommen, bis Neustart überspringen
 _no_release_repos: set[str] = set()
+
+# ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit)
+_etag_cache: dict[str, tuple] = {}
+
+# GitHub Rate-Limit State
+_rate_limit: dict = {'remaining': 5000, 'limit': 5000, 'reset': 0}
+
+# Telegram-Benachrichtigungs-Tracking (In-Memory, Reset bei Neustart)
+# Erster Poll befüllt die Sets ohne Benachrichtigung, nur neue Einträge danach lösen aus
+_first_poll_done: bool = False
+_seen_prs:   dict[str, set] = defaultdict(set)   # repo → {pr_number, …}
+_seen_issues: dict[str, set] = defaultdict(set)  # repo → {issue_number, …}
+_known_run_conclusions: dict[int, str | None] = {}  # run_id → conclusion
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -250,6 +264,23 @@ def save_seen_releases() -> None:
 
 # ── GitHub API ────────────────────────────────────────────────────────────────
 
+def _update_rate_limit(headers) -> None:
+    try:
+        rem   = int(headers.get('X-RateLimit-Remaining', -1))
+        limit = int(headers.get('X-RateLimit-Limit', 5000))
+        reset = int(headers.get('X-RateLimit-Reset', 0))
+        if rem >= 0:
+            _rate_limit['remaining'] = rem
+            _rate_limit['limit']     = limit
+            _rate_limit['reset']     = reset
+            if rem < 100:
+                log.warning("GitHub Rate-Limit kritisch: %d/%d verbleibend, Reset um %s UTC",
+                            rem, limit,
+                            datetime.fromtimestamp(reset, tz=timezone.utc).strftime('%H:%M'))
+    except Exception:
+        pass
+
+
 def _gh_headers(token: str) -> dict:
     return {
         'Authorization': f'Bearer {token}',
@@ -260,12 +291,29 @@ def _gh_headers(token: str) -> dict:
 
 
 def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | None:
-    url = f'{GITHUB_API}{path}' if path.startswith('/') else path
+    url       = f'{GITHUB_API}{path}' if path.startswith('/') else path
+    cache_key = path + (str(sorted(params.items())) if params else '')
+    hdrs      = _gh_headers(token)
+    cached    = _etag_cache.get(cache_key)
+    if cached:
+        hdrs['If-None-Match'] = cached[0]
     try:
-        r = http.get(url, headers=_gh_headers(token), params=params, timeout=15)
+        r = http.get(url, headers=hdrs, params=params, timeout=15)
+        _update_rate_limit(r.headers)
+        if r.status_code == 304 and cached:
+            return cached[1]
         if r.status_code == 200:
-            return r.json()
-        log.warning("GitHub API %s → HTTP %d", path, r.status_code)
+            data = r.json()
+            etag = r.headers.get('ETag')
+            if etag:
+                _etag_cache[cache_key] = (etag, data)
+            return data
+        if r.status_code == 429:
+            reset_ts = int(r.headers.get('X-RateLimit-Reset', time.time() + 60))
+            log.warning("GitHub Rate-Limit überschritten — Reset um %s UTC",
+                        datetime.fromtimestamp(reset_ts, tz=timezone.utc).strftime('%H:%M'))
+        else:
+            log.warning("GitHub API %s → HTTP %d", path, r.status_code)
         return None
     except Exception as e:
         log.error("GitHub API Fehler (%s): %s", path, e)
@@ -280,6 +328,7 @@ def _gh_get_paginated(path: str, token: str, max_pages: int = 5) -> list:
         try:
             r = http.get(url, headers=_gh_headers(token),
                          params={'per_page': 100, 'page': page}, timeout=15)
+            _update_rate_limit(r.headers)
             if r.status_code != 200:
                 break
             data = r.json()
@@ -317,6 +366,23 @@ def _check_token(token: str) -> tuple[bool, str, str]:
         return False, '', ''
 
 
+def _compute_review_state(reviews: list) -> str:
+    """Aggregiert Review-Entscheidungen: 'approved', 'changes_requested', 'pending', 'none'."""
+    latest: dict[str, str] = {}
+    for rev in reviews:
+        state = rev.get('state', '')
+        if state in ('APPROVED', 'CHANGES_REQUESTED'):
+            latest[rev['user']['login']] = state
+    states = set(latest.values())
+    if 'CHANGES_REQUESTED' in states:
+        return 'changes_requested'
+    if 'APPROVED' in states:
+        return 'approved'
+    if reviews:
+        return 'pending'
+    return 'none'
+
+
 def _fetch_repo_data(repo: str, token: str) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
@@ -327,18 +393,21 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
     pulls_raw = _gh_get_paginated(f'/repos/{repo}/pulls', token) or []
     pulls = []
     for pr in pulls_raw:
+        reviews_raw = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}/reviews', token) or []
         pulls.append({
-            'number':    pr['number'],
-            'title':     pr['title'],
-            'state':     pr['state'],
-            'draft':     pr.get('draft', False),
-            'url':       pr['html_url'],
-            'user':      pr['user']['login'],
-            'avatar':    pr['user']['avatar_url'],
-            'labels':    [l['name'] for l in pr.get('labels', [])],
-            'created':   pr['created_at'],
-            'updated':   pr['updated_at'],
-            'mergeable': pr.get('mergeable_state', ''),
+            'number':       pr['number'],
+            'title':        pr['title'],
+            'state':        pr['state'],
+            'draft':        pr.get('draft', False),
+            'url':          pr['html_url'],
+            'user':         pr['user']['login'],
+            'avatar':       pr['user']['avatar_url'],
+            'labels':       [l['name'] for l in pr.get('labels', [])],
+            'created':      pr['created_at'],
+            'updated':      pr['updated_at'],
+            'mergeable':    pr.get('mergeable_state', ''),
+            'comments':     (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
+            'review_state': _compute_review_state(reviews_raw),
         })
 
     issues_raw = _gh_get_paginated(f'/repos/{repo}/issues', token) or []
@@ -501,11 +570,26 @@ def _poll_worker() -> None:
             with _gh_lock:
                 _gh_cache['error'] = str(e)
 
-        time.sleep(interval)
+        # Auto-Anpassung Schlafzeit bei Rate-Limit-Engpass
+        rem   = _rate_limit.get('remaining', 5000)
+        reset = _rate_limit.get('reset', 0)
+        if rem <= 0 and reset > 0:
+            wait = max(interval, reset - int(time.time()) + 10)
+            log.warning("Rate-Limit erschöpft — warte %ds bis Reset", wait)
+        elif rem < 100:
+            wait = max(interval, interval * 3)
+            log.warning("Rate-Limit sehr niedrig (%d verbleibend) — erhöhe Wartezeit auf %ds", rem, wait)
+        elif rem < 500:
+            wait = max(interval, interval * 2)
+            log.info("Rate-Limit niedrig (%d verbleibend) — erhöhe Wartezeit auf %ds", rem, wait)
+        else:
+            wait = interval
+
+        time.sleep(wait)
 
 
 def _do_poll(cfg: dict, token: str) -> None:
-    global _seen_releases
+    global _seen_releases, _first_poll_done
 
     token_ok, scopes, expires = _check_token(token)
     if not token_ok:
@@ -534,6 +618,47 @@ def _do_poll(cfg: dict, token: str) -> None:
                 log.info("%s — %d PRs, %d Issues", repo, data['open_prs'], data['open_issues'])
         except Exception as e:
             log.error("Repo %s Fehler: %s", repo, e)
+
+    # Telegram: neue PRs / Issues / CI-Failures erkennen
+    for rd in repo_data:
+        rname = rd['repo']
+
+        for pr in rd.get('pulls', []):
+            key = pr['number']
+            if key not in _seen_prs[rname]:
+                if _first_poll_done and tg_token and tg_chat:
+                    _send_telegram(tg_token, tg_chat,
+                        f"🔀 Neuer PR: <b>{rname}</b>\n"
+                        f"#{pr['number']} {pr['title']}\n"
+                        f"von @{pr['user']}\n"
+                        f"<a href=\"{pr['url']}\">PR öffnen</a>")
+                _seen_prs[rname].add(key)
+
+        for iss in rd.get('issues', []):
+            key = iss['number']
+            if key not in _seen_issues[rname]:
+                if _first_poll_done and tg_token and tg_chat:
+                    _send_telegram(tg_token, tg_chat,
+                        f"🐛 Neues Issue: <b>{rname}</b>\n"
+                        f"#{iss['number']} {iss['title']}\n"
+                        f"von @{iss['user']}\n"
+                        f"<a href=\"{iss['url']}\">Issue öffnen</a>")
+                _seen_issues[rname].add(key)
+
+        for run in rd.get('runs', []):
+            run_id   = run['id']
+            curr_con = run.get('conclusion')
+            prev_con = _known_run_conclusions.get(run_id)
+            if curr_con == 'failure' and prev_con != 'failure':
+                if _first_poll_done and tg_token and tg_chat:
+                    _send_telegram(tg_token, tg_chat,
+                        f"❌ CI Fehler: <b>{rname}</b>\n"
+                        f"Workflow: {run['name']}\n"
+                        f"Branch: {run.get('branch', '?')}\n"
+                        f"<a href=\"{run['url']}\">Details</a>")
+            _known_run_conclusions[run_id] = curr_con
+
+    _first_poll_done = True
 
     # Watch-Repos Releases
     releases = _fetch_releases(watch_repos, token, incl_betas)
@@ -565,6 +690,7 @@ def _do_poll(cfg: dict, token: str) -> None:
         _gh_cache['last_poll']     = int(time.time())
         _gh_cache['error']         = None
         _gh_cache['new_releases']  = new_releases
+        _gh_cache['rate_limit']    = dict(_rate_limit)
 
     _notify_sse()
     log.info("Poll abgeschlossen — %d Repos, %d Watch-Releases", len(repo_data), len(releases))
@@ -846,6 +972,71 @@ def api_ci_jobs():
             ],
         })
     return jsonify(jobs)
+
+
+@app.route('/api/issue/close', methods=['POST'])
+def api_issue_close():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body     = request.get_json(silent=True) or {}
+    repo     = body.get('repo', '').strip()
+    issue_nr = body.get('number')
+    if not repo or not issue_nr:
+        return jsonify({'error': 'repo und number erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.patch(
+            f'{GITHUB_API}/repos/{repo}/issues/{issue_nr}',
+            headers=_gh_headers(token),
+            json={'state': 'closed'},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 200:
+            log.info("Issue #%s in %s geschlossen", issue_nr, repo)
+            return jsonify({'status': 'closed'})
+        msg = r.json().get('message', f'HTTP {r.status_code}')
+        log.warning("Issue-Close fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Issue-Close Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/issue/comment', methods=['POST'])
+def api_issue_comment():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body     = request.get_json(silent=True) or {}
+    repo     = body.get('repo', '').strip()
+    issue_nr = body.get('number')
+    comment  = body.get('body', '').strip()
+    if not repo or not issue_nr or not comment:
+        return jsonify({'error': 'repo, number und body erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.post(
+            f'{GITHUB_API}/repos/{repo}/issues/{issue_nr}/comments',
+            headers=_gh_headers(token),
+            json={'body': comment},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 201:
+            log.info("Kommentar zu Issue #%s in %s hinzugefügt", issue_nr, repo)
+            return jsonify({'status': 'commented'})
+        msg = r.json().get('message', f'HTTP {r.status_code}')
+        log.warning("Issue-Comment fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Issue-Comment Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/workflow/cancel', methods=['POST'])

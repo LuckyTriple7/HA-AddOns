@@ -46,6 +46,17 @@
   "btn_dispatch": "Starten",
   "btn_cancel": "Abbrechen",
   "btn_cancel_run": "Stopp",
+  "btn_close_issue": "Schließen",
+  "btn_comment": "Kommentieren",
+
+  "review_approved": "Approved",
+  "review_changes": "Changes requested",
+  "review_pending": "Review ausstehend",
+
+  "comment_title": "Kommentar hinzufügen",
+  "comment_placeholder": "Kommentar schreiben…",
+
+  "rl_calls": "API-Aufrufe",
 
   "merge_title": "Pull Request mergen",
   "merge_method": "Merge-Methode",

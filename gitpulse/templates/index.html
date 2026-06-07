@@ -205,6 +205,7 @@
       GitPulse
     </div>
     <span id="token-badge" class="token-badge" style="display:none"></span>
+    <span id="rl-badge" style="font-size:.7rem;color:var(--muted);display:none"></span>
     <div id="refresh-badge"><div class="rb-dot"></div><span id="refresh-countdown"></span></div>
     <div class="hdr-spacer"></div>
     <button class="hdr-btn" onclick="pollNow()" title="{{ t.btn_refresh }}">
@@ -295,6 +296,24 @@
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('merge-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm danger" onclick="confirmMerge()">{{ t.btn_merge }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Comment Modal ─────────────────────────────────────────────── -->
+  <div id="comment-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+        {{ t.comment_title }}
+      </h3>
+      <p id="comment-issue-title" style="font-size:.85rem;color:var(--muted);margin-bottom:4px"></p>
+      <textarea id="comment-body-input" rows="4" placeholder="{{ t.comment_placeholder }}"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:.88rem;resize:vertical;font-family:inherit"></textarea>
+      <div id="comment-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('comment-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="confirmComment()">{{ t.btn_comment }}</button>
       </div>
     </div>
   </div>
@@ -470,6 +489,48 @@
     .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
   }
 
+  // ── Issue schließen ───────────────────────────────────────────────
+  function closeIssue(repo, number) {
+    fetch(u('/api/issue/close'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, number}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) triggerRefresh(3);
+      else alert(data.error || T.error_unknown);
+    })
+    .catch(e => alert(String(e)));
+  }
+
+  // ── Comment Modal ─────────────────────────────────────────────────
+  let _commentRepo = null, _commentNr = null;
+  function openCommentModal(repo, number, title) {
+    _commentRepo = repo; _commentNr = number;
+    document.getElementById('comment-issue-title').textContent = title;
+    document.getElementById('comment-body-input').value = '';
+    document.getElementById('comment-err').style.display = 'none';
+    document.getElementById('comment-modal').classList.add('show');
+  }
+  function confirmComment() {
+    const body  = document.getElementById('comment-body-input').value.trim();
+    const errEl = document.getElementById('comment-err');
+    errEl.style.display = 'none';
+    if (!body) return;
+    fetch(u('/api/issue/comment'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _commentRepo, number: _commentNr, body}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) { closeModal('comment-modal'); triggerRefresh(3); }
+      else { errEl.textContent = data.error || T.error_unknown; errEl.style.display = 'block'; }
+    })
+    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
   // ── Cancel Workflow ───────────────────────────────────────────────
   function cancelWorkflow(repo, runId) {
     fetch(u('/api/workflow/cancel'), {
@@ -519,9 +580,14 @@
     new_release:  '{{ t.notif_new_release }}',
     btn_merge:    '{{ t.btn_merge }}',
     btn_rerun:    '{{ t.btn_rerun }}',
-    btn_dispatch:    '{{ t.btn_dispatch }}',
-    btn_cancel_run:  '{{ t.btn_cancel_run }}',
-    error_unknown:   '{{ t.error_unknown }}',
+    btn_dispatch:      '{{ t.btn_dispatch }}',
+    btn_cancel_run:    '{{ t.btn_cancel_run }}',
+    btn_close_issue:   '{{ t.btn_close_issue }}',
+    btn_comment:       '{{ t.btn_comment }}',
+    review_approved:   '{{ t.review_approved }}',
+    review_changes:    '{{ t.review_changes }}',
+    review_pending:    '{{ t.review_pending }}',
+    error_unknown:     '{{ t.error_unknown }}',
   };
 
   function relTime(iso) {
@@ -541,6 +607,30 @@
     const lc = name.toLowerCase();
     for (const [k,v] of Object.entries(colors)) if (lc.includes(k)) return v;
     return '#8b949e';
+  }
+
+  // ── Render: Rate-Limit Badge ──────────────────────────────────────
+  function renderRateLimit(data) {
+    const rl  = data.rate_limit;
+    const el  = document.getElementById('rl-badge');
+    if (!rl || !el || rl.remaining === undefined) return;
+    const rem     = rl.remaining;
+    const lim     = rl.limit || 5000;
+    const resetIn = rl.reset ? Math.max(0, Math.ceil((rl.reset * 1000 - Date.now()) / 60000)) : 0;
+    const color   = rem < 200 ? 'var(--red)' : rem < 500 ? 'var(--yellow)' : 'var(--muted)';
+    el.style.color = color;
+    el.textContent = `API ${rem}/${lim}${resetIn > 0 ? ' ⏱ ' + resetIn + 'm' : ''}`;
+    el.style.display = '';
+  }
+
+  // ── Review Badge ──────────────────────────────────────────────────
+  function reviewBadge(state) {
+    const map = {
+      approved:           `<span style="color:var(--green);font-size:.72rem;font-weight:600">✓ ${T.review_approved}</span>`,
+      changes_requested:  `<span style="color:var(--red);font-size:.72rem;font-weight:600">✗ ${T.review_changes}</span>`,
+      pending:            `<span style="color:var(--yellow);font-size:.72rem;font-weight:600">○ ${T.review_pending}</span>`,
+    };
+    return map[state] || '';
   }
 
   // ── Render: Summary Bar ───────────────────────────────────────────
@@ -626,6 +716,8 @@
             <span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>
             <span>@${escHtml(pr.user)}</span>
             <span>${relTime(pr.updated)}</span>
+            ${reviewBadge(pr.review_state)}
+            ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
             ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
@@ -658,6 +750,8 @@
             ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
+        <button class="act-btn act-btn-dispatch" onclick="openCommentModal('${escHtml(repo.repo)}',${iss.number},'#${iss.number} ${escHtml(iss.title).replace(/'/g,"\\'")}')">💬 ${T.btn_comment}</button>
+        <button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>
       </div>`).join('') + '</div></div>';
   }
 
@@ -786,6 +880,7 @@
       activeRepo = data.my_repos[0].repo;
     renderSummary(data);
     renderTokenAlert(data);
+    renderRateLimit(data);
     renderRepoSelector(data.my_repos || []);
     renderPRs(data);
     renderIssues(data);
