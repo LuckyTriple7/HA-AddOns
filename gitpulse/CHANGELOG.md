@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.13] - 2026-06-07
+
+### Fixed
+- Dispatch-Modal: Branch/Tag-Feld wird automatisch mit dem Default-Branch des Repos vorausgefüllt (statt hardcodiertem "main")
+
+---
+
 ## [0.0.12] - 2026-06-07
 
 ### Changed

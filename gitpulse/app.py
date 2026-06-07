@@ -321,6 +321,9 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
 
+    repo_meta     = _gh_get(f'/repos/{repo}', token) or {}
+    default_branch = repo_meta.get('default_branch', 'main')
+
     pulls_raw = _gh_get_paginated(f'/repos/{repo}/pulls', token) or []
     pulls = []
     for pr in pulls_raw:
@@ -407,6 +410,7 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
         'repo':           repo,
         'owner':          owner,
         'name':           name,
+        'default_branch': default_branch,
         'pulls':          pulls,
         'issues':         issues,
         'runs':           runs,

@@ -433,7 +433,7 @@
     sel.innerHTML = wfs.length
       ? wfs.map(w => `<option value="${w.id}">${escHtml(w.name)}</option>`).join('')
       : '<option value="">{{ t.no_workflows }}</option>';
-    document.getElementById('dispatch-ref-input').value = 'main';
+    document.getElementById('dispatch-ref-input').value = repoData?.default_branch || 'main';
     document.getElementById('dispatch-err').style.display = 'none';
     document.getElementById('dispatch-modal').classList.add('show');
   }
