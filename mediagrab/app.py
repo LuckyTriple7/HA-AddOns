@@ -267,6 +267,9 @@ def _parse_error(lines: list[str]) -> str:
 
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
+def _validate_url(url: str) -> bool:
+    return url.startswith('http://') or url.startswith('https://')
+
 _PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
@@ -312,7 +315,7 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 '--merge-output-format', 'mp4']
 
-    cmd.append(url)
+    cmd += ['--', url]
     return cmd
 
 def _run_download(job_id: str) -> None:
@@ -651,6 +654,8 @@ def api_download():
     urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
     if not urls:
         return jsonify({'error': 'no_url'}), 400
+    if not all(_validate_url(u) for u in urls):
+        return jsonify({'error': 'invalid_url'}), 400
 
     fmt = data.get('fmt', 'best_video')
     if fmt not in VALID_FORMATS:
@@ -699,11 +704,13 @@ def api_info():
     url  = (data.get('url') or '').strip()
     if not url:
         return jsonify({'error': 'no_url'}), 400
+    if not _validate_url(url):
+        return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd.append(url)
+    cmd += ['--', url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

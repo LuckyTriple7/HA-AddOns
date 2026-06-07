@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.3] — 2026-06-07
+### Security
+- Command-Injection-Schwachstelle behoben: URL-Eingaben werden auf `http://`/`https://` validiert, und `--` wird vor der URL in alle `subprocess`-Aufrufe eingefügt, damit User-Input nicht als yt-dlp-Flag interpretiert wird (CodeQL: py/command-line-injection #26)
+
+---
+
 ## [1.0.2] — 2026-06-07
 ### Added
 - Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start
