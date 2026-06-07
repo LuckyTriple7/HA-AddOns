@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.7] — 2026-06-07
+
+### Security
+- CRITICAL Command Injection (#26): URL wird via `stdin` (yt-dlp `--batch-file -`) statt als Kommandozeilen-Argument übergeben — `cmd` enthält nur noch statische Strings, kein User-Input mehr in der Arg-Liste
+
+---
+
 ## [1.0.6] — 2026-06-07
 
 ### Security
