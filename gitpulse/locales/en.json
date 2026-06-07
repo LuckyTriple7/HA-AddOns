@@ -20,6 +20,9 @@
   "stat_issues": "Open Issues",
   "stat_releases": "Watch Releases",
   "stat_workflows": "Workflows",
+  "stat_stars": "Stars",
+  "stat_forks": "Forks",
+  "stat_watchers": "Watchers",
 
   "no_prs": "No open pull requests",
   "no_issues": "No open issues",

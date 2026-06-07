@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.22] - 2026-06-07
+
+### Added
+- Repos-Tab: Stars ⭐, Forks 🍴 und Watchers 👁 je Repo als kompakte Statistik-Zeile im Übersichts-Card
+- Telegram: Benachrichtigung wenn sich Stars, Forks oder Watchers eines eigenen Repos ändern (mit Vorher/Nachher und Differenz)
+
+---
+
 ## [0.1.21] - 2026-06-07
 
 ### Fixed

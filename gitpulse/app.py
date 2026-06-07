@@ -116,6 +116,7 @@ _first_poll_done: bool = False
 _seen_prs:   dict[str, set] = defaultdict(set)   # repo → {pr_number, …}
 _seen_issues: dict[str, set] = defaultdict(set)  # repo → {issue_number, …}
 _known_run_conclusions: dict[int, str | None] = {}  # run_id → conclusion
+_repo_stats: dict[str, dict] = {}  # repo → {stars, forks, watchers} für Änderungserkennung
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -515,6 +516,9 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
         'latest_release': latest_release,
         'open_prs':       len(pulls),
         'open_issues':    len(issues),
+        'stars':          repo_meta.get('stargazers_count', 0),
+        'forks':          repo_meta.get('forks_count', 0),
+        'watchers':       repo_meta.get('watchers_count', 0),
     }
 
 
@@ -713,6 +717,34 @@ def _do_poll(cfg: dict, token: str) -> None:
                             + f"Status: {label}\n"
                             + f"<a href=\"{run['url']}\">Details</a>")
             _known_run_conclusions[run_id] = curr_con
+
+    # Telegram: Stars / Forks / Watchers Änderungen erkennen
+    for rd in repo_data:
+        rname = rd['repo']
+        curr_stats = {
+            'stars':    rd.get('stars', 0),
+            'forks':    rd.get('forks', 0),
+            'watchers': rd.get('watchers', 0),
+        }
+        if rname in _repo_stats and _first_poll_done and tg_token and tg_chat:
+            prev_stats = _repo_stats[rname]
+            changes = []
+            if curr_stats['stars'] != prev_stats['stars']:
+                diff = curr_stats['stars'] - prev_stats['stars']
+                sign = '+' if diff > 0 else ''
+                changes.append(f"⭐ Stars: {prev_stats['stars']} → {curr_stats['stars']} ({sign}{diff})")
+            if curr_stats['forks'] != prev_stats['forks']:
+                diff = curr_stats['forks'] - prev_stats['forks']
+                sign = '+' if diff > 0 else ''
+                changes.append(f"🍴 Forks: {prev_stats['forks']} → {curr_stats['forks']} ({sign}{diff})")
+            if curr_stats['watchers'] != prev_stats['watchers']:
+                diff = curr_stats['watchers'] - prev_stats['watchers']
+                sign = '+' if diff > 0 else ''
+                changes.append(f"👁 Watchers: {prev_stats['watchers']} → {curr_stats['watchers']} ({sign}{diff})")
+            if changes:
+                _send_telegram(tg_token, tg_chat,
+                    f"📊 <b>Repo-Statistiken:</b> <b>{rname}</b>\n" + '\n'.join(changes))
+        _repo_stats[rname] = curr_stats
 
     # Telegram Startup-Nachricht (einmalig beim ersten Poll)
     if not _first_poll_done and tg_token and tg_chat:

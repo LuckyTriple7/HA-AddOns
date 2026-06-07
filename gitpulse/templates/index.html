@@ -891,6 +891,23 @@
             <div style="display:flex;flex-direction:column;gap:2px;min-width:0">${runName}</div>
           </div>
         </div>
+        <div style="display:flex;gap:0;border-top:1px solid var(--border);background:var(--surf2)">
+          <div style="flex:1;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:5px;border-right:1px solid var(--border)">
+            <span style="font-size:.82rem">⭐</span>
+            <span style="font-size:.82rem;font-weight:600">${(repo.stars||0).toLocaleString()}</span>
+            <span style="font-size:.67rem;color:var(--muted)">{{ t.stat_stars }}</span>
+          </div>
+          <div style="flex:1;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:5px;border-right:1px solid var(--border)">
+            <span style="font-size:.82rem">🍴</span>
+            <span style="font-size:.82rem;font-weight:600">${(repo.forks||0).toLocaleString()}</span>
+            <span style="font-size:.67rem;color:var(--muted)">{{ t.stat_forks }}</span>
+          </div>
+          <div style="flex:1;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:5px">
+            <span style="font-size:.82rem">👁</span>
+            <span style="font-size:.82rem;font-weight:600">${(repo.watchers||0).toLocaleString()}</span>
+            <span style="font-size:.67rem;color:var(--muted)">{{ t.stat_watchers }}</span>
+          </div>
+        </div>
       </div>`;
     }).join('');
   }
