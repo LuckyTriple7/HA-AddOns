@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17] - 2026-06-07
+
+### Changed
+- "Neu"-Indikator bei Releases: roter Punkt → grüner pulsierender Punkt (passt besser zu "neue gute Neuigkeit")
+
+---
+
 ## [0.1.16] - 2026-06-07
 
 ### Fixed
