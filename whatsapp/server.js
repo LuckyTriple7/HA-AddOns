@@ -3055,6 +3055,7 @@ app.get('/', (req, res) => {
     }
 
     applyLang();
+    if (!navigator.onLine) showOfflineBanner();
     refresh();
     setInterval(refresh, 5000);
     setInterval(pollMessages, 2000);

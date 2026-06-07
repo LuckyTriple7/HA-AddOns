@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.3] - 2026-06-07
+### Fixed
+- Nach Page-Reload im Offline-Zustand (z.B. Browser-Cache via Service Worker) erschien der Banner erst nach 15 Sek.: `navigator.onLine`-Check beim Start zeigt Banner sofort
+
 ## [1.7.2] - 2026-06-07
 ### Fixed
 - Offline-Banner verschwand fälschlicherweise trotz WLAN-Aus (gecachte Fetch-Antwort): `navigator.onLine`-Check vor `hideOfflineBanner()`
