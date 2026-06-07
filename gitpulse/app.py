@@ -1370,13 +1370,16 @@ def github_webhook():
     cfg    = load_config()
     secret = cfg.get('webhook_secret', '').strip()
 
-    # Signatur prüfen wenn Secret konfiguriert
-    if secret:
-        sig      = request.headers.get('X-Hub-Signature-256', '')
-        expected = 'sha256=' + hmac.new(secret.encode(), request.data, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected):
-            log.warning("Webhook: ungültige Signatur — abgelehnt")
-            return 'Forbidden', 403
+    # Kein Secret konfiguriert → Webhooks deaktiviert, Polling läuft weiter
+    if not secret:
+        return jsonify({'status': 'disabled'}), 200
+
+    # Signatur prüfen
+    sig      = request.headers.get('X-Hub-Signature-256', '')
+    expected = 'sha256=' + hmac.new(secret.encode(), request.data, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        log.warning("Webhook: ungültige Signatur — abgelehnt")
+        return 'Forbidden', 403
 
     event   = request.headers.get('X-GitHub-Event', '')
     payload = request.get_json(silent=True) or {}

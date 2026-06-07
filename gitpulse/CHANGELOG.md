@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28] - 2026-06-07
+
+### Fixed
+- Webhook: ohne konfiguriertes `webhook_secret` werden eingehende Requests sofort mit `{"status":"disabled"}` beantwortet — kein unauthentifizierter Zugriff möglich; Polling läuft wie gewohnt weiter
+
+---
+
 ## [0.1.27] - 2026-06-07
 
 ### Added
