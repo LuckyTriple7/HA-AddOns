@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.10] - 2026-06-07
+
+### Fixed
+- Repos ohne Releases (HTTP 404 auf `/releases/latest`) werden beim ersten Poll erkannt und danach bis zum Add-on-Neustart aus der Abfrage ausgeschlossen — kein Spam mehr im Log
+
+---
+
 ## [0.0.9] - 2026-06-07
 
 ### Changed

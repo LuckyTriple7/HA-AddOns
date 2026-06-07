@@ -99,6 +99,9 @@ _gh_lock = threading.Lock()
 _SEEN_PATH = '/data/seen_releases.json'
 _seen_releases: set[str] = set()
 
+# Repos ohne Releases — 404 einmal bekommen, bis Neustart überspringen
+_no_release_repos: set[str] = set()
+
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
@@ -378,16 +381,27 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
                 'path': wf['path'],
             })
 
-    release_raw = _gh_get(f'/repos/{repo}/releases/latest', token)
     latest_release = None
-    if release_raw:
-        latest_release = {
-            'tag':     release_raw['tag_name'],
-            'name':    release_raw.get('name') or release_raw['tag_name'],
-            'url':     release_raw['html_url'],
-            'date':    release_raw['published_at'],
-            'prerelease': release_raw.get('prerelease', False),
-        }
+    if repo not in _no_release_repos:
+        url = f'{GITHUB_API}/repos/{repo}/releases/latest'
+        try:
+            r = http.get(url, headers=_gh_headers(token), timeout=15)
+            if r.status_code == 200:
+                release_raw = r.json()
+                latest_release = {
+                    'tag':        release_raw['tag_name'],
+                    'name':       release_raw.get('name') or release_raw['tag_name'],
+                    'url':        release_raw['html_url'],
+                    'date':       release_raw['published_at'],
+                    'prerelease': release_raw.get('prerelease', False),
+                }
+            elif r.status_code == 404:
+                _no_release_repos.add(repo)
+                log.info("%s hat noch keine Releases — Abfrage bis Neustart übersprungen", repo)
+            else:
+                log.warning("GitHub API /repos/%s/releases/latest → HTTP %d", repo, r.status_code)
+        except Exception as e:
+            log.error("GitHub API Fehler (%s/releases/latest): %s", repo, e)
 
     return {
         'repo':           repo,
