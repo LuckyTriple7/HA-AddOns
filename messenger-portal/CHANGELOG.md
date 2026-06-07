@@ -1,5 +1,12 @@
 # Changelog – MessengerPortal
 
+## [1.2.3] - 2026-06-07
+
+### Security
+- Flask 3.0.3 → 3.1.3 (Dependabot-Alert behoben)
+
+---
+
 ## [1.2.2] - 2026-06-07
 ### Added
 - Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start

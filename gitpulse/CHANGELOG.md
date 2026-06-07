@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.48] - 2026-06-07
+
+### Security
+- Flask 3.0.3 → 3.1.3 (Dependabot-Alert behoben)
+
+---
+
+## [0.1.47] - 2026-06-07
+
+### Added
+- PRs + Issues: Offen/Geschlossen-Toggle über der Sucheingabe
+- Geschlossene PRs (max. 50, sortiert nach letzter Aktivität): zeigt ⎇ Gemerged (lila) oder ✕ Geschlossen (rot)
+- Geschlossene Issues (max. 50): zeigt Schließzeitpunkt, keine Aktions-Buttons
+- Merge/Kommentar/Schließen-Buttons ausgeblendet bei geschlossenen Einträgen
+- Locale: `filter_open`, `filter_closed`, `pr_merged`, `pr_closed`, `no_closed_prs`, `no_closed_issues` (DE + EN)
+
+---
+
 ## [0.1.46] - 2026-06-07
 
 ### Fixed

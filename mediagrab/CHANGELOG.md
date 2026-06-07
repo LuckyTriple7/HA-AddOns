@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.9] — 2026-06-07
+
+### Security
+- Flask 3.0.3 → 3.1.3 (Dependabot-Alert behoben)
+
+---
+
 ## [1.0.8] — 2026-06-07
 
 ### Security

@@ -464,15 +464,55 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         if 'pull_request' in iss:
             continue
         issues.append({
-            'number':  iss['number'],
-            'title':   iss['title'],
-            'state':   iss['state'],
-            'url':     iss['html_url'],
-            'user':    iss['user']['login'],
-            'avatar':  iss['user']['avatar_url'],
-            'labels':  [l['name'] for l in iss.get('labels', [])],
-            'created': iss['created_at'],
-            'updated': iss['updated_at'],
+            'number':    iss['number'],
+            'title':     iss['title'],
+            'state':     iss['state'],
+            'url':       iss['html_url'],
+            'user':      iss['user']['login'],
+            'avatar':    iss['user']['avatar_url'],
+            'labels':    [l['name'] for l in iss.get('labels', [])],
+            'created':   iss['created_at'],
+            'updated':   iss['updated_at'],
+            'closed_at': iss.get('closed_at'),
+        })
+
+    closed_pulls_raw = _gh_get(f'/repos/{repo}/pulls', token,
+                                {'state': 'closed', 'per_page': 50, 'sort': 'updated', 'direction': 'desc'}) or []
+    closed_pulls = []
+    for pr in (closed_pulls_raw if isinstance(closed_pulls_raw, list) else []):
+        closed_pulls.append({
+            'number':    pr['number'],
+            'title':     pr['title'],
+            'state':     pr['state'],
+            'draft':     pr.get('draft', False),
+            'url':       pr['html_url'],
+            'user':      pr['user']['login'],
+            'avatar':    pr['user']['avatar_url'],
+            'labels':    [l['name'] for l in pr.get('labels', [])],
+            'created':   pr['created_at'],
+            'updated':   pr['updated_at'],
+            'merged_at': pr.get('merged_at'),
+            'comments':  (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
+            'review_state': 'none',
+        })
+
+    closed_issues_raw = _gh_get(f'/repos/{repo}/issues', token,
+                                 {'state': 'closed', 'per_page': 50, 'sort': 'updated', 'direction': 'desc'}) or []
+    closed_issues = []
+    for iss in (closed_issues_raw if isinstance(closed_issues_raw, list) else []):
+        if 'pull_request' in iss:
+            continue
+        closed_issues.append({
+            'number':    iss['number'],
+            'title':     iss['title'],
+            'state':     iss['state'],
+            'url':       iss['html_url'],
+            'user':      iss['user']['login'],
+            'avatar':    iss['user']['avatar_url'],
+            'labels':    [l['name'] for l in iss.get('labels', [])],
+            'created':   iss['created_at'],
+            'updated':   iss['updated_at'],
+            'closed_at': iss.get('closed_at'),
         })
 
     all_runs: list = []
@@ -547,7 +587,9 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         'name':           name,
         'default_branch': default_branch,
         'pulls':          pulls,
+        'closed_pulls':   closed_pulls,
         'issues':         issues,
+        'closed_issues':  closed_issues,
         'runs':           runs,
         'workflows':      workflows,
         'latest_release': latest_release,
