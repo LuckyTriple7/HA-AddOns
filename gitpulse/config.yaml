@@ -1,6 +1,6 @@
 name: GitPulse
 description: GitHub Control Panel — PRs, Issues, CI-Status und Release-Tracker auf einen Blick
-version: "0.0.2"
+version: "0.0.3"
 slug: gitpulse
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/gitpulse"
@@ -13,6 +13,13 @@ startup: application
 boot: manual
 init: false
 
+panel_icon: mdi:github
+panel_title: GitPulse
+
+ingress: true
+ingress_port: 17792
+ingress_stream: true
+
 map:
   - addon_config:rw
 
@@ -20,7 +27,7 @@ ports:
   17792/tcp: 17792
 
 ports_description:
-  17792/tcp: GitPulse Web-UI
+  17792/tcp: GitPulse Web-UI (direkt)
 
 options:
   username: "admin"

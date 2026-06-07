@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.3] - 2026-06-07
+
+### Added
+- HA Ingress Support: Add-on erscheint als Panel im HA-Seitenmenü (`mdi:github`, Titel "GitPulse")
+- `_IngressMiddleware`: liest `X-Ingress-Path` Header und setzt WSGI `SCRIPT_NAME` korrekt
+- manifest.json und sw.js werden jetzt dynamisch via Flask gerendert (Ingress-Prefix in `start_url`, `scope` und Service-Worker-Cache-Pfaden)
+- Alle Frontend-URLs (fetch, EventSource, Links) nutzen den Ingress-Base-Pfad
+
+---
+
 ## [0.0.2] - 2026-06-07
 
 ### Added

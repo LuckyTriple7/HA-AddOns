@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>GitPulse</title>
-  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  <link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
   <meta name="theme-color" content="#0d1117">
+  <meta name="app-base" content="{{ script_root }}" id="app-base">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
@@ -193,13 +194,13 @@
       <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
       {{ t.btn_refresh }}
     </button>
-    <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
-    <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+    <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
     <button class="hdr-btn" onclick="toggleTheme()">
       <svg class="icon-moon" viewBox="0 0 24 24" style="display:block"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
       <svg class="icon-sun" viewBox="0 0 24 24" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
     </button>
-    <a href="/logout" class="hdr-btn">{{ t.logout }}</a>
+    <a href="{{ url_for('logout') }}" class="hdr-btn">{{ t.logout }}</a>
   </header>
 
   <!-- ── Tabs ────────────────────────────────────────────────────── -->
@@ -330,6 +331,10 @@
   </div>
 
   <script>
+  // ── Ingress base path ─────────────────────────────────────────────
+  const BASE = (document.getElementById('app-base')?.content || '').replace(/\/$/, '');
+  const u = path => BASE + path;
+
   // ── Theme ─────────────────────────────────────────────────────────
   (function(){
     const t = localStorage.getItem('gp-theme') || 'dark';
@@ -385,7 +390,7 @@
     const method = document.getElementById('merge-method-select').value;
     const errEl  = document.getElementById('merge-err');
     errEl.style.display = 'none';
-    fetch('/api/pr/merge', {
+    fetch(u('/api/pr/merge'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({repo: _mergeRepo, number: _mergePRnr, method}),
@@ -423,7 +428,7 @@
     const errEl = document.getElementById('dispatch-err');
     errEl.style.display = 'none';
     if (!wfId) { errEl.textContent = '{{ t.no_workflows }}'; errEl.style.display = 'block'; return; }
-    fetch('/api/workflow/dispatch', {
+    fetch(u('/api/workflow/dispatch'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({repo: _dispatchRepo, workflow_id: wfId, ref}),
@@ -443,7 +448,7 @@
 
   // ── Rerun Workflow ────────────────────────────────────────────────
   function rerunWorkflow(repo, runId) {
-    fetch('/api/workflow/rerun', {
+    fetch(u('/api/workflow/rerun'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({repo, run_id: runId}),
@@ -683,27 +688,27 @@
 
   // ── Fetch data ────────────────────────────────────────────────────
   function loadData() {
-    fetch('/api/data')
+    fetch(u('/api/data'))
       .then(r => r.json())
       .then(data => render(data))
       .catch(err => console.error('API Fehler', err));
   }
 
   function pollNow() {
-    fetch('/api/poll-now', {method:'POST'})
+    fetch(u('/api/poll-now'), {method:'POST'})
       .then(() => setTimeout(loadData, 2000))
       .catch(() => {});
   }
 
   function resetSeen() {
-    fetch('/api/seen-releases/reset', {method:'POST'})
+    fetch(u('/api/seen-releases/reset'), {method:'POST'})
       .then(() => loadData())
       .catch(() => {});
   }
 
   // ── SSE ───────────────────────────────────────────────────────────
   function connectSSE() {
-    const es = new EventSource('/events');
+    const es = new EventSource(u('/events'));
     es.onmessage = e => { if (e.data === 'update') loadData(); };
     es.onerror = () => {
       document.getElementById('offline-banner').classList.add('show');
@@ -725,7 +730,7 @@
   }
 
   function fetchConsole() {
-    fetch('/api/console?since=' + conSince)
+    fetch(u('/api/console?since=' + conSince))
       .then(r => r.json())
       .then(entries => {
         if (!entries.length) return;
@@ -798,7 +803,7 @@
 
   // ── Service Worker ────────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
+    navigator.serviceWorker.register(u('/sw.js'), { scope: BASE + '/' });
   }
 
   // ── Utils ─────────────────────────────────────────────────────────

@@ -47,7 +47,25 @@ _root.addHandler(_buf_h)
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
 app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+class _IngressMiddleware:
+    """Reads HA Supervisor X-Ingress-Path and sets WSGI SCRIPT_NAME so that
+    Flask's url_for() generates correct URLs behind the Ingress proxy."""
+    def __init__(self, wsgi_app):
+        self._app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+        if prefix:
+            environ['SCRIPT_NAME'] = prefix
+            path = environ.get('PATH_INFO', '')
+            if path.startswith(prefix):
+                environ['PATH_INFO'] = path[len(prefix):] or '/'
+        return self._app(environ, start_response)
+
+
+app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
@@ -543,7 +561,27 @@ def health():
 
 @app.route('/manifest.json')
 def manifest():
-    resp = make_response(app.send_static_file('manifest.json'))
+    base = request.script_root.rstrip('/')
+    data = {
+        'name': 'GitPulse',
+        'short_name': 'GitPulse',
+        'description': 'GitHub Control Panel für Home Assistant',
+        'start_url': base + '/',
+        'scope': base + '/',
+        'display': 'standalone',
+        'orientation': 'portrait-primary',
+        'background_color': '#0d1117',
+        'theme_color': '#161b22',
+        'icons': [
+            {'src': url_for('static', filename='icon-192.png'), 'sizes': '192x192',
+             'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': url_for('static', filename='icon-512.png'), 'sizes': '512x512',
+             'type': 'image/png', 'purpose': 'any maskable'},
+        ],
+        'categories': ['utilities', 'productivity'],
+        'lang': 'de',
+    }
+    resp = make_response(jsonify(data))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     resp.headers['Content-Type'] = 'application/manifest+json'
     return resp
@@ -551,7 +589,8 @@ def manifest():
 
 @app.route('/sw.js')
 def service_worker():
-    resp = make_response(app.send_static_file('sw.js'))
+    base = request.script_root.rstrip('/')
+    resp = make_response(render_template('sw.js', base=base))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     resp.headers['Content-Type'] = 'application/javascript'
     return resp
@@ -588,7 +627,7 @@ def login():
                     pwd == cfg.get('password', 'secret')):
                 clear_failed_attempts(ip)
                 token, _ = create_session(int(cfg.get('session_hours', 24)))
-                resp = make_response(redirect('/'))
+                resp = make_response(redirect(url_for('index')))
                 resp.set_cookie('session', token, httponly=True,
                                 samesite='Lax', max_age=int(cfg.get('session_hours', 24)) * 3600)
                 return resp
@@ -596,7 +635,8 @@ def login():
                 record_failed_attempt(ip)
                 error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
-    resp = make_response(render_template('login.html', t=t, lang=lang, error=error))
+    resp = make_response(render_template('login.html', t=t, lang=lang, error=error,
+                                         script_root=request.script_root))
     return resp
 
 
@@ -620,7 +660,8 @@ def index():
     t    = load_translations(lang)
     cfg  = load_config()
     resp = make_response(render_template('index.html', t=t, lang=lang,
-                                         poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT))))
+                                         poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
+                                         script_root=request.script_root))
     return resp
 
 
