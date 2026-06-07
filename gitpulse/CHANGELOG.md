@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.40] - 2026-06-07
+
+### Added
+- CI-Tab: Status-Filter-Zeile unter dem Zeitfilter — Laufend 🟡 / Erfolgreich 🟢 / Fehlerhaft 🔴 / Abgebrochen ⚫ kombinierbar mit Zeitfilter
+- Repo-Wechsel setzt beide Filter (Zeit + Status) auf „Alle" zurück
+
+---
+
 ## [0.1.39] - 2026-06-07
 
 ### Security

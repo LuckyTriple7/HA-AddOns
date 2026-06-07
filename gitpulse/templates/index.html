@@ -529,6 +529,7 @@
   let _prFilter = '';
   let _issueFilter = '';
   let _ciTimeFilter = 'all';
+  let _ciStatusFilter = 'all';
   let _ciPage = 1;
   const CI_PAGE_SIZE = 50;
 
@@ -765,6 +766,11 @@
   }
   function setCIFilter(f) {
     _ciTimeFilter = f;
+    _ciPage = 1;
+    if (ghData) renderCI(ghData);
+  }
+  function setCIStatusFilter(f) {
+    _ciStatusFilter = f;
     _ciPage = 1;
     if (ghData) renderCI(ghData);
   }
@@ -1101,6 +1107,7 @@
 
   function selectRepo(repo) {
     activeRepo = repo;
+    _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all';
     document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
     renderPRs(ghData);
     renderIssues(ghData);
@@ -1279,7 +1286,16 @@
       today:     r => new Date(r.created) >= todayStart,
       yesterday: r => new Date(r.created) >= yesterday && new Date(r.created) < todayStart,
     };
-    const filteredRuns = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
+    const ciStatusFns = {
+      all:       () => true,
+      running:   r => ['in_progress','queued','waiting'].includes(r.status),
+      success:   r => r.conclusion === 'success',
+      failed:    r => ['failure','timed_out'].includes(r.conclusion),
+      cancelled: r => r.conclusion === 'cancelled',
+    };
+    const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-skipped' };
+    const timeFiltered   = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
+    const filteredRuns   = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
     const _ciTotalPages = Math.max(1, Math.ceil(filteredRuns.length / CI_PAGE_SIZE));
     if (_ciPage > _ciTotalPages) _ciPage = _ciTotalPages;
     const pagedRuns = filteredRuns.slice((_ciPage - 1) * CI_PAGE_SIZE, _ciPage * CI_PAGE_SIZE);
@@ -1288,10 +1304,14 @@
       <span style="font-size:.75rem;color:var(--muted)">Seite ${_ciPage} / ${_ciTotalPages} &middot; ${filteredRuns.length} Runs</span>
       <button class="ci-filter-btn${_ciPage===_ciTotalPages?' active':''}" onclick="_ciGotoPage(${_ciPage+1})" ${_ciPage===_ciTotalPages?'disabled':''}>›</button>
     </div>` : '';
-    const filterBar = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+    const filterBar = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">
       ${[['all',T.ci_filter_all],['hour',T.ci_filter_1h],['6h',T.ci_filter_6h],['today',T.ci_filter_today],['yesterday',T.ci_filter_yesterday]]
         .map(([k,l])=>`<button class="ci-filter-btn${_ciTimeFilter===k?' active':''}" onclick="setCIFilter('${k}')">${l}</button>`).join('')}
-      ${_ciTimeFilter!=='all'?`<span style="font-size:.73rem;color:var(--muted);align-self:center">${filteredRuns.length} / ${repo.runs.length}</span>`:''}
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+      ${[['all',T.ci_status_all,null],['running',T.ci_status_running,'running'],['success',T.ci_status_success,'success'],['failed',T.ci_status_failed,'failed'],['cancelled',T.ci_status_cancelled,'cancelled']]
+        .map(([k,l,dot])=>`<button class="ci-filter-btn${_ciStatusFilter===k?' active':''}" onclick="setCIStatusFilter('${k}')" style="display:flex;align-items:center;gap:4px">${dot?`<div class="run-dot ${_ciStatusDots[dot]}" style="width:7px;height:7px;flex-shrink:0"></div>`:''}${l}</button>`).join('')}
+      ${(_ciTimeFilter!=='all'||_ciStatusFilter!=='all')?`<span style="font-size:.73rem;color:var(--muted);margin-left:4px">${filteredRuns.length} / ${repo.runs.length}</span>`:''}
     </div>`;
 
     const repoFavs = ghFavorites.filter(f => f.repo === repo.repo);
