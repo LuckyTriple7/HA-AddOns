@@ -942,6 +942,27 @@ def api_pr_merge():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/branches')
+def api_branches():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    repo  = request.args.get('repo', '').strip()
+    if not repo:
+        return jsonify({'error': 'repo fehlt'}), 400
+    cfg   = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'kein Token'}), 400
+    try:
+        branches = _gh_get_paginated(f'/repos/{repo}/branches', token, params={'per_page': 100})
+        names = [b['name'] for b in (branches or []) if isinstance(b, dict) and 'name' in b]
+        return jsonify(names)
+    except Exception as e:
+        log.error("Branches-Abfrage Fehler (%s): %s", repo, e)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/workflow/dispatch', methods=['POST'])
 def api_workflow_dispatch():
     redir = _auth_required(request)

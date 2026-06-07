@@ -289,7 +289,7 @@
       <label>{{ t.dispatch_workflow }}</label>
       <select id="dispatch-wf-select"></select>
       <label>{{ t.dispatch_ref }}</label>
-      <input id="dispatch-ref-input" type="text" placeholder="main" value="main">
+      <select id="dispatch-ref-select"><option value="main">main</option></select>
       <div id="dispatch-err" class="modal-err" style="display:none"></div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('dispatch-modal')">{{ t.btn_cancel }}</button>
@@ -506,17 +506,30 @@
     _dispatchRepo = repo;
     const repoData = (ghData?.my_repos || []).find(r => r.repo === repo);
     const wfs = repoData?.workflows || [];
-    const sel = document.getElementById('dispatch-wf-select');
-    sel.innerHTML = wfs.length
+    const wfSel = document.getElementById('dispatch-wf-select');
+    wfSel.innerHTML = wfs.length
       ? wfs.map(w => `<option value="${w.id}">${escHtml(w.name)}</option>`).join('')
       : '<option value="">{{ t.no_workflows }}</option>';
-    document.getElementById('dispatch-ref-input').value = repoData?.default_branch || 'main';
+    const defaultBranch = repoData?.default_branch || 'main';
+    const refSel = document.getElementById('dispatch-ref-select');
+    refSel.innerHTML = `<option value="${defaultBranch}">${defaultBranch} (wird geladen…)</option>`;
     document.getElementById('dispatch-err').style.display = 'none';
     document.getElementById('dispatch-modal').classList.add('show');
+    fetch(u('/api/branches?repo=' + encodeURIComponent(repo)))
+      .then(r => r.json())
+      .then(branches => {
+        if (!Array.isArray(branches) || !branches.length) return;
+        refSel.innerHTML = branches.map(b =>
+          `<option value="${escHtml(b)}"${b === defaultBranch ? ' selected' : ''}>${escHtml(b)}</option>`
+        ).join('');
+      })
+      .catch(() => {
+        refSel.innerHTML = `<option value="${defaultBranch}">${defaultBranch}</option>`;
+      });
   }
   function confirmDispatch() {
     const wfId  = document.getElementById('dispatch-wf-select').value;
-    const ref   = document.getElementById('dispatch-ref-input').value.trim() || 'main';
+    const ref   = document.getElementById('dispatch-ref-select').value || 'main';
     const errEl = document.getElementById('dispatch-err');
     errEl.style.display = 'none';
     if (!wfId) { errEl.textContent = '{{ t.no_workflows }}'; errEl.style.display = 'block'; return; }

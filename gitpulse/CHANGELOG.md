@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.7] - 2026-06-07
+
+### Changed
+- Dispatch-Modal: Branch/Tag-Feld ist jetzt ein Dropdown — Branches werden on-demand per `/api/branches` von GitHub geladen, Default-Branch ist vorausgewählt
+
+### Added
+- Backend: neue Route `GET /api/branches?repo=owner/repo` liefert alle Branches des Repos
+
+---
+
 ## [0.1.6] - 2026-06-07
 
 ### Changed
