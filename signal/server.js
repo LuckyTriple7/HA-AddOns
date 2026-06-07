@@ -37,6 +37,22 @@ const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
+function makeRateLimiter(maxReqs, windowMs) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
+    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
+    entry.count++;
+    hits.set(key, entry);
+    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
+    next();
+  };
+}
+const deleteRateLimit = makeRateLimiter(30, 60_000);
+const cleanupRateLimit = makeRateLimiter(5, 60_000);
+
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
@@ -376,7 +392,8 @@ async function downloadAttachment(attId, contentType, msgId) {
   try {
     const ext = contentType.includes('ogg') ? 'ogg' : contentType.includes('aac') ? 'aac' : contentType.includes('mpeg') ? 'mp3' : contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
     const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
-    const filepath = MEDIA_DIR + filename;
+    const filepath = path.resolve(MEDIA_DIR, filename);
+    if (!filepath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return;
     if (fs.existsSync(filepath)) { updateMsgMedia(msgId, filename); scheduleSave(); return; }
     _logSilent('DEBUG', `signal-cli downloadAttachment: start ${filename}`);
     const _t0 = Date.now();
@@ -608,7 +625,7 @@ app.get('/api/storage', (req, res) => {
   });
 });
 
-app.post('/api/cleanup-media', (req, res) => {
+app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
   try {
     const referenced = new Set();
     for (const msgs of messagesByChatId.values())
@@ -782,7 +799,9 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       if (isImg && DOWNLOAD_MEDIA) {
         enforceMediaLimit();
         const fname = `${signalTs}_${safeName}`;
-        fs.writeFileSync(`${MEDIA_DIR}${fname}`, buffer);
+        const fpath = path.resolve(MEDIA_DIR, fname);
+        if (!fpath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) throw new Error('Invalid media path');
+        fs.writeFileSync(fpath, buffer);
         mediaFile = fname;
       }
       const msg = isImg
@@ -811,7 +830,7 @@ app.post('/api/qr/refresh', (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
+app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => {
   const { chatId, msgId } = req.params;
   dbg(`Deleting message ${msgId} in chat ${chatId}`);
   // Always remove locally so the message disappears from the UI

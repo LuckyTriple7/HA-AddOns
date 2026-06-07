@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.4] - 2026-06-07
+
+### Security
+- Rate Limiting für `/api/messages/:chatId/:msgId` (DELETE) und `/api/cleanup-media` eingebaut: verhindert Missbrauch destruktiver Endpunkte (CodeQL: Missing rate limiting)
+
+---
+
 ## [1.6.3] - 2026-06-07
 
 ### Security
