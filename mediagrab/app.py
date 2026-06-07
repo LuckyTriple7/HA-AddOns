@@ -941,7 +941,11 @@ def api_files():
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = _safe_media_path(filename)
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        return jsonify({'error': 'invalid_path'}), 400
+    safe_name = fm.group(0)
+    p = _safe_media_path(safe_name)
     if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
@@ -949,34 +953,38 @@ def api_file_delete(filename):
     p.unlink()
     with _meta_lock:
         meta = _load_meta()
-        if filename in meta:
-            meta.pop(filename)
+        if safe_name in meta:
+            meta.pop(safe_name)
             _save_meta(meta)
-    log.info('Datei gelöscht: %s', filename)
+    log.info('Datei gelöscht: %s', safe_name)
     return jsonify({'ok': True})
 
 @app.route('/api/file/platform/<path:filename>', methods=['POST'])
 def api_file_platform(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        return jsonify({'error': 'invalid_path'}), 400
+    safe_name = fm.group(0)
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    p = _safe_media_path(filename)
+    p = _safe_media_path(safe_name)
     if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
-        entry = meta.get(filename, {})
+        entry = meta.get(safe_name, {})
         if platform:
             entry['platform'] = platform
         else:
             entry.pop('platform', None)
         if entry:
-            meta[filename] = entry
+            meta[safe_name] = entry
         else:
-            meta.pop(filename, None)
+            meta.pop(safe_name, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'platform': platform})
 
@@ -984,26 +992,30 @@ def api_file_platform(filename):
 def api_file_tag(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        return jsonify({'error': 'invalid_path'}), 400
+    safe_name = fm.group(0)
     data = request.json or {}
     tag  = data.get('tag', '').strip()
     if len(tag) > 50:
         return jsonify({'error': 'tag_too_long'}), 400
-    p = _safe_media_path(filename)
+    p = _safe_media_path(safe_name)
     if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
-        entry = meta.get(filename, {})
+        entry = meta.get(safe_name, {})
         if tag:
             entry['tag'] = tag
         else:
             entry.pop('tag', None)
         if entry:
-            meta[filename] = entry
+            meta[safe_name] = entry
         else:
-            meta.pop(filename, None)
+            meta.pop(safe_name, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'tag': tag})
 
@@ -1011,19 +1023,25 @@ def api_file_tag(filename):
 def stream_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = _safe_media_path(filename)
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        abort(400)
+    p = _safe_media_path(fm.group(0))
     if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=False)
+    return send_from_directory(str(MEDIA_DIR), fm.group(0), as_attachment=False)
 
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = _safe_media_path(filename)
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        abort(400)
+    p = _safe_media_path(fm.group(0))
     if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=True)
+    return send_from_directory(str(MEDIA_DIR), fm.group(0), as_attachment=True)
 
 @app.route('/manifest.json')
 def manifest():

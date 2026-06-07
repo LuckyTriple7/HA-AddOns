@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.8] — 2026-06-07
+
+### Security
+- Path Traversal (#52, #53, #55, #57, #122): Regex-Validierung (`_SAFE_FILE_RE.match()`) jetzt direkt in jedem Route-Handler — `fm.group(0)` wird an `_safe_media_path()` und `send_from_directory()` übergeben statt des rohen URL-Parameters
+
+---
+
 ## [1.0.7] — 2026-06-07
 
 ### Security
