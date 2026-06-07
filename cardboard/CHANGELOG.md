@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.6] - 2026-06-07
+### Security
+- `safe_child()` überarbeitet: Regex-Validierung (`^[a-zA-Z0-9_\-][a-zA-Z0-9._\-]{0,254}$`) jedes Pfadsegments vor dem Zusammenbauen — CodeQL erkennt Regex als Sanitizer und kann den Taint-Flow in `joinpath().resolve()` korrekt bewerten (py/path-injection)
+
+---
+
 ## [1.0.5] - 2026-06-07
 ### Security
 - Path-Traversal-Schwachstelle behoben: `safe_child()` prüft jetzt explizit auf absolute Pfade und `..`-Segmente **vor** dem `resolve()`-Aufruf — CodeQL-anerkanntes Sanitizer-Pattern (CodeQL: py/path-injection)

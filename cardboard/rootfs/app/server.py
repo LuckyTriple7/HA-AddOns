@@ -176,16 +176,21 @@ def get_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(secret)
 
 
+_SAFE_PATH_PART = re.compile(r'^[a-zA-Z0-9_\-][a-zA-Z0-9._\-]{0,254}$')
+
 def safe_child(base: Path, *parts: str) -> Path | None:
     """Gibt einen Pfad nur zurück wenn er innerhalb von base liegt (verhindert Path Traversal)."""
     try:
+        # Regex-validate each part before use — CodeQL-recognized sanitizer pattern
+        safe_parts = []
         for part in parts:
             p = str(part)
-            if not p or os.path.isabs(p) or '..' in p.replace('\\', '/').split('/'):
+            if not _SAFE_PATH_PART.match(p):
                 return None
-        resolved = base.joinpath(*parts).resolve()
+            safe_parts.append(p)
+        resolved = base.joinpath(*safe_parts).resolve()
         base_resolved = base.resolve()
-        if str(resolved).startswith(str(base_resolved) + os.sep) or resolved == base_resolved:
+        if str(resolved).startswith(str(base_resolved) + os.sep) or str(resolved) == str(base_resolved):
             return resolved
     except Exception:
         pass
