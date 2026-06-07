@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.27] - 2026-06-07
+
+### Added
+- **GitHub Webhook-Support**: GitPulse empfängt jetzt Push-Benachrichtigungen von GitHub auf Port 17793 (`POST /webhook`)
+- Events: `pull_request`, `issues`, `workflow_run`, `push`, `create`, `delete`, `star`, `fork` — Cache wird sofort aktualisiert, SSE-Push an alle Browser, Telegram-Benachrichtigung innerhalb < 1 Sekunde
+- HMAC-SHA256 Signatur-Prüfung (`X-Hub-Signature-256`) — neues Config-Feld `webhook_secret`
+- Duplikat-Schutz: Webhook markiert PR/Issue/Run sofort als gesehen → nächster Poll feuert kein zweites Telegram
+- Polling bleibt als 5-Minuten-Fallback erhalten (Webhooks können verloren gehen)
+- Port 17793 in `config.yaml` eingetragen (nginx → `https://webhook.domain.de` → Port 17793)
+
+---
+
 ## [0.1.26] - 2026-06-07
 
 ### Changed

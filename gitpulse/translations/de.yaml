@@ -35,3 +35,6 @@ configuration:
   telegram_chat_id:
     name: Telegram Chat ID
     description: "Chat-ID des Empfängers für Telegram-Nachrichten. Ermitteln via @userinfobot in Telegram oder einfach dem Bot /start schicken und die ID aus der Antwort kopieren."
+  webhook_secret:
+    name: Webhook Secret
+    description: "Geheimes Passwort für GitHub-Webhooks (mindestens 20 Zeichen empfohlen). Muss identisch in GitHub → Repository → Settings → Webhooks eingetragen werden. Webhook-URL: https://deine-domain:17793/webhook. Leer lassen um Webhooks zu deaktivieren."

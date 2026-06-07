@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -13,6 +15,7 @@ from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify,
                    Response, stream_with_context)
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.serving import make_server
 import requests as http
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -594,6 +597,35 @@ def _notify_sse() -> None:
                 q.put_nowait('update')
             except queue.Full:
                 pass
+
+
+# ── Webhook: einzelnen Repo neu laden ────────────────────────────────────────
+
+def _trigger_repo_poll(repo_name: str) -> None:
+    """Fetcht einen einzelnen Repo neu und aktualisiert den Cache (für Webhook-Events)."""
+    cfg   = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return
+    try:
+        run_limit = min(50, max(1, int(cfg.get('workflow_run_limit', 25))))
+        data = _fetch_repo_data(repo_name, token, run_limit)
+        with _gh_lock:
+            repos   = _gh_cache.get('my_repos', [])
+            updated = False
+            for i, rd in enumerate(repos):
+                if rd['repo'] == repo_name:
+                    repos[i] = data
+                    updated  = True
+                    break
+            if not updated:
+                repos.append(data)
+                _gh_cache['my_repos'] = repos
+            _gh_cache['last_poll'] = int(time.time())
+        _notify_sse()
+        log.info("Webhook-Repo-Poll abgeschlossen: %s", repo_name)
+    except Exception as e:
+        log.error("Webhook-Repo-Poll Fehler (%s): %s", repo_name, e)
 
 
 # ── Poll worker ───────────────────────────────────────────────────────────────
@@ -1332,6 +1364,142 @@ def api_workflow_delete():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/webhook', methods=['POST'])
+def github_webhook():
+    """GitHub Webhook-Endpunkt — kein Session-Check, Authentifizierung via HMAC-Signatur."""
+    cfg    = load_config()
+    secret = cfg.get('webhook_secret', '').strip()
+
+    # Signatur prüfen wenn Secret konfiguriert
+    if secret:
+        sig      = request.headers.get('X-Hub-Signature-256', '')
+        expected = 'sha256=' + hmac.new(secret.encode(), request.data, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            log.warning("Webhook: ungültige Signatur — abgelehnt")
+            return 'Forbidden', 403
+
+    event   = request.headers.get('X-GitHub-Event', '')
+    payload = request.get_json(silent=True) or {}
+    repo_full = (payload.get('repository') or {}).get('full_name', '')
+    action    = payload.get('action', '')
+
+    log.info("Webhook empfangen: %s [%s] für %s", event, action, repo_full)
+
+    # Nur konfigurierte eigene Repos verarbeiten
+    user_repos_data = load_user_repos()
+    if user_repos_data is not None:
+        my_repos = user_repos_data.get('my_repos', [])
+    else:
+        my_repos = cfg.get('my_repos', [])
+    if repo_full not in my_repos:
+        return jsonify({'status': 'ignored'}), 200
+
+    tg_token = cfg.get('telegram_bot_token', '').strip()
+    tg_chat  = cfg.get('telegram_chat_id', '').strip()
+
+    if event == 'pull_request':
+        pr     = payload.get('pull_request', {})
+        pr_num = pr.get('number')
+        if action == 'opened':
+            if pr_num:
+                _seen_prs[repo_full].add(pr_num)  # Duplikat-Schutz für nächsten Poll
+            if _first_poll_done and tg_token and tg_chat:
+                _send_telegram(tg_token, tg_chat,
+                    f"🔀 Neuer PR: <b>{repo_full}</b>\n"
+                    f"#{pr_num} {pr.get('title','')}\n"
+                    f"von @{(pr.get('user') or {}).get('login','?')}\n"
+                    f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>")
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+
+    elif event == 'issues':
+        issue   = payload.get('issue', {})
+        iss_num = issue.get('number')
+        if action == 'opened':
+            if iss_num:
+                _seen_issues[repo_full].add(iss_num)  # Duplikat-Schutz
+            if _first_poll_done and tg_token and tg_chat:
+                _send_telegram(tg_token, tg_chat,
+                    f"🐛 Neues Issue: <b>{repo_full}</b>\n"
+                    f"#{iss_num} {issue.get('title','')}\n"
+                    f"von @{(issue.get('user') or {}).get('login','?')}\n"
+                    f"<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>")
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+
+    elif event == 'workflow_run':
+        run    = payload.get('workflow_run', {})
+        run_id = run.get('id')
+        curr_con = run.get('conclusion')
+        _con_icons  = {'success':'✅','failure':'❌','cancelled':'⏹','skipped':'⏭','timed_out':'⏱'}
+        _con_labels = {'success':'Erfolgreich','failure':'Fehlgeschlagen','cancelled':'Abgebrochen',
+                       'skipped':'Übersprungen','timed_out':'Timeout'}
+        run_info = (f"<b>{run.get('name','')}</b> #{run.get('run_number','')}\n"
+                    f"Branch: {run.get('head_branch','?')} · "
+                    f"von @{(run.get('triggering_actor') or run.get('actor') or {}).get('login','?')}\n")
+        if action == 'requested':
+            if run_id:
+                _known_run_conclusions[run_id] = None  # Duplikat-Schutz
+            if _first_poll_done and tg_token and tg_chat:
+                _send_telegram(tg_token, tg_chat,
+                    f"▶️ <b>Workflow gestartet:</b> {repo_full}\n"
+                    + run_info
+                    + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+        elif action == 'completed':
+            if run_id:
+                _known_run_conclusions[run_id] = curr_con  # Duplikat-Schutz
+            if _first_poll_done and tg_token and tg_chat:
+                icon  = _con_icons.get(curr_con, '⚠️')
+                label = _con_labels.get(curr_con, curr_con)
+                _send_telegram(tg_token, tg_chat,
+                    f"{icon} <b>Workflow beendet:</b> {repo_full}\n"
+                    + run_info
+                    + f"Status: {label}\n"
+                    + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+
+    elif event in ('push', 'create', 'delete'):
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+
+    elif event == 'star':
+        count = (payload.get('repository') or {}).get('stargazers_count', 0)
+        if _first_poll_done and tg_token and tg_chat:
+            user = (payload.get('sender') or {}).get('login', '?')
+            icon = '⭐' if action == 'created' else '💔'
+            verb = 'erhalten' if action == 'created' else 'verloren'
+            _send_telegram(tg_token, tg_chat,
+                f"{icon} <b>Star {verb}:</b> {repo_full}\n"
+                f"von @{user} · jetzt {count} Stars")
+        with _gh_lock:
+            for rd in _gh_cache.get('my_repos', []):
+                if rd['repo'] == repo_full:
+                    rd['stars'] = count
+        _notify_sse()
+
+    elif event == 'fork':
+        forks  = (payload.get('repository') or {}).get('forks_count', 0)
+        forkee = (payload.get('forkee') or {}).get('full_name', '?')
+        if _first_poll_done and tg_token and tg_chat:
+            _send_telegram(tg_token, tg_chat,
+                f"🍴 <b>Neuer Fork:</b> {repo_full}\n"
+                f"→ {forkee} · jetzt {forks} Forks")
+        with _gh_lock:
+            for rd in _gh_cache.get('my_repos', []):
+                if rd['repo'] == repo_full:
+                    rd['forks'] = forks
+        _notify_sse()
+
+    return jsonify({'status': 'ok'}), 200
+
+
+def _run_webhook_server() -> None:
+    """Zweiter WSGI-Server auf Port 17793 — nur für GitHub-Webhook-Empfang."""
+    try:
+        srv = make_server('0.0.0.0', 17793, app)
+        log.info("Webhook-Listener bereit auf Port 17793")
+        srv.serve_forever()
+    except Exception as e:
+        log.error("Webhook-Server Fehler: %s", e)
+
+
 @app.route('/api/workflow/favorites', methods=['GET'])
 def api_favorites_get():
     redir = _auth_required(request)
@@ -1439,6 +1607,10 @@ if __name__ == '__main__':
     # Poller-Thread
     t = threading.Thread(target=_poll_worker, daemon=True)
     t.start()
+
+    # Webhook-Server auf Port 17793
+    wh = threading.Thread(target=_run_webhook_server, daemon=True)
+    wh.start()
 
     log.info("GitPulse bereit auf Port 17792")
     app.run(host='0.0.0.0', port=17792, debug=False, threaded=True)
