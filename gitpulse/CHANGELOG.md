@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.8] - 2026-06-07
+
+### Fixed
+- Externe Links öffnen korrekt in neuem Fenster in HA PWA: programmatischen window.open()-Aufruf entfernt, stattdessen echtes `<a target="_blank">` — nur echter User-Click löst in PWA neues Fenster aus, kein Popup-Blocker-Problem
+
+---
+
 ## [0.0.7] - 2026-06-07
 
 ### Added
