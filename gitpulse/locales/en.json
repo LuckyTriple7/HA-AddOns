@@ -41,6 +41,24 @@
   "badge_new": "New since last poll",
   "link_view": "View →",
 
+  "btn_merge": "Merge",
+  "btn_rerun": "Re-run",
+  "btn_dispatch": "Dispatch",
+  "btn_cancel": "Cancel",
+
+  "merge_title": "Merge Pull Request",
+  "merge_method": "Merge method",
+  "merge_method_merge": "Merge commit",
+  "merge_method_squash": "Squash and merge",
+  "merge_method_rebase": "Rebase and merge",
+
+  "dispatch_title": "Trigger workflow",
+  "dispatch_workflow": "Workflow",
+  "dispatch_ref": "Branch / Tag",
+  "no_workflows": "No dispatchable workflows found",
+
+  "error_unknown": "Unknown error",
+
   "btn_refresh": "Poll now",
   "btn_install": "Install",
   "btn_enable": "Enable",

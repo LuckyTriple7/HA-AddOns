@@ -1,6 +1,6 @@
 name: GitPulse
 description: GitHub Control Panel — PRs, Issues, CI-Status und Release-Tracker auf einen Blick
-version: "0.0.1"
+version: "0.0.2"
 slug: gitpulse
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/gitpulse"
@@ -28,7 +28,7 @@ options:
   session_hours: 24
   github_token: ""
   my_repos:
-    - "LuckyTriple7/HA-AddOns"
+    - ""
   watch_repos:
     - "home-assistant/core"
   include_ha_betas: true

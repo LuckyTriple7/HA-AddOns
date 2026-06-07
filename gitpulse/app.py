@@ -338,15 +338,27 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
     runs = []
     for run in (runs_raw.get('workflow_runs') or [])[:10]:
         runs.append({
-            'id':         run['id'],
-            'name':       run['name'],
-            'status':     run['status'],
-            'conclusion': run.get('conclusion'),
-            'url':        run['html_url'],
-            'branch':     run.get('head_branch', ''),
-            'created':    run['created_at'],
-            'event':      run.get('event', ''),
+            'id':          run['id'],
+            'workflow_id': run.get('workflow_id'),
+            'name':        run['name'],
+            'status':      run['status'],
+            'conclusion':  run.get('conclusion'),
+            'url':         run['html_url'],
+            'branch':      run.get('head_branch', ''),
+            'created':     run['created_at'],
+            'event':       run.get('event', ''),
         })
+
+    # Dispatchable workflows (haben workflow_dispatch trigger)
+    wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token) or {}
+    workflows = []
+    for wf in (wf_raw.get('workflows') or []):
+        if wf.get('state') == 'active':
+            workflows.append({
+                'id':   wf['id'],
+                'name': wf['name'],
+                'path': wf['path'],
+            })
 
     release_raw = _gh_get(f'/repos/{repo}/releases/latest', token)
     latest_release = None
@@ -366,6 +378,7 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
         'pulls':          pulls,
         'issues':         issues,
         'runs':           runs,
+        'workflows':      workflows,
         'latest_release': latest_release,
         'open_prs':       len(pulls),
         'open_issues':    len(issues),
@@ -654,6 +667,110 @@ def api_reset_seen():
     save_seen_releases()
     log.info("Gesehene Releases zurückgesetzt")
     return jsonify({'status': 'ok'})
+
+
+@app.route('/api/pr/merge', methods=['POST'])
+def api_pr_merge():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body  = request.get_json(silent=True) or {}
+    repo  = body.get('repo', '').strip()
+    pr_nr = body.get('number')
+    method = body.get('method', 'merge')  # merge | squash | rebase
+    if not repo or not pr_nr:
+        return jsonify({'error': 'repo und number erforderlich'}), 400
+    if method not in ('merge', 'squash', 'rebase'):
+        return jsonify({'error': 'Ungültige Merge-Methode'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.put(
+            f'{GITHUB_API}/repos/{repo}/pulls/{pr_nr}/merge',
+            headers=_gh_headers(token),
+            json={'merge_method': method},
+            timeout=15,
+        )
+        if r.status_code == 200:
+            log.info("PR #%s in %s gemergt (%s)", pr_nr, repo, method)
+            return jsonify({'status': 'merged'})
+        data = r.json()
+        msg  = data.get('message', f'HTTP {r.status_code}')
+        log.warning("PR-Merge fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("PR-Merge Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workflow/dispatch', methods=['POST'])
+def api_workflow_dispatch():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    repo        = body.get('repo', '').strip()
+    workflow_id = body.get('workflow_id')
+    ref         = body.get('ref', 'main').strip() or 'main'
+    if not repo or not workflow_id:
+        return jsonify({'error': 'repo und workflow_id erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.post(
+            f'{GITHUB_API}/repos/{repo}/actions/workflows/{workflow_id}/dispatches',
+            headers=_gh_headers(token),
+            json={'ref': ref},
+            timeout=15,
+        )
+        if r.status_code == 204:
+            log.info("Workflow %s in %s auf Branch '%s' gestartet", workflow_id, repo, ref)
+            return jsonify({'status': 'dispatched'})
+        try:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+        except Exception:
+            msg = f'HTTP {r.status_code}'
+        log.warning("Workflow-Dispatch fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Workflow-Dispatch Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workflow/rerun', methods=['POST'])
+def api_workflow_rerun():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body   = request.get_json(silent=True) or {}
+    repo   = body.get('repo', '').strip()
+    run_id = body.get('run_id')
+    if not repo or not run_id:
+        return jsonify({'error': 'repo und run_id erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.post(
+            f'{GITHUB_API}/repos/{repo}/actions/runs/{run_id}/rerun',
+            headers=_gh_headers(token),
+            json={},
+            timeout=15,
+        )
+        if r.status_code == 201:
+            log.info("Workflow-Run %s in %s neu gestartet", run_id, repo)
+            return jsonify({'status': 'rerun'})
+        try:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+        except Exception:
+            msg = f'HTTP {r.status_code}'
+        log.warning("Workflow-Rerun fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Workflow-Rerun Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/events')

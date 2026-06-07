@@ -148,6 +148,32 @@
     .spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
 
+    /* ── Action buttons (Merge / Rerun / Dispatch) ──────────── */
+    .act-btn { font-size:0.72rem; padding:3px 9px; border-radius:4px; border:1px solid; cursor:pointer; font-weight:600; white-space:nowrap; background:none; transition:opacity .15s; }
+    .act-btn:hover { opacity:.8; }
+    .act-btn-merge   { color:var(--purple); border-color:rgba(163,113,247,.4); }
+    .act-btn-merge:hover { background:rgba(163,113,247,.1); }
+    .act-btn-rerun   { color:var(--yellow); border-color:rgba(210,153,34,.4); }
+    .act-btn-rerun:hover { background:rgba(210,153,34,.1); }
+    .act-btn-dispatch{ color:var(--accent); border-color:rgba(88,166,255,.4); }
+    .act-btn-dispatch:hover { background:rgba(88,166,255,.1); }
+    .merge-select { font-size:0.72rem; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--surf2); color:var(--text); cursor:pointer; }
+
+    /* ── Modal ──────────────────────────────────────────────── */
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; align-items:center; justify-content:center; }
+    .modal-backdrop.show { display:flex; }
+    .modal { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:24px; width:100%; max-width:400px; margin:16px; }
+    .modal h3 { font-size:1rem; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+    .modal label { display:block; font-size:0.78rem; color:var(--muted); margin-bottom:4px; margin-top:12px; }
+    .modal input, .modal select { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:5px; font-size:0.88rem; }
+    .modal input:focus, .modal select:focus { outline:none; border-color:var(--accent); }
+    .modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+    .modal-btn { padding:7px 16px; border-radius:5px; font-size:0.85rem; font-weight:600; cursor:pointer; border:1px solid; }
+    .modal-btn-cancel { background:none; border-color:var(--border); color:var(--muted); }
+    .modal-btn-confirm { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .modal-btn-confirm.danger { background:var(--red); border-color:var(--red); }
+    .modal-err { font-size:0.78rem; color:var(--red); margin-top:8px; }
+
     /* ── Scrollbar ──────────────────────────────────────────── */
     ::-webkit-scrollbar { width:5px; height:5px; }
     ::-webkit-scrollbar-track { background:transparent; }
@@ -207,6 +233,47 @@
   <div id="offline-banner">
     <strong>{{ t.banner_offline_title }} — {{ t.banner_offline_sub }}</strong>
     <button onclick="location.reload()">{{ t.banner_offline_reload }}</button>
+  </div>
+
+  <!-- ── Dispatch Modal ─────────────────────────────────────────── -->
+  <div id="dispatch-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M8 5v14l11-7z"/></svg>
+        {{ t.dispatch_title }}
+      </h3>
+      <label>{{ t.dispatch_workflow }}</label>
+      <select id="dispatch-wf-select"></select>
+      <label>{{ t.dispatch_ref }}</label>
+      <input id="dispatch-ref-input" type="text" placeholder="main" value="main">
+      <div id="dispatch-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('dispatch-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="confirmDispatch()">{{ t.btn_dispatch }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Merge Modal ──────────────────────────────────────────────── -->
+  <div id="merge-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--purple)"><path d="M17 3c-2.21 0-4 1.79-4 4 0 1.48.82 2.77 2 3.46V13c0 1.1-.9 2-2 2H9.46C8.77 13.82 7.48 13 6 13c-2.21 0-4 1.79-4 4s1.79 4 4 4c1.48 0 2.77-.82 3.46-2H13c2.21 0 4-1.79 4-4v-2.54c1.18-.69 2-1.98 2-3.46 0-2.21-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM6 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+        {{ t.merge_title }}
+      </h3>
+      <p id="merge-pr-title" style="font-size:.85rem;color:var(--muted);margin-bottom:4px"></p>
+      <label>{{ t.merge_method }}</label>
+      <select id="merge-method-select">
+        <option value="merge">{{ t.merge_method_merge }}</option>
+        <option value="squash">{{ t.merge_method_squash }}</option>
+        <option value="rebase">{{ t.merge_method_rebase }}</option>
+      </select>
+      <div id="merge-err" class="modal-err" style="display:none"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('merge-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm danger" onclick="confirmMerge()">{{ t.btn_merge }}</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Main ────────────────────────────────────────────────────── -->
@@ -298,6 +365,97 @@
   let activeRepo = null;
   let notifEnabled = false;
 
+  // ── Modal helpers ─────────────────────────────────────────────────
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('show');
+  }
+  document.querySelectorAll('.modal-backdrop').forEach(m =>
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); })
+  );
+
+  // ── Merge Modal ───────────────────────────────────────────────────
+  let _mergeRepo = null, _mergePRnr = null;
+  function openMergeModal(repo, number, title) {
+    _mergeRepo = repo; _mergePRnr = number;
+    document.getElementById('merge-pr-title').textContent = title;
+    document.getElementById('merge-err').style.display = 'none';
+    document.getElementById('merge-modal').classList.add('show');
+  }
+  function confirmMerge() {
+    const method = document.getElementById('merge-method-select').value;
+    const errEl  = document.getElementById('merge-err');
+    errEl.style.display = 'none';
+    fetch('/api/pr/merge', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _mergeRepo, number: _mergePRnr, method}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) {
+        closeModal('merge-modal');
+        setTimeout(pollNow, 500);
+      } else {
+        errEl.textContent = data.error || '{{ t.error_unknown }}';
+        errEl.style.display = 'block';
+      }
+    })
+    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
+  // ── Dispatch Modal ────────────────────────────────────────────────
+  let _dispatchRepo = null;
+  function openDispatchModal(repo) {
+    _dispatchRepo = repo;
+    const repoData = (ghData?.my_repos || []).find(r => r.repo === repo);
+    const wfs = repoData?.workflows || [];
+    const sel = document.getElementById('dispatch-wf-select');
+    sel.innerHTML = wfs.length
+      ? wfs.map(w => `<option value="${w.id}">${escHtml(w.name)}</option>`).join('')
+      : '<option value="">{{ t.no_workflows }}</option>';
+    document.getElementById('dispatch-ref-input').value = 'main';
+    document.getElementById('dispatch-err').style.display = 'none';
+    document.getElementById('dispatch-modal').classList.add('show');
+  }
+  function confirmDispatch() {
+    const wfId  = document.getElementById('dispatch-wf-select').value;
+    const ref   = document.getElementById('dispatch-ref-input').value.trim() || 'main';
+    const errEl = document.getElementById('dispatch-err');
+    errEl.style.display = 'none';
+    if (!wfId) { errEl.textContent = '{{ t.no_workflows }}'; errEl.style.display = 'block'; return; }
+    fetch('/api/workflow/dispatch', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _dispatchRepo, workflow_id: wfId, ref}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) {
+        closeModal('dispatch-modal');
+        setTimeout(pollNow, 2000);
+      } else {
+        errEl.textContent = data.error || '{{ t.error_unknown }}';
+        errEl.style.display = 'block';
+      }
+    })
+    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
+  // ── Rerun Workflow ────────────────────────────────────────────────
+  function rerunWorkflow(repo, runId) {
+    fetch('/api/workflow/rerun', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, run_id: runId}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) setTimeout(pollNow, 2000);
+      else alert(data.error || '{{ t.error_unknown }}');
+    })
+    .catch(e => alert(String(e)));
+  }
+
   // ── i18n helpers ──────────────────────────────────────────────────
   const T = {
     no_prs:       '{{ t.no_prs }}',
@@ -315,6 +473,10 @@
     token_invalid:'{{ t.token_invalid }}',
     token_expires:'{{ t.token_expires }}',
     new_release:  '{{ t.notif_new_release }}',
+    btn_merge:    '{{ t.btn_merge }}',
+    btn_rerun:    '{{ t.btn_rerun }}',
+    btn_dispatch: '{{ t.btn_dispatch }}',
+    error_unknown:'{{ t.error_unknown }}',
   };
 
   function relTime(iso) {
@@ -422,6 +584,7 @@
             ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
+        ${!pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal('${escHtml(repo.repo)}',${pr.number},'#${pr.number} ${escHtml(pr.title).replace(/'/g,"\\'")}')">⎇ ${T.btn_merge}</button>` : ''}
       </div>`).join('') + '</div></div>';
   }
 
@@ -463,17 +626,21 @@
       return;
     }
     const ciClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
-    el.innerHTML = `<div class="card"><div class="card-header">
+    const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_dispatch}</button>`;
+    el.innerHTML = `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
+      ${dispatchBtn}
     </div><div class="card-body">` +
     repo.runs.map(run => {
       const status = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
+      const canRerun = ['failure','cancelled','timed_out'].includes(run.conclusion);
       return `<div class="run-row">
         <div class="run-dot ${ciClass(status)}"></div>
         <div class="run-name"><a href="${run.url}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">${escHtml(run.name)}</a></div>
         <span class="run-branch">${escHtml(run.branch)}</span>
         <span style="font-size:.72rem;color:var(--muted)">${relTime(run.created)}</span>
+        ${canRerun ? `<button class="act-btn act-btn-rerun" onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>` : ''}
       </div>`;
     }).join('') + '</div></div>';
   }

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.2] - 2026-06-07
+
+### Added
+- PR mergen direkt aus dem Dashboard (Merge / Squash / Rebase Auswahl)
+- Workflow manuell starten (Dispatch) mit Branch-Auswahl
+- Fehlgeschlagene Workflow-Runs neu starten (Re-run)
+- config.yaml: my_repos Beispiel-Eintrag entfernt (muss vom User befüllt werden)
+
+### Changed
+- PAT benötigt jetzt zusätzlich `write` auf Pull Requests und Actions
+
+---
+
 ## [0.0.1] - 2026-06-07
 
 ### Added
