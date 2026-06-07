@@ -7,9 +7,6 @@ url: https://github.com/LuckyTriple7/HA-AddOns
 arch:
   - amd64
   - aarch64
-  - armv7
-  - armhf
-  - i386
 startup: application
 boot: auto
 init: true
