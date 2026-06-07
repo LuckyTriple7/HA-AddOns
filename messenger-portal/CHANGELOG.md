@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.2.1] - 2026-06-06
+### Fixed
+- PWA-Icon: icon-192.png und icon-512.png in static/-Ordner kopiert, damit das Manifest die Icons korrekt laden kann
+
 ## [1.2.0] - 2026-06-06
 ### Added
 - Nachrichtentyp-Icons in der Übersicht: 💬 Text, 🖼️ Foto, 📄 Dokument, 🎙️ Sprachnachricht, 📹 Video, 📍 Standort
