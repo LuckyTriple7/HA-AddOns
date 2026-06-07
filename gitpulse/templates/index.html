@@ -67,6 +67,12 @@
     .summary-bar { display:flex; gap:8px; flex-wrap:nowrap; padding:8px 14px; background:var(--surf); border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
     .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; cursor:pointer; user-select:none; }
     .stat-chip:hover { border-color:var(--accent); }
+    @keyframes chip-pulse-green  { 0%,100%{box-shadow:0 0 0 0 rgba(63,185,80,0);  border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(63,185,80,.25);  border-color:var(--green)} }
+    @keyframes chip-pulse-yellow { 0%,100%{box-shadow:0 0 0 0 rgba(210,153,34,0); border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(210,153,34,.25); border-color:var(--yellow)} }
+    @keyframes chip-pulse-purple { 0%,100%{box-shadow:0 0 0 0 rgba(163,113,247,0);border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(163,113,247,.25);border-color:var(--purple)} }
+    .chip-new-prs      { animation:chip-pulse-green  1.4s ease-in-out infinite; }
+    .chip-new-issues   { animation:chip-pulse-yellow 1.4s ease-in-out infinite; }
+    .chip-new-releases { animation:chip-pulse-purple 1.4s ease-in-out infinite; }
     .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; }
     .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
 
@@ -452,12 +458,21 @@
   // ── Tab switching ─────────────────────────────────────────────────
   const TABS = ['repos','issues','ci','releases','console'];
   let activeTab = 'repos';
+  const _tabChipMap = { repos: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases' };
+  const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases' };
+
   function switchTab(name) {
     TABS.forEach(t => {
       document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
       document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === name);
     });
     activeTab = name;
+    // Blink-Klasse entfernen wenn zugehöriger Tab geöffnet wird
+    const chipId = _tabChipMap[name];
+    if (chipId) {
+      const chip = document.getElementById(chipId);
+      if (chip) chip.classList.remove(_chipClsMap[chipId]);
+    }
     if (name === 'console') startConsole();
   }
 
@@ -768,6 +783,16 @@
     return map[state] || '';
   }
 
+  // ── Chip-Blink Tracking ───────────────────────────────────────────
+  let _chipCounts = null; // null = erster Render, noch kein Vergleich
+
+  function _applyChipBlink(id, cls, isNew) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (isNew) el.classList.add(cls);
+    // Klasse wird in switchTab entfernt
+  }
+
   // ── Render: Summary Bar ───────────────────────────────────────────
   function renderSummary(data) {
     let totalPRs = 0, totalIssues = 0, totalRuns = 0, hasActive = false, hasFailed = false;
@@ -780,15 +805,24 @@
         if (run.conclusion === 'failure') hasFailed = true;
       });
     });
+    const totalReleases = (data.releases || []).length;
     const runsColor = hasActive ? 'var(--yellow)' : hasFailed ? 'var(--red)' : 'var(--green)';
     const el = document.getElementById('summary-bar');
     el.innerHTML = `
       <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
-      <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
-      <div class="stat-chip" onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
+      <div class="stat-chip" id="chip-prs"      onclick="switchTab('repos')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
+      <div class="stat-chip" id="chip-issues"   onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
-      <div class="stat-chip" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${(data.releases||[]).length}</div><div class="lbl">{{ t.stat_releases }}</div></div>
+      <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
     `;
+    // Blinken bei Anstieg (nicht beim ersten Render)
+    if (_chipCounts !== null) {
+      _applyChipBlink('chip-prs',      'chip-new-prs',      totalPRs      > _chipCounts.prs);
+      _applyChipBlink('chip-issues',   'chip-new-issues',   totalIssues   > _chipCounts.issues);
+      _applyChipBlink('chip-releases', 'chip-new-releases', totalReleases > _chipCounts.releases);
+    }
+    _chipCounts = { prs: totalPRs, issues: totalIssues, releases: totalReleases };
+
     const newRel   = (data.new_releases || []).length;
     const badgePR  = document.getElementById('badge-prs');
     const badgeIss = document.getElementById('badge-issues');

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13] - 2026-06-07
+
+### Added
+- Stat-Kacheln blinken bei neuen Einträgen: PRs (grün), Issues (gelb), Releases (lila) — Blinken stoppt sobald der zugehörige Tab geöffnet wird; Workflows-Kachel blinkt nicht
+
+---
+
 ## [0.1.12] - 2026-06-07
 
 ### Fixed
