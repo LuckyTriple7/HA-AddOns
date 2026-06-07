@@ -8,6 +8,7 @@
   "error_credentials": "Ungültige Anmeldedaten.",
   "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
 
+  "tab_repos_overview": "Repos",
   "tab_repos": "Pull Requests",
   "tab_issues": "Issues",
   "tab_ci": "CI / Actions",

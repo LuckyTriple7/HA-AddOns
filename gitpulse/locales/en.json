@@ -8,6 +8,7 @@
   "error_credentials": "Invalid credentials.",
   "error_locked": "Too many failed attempts. Please wait 15 minutes.",
 
+  "tab_repos_overview": "Repos",
   "tab_repos": "Pull Requests",
   "tab_issues": "Issues",
   "tab_ci": "CI / Actions",

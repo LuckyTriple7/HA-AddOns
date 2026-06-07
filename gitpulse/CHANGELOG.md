@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.18] - 2026-06-07
+
+### Added
+- Neuer **Repos**-Tab als Startseite: zeigt alle eigenen Repos mit offenen PRs, Issues und letztem CI-Run auf einen Blick; Klick auf eine Zahl öffnet den zugehörigen Detail-Tab
+- PR-Kachel öffnet jetzt den Pull-Requests-Tab (statt Repos-Tab)
+
+---
+
 ## [0.1.17] - 2026-06-07
 
 ### Changed

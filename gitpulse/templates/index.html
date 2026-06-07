@@ -259,6 +259,10 @@
   <!-- ── Tabs ────────────────────────────────────────────────────── -->
   <div class="tabs">
     <div class="tab active" data-tab="repos" onclick="switchTab('repos')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      {{ t.tab_repos_overview }}
+    </div>
+    <div class="tab" data-tab="prs" onclick="switchTab('prs')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
       {{ t.tab_repos }}
       <span id="badge-prs" class="badge" style="display:none">0</span>
@@ -390,8 +394,13 @@
       <button onclick="requestNotifPermission()">{{ t.btn_enable }}</button>
     </div>
 
-    <!-- ── Tab: Repos / PRs ──────────────────────────────────── -->
+    <!-- ── Tab: Repos Übersicht ────────────────────────────────── -->
     <div id="tab-repos">
+      <div id="repo-overview-list"></div>
+    </div>
+
+    <!-- ── Tab: Pull Requests ──────────────────────────────────── -->
+    <div id="tab-prs" style="display:none">
       <div id="token-alert"></div>
       <div id="repo-selector" class="repo-tabs"></div>
       <div id="pr-list"></div>
@@ -456,9 +465,9 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','issues','ci','releases','console'];
+  const TABS = ['repos','prs','issues','ci','releases','console'];
   let activeTab = 'repos';
-  const _tabChipMap = { repos: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases' };
+  const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases' };
   const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases' };
 
   function switchTab(name) {
@@ -810,7 +819,7 @@
     const el = document.getElementById('summary-bar');
     el.innerHTML = `
       <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
-      <div class="stat-chip" id="chip-prs"      onclick="switchTab('repos')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
+      <div class="stat-chip" id="chip-prs"      onclick="switchTab('prs')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
       <div class="stat-chip" id="chip-issues"   onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
@@ -833,6 +842,44 @@
   }
 
   // ── Render: Token alert ───────────────────────────────────────────
+  // ── Render: Repos Übersicht ───────────────────────────────────────
+  function renderReposOverview(data) {
+    const el    = document.getElementById('repo-overview-list');
+    const repos = data.my_repos || [];
+    if (!repos.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg><div>Keine Repos konfiguriert</div></div>`;
+      return;
+    }
+    el.innerHTML = repos.map(repo => {
+      const latestRun  = (repo.runs || [])[0];
+      const runStatus  = latestRun ? (latestRun.status === 'in_progress' ? 'in_progress' : latestRun.conclusion || latestRun.status) : null;
+      const runDot     = latestRun ? `<div class="run-dot ${ciStatusClass(runStatus)}" style="width:9px;height:9px;flex-shrink:0"></div>` : '';
+      const runName    = latestRun ? `<span style="font-size:.8rem">${escHtml(latestRun.name)}</span><span style="font-size:.7rem;color:var(--muted)">#${latestRun.run_number} ${escHtml(latestRun.branch)}</span>` : `<span style="font-size:.78rem;color:var(--muted)">–</span>`;
+      return `<div class="card" style="margin-bottom:12px">
+        <div class="card-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.03-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          <a href="https://github.com/${escHtml(repo.repo)}" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:none;font-weight:700">${escHtml(repo.name)}</a>
+          <span style="font-size:.72rem;color:var(--muted);font-weight:400">${escHtml(repo.repo)}</span>
+          ${repo.default_branch ? `<span class="run-branch" style="margin-left:auto">${escHtml(repo.default_branch)}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:0;border-top:1px solid var(--border)">
+          <div style="flex:1;padding:12px 16px;cursor:pointer;border-right:1px solid var(--border);text-align:center" onclick="selectRepo('${escHtml(repo.repo)}');switchTab('prs')">
+            <div style="font-size:1.3rem;font-weight:700;color:var(--green);line-height:1">${repo.open_prs || 0}</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:3px">{{ t.stat_prs }}</div>
+          </div>
+          <div style="flex:1;padding:12px 16px;cursor:pointer;border-right:1px solid var(--border);text-align:center" onclick="selectRepo('${escHtml(repo.repo)}');switchTab('issues')">
+            <div style="font-size:1.3rem;font-weight:700;color:var(--yellow);line-height:1">${repo.open_issues || 0}</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:3px">{{ t.stat_issues }}</div>
+          </div>
+          <div style="flex:2;padding:10px 16px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="selectRepo('${escHtml(repo.repo)}');switchTab('ci')">
+            ${runDot}
+            <div style="display:flex;flex-direction:column;gap:2px;min-width:0">${runName}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   function renderTokenAlert(data) {
     const el = document.getElementById('token-alert');
     const badge = document.getElementById('token-badge');
@@ -1071,6 +1118,7 @@
     renderSummary(data);
     renderTokenAlert(data);
     renderRateLimit(data);
+    renderReposOverview(data);
     renderRepoSelector(data.my_repos || []);
     renderPRs(data);
     renderIssues(data);
