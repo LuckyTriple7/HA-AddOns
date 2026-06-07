@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33] - 2026-06-07
+
+### Changed
+- Version bump für HA Update-Erkennung
+
+---
+
 ## [0.1.32] - 2026-06-07
 
 ### Added
