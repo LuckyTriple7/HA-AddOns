@@ -775,20 +775,34 @@
   // ── Render: Token alert ───────────────────────────────────────────
   function renderTokenAlert(data) {
     const el = document.getElementById('token-alert');
+    const badge = document.getElementById('token-badge');
     if (data.token_ok === false) {
       el.innerHTML = `<div class="token-error">${T.token_invalid}</div>`;
-    } else if (data.token_expires) {
-      const exp = new Date(data.token_expires);
-      const days = Math.ceil((exp - Date.now()) / 86400000);
-      if (days <= 14) {
-        el.innerHTML = `<div class="token-warning">${T.token_expires.replace('{days}', days)}</div>`;
-      } else el.innerHTML = '';
-    } else el.innerHTML = '';
-    const badge = document.getElementById('token-badge');
+      badge.className = 'token-badge token-err'; badge.textContent = 'Token ERROR';
+      badge.title = ''; badge.style.display = '';
+      return;
+    }
     if (data.token_ok === true) {
-      badge.className = 'token-badge token-ok'; badge.textContent = 'Token OK'; badge.style.display = '';
-    } else if (data.token_ok === false) {
-      badge.className = 'token-badge token-err'; badge.textContent = 'Token ERROR'; badge.style.display = '';
+      let days = null, tooltip = '';
+      if (data.token_expires) {
+        const exp = new Date(data.token_expires.replace(' UTC', 'Z').replace(' ', 'T'));
+        days = Math.ceil((exp - Date.now()) / 86400000);
+        const fmt = exp.toLocaleDateString(undefined, {day:'2-digit', month:'2-digit', year:'numeric'})
+                  + ' ' + exp.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+        tooltip = `${T.token_expires_on} ${fmt} (${days} ${T.token_days})`;
+        if (days <= 14) {
+          el.innerHTML = `<div class="token-warning">${T.token_expires.replace('{days}', days)}</div>`;
+        } else {
+          el.innerHTML = '';
+        }
+      } else {
+        el.innerHTML = '';
+      }
+      const expiringSoon = days !== null && days <= 14;
+      badge.className = 'token-badge ' + (expiringSoon ? 'token-err' : 'token-ok');
+      badge.textContent = 'Token OK';
+      badge.title = tooltip;
+      badge.style.display = '';
     }
   }
 

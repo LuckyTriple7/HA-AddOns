@@ -36,6 +36,8 @@
   "token_missing": "Kein GitHub-Token konfiguriert. Bitte in den Add-on-Einstellungen eintragen.",
   "token_invalid": "GitHub-Token ist ungültig oder abgelaufen. Bitte Token erneuern.",
   "token_expires": "GitHub-Token läuft in {days} Tagen ab. Bitte erneuern.",
+  "token_expires_on": "Läuft ab am:",
+  "token_days": "Tage",
 
   "releases_hint": "Zeigt das neueste Release jedes beobachteten Repos",
   "btn_reset_seen": "Als gelesen markieren",

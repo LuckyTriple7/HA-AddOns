@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6] - 2026-06-07
+
+### Changed
+- Token-Badge im Header: Mouseover zeigt Ablaufdatum + verbleibende Tage
+- Token-Badge wird rot wenn der Token in weniger als 14 Tagen abläuft (statt nur grün)
+
+---
+
 ## [0.1.5] - 2026-06-07
 
 ### Added
