@@ -965,9 +965,9 @@
       <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
       <div class="stat-chip" id="chip-prs"      onclick="switchTab('prs')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
       <div class="stat-chip" id="chip-issues"   onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
+      <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
-      <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
     `;
     // Blinken bei Anstieg (nicht beim ersten Render)
     if (_chipCounts !== null) {
