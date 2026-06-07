@@ -1771,9 +1771,25 @@ def github_webhook():
 
 
 def _run_webhook_server() -> None:
-    """Zweiter WSGI-Server auf Port 17793 — nur für GitHub-Webhook-Empfang."""
+    """Zweiter WSGI-Server auf Port 17793 — nur für GitHub-Webhook-Empfang.
+    Ein WSGI-Wrapper blockiert alle Pfade außer POST /webhook, damit das
+    komplette GitPulse-UI nicht auf dem Webhook-Port erreichbar ist."""
+
+    class _WebhookOnly:
+        """Lässt nur POST /webhook durch — alles andere → 403."""
+        def __call__(self, environ, start_response):
+            path   = environ.get('PATH_INFO', '')
+            method = environ.get('REQUEST_METHOD', 'GET')
+            if path == '/webhook' and method == 'POST':
+                return app(environ, start_response)
+            if path == '/webhook' and method == 'GET':
+                start_response('200 OK', [('Content-Type', 'application/json')])
+                return [b'{"status":"webhook endpoint ready","method":"POST required"}']
+            start_response('403 Forbidden', [('Content-Type', 'text/plain')])
+            return [b'Forbidden']
+
     try:
-        srv = make_server('0.0.0.0', 17793, app)
+        srv = make_server('0.0.0.0', 17793, _WebhookOnly())
         log.info("Webhook-Listener bereit auf Port 17793")
         srv.serve_forever()
     except Exception as e:

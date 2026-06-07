@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.49] - 2026-06-07
+
+### Security / Fixed
+- Webhook-Port 17793: WSGI-Wrapper blockiert jetzt alle Pfade außer `POST /webhook` mit 403 — das komplette GitPulse-UI war bisher auch auf Port 17793 erreichbar
+- `GET /webhook` gibt nun `{"status":"webhook endpoint ready"}` zurück (zur einfachen Erreichbarkeitsprüfung)
+
+---
+
 ## [0.1.48] - 2026-06-07
 
 ### Security
