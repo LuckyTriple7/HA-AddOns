@@ -163,6 +163,9 @@ Die Tile in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning, 
 | Workflow beendet | Name, Ergebnis (✅ / ❌ / ⏹ / ⏭ / ⏱) |
 | Neues Release | Repo, Version, Link |
 | Stars/Forks/Watchers | Vorher → Nachher mit Differenz |
+| 🚨 Secret Scanning Alert | Typ, Alert-Nr., Aktion (gefunden / geleakt / behoben), Link |
+| 🔴 Code Scanning Alert | Schweregrad, Tool, Regel, Datei:Zeile, Link — nur bei `created`/`reopened` |
+| 🟠 Dependabot Alert | Schweregrad, Paket, Ecosystem, Summary, Fix-Version, Link — nur bei `created`/`reopened` |
 
 ---
 
@@ -225,6 +228,8 @@ Empfohlene Events:
 - Branch or tag deletion
 - Stars
 - Secret scanning alerts
+- Code scanning alerts
+- Dependabot alerts
 
 ### Schritt 4: Verbindung testen
 
@@ -251,7 +256,9 @@ Nach dem Speichern sendet GitHub automatisch ein `ping`-Event. Im GitPulse-Log (
 | `push` | Cache aktualisieren |
 | `create` / `delete` | Cache aktualisieren (Branches/Tags) |
 | `star` / `fork` | Cache aktualisieren |
-| `secret_scanning_alert` | Sofortige Telegram-Benachrichtigung (kein Cache-Update nötig) |
+| `secret_scanning_alert` | Sofortige Telegram-Benachrichtigung — immer, auch vor erstem Poll |
+| `code_scanning_alert` | Telegram bei `created` / `appeared_in_branch` / `reopened` mit Schweregrad + Fundort |
+| `dependabot_alert` | Telegram bei `created` / `reopened` / `reintroduced` mit Schweregrad + Fix-Version |
 | `ping` | Verbindungsbestätigung (keine weitere Aktion) |
 
 ---
