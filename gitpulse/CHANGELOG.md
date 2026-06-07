@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.31] - 2026-06-07
+
+### Added
+- Webhook-Event `code_scanning_alert`: Telegram-Benachrichtigung bei CodeQL-Findings mit Schweregrad (🔴 critical / 🟠 high / 🟡 medium / 🟢 low), Tool-Name, Regel-Beschreibung, Datei+Zeile und Alert-Link; nur bei `created`, `appeared_in_branch`, `reopened`
+- Webhook-Event `dependabot_alert`: Telegram-Benachrichtigung bei Dependabot-Schwachstellen mit Schweregrad, Paket-Name, Ecosystem, Advisory-Zusammenfassung und verfügbarem Fix-Version; nur bei `created`, `reopened`, `reintroduced`
+- Alle drei Security-Alert-Events (`secret_scanning_alert`, `code_scanning_alert`, `dependabot_alert`) schreiben immer ein `log.warning` — sichtbar in der Console unabhängig von `verbose_log`
+
+---
+
 ## [0.1.30] - 2026-06-07
 
 ### Added

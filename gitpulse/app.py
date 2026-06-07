@@ -1512,6 +1512,77 @@ def github_webhook():
                 f"Typ: {secret_type}\n"
                 + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
 
+    elif event == 'code_scanning_alert':
+        alert     = payload.get('alert', {})
+        alert_num = alert.get('number', '?')
+        alert_url = alert.get('html_url', '')
+        rule      = alert.get('rule', {})
+        tool_name = (alert.get('tool') or {}).get('name', 'CodeQL')
+        severity  = rule.get('security_severity_level') or rule.get('severity', '?')
+        desc      = rule.get('description', '')
+        instance  = (alert.get('most_recent_instance') or {})
+        location  = (instance.get('location') or {})
+        loc_str   = f"{location.get('path', '')}:{location.get('start_line', '')}" if location.get('path') else ''
+        _sev_icons = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢', 'note': 'ℹ️', 'warning': '⚠️'}
+        _action_map = {
+            'created':          ('gefunden'),
+            'appeared_in_branch': ('in Branch gefunden'),
+            'fixed':            ('behoben ✅'),
+            'closed_by_user':   ('manuell geschlossen'),
+            'dismissed':        ('ignoriert'),
+            'reopened':         ('erneut geöffnet'),
+            'reopened_by_user': ('manuell geöffnet'),
+        }
+        sev_icon = _sev_icons.get(severity, '⚠️')
+        act_label = _action_map.get(action, action)
+        log.warning("Code Scanning Alert [%s/%s] in %s: %s (#%s)", severity, action, repo_full, desc, alert_num)
+        if tg_token and tg_chat and action in ('created', 'appeared_in_branch', 'reopened', 'reopened_by_user'):
+            msg = (f"{sev_icon} <b>Code Scanning Alert:</b> {repo_full}\n"
+                   f"#{alert_num} · {severity.upper()} · {act_label}\n"
+                   f"Tool: {tool_name}\n"
+                   f"{desc}\n")
+            if loc_str:
+                msg += f"📄 {loc_str}\n"
+            if alert_url:
+                msg += f"<a href=\"{alert_url}\">Alert anzeigen</a>"
+            _send_telegram(tg_token, tg_chat, msg)
+
+    elif event == 'dependabot_alert':
+        alert    = payload.get('alert', {})
+        alert_num = alert.get('number', '?')
+        alert_url = alert.get('html_url', '')
+        vuln     = alert.get('security_vulnerability', {})
+        advisory = alert.get('security_advisory', {})
+        pkg      = (vuln.get('package') or {})
+        pkg_name = pkg.get('name', '?')
+        ecosystem = pkg.get('ecosystem', '')
+        severity  = advisory.get('severity') or alert.get('severity', '?')
+        summary   = advisory.get('summary', '')
+        fixed_in  = (vuln.get('first_patched_version') or {}).get('identifier', '')
+        _sev_icons = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢'}
+        _action_map = {
+            'created':        'Neue Schwachstelle',
+            'dismissed':      'Ignoriert',
+            'auto_dismissed': 'Automatisch ignoriert',
+            'fixed':          'Behoben ✅',
+            'reopened':       'Erneut geöffnet',
+            'auto_reopened':  'Automatisch geöffnet',
+            'reintroduced':   'Wieder eingeführt',
+        }
+        sev_icon  = _sev_icons.get(severity, '⚠️')
+        act_label = _action_map.get(action, action)
+        log.warning("Dependabot Alert [%s/%s] in %s: %s %s (#%s)", severity, action, repo_full, pkg_name, ecosystem, alert_num)
+        if tg_token and tg_chat and action in ('created', 'reopened', 'auto_reopened', 'reintroduced'):
+            msg = (f"{sev_icon} <b>Dependabot Alert:</b> {repo_full}\n"
+                   f"#{alert_num} · {severity.upper()} · {act_label}\n"
+                   f"Paket: {pkg_name} ({ecosystem})\n"
+                   f"{summary}\n")
+            if fixed_in:
+                msg += f"Fix verfügbar: {fixed_in}\n"
+            if alert_url:
+                msg += f"<a href=\"{alert_url}\">Alert anzeigen</a>"
+            _send_telegram(tg_token, tg_chat, msg)
+
     return jsonify({'status': 'ok'}), 200
 
 
