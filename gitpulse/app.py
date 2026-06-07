@@ -674,14 +674,44 @@ def _do_poll(cfg: dict, token: str) -> None:
         for run in rd.get('runs', []):
             run_id   = run['id']
             curr_con = run.get('conclusion')
-            prev_con = _known_run_conclusions.get(run_id)
-            if curr_con == 'failure' and prev_con != 'failure':
+            _con_icons  = {'success': '✅', 'failure': '❌', 'cancelled': '⏹', 'skipped': '⏭', 'timed_out': '⏱'}
+            _con_labels = {'success': 'Erfolgreich', 'failure': 'Fehlgeschlagen', 'cancelled': 'Abgebrochen',
+                           'skipped': 'Übersprungen', 'timed_out': 'Timeout'}
+            _evt_labels = {'push': 'Push', 'pull_request': 'PR', 'workflow_dispatch': 'Manuell',
+                           'schedule': 'Zeitplan', 'release': 'Release'}
+            run_info = (f"<b>{run['name']}</b> #{run.get('run_number','')}\n"
+                        f"Branch: {run.get('branch','?')} · {_evt_labels.get(run.get('event',''), run.get('event','?'))}\n"
+                        f"von @{run.get('actor','?')} · {run.get('head_sha','')[:7]}\n")
+            if run_id not in _known_run_conclusions:
+                # Erster Kontakt mit diesem Run
                 if _first_poll_done and tg_token and tg_chat:
-                    _send_telegram(tg_token, tg_chat,
-                        f"❌ CI Fehler: <b>{rname}</b>\n"
-                        f"Workflow: {run['name']}\n"
-                        f"Branch: {run.get('branch', '?')}\n"
-                        f"<a href=\"{run['url']}\">Details</a>")
+                    if curr_con is None:
+                        # Läuft gerade → "gestartet"
+                        _send_telegram(tg_token, tg_chat,
+                            f"▶️ <b>Workflow gestartet:</b> {rname}\n"
+                            + run_info
+                            + f"<a href=\"{run['url']}\">Details</a>")
+                    else:
+                        # Schon abgeschlossen wenn zuerst gesehen → nur Abschluss
+                        icon  = _con_icons.get(curr_con, '⚠️')
+                        label = _con_labels.get(curr_con, curr_con)
+                        _send_telegram(tg_token, tg_chat,
+                            f"{icon} <b>Workflow beendet:</b> {rname}\n"
+                            + run_info
+                            + f"Status: {label}\n"
+                            + f"<a href=\"{run['url']}\">Details</a>")
+            else:
+                prev_con = _known_run_conclusions[run_id]
+                if prev_con is None and curr_con is not None:
+                    # Gerade abgeschlossen
+                    if _first_poll_done and tg_token and tg_chat:
+                        icon  = _con_icons.get(curr_con, '⚠️')
+                        label = _con_labels.get(curr_con, curr_con)
+                        _send_telegram(tg_token, tg_chat,
+                            f"{icon} <b>Workflow beendet:</b> {rname}\n"
+                            + run_info
+                            + f"Status: {label}\n"
+                            + f"<a href=\"{run['url']}\">Details</a>")
             _known_run_conclusions[run_id] = curr_con
 
     # Telegram Startup-Nachricht (einmalig beim ersten Poll)

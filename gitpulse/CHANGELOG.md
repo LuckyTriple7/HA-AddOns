@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.8] - 2026-06-07
+
+### Added
+- Telegram: Benachrichtigung wenn ein Workflow **gestartet** wird (▶️) — mit Workflow-Name, Branch, Trigger-Typ, Autor und Commit-SHA
+- Telegram: Benachrichtigung wenn ein Workflow **beendet** wird (✅/❌/⏹/⏭/⏱) — mit Abschlussstatus in Klartext
+
+### Fixed
+- CI-Tracking: neuer Run wurde bisher nicht von "noch laufendem Run ohne Conclusion" unterschieden (`_known_run_conclusions` nutzt jetzt explizite `in`-Prüfung statt `.get()`)
+
+---
+
 ## [0.1.7] - 2026-06-07
 
 ### Changed
