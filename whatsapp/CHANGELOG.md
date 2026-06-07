@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.6] - 2026-06-07
+
+### Security
+- Path-Traversal-Schwachstelle in Write-Endpunkten behoben: `downloadWAMedia` und Send-Media-Upload verwenden jetzt `path.resolve()` + Boundary-Check um Path-Injection bei `writeFileSync` zu verhindern (CodeQL: Uncontrolled data used in path expression)
+
+---
+
 ## [1.7.5] - 2026-06-07
 
 ### Security

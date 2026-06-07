@@ -275,7 +275,8 @@ async function downloadWAMedia(msg, msgId) {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
     const mime = msg._data?.mimetype || '';
     const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : msg.type === 'video' ? (mime.includes('webm') ? 'webm' : 'mp4') : 'jpg';
-    const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+    const filePath = path.resolve(MEDIA_DIR, `${safeId}.${ext}`);
+    if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return null;
     if (!existsSync(filePath)) {
       _logSilent('DEBUG', `downloadWAMedia: start ${safeId}.${ext} (${mime||'?'})`);
       const t0 = Date.now();
@@ -848,7 +849,8 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
     if (isImg) {
       const safeId = result.id._serialized.replace(/[^a-zA-Z0-9]/g, '_');
       const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-      const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+      const filePath = path.resolve(MEDIA_DIR, `${safeId}.${ext}`);
+      if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return res.status(400).json({ error: 'Invalid path' });
       fs.writeFileSync(filePath, req.file.buffer);
       mediaFile = `${safeId}.${ext}`;
     }
