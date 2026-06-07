@@ -293,7 +293,7 @@ function processEnvelope(envelope) {
 
   const hasText = !!(dm && dm.message);
   const hasAttachments = !!(dm && Array.isArray(dm.attachments) && dm.attachments.length > 0);
-  dbg(`processEnvelope: chatId=${chatId} isOwn=${isOwn} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
+  dbg(`processEnvelope: isOwn=${isOwn} hasDataMessage=${!!dm} hasText=${hasText} hasAttachments=${hasAttachments} body="${(dm?.message||'').slice(0,60)}"`);
   if (!dm || !chatId || (!hasText && !hasAttachments)) { dbg(`processEnvelope: skipping — no dataMessage, chatId, or content`); return; }
 
   const msgId = `${isOwn ? PHONE_NUMBER : chatId}_${dm.timestamp}`;
@@ -338,7 +338,7 @@ function processEnvelope(envelope) {
 
   scheduleSave();
 
-  dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn} chatId=${chatId}`);
+  dbg(`processEnvelope: stored msgId=${msgId} fromMe=${isOwn}`);
 
   if (!isOwn) {
     lastReceivedMsg = {
@@ -824,7 +824,7 @@ app.post('/api/qr/refresh', (req, res) => {
 
 app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => {
   const { chatId, msgId } = req.params;
-  dbg(`Deleting message ${msgId} in chat ${chatId}`);
+  dbg(`Deleting message ${msgId}`);
   // Always remove locally so the message disappears from the UI
   const msgs = messagesByChatId.get(chatId);
   if (msgs) {

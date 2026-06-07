@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.8] - 2026-06-07
+
+### Security
+- Clear-text Logging (#119): `chatId` (Telefonnummer) aus allen verbleibenden `dbg()`-Calls entfernt (processEnvelope ×2, Deleting message)
+
+---
+
 ## [1.6.7] - 2026-06-07
 
 ### Security
