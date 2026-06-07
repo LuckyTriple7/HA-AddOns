@@ -763,6 +763,7 @@
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${(data.releases||[]).length}</div><div class="lbl">{{ t.stat_releases }}</div></div>
     `;
+    const newRel   = (data.new_releases || []).length;
     const badgePR  = document.getElementById('badge-prs');
     const badgeIss = document.getElementById('badge-issues');
     const badgeRel = document.getElementById('badge-releases');

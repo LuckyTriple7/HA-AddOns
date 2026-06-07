@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4] - 2026-06-07
+
+### Fixed
+- Kritischer JS-Fehler in `renderSummary`: `newRel` war undefiniert → Exception brach `render()` ab, wodurch alle Tabs (PRs, Issues, CI, Releases), Token-Badge und Rate-Limit-Anzeige leer blieben
+
+---
+
 ## [0.1.3] - 2026-06-07
 
 ### Changed
