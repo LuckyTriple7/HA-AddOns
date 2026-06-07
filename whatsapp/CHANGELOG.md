@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.2] - 2026-06-07
+### Fixed
+- Offline-Banner verschwand fälschlicherweise trotz WLAN-Aus (gecachte Fetch-Antwort): `navigator.onLine`-Check vor `hideOfflineBanner()`
+- Offline-Banner-Texte hardcoded Deutsch: `data-i18n`-Attribute + EN-Keys (`Connection lost / Reconnecting… / Reload`)
+
 ## [1.7.1] - 2026-06-07
 ### Added
 - Disconnect-Erkennung: `visibilitychange`-Event aktualisiert Tab sofort beim Aufklappen des Laptops / Tab-Wechsel
