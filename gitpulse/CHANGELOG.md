@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.45] - 2026-06-07
+
+### Changed
+- Tab-Reihenfolge: Security jetzt direkt neben Issues (wie in den Stat-Kacheln)
+
+---
+
 ## [0.1.44] - 2026-06-07
 
 ### Fixed
