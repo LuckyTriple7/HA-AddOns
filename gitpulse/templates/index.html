@@ -191,6 +191,20 @@
     #refresh-badge.show { display:flex; }
     #refresh-badge .rb-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:pulse 1s infinite; flex-shrink:0; }
 
+    /* ── Settings Modal ────────────────────────────────────── */
+    .settings-section-label { font-size:.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:14px 0 6px; }
+    .repo-chips { display:flex; flex-wrap:wrap; gap:4px; min-height:26px; }
+    .repo-chip { display:inline-flex; align-items:center; gap:3px; background:var(--surf2); border:1px solid var(--border); border-radius:20px; padding:3px 6px 3px 10px; font-size:.78rem; }
+    .repo-chip button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:1rem; padding:0 2px; line-height:1; }
+    .repo-chip button:hover { color:var(--red); }
+    .repo-add-row { display:flex; gap:6px; margin-top:8px; }
+    .repo-add-row input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-size:.82rem; }
+    .repo-add-row input:focus { outline:none; border-color:var(--accent); }
+    .repo-add-row button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:.82rem; font-weight:600; }
+    .settings-source { font-size:.72rem; padding:5px 10px; border-radius:4px; margin-bottom:12px; }
+    .settings-source.user    { background:rgba(63,185,80,.1); color:var(--green); border:1px solid rgba(63,185,80,.25); }
+    .settings-source.options { background:rgba(210,153,34,.1); color:var(--yellow); border:1px solid rgba(210,153,34,.25); }
+
     /* ── Scrollbar ──────────────────────────────────────────── */
     ::-webkit-scrollbar { width:5px; height:5px; }
     ::-webkit-scrollbar-track { background:transparent; }
@@ -211,6 +225,9 @@
     <button class="hdr-btn" onclick="pollNow()" title="{{ t.btn_refresh }}">
       <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
       {{ t.btn_refresh }}
+    </button>
+    <button class="hdr-btn" onclick="openSettings()" title="{{ t.settings_title }}">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
     </button>
     <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
     <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
@@ -296,6 +313,35 @@
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('merge-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm danger" onclick="confirmMerge()">{{ t.btn_merge }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings Modal ───────────────────────────────────────────── -->
+  <div id="settings-modal" class="modal-backdrop">
+    <div class="modal" style="max-width:480px">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        {{ t.settings_title }}
+      </h3>
+      <div id="settings-source" class="settings-source"></div>
+      <div class="settings-section-label">{{ t.settings_my_repos }}</div>
+      <div id="settings-my-list" class="repo-chips"></div>
+      <div class="repo-add-row">
+        <input id="settings-my-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+               onkeydown="if(event.key==='Enter') settingsAdd('my')">
+        <button onclick="settingsAdd('my')">{{ t.settings_add }}</button>
+      </div>
+      <div class="settings-section-label">{{ t.settings_watch_repos }}</div>
+      <div id="settings-watch-list" class="repo-chips"></div>
+      <div class="repo-add-row">
+        <input id="settings-watch-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+               onkeydown="if(event.key==='Enter') settingsAdd('watch')">
+        <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="saveRepoConfig()">{{ t.settings_save }}</button>
       </div>
     </div>
   </div>
@@ -487,6 +533,66 @@
       }
     })
     .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  }
+
+  // ── Settings: Repo-Verwaltung ─────────────────────────────────────
+  let _sMyRepos = [], _sWatchRepos = [];
+
+  function openSettings() {
+    fetch(u('/api/config/repos'))
+      .then(r => r.json())
+      .then(data => {
+        _sMyRepos    = data.my_repos || [];
+        _sWatchRepos = data.watch_repos || [];
+        _renderSettingsList('my',    _sMyRepos,    'settings-my-list');
+        _renderSettingsList('watch', _sWatchRepos, 'settings-watch-list');
+        const srcEl = document.getElementById('settings-source');
+        srcEl.className = 'settings-source ' + (data.source === 'user' ? 'user' : 'options');
+        srcEl.textContent = data.source === 'user'
+          ? '{{ t.settings_source_user }}'
+          : '{{ t.settings_source_options }}';
+        document.getElementById('settings-modal').classList.add('show');
+      })
+      .catch(e => alert(String(e)));
+  }
+
+  function _renderSettingsList(type, repos, elId) {
+    const el = document.getElementById(elId);
+    el.innerHTML = repos.length
+      ? repos.map((r, i) =>
+          `<span class="repo-chip">${escHtml(r)}<button onclick="settingsRemove('${type}',${i})" title="Entfernen">×</button></span>`
+        ).join('')
+      : `<span style="font-size:.78rem;color:var(--muted)">—</span>`;
+  }
+
+  function settingsAdd(type) {
+    const inputId = type === 'my' ? 'settings-my-input' : 'settings-watch-input';
+    const input   = document.getElementById(inputId);
+    const val     = input.value.trim();
+    if (!val || !val.includes('/')) return;
+    const arr = type === 'my' ? _sMyRepos : _sWatchRepos;
+    if (!arr.includes(val)) arr.push(val);
+    input.value = '';
+    _renderSettingsList(type, arr, type === 'my' ? 'settings-my-list' : 'settings-watch-list');
+  }
+
+  function settingsRemove(type, idx) {
+    const arr = type === 'my' ? _sMyRepos : _sWatchRepos;
+    arr.splice(idx, 1);
+    _renderSettingsList(type, arr, type === 'my' ? 'settings-my-list' : 'settings-watch-list');
+  }
+
+  function saveRepoConfig() {
+    fetch(u('/api/config/repos'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'saved') { closeModal('settings-modal'); triggerRefresh(3); }
+    })
+    .catch(e => alert(String(e)));
   }
 
   // ── Issue schließen ───────────────────────────────────────────────

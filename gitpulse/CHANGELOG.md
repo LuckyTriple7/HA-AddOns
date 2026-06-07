@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.1] - 2026-06-07
+
+### Added
+- **Repo-Verwaltung in GitPulse** (⚙-Button im Header): Repos direkt in der UI hinzufügen/entfernen, gespeichert in `/data/gitpulse_repos.json` — überlebt Add-on-Updates dauerhaft; HA-Options.json wird für Repos ignoriert sobald die UI-Config existiert
+- **Telegram Startup-Nachricht**: beim ersten Poll nach Add-on-Start wird eine Zusammenfassung (offene PRs + Issues pro Repo) per Telegram geschickt
+- Quelle der Repo-Config im Settings-Modal sichtbar (grün = GitPulse-managed, gelb = HA-Options)
+
+### Fixed
+- Repos gehen nach Add-on-Updates nicht mehr verloren
+
+---
+
 ## [0.1.0] - 2026-06-07
 
 ### Added

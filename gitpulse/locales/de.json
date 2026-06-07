@@ -58,6 +58,15 @@
 
   "rl_calls": "API-Aufrufe",
 
+  "settings_title": "Einstellungen",
+  "settings_my_repos": "Eigene Repos (vollständiger Zugriff)",
+  "settings_watch_repos": "Watch-Repos (nur Releases)",
+  "settings_repo_placeholder": "owner/repo",
+  "settings_add": "Hinzufügen",
+  "settings_save": "Speichern",
+  "settings_source_user": "✓ Verwaltet durch GitPulse (persistent)",
+  "settings_source_options": "Aus HA Add-on Einstellungen (wird bei Updates überschrieben)",
+
   "merge_title": "Pull Request mergen",
   "merge_method": "Merge-Methode",
   "merge_method_merge": "Merge Commit",

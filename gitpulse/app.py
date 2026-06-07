@@ -69,6 +69,7 @@ app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_h
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
+REPOS_PATH    = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
 LOCALES_PATH  = '/app/locales'
 
 GITHUB_API    = 'https://api.github.com'
@@ -125,6 +126,26 @@ RATE_LIMIT_BLOCK  = 15 * 60
 
 
 # ── Config & Sessions ─────────────────────────────────────────────────────────
+
+def load_user_repos() -> dict | None:
+    """Gibt user-verwaltete Repos zurück oder None wenn nicht vorhanden (→ options.json nutzen)."""
+    try:
+        with open(REPOS_PATH) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        log.warning("gitpulse_repos.json konnte nicht geladen werden: %s", e)
+        return None
+
+
+def save_user_repos(data: dict) -> None:
+    try:
+        with open(REPOS_PATH, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        log.warning("gitpulse_repos.json konnte nicht gespeichert werden: %s", e)
+
 
 def load_config() -> dict:
     global _config_cache, _config_mtime
@@ -599,8 +620,13 @@ def _do_poll(cfg: dict, token: str) -> None:
         _notify_sse()
         return
 
-    my_repos   = cfg.get('my_repos', [])
-    watch_repos  = cfg.get('watch_repos', [])
+    user_repos = load_user_repos()
+    if user_repos is not None:
+        my_repos    = [r for r in user_repos.get('my_repos', [])    if r.strip()]
+        watch_repos = [r for r in user_repos.get('watch_repos', []) if r.strip()]
+    else:
+        my_repos    = [r for r in cfg.get('my_repos', [])    if r.strip()]
+        watch_repos = [r for r in cfg.get('watch_repos', []) if r.strip()]
     incl_betas = bool(cfg.get('include_ha_betas', True))
     tg_token   = cfg.get('telegram_bot_token', '').strip()
     tg_chat    = cfg.get('telegram_chat_id', '').strip()
@@ -657,6 +683,19 @@ def _do_poll(cfg: dict, token: str) -> None:
                         f"Branch: {run.get('branch', '?')}\n"
                         f"<a href=\"{run['url']}\">Details</a>")
             _known_run_conclusions[run_id] = curr_con
+
+    # Telegram Startup-Nachricht (einmalig beim ersten Poll)
+    if not _first_poll_done and tg_token and tg_chat:
+        msg = "🚀 <b>GitPulse gestartet</b>\n"
+        if repo_data:
+            msg += "\n<b>Eigene Repos:</b>"
+            for rd in repo_data:
+                prs    = rd.get('open_prs', 0)
+                issues = rd.get('open_issues', 0)
+                msg += f"\n• <b>{rd['name']}</b> — {prs} PR{'s' if prs != 1 else ''}, {issues} Issue{'s' if issues != 1 else ''}"
+        else:
+            msg += "\nKeine eigenen Repos konfiguriert."
+        _send_telegram(tg_token, tg_chat, msg)
 
     _first_poll_done = True
 
@@ -972,6 +1011,40 @@ def api_ci_jobs():
             ],
         })
     return jsonify(jobs)
+
+
+@app.route('/api/config/repos', methods=['GET'])
+def api_config_repos_get():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg        = load_config()
+    user_repos = load_user_repos()
+    if user_repos is not None:
+        return jsonify({
+            'source':      'user',
+            'my_repos':    user_repos.get('my_repos', []),
+            'watch_repos': user_repos.get('watch_repos', []),
+        })
+    return jsonify({
+        'source':      'options',
+        'my_repos':    [r for r in cfg.get('my_repos', [])    if r.strip()],
+        'watch_repos': [r for r in cfg.get('watch_repos', []) if r.strip()],
+    })
+
+
+@app.route('/api/config/repos', methods=['POST'])
+def api_config_repos_save():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body        = request.get_json(silent=True) or {}
+    my_repos    = [r.strip() for r in body.get('my_repos', [])    if r.strip()]
+    watch_repos = [r.strip() for r in body.get('watch_repos', []) if r.strip()]
+    save_user_repos({'my_repos': my_repos, 'watch_repos': watch_repos})
+    _etag_cache.clear()  # frischer Poll für neue Repos
+    log.info("Repo-Config gespeichert: %d eigene, %d Watch-Repos", len(my_repos), len(watch_repos))
+    return jsonify({'status': 'saved', 'my_repos': my_repos, 'watch_repos': watch_repos})
 
 
 @app.route('/api/issue/close', methods=['POST'])
