@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.24] - 2026-06-07
+
+### Added
+- Pull Requests: 💬 Kommentieren-Button je PR-Zeile (nutzt dieselbe Backend-Route wie Issues — GitHub behandelt PRs und Issues identisch)
+- Such-/Filterleiste in Pull Requests und Issues: Live-Filter nach Titel, Autor, Nummer und Label; Trefferanzahl ("3 von 7") wird angezeigt; Löschen über Browser-× oder leeren des Feldes
+
+---
+
 ## [0.1.23] - 2026-06-07
 
 ### Added

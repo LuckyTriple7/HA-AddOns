@@ -48,6 +48,7 @@
   "badge_new": "New since last poll",
   "link_view": "View →",
 
+  "filter_placeholder": "Search…",
   "btn_merge": "Merge",
   "btn_rerun": "Re-run",
   "btn_dispatch": "Dispatch",
