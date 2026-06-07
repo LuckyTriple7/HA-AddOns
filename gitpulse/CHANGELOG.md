@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.38] - 2026-06-07
+
+### Added
+- CI-Tab: Workflow-Runs-Limit von 50 auf 500 erhöht (Backend paginiert bis zu 5 Seiten × 100 Runs via GitHub API)
+- CI-Tab: Frontend-Paginierung — bei mehr als 50 gefilterten Runs werden je 50 pro Seite angezeigt, mit Blättern-Steuerung (‹ / ›) und Seitenanzeige
+
+---
+
 ## [0.1.37] - 2026-06-07
 
 ### Added

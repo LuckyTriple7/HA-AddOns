@@ -475,9 +475,18 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'updated': iss['updated_at'],
         })
 
-    runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': run_limit}) or {}
+    all_runs: list = []
+    _page = 1
+    while len(all_runs) < run_limit:
+        _batch = min(100, run_limit - len(all_runs))
+        _raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': _batch, 'page': _page}) or {}
+        _wf  = _raw.get('workflow_runs') or []
+        if not _wf:
+            break
+        all_runs.extend(_wf)
+        _page += 1
     runs = []
-    for run in (runs_raw.get('workflow_runs') or [])[:run_limit]:
+    for run in all_runs[:run_limit]:
         head_msg = (run.get('head_commit') or {}).get('message', '')
         runs.append({
             'id':           run['id'],
@@ -665,7 +674,7 @@ def _trigger_repo_poll(repo_name: str) -> None:
     if not token:
         return
     try:
-        run_limit = min(50, max(1, int(cfg.get('workflow_run_limit', 25))))
+        run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
         data = _fetch_repo_data(repo_name, token, run_limit)
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
@@ -745,7 +754,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     incl_betas = bool(cfg.get('include_ha_betas', True))
     tg_token   = cfg.get('telegram_bot_token', '').strip()
     tg_chat    = cfg.get('telegram_chat_id', '').strip()
-    run_limit  = min(50, max(1, int(cfg.get('workflow_run_limit', 25))))
+    run_limit  = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
 
     if _verbose():
         log.info("Polling %d eigene Repos, %d Watch-Repos", len(my_repos), len(watch_repos))
