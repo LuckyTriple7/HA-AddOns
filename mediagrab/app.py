@@ -742,13 +742,12 @@ def api_info():
     if not safe_url:
         return jsonify({'error': 'invalid_url'}), 400
 
-    cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
+    cmd = ['yt-dlp', '--batch-file', '-', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd += ['--', safe_url]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, input=safe_url + '\n', capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
             return jsonify({'error': 'fetch_failed'}), 400
         info = json.loads(result.stdout.splitlines()[0])
