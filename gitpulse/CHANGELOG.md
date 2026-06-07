@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14] - 2026-06-07
+
+### Changed
+- CI/Actions: Workflow-Runs werden jetzt bis zu 25 statt nur 10 geladen
+
+---
+
 ## [0.1.13] - 2026-06-07
 
 ### Added

@@ -448,9 +448,9 @@ def _fetch_repo_data(repo: str, token: str) -> dict:
             'updated': iss['updated_at'],
         })
 
-    runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': 10}) or {}
+    runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': 25}) or {}
     runs = []
-    for run in (runs_raw.get('workflow_runs') or [])[:10]:
+    for run in (runs_raw.get('workflow_runs') or [])[:25]:
         head_msg = (run.get('head_commit') or {}).get('message', '')
         runs.append({
             'id':           run['id'],
