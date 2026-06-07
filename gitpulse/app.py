@@ -529,6 +529,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         except Exception as e:
             log.error("GitHub API Fehler (%s/releases/latest): %s", repo, e)
 
+    security = _fetch_security_alerts(repo, token)
+
     return {
         'repo':           repo,
         'owner':          owner,
@@ -544,6 +546,60 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         'stars':          repo_meta.get('stargazers_count', 0),
         'forks':          repo_meta.get('forks_count', 0),
         'watchers':       repo_meta.get('watchers_count', 0),
+        'security':       security,
+    }
+
+
+def _fetch_security_alerts(repo: str, token: str) -> dict:
+    """Fetch open Dependabot, Code Scanning and Secret Scanning alerts for one repo."""
+    def _safe(path: str) -> list:
+        result = _gh_get(path, token, {'state': 'open', 'per_page': 50})
+        return result if isinstance(result, list) else []
+
+    def _fmt_dep(a: dict) -> dict:
+        vuln  = a.get('security_vulnerability') or {}
+        adv   = a.get('security_advisory') or {}
+        pkg   = vuln.get('package') or {}
+        fixed = (vuln.get('first_patched_version') or {}).get('identifier', '')
+        return {
+            'number':    a.get('number', '?'),
+            'severity':  adv.get('severity') or 'unknown',
+            'package':   pkg.get('name', '?'),
+            'ecosystem': pkg.get('ecosystem', ''),
+            'summary':   adv.get('summary', ''),
+            'fixed_in':  fixed,
+            'url':       a.get('html_url', ''),
+        }
+
+    def _fmt_cs(a: dict) -> dict:
+        rule = a.get('rule') or {}
+        tool = a.get('tool') or {}
+        loc  = ((a.get('most_recent_instance') or {}).get('location') or {})
+        return {
+            'number':      a.get('number', '?'),
+            'severity':    rule.get('security_severity_level') or rule.get('severity', 'unknown'),
+            'rule_id':     rule.get('id', ''),
+            'description': rule.get('description', ''),
+            'tool':        tool.get('name', 'CodeQL'),
+            'path':        loc.get('path', ''),
+            'line':        loc.get('start_line', ''),
+            'url':         a.get('html_url', ''),
+        }
+
+    def _fmt_ss(a: dict) -> dict:
+        return {
+            'number': a.get('number', '?'),
+            'type':   a.get('secret_type_display_name') or a.get('secret_type', '?'),
+            'url':    a.get('html_url', ''),
+        }
+
+    dep = _safe(f'/repos/{repo}/dependabot/alerts')
+    cs  = _safe(f'/repos/{repo}/code-scanning/alerts')
+    ss  = _safe(f'/repos/{repo}/secret-scanning/alerts')
+    return {
+        'dependabot':      [_fmt_dep(a) for a in dep],
+        'code_scanning':   [_fmt_cs(a)  for a in cs],
+        'secret_scanning': [_fmt_ss(a)  for a in ss],
     }
 
 

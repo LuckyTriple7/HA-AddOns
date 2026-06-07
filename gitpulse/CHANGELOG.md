@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.32] - 2026-06-07
+
+### Added
+- Neuer **Security-Tab** + **Security-Tile** in der Stat-Leiste: zeigt alle offenen Dependabot-, Code Scanning- und Secret Scanning-Alerts je Repo
+- Tile-Farbe: grün (0 Alerts) / gelb (medium/low) / rot (high/critical oder Secret Scanning)
+- Badge am Tab-Button + Blinken wenn neue Alerts hinzukommen
+- Backend: `_fetch_security_alerts()` ruft `/dependabot/alerts`, `/code-scanning/alerts` und `/secret-scanning/alerts` ab (ETag-gecacht); 403/404 werden still ignoriert bis PAT-Rechte ergänzt sind
+- Rendering: Alerts sortiert nach Typ (🤖 Dependabot / 🔍 Code Scanning / 🔑 Secret Scanning), je mit Schweregrad-Icon, Paket/Regel, Beschreibung, Datei+Zeile, Fix-Version und direktem Alert-Link
+- **Voraussetzung PAT**: zusätzliche Berechtigungen „Dependabot alerts (read)", „Secret scanning alerts (read)" und „Security events (read)" im Fine-Grained Token eintragen
+
+---
+
 ## [0.1.31] - 2026-06-07
 
 ### Added

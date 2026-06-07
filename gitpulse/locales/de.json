@@ -13,6 +13,7 @@
   "tab_issues": "Issues",
   "tab_ci": "CI / Actions",
   "tab_releases": "Releases",
+  "tab_security": "Security",
   "tab_console": "Console",
 
   "stat_repos": "Repos",
@@ -23,6 +24,12 @@
   "stat_stars": "Stars",
   "stat_forks": "Forks",
   "stat_watchers": "Beobachter",
+  "stat_security": "Security Alerts",
+
+  "security_none": "Keine offenen Security-Alerts — alles sauber",
+  "security_dependabot": "Dependabot",
+  "security_codescanning": "Code Scanning",
+  "security_secretscanning": "Secret Scanning",
 
   "no_prs": "Keine offenen Pull Requests",
   "no_issues": "Keine offenen Issues",

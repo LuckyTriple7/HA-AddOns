@@ -22,6 +22,9 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 | Repository: Pull Requests | Read and write |
 | Repository: Issues | Read and write |
 | Repository: Actions | Read and write |
+| Repository: Dependabot alerts | Read |
+| Repository: Secret scanning alerts | Read |
+| Repository: Security events | Read |
 
 **Token erstellen:**
 
@@ -101,6 +104,20 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 - Aktionen je Run: **▶ Neustarten** · **■ Stoppen** (laufende Runs) · **🗑 Löschen** (abgeschlossene Runs)
 - **Workflow starten (Dispatch)**: Workflow + Branch auswählen; Branch-Dropdown wird von GitHub geladen, Default-Branch ist vorausgewählt
 - **⭐ Workflow-Favoriten**: Im Dispatch-Modal „⭐ Favorit speichern" — speichert Workflow + Branch dauerhaft. Favoriten erscheinen als eigene Karte im CI-Tab und können mit **▶** sofort ausgelöst oder mit **🗑** gelöscht werden.
+
+### Security
+
+Alle offenen Security-Alerts aller eigenen Repos auf einen Blick:
+
+- **🤖 Dependabot** — veraltete Dependencies mit Schwachstellen (Paket, Ecosystem, Summary, Fix-Version)
+- **🔍 Code Scanning** — CodeQL-Findings (Tool, Regel, Beschreibung, Datei + Zeile)
+- **🔑 Secret Scanning** — versehentlich eingecheckte Secrets
+
+Schweregrad-Icons: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · 🟢 LOW
+
+Die Tile in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning, **gelb** bei MEDIUM/LOW, **grün** bei 0 Alerts. Der Badge am Tab-Button blinkt wenn neue Alerts hinzukommen.
+
+**Voraussetzung**: PAT benötigt zusätzliche Berechtigungen (siehe [GitHub Token](#github-token)).
 
 ### Releases
 
