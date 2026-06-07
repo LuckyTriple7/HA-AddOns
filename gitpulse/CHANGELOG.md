@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.43] - 2026-06-07
+
+### Improved
+- Refresh-Countdown wird sofort abgebrochen wenn ein Webhook-SSE-Update eintrifft — kein unnötiges Warten bei aktiven Webhooks
+
+---
+
 ## [0.1.42] - 2026-06-07
 
 ### Added

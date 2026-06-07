@@ -1615,7 +1615,16 @@
   // ── SSE ───────────────────────────────────────────────────────────
   function connectSSE() {
     const es = new EventSource(u('/events'));
-    es.onmessage = e => { if (e.data === 'update') loadData(); };
+    es.onmessage = e => {
+      if (e.data !== 'update') return;
+      if (_refreshTimer) {
+        clearTimeout(_refreshTimer);
+        clearInterval(_countdownTimer);
+        _refreshTimer = null;
+        document.getElementById('refresh-badge').classList.remove('show');
+      }
+      loadData();
+    };
     es.onerror = () => {
       document.getElementById('offline-banner').classList.add('show');
       es.close();
