@@ -34,5 +34,8 @@
   "notif_snooze_tomorrow": "Bis morgen",
   "notif_unsnooze": "Aufheben",
   "notif_new_msg_title": "Neue Nachricht",
-  "notif_new_msg_from": "von {sender}"
+  "notif_new_msg_from": "von {sender}",
+  "banner_offline_title": "Verbindung unterbrochen",
+  "banner_offline_sub": "Stelle Verbindung wieder her…",
+  "banner_offline_reload": "Neu laden"
 }

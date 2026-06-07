@@ -94,5 +94,9 @@
   "error_network": "Network error",
   "error_unknown": "Unknown error",
 
-  "install_banner": "Install MediaGrab as app"
+  "install_banner": "Install MediaGrab as app",
+
+  "banner_offline_title": "Connection lost",
+  "banner_offline_sub": "Reconnecting…",
+  "banner_offline_reload": "Reload"
 }

@@ -82,5 +82,9 @@
   "hist_no_data": "No history data yet — data is saved every minute",
   "hist_load_error": "Error loading data",
   "hist_no_sensors": "No sensor data available",
-  "hist_temp_tooltip": "Show temperature history"
+  "hist_temp_tooltip": "Show temperature history",
+
+  "banner_offline_title": "Connection lost",
+  "banner_offline_sub": "Reconnecting…",
+  "banner_offline_reload": "Reload"
 }

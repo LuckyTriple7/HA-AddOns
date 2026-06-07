@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.1] - 2026-06-07
+### Added
+- Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start
+- Offline-Banner: abdunkelndes Overlay mit animiertem 📡, i18n (DE/EN via LANG-Objekt + `data-i18n`) und „Neu laden"-Button
+
 ## [1.6.0] - 2026-06-06
 ### Added
 - Sprachnachrichten: Download als .ogg, abspielbarer Audio-Player im Chat (erfordert `download_media: true`)

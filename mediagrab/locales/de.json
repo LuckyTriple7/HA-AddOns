@@ -94,5 +94,9 @@
   "error_network": "Netzwerkfehler",
   "error_unknown": "Unbekannter Fehler",
 
-  "install_banner": "MediaGrab als App installieren"
+  "install_banner": "MediaGrab als App installieren",
+
+  "banner_offline_title": "Verbindung unterbrochen",
+  "banner_offline_sub": "Stelle Verbindung wieder her…",
+  "banner_offline_reload": "Neu laden"
 }

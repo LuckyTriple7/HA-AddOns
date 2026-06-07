@@ -1081,6 +1081,14 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 .logout-modal-no:hover { background:#3d5259; }
 .logout-modal-yes { background:#f15c5c; color:#fff; }
 .logout-modal-yes:hover { background:#d94444; }
+/* ── Offline-Banner ── */
+#offline-banner { display:none; position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+.ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
+.ob-title { font-size:16px; font-weight:600; color:#e9edef; }
+.ob-sub { font-size:13px; color:#8696a0; }
+.ob-reload { background:#2a3942; border:1px solid #3d5259; color:#e9edef; border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+.ob-reload:hover { background:#3d5259; border-color:#5a7a87; }
+@keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 </style>
 </head>
 <body>
@@ -1197,6 +1205,7 @@ const LANG = {
     cleanupSuccess: (c, mb) => c + ' Datei(en) gelöscht, ' + mb + ' MB freigegeben.',
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
     filterAll: 'Alle', filterPrivate: 'Privat', filterGroups: 'Gruppen',
+    offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
   },
   en: {
     spinnerStart: 'Starting Signal…', spinnerConnect: 'Connecting…', spinnerLogout: 'Logging out…',
@@ -1221,6 +1230,7 @@ const LANG = {
     cleanupSuccess: (c, mb) => c + ' file(s) deleted, ' + mb + ' MB freed.',
     cleanupError: (e) => 'Cleanup error: ' + e,
     filterAll: 'All', filterPrivate: 'Private', filterGroups: 'Groups',
+    offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
   },
 };
 const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -1334,9 +1344,15 @@ function refreshQR() {
   setTimeout(loadQR, 1000);
 }
 
+let _offlineFails = 0;
+function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
+function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
+
 async function refresh() {
   try {
     const d = await fetch(api('/api/status')).then(r => r.json());
+    _offlineFails = 0;
+    if (navigator.onLine !== false) hideOfflineBanner();
     if (d.status === currentStatus) return;
     currentStatus = d.status;
 
@@ -1352,11 +1368,20 @@ async function refresh() {
     } else if (d.status === 'error') {
       showSpinner(tf('spinnerError', d.error));
     }
-  } catch (e) {}
+  } catch (e) {
+    _offlineFails++;
+    if (_offlineFails >= 3) showOfflineBanner();
+  }
 }
 
 setInterval(refresh, 3000);
+if (!navigator.onLine) showOfflineBanner();
 refresh();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refresh();
+});
+window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
+window.addEventListener('offline', () => showOfflineBanner());
 
 // Chat list
 const COLORS = ['#e53935','#8e24aa','#1e88e5','#00897b','#43a047','#fb8c00','#d81b60','#6d4c41'];
@@ -1846,6 +1871,12 @@ applyLang();
       <button class="logout-modal-yes" data-i18n="btnYes" onclick="logout()">Ja</button>
     </div>
   </div>
+</div>
+<div id="offline-banner">
+  <div class="ob-icon">📡</div>
+  <div class="ob-title" data-i18n="offlineTitle">Verbindung unterbrochen</div>
+  <div class="ob-sub" data-i18n="offlineSub">Stelle Verbindung wieder her…</div>
+  <button class="ob-reload" onclick="window.location.reload()" data-i18n="offlineReload">Neu laden</button>
 </div>
   <style>
     #sig-console{display:none;position:fixed;bottom:80px;right:20px;width:560px;height:340px;background:#0d1117;border:1px solid #30363d;border-radius:8px;z-index:9999;flex-direction:column;font-family:monospace;font-size:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);resize:both;overflow:hidden;min-width:320px;min-height:180px;}

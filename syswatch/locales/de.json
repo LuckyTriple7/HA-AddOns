@@ -82,5 +82,9 @@
   "hist_no_data": "Noch keine Verlaufsdaten — Daten werden minütlich gespeichert",
   "hist_load_error": "Fehler beim Laden",
   "hist_no_sensors": "Keine Sensor-Daten verfügbar",
-  "hist_temp_tooltip": "Temperaturverlauf anzeigen"
+  "hist_temp_tooltip": "Temperaturverlauf anzeigen",
+
+  "banner_offline_title": "Verbindung unterbrochen",
+  "banner_offline_sub": "Stelle Verbindung wieder her…",
+  "banner_offline_reload": "Neu laden"
 }

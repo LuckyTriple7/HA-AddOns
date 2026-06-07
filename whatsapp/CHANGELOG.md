@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.7.3] - 2026-06-07
+### Fixed
+- Nach Page-Reload im Offline-Zustand (z.B. Browser-Cache via Service Worker) erschien der Banner erst nach 15 Sek.: `navigator.onLine`-Check beim Start zeigt Banner sofort
+
+## [1.7.2] - 2026-06-07
+### Fixed
+- Offline-Banner verschwand fälschlicherweise trotz WLAN-Aus (gecachte Fetch-Antwort): `navigator.onLine`-Check vor `hideOfflineBanner()`
+- Offline-Banner-Texte hardcoded Deutsch: `data-i18n`-Attribute + EN-Keys (`Connection lost / Reconnecting… / Reload`)
+
+## [1.7.1] - 2026-06-07
+### Added
+- Disconnect-Erkennung: `visibilitychange`-Event aktualisiert Tab sofort beim Aufklappen des Laptops / Tab-Wechsel
+- `online`/`offline`-Events: sofortiges Polling bei Netzwerk-Reconnect, sofortiger Banner bei Netzwerk-Verlust
+- Offline-Banner: abdunkelndes Overlay mit animiertem 📡, „Verbindung unterbrochen"-Text und „Neu laden"-Button (erscheint nach 3 aufeinanderfolgenden fehlgeschlagenen Status-Polls)
+### Fixed
+- Banner verschwand fälschlicherweise bei gecachter Fetch-Antwort trotz aktivem Offline-Status: `navigator.onLine`-Check vor `hideOfflineBanner()` verhindert das
+
 ## [1.7.0] - 2026-06-06
 ### Added
 - Standort empfangen (📍 Google-Maps-Link) und senden (📍-Button mit GPS-Abfrage oder manueller Lat/Lng/Name-Eingabe)

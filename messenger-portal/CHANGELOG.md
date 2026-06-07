@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.2] - 2026-06-07
+### Added
+- Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start
+- Offline-Banner: abdunkelndes Overlay mit animiertem 📡, lokalisierten Texten (DE/EN) und „Neu laden"-Button
+
 ## [1.2.1] - 2026-06-06
 ### Fixed
 - PWA-Icon: icon-192.png und icon-512.png in static/-Ordner kopiert, damit das Manifest die Icons korrekt laden kann

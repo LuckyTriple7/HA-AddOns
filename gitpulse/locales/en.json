@@ -1,0 +1,64 @@
+{
+  "title": "GitPulse",
+  "subtitle": "GitHub Control Panel",
+  "login": "Sign in",
+  "logout": "Sign out",
+  "username": "Username",
+  "password": "Password",
+  "error_credentials": "Invalid credentials.",
+  "error_locked": "Too many failed attempts. Please wait 15 minutes.",
+
+  "tab_repos": "Pull Requests",
+  "tab_issues": "Issues",
+  "tab_ci": "CI / Actions",
+  "tab_releases": "Releases",
+  "tab_console": "Console",
+
+  "stat_repos": "Repos",
+  "stat_prs": "Open PRs",
+  "stat_issues": "Open Issues",
+  "stat_releases": "Watch Releases",
+
+  "no_prs": "No open pull requests",
+  "no_issues": "No open issues",
+  "no_runs": "No workflow runs found",
+  "no_releases": "No releases found yet",
+
+  "pr_open": "Open",
+  "pr_draft": "Draft",
+  "iss_open": "Open",
+  "run_success": "Success",
+  "run_failure": "Failed",
+  "run_running": "Running",
+  "pre_release": "Pre-Release",
+
+  "token_missing": "No GitHub token configured. Please add it in the add-on settings.",
+  "token_invalid": "GitHub token is invalid or expired. Please renew the token.",
+  "token_expires": "GitHub token expires in {days} days. Please renew it.",
+
+  "releases_hint": "Shows the latest release of each watched repository",
+  "btn_reset_seen": "Mark all as seen",
+  "badge_new": "New since last poll",
+  "link_view": "View →",
+
+  "btn_refresh": "Poll now",
+  "btn_install": "Install",
+  "btn_enable": "Enable",
+  "btn_clear": "Clear",
+  "btn_autoscroll_on": "Auto-scroll: ON",
+  "btn_autoscroll_off": "Auto-scroll: OFF",
+
+  "install_banner": "Install GitPulse as an app",
+  "notif_request": "Enable browser notifications for new releases?",
+  "notif_new_release": "New Release",
+
+  "banner_offline_title": "Connection lost",
+  "banner_offline_sub": "Reconnecting…",
+  "banner_offline_reload": "Reload",
+
+  "just_now": "just now",
+  "min_ago": " min ago",
+  "hr_ago": " hr ago",
+  "day_ago": " d ago",
+  "log_lines": " lines"
+}
