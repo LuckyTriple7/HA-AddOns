@@ -1237,6 +1237,45 @@ def api_workflow_rerun():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/workflow/delete', methods=['POST'])
+def api_workflow_delete():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body   = request.get_json(silent=True) or {}
+    repo   = body.get('repo', '').strip()
+    run_id = body.get('run_id')
+    if not repo or not run_id:
+        return jsonify({'error': 'repo und run_id erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.delete(
+            f'{GITHUB_API}/repos/{repo}/actions/runs/{run_id}',
+            headers=_gh_headers(token),
+            timeout=15,
+        )
+        if r.status_code == 204:
+            log.info("Workflow-Run %s in %s gelöscht", run_id, repo)
+            # Aus lokalem Cache entfernen
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo:
+                        rd['runs'] = [run for run in rd.get('runs', []) if run['id'] != run_id]
+            _known_run_conclusions.pop(run_id, None)
+            return jsonify({'status': 'deleted'})
+        try:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+        except Exception:
+            msg = f'HTTP {r.status_code}'
+        log.warning("Workflow-Delete fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Workflow-Delete Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/events')
 def events():
     redir = _auth_required(request)

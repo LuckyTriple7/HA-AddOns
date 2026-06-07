@@ -50,6 +50,7 @@
   "btn_dispatch": "Dispatch",
   "btn_cancel": "Cancel",
   "btn_cancel_run": "Stop",
+  "btn_delete_run": "Delete",
   "btn_close_issue": "Close",
   "btn_comment": "Comment",
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20] - 2026-06-07
+
+### Added
+- CI/Actions: 🗑 Löschen-Button für abgeschlossene Workflow-Runs — entfernt den Run direkt auf GitHub und aus dem lokalen Cache ohne neuen Poll
+
+---
+
 ## [0.1.19] - 2026-06-07
 
 ### Changed
