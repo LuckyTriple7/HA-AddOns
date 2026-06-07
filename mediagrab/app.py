@@ -78,16 +78,21 @@ _ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
 PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'X', 'Vimeo', 'SoundCloud', 'Twitch', 'Reddit', 'Dailymotion', 'Sonstiges']
 
 def _detect_platform(url: str) -> str:
-    u = url.lower()
-    if 'youtube.com' in u or 'youtu.be' in u: return 'YouTube'
-    if 'tiktok.com' in u:                      return 'TikTok'
-    if 'instagram.com' in u:                   return 'Instagram'
-    if 'twitter.com' in u or 'x.com' in u:    return 'X'
-    if 'vimeo.com' in u:                       return 'Vimeo'
-    if 'soundcloud.com' in u:                  return 'SoundCloud'
-    if 'twitch.tv' in u:                       return 'Twitch'
-    if 'reddit.com' in u:                      return 'Reddit'
-    if 'dailymotion.com' in u:                 return 'Dailymotion'
+    try:
+        host = urllib.parse.urlparse(url).netloc.lower()
+        if host.startswith('www.'):
+            host = host[4:]
+    except Exception:
+        host = ''
+    if host in ('youtube.com', 'youtu.be') or host.endswith('.youtube.com'): return 'YouTube'
+    if host == 'tiktok.com'      or host.endswith('.tiktok.com'):             return 'TikTok'
+    if host == 'instagram.com'   or host.endswith('.instagram.com'):          return 'Instagram'
+    if host in ('twitter.com', 'x.com') or host.endswith(('.twitter.com', '.x.com')): return 'X'
+    if host == 'vimeo.com'       or host.endswith('.vimeo.com'):              return 'Vimeo'
+    if host == 'soundcloud.com'  or host.endswith('.soundcloud.com'):         return 'SoundCloud'
+    if host == 'twitch.tv'       or host.endswith('.twitch.tv'):              return 'Twitch'
+    if host == 'reddit.com'      or host.endswith('.reddit.com'):             return 'Reddit'
+    if host == 'dailymotion.com' or host.endswith('.dailymotion.com'):        return 'Dailymotion'
     return 'Sonstiges'
 
 def _load_meta() -> dict:
@@ -505,8 +510,18 @@ def _require_auth() -> bool:
     return not is_valid_session(request.cookies.get('mg_session'))
 
 def _safe_next(url: str) -> str:
-    if url and url.startswith('/') and not url.startswith('//'):
-        return url
+    """Returns url only if it is a safe relative path — prevents open redirect."""
+    if not url:
+        return ''
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme or parsed.netloc:
+            return ''
+        path = parsed.path
+        if path and not path.startswith('//'):
+            return path
+    except Exception:
+        pass
     return ''
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -515,7 +530,8 @@ def _safe_next(url: str) -> str:
 def set_lang(lang):
     if lang not in ('de', 'en'):
         lang = 'de'
-    resp = make_response(redirect(request.referrer or '/'))
+    ref_path = _safe_next(urllib.parse.urlparse(request.referrer or '/').path) or '/'
+    resp = make_response(redirect(ref_path))
     resp.set_cookie('mg_lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
     return resp
 

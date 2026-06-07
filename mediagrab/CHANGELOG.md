@@ -1,5 +1,13 @@
 # Changelog — MediaGrab
 
+## [1.0.5] — 2026-06-07
+### Security
+- `_detect_platform()`: `urlparse().netloc` statt unsicherem Substring-Check — verhindert Bypass durch URLs wie `https://evil.com/youtube.com` (CodeQL: py/incomplete-url-substring-sanitization #439–#446)
+- `_safe_next()`: `urlparse()` mit expliziter scheme/netloc-Prüfung — CodeQL-anerkanntes Open-Redirect-Sanitizer-Pattern (#435, #436)
+- `/set-lang/`: `request.referrer` wird jetzt nur als Pfad (ohne Host) extrahiert (CodeQL: py/open-redirect #437)
+
+---
+
 ## [1.0.4] — 2026-06-07
 ### Security
 - Path-Traversal in Datei-Endpunkten behoben: `_safe_media_path()` ersetzt `relative_to()`+`try/except` durch explizite `..`/Absolutpfad-Prüfung vor `resolve()` — CodeQL-anerkanntes Sanitizer-Pattern (CodeQL: py/path-injection #451–#459)
