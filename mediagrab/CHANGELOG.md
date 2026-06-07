@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.4] — 2026-06-07
+### Security
+- Path-Traversal in Datei-Endpunkten behoben: `_safe_media_path()` ersetzt `relative_to()`+`try/except` durch explizite `..`/Absolutpfad-Prüfung vor `resolve()` — CodeQL-anerkanntes Sanitizer-Pattern (CodeQL: py/path-injection #451–#459)
+
+---
+
 ## [1.0.3] — 2026-06-07
 ### Security
 - Command-Injection-Schwachstelle behoben: URL-Eingaben werden auf `http://`/`https://` validiert, und `--` wird vor der URL in alle `subprocess`-Aufrufe eingefügt, damit User-Input nicht als yt-dlp-Flag interpretiert wird (CodeQL: py/command-line-injection #26)

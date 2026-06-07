@@ -270,6 +270,16 @@ VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 def _validate_url(url: str) -> bool:
     return url.startswith('http://') or url.startswith('https://')
 
+def _safe_media_path(filename: str) -> 'Path | None':
+    """Returns resolved path only if within MEDIA_DIR — rejects traversal attempts."""
+    if not filename or os.path.isabs(filename) or '..' in filename.replace('\\', '/').split('/'):
+        return None
+    resolved = (MEDIA_DIR / filename).resolve()
+    base = str(MEDIA_DIR.resolve())
+    if str(resolved).startswith(base + os.sep) or str(resolved) == base:
+        return resolved
+    return None
+
 _PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
@@ -907,10 +917,8 @@ def api_files():
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
@@ -929,10 +937,8 @@ def api_file_platform(filename):
         return jsonify({'error': 'unauthorized'}), 401
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
@@ -958,10 +964,8 @@ def api_file_tag(filename):
     tag  = data.get('tag', '').strip()
     if len(tag) > 50:
         return jsonify({'error': 'tag_too_long'}), 400
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
@@ -983,10 +987,8 @@ def api_file_tag(filename):
 def stream_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         abort(400)
     return send_from_directory(str(MEDIA_DIR), filename, as_attachment=False)
 
@@ -994,10 +996,8 @@ def stream_file(filename):
 def serve_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         abort(400)
     return send_from_directory(str(MEDIA_DIR), filename, as_attachment=True)
 
