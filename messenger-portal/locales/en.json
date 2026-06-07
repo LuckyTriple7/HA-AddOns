@@ -34,5 +34,8 @@
   "notif_snooze_tomorrow": "Until tomorrow",
   "notif_unsnooze": "Unmute",
   "notif_new_msg_title": "New message",
-  "notif_new_msg_from": "from {sender}"
+  "notif_new_msg_from": "from {sender}",
+  "banner_offline_title": "Connection lost",
+  "banner_offline_sub": "Reconnecting…",
+  "banner_offline_reload": "Reload"
 }
