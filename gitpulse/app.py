@@ -69,8 +69,9 @@ app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_h
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
-REPOS_PATH    = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
-LOCALES_PATH  = '/app/locales'
+REPOS_PATH      = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
+FAVORITES_PATH  = '/data/workflow_favorites.json'
+LOCALES_PATH    = '/app/locales'
 
 GITHUB_API    = 'https://api.github.com'
 POLL_INTERVAL_DEFAULT = 300  # seconds
@@ -282,6 +283,27 @@ def save_seen_releases() -> None:
             json.dump(list(_seen_releases), f)
     except Exception as e:
         log.warning("seen_releases konnte nicht gespeichert werden: %s", e)
+
+
+# ── Workflow-Favoriten (Persistence) ──────────────────────────────────────────
+
+def load_favorites() -> list:
+    try:
+        with open(FAVORITES_PATH) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        log.warning("workflow_favorites.json konnte nicht geladen werden: %s", e)
+        return []
+
+
+def save_favorites(favs: list) -> None:
+    try:
+        with open(FAVORITES_PATH, 'w') as f:
+            json.dump(favs, f, indent=2)
+    except Exception as e:
+        log.warning("workflow_favorites.json konnte nicht gespeichert werden: %s", e)
 
 
 # ── GitHub API ────────────────────────────────────────────────────────────────
@@ -1307,6 +1329,59 @@ def api_workflow_delete():
     except Exception as e:
         log.error("Workflow-Delete Fehler: %s", e)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/workflow/favorites', methods=['GET'])
+def api_favorites_get():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    return jsonify(load_favorites())
+
+
+@app.route('/api/workflow/favorites', methods=['POST'])
+def api_favorites_add():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body          = request.get_json(silent=True) or {}
+    repo          = body.get('repo', '').strip()
+    workflow_id   = body.get('workflow_id')
+    workflow_name = body.get('workflow_name', '').strip()
+    ref           = body.get('ref', '').strip()
+    if not repo or not workflow_id or not workflow_name or not ref:
+        return jsonify({'error': 'repo, workflow_id, workflow_name und ref erforderlich'}), 400
+    favs = load_favorites()
+    for fav in favs:
+        if (fav['repo'] == repo and
+                str(fav['workflow_id']) == str(workflow_id) and
+                fav['ref'] == ref):
+            return jsonify({'status': 'exists', 'id': fav['id']})
+    new_fav = {
+        'id':            secrets.token_hex(8),
+        'repo':          repo,
+        'workflow_id':   workflow_id,
+        'workflow_name': workflow_name,
+        'ref':           ref,
+    }
+    favs.append(new_fav)
+    save_favorites(favs)
+    log.info("Workflow-Favorit gespeichert: %s / %s @ %s", repo, workflow_name, ref)
+    return jsonify({'status': 'saved', 'id': new_fav['id']})
+
+
+@app.route('/api/workflow/favorites/<fav_id>', methods=['DELETE'])
+def api_favorites_delete(fav_id: str):
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    favs     = load_favorites()
+    new_favs = [f for f in favs if f['id'] != fav_id]
+    if len(new_favs) == len(favs):
+        return jsonify({'error': 'Favorit nicht gefunden'}), 404
+    save_favorites(new_favs)
+    log.info("Workflow-Favorit gelöscht: %s", fav_id)
+    return jsonify({'status': 'deleted'})
 
 
 @app.route('/events')

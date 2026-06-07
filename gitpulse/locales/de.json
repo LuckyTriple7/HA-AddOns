@@ -54,6 +54,10 @@
   "btn_cancel": "Abbrechen",
   "btn_cancel_run": "Stopp",
   "btn_delete_run": "Löschen",
+  "btn_save_favorite": "Favorit speichern",
+  "fav_title": "Workflow-Favoriten",
+  "fav_saved": "Favorit gespeichert",
+  "fav_already": "Bereits als Favorit gespeichert",
   "btn_close_issue": "Schließen",
   "btn_comment": "Kommentieren",
 

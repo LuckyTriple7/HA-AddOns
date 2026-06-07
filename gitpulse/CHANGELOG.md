@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.23] - 2026-06-07
+
+### Added
+- Workflow-Favoriten: Im Dispatch-Modal "⭐ Favorit speichern" Button — speichert Workflow + Branch dauerhaft in `/data/workflow_favorites.json`
+- Favoriten erscheinen im CI/Actions-Tab als eigene Karte über den Runs; per ▶-Button direkt auslösen, per 🗑-Button löschen
+- Duplikat-Schutz: gleicher Workflow + Branch wird nicht doppelt gespeichert
+- Backend: neue Routen `GET/POST /api/workflow/favorites` und `DELETE /api/workflow/favorites/<id>`
+
+---
+
 ## [0.1.22] - 2026-06-07
 
 ### Added

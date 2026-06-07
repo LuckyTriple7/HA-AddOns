@@ -305,8 +305,10 @@
       <label>{{ t.dispatch_ref }}</label>
       <select id="dispatch-ref-select"><option value="main">main</option></select>
       <div id="dispatch-err" class="modal-err" style="display:none"></div>
+      <div id="dispatch-saved-msg" style="display:none;font-size:.78rem;color:var(--green);margin-top:6px">✓ {{ t.fav_saved }}</div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('dispatch-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-cancel" onclick="saveFavorite()" style="color:var(--yellow);border-color:rgba(210,153,34,.4)">⭐ {{ t.btn_save_favorite }}</button>
         <button class="modal-btn modal-btn-confirm" onclick="confirmDispatch()">{{ t.btn_dispatch }}</button>
       </div>
     </div>
@@ -487,6 +489,7 @@
 
   // ── State ─────────────────────────────────────────────────────────
   let ghData = null;
+  let ghFavorites = [];
   let activeRepo = null;
   let notifEnabled = false;
 
@@ -711,6 +714,61 @@
     .catch(e => alert(String(e)));
   }
 
+  // ── Workflow-Favoriten ────────────────────────────────────────────
+  function loadFavorites() {
+    fetch(u('/api/workflow/favorites'))
+      .then(r => r.json())
+      .then(favs => {
+        ghFavorites = Array.isArray(favs) ? favs : [];
+        if (ghData) renderCI(ghData);
+      })
+      .catch(() => {});
+  }
+
+  function saveFavorite() {
+    const wfSel  = document.getElementById('dispatch-wf-select');
+    const wfId   = wfSel.value;
+    const wfName = wfSel.options[wfSel.selectedIndex]?.text || '';
+    const ref    = document.getElementById('dispatch-ref-select').value || 'main';
+    if (!wfId || !_dispatchRepo) return;
+    const msgEl = document.getElementById('dispatch-saved-msg');
+    fetch(u('/api/workflow/favorites'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo: _dispatchRepo, workflow_id: wfId, workflow_name: wfName, ref}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      msgEl.style.display = '';
+      setTimeout(() => {
+        msgEl.style.display = 'none';
+        closeModal('dispatch-modal');
+        loadFavorites();
+      }, 900);
+    })
+    .catch(e => alert(String(e)));
+  }
+
+  function triggerFavorite(repo, workflowId, ref) {
+    fetch(u('/api/workflow/dispatch'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, workflow_id: workflowId, ref}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) triggerRefresh(5);
+      else alert(data.error || T.error_unknown);
+    })
+    .catch(e => alert(String(e)));
+  }
+
+  function deleteFavorite(favId) {
+    fetch(u('/api/workflow/favorites/' + favId), {method: 'DELETE'})
+      .then(() => loadFavorites())
+      .catch(e => alert(String(e)));
+  }
+
   function deleteWorkflowRun(repo, runId) {
     fetch(u('/api/workflow/delete'), {
       method: 'POST',
@@ -759,6 +817,8 @@
     rl_remaining:      '{{ t.rl_remaining }}',
     rl_reset_in:       '{{ t.rl_reset_in }}',
     rl_min:            '{{ t.rl_min }}',
+    fav_title:         '{{ t.fav_title }}',
+    fav_already:       '{{ t.fav_already }}',
   };
 
   function relTime(iso) {
@@ -1090,6 +1150,21 @@
       return;
     }
     const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_dispatch}</button>`;
+    const repoFavs = ghFavorites.filter(f => f.repo === repo.repo);
+    const favsHtml = repoFavs.length ? `<div class="card" style="margin-bottom:8px">
+      <div class="card-header" style="gap:8px">
+        <span style="font-size:.85rem">⭐</span>
+        <span>${T.fav_title}</span>
+      </div>
+      <div class="card-body">` +
+      repoFavs.map(fav => `
+        <div class="run-row">
+          <span style="flex:1;font-size:.83rem;font-weight:500">${escHtml(fav.workflow_name)}</span>
+          <span class="run-branch">${escHtml(fav.ref)}</span>
+          <button class="act-btn act-btn-dispatch" onclick="triggerFavorite('${escHtml(fav.repo)}','${escHtml(String(fav.workflow_id))}','${escHtml(fav.ref)}')">▶ ${T.btn_dispatch}</button>
+          <button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteFavorite('${escHtml(fav.id)}')">🗑</button>
+        </div>`).join('') +
+      `</div></div>` : '';
     const rows = repo.runs.map(run => {
       const status    = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
       const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
@@ -1117,7 +1192,7 @@
         </div>
         <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
     }).join('');
-    el.innerHTML = `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
+    el.innerHTML = favsHtml + `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
       ${dispatchBtn}
@@ -1310,6 +1385,7 @@
 
   // ── Init ──────────────────────────────────────────────────────────
   loadData();
+  loadFavorites();
   connectSSE();
   initNotifications();
   </script>
