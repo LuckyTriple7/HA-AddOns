@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [1.0.1] — 2026-06-07
+### Improved
+- **Multi-Tag-Filter**: Plattform- und Custom-Tags in der Dateiliste lassen sich jetzt mehrfach gleichzeitig auswählen (Klick toggelt, mehrere aktiv möglich)
+
 ## [1.0.0] — 2026-06-06
 ### First Stable Release
 - **Platform-Tags**: automatische Erkennung (YouTube, TikTok, Instagram, X, Vimeo, SoundCloud, Twitch, Reddit, Dailymotion) + manuell zuweisbar per Klick; eigene Plattformnamen per Freitexteingabe möglich; Plattform-Filter in der Dateiliste

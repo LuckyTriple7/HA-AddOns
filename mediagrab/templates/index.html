@@ -544,9 +544,9 @@
     }
 
     // ── Files ─────────────────────────────────────────────────────────────────
-    let _allFiles       = [];
-    let _sortKey        = 'date';
-    let _platformFilter = null;
+    let _allFiles      = [];
+    let _sortKey       = 'date';
+    let _activeFilters = new Set();
 
     function setSort(key) {
       _sortKey = key;
@@ -571,19 +571,20 @@
       const platforms = [...new Set(_allFiles.map(f => f.platform).filter(Boolean))].sort();
       const tags      = [...new Set(_allFiles.map(f => f.tag).filter(Boolean))].sort();
       if (!platforms.length && !tags.length) { wrap.style.display = 'none'; return; }
-      if (_platformFilter && !platforms.includes(_platformFilter) && !tags.includes(_platformFilter)) _platformFilter = null;
+      for (const f of _activeFilters) { if (!platforms.includes(f) && !tags.includes(f)) _activeFilters.delete(f); }
       wrap.style.display = 'flex';
       const platBtns = platforms.map(p =>
-        `<button class="plat-btn${_platformFilter === p ? ' active' : ''}" onclick="setPlatformFilter('${p}')">${p}</button>`
+        `<button class="plat-btn${_activeFilters.has(p) ? ' active' : ''}" onclick="setPlatformFilter('${p}')">${p}</button>`
       ).join('');
       const tagBtns = tags.map(t =>
-        `<button class="plat-btn${_platformFilter === t ? ' active' : ''}" style="${_platformFilter !== t ? 'border-color:var(--yellow);color:var(--yellow);opacity:.8' : ''}" onclick="setPlatformFilter('${t}')">${t}</button>`
+        `<button class="plat-btn${_activeFilters.has(t) ? ' active' : ''}" style="${!_activeFilters.has(t) ? 'border-color:var(--yellow);color:var(--yellow);opacity:.8' : ''}" onclick="setPlatformFilter('${t}')">${t}</button>`
       ).join('');
       wrap.innerHTML = platBtns + tagBtns;
     }
 
     function setPlatformFilter(p) {
-      _platformFilter = (_platformFilter === p) ? null : p;
+      if (_activeFilters.has(p)) _activeFilters.delete(p);
+      else _activeFilters.add(p);
       _buildPlatformFilters();
       renderFiles();
     }
@@ -739,7 +740,7 @@
       const q      = (document.getElementById('file-search').value || '').toLowerCase();
       let   files  = [..._allFiles];
       if (q)               files = files.filter(f => f.name.toLowerCase().includes(q));
-      if (_platformFilter) files = files.filter(f => f.platform === _platformFilter || f.tag === _platformFilter);
+      if (_activeFilters.size) files = files.filter(f => _activeFilters.has(f.platform) || _activeFilters.has(f.tag));
 
       if (_sortKey === 'name') files.sort((a,b) => a.name.localeCompare(b.name));
       else if (_sortKey === 'size') files.sort((a,b) => b.size - a.size);
