@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.12] - 2026-06-07
+
+### Changed
+- Abmelden-Button im Header: Text entfernt, nur noch Icon (Tooltip bleibt erhalten)
+
+---
+
 ## [0.0.11] - 2026-06-07
 
 ### Added
