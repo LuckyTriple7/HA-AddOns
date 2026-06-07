@@ -529,6 +529,9 @@
   let _prFilter = '';
   let _issueFilter = '';
   let _ciTimeFilter = 'all';
+  let _ciStatusFilter = 'all';
+  let _ciPage = 1;
+  const CI_PAGE_SIZE = 50;
 
   // ── Modal helpers ─────────────────────────────────────────────────
   function closeModal(id) {
@@ -763,6 +766,16 @@
   }
   function setCIFilter(f) {
     _ciTimeFilter = f;
+    _ciPage = 1;
+    if (ghData) renderCI(ghData);
+  }
+  function setCIStatusFilter(f) {
+    _ciStatusFilter = f;
+    _ciPage = 1;
+    if (ghData) renderCI(ghData);
+  }
+  function _ciGotoPage(p) {
+    _ciPage = p;
     if (ghData) renderCI(ghData);
   }
   function formatRunTime(iso) {
@@ -883,6 +896,11 @@
     ci_filter_6h:        '{{ t.ci_filter_6h }}',
     ci_filter_today:     '{{ t.ci_filter_today }}',
     ci_filter_yesterday: '{{ t.ci_filter_yesterday }}',
+    ci_status_all:       '{{ t.ci_status_all }}',
+    ci_status_running:   '{{ t.ci_status_running }}',
+    ci_status_success:   '{{ t.ci_status_success }}',
+    ci_status_failed:    '{{ t.ci_status_failed }}',
+    ci_status_cancelled: '{{ t.ci_status_cancelled }}',
   };
 
   function relTime(iso) {
@@ -1094,6 +1112,7 @@
 
   function selectRepo(repo) {
     activeRepo = repo;
+    _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all';
     document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
     renderPRs(ghData);
     renderIssues(ghData);
@@ -1189,7 +1208,7 @@
             ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
-        <button class="act-btn act-btn-dispatch" onclick="openCommentModal('${escHtml(repo.repo)}',${iss.number},'#${iss.number} ${escHtml(iss.title).replace(/'/g,"\\'")}')">💬 ${T.btn_comment}</button>
+        <button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>
         <button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>
       </div>`).join('') + '</div></div>';
   }
@@ -1272,11 +1291,32 @@
       today:     r => new Date(r.created) >= todayStart,
       yesterday: r => new Date(r.created) >= yesterday && new Date(r.created) < todayStart,
     };
-    const filteredRuns = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
-    const filterBar = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+    const ciStatusFns = {
+      all:       () => true,
+      running:   r => ['in_progress','queued','waiting'].includes(r.status),
+      success:   r => r.conclusion === 'success',
+      failed:    r => ['failure','timed_out'].includes(r.conclusion),
+      cancelled: r => r.conclusion === 'cancelled',
+    };
+    const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-skipped' };
+    const timeFiltered   = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
+    const filteredRuns   = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
+    const _ciTotalPages = Math.max(1, Math.ceil(filteredRuns.length / CI_PAGE_SIZE));
+    if (_ciPage > _ciTotalPages) _ciPage = _ciTotalPages;
+    const pagedRuns = filteredRuns.slice((_ciPage - 1) * CI_PAGE_SIZE, _ciPage * CI_PAGE_SIZE);
+    const paginationBar = filteredRuns.length > CI_PAGE_SIZE ? `<div style="display:flex;gap:6px;align-items:center;justify-content:center;margin-top:8px;flex-wrap:wrap">
+      <button class="ci-filter-btn${_ciPage===1?' active':''}" onclick="_ciGotoPage(${_ciPage-1})" ${_ciPage===1?'disabled':''}>‹</button>
+      <span style="font-size:.75rem;color:var(--muted)">Seite ${_ciPage} / ${_ciTotalPages} &middot; ${filteredRuns.length} Runs</span>
+      <button class="ci-filter-btn${_ciPage===_ciTotalPages?' active':''}" onclick="_ciGotoPage(${_ciPage+1})" ${_ciPage===_ciTotalPages?'disabled':''}>›</button>
+    </div>` : '';
+    const filterBar = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">
       ${[['all',T.ci_filter_all],['hour',T.ci_filter_1h],['6h',T.ci_filter_6h],['today',T.ci_filter_today],['yesterday',T.ci_filter_yesterday]]
         .map(([k,l])=>`<button class="ci-filter-btn${_ciTimeFilter===k?' active':''}" onclick="setCIFilter('${k}')">${l}</button>`).join('')}
-      ${_ciTimeFilter!=='all'?`<span style="font-size:.73rem;color:var(--muted);align-self:center">${filteredRuns.length} / ${repo.runs.length}</span>`:''}
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+      ${[['all',T.ci_status_all,null],['running',T.ci_status_running,'running'],['success',T.ci_status_success,'success'],['failed',T.ci_status_failed,'failed'],['cancelled',T.ci_status_cancelled,'cancelled']]
+        .map(([k,l,dot])=>`<button class="ci-filter-btn${_ciStatusFilter===k?' active':''}" onclick="setCIStatusFilter('${k}')" style="display:flex;align-items:center;gap:4px">${dot?`<div class="run-dot ${_ciStatusDots[dot]}" style="width:7px;height:7px;flex-shrink:0"></div>`:''}${l}</button>`).join('')}
+      ${(_ciTimeFilter!=='all'||_ciStatusFilter!=='all')?`<span style="font-size:.73rem;color:var(--muted);margin-left:4px">${filteredRuns.length} / ${repo.runs.length}</span>`:''}
     </div>`;
 
     const repoFavs = ghFavorites.filter(f => f.repo === repo.repo);
@@ -1294,7 +1334,7 @@
           <button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteFavorite('${escHtml(fav.id)}')">🗑</button>
         </div>`).join('') +
       `</div></div>` : '';
-    const rows = filteredRuns.map(run => {
+    const rows = pagedRuns.map(run => {
       const status    = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
       const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
       const canCancel = ['in_progress','queued','waiting'].includes(run.status);
@@ -1326,7 +1366,7 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
       ${dispatchBtn}
-    </div><div class="card-body">${rows}</div></div>`;
+    </div><div class="card-body">${rows}</div></div>` + paginationBar;
   }
 
   // ── Render: Releases ──────────────────────────────────────────────

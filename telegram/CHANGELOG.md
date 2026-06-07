@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.7] - 2026-06-07
+
+### Security
+- Format-String: `chatId` aus `console.error` in `fetchMessages` entfernt (CodeQL: js/tainted-format-string #73)
+
+---
+
 ## [1.6.6] - 2026-06-07
 
 ### Security

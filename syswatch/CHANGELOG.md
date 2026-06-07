@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.2.2] - 2026-06-07
+
+### Security
+- XSS / Incomplete escaping: `safeJsArg()`-Hilfsfunktion hinzugefügt; Sensor-Label im History-Footer nutzt jetzt `safeJsArg()` statt manueller `replace(/'/g)` (CodeQL: js/incomplete-html-attribute-sanitization #76)
+
+---
+
 ## [1.2.1] - 2026-06-07
 ### Added
 - Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start

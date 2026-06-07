@@ -386,8 +386,8 @@ def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | 
             link = r.headers.get('Link', '')
             next_url = None
             for part in link.split(','):
-                if 'rel="next"' in part:
-                    m = re.search(r'<([^>]+)>', part)
+                if 'rel="next"' in part and len(part) <= 4096:
+                    m = re.search(r'<(https?://[^>\s]{1,2048})>', part)
                     if m:
                         next_url = m.group(1)
             url = next_url
@@ -406,7 +406,7 @@ def _check_token(token: str) -> tuple[bool, str, str]:
             scopes  = r.headers.get('X-OAuth-Scopes', 'fine-grained')
             expires = r.headers.get('GitHub-Authentication-Token-Expiration', '')
             if _verbose():
-                log.info("Token OK — Scopes: %s, Ablauf: %s", scopes or 'fine-grained', expires or 'kein Ablauf')
+                log.info("Token OK — Scopes: %d, Ablauf: %s", len((scopes or '').split(',')), bool(expires))
             return True, scopes, expires
         return False, '', ''
     except Exception as e:
@@ -475,9 +475,18 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'updated': iss['updated_at'],
         })
 
-    runs_raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': run_limit}) or {}
+    all_runs: list = []
+    _page = 1
+    while len(all_runs) < run_limit:
+        _batch = min(100, run_limit - len(all_runs))
+        _raw = _gh_get(f'/repos/{repo}/actions/runs', token, {'per_page': _batch, 'page': _page}) or {}
+        _wf  = _raw.get('workflow_runs') or []
+        if not _wf:
+            break
+        all_runs.extend(_wf)
+        _page += 1
     runs = []
-    for run in (runs_raw.get('workflow_runs') or [])[:run_limit]:
+    for run in all_runs[:run_limit]:
         head_msg = (run.get('head_commit') or {}).get('message', '')
         runs.append({
             'id':           run['id'],
@@ -665,7 +674,7 @@ def _trigger_repo_poll(repo_name: str) -> None:
     if not token:
         return
     try:
-        run_limit = min(50, max(1, int(cfg.get('workflow_run_limit', 25))))
+        run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
         data = _fetch_repo_data(repo_name, token, run_limit)
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
@@ -745,7 +754,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     incl_betas = bool(cfg.get('include_ha_betas', True))
     tg_token   = cfg.get('telegram_bot_token', '').strip()
     tg_chat    = cfg.get('telegram_chat_id', '').strip()
-    run_limit  = min(50, max(1, int(cfg.get('workflow_run_limit', 25))))
+    run_limit  = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
 
     if _verbose():
         log.info("Polling %d eigene Repos, %d Watch-Repos", len(my_repos), len(watch_repos))
@@ -1751,9 +1760,9 @@ if __name__ == '__main__':
     if token:
         ok, scopes, expires = _check_token(token)
         if ok:
-            log.info("GitHub-Token gültig (Scopes: %s)", scopes or 'fine-grained')
+            log.info("GitHub-Token gültig")
             if expires:
-                log.info("Token läuft ab: %s", expires)
+                log.info("Token-Ablauf: konfiguriert")
         else:
             log.warning("GitHub-Token ungültig oder nicht konfiguriert!")
     else:

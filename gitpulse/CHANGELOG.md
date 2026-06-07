@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.1.41] - 2026-06-07
+
+### Fixed
+- CI-Status-Filter: Übersetzungs-Keys (`ci_status_*`) fehlten im `T`-Objekt des Templates → Labels zeigten „undefined"
+
+---
+
+## [0.1.40] - 2026-06-07
+
+### Added
+- CI-Tab: Status-Filter-Zeile unter dem Zeitfilter — Laufend 🟡 / Erfolgreich 🟢 / Fehlerhaft 🔴 / Abgebrochen ⚫ kombinierbar mit Zeitfilter
+- Repo-Wechsel setzt beide Filter (Zeit + Status) auf „Alle" zurück
+
+---
+
+## [0.1.39] - 2026-06-07
+
+### Security
+- Polynomial-Regex (ReDoS): `<([^>]+)>` → `<(https?://[^>\s]{1,2048})>` mit Längen-Limit pro Link-Header-Segment (CodeQL: py/polynomial-redos #5)
+- Clear-text Logging: Token-Scopes/Ablauf nicht mehr als Rohwert geloggt — stattdessen int/bool-Repräsentation (CodeQL: py/clear-text-logging #27, #28, #29)
+- XSS / Incomplete escaping: Issue-Kommentar-Button nutzt `safeJsArg()` statt manueller `replace(/'/g)` (CodeQL: js/incomplete-html-attribute-sanitization #75)
+
+---
+
+## [0.1.38] - 2026-06-07
+
+### Added
+- CI-Tab: Workflow-Runs-Limit von 50 auf 500 erhöht (Backend paginiert bis zu 5 Seiten × 100 Runs via GitHub API)
+- CI-Tab: Frontend-Paginierung — bei mehr als 50 gefilterten Runs werden je 50 pro Seite angezeigt, mit Blättern-Steuerung (‹ / ›) und Seitenanzeige
+
+---
+
 ## [0.1.37] - 2026-06-07
 
 ### Added

@@ -1,5 +1,14 @@
 # Changelog — MediaGrab
 
+## [1.0.6] — 2026-06-07
+
+### Security
+- CRITICAL Command Injection: `_validate_url()` gibt jetzt die Regex-gereinigte URL zurück (`m.group(1)`); `api_info` nutzt `safe_url` statt Rohwert im subprocess-Aufruf (CodeQL: py/command-line-injection #26)
+- Path Traversal: `_safe_media_path()` verwendet `_SAFE_FILE_RE.match().group(0)` statt Rohwert für Pfadkonstruktion — Taint-Chain unterbrochen (CodeQL: py/path-injection #52, #53, #55, #57, #116)
+- URL-Validierung: `_URL_SAFE_RE`-Regex filtert gefährliche Sonderzeichen aus URLs heraus
+
+---
+
 ## [1.0.5] — 2026-06-07
 ### Security
 - `_detect_platform()`: `urlparse().netloc` statt unsicherem Substring-Check — verhindert Bypass durch URLs wie `https://evil.com/youtube.com` (CodeQL: py/incomplete-url-substring-sanitization #439–#446)

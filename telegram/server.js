@@ -415,7 +415,7 @@ async function fetchMessages(chatId, limit = FETCH_LIMIT) {
     _logSilent('DEBUG', `GramJS getMessages: got ${msgs.length} messages for ${chatId}`);
     const chatName = chatMap.get(chatId)?.name || chatId;
     for (const msg of msgs) processMessage(msg, chatId, chatName, 'fetchMessages');
-  } catch (e) { console.error(`[ERROR] fetchMessages(${chatId}):`, e.message); }
+  } catch (e) { console.error('[ERROR] fetchMessages:', e.message); }
 }
 
 async function startClient() {
