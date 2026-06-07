@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2] - 2026-06-07
+
+### Security
+- `multer` von `^1.4.5-lts.1` auf `^2.1.1` aktualisiert — behebt Denial-of-Service-Schwachstelle durch unkontrollierte Rekursion beim Parsen von Feldnamen
+
+---
+
 ## [1.6.1] - 2026-06-07
 ### Added
 - Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start
