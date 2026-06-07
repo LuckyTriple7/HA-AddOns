@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.11] - 2026-06-07
+
+### Added
+- Laufende Workflow-Runs können direkt aus dem CI-Tab abgebrochen werden (■ Stopp-Button bei Status `in_progress`, `queued`, `waiting`)
+
+---
+
 ## [0.0.10] - 2026-06-07
 
 ### Fixed

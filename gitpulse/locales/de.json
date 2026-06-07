@@ -45,6 +45,7 @@
   "btn_rerun": "Wiederholen",
   "btn_dispatch": "Starten",
   "btn_cancel": "Abbrechen",
+  "btn_cancel_run": "Stopp",
 
   "merge_title": "Pull Request mergen",
   "merge_method": "Merge-Methode",

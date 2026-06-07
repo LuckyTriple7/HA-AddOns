@@ -801,6 +801,40 @@ def api_workflow_dispatch():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/workflow/cancel', methods=['POST'])
+def api_workflow_cancel():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body   = request.get_json(silent=True) or {}
+    repo   = body.get('repo', '').strip()
+    run_id = body.get('run_id')
+    if not repo or not run_id:
+        return jsonify({'error': 'repo und run_id erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.post(
+            f'{GITHUB_API}/repos/{repo}/actions/runs/{run_id}/cancel',
+            headers=_gh_headers(token),
+            json={},
+            timeout=15,
+        )
+        if r.status_code == 202:
+            log.info("Workflow-Run %s in %s abgebrochen", run_id, repo)
+            return jsonify({'status': 'cancelled'})
+        try:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+        except Exception:
+            msg = f'HTTP {r.status_code}'
+        log.warning("Workflow-Cancel fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception as e:
+        log.error("Workflow-Cancel Fehler: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/workflow/rerun', methods=['POST'])
 def api_workflow_rerun():
     redir = _auth_required(request)
