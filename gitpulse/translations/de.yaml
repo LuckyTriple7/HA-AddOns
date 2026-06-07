@@ -26,9 +26,15 @@ configuration:
   verbose_log:
     name: Ausführliches Logging
     description: Gibt pro Poll-Zyklus die Anzahl der Repos und Details im Log aus. Standard false — nur Fehler und wichtige Ereignisse werden geloggt.
+  workflow_run_limit:
+    name: Anzahl Workflow-Runs
+    description: "Wie viele Workflow-Runs je Repo im CI/Actions-Tab geladen werden. Standard 25, Maximum 50."
   telegram_bot_token:
     name: Telegram Bot Token
     description: "Token des Telegram-Bots für Benachrichtigungen (Format: 123456789:ABC-...). Leer lassen um Telegram zu deaktivieren. Bot erstellen via @BotFather in Telegram."
   telegram_chat_id:
     name: Telegram Chat ID
     description: "Chat-ID des Empfängers für Telegram-Nachrichten. Ermitteln via @userinfobot in Telegram oder einfach dem Bot /start schicken und die ID aus der Antwort kopieren."
+  webhook_secret:
+    name: Webhook Secret
+    description: "Geheimes Passwort für GitHub-Webhooks (mindestens 20 Zeichen empfohlen). Muss identisch in GitHub → Repository → Settings → Webhooks eingetragen werden. Webhook-URL: https://deine-domain:17793/webhook. Leer lassen um Webhooks zu deaktivieren."

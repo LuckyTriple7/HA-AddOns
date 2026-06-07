@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4] - 2026-06-07
+
+### Security
+- `multer` von `^1.4.5-lts.1` auf `^2.1.1` aktualisiert — behebt Denial-of-Service-Schwachstelle durch unkontrollierte Rekursion beim Parsen von Feldnamen (Dependabot Alert #31)
+
+---
+
 ## [1.7.3] - 2026-06-07
 ### Fixed
 - Nach Page-Reload im Offline-Zustand (z.B. Browser-Cache via Service Worker) erschien der Banner erst nach 15 Sek.: `navigator.onLine`-Check beim Start zeigt Banner sofort

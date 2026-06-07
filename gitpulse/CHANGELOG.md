@@ -1,5 +1,92 @@
 # Changelog
 
+## [0.1.33] - 2026-06-07
+
+### Changed
+- Version bump für HA Update-Erkennung
+
+---
+
+## [0.1.32] - 2026-06-07
+
+### Added
+- Neuer **Security-Tab** + **Security-Tile** in der Stat-Leiste: zeigt alle offenen Dependabot-, Code Scanning- und Secret Scanning-Alerts je Repo
+- Tile-Farbe: grün (0 Alerts) / gelb (medium/low) / rot (high/critical oder Secret Scanning)
+- Badge am Tab-Button + Blinken wenn neue Alerts hinzukommen
+- Backend: `_fetch_security_alerts()` ruft `/dependabot/alerts`, `/code-scanning/alerts` und `/secret-scanning/alerts` ab (ETag-gecacht); 403/404 werden still ignoriert bis PAT-Rechte ergänzt sind
+- Rendering: Alerts sortiert nach Typ (🤖 Dependabot / 🔍 Code Scanning / 🔑 Secret Scanning), je mit Schweregrad-Icon, Paket/Regel, Beschreibung, Datei+Zeile, Fix-Version und direktem Alert-Link
+- **Voraussetzung PAT**: zusätzliche Berechtigungen „Dependabot alerts (read)", „Secret scanning alerts (read)" und „Security events (read)" im Fine-Grained Token eintragen
+
+---
+
+## [0.1.31] - 2026-06-07
+
+### Added
+- Webhook-Event `code_scanning_alert`: Telegram-Benachrichtigung bei CodeQL-Findings mit Schweregrad (🔴 critical / 🟠 high / 🟡 medium / 🟢 low), Tool-Name, Regel-Beschreibung, Datei+Zeile und Alert-Link; nur bei `created`, `appeared_in_branch`, `reopened`
+- Webhook-Event `dependabot_alert`: Telegram-Benachrichtigung bei Dependabot-Schwachstellen mit Schweregrad, Paket-Name, Ecosystem, Advisory-Zusammenfassung und verfügbarem Fix-Version; nur bei `created`, `reopened`, `reintroduced`
+- Alle drei Security-Alert-Events (`secret_scanning_alert`, `code_scanning_alert`, `dependabot_alert`) schreiben immer ein `log.warning` — sichtbar in der Console unabhängig von `verbose_log`
+
+---
+
+## [0.1.30] - 2026-06-07
+
+### Added
+- Webhook-Event `secret_scanning_alert`: GitPulse empfängt GitHub Secret Scanning Alerts und schickt sofort eine Telegram-Nachricht (🚨 gefunden / 🔓 öffentlich geleakt / ✅ behoben / ⚠️ validiert / 🔁 wieder geöffnet)
+- Alert-Details: Repo, Alert-Nummer, Secret-Typ (z. B. „GitHub Personal Access Token"), Aktion und direkter Link zum Alert auf GitHub
+- Kein `_first_poll_done`-Check — Security-Alerts werden immer sofort gesendet, auch beim Add-on-Start
+
+---
+
+## [0.1.29] - 2026-06-07
+
+### Fixed
+- Webhook-Server auf Port 17793 startet nur wenn `webhook_secret` konfiguriert ist — ohne Secret läuft ausschließlich Polling wie gewohnt
+
+---
+
+## [0.1.28] - 2026-06-07
+
+### Fixed
+- Webhook: ohne konfiguriertes `webhook_secret` werden eingehende Requests sofort mit `{"status":"disabled"}` beantwortet — kein unauthentifizierter Zugriff möglich; Polling läuft wie gewohnt weiter
+
+---
+
+## [0.1.27] - 2026-06-07
+
+### Added
+- **GitHub Webhook-Support**: GitPulse empfängt jetzt Push-Benachrichtigungen von GitHub auf Port 17793 (`POST /webhook`)
+- Events: `pull_request`, `issues`, `workflow_run`, `push`, `create`, `delete`, `star`, `fork` — Cache wird sofort aktualisiert, SSE-Push an alle Browser, Telegram-Benachrichtigung innerhalb < 1 Sekunde
+- HMAC-SHA256 Signatur-Prüfung (`X-Hub-Signature-256`) — neues Config-Feld `webhook_secret`
+- Duplikat-Schutz: Webhook markiert PR/Issue/Run sofort als gesehen → nächster Poll feuert kein zweites Telegram
+- Polling bleibt als 5-Minuten-Fallback erhalten (Webhooks können verloren gehen)
+- Port 17793 in `config.yaml` eingetragen (nginx → `https://webhook.domain.de` → Port 17793)
+
+---
+
+## [0.1.26] - 2026-06-07
+
+### Changed
+- CI/Actions: Commit-Beschreibung füllt jetzt die volle Spaltenbreite (kein `max-width:340px` mehr)
+- CI/Actions: Zeitanzeige zeigt Uhrzeit (HH:MM) + Dauer statt nur Relativzeit ("2 hr ago"); bei älteren Runs wird das Datum vorangestellt
+- CI/Actions: Quickfilter-Buttons über den Runs — Alle / Letzte Stunde / Letzte 6 Std. / Heute / Gestern; aktiver Filter zeigt Treffer-/Gesamtanzahl
+
+---
+
+## [0.1.25] - 2026-06-07
+
+### Added
+- Neues Config-Feld `workflow_run_limit` (Standard 25, Maximum 50): steuert wie viele Workflow-Runs je Repo geladen werden — konfigurierbar in den HA Add-on-Einstellungen
+
+---
+
+## [0.1.24] - 2026-06-07
+
+### Added
+- Pull Requests: 💬 Kommentieren-Button je PR-Zeile (nutzt dieselbe Backend-Route wie Issues — GitHub behandelt PRs und Issues identisch)
+- Such-/Filterleiste in Pull Requests und Issues: Live-Filter nach Titel, Autor, Nummer und Label; Trefferanzahl ("3 von 7") wird angezeigt; Löschen über Browser-× oder leeren des Feldes
+
+---
+
 ## [0.1.23] - 2026-06-07
 
 ### Added
