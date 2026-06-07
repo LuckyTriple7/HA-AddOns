@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>GitPulse</title>
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    :root {
+      --bg:     #0d1117; --surf:   #161b22; --surf2:  #1c2128;
+      --border: #30363d; --text:   #c9d1d9; --muted:  #8b949e;
+      --accent: #58a6ff; --green:  #3fb950; --yellow: #d29922;
+      --red:    #f85149; --purple: #a371f7; --orange: #f0883e;
+      --r: 6px;
+    }
+    [data-theme="light"] {
+      --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76; --accent:#0969da;
+      --green:#1a7f37; --yellow:#9a6700; --red:#cf222e;
+      --purple:#8250df; --orange:#bc4c00;
+    }
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; transition: background-color .2s, border-color .2s, color .2s; }
+    html,body { height:100%; overflow:hidden; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; display:flex; flex-direction:column; }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header { background:var(--surf); border-bottom:1px solid var(--border); padding:9px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0; z-index:200; }
+    .logo { font-size:1.05rem; font-weight:700; color:var(--accent); white-space:nowrap; display:flex; align-items:center; gap:7px; }
+    .logo svg { flex-shrink:0; }
+    .hdr-spacer { flex:1; }
+    .hdr-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:3px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+    .hdr-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .hdr-btn svg { width:13px; height:13px; fill:currentColor; }
+    .lang-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 7px; border-radius:4px; font-size:0.75rem; cursor:pointer; text-decoration:none; }
+    .lang-btn.active { border-color:var(--accent); color:var(--accent); }
+    .token-badge { font-size:0.7rem; padding:2px 7px; border-radius:10px; font-weight:600; }
+    .token-ok   { background:rgba(63,185,80,.15); color:var(--green); border:1px solid rgba(63,185,80,.3); }
+    .token-err  { background:rgba(248,81,73,.15); color:var(--red);   border:1px solid rgba(248,81,73,.3); }
+
+    /* ── Tabs ───────────────────────────────────────────────── */
+    .tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--surf); flex-shrink:0; overflow-x:auto; }
+    .tab { padding:9px 16px; font-size:0.85rem; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; white-space:nowrap; display:flex; align-items:center; gap:5px; }
+    .tab:hover { color:var(--text); }
+    .tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+    .badge { background:var(--red); color:#fff; border-radius:10px; font-size:0.65rem; padding:1px 6px; font-weight:700; min-width:18px; text-align:center; }
+    .badge-yellow { background:var(--yellow); }
+    .badge-blue   { background:var(--accent); }
+
+    /* ── Main scroll ────────────────────────────────────────── */
+    #main-scroll { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; padding:16px; }
+
+    /* ── Cards ──────────────────────────────────────────────── */
+    .card { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); margin-bottom:12px; }
+    .card-header { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; font-weight:600; font-size:0.9rem; }
+    .card-body { padding:0; }
+    .section-title { font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:12px 14px 6px; }
+
+    /* ── Summary Bar ────────────────────────────────────────── */
+    .summary-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .stat-chip { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); padding:8px 14px; display:flex; flex-direction:column; align-items:center; min-width:80px; }
+    .stat-chip .num { font-size:1.5rem; font-weight:700; line-height:1; }
+    .stat-chip .lbl { font-size:0.7rem; color:var(--muted); margin-top:2px; }
+
+    /* ── PR / Issue rows ────────────────────────────────────── */
+    .item-row { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+    .item-row:last-child { border-bottom:none; }
+    .avatar { width:28px; height:28px; border-radius:50%; flex-shrink:0; }
+    .item-main { flex:1; min-width:0; }
+    .item-title { font-weight:500; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .item-title a { color:var(--text); text-decoration:none; }
+    .item-title a:hover { color:var(--accent); }
+    .item-meta { font-size:0.75rem; color:var(--muted); margin-top:2px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+    .label-chip { font-size:0.65rem; padding:1px 6px; border-radius:10px; border:1px solid; font-weight:600; }
+    .pr-state-open   { color:var(--green); }
+    .pr-state-closed { color:var(--red); }
+    .pr-state-merged { color:var(--purple); }
+    .pr-draft { color:var(--muted); }
+
+    /* ── CI Runs ────────────────────────────────────────────── */
+    .run-row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:0.83rem; }
+    .run-row:last-child { border-bottom:none; }
+    .run-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .ci-success  { background:var(--green); }
+    .ci-failure  { background:var(--red); }
+    .ci-running  { background:var(--yellow); animation:pulse 1s infinite; }
+    .ci-skipped  { background:var(--muted); }
+    .ci-pending  { background:var(--muted); }
+    .ci-cancelled{ background:var(--muted); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .run-name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .run-branch { font-size:0.72rem; color:var(--muted); background:var(--surf2); padding:1px 6px; border-radius:4px; }
+
+    /* ── Releases ───────────────────────────────────────────── */
+    .release-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+    .release-row:last-child { border-bottom:none; }
+    .release-tag { font-size:0.8rem; font-weight:700; font-family:monospace; color:var(--accent); background:rgba(88,166,255,.1); padding:2px 8px; border-radius:4px; border:1px solid rgba(88,166,255,.2); }
+    .release-pre { color:var(--yellow); background:rgba(210,153,34,.1); border-color:rgba(210,153,34,.3); }
+    .release-repo { font-size:0.75rem; color:var(--muted); flex:1; }
+    .release-date { font-size:0.72rem; color:var(--muted); }
+    .new-dot { width:8px; height:8px; border-radius:50%; background:var(--red); flex-shrink:0; }
+
+    /* ── Console ────────────────────────────────────────────── */
+    #console-out { background:#0d1117; font-family:'Courier New',Courier,monospace; font-size:0.78rem; padding:10px; height:100%; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+    .log-INFO    { color:#58a6ff; }
+    .log-WARNING { color:#d29922; }
+    .log-ERROR   { color:#f85149; }
+    .log-DEBUG   { color:#8b949e; }
+    .console-wrap { background:#0d1117; border:1px solid var(--border); border-radius:var(--r); height:calc(100vh - 200px); overflow:hidden; display:flex; flex-direction:column; }
+    .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); }
+    .con-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:0.72rem; cursor:pointer; }
+    .con-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+    /* ── Offline Banner ─────────────────────────────────────── */
+    #offline-banner { display:none; position:fixed; bottom:0; left:0; right:0; background:var(--red); color:#fff; padding:10px 16px; z-index:9999; align-items:center; gap:10px; font-size:0.85rem; }
+    #offline-banner.show { display:flex; }
+    #offline-banner strong { flex:1; }
+    #offline-banner button { background:#fff; color:var(--red); border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-weight:600; font-size:0.8rem; }
+
+    /* ── Install Banner ─────────────────────────────────────── */
+    #install-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; align-items:center; gap:10px; font-size:0.83rem; }
+    #install-banner.show { display:flex; }
+    #install-banner strong { flex:1; }
+    #install-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
+
+    /* ── Notif banner ───────────────────────────────────────── */
+    #notif-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; align-items:center; gap:10px; font-size:0.83rem; }
+    #notif-banner.show { display:flex; }
+    #notif-banner strong { flex:1; }
+    #notif-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
+
+    /* ── Token Warning ──────────────────────────────────────── */
+    .token-warning { background:rgba(210,153,34,.1); border:1px solid rgba(210,153,34,.3); color:var(--yellow); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; font-size:0.83rem; }
+    .token-error   { background:rgba(248,81,73,.1); border:1px solid rgba(248,81,73,.3); color:var(--red); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; font-size:0.83rem; }
+
+    /* ── Repo selector ──────────────────────────────────────── */
+    .repo-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+    .repo-tab { background:none; border:1px solid var(--border); color:var(--muted); padding:4px 12px; border-radius:20px; font-size:0.8rem; cursor:pointer; }
+    .repo-tab.active { border-color:var(--accent); color:var(--accent); background:rgba(88,166,255,.08); }
+
+    /* ── Empty state ────────────────────────────────────────── */
+    .empty { text-align:center; padding:32px 16px; color:var(--muted); font-size:0.85rem; }
+    .empty svg { width:32px; height:32px; fill:var(--muted); margin-bottom:8px; opacity:.4; }
+
+    /* ── Spinner ────────────────────────────────────────────── */
+    .spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    /* ── Scrollbar ──────────────────────────────────────────── */
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  </style>
+</head>
+<body>
+  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.03-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitPulse
+    </div>
+    <span id="token-badge" class="token-badge" style="display:none"></span>
+    <div class="hdr-spacer"></div>
+    <button class="hdr-btn" onclick="pollNow()" title="{{ t.btn_refresh }}">
+      <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      {{ t.btn_refresh }}
+    </button>
+    <a href="/set-lang/de" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+    <a href="/set-lang/en" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <button class="hdr-btn" onclick="toggleTheme()">
+      <svg class="icon-moon" viewBox="0 0 24 24" style="display:block"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+    </button>
+    <a href="/logout" class="hdr-btn">{{ t.logout }}</a>
+  </header>
+
+  <!-- ── Tabs ────────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <div class="tab active" data-tab="repos" onclick="switchTab('repos')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      {{ t.tab_repos }}
+      <span id="badge-prs" class="badge" style="display:none">0</span>
+    </div>
+    <div class="tab" data-tab="issues" onclick="switchTab('issues')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      {{ t.tab_issues }}
+      <span id="badge-issues" class="badge badge-yellow" style="display:none">0</span>
+    </div>
+    <div class="tab" data-tab="ci" onclick="switchTab('ci')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+      {{ t.tab_ci }}
+    </div>
+    <div class="tab" data-tab="releases" onclick="switchTab('releases')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+      {{ t.tab_releases }}
+      <span id="badge-releases" class="badge" style="display:none">0</span>
+    </div>
+    <div class="tab" data-tab="console" onclick="switchTab('console')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
+      {{ t.tab_console }}
+    </div>
+  </div>
+
+  <!-- ── Banners ─────────────────────────────────────────────────── -->
+  <div id="offline-banner">
+    <strong>{{ t.banner_offline_title }} — {{ t.banner_offline_sub }}</strong>
+    <button onclick="location.reload()">{{ t.banner_offline_reload }}</button>
+  </div>
+
+  <!-- ── Main ────────────────────────────────────────────────────── -->
+  <div id="main-scroll">
+    <div id="install-banner">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm1 17H11V11h2v6zm0-8H11V7h2v2z"/></svg>
+      <strong>{{ t.install_banner }}</strong>
+      <button onclick="installPWA()">{{ t.btn_install }}</button>
+    </div>
+    <div id="notif-banner">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      <strong>{{ t.notif_request }}</strong>
+      <button onclick="requestNotifPermission()">{{ t.btn_enable }}</button>
+    </div>
+
+    <!-- ── Tab: Repos / PRs ──────────────────────────────────── -->
+    <div id="tab-repos">
+      <div id="summary-bar" class="summary-bar"></div>
+      <div id="token-alert"></div>
+      <div id="repo-selector" class="repo-tabs"></div>
+      <div id="pr-list"></div>
+    </div>
+
+    <!-- ── Tab: Issues ──────────────────────────────────────── -->
+    <div id="tab-issues" style="display:none">
+      <div id="issue-list"></div>
+    </div>
+
+    <!-- ── Tab: CI ──────────────────────────────────────────── -->
+    <div id="tab-ci" style="display:none">
+      <div id="ci-list"></div>
+    </div>
+
+    <!-- ── Tab: Releases ────────────────────────────────────── -->
+    <div id="tab-releases" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:0.75rem;color:var(--muted);">{{ t.releases_hint }}</div>
+        <button class="hdr-btn" onclick="resetSeen()" style="font-size:0.72rem;">{{ t.btn_reset_seen }}</button>
+      </div>
+      <div id="release-list"></div>
+    </div>
+
+    <!-- ── Tab: Console ─────────────────────────────────────── -->
+    <div id="tab-console" style="display:none">
+      <div class="console-wrap">
+        <div class="console-toolbar">
+          <button class="con-btn" onclick="clearConsole()">{{ t.btn_clear }}</button>
+          <button class="con-btn" id="con-scroll-btn" onclick="toggleConScroll()">{{ t.btn_autoscroll_on }}</button>
+          <span id="con-count" style="font-size:0.72rem;color:var(--muted);margin-left:auto;align-self:center;"></span>
+        </div>
+        <div id="console-out"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ── Theme ─────────────────────────────────────────────────────────
+  (function(){
+    const t = localStorage.getItem('gp-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    const moon = document.querySelector('.icon-moon');
+    const sun  = document.querySelector('.icon-sun');
+    if (moon && sun) { moon.style.display = t==='dark'?'block':'none'; sun.style.display = t==='light'?'block':'none'; }
+  })();
+  function toggleTheme() {
+    const c = document.documentElement.getAttribute('data-theme') || 'dark';
+    const n = c === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', n);
+    localStorage.setItem('gp-theme', n);
+    const moon = document.querySelector('.icon-moon');
+    const sun  = document.querySelector('.icon-sun');
+    if (moon && sun) { moon.style.display = n==='dark'?'block':'none'; sun.style.display = n==='light'?'block':'none'; }
+  }
+
+  // ── Tab switching ─────────────────────────────────────────────────
+  const TABS = ['repos','issues','ci','releases','console'];
+  let activeTab = 'repos';
+  function switchTab(name) {
+    TABS.forEach(t => {
+      document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+      document.querySelector(`[data-tab="${t}"]`).classList.toggle('active', t === name);
+    });
+    activeTab = name;
+    if (name === 'console') startConsole();
+  }
+
+  // ── State ─────────────────────────────────────────────────────────
+  let ghData = null;
+  let activeRepo = null;
+  let notifEnabled = false;
+
+  // ── i18n helpers ──────────────────────────────────────────────────
+  const T = {
+    no_prs:       '{{ t.no_prs }}',
+    no_issues:    '{{ t.no_issues }}',
+    no_runs:      '{{ t.no_runs }}',
+    no_releases:  '{{ t.no_releases }}',
+    pr_open:      '{{ t.pr_open }}',
+    pr_draft:     '{{ t.pr_draft }}',
+    iss_open:     '{{ t.iss_open }}',
+    run_success:  '{{ t.run_success }}',
+    run_failure:  '{{ t.run_failure }}',
+    run_running:  '{{ t.run_running }}',
+    pre_release:  '{{ t.pre_release }}',
+    token_missing:'{{ t.token_missing }}',
+    token_invalid:'{{ t.token_invalid }}',
+    token_expires:'{{ t.token_expires }}',
+    new_release:  '{{ t.notif_new_release }}',
+  };
+
+  function relTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const diff = (Date.now() - d) / 1000;
+    if (diff < 60) return '{{ t.just_now }}';
+    if (diff < 3600) return Math.floor(diff/60) + '{{ t.min_ago }}';
+    if (diff < 86400) return Math.floor(diff/3600) + '{{ t.hr_ago }}';
+    return Math.floor(diff/86400) + '{{ t.day_ago }}';
+  }
+
+  function labelColor(name) {
+    const colors = { bug:'#f85149', enhancement:'#58a6ff', documentation:'#a371f7',
+                     question:'#d29922', 'good first issue':'#3fb950', help:'#e3b341',
+                     wontfix:'#8b949e', duplicate:'#8b949e', invalid:'#f0883e' };
+    const lc = name.toLowerCase();
+    for (const [k,v] of Object.entries(colors)) if (lc.includes(k)) return v;
+    return '#8b949e';
+  }
+
+  // ── Render: Summary Bar ───────────────────────────────────────────
+  function renderSummary(data) {
+    let totalPRs = 0, totalIssues = 0;
+    (data.my_repos || []).forEach(r => {
+      totalPRs += r.open_prs || 0;
+      totalIssues += r.open_issues || 0;
+    });
+    const newRel = (data.new_releases || []).length;
+    const el = document.getElementById('summary-bar');
+    el.innerHTML = `
+      <div class="stat-chip"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
+      <div class="stat-chip"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
+      <div class="stat-chip"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
+      <div class="stat-chip"><div class="num" style="color:var(--purple)">${(data.releases||[]).length}</div><div class="lbl">{{ t.stat_releases }}</div></div>
+    `;
+    const badgePR  = document.getElementById('badge-prs');
+    const badgeIss = document.getElementById('badge-issues');
+    const badgeRel = document.getElementById('badge-releases');
+    if (totalPRs) { badgePR.textContent = totalPRs; badgePR.style.display = ''; } else badgePR.style.display = 'none';
+    if (totalIssues) { badgeIss.textContent = totalIssues; badgeIss.style.display = ''; } else badgeIss.style.display = 'none';
+    if (newRel) { badgeRel.textContent = newRel; badgeRel.style.display = ''; } else badgeRel.style.display = 'none';
+  }
+
+  // ── Render: Token alert ───────────────────────────────────────────
+  function renderTokenAlert(data) {
+    const el = document.getElementById('token-alert');
+    if (data.token_ok === false) {
+      el.innerHTML = `<div class="token-error">${T.token_invalid}</div>`;
+    } else if (data.token_expires) {
+      const exp = new Date(data.token_expires);
+      const days = Math.ceil((exp - Date.now()) / 86400000);
+      if (days <= 14) {
+        el.innerHTML = `<div class="token-warning">${T.token_expires.replace('{days}', days)}</div>`;
+      } else el.innerHTML = '';
+    } else el.innerHTML = '';
+    const badge = document.getElementById('token-badge');
+    if (data.token_ok === true) {
+      badge.className = 'token-badge token-ok'; badge.textContent = 'Token OK'; badge.style.display = '';
+    } else if (data.token_ok === false) {
+      badge.className = 'token-badge token-err'; badge.textContent = 'Token ERROR'; badge.style.display = '';
+    }
+  }
+
+  // ── Render: Repo selector ─────────────────────────────────────────
+  function renderRepoSelector(repos) {
+    const el = document.getElementById('repo-selector');
+    if (!repos || repos.length <= 1) { el.innerHTML = ''; return; }
+    el.innerHTML = repos.map((r,i) =>
+      `<button class="repo-tab${(!activeRepo && i===0)||activeRepo===r.repo?' active':''}" onclick="selectRepo('${r.repo}')">${r.name}</button>`
+    ).join('');
+    if (!activeRepo) activeRepo = repos[0].repo;
+  }
+
+  function selectRepo(repo) {
+    activeRepo = repo;
+    document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
+    renderPRs(ghData);
+    renderIssues(ghData);
+    renderCI(ghData);
+  }
+
+  // ── Render: PRs ───────────────────────────────────────────────────
+  function renderPRs(data) {
+    const repos = data.my_repos || [];
+    const repo  = repos.find(r => r.repo === activeRepo) || repos[0];
+    const el    = document.getElementById('pr-list');
+    if (!repo || !repo.pulls || !repo.pulls.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${T.no_prs}</div></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="card"><div class="card-header">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--green)"><path d="M6 3c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 14c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12-9.78c-.22-.02-.45-.03-.67-.03C13.9 7.19 11 9.83 11 13.15v.67L8.93 11.7A3.996 3.996 0 0 0 6 10.5C3.79 10.5 2 12.29 2 14.5s1.79 4 4 4c1.44 0 2.7-.76 3.4-1.9l2.13 2.13A3.995 3.995 0 0 0 14 22c2.21 0 4-1.79 4-4 0-1.91-1.34-3.5-3.12-3.9-.07-.62-.11-1.25-.11-1.88 0-1.94 1.43-3.56 3.33-3.9v-.1c0-.58-.1-1.14-.1-1.72zm0 10.28c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg>
+      Pull Requests — ${repo.name} (${repo.pulls.length})
+    </div><div class="card-body">` +
+    repo.pulls.map(pr => `
+      <div class="item-row">
+        <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
+        <div class="item-main">
+          <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener">#${pr.number} ${escHtml(pr.title)}</a></div>
+          <div class="item-meta">
+            <span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>
+            <span>@${escHtml(pr.user)}</span>
+            <span>${relTime(pr.updated)}</span>
+            ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+          </div>
+        </div>
+      </div>`).join('') + '</div></div>';
+  }
+
+  // ── Render: Issues ────────────────────────────────────────────────
+  function renderIssues(data) {
+    const repos = data.my_repos || [];
+    const repo  = repos.find(r => r.repo === activeRepo) || repos[0];
+    const el    = document.getElementById('issue-list');
+    if (!repo || !repo.issues || !repo.issues.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${T.no_issues}</div></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="card"><div class="card-header">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      Issues — ${repo.name} (${repo.issues.length})
+    </div><div class="card-body">` +
+    repo.issues.map(iss => `
+      <div class="item-row">
+        <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
+        <div class="item-main">
+          <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener">#${iss.number} ${escHtml(iss.title)}</a></div>
+          <div class="item-meta">
+            <span class="pr-state-open">● ${T.iss_open}</span>
+            <span>@${escHtml(iss.user)}</span>
+            <span>${relTime(iss.updated)}</span>
+            ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+          </div>
+        </div>
+      </div>`).join('') + '</div></div>';
+  }
+
+  // ── Render: CI ────────────────────────────────────────────────────
+  function renderCI(data) {
+    const repos = data.my_repos || [];
+    const repo  = repos.find(r => r.repo === activeRepo) || repos[0];
+    const el    = document.getElementById('ci-list');
+    if (!repo || !repo.runs || !repo.runs.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg><div>${T.no_runs}</div></div>`;
+      return;
+    }
+    const ciClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
+    el.innerHTML = `<div class="card"><div class="card-header">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+      CI / Actions — ${repo.name}
+    </div><div class="card-body">` +
+    repo.runs.map(run => {
+      const status = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
+      return `<div class="run-row">
+        <div class="run-dot ${ciClass(status)}"></div>
+        <div class="run-name"><a href="${run.url}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">${escHtml(run.name)}</a></div>
+        <span class="run-branch">${escHtml(run.branch)}</span>
+        <span style="font-size:.72rem;color:var(--muted)">${relTime(run.created)}</span>
+      </div>`;
+    }).join('') + '</div></div>';
+  }
+
+  // ── Render: Releases ──────────────────────────────────────────────
+  function renderReleases(data) {
+    const releases = data.releases || [];
+    const el = document.getElementById('release-list');
+    if (!releases.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><div>${T.no_releases}</div></div>`;
+      return;
+    }
+    const newKeys = new Set((data.new_releases||[]).map(r => r.repo+'@'+r.tag));
+    el.innerHTML = `<div class="card"><div class="card-body">` +
+    releases.map(rel => `
+      <div class="release-row">
+        ${newKeys.has(rel.repo+'@'+rel.tag)?'<div class="new-dot" title="{{ t.badge_new }}"></div>':'<div style="width:8px"></div>'}
+        <span class="release-tag ${rel.prerelease?'release-pre':''}">${escHtml(rel.tag)}</span>
+        <span class="release-repo">${escHtml(rel.repo)}</span>
+        <a href="${rel.url}" target="_blank" rel="noopener" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
+        <span class="release-date">${relTime(rel.date)}</span>
+      </div>`).join('') + '</div></div>';
+  }
+
+  // ── Main render ───────────────────────────────────────────────────
+  function render(data) {
+    ghData = data;
+    if (!activeRepo && data.my_repos && data.my_repos.length)
+      activeRepo = data.my_repos[0].repo;
+    renderSummary(data);
+    renderTokenAlert(data);
+    renderRepoSelector(data.my_repos || []);
+    renderPRs(data);
+    renderIssues(data);
+    renderCI(data);
+    renderReleases(data);
+    // Browser-Benachrichtigung für neue Releases
+    (data.new_releases||[]).forEach(rel => fireNotification(rel));
+  }
+
+  // ── Fetch data ────────────────────────────────────────────────────
+  function loadData() {
+    fetch('/api/data')
+      .then(r => r.json())
+      .then(data => render(data))
+      .catch(err => console.error('API Fehler', err));
+  }
+
+  function pollNow() {
+    fetch('/api/poll-now', {method:'POST'})
+      .then(() => setTimeout(loadData, 2000))
+      .catch(() => {});
+  }
+
+  function resetSeen() {
+    fetch('/api/seen-releases/reset', {method:'POST'})
+      .then(() => loadData())
+      .catch(() => {});
+  }
+
+  // ── SSE ───────────────────────────────────────────────────────────
+  function connectSSE() {
+    const es = new EventSource('/events');
+    es.onmessage = e => { if (e.data === 'update') loadData(); };
+    es.onerror = () => {
+      document.getElementById('offline-banner').classList.add('show');
+      es.close();
+      setTimeout(connectSSE, 5000);
+    };
+    es.onopen = () => document.getElementById('offline-banner').classList.remove('show');
+  }
+
+  // ── Console ───────────────────────────────────────────────────────
+  let conSince = 0;
+  let conAutoScroll = true;
+  let conTimer = null;
+
+  function startConsole() {
+    if (conTimer) return;
+    conTimer = setInterval(fetchConsole, 2000);
+    fetchConsole();
+  }
+
+  function fetchConsole() {
+    fetch('/api/console?since=' + conSince)
+      .then(r => r.json())
+      .then(entries => {
+        if (!entries.length) return;
+        const out = document.getElementById('console-out');
+        entries.forEach(e => {
+          const div = document.createElement('div');
+          div.className = 'log-' + e.level;
+          div.textContent = e.msg;
+          out.appendChild(div);
+          if (e.ts > conSince) conSince = e.ts;
+        });
+        if (conAutoScroll) out.scrollTop = out.scrollHeight;
+        document.getElementById('con-count').textContent = out.children.length + ' {{ t.log_lines }}';
+      }).catch(() => {});
+  }
+
+  function clearConsole() {
+    document.getElementById('console-out').innerHTML = '';
+    document.getElementById('con-count').textContent = '';
+  }
+
+  function toggleConScroll() {
+    conAutoScroll = !conAutoScroll;
+    document.getElementById('con-scroll-btn').textContent =
+      conAutoScroll ? '{{ t.btn_autoscroll_on }}' : '{{ t.btn_autoscroll_off }}';
+  }
+
+  // ── Browser Notifications ─────────────────────────────────────────
+  function initNotifications() {
+    if (!('Notification' in window)) return;
+    notifEnabled = Notification.permission === 'granted';
+    if (Notification.permission === 'default') {
+      document.getElementById('notif-banner').classList.add('show');
+    }
+  }
+
+  function requestNotifPermission() {
+    Notification.requestPermission().then(p => {
+      notifEnabled = p === 'granted';
+      document.getElementById('notif-banner').classList.remove('show');
+    });
+  }
+
+  function fireNotification(rel) {
+    if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
+    const n = new Notification(`${label}: ${rel.repo}`, {
+      body: rel.tag,
+      icon: '/static/icon-192.png',
+      tag:  rel.repo + '@' + rel.tag,
+    });
+    n.onclick = () => window.open(rel.url, '_blank');
+  }
+
+  // ── PWA Install ───────────────────────────────────────────────────
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstall = e;
+    document.getElementById('install-banner').classList.add('show');
+  });
+  function installPWA() {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(() => {
+      deferredInstall = null;
+      document.getElementById('install-banner').classList.remove('show');
+    });
+  }
+
+  // ── Service Worker ────────────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+
+  // ── Utils ─────────────────────────────────────────────────────────
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────
+  loadData();
+  connectSSE();
+  initNotifications();
+  </script>
+</body>
+</html>

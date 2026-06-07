@@ -1,0 +1,64 @@
+{
+  "title": "GitPulse",
+  "subtitle": "GitHub Control Panel",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "username": "Benutzername",
+  "password": "Passwort",
+  "error_credentials": "Ungültige Anmeldedaten.",
+  "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
+
+  "tab_repos": "Pull Requests",
+  "tab_issues": "Issues",
+  "tab_ci": "CI / Actions",
+  "tab_releases": "Releases",
+  "tab_console": "Console",
+
+  "stat_repos": "Repos",
+  "stat_prs": "Offene PRs",
+  "stat_issues": "Offene Issues",
+  "stat_releases": "Watch-Releases",
+
+  "no_prs": "Keine offenen Pull Requests",
+  "no_issues": "Keine offenen Issues",
+  "no_runs": "Keine Workflow-Runs gefunden",
+  "no_releases": "Noch keine Releases gefunden",
+
+  "pr_open": "Offen",
+  "pr_draft": "Entwurf",
+  "iss_open": "Offen",
+  "run_success": "Erfolgreich",
+  "run_failure": "Fehlgeschlagen",
+  "run_running": "Läuft",
+  "pre_release": "Pre-Release",
+
+  "token_missing": "Kein GitHub-Token konfiguriert. Bitte in den Add-on-Einstellungen eintragen.",
+  "token_invalid": "GitHub-Token ist ungültig oder abgelaufen. Bitte Token erneuern.",
+  "token_expires": "GitHub-Token läuft in {days} Tagen ab. Bitte erneuern.",
+
+  "releases_hint": "Zeigt das neueste Release jedes beobachteten Repos",
+  "btn_reset_seen": "Als gelesen markieren",
+  "badge_new": "Neu seit letztem Poll",
+  "link_view": "Ansehen →",
+
+  "btn_refresh": "Jetzt abfragen",
+  "btn_install": "Installieren",
+  "btn_enable": "Aktivieren",
+  "btn_clear": "Leeren",
+  "btn_autoscroll_on": "Auto-Scroll: AN",
+  "btn_autoscroll_off": "Auto-Scroll: AUS",
+
+  "install_banner": "GitPulse als App installieren",
+  "notif_request": "Browser-Benachrichtigungen für neue Releases aktivieren?",
+  "notif_new_release": "Neues Release",
+
+  "banner_offline_title": "Verbindung unterbrochen",
+  "banner_offline_sub": "Stelle Verbindung wieder her…",
+  "banner_offline_reload": "Neu laden",
+
+  "just_now": "gerade eben",
+  "min_ago": " Min",
+  "hr_ago": " Std",
+  "day_ago": " T",
+  "log_lines": " Zeilen"
+}

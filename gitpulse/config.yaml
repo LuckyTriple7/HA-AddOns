@@ -1,0 +1,53 @@
+name: GitPulse
+description: GitHub Control Panel — PRs, Issues, CI-Status und Release-Tracker auf einen Blick
+version: "0.0.1"
+slug: gitpulse
+url: https://github.com/LuckyTriple7/HA-AddOns
+image: "ghcr.io/luckytriple7/gitpulse"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: false
+
+map:
+  - addon_config:rw
+
+ports:
+  17792/tcp: 17792
+
+ports_description:
+  17792/tcp: GitPulse Web-UI
+
+options:
+  username: "admin"
+  password: "secret"
+  session_hours: 24
+  github_token: ""
+  my_repos:
+    - "LuckyTriple7/HA-AddOns"
+  watch_repos:
+    - "home-assistant/core"
+  include_ha_betas: true
+  poll_interval: 300
+  verbose_log: false
+  telegram_bot_token: ""
+  telegram_chat_id: ""
+
+schema:
+  username: str
+  password: str
+  session_hours: int
+  github_token: str
+  my_repos:
+    - str
+  watch_repos:
+    - str
+  include_ha_betas: bool?
+  poll_interval: int?
+  verbose_log: bool?
+  telegram_bot_token: str?
+  telegram_chat_id: str?
