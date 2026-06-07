@@ -60,10 +60,10 @@
     .section-title { font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:12px 14px 6px; }
 
     /* ── Summary Bar ────────────────────────────────────────── */
-    .summary-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-    .stat-chip { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); padding:8px 14px; display:flex; flex-direction:column; align-items:center; min-width:80px; }
-    .stat-chip .num { font-size:1.5rem; font-weight:700; line-height:1; }
-    .stat-chip .lbl { font-size:0.7rem; color:var(--muted); margin-top:2px; }
+    .summary-bar { display:flex; gap:8px; flex-wrap:nowrap; padding:8px 14px; background:var(--surf); border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
+    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; }
+    .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; }
+    .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
 
     /* ── PR / Issue rows ────────────────────────────────────── */
     .item-row { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
@@ -209,6 +209,9 @@
     <a href="{{ url_for('logout') }}" class="hdr-btn">{{ t.logout }}</a>
   </header>
 
+  <!-- ── Summary Bar ──────────────────────────────────────────────── -->
+  <div id="summary-bar" class="summary-bar"></div>
+
   <!-- ── Tabs ────────────────────────────────────────────────────── -->
   <div class="tabs">
     <div class="tab active" data-tab="repos" onclick="switchTab('repos')">
@@ -298,7 +301,6 @@
 
     <!-- ── Tab: Repos / PRs ──────────────────────────────────── -->
     <div id="tab-repos">
-      <div id="summary-bar" class="summary-bar"></div>
       <div id="token-alert"></div>
       <div id="repo-selector" class="repo-tabs"></div>
       <div id="pr-list"></div>

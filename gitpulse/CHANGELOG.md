@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.9] - 2026-06-07
+
+### Changed
+- Stat-Kacheln (Repos, PRs, Issues, Releases) aus dem Pull-Requests-Tab herausgezogen und dauerhaft oberhalb der Tab-Leiste platziert — immer sichtbar, unabhängig vom aktiven Tab
+
+---
+
 ## [0.0.8] - 2026-06-07
 
 ### Fixed
