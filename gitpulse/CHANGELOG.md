@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19] - 2026-06-07
+
+### Changed
+- Repos-Tab: Repo-Name ist jetzt als Link sichtbar (accent-Farbe + Extern-Pfeil-Icon) und öffnet GitHub im neuen Tab
+
+---
+
 ## [0.1.18] - 2026-06-07
 
 ### Added
