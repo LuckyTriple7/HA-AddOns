@@ -367,14 +367,15 @@ def _gh_get(path: str, token: str, params: dict | None = None) -> dict | list | 
         return None
 
 
-def _gh_get_paginated(path: str, token: str, max_pages: int = 5) -> list:
+def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | None = None) -> list:
     results = []
     url = f'{GITHUB_API}{path}' if path.startswith('/') else path
+    base_params = {'per_page': 100, **(params or {})}
     page = 1
     while url and page <= max_pages:
         try:
             r = http.get(url, headers=_gh_headers(token),
-                         params={'per_page': 100, 'page': page}, timeout=15)
+                         params={**base_params, 'page': page}, timeout=15)
             _update_rate_limit(r.headers)
             if r.status_code != 200:
                 break
@@ -553,7 +554,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
 def _fetch_security_alerts(repo: str, token: str) -> dict:
     """Fetch open Dependabot, Code Scanning and Secret Scanning alerts for one repo."""
     def _safe(path: str) -> list:
-        result = _gh_get(path, token, {'state': 'open', 'per_page': 50})
+        result = _gh_get_paginated(path, token, max_pages=10, params={'state': 'open'})
         return result if isinstance(result, list) else []
 
     def _fmt_dep(a: dict) -> dict:
