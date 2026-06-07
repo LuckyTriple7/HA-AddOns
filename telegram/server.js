@@ -36,6 +36,7 @@ const { StringSession } = require('telegram/sessions');
 const { NewMessage, Raw } = require('telegram/events');
 const { CustomFile } = require('telegram/client/uploads');
 const fs = require('fs');
+const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
@@ -1002,7 +1003,8 @@ app.post('/api/cleanup-media', (req, res) => {
 app.get('/api/media/:filename', (req, res) => {
   const { filename } = req.params;
   if (!/^[\w.-]+$/.test(filename)) return res.status(400).end();
-  const filePath = `${MEDIA_DIR}/${filename}`;
+  const filePath = path.resolve(MEDIA_DIR, filename);
+  if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return res.status(400).end();
   if (!fs.existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
   const mime = ext==='webp'?'image/webp':ext==='png'?'image/png':ext==='ogg'?'audio/ogg':ext==='mp4'?'video/mp4':ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'image/jpeg';

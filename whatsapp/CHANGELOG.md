@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5] - 2026-06-07
+
+### Security
+- Path-Traversal-Schwachstelle in `/api/media/:filename` behoben: `path.resolve()` + Boundary-Check stellt sicher dass der aufgelöste Pfad innerhalb von `MEDIA_DIR` bleibt (CodeQL: Uncontrolled data used in path expression)
+
+---
+
 ## [1.7.4] - 2026-06-07
 
 ### Security
