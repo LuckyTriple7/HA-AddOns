@@ -1079,6 +1079,7 @@ function esc(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+function safeJsArg(v) { return JSON.stringify(String(v)).replace(/"/g, '&quot;'); }
 
 function fmtBytes(n) {
   if (!n) return '0 B';
@@ -1417,7 +1418,7 @@ function renderSysHistFooter(el) {
   // Kern-Temperaturen (Package + Cores)
   (_lastCoreTemps || []).forEach(c => {
     const col = tempColor(c.temp);
-    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp','${c.label.replace(/'/g,"\\'")}')" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ ${c.label}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp',${safeJsArg(c.label)})" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ ${esc(c.label)}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
   });
   if (!parts.length && _lastCpuTemp !== null) {
     const col = tempColor(_lastCpuTemp);

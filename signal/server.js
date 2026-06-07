@@ -167,7 +167,7 @@ async function checkStatus() {
       qrSvg = null;
       qrUri = null;
       qrDataUrl = null;
-      console.log(`[INFO] Linked as ${PHONE_NUMBER ? PHONE_NUMBER.slice(0, 4) + '***' : '(not set)'}`);
+      console.log('[INFO] Signal account linked');
       if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
       loadContacts();
       loadGroups();
@@ -354,7 +354,7 @@ function processEnvelope(envelope) {
   }
 
   if (WEBHOOK_INCOMING && !isOwn) {
-    dbg(`Firing incoming webhook: ${WEBHOOK_INCOMING}`);
+    dbg('Firing incoming webhook');
     fetch(WEBHOOK_INCOMING, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -662,7 +662,7 @@ app.post('/api/send', async (req, res) => {
   const { to, message } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'Missing to/message' });
   try {
-    dbg(`Sending message to ${to}: "${message.slice(0,60)}${message.length>60?'…':''}"`);
+    dbg(`Sending message: "${message.slice(0,60)}${message.length>60?'…':''}"`);
     const r = await fetch(`${SIGNAL_API}/v2/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

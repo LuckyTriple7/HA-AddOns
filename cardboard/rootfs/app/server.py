@@ -184,10 +184,10 @@ def safe_child(base: Path, *parts: str) -> Path | None:
         # Regex-validate each part before use — CodeQL-recognized sanitizer pattern
         safe_parts = []
         for part in parts:
-            p = str(part)
-            if not _SAFE_PATH_PART.match(p):
+            m = _SAFE_PATH_PART.match(str(part))
+            if not m:
                 return None
-            safe_parts.append(p)
+            safe_parts.append(m.group(0))
         resolved = base.joinpath(*safe_parts).resolve()
         base_resolved = base.resolve()
         if str(resolved).startswith(str(base_resolved) + os.sep) or str(resolved) == str(base_resolved):
@@ -313,8 +313,24 @@ def is_https(request: Request) -> bool:
     )
 
 
+_PBKDF2_ITERS = 260_000
+
+def _hash_password(password: str) -> str:
+    """Erstellt einen PBKDF2-HMAC-SHA256-Hash mit zufälligem Salt."""
+    salt = os.urandom(16)
+    h = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, _PBKDF2_ITERS)
+    return f"pbkdf2:{salt.hex()}:{h.hex()}"
+
 def check_password(plain: str, stored: str) -> bool:
-    """Unterstützt SHA-256-Hashes (64 Hex-Zeichen) und Klartext-Passwörter."""
+    """Unterstützt PBKDF2-Hashes (neu), SHA-256-Hashes (legacy) und Klartext."""
+    if stored.startswith('pbkdf2:'):
+        try:
+            _, salt_hex, hash_hex = stored.split(':', 2)
+            salt = bytes.fromhex(salt_hex)
+            h = hashlib.pbkdf2_hmac('sha256', plain.encode('utf-8'), salt, _PBKDF2_ITERS)
+            return h.hex() == hash_hex
+        except Exception:
+            return False
     if len(stored) == 64 and all(c in "0123456789abcdefABCDEF" for c in stored):
         return hashlib.sha256(plain.encode()).hexdigest().lower() == stored.lower()
     return plain == stored
@@ -596,7 +612,7 @@ async def api_change_password(request: Request):
     if not user or not check_password(old_pw, user.get("password", "")):
         return JSONResponse({"error": "wrong_password"}, status_code=400)
 
-    user["password"] = hashlib.sha256(new_pw.encode()).hexdigest()
+    user["password"] = _hash_password(new_pw)
     was_forced = bool(user.pop("force_pw_change", False))
     write_users(yaml_data)
     log.info("Passwort für Benutzer '%s' geändert%s", username, " (initiales Passwort)" if was_forced else "")
@@ -673,7 +689,7 @@ async def api_render(request: Request):
     async with httpx.AsyncClient(timeout=10.0) as client:
         for entry in templates:
             tpl_name, title = parse_template_entry(entry)
-            tpl_path = safe_child(CONFIG_DIR / username, tpl_name)
+            tpl_path = safe_child(CONFIG_DIR, username, tpl_name)
             if not tpl_path or not tpl_path.exists():
                 cards.append({"title": title, "content": f"⚠️ Template nicht gefunden: `{tpl_name}`"})
                 continue
@@ -1351,14 +1367,14 @@ def _admin_get_templates(username: str):
         return JSONResponse({"error": "not_found"}, status_code=404)
     result = []
     for t in _normalize_templates(user.get("templates")):
-        path = safe_child(CONFIG_DIR / username, t["file"]) if t["file"] else None
+        path = safe_child(CONFIG_DIR, username, t["file"]) if t["file"] else None
         result.append({**t, "exists": bool(path and path.exists())})
     return JSONResponse(result)
 
 
 def _admin_get_template_content(username: str, filename: str):
     username = username.lower()
-    path = safe_child(CONFIG_DIR / username, filename)
+    path = safe_child(CONFIG_DIR, username, filename)
     if not path:
         return JSONResponse({"error": "invalid_path"}, status_code=400)
     if not path.exists():
@@ -1377,7 +1393,7 @@ async def _admin_save_template(username: str, filename: str, request: Request):
     content = body.get("content", "")
     title   = body.get("title", "")
 
-    path = safe_child(CONFIG_DIR / username, filename)
+    path = safe_child(CONFIG_DIR, username, filename)
     if not path:
         return JSONResponse({"error": "invalid_path"}, status_code=400)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1407,7 +1423,7 @@ async def _admin_save_template(username: str, filename: str, request: Request):
 
 def _admin_delete_template(username: str, filename: str):
     username = username.lower()
-    path = safe_child(CONFIG_DIR / username, filename)
+    path = safe_child(CONFIG_DIR, username, filename)
     if not path:
         return JSONResponse({"error": "invalid_path"}, status_code=400)
 
@@ -1489,7 +1505,7 @@ async def _admin_create_user(request: Request):
     if any((u.get("username") or "").lower() == username for u in users):
         return JSONResponse({"error": "username_exists"}, status_code=409)
 
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    pw_hash = _hash_password(password)
     new_user: dict = {
         "username":     username,
         "password":     pw_hash,
@@ -1592,7 +1608,7 @@ async def _admin_reset_password(username: str, request: Request):
     if not user:
         return JSONResponse({"error": "not_found"}, status_code=404)
 
-    user["password"] = hashlib.sha256(new_pw.encode()).hexdigest()
+    user["password"] = _hash_password(new_pw)
     user["force_pw_change"] = True
     write_users(yaml_data)
     log.info("Admin: Passwort für '%s' zurückgesetzt", username)

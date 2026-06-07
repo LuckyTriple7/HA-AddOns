@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.7] - 2026-06-07
+
+### Security
+- Path Traversal: `safe_child()` verwendet `m.group(0)` aus Regex-Match statt Rohwert — Taint-Chain für CodeQL korrekt unterbrochen (py/path-injection #117, #118)
+- Path Traversal: Admin-Funktionen rufen `safe_child(CONFIG_DIR, username, ...)` statt `safe_child(CONFIG_DIR / username, ...)` — `username` durchläuft jetzt die Regex-Validierung in `safe_child` (#65–#71)
+- Schwaches Hashing: PBKDF2-HMAC-SHA256 (260.000 Iterationen, Random-Salt) für alle neuen Passwörter; Legacy-SHA256-Verifikation bleibt für bestehende Hashes erhalten (py/weak-sensitive-data-hashing #2, #3, #4)
+
+---
+
 ## [1.0.6] - 2026-06-07
 ### Security
 - `safe_child()` überarbeitet: Regex-Validierung (`^[a-zA-Z0-9_\-][a-zA-Z0-9._\-]{0,254}$`) jedes Pfadsegments vor dem Zusammenbauen — CodeQL erkennt Regex als Sanitizer und kann den Taint-Flow in `joinpath().resolve()` korrekt bewerten (py/path-injection)

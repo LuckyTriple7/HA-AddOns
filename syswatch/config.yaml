@@ -1,6 +1,6 @@
 name: HA SysWatch
 description: Docker container resource monitor — CPU, RAM, Network, Disk I/O
-version: "1.2.1"
+version: "1.2.2"
 slug: syswatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/syswatch"

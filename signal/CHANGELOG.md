@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.7] - 2026-06-07
+
+### Security
+- Clear-text Logging: `WEBHOOK_INCOMING`-URL und Telefonnummer aus Debug-Logs entfernt; Login-Log auf statische Meldung umgestellt (CodeQL: js/clear-text-logging #119, #120)
+
+---
+
 ## [1.6.6] - 2026-06-07
 
 ### Security

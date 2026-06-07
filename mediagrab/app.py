@@ -272,14 +272,21 @@ def _parse_error(lines: list[str]) -> str:
 
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
-def _validate_url(url: str) -> bool:
-    return url.startswith('http://') or url.startswith('https://')
+_URL_SAFE_RE  = re.compile(r'^(https?://[^\s\x00-\x1f<>"\'{|}\\^`\[\]]{1,2048})$')
+_SAFE_FILE_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9 _\-.()\[\]]{0,253}$')
+
+def _validate_url(url: str) -> 'str | None':
+    """Returns sanitized URL string or None if invalid."""
+    m = _URL_SAFE_RE.match(url or '')
+    return m.group(1) if m else None
 
 def _safe_media_path(filename: str) -> 'Path | None':
     """Returns resolved path only if within MEDIA_DIR — rejects traversal attempts."""
-    if not filename or os.path.isabs(filename) or '..' in filename.replace('\\', '/').split('/'):
+    m = _SAFE_FILE_RE.match(filename or '')
+    if not m:
         return None
-    resolved = (MEDIA_DIR / filename).resolve()
+    safe_name = m.group(0)
+    resolved = (MEDIA_DIR / safe_name).resolve()
     base = str(MEDIA_DIR.resolve())
     if str(resolved).startswith(base + os.sep) or str(resolved) == base:
         return resolved
@@ -677,10 +684,11 @@ def api_download():
         return jsonify({'error': 'unauthorized'}), 401
     data = request.json or {}
 
-    urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
-    if not urls:
+    raw_urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
+    if not raw_urls:
         return jsonify({'error': 'no_url'}), 400
-    if not all(_validate_url(u) for u in urls):
+    urls = [_validate_url(u) for u in raw_urls]
+    if not all(urls):
         return jsonify({'error': 'invalid_url'}), 400
 
     fmt = data.get('fmt', 'best_video')
@@ -730,13 +738,14 @@ def api_info():
     url  = (data.get('url') or '').strip()
     if not url:
         return jsonify({'error': 'no_url'}), 400
-    if not _validate_url(url):
+    safe_url = _validate_url(url)
+    if not safe_url:
         return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd += ['--', url]
+    cmd += ['--', safe_url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

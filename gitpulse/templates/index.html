@@ -1196,7 +1196,7 @@
             ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
-        <button class="act-btn act-btn-dispatch" onclick="openCommentModal('${escHtml(repo.repo)}',${iss.number},'#${iss.number} ${escHtml(iss.title).replace(/'/g,"\\'")}')">💬 ${T.btn_comment}</button>
+        <button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>
         <button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>
       </div>`).join('') + '</div></div>';
   }

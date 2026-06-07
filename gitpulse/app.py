@@ -386,8 +386,8 @@ def _gh_get_paginated(path: str, token: str, max_pages: int = 5, params: dict | 
             link = r.headers.get('Link', '')
             next_url = None
             for part in link.split(','):
-                if 'rel="next"' in part:
-                    m = re.search(r'<([^>]+)>', part)
+                if 'rel="next"' in part and len(part) <= 4096:
+                    m = re.search(r'<(https?://[^>\s]{1,2048})>', part)
                     if m:
                         next_url = m.group(1)
             url = next_url
@@ -406,7 +406,7 @@ def _check_token(token: str) -> tuple[bool, str, str]:
             scopes  = r.headers.get('X-OAuth-Scopes', 'fine-grained')
             expires = r.headers.get('GitHub-Authentication-Token-Expiration', '')
             if _verbose():
-                log.info("Token OK — Scopes: %s, Ablauf: %s", scopes or 'fine-grained', expires or 'kein Ablauf')
+                log.info("Token OK — Scopes: %d, Ablauf: %s", len((scopes or '').split(',')), bool(expires))
             return True, scopes, expires
         return False, '', ''
     except Exception as e:
@@ -1760,9 +1760,9 @@ if __name__ == '__main__':
     if token:
         ok, scopes, expires = _check_token(token)
         if ok:
-            log.info("GitHub-Token gültig (Scopes: %s)", scopes or 'fine-grained')
+            log.info("GitHub-Token gültig")
             if expires:
-                log.info("Token läuft ab: %s", expires)
+                log.info("Token-Ablauf: konfiguriert")
         else:
             log.warning("GitHub-Token ungültig oder nicht konfiguriert!")
     else:

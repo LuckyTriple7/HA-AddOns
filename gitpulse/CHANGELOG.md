@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.39] - 2026-06-07
+
+### Security
+- Polynomial-Regex (ReDoS): `<([^>]+)>` → `<(https?://[^>\s]{1,2048})>` mit Längen-Limit pro Link-Header-Segment (CodeQL: py/polynomial-redos #5)
+- Clear-text Logging: Token-Scopes/Ablauf nicht mehr als Rohwert geloggt — stattdessen int/bool-Repräsentation (CodeQL: py/clear-text-logging #27, #28, #29)
+- XSS / Incomplete escaping: Issue-Kommentar-Button nutzt `safeJsArg()` statt manueller `replace(/'/g)` (CodeQL: js/incomplete-html-attribute-sanitization #75)
+
+---
+
 ## [0.1.38] - 2026-06-07
 
 ### Added
