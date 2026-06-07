@@ -207,6 +207,7 @@ Empfohlene Events:
 - Branch or tag creation
 - Branch or tag deletion
 - Stars
+- Secret scanning alerts
 
 ### Schritt 4: Verbindung testen
 
@@ -233,6 +234,7 @@ Nach dem Speichern sendet GitHub automatisch ein `ping`-Event. Im GitPulse-Log (
 | `push` | Cache aktualisieren |
 | `create` / `delete` | Cache aktualisieren (Branches/Tags) |
 | `star` / `fork` | Cache aktualisieren |
+| `secret_scanning_alert` | Sofortige Telegram-Benachrichtigung (kein Cache-Update nötig) |
 | `ping` | Verbindungsbestätigung (keine weitere Aktion) |
 
 ---

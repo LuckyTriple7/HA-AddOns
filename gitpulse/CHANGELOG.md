@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.30] - 2026-06-07
+
+### Added
+- Webhook-Event `secret_scanning_alert`: GitPulse empfängt GitHub Secret Scanning Alerts und schickt sofort eine Telegram-Nachricht (🚨 gefunden / 🔓 öffentlich geleakt / ✅ behoben / ⚠️ validiert / 🔁 wieder geöffnet)
+- Alert-Details: Repo, Alert-Nummer, Secret-Typ (z. B. „GitHub Personal Access Token"), Aktion und direkter Link zum Alert auf GitHub
+- Kein `_first_poll_done`-Check — Security-Alerts werden immer sofort gesendet, auch beim Add-on-Start
+
+---
+
 ## [0.1.29] - 2026-06-07
 
 ### Fixed

@@ -1490,6 +1490,28 @@ def github_webhook():
                     rd['forks'] = forks
         _notify_sse()
 
+    elif event == 'secret_scanning_alert':
+        alert       = payload.get('alert', {})
+        secret_type = alert.get('secret_type_display_name') or alert.get('secret_type', '?')
+        alert_num   = alert.get('number', '?')
+        alert_url   = alert.get('html_url', '')
+        _action_map = {
+            'created':         ('🚨', 'Neues Secret gefunden'),
+            'publicly_leaked': ('🔓', 'Öffentlich geleakt!'),
+            'validated':       ('⚠️', 'Als gültig bestätigt'),
+            'reopened':        ('🔁', 'Erneut geöffnet'),
+            'revoked':         ('✅', 'Token widerrufen'),
+            'resolved':        ('✅', 'Behoben'),
+        }
+        icon, label = _action_map.get(action, ('⚠️', action))
+        log.warning("Secret Scanning Alert [%s] in %s: %s (#%s)", action, repo_full, secret_type, alert_num)
+        if tg_token and tg_chat:
+            _send_telegram(tg_token, tg_chat,
+                f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n"
+                f"#{alert_num} · {label}\n"
+                f"Typ: {secret_type}\n"
+                + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
+
     return jsonify({'status': 'ok'}), 200
 
 
