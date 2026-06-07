@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.7] - 2026-06-07
+
+### Security
+- Rate Limiting für `/api/delete-video` eingebaut: max. 30 Anfragen/Minute pro IP — behebt CodeQL-Alert "Missing rate limiting" (#91)
+
+---
+
+## [1.7.6] - 2026-06-07
+
+### Security
+- Path-Traversal-Schwachstelle in Write-Endpunkten behoben: `downloadWAMedia` und Send-Media-Upload verwenden jetzt `path.resolve()` + Boundary-Check um Path-Injection bei `writeFileSync` zu verhindern (CodeQL: Uncontrolled data used in path expression)
+
+---
+
 ## [1.7.5] - 2026-06-07
 
 ### Security

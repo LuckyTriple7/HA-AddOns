@@ -40,6 +40,22 @@ const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
+function makeRateLimiter(maxReqs, windowMs) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
+    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
+    entry.count++;
+    hits.set(key, entry);
+    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
+    next();
+  };
+}
+const deleteRateLimit = makeRateLimiter(30, 60_000);
+const cleanupRateLimit = makeRateLimiter(5, 60_000);
+
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
@@ -202,7 +218,8 @@ async function downloadMedia(rawMsg, msgId) {
     } else if (mediaClass !== 'MessageMediaPhoto') {
       return null;
     }
-    const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+    const filePath = path.resolve(MEDIA_DIR, `${safeId}.${ext}`);
+    if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return null;
     if (!fs.existsSync(filePath)) {
       _logSilent('DEBUG', `GramJS downloadMedia: start ${safeId}.${ext}`);
       enforceMediaLimit();
@@ -735,7 +752,7 @@ app.post('/api/fetch-video', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/delete-video', (req, res) => {
+app.post('/api/delete-video', deleteRateLimit, (req, res) => {
   const { msgId } = req.body;
   if (!msgId) return res.status(400).json({ error: 'msgId required' });
   const parts = msgId.split('_');
@@ -779,7 +796,9 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
       let mediaFile = null;
       if (isImg && DOWNLOAD_MEDIA) {
         const fname = `${ts}_${safeName}`;
-        fs.writeFileSync(`${MEDIA_DIR}/${fname}`, buffer);
+        const fpath = path.resolve(MEDIA_DIR, fname);
+        if (!fpath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) throw new Error('Invalid media path');
+        fs.writeFileSync(fpath, buffer);
         mediaFile = fname;
       }
       const msgObj = isImg
@@ -800,7 +819,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
   }
 });
 
-app.delete('/api/messages/:chatId/:msgId', async (req, res) => {
+app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => {
   const { chatId, msgId } = req.params;
   if (status !== 'connected') return res.status(503).json({ error: 'Nicht verbunden' });
   try {
@@ -982,7 +1001,7 @@ app.get('/api/storage', (req, res) => {
   });
 });
 
-app.post('/api/cleanup-media', (req, res) => {
+app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
   try {
     const referenced = new Set();
     for (const msgs of messagesByChatId.values())

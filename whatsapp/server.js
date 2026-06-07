@@ -47,6 +47,22 @@ const { URL } = require('url');
 const fs = require('fs');
 const { existsSync, rmSync } = fs;
 
+// Simple in-memory rate limiter (no extra dependency needed)
+function makeRateLimiter(maxReqs, windowMs) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
+    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
+    entry.count++;
+    hits.set(key, entry);
+    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
+    next();
+  };
+}
+const deleteRateLimit = makeRateLimiter(30, 60_000);
+
 // ── Chromium detection ────────────────────────────────────────────────────────
 
 function findChromium() {
@@ -275,7 +291,8 @@ async function downloadWAMedia(msg, msgId) {
     const safeId = msgId.replace(/[^a-zA-Z0-9]/g, '_');
     const mime = msg._data?.mimetype || '';
     const ext = msg.type === 'sticker' ? 'webp' : (msg.type === 'ptt' || msg.type === 'audio') ? 'ogg' : msg.type === 'video' ? (mime.includes('webm') ? 'webm' : 'mp4') : 'jpg';
-    const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+    const filePath = path.resolve(MEDIA_DIR, `${safeId}.${ext}`);
+    if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return null;
     if (!existsSync(filePath)) {
       _logSilent('DEBUG', `downloadWAMedia: start ${safeId}.${ext} (${mime||'?'})`);
       const t0 = Date.now();
@@ -848,7 +865,8 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
     if (isImg) {
       const safeId = result.id._serialized.replace(/[^a-zA-Z0-9]/g, '_');
       const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-      const filePath = `${MEDIA_DIR}/${safeId}.${ext}`;
+      const filePath = path.resolve(MEDIA_DIR, `${safeId}.${ext}`);
+      if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return res.status(400).json({ error: 'Invalid path' });
       fs.writeFileSync(filePath, req.file.buffer);
       mediaFile = `${safeId}.${ext}`;
     }
@@ -1192,7 +1210,7 @@ app.post('/api/fetch-video', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/delete-video', async (req, res) => {
+app.post('/api/delete-video', deleteRateLimit, async (req, res) => {
   const { msgId, chatId } = req.body;
   if (!msgId || !chatId) return res.status(400).json({ error: 'msgId and chatId required' });
   const stored = getChatMsgs(chatId).find(m => m.id === msgId);
