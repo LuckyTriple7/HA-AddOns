@@ -103,7 +103,10 @@
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
     .run-name { flex:1; min-width:0; }
     .run-name-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-    .run-commit { font-size:.7rem; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:340px; }
+    .run-commit { font-size:.7rem; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ci-filter-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:3px 10px; border-radius:20px; font-size:0.75rem; cursor:pointer; white-space:nowrap; }
+    .ci-filter-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .ci-filter-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(88,166,255,.08); font-weight:600; }
     .run-branch { font-size:0.72rem; color:var(--muted); background:var(--surf2); padding:1px 6px; border-radius:4px; white-space:nowrap; flex-shrink:0; }
     .run-event-badge { font-size:.65rem; padding:1px 6px; border-radius:10px; background:rgba(88,166,255,.1); color:var(--accent); border:1px solid rgba(88,166,255,.2); font-weight:600; white-space:nowrap; flex-shrink:0; }
     .run-jobs-wrap { background:var(--surf2); border-bottom:1px solid var(--border); }
@@ -512,6 +515,7 @@
   let notifEnabled = false;
   let _prFilter = '';
   let _issueFilter = '';
+  let _ciTimeFilter = 'all';
 
   // ── Modal helpers ─────────────────────────────────────────────────
   function closeModal(id) {
@@ -744,6 +748,17 @@
     _issueFilter = (document.getElementById('issue-filter')?.value || '').toLowerCase();
     if (ghData) renderIssues(ghData);
   }
+  function setCIFilter(f) {
+    _ciTimeFilter = f;
+    if (ghData) renderCI(ghData);
+  }
+  function formatRunTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const timeStr = d.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+    if (d.toDateString() === new Date().toDateString()) return timeStr;
+    return d.toLocaleDateString(undefined, {day:'2-digit', month:'2-digit'}) + ' ' + timeStr;
+  }
 
   function loadFavorites() {
     fetch(u('/api/workflow/favorites'))
@@ -847,8 +862,13 @@
     rl_remaining:      '{{ t.rl_remaining }}',
     rl_reset_in:       '{{ t.rl_reset_in }}',
     rl_min:            '{{ t.rl_min }}',
-    fav_title:         '{{ t.fav_title }}',
-    fav_already:       '{{ t.fav_already }}',
+    fav_title:           '{{ t.fav_title }}',
+    fav_already:         '{{ t.fav_already }}',
+    ci_filter_all:       '{{ t.ci_filter_all }}',
+    ci_filter_1h:        '{{ t.ci_filter_1h }}',
+    ci_filter_6h:        '{{ t.ci_filter_6h }}',
+    ci_filter_today:     '{{ t.ci_filter_today }}',
+    ci_filter_yesterday: '{{ t.ci_filter_yesterday }}',
   };
 
   function relTime(iso) {
@@ -1213,6 +1233,25 @@
       return;
     }
     const dispatchBtn = `<button class="act-btn act-btn-dispatch" style="margin-left:auto" onclick="openDispatchModal('${escHtml(repo.repo)}')">▶ ${T.btn_dispatch}</button>`;
+
+    // Zeitfilter anwenden
+    const now = Date.now();
+    const yesterday = new Date(); yesterday.setHours(0,0,0,0); yesterday.setDate(yesterday.getDate()-1);
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const ciFilterFns = {
+      all:       () => true,
+      hour:      r => (now - new Date(r.created)) < 3600000,
+      '6h':      r => (now - new Date(r.created)) < 21600000,
+      today:     r => new Date(r.created) >= todayStart,
+      yesterday: r => new Date(r.created) >= yesterday && new Date(r.created) < todayStart,
+    };
+    const filteredRuns = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
+    const filterBar = `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+      ${[['all',T.ci_filter_all],['hour',T.ci_filter_1h],['6h',T.ci_filter_6h],['today',T.ci_filter_today],['yesterday',T.ci_filter_yesterday]]
+        .map(([k,l])=>`<button class="ci-filter-btn${_ciTimeFilter===k?' active':''}" onclick="setCIFilter('${k}')">${l}</button>`).join('')}
+      ${_ciTimeFilter!=='all'?`<span style="font-size:.73rem;color:var(--muted);align-self:center">${filteredRuns.length} / ${repo.runs.length}</span>`:''}
+    </div>`;
+
     const repoFavs = ghFavorites.filter(f => f.repo === repo.repo);
     const favsHtml = repoFavs.length ? `<div class="card" style="margin-bottom:8px">
       <div class="card-header" style="gap:8px">
@@ -1228,12 +1267,13 @@
           <button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteFavorite('${escHtml(fav.id)}')">🗑</button>
         </div>`).join('') +
       `</div></div>` : '';
-    const rows = repo.runs.map(run => {
+    const rows = filteredRuns.map(run => {
       const status    = run.status === 'in_progress' ? 'in_progress' : run.conclusion || run.status;
       const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
       const canCancel = ['in_progress','queued','waiting'].includes(run.status);
       const canDelete = run.status === 'completed';
       const dur       = ciDuration(run.created, run.updated || (run.status !== 'completed' ? null : run.updated));
+      const timeDisp  = formatRunTime(run.created) + (dur ? ' · ' + dur : '');
       return `
         <div class="run-row">
           <div class="run-dot ${ciStatusClass(status)}"></div>
@@ -1247,7 +1287,7 @@
           </div>
           ${run.actor_avatar ? `<img class="avatar" src="${escHtml(run.actor_avatar)}" alt="${escHtml(run.actor)}" title="@${escHtml(run.actor)}" style="width:20px;height:20px;flex-shrink:0" loading="lazy">` : ''}
           <span class="run-branch">${escHtml(run.branch)}</span>
-          <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;flex-shrink:0">${dur || relTime(run.created)}</span>
+          <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;flex-shrink:0">${timeDisp}</span>
           ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow('${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
           ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
           ${canDelete ? `<button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteWorkflowRun('${escHtml(repo.repo)}',${run.id})">🗑 ${T.btn_delete_run}</button>` : ''}
@@ -1255,7 +1295,7 @@
         </div>
         <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
     }).join('');
-    el.innerHTML = favsHtml + `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
+    el.innerHTML = filterBar + favsHtml + `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
       ${dispatchBtn}

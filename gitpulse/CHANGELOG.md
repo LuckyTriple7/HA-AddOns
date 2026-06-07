@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.26] - 2026-06-07
+
+### Changed
+- CI/Actions: Commit-Beschreibung füllt jetzt die volle Spaltenbreite (kein `max-width:340px` mehr)
+- CI/Actions: Zeitanzeige zeigt Uhrzeit (HH:MM) + Dauer statt nur Relativzeit ("2 hr ago"); bei älteren Runs wird das Datum vorangestellt
+- CI/Actions: Quickfilter-Buttons über den Runs — Alle / Letzte Stunde / Letzte 6 Std. / Heute / Gestern; aktiver Filter zeigt Treffer-/Gesamtanzahl
+
+---
+
 ## [0.1.25] - 2026-06-07
 
 ### Added
