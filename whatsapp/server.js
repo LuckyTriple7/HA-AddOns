@@ -47,21 +47,8 @@ const { URL } = require('url');
 const fs = require('fs');
 const { existsSync, rmSync } = fs;
 
-// Simple in-memory rate limiter (no extra dependency needed)
-function makeRateLimiter(maxReqs, windowMs) {
-  const hits = new Map();
-  return (req, res, next) => {
-    const key = req.ip || req.socket?.remoteAddress || 'unknown';
-    const now = Date.now();
-    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
-    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
-    entry.count++;
-    hits.set(key, entry);
-    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
-    next();
-  };
-}
-const deleteRateLimit = makeRateLimiter(30, 60_000);
+const rateLimit = require('express-rate-limit');
+const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
 
 // ── Chromium detection ────────────────────────────────────────────────────────
 

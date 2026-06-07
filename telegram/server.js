@@ -40,21 +40,9 @@ const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
-function makeRateLimiter(maxReqs, windowMs) {
-  const hits = new Map();
-  return (req, res, next) => {
-    const key = req.ip || req.socket?.remoteAddress || 'unknown';
-    const now = Date.now();
-    const entry = hits.get(key) || { count: 0, reset: now + windowMs };
-    if (now > entry.reset) { entry.count = 0; entry.reset = now + windowMs; }
-    entry.count++;
-    hits.set(key, entry);
-    if (entry.count > maxReqs) return res.status(429).json({ error: 'Too many requests' });
-    next();
-  };
-}
-const deleteRateLimit = makeRateLimiter(30, 60_000);
-const cleanupRateLimit = makeRateLimiter(5, 60_000);
+const rateLimit = require('express-rate-limit');
+const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
+const cleanupRateLimit = rateLimit({ windowMs: 60_000, limit: 5 });
 
 const app = express();
 app.use(express.json());

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.35] - 2026-06-07
+
+### Security
+- XSS-Schwachstelle in PR-Buttons behoben: `JSON.stringify`-basiertes Escaping (`safeJsArg`) statt `escHtml+replace` für onclick-Argumente (CodeQL: Incomplete string escaping #111)
+- Exception-Details nicht mehr an Client zurückgegeben: generische `internal_error`-Meldung statt `str(e)` (CodeQL: Information exposure #107)
+- Clear-text logging: `secret_type` aus Secret-Scanning-Alert-Log entfernt; Taint-Flow in Repo-Poll-Log durch explizite int-Konvertierung gebrochen (CodeQL: #108, #109, #110)
+
+---
+
 ## [0.1.34] - 2026-06-07
 
 ### Changed

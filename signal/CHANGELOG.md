@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.5] - 2026-06-07
+
+### Security
+- `express-rate-limit` statt eigener Implementierung: CodeQL-erkannte Rate-Limiting-Lösung (#112)
+- Telefonnummer in Startup-Log maskiert (`+49***`)
+- Kontaktname aus HA-Notification-Log entfernt
+- `dbg()`-Funktion: Argumente werden jetzt explizit als String serialisiert (CodeQL: Clear-text logging #92, #93, #94)
+
+---
+
 ## [1.6.4] - 2026-06-07
 
 ### Security
