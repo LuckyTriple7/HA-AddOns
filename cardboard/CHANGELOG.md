@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.4] - 2026-06-07
+### Added
+- Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start
+- Offline-Banner: abdunkelndes Overlay mit animiertem 📡, lokalisierten Texten (DE/EN) und „Neu laden"-Button
+
 ## [1.0.3] - 2026-06-04
 - fix: Log-Zeitstempel vollständig in allen Ausgaben (force=True / UVICORN_LOG_CONFIG)
 

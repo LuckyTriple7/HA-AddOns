@@ -472,6 +472,15 @@
       .cards { grid-template-columns: repeat(2, 1fr); }
       .card-value { font-size: 1.2rem; }
     }
+
+    /* ── Offline Banner ── */
+    #offline-banner { display:none; position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+    .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
+    .ob-title { font-size:16px; font-weight:600; color:#e9edef; }
+    .ob-sub { font-size:13px; color:#8696a0; }
+    .ob-reload { background:#2a3942; border:1px solid #3d5259; color:#e9edef; border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+    .ob-reload:hover { background:#3d5259; border-color:#5a7a87; }
+    @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   </style>
 </head>
 <body>
@@ -504,6 +513,13 @@
     <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
   </a>
 </header>
+
+<div id="offline-banner">
+  <div class="ob-icon">📡</div>
+  <div class="ob-title">{{ t.banner_offline_title }}</div>
+  <div class="ob-sub">{{ t.banner_offline_sub }}</div>
+  <button class="ob-reload" onclick="window.location.reload()">{{ t.banner_offline_reload }}</button>
+</div>
 
 <div id="main-scroll">
 
@@ -812,9 +828,13 @@ function toggleTheme() {
   markSorted();
   updatePerfBtn();
   startHeartbeat();
+  if (!navigator.onLine) showOfflineBanner();
   longPoll();
   doRefresh();
 })();
+
+window.addEventListener('online',  () => { _offlineFails = 0; doRefresh(); longPoll(); });
+window.addEventListener('offline', () => showOfflineBanner());
 
 // ── Refresh ───────────────────────────────────────────────────────────────────
 
@@ -832,6 +852,10 @@ function tick() {
 }
 
 // ── Long-polling (server holds request until new data is ready) ───────────────
+
+let _offlineFails = 0;
+function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
+function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
 
 let _pollActive = false;
 
@@ -853,6 +877,7 @@ async function longPoll() {
     }
   } catch (e) {
     // aborted or network error — short pause before retry
+    if (e.name !== 'AbortError') { _offlineFails++; if (_offlineFails >= 3) showOfflineBanner(); }
     await new Promise(r => setTimeout(r, 1000));
   } finally {
     _pollActive = false;
@@ -866,6 +891,8 @@ async function fetchAndUpdate() {
     const res = await fetch('/api/stats');
     if (res.status === 401) { location.href = '/login'; return; }
     const data = await res.json();
+    _offlineFails = 0;
+    if (navigator.onLine !== false) hideOfflineBanner();
 
     const errBar = document.getElementById('error-bar');
     if (data.error) {

@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.2.1] - 2026-06-07
+### Added
+- Disconnect-Erkennung: `visibilitychange` (Tab/Laptop-Aufklappen), `online`/`offline`-Events, `navigator.onLine`-Check beim Start
+- Offline-Banner: abdunkelndes Overlay mit animiertem 📡, lokalisierten Texten (DE/EN) und „Neu laden"-Button
+- SysWatch-spezifisch: `longPoll()` AbortError wird korrekt ignoriert — nur echte Netzwerkfehler zählen zum Fehler-Zähler
+
 ## [1.2.0] - 2026-06-06
 ### Added
 - In-App Console: Doppelklick auf „HA SysWatch" öffnet draggbares Floating-Window mit Backend-Logs (Docker/Supervisor-Events)

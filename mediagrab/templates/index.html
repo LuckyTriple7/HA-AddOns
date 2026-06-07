@@ -191,6 +191,14 @@
     .cookie-no  { background:rgba(139,148,158,.15); color:var(--muted); }
     #cookie-upload-input { display:none; }
 
+    /* ── Offline Banner ── */
+    #offline-banner { display:none; position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+    .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
+    .ob-title { font-size:16px; font-weight:600; color:#e9edef; }
+    .ob-sub { font-size:13px; color:#8696a0; }
+    .ob-reload { background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#e9edef; border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+    .ob-reload:hover { background:rgba(255,255,255,0.2); }
+    @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   </style>
 </head>
 <body>
@@ -205,6 +213,13 @@
     </button>
     <a href="/logout" class="logout-btn">{{ t.logout }}</a>
   </header>
+
+  <div id="offline-banner">
+    <div class="ob-icon">📡</div>
+    <div class="ob-title">{{ t.banner_offline_title }}</div>
+    <div class="ob-sub">{{ t.banner_offline_sub }}</div>
+    <button class="ob-reload" onclick="window.location.reload()">{{ t.banner_offline_reload }}</button>
+  </div>
 
   <div id="main-scroll">
 
@@ -465,6 +480,11 @@
       document.getElementById('info-thumb').src = '';
     }
 
+    // ── Offline Banner ────────────────────────────────────────────────────────
+    let _offlineFails = 0;
+    function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
+    function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
+
     // ── Polling ───────────────────────────────────────────────────────────────
     let _pollInterval = 2000;
     let _pollTimer    = null;
@@ -482,13 +502,15 @@
         const r = await fetch('/api/jobs');
         if (!r.ok) return;
         const jobs = await r.json();
+        _offlineFails = 0;
+        if (navigator.onLine !== false) hideOfflineBanner();
         renderJobs(jobs);
         const nowDone = new Set(jobs.filter(j => j.status === 'done').map(j => j.id));
         if ([...nowDone].some(id => !_prevDoneIds.has(id))) { loadFiles(); loadDiskSpace(); }
         _prevDoneIds = nowDone;
         const hasActive = jobs.some(j => j.status === 'pending' || j.status === 'running');
         _pollInterval = hasActive ? 500 : 2000;
-      } catch(e) {}
+      } catch(e) { _offlineFails++; if (_offlineFails >= 3) showOfflineBanner(); }
     }
 
     function renderJobs(jobs) {
@@ -934,6 +956,7 @@
         openShareModal(sharedUrl);
       }
 
+      if (!navigator.onLine) showOfflineBanner();
       loadJobs();
       loadFiles();
       loadDiskSpace();
@@ -941,6 +964,12 @@
       loadCookiesStatus();
 
       schedulePoll();
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') loadJobs();
+      });
+      window.addEventListener('online',  () => { _offlineFails = 0; loadJobs(); });
+      window.addEventListener('offline', () => showOfflineBanner());
     });
   </script>
   <style>
