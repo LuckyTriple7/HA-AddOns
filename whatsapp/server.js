@@ -942,7 +942,8 @@ app.post('/api/logout', async (req, res) => {
 app.get('/api/media/:filename', (req, res) => {
   const { filename } = req.params;
   if (!/^[\w.-]+$/.test(filename)) return res.status(400).end();
-  const filePath = `${MEDIA_DIR}/${filename}`;
+  const filePath = path.resolve(MEDIA_DIR, filename);
+  if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return res.status(400).end();
   if (!existsSync(filePath)) return res.status(404).end();
   const ext = filename.split('.').pop();
   const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'image/jpeg';

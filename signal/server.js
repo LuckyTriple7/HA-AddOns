@@ -33,6 +33,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 * 1024 * 1024 } });
 
@@ -549,7 +550,8 @@ app.get('/api/export/:chatId', (req, res) => {
 app.get('/api/media/:filename', (req, res) => {
   const filename = req.params.filename;
   if (!/^[\w.-]+$/.test(filename)) return res.status(400).send('Invalid filename');
-  const filepath = MEDIA_DIR + filename;
+  const filepath = path.resolve(MEDIA_DIR, filename);
+  if (!filepath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return res.status(400).send('Invalid filename');
   if (!fs.existsSync(filepath)) return res.status(404).send('Not found');
   const ext = filename.split('.').pop().toLowerCase();
   const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', aac: 'audio/aac', mp3: 'audio/mpeg' };
