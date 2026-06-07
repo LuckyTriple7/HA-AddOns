@@ -27,6 +27,7 @@
   "stat_security": "Security Alerts",
 
   "security_none": "No open security alerts — all clear",
+  "security_none_filtered": "No alerts match the selected filter",
   "security_dependabot": "Dependabot",
   "security_codescanning": "Code Scanning",
   "security_secretscanning": "Secret Scanning",

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.37] - 2026-06-07
+
+### Added
+- Security-Tab: Filter-Bar mit Severity-Chips (🔴 Critical / 🟠 High / 🟡 Medium / 🟢 Low) und Typ-Chips (🤖 Dependabot / 🔍 Code Scanning / 🔑 Secrets) — jeweils mit Anzahl, mehrere Filter kombinierbar
+- Severity-Badge in der Alertliste farbig hervorgehoben (Farbe je nach Schweregrad)
+- Secret-Scanning-Alerts erhalten automatisch Schweregrad „Critical"
+
+---
+
 ## [0.1.36] - 2026-06-07
 
 ### Fixed
