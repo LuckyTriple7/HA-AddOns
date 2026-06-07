@@ -985,7 +985,7 @@ def api_branches():
     if not token:
         return jsonify({'error': 'kein Token'}), 400
     try:
-        branches = _gh_get_paginated(f'/repos/{repo}/branches', token, params={'per_page': 100})
+        branches = _gh_get_paginated(f'/repos/{repo}/branches', token)
         names = [b['name'] for b in (branches or []) if isinstance(b, dict) and 'name' in b]
         return jsonify(names)
     except Exception as e:

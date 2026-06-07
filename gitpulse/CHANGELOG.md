@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11] - 2026-06-07
+
+### Fixed
+- Dispatch Branch-Dropdown: `/api/branches` gab 500 zurück — `_gh_get_paginated` wurde mit ungültigem `params=`-Keyword aufgerufen (per_page ist bereits intern hardcodiert)
+
+---
+
 ## [0.1.10] - 2026-06-07
 
 ### Fixed
