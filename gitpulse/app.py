@@ -1549,6 +1549,33 @@ def github_webhook():
                     f"▶️ <b>Workflow gestartet:</b> {repo_full}\n"
                     + run_info
                     + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+            # Neuen Run sofort in den Cache einfügen damit die UI ihn sofort sieht
+            head_msg = (run.get('head_commit') or {}).get('message', '')
+            new_entry = {
+                'id':           run_id,
+                'run_number':   run.get('run_number'),
+                'workflow_id':  run.get('workflow_id'),
+                'name':         run.get('name', ''),
+                'status':       run.get('status', 'queued'),
+                'conclusion':   run.get('conclusion'),
+                'url':          run.get('html_url', ''),
+                'branch':       run.get('head_branch', ''),
+                'created':      run.get('created_at', ''),
+                'updated':      run.get('updated_at', ''),
+                'event':        run.get('event', ''),
+                'actor':        (run.get('actor') or {}).get('login', ''),
+                'actor_avatar': (run.get('actor') or {}).get('avatar_url', ''),
+                'head_sha':     run.get('head_sha', '')[:7],
+                'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
+            }
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo_full:
+                        existing = {r.get('id') for r in rd.get('runs', [])}
+                        if run_id and run_id not in existing:
+                            rd.setdefault('runs', []).insert(0, new_entry)
+                        break
+            _notify_sse()
         elif action == 'completed':
             if run_id:
                 _known_run_conclusions[run_id] = curr_con  # Duplikat-Schutz
@@ -1560,6 +1587,18 @@ def github_webhook():
                     + run_info
                     + f"Status: {label}\n"
                     + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+            # Run-Status sofort im Cache patchen — kein Warten auf den vollen Poll
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo_full:
+                        for cr in rd.get('runs', []):
+                            if cr.get('id') == run_id:
+                                cr['status']     = run.get('status', cr['status'])
+                                cr['conclusion'] = run.get('conclusion', cr.get('conclusion'))
+                                cr['updated']    = run.get('updated_at', cr.get('updated', ''))
+                                break
+                        break
+            _notify_sse()
         threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event in ('push', 'create', 'delete'):

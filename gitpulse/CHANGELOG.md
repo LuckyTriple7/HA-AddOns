@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.46] - 2026-06-07
+
+### Fixed
+- Webhook `workflow_run`: UI-Update kommt jetzt sofort wenn die Telegram-Nachricht eintrifft — Run-Status wird direkt im Cache gepatcht + SSE gefeuert, ohne auf den vollständigen GitHub-API-Poll zu warten
+- Gleiches gilt für neue Runs (`requested`): werden sofort in die Run-Liste eingefügt
+
+---
+
 ## [0.1.45] - 2026-06-07
 
 ### Changed
