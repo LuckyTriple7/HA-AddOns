@@ -58,6 +58,7 @@
   "no_workflows": "No dispatchable workflows found",
 
   "error_unknown": "Unknown error",
+  "refresh_in": "Refreshing in",
 
   "btn_refresh": "Poll now",
   "btn_install": "Install",

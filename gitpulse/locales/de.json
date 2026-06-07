@@ -58,6 +58,7 @@
   "no_workflows": "Keine dispatchbaren Workflows gefunden",
 
   "error_unknown": "Unbekannter Fehler",
+  "refresh_in": "Aktualisierung in",
 
   "btn_refresh": "Jetzt abfragen",
   "btn_install": "Installieren",

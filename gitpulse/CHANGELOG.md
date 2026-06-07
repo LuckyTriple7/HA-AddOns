@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.7] - 2026-06-07
+
+### Added
+- Auto-Refresh nach Aktionen (Merge, Dispatch, Re-run): 5s Countdown im Header, dann automatischer Poll
+- Countdown-Badge blinkt im Header während des Wartens
+
+---
+
 ## [0.0.6] - 2026-06-07
 
 ### Changed
