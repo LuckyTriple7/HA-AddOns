@@ -3013,7 +3013,7 @@ app.get('/', (req, res) => {
       try {
         const s = await fetch('api/status').then(r => r.json());
         _offlineFails = 0;
-        hideOfflineBanner();
+        if (navigator.onLine !== false) hideOfflineBanner();
         const dotLabel = ({
           connected: t('statusConnected'), waiting_for_scan: t('statusQR'),
           authenticated: t('statusAuth'), initializing: t('statusInit'),
@@ -3062,7 +3062,6 @@ app.get('/', (req, res) => {
     // Tab wird wieder sichtbar (Laptop aufgeklappt, Tab-Wechsel) → sofort aktualisieren
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible') return;
-      _offlineFails = 0;
       refresh();
       pollChats();
       if (selectedChatId) loadMessages(selectedChatId);

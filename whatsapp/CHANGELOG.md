@@ -5,6 +5,8 @@
 - Disconnect-Erkennung: `visibilitychange`-Event aktualisiert Tab sofort beim Aufklappen des Laptops / Tab-Wechsel
 - `online`/`offline`-Events: sofortiges Polling bei Netzwerk-Reconnect, sofortiger Banner bei Netzwerk-Verlust
 - Offline-Banner: abdunkelndes Overlay mit animiertem 📡, „Verbindung unterbrochen"-Text und „Neu laden"-Button (erscheint nach 3 aufeinanderfolgenden fehlgeschlagenen Status-Polls)
+### Fixed
+- Banner verschwand fälschlicherweise bei gecachter Fetch-Antwort trotz aktivem Offline-Status: `navigator.onLine`-Check vor `hideOfflineBanner()` verhindert das
 
 ## [1.7.0] - 2026-06-06
 ### Added
