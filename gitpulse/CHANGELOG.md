@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.61] - 2026-06-08
+
+### Removed
+- PWA-Installationsbanner ausgeblendet (Browser-Installationshinweis in der Adressleiste ist ausreichend)
+
 ## [0.1.60] - 2026-06-08
 
 ### Added

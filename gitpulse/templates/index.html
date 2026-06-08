@@ -145,11 +145,6 @@
     #offline-banner strong { flex:1; }
     #offline-banner button { background:#fff; color:var(--red); border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-weight:600; font-size:0.8rem; }
 
-    /* ── Install Banner ─────────────────────────────────────── */
-    #install-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; align-items:center; gap:10px; font-size:0.83rem; }
-    #install-banner.show { display:flex; }
-    #install-banner strong { flex:1; }
-    #install-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
 
     /* ── Notif banner ───────────────────────────────────────── */
     #bell-menu { display:none; position:absolute; top:calc(100% + 6px); right:0; background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:14px 16px; min-width:220px; box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:1000; }
@@ -460,11 +455,6 @@
 
   <!-- ── Main ────────────────────────────────────────────────────── -->
   <div id="main-scroll">
-    <div id="install-banner">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm1 17H11V11h2v6zm0-8H11V7h2v2z"/></svg>
-      <strong>{{ t.install_banner }}</strong>
-      <button onclick="installPWA()">{{ t.btn_install }}</button>
-    </div>
 
     <!-- ── Tab: Repos Übersicht ────────────────────────────────── -->
     <div id="tab-repos">
@@ -2153,21 +2143,7 @@
   // Legacy-Alias (wird noch in render() aufgerufen)
   function fireNotification(rel) { /* ersetzt durch _fireBrowserNotifs */ }
 
-  // ── PWA Install ───────────────────────────────────────────────────
-  let deferredInstall = null;
-  window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferredInstall = e;
-    document.getElementById('install-banner').classList.add('show');
-  });
-  function installPWA() {
-    if (!deferredInstall) return;
-    deferredInstall.prompt();
-    deferredInstall.userChoice.then(() => {
-      deferredInstall = null;
-      document.getElementById('install-banner').classList.remove('show');
-    });
-  }
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); });
 
   // ── Service Worker ────────────────────────────────────────────────
   if ('serviceWorker' in navigator) {
