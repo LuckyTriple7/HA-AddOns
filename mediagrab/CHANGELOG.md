@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.14] — 2026-06-08
+
+### Security
+- Command Injection: URL-Validierung (`urlparse` scheme+netloc) in `api_info` und `api_download` vor yt-dlp-Aufruf (CodeQL HIGH #703)
+
 ## [1.0.13] — 2026-06-08
 
 ### Security

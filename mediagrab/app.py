@@ -651,6 +651,10 @@ def api_download():
     urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
     if not urls:
         return jsonify({'error': 'no_url'}), 400
+    for _u in urls:
+        _p = urllib.parse.urlparse(_u)
+        if _p.scheme not in ('http', 'https') or not _p.netloc:
+            return jsonify({'error': 'invalid_url'}), 400
 
     fmt = data.get('fmt', 'best_video')
     if fmt not in VALID_FORMATS:
@@ -699,6 +703,9 @@ def api_info():
     url  = (data.get('url') or '').strip()
     if not url:
         return jsonify({'error': 'no_url'}), 400
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
