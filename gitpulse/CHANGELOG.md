@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.71] - 2026-06-09
+
+### Added
+- Add-on Manager: Verlauf-Button öffnet die letzten 10 Commits eines Add-ons mit Version, Datum und Commit-Message; per "Wiederherstellen" + Bestätigung wird config.yaml + CHANGELOG.md auf den gewählten Stand zurückgesetzt (neuer Commit, kein git-revert)
+
 ## [0.1.70] - 2026-06-09
 
 ### Changed

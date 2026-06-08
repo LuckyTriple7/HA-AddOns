@@ -2191,6 +2191,143 @@ def api_addon_manager_commit():
         return jsonify({'error': 'internal error'}), 500
 
 
+@app.route('/api/addon-manager/history')
+def api_addon_manager_history():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    branch    = request.args.get('branch', 'dev').strip() or 'dev'
+    addon_dir = request.args.get('addon_dir', '').strip()
+    if not repo_full or '/' not in repo_full or not addon_dir:
+        return jsonify({'error': 'invalid_params'}), 400
+    if '/' in addon_dir or '..' in addon_dir:
+        return jsonify({'error': 'invalid_addon_dir'}), 400
+    owner, repo = repo_full.split('/', 1)
+    config_path = f'{addon_dir}/config.yaml'
+    try:
+        r = http.get(
+            f'{GITHUB_API}/repos/{owner}/{repo}/commits',
+            headers=_gh_headers(token),
+            params={'path': config_path, 'sha': branch, 'per_page': 10},
+            timeout=15
+        )
+        if r.status_code != 200:
+            return jsonify({'error': 'api_error', 'status': r.status_code}), 502
+        commits = r.json()
+    except Exception:
+        log.exception("addon-manager: history laden fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+    history = []
+    for c in commits:
+        sha  = c['sha']
+        msg  = c['commit']['message'].split('\n')[0]
+        date = c['commit']['committer']['date'][:10]
+        cf   = _gh_get_file_content(owner, repo, config_path, token, sha)
+        version = '?'
+        if cf:
+            try:
+                content = base64.b64decode(cf['content']).decode('utf-8')
+                mv = re.search(r'^version:\s*"([^"]+)"', content, re.MULTILINE)
+                if mv:
+                    version = mv.group(1)
+            except Exception:
+                pass
+        history.append({'sha': sha, 'short_sha': sha[:7], 'message': msg, 'date': date, 'version': version})
+    return jsonify({'history': history})
+
+
+@app.route('/api/addon-manager/revert', methods=['POST'])
+def api_addon_manager_revert():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    body       = request.get_json(silent=True) or {}
+    repo_full  = body.get('repo', '').strip()
+    addon_dir  = body.get('addon_dir', '').strip()
+    target_sha = body.get('target_sha', '').strip()
+    branch     = body.get('branch', 'dev').strip() or 'dev'
+    if not repo_full or '/' not in repo_full or not addon_dir or not target_sha:
+        return jsonify({'error': 'missing_fields'}), 400
+    if not re.fullmatch(r'[0-9a-f]{7,40}', target_sha):
+        return jsonify({'error': 'invalid_sha'}), 400
+    if '/' in addon_dir or '..' in addon_dir:
+        return jsonify({'error': 'invalid_addon_dir'}), 400
+    owner, repo = repo_full.split('/', 1)
+    config_path    = f'{addon_dir}/config.yaml'
+    changelog_path = f'{addon_dir}/CHANGELOG.md'
+    try:
+        cf = _gh_get_file_content(owner, repo, config_path, token, target_sha)
+        if not cf:
+            return jsonify({'error': 'config_not_found'}), 404
+        old_config = base64.b64decode(cf['content']).decode('utf-8')
+        mv = re.search(r'^version:\s*"([^"]+)"', old_config, re.MULTILINE)
+        target_version = mv.group(1) if mv else '?'
+        cf_cur = _gh_get_file_content(owner, repo, config_path, token, branch)
+        current_version = '?'
+        if cf_cur:
+            mc = re.search(r'^version:\s*"([^"]+)"',
+                           base64.b64decode(cf_cur['content']).decode('utf-8'), re.MULTILINE)
+            if mc:
+                current_version = mc.group(1)
+        clf = _gh_get_file_content(owner, repo, changelog_path, token, target_sha)
+        old_changelog = base64.b64decode(clf['content']).decode('utf-8') if clf else ''
+        ref_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/ref/heads/{branch}',
+                         headers=_gh_headers(token), timeout=15)
+        if ref_r.status_code != 200:
+            return jsonify({'error': 'branch_not_found'}), 404
+        head_sha = ref_r.json()['object']['sha']
+        commit_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/commits/{head_sha}',
+                            headers=_gh_headers(token), timeout=15)
+        base_tree_sha = commit_r.json()['tree']['sha']
+        tree_r = http.post(
+            f'{GITHUB_API}/repos/{owner}/{repo}/git/trees',
+            headers=_gh_headers(token),
+            json={'base_tree': base_tree_sha, 'tree': [
+                {'path': config_path,    'mode': '100644', 'type': 'blob', 'content': old_config},
+                {'path': changelog_path, 'mode': '100644', 'type': 'blob', 'content': old_changelog},
+            ]}, timeout=15
+        )
+        if tree_r.status_code != 201:
+            return jsonify({'error': 'tree_failed'}), 502
+        new_tree_sha = tree_r.json()['sha']
+        commit_r2 = http.post(
+            f'{GITHUB_API}/repos/{owner}/{repo}/git/commits',
+            headers=_gh_headers(token),
+            json={'message': f'revert: {addon_dir} v{current_version} → v{target_version}',
+                  'tree': new_tree_sha, 'parents': [head_sha]},
+            timeout=15
+        )
+        if commit_r2.status_code != 201:
+            return jsonify({'error': 'commit_failed'}), 502
+        new_commit_sha = commit_r2.json()['sha']
+        upd_r = http.patch(
+            f'{GITHUB_API}/repos/{owner}/{repo}/git/refs/heads/{branch}',
+            headers=_gh_headers(token),
+            json={'sha': new_commit_sha}, timeout=15
+        )
+        if upd_r.status_code not in (200, 201):
+            return jsonify({'error': 'ref_update_failed'}), 502
+        log.info("addon-manager: revert %s v%s → v%s (%s)", addon_dir, current_version, target_version, new_commit_sha[:7])
+        return jsonify({
+            'status': 'reverted',
+            'target_version': target_version,
+            'commit_sha': new_commit_sha[:7],
+            'commit_url': f'https://github.com/{owner}/{repo}/commit/{new_commit_sha}',
+        })
+    except Exception:
+        log.exception("addon-manager: Revert fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
