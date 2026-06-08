@@ -1,9 +1,13 @@
 # Changelog
 
+## [0.1.74] - 2026-06-09
+
+### Added
+- Add-on Manager: Image-Check — zeigt direkt ob das Docker-Image für die aktuelle Version in GHCR verfügbar ist (✓ grün) oder der Build noch läuft (⏳)
+
 ## [0.1.73.1] - 2026-06-08
 
 Bump python from 3.11-alpine to 3.14-alpine in /gitpulse
-
 
 ## [0.1.72] - 2026-06-09
 

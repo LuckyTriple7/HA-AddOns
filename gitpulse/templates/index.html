@@ -2303,11 +2303,30 @@
       document.getElementById('am-count-val').textContent = d.addons.length;
       document.getElementById('am-count-chip').style.display = '';
       list.innerHTML = d.addons.map(a => amCard(a, repo, branch)).join('');
+      d.addons.forEach(a => { if (a.image) amCheckImage(a.image, a.version, `am-${a.dir}-imgbadge`); });
     } catch(e) {
       list.innerHTML = `<div style="color:#f85149">{{ t.am_error_load }}</div>`;
     } finally {
       btn.disabled = false;
       btn.textContent = '{{ t.am_load }}';
+    }
+  }
+
+  async function amCheckImage(image, version, badgeId) {
+    const el = document.getElementById(badgeId);
+    if (!el) return;
+    try {
+      const r = await fetch(u(`/api/addon-manager/image-check?image=${encodeURIComponent(image)}&version=${encodeURIComponent(version)}`));
+      const d = await r.json();
+      if (d.available) {
+        el.textContent = '✓ {{ t.am_img_ok }}';
+        el.style.color = '#2ea043';
+      } else {
+        el.textContent = '⏳ {{ t.am_img_building }}';
+        el.style.color = 'var(--muted)';
+      }
+    } catch(e) {
+      el.textContent = '? {{ t.am_img_unknown }}';
     }
   }
 
@@ -2318,6 +2337,7 @@
         <span style="font-weight:600;font-size:0.95rem">${escHtml(a.name)}</span>
         <span style="font-size:0.8rem;color:var(--muted)">${escHtml(a.dir)}</span>
         <span style="font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px">{{ t.am_current_ver }}: <b>${escHtml(a.version)}</b></span>
+        ${a.image ? `<span id="${id}-imgbadge" title="${escHtml(a.image)}:${escHtml(a.version)}" style="font-size:0.78rem;color:var(--muted);white-space:nowrap">⏳ {{ t.am_img_checking }}</span>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
