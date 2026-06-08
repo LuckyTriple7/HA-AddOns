@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.55] - 2026-06-08
+
+### Changed
+- Settings-Modal: Zwei Tabs „Repos" und „Telegram" — Fenster bleibt kompakt, keine langen Scroll-Seiten mehr
+
+---
+
 ## [0.1.54] - 2026-06-08
 
 ### Added

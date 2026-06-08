@@ -353,27 +353,39 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         {{ t.settings_title }}
       </h3>
-      <div id="settings-source" class="settings-source"></div>
-      <div class="settings-section-label">{{ t.settings_my_repos }}</div>
-      <div id="settings-my-list" class="repo-chips"></div>
-      <div class="repo-add-row">
-        <input id="settings-my-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
-               onkeydown="if(event.key==='Enter') settingsAdd('my')">
-        <button onclick="settingsAdd('my')">{{ t.settings_add }}</button>
+      <!-- Tab-Bar -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+        <button id="stab-repos" onclick="_sTab('repos')"
+          style="background:none;border:none;border-bottom:2px solid var(--accent);padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--accent);cursor:pointer">{{ t.settings_tab_repos }}</button>
+        <button id="stab-tg" onclick="_sTab('tg')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_tg }}</button>
       </div>
-      <div class="settings-section-label">{{ t.settings_watch_repos }}</div>
-      <div id="settings-watch-list" class="repo-chips"></div>
-      <div class="repo-add-row">
-        <input id="settings-watch-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
-               onkeydown="if(event.key==='Enter') settingsAdd('watch')">
-        <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
+      <!-- Tab: Repos -->
+      <div id="stab-panel-repos">
+        <div id="settings-source" class="settings-source"></div>
+        <div class="settings-section-label">{{ t.settings_my_repos }}</div>
+        <div id="settings-my-list" class="repo-chips"></div>
+        <div class="repo-add-row">
+          <input id="settings-my-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+                 onkeydown="if(event.key==='Enter') settingsAdd('my')">
+          <button onclick="settingsAdd('my')">{{ t.settings_add }}</button>
+        </div>
+        <div class="settings-section-label">{{ t.settings_watch_repos }}</div>
+        <div id="settings-watch-list" class="repo-chips"></div>
+        <div class="repo-add-row">
+          <input id="settings-watch-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+                 onkeydown="if(event.key==='Enter') settingsAdd('watch')">
+          <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:12px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;line-height:1.6">
+          🔑 {{ t.settings_token_scopes }}
+        </div>
       </div>
-      <div style="font-size:.72rem;color:var(--muted);margin-top:12px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;line-height:1.6">
-        🔑 {{ t.settings_token_scopes }}
+      <!-- Tab: Telegram -->
+      <div id="stab-panel-tg" style="display:none">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_tg_hint }}</div>
+        <div id="settings-tg-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
       </div>
-      <div class="settings-section-label" style="margin-top:18px">{{ t.settings_tg_title }}</div>
-      <div id="settings-tg-hint" style="font-size:.72rem;color:var(--muted);margin-bottom:8px">{{ t.settings_tg_hint }}</div>
-      <div id="settings-tg-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px"></div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm" onclick="saveRepoConfig()">{{ t.settings_save }}</button>
@@ -668,6 +680,20 @@
   // ── Settings: Repo-Verwaltung ─────────────────────────────────────
   let _sMyRepos = [], _sWatchRepos = [];
 
+  function _sTab(name) {
+    ['repos','tg'].forEach(t => {
+      const panel = document.getElementById('stab-panel-'+t);
+      const btn   = document.getElementById('stab-'+t);
+      const active = t === name;
+      if (panel) panel.style.display = active ? '' : 'none';
+      if (btn) {
+        btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+        btn.style.color             = active ? 'var(--accent)' : 'var(--muted)';
+        btn.style.fontWeight        = active ? '600' : '400';
+      }
+    });
+  }
+
   const _tgNotifDefs = [
     { key:'startup',             label:'{{ t.tg_startup }}' },
     { key:'new_pr',              label:'{{ t.tg_new_pr }}' },
@@ -703,6 +729,7 @@
             ${label}
           </label>`;
         }).join('');
+        _sTab('repos');
         document.getElementById('settings-modal').classList.add('show');
       })
       .catch(e => alert(String(e)));

@@ -111,6 +111,8 @@
   "settings_source_options": "From HA add-on options (may reset on updates)",
   "settings_token_scopes": "Token permissions: repo (read) · contents:write (merge PRs) · security_events (Dependabot) · actions:write (trigger/cancel workflows)",
 
+  "settings_tab_repos": "Repos",
+  "settings_tab_tg": "Telegram",
   "settings_tg_title": "Telegram Notifications",
   "settings_tg_hint": "Bot token and chat ID are configured in the add-on options.",
   "tg_startup":            "🚀 Startup message",
