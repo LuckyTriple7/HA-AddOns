@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.5] - 2026-06-08
+
+### Security
+- Open Redirect: `request.referrer` in `set_lang()` via `urlparse` validiert — nur relative Pfade erlaubt (CodeQL MEDIUM #130)
+
 ## [1.2.4] - 2026-06-08
 
 ### Security

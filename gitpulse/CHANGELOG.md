@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.64] - 2026-06-08
+
+### Security
+- Open Redirect: `next`-Parameter in `set_lang()` via `urlparse` validiert — nur relative Pfade erlaubt (CodeQL MEDIUM #132)
+
 ## [0.1.63] - 2026-06-08
 
 ### Security

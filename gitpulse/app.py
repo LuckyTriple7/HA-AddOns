@@ -12,6 +12,7 @@ import time
 import threading
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from flask import (Flask, render_template, request, redirect,
@@ -1122,6 +1123,10 @@ def service_worker():
 def set_lang(lang: str):
     cookie_lang = 'en' if lang == 'en' else 'de'
     next_url = request.args.get('next', '/')
+    next_url = next_url.replace('\\', '')
+    parsed_next = urlparse(next_url)
+    if parsed_next.scheme or parsed_next.netloc or not next_url.startswith('/'):
+        next_url = '/'
     resp = make_response(redirect(next_url))
     resp.set_cookie('lang', cookie_lang, max_age=365 * 86400, samesite='Lax')
     return resp

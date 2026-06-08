@@ -8,6 +8,7 @@ import subprocess
 import time
 import urllib.request
 from collections import defaultdict
+from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from flask import (Flask, render_template, request, redirect,
@@ -417,7 +418,11 @@ def set_lang(lang: str):
     if lang not in ('de', 'en'):
         abort(400)
     cookie_lang = 'en' if lang == 'en' else 'de'
-    ref = request.referrer or url_for('index')
+    ref = request.referrer or '/'
+    ref = ref.replace('\\', '')
+    parsed_ref = urlparse(ref)
+    if parsed_ref.scheme or parsed_ref.netloc or not ref.startswith('/'):
+        ref = '/'
     resp = make_response(redirect(ref))
     resp.set_cookie('lang', cookie_lang, max_age=365 * 24 * 3600, samesite='Lax')
     return resp
