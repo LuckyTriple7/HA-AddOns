@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.18] — 2026-06-08
+
+### Changed
+- `_safe_media_path()`: `secure_filename()`-Check entfernt (bricht Unicode-Dateinamen) — Path-basierte Checks bleiben erhalten
+
 ## [1.0.17] — 2026-06-08
 
 ### Security

@@ -729,14 +729,11 @@ def _safe_media_path(filename: str) -> 'Path | None':
     raw = (filename or '').strip()
     if not raw:
         return None
-    safe_raw = secure_filename(raw)
-    if not safe_raw or safe_raw != raw:
-        return None
-    candidate = Path(safe_raw)
-    if candidate.is_absolute() or candidate.name != safe_raw or any(part == '..' for part in candidate.parts):
+    candidate = Path(raw)
+    if candidate.is_absolute() or candidate.name != raw or any(part == '..' for part in candidate.parts):
         return None
     base_resolved = MEDIA_DIR.resolve()
-    resolved = (base_resolved / safe_raw).resolve()
+    resolved = (base_resolved / raw).resolve()
     try:
         resolved.relative_to(base_resolved)
     except ValueError:
