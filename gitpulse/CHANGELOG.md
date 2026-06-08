@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.75] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Image-Check nutzt GitHub PAT direkt als Bearer-Token gegen GHCR (kein Token-Exchange mehr); behebt 403-Fehler bei öffentlichen Paketen
+
 ## [0.1.74] - 2026-06-09
 
 ### Added
