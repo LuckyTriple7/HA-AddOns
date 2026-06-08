@@ -768,8 +768,9 @@ def api_info():
         })
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Video-Info Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/jobs')
 def api_jobs():
@@ -833,8 +834,9 @@ def api_ytdlp_version():
     try:
         r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
         return jsonify({'version': r.stdout.strip()})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("yt-dlp Version Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/ytdlp/update', methods=['POST'])
 def api_ytdlp_update():
@@ -865,8 +867,9 @@ def api_ytdlp_update():
         return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("yt-dlp Update Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/cookies/status')
 def api_cookies_status():

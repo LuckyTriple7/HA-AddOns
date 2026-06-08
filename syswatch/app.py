@@ -827,9 +827,9 @@ def _start_container_core(name: str) -> tuple[bool, str]:
             return True, ''
         except docker_lib.errors.NotFound:
             pass
-        except Exception as e:
-            log.error("Start-Fehler (Docker) für '%s': %s", name, e)
-            return False, str(e)
+        except Exception:
+            log.exception("Start-Fehler (Docker) für '%s'", name)
+            return False, 'internal error'
     slug = _supervisor_addon_slug(name)
     if slug and _supervisor_action(slug, 'start'):
         log.info("Add-on gestartet (Supervisor): %s (slug=%s)", name, slug)
@@ -1529,8 +1529,9 @@ def api_logs(name: str):
         container = client.containers.get(name)
         logs      = container.logs(tail=200, timestamps=True).decode('utf-8', errors='replace')
         return jsonify({'logs': logs})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Container-Logs Fehler für '%s'", name)
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/container/<name>/restart', methods=['POST'])
@@ -1552,9 +1553,9 @@ def api_restart(name: str):
         container.restart()
         log.info("Container neugestartet: %s", name)
         return jsonify({'ok': True})
-    except Exception as e:
-        log.error("Restart-Fehler für '%s': %s", name, e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Restart-Fehler für '%s'", name)
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/container/<name>/kill', methods=['POST'])
@@ -1576,9 +1577,9 @@ def api_kill(name: str):
         log.info("Container gekillt (SIGKILL): %s", name)
         _manually_stopped[name] = time.time()
         return jsonify({'ok': True})
-    except Exception as e:
-        log.error("Kill-Fehler für '%s': %s", name, e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Kill-Fehler für '%s'", name)
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/container/<name>/start', methods=['POST'])
@@ -1615,9 +1616,9 @@ def api_stop(name: str):
         log.info("Container gestoppt: %s", name)
         _manually_stopped[name] = time.time()
         return jsonify({'ok': True})
-    except Exception as e:
-        log.error("Stop-Fehler für '%s': %s", name, e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Stop-Fehler für '%s'", name)
+        return jsonify({'error': 'internal error'}), 500
 
 
 # ── Startup ────────────────────────────────────────────────────────────────────
