@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.69] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Commit & Push Button funktionslos — JSON.stringify erzeugte ungültige HTML-Attribute; auf safeJsArg() umgestellt
+
 ## [0.1.68] - 2026-06-09
 
 ### Fixed

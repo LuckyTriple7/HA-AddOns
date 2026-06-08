@@ -2250,7 +2250,7 @@
         <textarea id="${id}-cl" rows="4" placeholder="{{ t.am_changelog_placeholder }}" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.83rem;font-family:monospace;resize:vertical"></textarea>
       </div>
       <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043"
-        onclick="amAskConfirm(${JSON.stringify(a.dir)},${JSON.stringify(a.name)},${JSON.stringify(repo)},${JSON.stringify(branch)})">
+        onclick="amAskConfirm(${safeJsArg(a.dir)},${safeJsArg(a.name)},${safeJsArg(repo)},${safeJsArg(branch)})">
         {{ t.am_commit_btn }}
       </button>
       <span id="${id}-status" style="font-size:0.82rem;margin-left:10px"></span>
