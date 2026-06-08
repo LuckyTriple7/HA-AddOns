@@ -175,6 +175,7 @@ _viewer_last_seen: float = time.time()  # assume active on startup
 _viewer_paused:    bool  = False        # True wenn UI-Pause-Button gedrückt
 _collector_mode:   str   = 'startup'    # 'active' | 'idle' | 'startup'
 _collect_event             = threading.Event()  # wakes collector early on heartbeat
+_idle_last_container_scan: float = 0.0          # letzte Container-Abfrage im Idle-Modus
 _sse_queues: list          = []
 _sse_lock                  = threading.Lock()
 VIEWER_TIMEOUT_DEFAULT = 180  # seconds without heartbeat → idle mode (30s–1800s)
@@ -1266,16 +1267,27 @@ def _background_collector() -> None:
                 _send_startup_notification()
                 interval = max(2, int(cfg.get('collect_interval', COLLECT_INTERVAL_DEFAULT)))
             else:
-                # abort=_collect_event: Sammlung sofort abbrechen wenn Browser Resume signalisiert
-                _collect_once(max_workers=2, abort=_collect_event)
-                _check_container_changes()
+                # IDLE-Modus: Host-CPU/RAM alle 10s messen, Container-Scan alle 60s
+                global _idle_last_container_scan
+                now_idle = time.time()
+                if now_idle - _idle_last_container_scan >= 60:
+                    # alle 60s: voller Container-Scan (liest sysinfo intern)
+                    _idle_last_container_scan = now_idle
+                    _collect_once(max_workers=2, abort=_collect_event)
+                    _check_container_changes()
+                else:
+                    # alle 10s: nur Host-CPU/RAM aktualisieren (kein Container-Scan)
+                    si_now = _read_sysinfo()
+                    with _stats_lock:
+                        _stats_cache['sysinfo'] = si_now
                 _check_thresholds()
                 _update_hw_sensors()
                 with _stats_lock:
                     _si_idle = _stats_cache.get('sysinfo', {})
                 _tick_history(_si_idle.get('cpu_pct', 0.0), _si_idle.get('mem_pct', 0.0),
                               _hw_cache.get('cpu_temp'))
-                interval = 60
+                _send_startup_notification()
+                interval = 10
         except Exception as e:
             log.error("Hintergrund-Collector-Fehler: %s", e)
             interval = 10

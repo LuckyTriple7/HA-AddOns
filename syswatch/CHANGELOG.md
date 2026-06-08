@@ -1,5 +1,12 @@
 # Changelog — HA SysWatch
 
+## [1.2.6] - 2026-06-08
+
+### Fixed
+- Idle-Modus: Host-CPU/RAM wird jetzt alle 10s gemessen (statt alle 60s) — Schwellenwert-Prüfung und History-Aufzeichnung laufen damit auch im Idle-Modus zeitnah
+- Idle-Modus: Container-Scan weiterhin alle 60s; sysinfo-Update zwischen den Scans ohne zweiten `_read_sysinfo()`-Aufruf in `_collect_once()`
+- JS: `_pollActive` vor der `init`-IIFE deklariert (`let` temporal dead zone → `ReferenceError: Cannot access '_pollActive' before initialization`)
+
 ## [1.2.5] - 2026-06-08
 
 ### Security
