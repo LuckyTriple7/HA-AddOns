@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.56] - 2026-06-08
+
+### Changed
+- Settings → Telegram-Tab: Checkboxen und Tab-Button werden ausgegraut wenn Bot-Token oder Chat-ID in den Add-on-Einstellungen fehlen; Hinweistext erklärt die fehlende Konfiguration
+
+---
+
 ## [0.1.55] - 2026-06-08
 
 ### Changed

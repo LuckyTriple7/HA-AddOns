@@ -721,14 +721,22 @@
           ? '{{ t.settings_source_user }}'
           : '{{ t.settings_source_options }}';
         const tgCfg = data.tg_notifications || {};
+        const tgOk  = data.tg_configured === true;
         const tgEl  = document.getElementById('settings-tg-toggles');
         tgEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
           const checked = tgCfg[key] !== false;
-          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer;padding:3px 0">
-            <input type="checkbox" id="tg-${key}" ${checked ? 'checked' : ''} style="width:14px;height:14px;accent-color:var(--accent)">
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;${tgOk?'cursor:pointer':'opacity:.4;cursor:not-allowed'};padding:3px 0">
+            <input type="checkbox" id="tg-${key}" ${checked ? 'checked' : ''} ${tgOk?'':'disabled'}
+              style="width:14px;height:14px;accent-color:var(--accent)">
             ${label}
           </label>`;
         }).join('');
+        const tgHint = document.getElementById('settings-tg-hint');
+        if (tgHint) tgHint.innerHTML = tgOk
+          ? '{{ t.settings_tg_hint }}'
+          : `<span style="color:var(--yellow)">⚠️ {{ t.settings_tg_not_configured }}</span>`;
+        const tgTabBtn = document.getElementById('stab-tg');
+        if (tgTabBtn) tgTabBtn.style.opacity = tgOk ? '1' : '0.45';
         _sTab('repos');
         document.getElementById('settings-modal').classList.add('show');
       })

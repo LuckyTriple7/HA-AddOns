@@ -115,6 +115,7 @@
   "settings_tab_tg": "Telegram",
   "settings_tg_title": "Telegram Notifications",
   "settings_tg_hint": "Bot token and chat ID are configured in the add-on options.",
+  "settings_tg_not_configured": "Telegram not active — bot token and/or chat ID missing in add-on options.",
   "tg_startup":            "🚀 Startup message",
   "tg_new_pr":             "🔀 New pull request",
   "tg_pr_closed":          "⎇ PR closed / merged",

@@ -1321,19 +1321,22 @@ def api_config_repos_get():
         return jsonify({'error': 'unauthorized'}), 401
     cfg        = load_config()
     user_repos = load_user_repos()
-    tg_notif   = (user_repos or {}).get('tg_notifications', {})
+    tg_notif      = (user_repos or {}).get('tg_notifications', {})
+    tg_configured = bool(cfg.get('telegram_bot_token', '').strip() and cfg.get('telegram_chat_id', '').strip())
     if user_repos is not None:
         return jsonify({
             'source':            'user',
             'my_repos':          user_repos.get('my_repos', []),
             'watch_repos':       user_repos.get('watch_repos', []),
             'tg_notifications':  tg_notif,
+            'tg_configured':     tg_configured,
         })
     return jsonify({
         'source':            'options',
         'my_repos':          [r for r in cfg.get('my_repos', [])    if r.strip()],
         'watch_repos':       [r for r in cfg.get('watch_repos', []) if r.strip()],
         'tg_notifications':  tg_notif,
+        'tg_configured':     tg_configured,
     })
 
 
