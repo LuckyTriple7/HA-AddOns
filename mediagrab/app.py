@@ -509,7 +509,18 @@ def _safe_next(url: str) -> str:
         return ''
     if not cleaned.startswith('/') or cleaned.startswith('//'):
         return ''
-    return cleaned
+    return urllib.parse.urlunsplit(('', '', parts.path, parts.query, parts.fragment))
+
+_ALLOWED_NEXT_PATHS = {'/'}
+
+def _allowed_next(url: str) -> str:
+    safe = _safe_next(url)
+    if not safe:
+        return ''
+    parts = urllib.parse.urlsplit(safe)
+    if parts.path in _ALLOWED_NEXT_PATHS:
+        return safe
+    return ''
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
@@ -532,7 +543,7 @@ def login():
     next_url = request.args.get('next', '')
 
     if is_valid_session(request.cookies.get('mg_session')):
-        return redirect(_safe_next(next_url) or url_for('index'))
+        return redirect(_allowed_next(next_url) or url_for('index'))
 
     if request.method == 'POST':
         ip = request.remote_addr
@@ -547,7 +558,7 @@ def login():
                 log.info('Login erfolgreich: ip=%s user=%s', ip, uname)
                 hours = int(config.get('session_hours', 24))
                 token, expires = create_session(hours)
-                target = _safe_next(request.form.get('next', '')) or url_for('index')
+                target = _allowed_next(request.form.get('next', '')) or url_for('index')
                 resp = make_response(redirect(target))
                 resp.set_cookie(
                     'mg_session', token,
