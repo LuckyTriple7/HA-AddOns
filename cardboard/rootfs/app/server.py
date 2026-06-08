@@ -710,9 +710,9 @@ async def api_render(request: Request):
                     cards.append({"title": title, "content": f"⚠️ HA Fehler {resp.status_code}:\n```\n{resp.text[:500]}\n```"})
             except httpx.TimeoutException:
                 cards.append({"title": title, "content": "⚠️ Zeitüberschreitung beim Abrufen der HA-Daten"})
-            except Exception as e:
+            except Exception:
                 log.exception("Fehler beim Rendern von %s", tpl_name)
-                cards.append({"title": title, "content": f"⚠️ Verbindungsfehler: {e}"})
+                cards.append({"title": title, "content": "⚠️ Verbindungsfehler"})
 
     return {"cards": cards}
 
@@ -836,7 +836,8 @@ async def admin_health(request: Request):
         ha_msg = "ok" if ha_ok else f"HTTP {resp.status_code}"
     except Exception as e:
         ha_ok  = False
-        ha_msg = str(e)
+        ha_msg = "connection error"
+        log.warning("HA-API nicht erreichbar: %s", e)
 
     return {
         "status": "ok" if ha_ok else "degraded",
@@ -1245,8 +1246,9 @@ async def _admin_preview(request: Request):
         if resp.status_code == 200:
             return JSONResponse({"rendered": resp.text})
         return JSONResponse({"error": f"HA {resp.status_code}", "detail": resp.text[:500]})
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=503)
+    except Exception:
+        log.exception("Template-Vorschau Fehler")
+        return JSONResponse({"error": "internal error"}, status_code=503)
 
 
 def _admin_recent_logins():
@@ -1347,8 +1349,9 @@ async def _admin_cleanup_orphaned(request: Request):
             shutil.rmtree(target)
             log.info("Admin: Verwaistes Verzeichnis '%s' gelöscht", name)
             deleted.append(name)
-        except Exception as e:
-            errors.append({"dir": name, "reason": str(e)})
+        except Exception:
+            log.exception("Fehler beim Löschen von Verzeichnis '%s'", name)
+            errors.append({"dir": name, "reason": "delete failed"})
     return JSONResponse({"deleted": deleted, "errors": errors})
 
 

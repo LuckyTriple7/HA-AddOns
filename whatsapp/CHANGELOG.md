@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.11] - 2026-06-08
+- Fix: Such-Button als SVG-Icon (statt Emoji), passend zu den anderen Header-Buttons; grüne Hervorhebung wenn aktiv
+
+## [1.7.10] - 2026-06-08
+- Neu: 🔍 Nachrichtensuche im Chat — Button im Header öffnet Suchleiste mit Live-Highlighting und ▲▼-Navigation zwischen Treffern
+- UX: Chat-Header-Buttons und Send-Bar auf Mobile kleiner und kompakter
+
 ## [1.7.9] - 2026-06-07
 
 ### Security

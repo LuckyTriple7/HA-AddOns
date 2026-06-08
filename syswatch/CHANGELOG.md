@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.3] - 2026-06-08
+
+### Security
+- Information Exposure: Exception-Details (`str(e)`) nicht mehr in HTTP-Responses zurückgegeben; stattdessen generische `'internal error'`-Meldung + internes `log.exception()` (CodeQL #12, #15–#18)
+
 ## [1.2.2] - 2026-06-07
 
 ### Security

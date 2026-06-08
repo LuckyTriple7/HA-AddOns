@@ -1522,8 +1522,12 @@ app.get('/', (req, res) => {
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
+    #msg-search-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; margin-left: auto; }
+    #msg-search-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
+    #msg-search-btn.active { border-color: #3cdb7c; color: #3cdb7c; }
+    html.light #msg-search-btn:hover, html.light #msg-search-btn.active { border-color: #25d366; color: #25d366; }
     #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; }
-    #export-btn { margin-left: auto; }
+    #export-btn { }
     #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
@@ -1584,6 +1588,31 @@ app.get('/', (req, res) => {
     #reply-bar-text { font-size:12px; color:#8696a0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     #reply-close { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
     #reply-close:hover { color:#e9edef; }
+
+    #msg-search-bar {
+      display: none; align-items: center; gap: 8px;
+      background: #202c33; padding: 6px 12px; border-bottom: 1px solid #2a3942; flex-shrink: 0;
+    }
+    #msg-search-bar.open { display: flex; }
+    #msg-search-input {
+      flex: 1; background: #2a3942; border: none; border-radius: 6px;
+      padding: 6px 10px; color: #e9edef; font-size: 13px; outline: none; font-family: inherit;
+    }
+    #msg-search-input::placeholder { color: #8696a0; }
+    #msg-search-nav { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    #msg-search-count { font-size: 12px; color: #8696a0; min-width: 40px; text-align: center; }
+    .msg-search-nav-btn { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 16px; padding: 4px 6px; line-height: 1; border-radius: 4px; }
+    .msg-search-nav-btn:hover { color: #e9edef; background: rgba(255,255,255,0.08); }
+    .msg-search-nav-btn:disabled { opacity: 0.3; cursor: default; }
+    #msg-search-close { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 18px; padding: 4px; line-height: 1; }
+    #msg-search-close:hover { color: #e9edef; }
+    .msg-highlight { background: rgba(255,214,0,0.35) !important; border-radius: 3px; }
+    .msg-highlight-active { background: rgba(255,165,0,0.55) !important; }
+    html.light #msg-search-bar { background: #075e54; border-color: #056b4e; }
+    html.light #msg-search-input { background: rgba(255,255,255,0.2); color: #fff; }
+    html.light #msg-search-input::placeholder { color: rgba(255,255,255,0.6); }
+    html.light .msg-search-nav-btn, html.light #msg-search-close { color: rgba(255,255,255,0.7); }
+    html.light .msg-search-nav-btn:hover, html.light #msg-search-close:hover { color: #fff; }
 
     #messages {
       flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -1715,6 +1744,12 @@ app.get('/', (req, res) => {
       body.chat-open .topbar h1 { display: none; }
       body.chat-open .topbar .status-dot { display: none; }
       body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
+      /* Chat-Header-Buttons kleiner */
+      #export-btn, #spam-delete-btn, #delete-mode-btn, #msg-search-btn { font-size: 14px; padding: 4px 5px; }
+      /* Send-Bar kompakter */
+      #send-bar { padding: 6px 8px; gap: 4px; }
+      #send-bar #emoji-toggle, #send-bar #attach-btn, #send-bar #location-btn { font-size: 17px; padding: 4px; }
+      #msg-input { padding: 7px 10px; min-height: 36px; }
     }
 
     /* Overlays */
@@ -1833,9 +1868,19 @@ app.get('/', (req, res) => {
           <div id="ch-phone"></div>
           <div id="ch-stats"></div>
         </div>
+        <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🚮</button>
         <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
+      </div>
+      <div id="msg-search-bar">
+        <input id="msg-search-input" type="text" data-i18n-pl="msgSearchPlaceholder" placeholder="Suchen…" oninput="onMsgSearchInput(this.value)" onkeydown="if(event.key==='Escape')closeMsgSearch();">
+        <div id="msg-search-nav">
+          <button class="msg-search-nav-btn" id="msg-search-prev" onclick="stepMsgSearch(-1)" title="Vorheriger">▲</button>
+          <span id="msg-search-count"></span>
+          <button class="msg-search-nav-btn" id="msg-search-next" onclick="stepMsgSearch(1)" title="Nächster">▼</button>
+        </div>
+        <button id="msg-search-close" onclick="closeMsgSearch()">✕</button>
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="reply-bar">
@@ -1959,6 +2004,7 @@ app.get('/', (req, res) => {
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück',
         ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🚮 Spam löschen',
+        ttMsgSearch:'Nachrichten durchsuchen', msgSearchPlaceholder:'Suchen…', msgSearchNoResult:'Keine Treffer',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
         locModalTitle:'📍 Standort senden', locLat:'Breitengrad', locLng:'Längengrad', locNameLbl:'Name (optional)', locUseGPS:'📡 Aktuelle Position', locSend:'Senden', locCancel:'Abbrechen', locGPSErr:'GPS nicht verfügbar', locLabel:'Standort',
@@ -1996,6 +2042,7 @@ app.get('/', (req, res) => {
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back',
         ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🚮 Delete Spam',
+        ttMsgSearch:'Search messages', msgSearchPlaceholder:'Search…', msgSearchNoResult:'No results',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
         btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
         locModalTitle:'📍 Send Location', locLat:'Latitude', locLng:'Longitude', locNameLbl:'Name (optional)', locUseGPS:'📡 Use current position', locSend:'Send', locCancel:'Cancel', locGPSErr:'GPS not available', locLabel:'Location',
@@ -2423,6 +2470,7 @@ app.get('/', (req, res) => {
     async function openChat(chat) {
       exitDeleteMode();
       clearReply();
+      closeMsgSearch();
       selectedChatId = chat.id;
       selectedChatPhone = chat.phone;
       document.querySelectorAll('.chat-item').forEach(el => {
@@ -2658,6 +2706,84 @@ app.get('/', (req, res) => {
         if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
         lastMsgTime[chatId] = msgs.reduce((max, m) => Math.max(max, m.timestamp), 0);
       } catch(e) {}
+    }
+
+    // ── Nachrichtensuche ────────────────────────────────────────────────────────
+    let _searchMatches = [];
+    let _searchIdx = -1;
+
+    function toggleMsgSearch() {
+      const bar = document.getElementById('msg-search-bar');
+      if (bar.classList.contains('open')) { closeMsgSearch(); return; }
+      bar.classList.add('open');
+      document.getElementById('msg-search-btn').classList.add('active');
+      const inp = document.getElementById('msg-search-input');
+      inp.placeholder = t('msgSearchPlaceholder');
+      inp.value = '';
+      inp.focus();
+      _searchMatches = [];
+      _searchIdx = -1;
+      document.getElementById('msg-search-count').textContent = '';
+    }
+
+    function closeMsgSearch() {
+      document.getElementById('msg-search-bar').classList.remove('open');
+      document.getElementById('msg-search-btn').classList.remove('active');
+      document.getElementById('msg-search-input').value = '';
+      clearMsgHighlights();
+      _searchMatches = [];
+      _searchIdx = -1;
+    }
+
+    function clearMsgHighlights() {
+      document.querySelectorAll('.msg-highlight, .msg-highlight-active').forEach(el => {
+        el.classList.remove('msg-highlight', 'msg-highlight-active');
+      });
+    }
+
+    function onMsgSearchInput(query) {
+      clearMsgHighlights();
+      _searchMatches = [];
+      _searchIdx = -1;
+      const q = query.trim().toLowerCase();
+      const countEl = document.getElementById('msg-search-count');
+      if (!q) { countEl.textContent = ''; updateSearchNav(); return; }
+      document.querySelectorAll('#messages .bubble').forEach(bub => {
+        const text = bub.textContent.toLowerCase();
+        if (text.includes(q)) {
+          bub.classList.add('msg-highlight');
+          _searchMatches.push(bub);
+        }
+      });
+      if (_searchMatches.length) {
+        _searchIdx = 0;
+        activateSearchMatch();
+      } else {
+        countEl.textContent = t('msgSearchNoResult');
+      }
+      updateSearchNav();
+    }
+
+    function activateSearchMatch() {
+      _searchMatches.forEach((b, i) => {
+        b.classList.toggle('msg-highlight-active', i === _searchIdx);
+        b.classList.toggle('msg-highlight', i !== _searchIdx);
+      });
+      _searchMatches[_searchIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('msg-search-count').textContent = (_searchIdx + 1) + ' / ' + _searchMatches.length;
+    }
+
+    function stepMsgSearch(dir) {
+      if (!_searchMatches.length) return;
+      _searchIdx = (_searchIdx + dir + _searchMatches.length) % _searchMatches.length;
+      activateSearchMatch();
+      updateSearchNav();
+    }
+
+    function updateSearchNav() {
+      const has = _searchMatches.length > 0;
+      document.getElementById('msg-search-prev').disabled = !has;
+      document.getElementById('msg-search-next').disabled = !has;
     }
 
     function exportChat() {

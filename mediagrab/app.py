@@ -286,11 +286,13 @@ def _safe_media_path(filename: str) -> 'Path | None':
     if not m:
         return None
     safe_name = m.group(0)
-    resolved = (MEDIA_DIR / safe_name).resolve()
-    base = str(MEDIA_DIR.resolve())
-    if str(resolved).startswith(base + os.sep) or str(resolved) == base:
-        return resolved
-    return None
+    base_resolved = MEDIA_DIR.resolve()
+    resolved = (base_resolved / safe_name).resolve()
+    try:
+        resolved.relative_to(base_resolved)
+    except ValueError:
+        return None
+    return resolved
 
 _PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
@@ -766,8 +768,9 @@ def api_info():
         })
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Video-Info Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/jobs')
 def api_jobs():
@@ -831,8 +834,9 @@ def api_ytdlp_version():
     try:
         r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
         return jsonify({'version': r.stdout.strip()})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("yt-dlp Version Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/ytdlp/update', methods=['POST'])
 def api_ytdlp_update():
@@ -863,8 +867,9 @@ def api_ytdlp_update():
         return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("yt-dlp Update Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/cookies/status')
 def api_cookies_status():

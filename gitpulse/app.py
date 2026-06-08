@@ -1268,9 +1268,9 @@ def api_pr_merge():
         msg  = data.get('message', f'HTTP {r.status_code}')
         log.warning("PR-Merge fehlgeschlagen: %s", msg)
         return jsonify({'error': msg}), r.status_code
-    except Exception as e:
-        log.error("PR-Merge Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("PR-Merge Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/branches')
@@ -1289,9 +1289,9 @@ def api_branches():
         branches = _gh_get_paginated(f'/repos/{repo}/branches', token)
         names = [b['name'] for b in (branches or []) if isinstance(b, dict) and 'name' in b]
         return jsonify(names)
-    except Exception as e:
-        log.error("Branches-Abfrage Fehler (%s): %s", repo, e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Branches-Abfrage Fehler (%s)", repo)
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/workflow/dispatch', methods=['POST'])
@@ -1324,9 +1324,9 @@ def api_workflow_dispatch():
             msg = f'HTTP {r.status_code}'
         log.warning("Workflow-Dispatch fehlgeschlagen: %s", msg)
         return jsonify({'error': msg}), r.status_code
-    except Exception as e:
-        log.error("Workflow-Dispatch Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Workflow-Dispatch Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/ci/jobs')
@@ -1439,8 +1439,9 @@ def api_test_email():
                                 ['Dies ist eine Test-Nachricht von GitPulse.',
                                  'E-Mail-Benachrichtigungen sind korrekt konfiguriert. ✅']))
         return jsonify({'status': 'ok'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Test-E-Mail Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/issue/close', methods=['POST'])
@@ -1470,9 +1471,9 @@ def api_issue_close():
         msg = r.json().get('message', f'HTTP {r.status_code}')
         log.warning("Issue-Close fehlgeschlagen: %s", msg)
         return jsonify({'error': msg}), r.status_code
-    except Exception as e:
-        log.error("Issue-Close Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Issue-Close Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/issue/comment', methods=['POST'])
@@ -1503,9 +1504,9 @@ def api_issue_comment():
         msg = r.json().get('message', f'HTTP {r.status_code}')
         log.warning("Issue-Comment fehlgeschlagen: %s", msg)
         return jsonify({'error': msg}), r.status_code
-    except Exception as e:
-        log.error("Issue-Comment Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Issue-Comment Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/workflow/cancel', methods=['POST'])
@@ -1537,9 +1538,9 @@ def api_workflow_cancel():
             msg = f'HTTP {r.status_code}'
         log.warning("Workflow-Cancel fehlgeschlagen: %s", msg)
         return jsonify({'error': msg}), r.status_code
-    except Exception as e:
-        log.error("Workflow-Cancel Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Workflow-Cancel Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/workflow/rerun', methods=['POST'])
@@ -1571,9 +1572,9 @@ def api_workflow_rerun():
             msg = f'HTTP {r.status_code}'
         log.warning("Workflow-Rerun fehlgeschlagen: %s", msg)
         return jsonify({'error': msg}), r.status_code
-    except Exception as e:
-        log.error("Workflow-Rerun Fehler: %s", e)
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Workflow-Rerun Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/api/workflow/delete', methods=['POST'])
