@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.16] — 2026-06-08
+
+### Security
+- SSRF: `_is_safe_external_media_url()` blockiert private/loopback/reserved IPs und localhost vor yt-dlp-Aufruf (`import ipaddress`)
+- Path Injection: `_safe_media_path()` prüft absolute Pfade, Trennzeichen und `..` VOR `resolve()` — alle 9 Route-Handler nutzen jetzt diese Funktion (CodeQL HIGH #51–#59)
+
 ## [1.0.15] — 2026-06-08
 
 ### Security
