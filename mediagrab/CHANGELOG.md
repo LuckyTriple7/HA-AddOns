@@ -1,59 +1,12 @@
 # Changelog — MediaGrab
 
-## [1.0.12] — 2026-06-08
+## [1.0.13] — 2026-06-08
+
+### Security
+- Flask 3.0.3 → 3.1.3
 
 ### Changed
-- Revert fehlerhafter Security-Fixes (v1.0.10/v1.0.11) die Streams gebrochen haben — zurück auf stabilen Stand v1.0.9
-
-## [1.0.9] — 2026-06-07
-
-### Security
-- Flask 3.0.3 → 3.1.3 (Dependabot-Alert behoben)
-
----
-
-## [1.0.8] — 2026-06-07
-
-### Security
-- Path Traversal (#52, #53, #55, #57, #122): Regex-Validierung (`_SAFE_FILE_RE.match()`) jetzt direkt in jedem Route-Handler — `fm.group(0)` wird an `_safe_media_path()` und `send_from_directory()` übergeben statt des rohen URL-Parameters
-
----
-
-## [1.0.7] — 2026-06-07
-
-### Security
-- CRITICAL Command Injection (#26): URL wird via `stdin` (yt-dlp `--batch-file -`) statt als Kommandozeilen-Argument übergeben — `cmd` enthält nur noch statische Strings, kein User-Input mehr in der Arg-Liste
-
----
-
-## [1.0.6] — 2026-06-07
-
-### Security
-- CRITICAL Command Injection: `_validate_url()` gibt jetzt die Regex-gereinigte URL zurück (`m.group(1)`); `api_info` nutzt `safe_url` statt Rohwert im subprocess-Aufruf (CodeQL: py/command-line-injection #26)
-- Path Traversal: `_safe_media_path()` verwendet `_SAFE_FILE_RE.match().group(0)` statt Rohwert für Pfadkonstruktion — Taint-Chain unterbrochen (CodeQL: py/path-injection #52, #53, #55, #57, #116)
-- URL-Validierung: `_URL_SAFE_RE`-Regex filtert gefährliche Sonderzeichen aus URLs heraus
-
----
-
-## [1.0.5] — 2026-06-07
-### Security
-- `_detect_platform()`: `urlparse().netloc` statt unsicherem Substring-Check — verhindert Bypass durch URLs wie `https://evil.com/youtube.com` (CodeQL: py/incomplete-url-substring-sanitization #439–#446)
-- `_safe_next()`: `urlparse()` mit expliziter scheme/netloc-Prüfung — CodeQL-anerkanntes Open-Redirect-Sanitizer-Pattern (#435, #436)
-- `/set-lang/`: `request.referrer` wird jetzt nur als Pfad (ohne Host) extrahiert (CodeQL: py/open-redirect #437)
-
----
-
-## [1.0.4] — 2026-06-07
-### Security
-- Path-Traversal in Datei-Endpunkten behoben: `_safe_media_path()` ersetzt `relative_to()`+`try/except` durch explizite `..`/Absolutpfad-Prüfung vor `resolve()` — CodeQL-anerkanntes Sanitizer-Pattern (CodeQL: py/path-injection #451–#459)
-
----
-
-## [1.0.3] — 2026-06-07
-### Security
-- Command-Injection-Schwachstelle behoben: URL-Eingaben werden auf `http://`/`https://` validiert, und `--` wird vor der URL in alle `subprocess`-Aufrufe eingefügt, damit User-Input nicht als yt-dlp-Flag interpretiert wird (CodeQL: py/command-line-injection #26)
-
----
+- Revert auf stabilen Stand v1.0.2 (Security-Fixes v1.0.3–v1.0.12 haben Streams gebrochen)
 
 ## [1.0.2] — 2026-06-07
 ### Added
