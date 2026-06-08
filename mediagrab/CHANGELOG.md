@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.20] — 2026-06-08
+
+### Security
+- Uncontrolled command line: URL-Kanonisierung via `urlsplit` vor yt-dlp — blockiert Credentials, Fragments und Control-Chars; übergibt nur `canonical_url` (CodeQL #757)
+
 ## [1.0.19] — 2026-06-08
 
 ### Security

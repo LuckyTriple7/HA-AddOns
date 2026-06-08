@@ -750,11 +750,26 @@ def api_info():
         return jsonify({'error': 'no_url'}), 400
     if not _is_safe_external_media_url(url):
         return jsonify({'error': 'invalid_url'}), 400
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+            return jsonify({'error': 'invalid_url'}), 400
+        if parsed.username is not None or parsed.password is not None:
+            return jsonify({'error': 'invalid_url'}), 400
+        if parsed.fragment:
+            return jsonify({'error': 'invalid_url'}), 400
+        canonical_url = urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, parsed.query, '')
+        )
+        if any(ord(ch) < 32 for ch in canonical_url):
+            return jsonify({'error': 'invalid_url'}), 400
+    except Exception:
+        return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd += ['--', url]
+    cmd += ['--', canonical_url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
