@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [closed]
     branches: [dev]
+    paths:
+      - '**/requirements.txt'
+      - '**/Dockerfile'
+      - '.github/workflows/**'
 
 jobs:
   version-bump:

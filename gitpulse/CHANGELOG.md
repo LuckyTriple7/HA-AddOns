@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.1.69] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Commit & Push Button funktionslos — JSON.stringify erzeugte ungültige HTML-Attribute; auf safeJsArg() umgestellt
+
+## [0.1.68] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Repo-Dropdown zeigt nur noch `my_repos`, nicht mehr `watch_repos`
+
+## [0.1.67] - 2026-06-09
+
+### Fixed
+- Add-on Manager: HA-Config-Label für `addon_manager` in translations/de.yaml + en.yaml ergänzt
+
+### Added
+- Add-on Manager: Quick-Buttons +Patch (1.5.6→1.5.7) und +Dep (1.5.6→1.5.6.1) neben dem Versionsfeld
+
+## [0.1.66] - 2026-06-08
+
+### Added
+- Add-on Manager: Kachel zeigt Anzahl der gefundenen Add-ons nach dem Laden
+
+## [0.1.65] - 2026-06-08
+
+### Added
+- Add-on Manager: neuer Tab zum Verwalten von Add-on-Versionen und CHANGELOG-Einträgen
+- Config-Option `addon_manager` (default: false) zum Aktivieren des Features
+- GitHub Git Trees API für atomare Commits (config.yaml + CHANGELOG.md in einem Commit)
+- Bestätigungs-Dialog vor jedem Commit
+- DE/EN Übersetzungen
+
 ## [0.1.64] - 2026-06-08
 
 ### Security
