@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.70] - 2026-06-09
+
+### Changed
+- Add-on Manager: nach erfolgreichem Commit wird die Liste automatisch neu geladen (1,5 s Delay)
+
 ## [0.1.69] - 2026-06-09
 
 ### Fixed

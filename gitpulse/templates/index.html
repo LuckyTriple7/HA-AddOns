@@ -2314,6 +2314,7 @@
         if (statusEl) statusEl.innerHTML = `<span style="color:#f85149">{{ t.am_commit_err }}: ${escHtml(d.error||'')}</span>`;
       } else {
         if (statusEl) statusEl.innerHTML = `<span style="color:#2ea043">✓ {{ t.am_commit_ok }} <a href="${escHtml(d.commit_url)}" target="_blank" rel="noopener noreferrer">${escHtml(d.commit_sha)}</a></span>`;
+        setTimeout(() => amLoad(), 1500);
       }
     } catch(e) {
       if (statusEl) statusEl.innerHTML = `<span style="color:#f85149">{{ t.am_commit_err }}</span>`;
