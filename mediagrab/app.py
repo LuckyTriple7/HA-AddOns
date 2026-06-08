@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ipaddress
 import json
 import logging
 import os
@@ -656,10 +657,8 @@ def api_download():
     urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
     if not urls:
         return jsonify({'error': 'no_url'}), 400
-    for _u in urls:
-        _p = urllib.parse.urlparse(_u)
-        if _p.scheme not in ('http', 'https') or not _p.netloc:
-            return jsonify({'error': 'invalid_url'}), 400
+    if not all(_is_safe_external_media_url(_u) for _u in urls):
+        return jsonify({'error': 'invalid_url'}), 400
 
     fmt = data.get('fmt', 'best_video')
     if fmt not in VALID_FORMATS:
@@ -700,6 +699,46 @@ def api_download():
     save_jobs()
     return jsonify({'job_ids': job_ids})
 
+def _is_safe_external_media_url(url: str) -> bool:
+    if not url:
+        return False
+    if any(ch.isspace() for ch in url) or any(ord(ch) < 32 for ch in url):
+        return False
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        return False
+    host = parsed.hostname
+    if not host:
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local or ip.is_multicast:
+            return False
+    except ValueError:
+        host_l = host.lower().strip('.')
+        if host_l in ('localhost',):
+            return False
+    return True
+
+def _safe_media_path(filename: str) -> 'Path | None':
+    """Returns resolved path only if within MEDIA_DIR — rejects traversal attempts."""
+    raw = (filename or '').strip()
+    if not raw:
+        return None
+    candidate = Path(raw)
+    if candidate.is_absolute() or candidate.name != raw or any(part == '..' for part in candidate.parts):
+        return None
+    base_resolved = MEDIA_DIR.resolve()
+    resolved = (base_resolved / raw).resolve()
+    try:
+        resolved.relative_to(base_resolved)
+    except ValueError:
+        return None
+    return resolved
+
 @app.route('/api/info', methods=['POST'])
 def api_info():
     if _require_auth():
@@ -708,8 +747,7 @@ def api_info():
     url  = (data.get('url') or '').strip()
     if not url:
         return jsonify({'error': 'no_url'}), 400
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+    if not _is_safe_external_media_url(url):
         return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
@@ -912,20 +950,19 @@ def api_files():
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
+    safe_name = p.name
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     p.unlink()
     with _meta_lock:
         meta = _load_meta()
-        if filename in meta:
-            meta.pop(filename)
+        if safe_name in meta:
+            meta.pop(safe_name)
             _save_meta(meta)
-    log.info('Datei gelöscht: %s', filename)
+    log.info('Datei gelöscht: %s', safe_name)
     return jsonify({'ok': True})
 
 @app.route('/api/file/platform/<path:filename>', methods=['POST'])
@@ -934,24 +971,23 @@ def api_file_platform(filename):
         return jsonify({'error': 'unauthorized'}), 401
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
+    safe_name = p.name
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
-        entry = meta.get(filename, {})
+        entry = meta.get(safe_name, {})
         if platform:
             entry['platform'] = platform
         else:
             entry.pop('platform', None)
         if entry:
-            meta[filename] = entry
+            meta[safe_name] = entry
         else:
-            meta.pop(filename, None)
+            meta.pop(safe_name, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'platform': platform})
 
@@ -963,24 +999,23 @@ def api_file_tag(filename):
     tag  = data.get('tag', '').strip()
     if len(tag) > 50:
         return jsonify({'error': 'tag_too_long'}), 400
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
+    safe_name = p.name
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
-        entry = meta.get(filename, {})
+        entry = meta.get(safe_name, {})
         if tag:
             entry['tag'] = tag
         else:
             entry.pop('tag', None)
         if entry:
-            meta[filename] = entry
+            meta[safe_name] = entry
         else:
-            meta.pop(filename, None)
+            meta.pop(safe_name, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'tag': tag})
 
@@ -988,23 +1023,19 @@ def api_file_tag(filename):
 def stream_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=False)
+    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=False)
 
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = (MEDIA_DIR / filename).resolve()
-    try:
-        p.relative_to(MEDIA_DIR.resolve())
-    except ValueError:
+    p = _safe_media_path(filename)
+    if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=True)
+    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=True)
 
 @app.route('/manifest.json')
 def manifest():
