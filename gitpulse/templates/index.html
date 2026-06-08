@@ -2318,11 +2318,17 @@
     try {
       const r = await fetch(u(`/api/addon-manager/image-check?image=${encodeURIComponent(image)}&version=${encodeURIComponent(version)}`));
       const d = await r.json();
-      if (d.available) {
+      if (d.status === 'ok') {
         el.textContent = '✓ {{ t.am_img_ok }}';
         el.style.color = '#2ea043';
-      } else {
+      } else if (d.status === 'building') {
         el.textContent = '⏳ {{ t.am_img_building }}';
+        el.style.color = 'var(--muted)';
+      } else if (d.status === 'forbidden') {
+        el.textContent = '🔒 {{ t.am_img_forbidden }}';
+        el.style.color = '#f85149';
+      } else {
+        el.textContent = '? {{ t.am_img_unknown }}';
         el.style.color = 'var(--muted)';
       }
     } catch(e) {

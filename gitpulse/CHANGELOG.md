@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.76] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Image-Check unterscheidet jetzt 200/404/403 korrekt — 404 = Build läuft, 403 = kein Zugriff (Token-Problem), statt alles als "Build läuft" anzuzeigen
+
 ## [0.1.75] - 2026-06-09
 
 ### Fixed

@@ -216,6 +216,7 @@
   "am_img_checking": "prüfe Image…",
   "am_img_ok": "Image verfügbar",
   "am_img_building": "Build läuft noch",
+  "am_img_forbidden": "kein Zugriff (Token?)",
   "am_img_unknown": "unbekannt",
   "am_btn_revert": "Verlauf",
   "am_revert_title": "Versionsverlauf",

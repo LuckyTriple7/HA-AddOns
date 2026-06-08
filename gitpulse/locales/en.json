@@ -216,6 +216,7 @@
   "am_img_checking": "checking image…",
   "am_img_ok": "image available",
   "am_img_building": "build in progress",
+  "am_img_forbidden": "no access (token?)",
   "am_img_unknown": "unknown",
   "am_btn_revert": "History",
   "am_revert_title": "Version History",

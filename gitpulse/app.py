@@ -2259,7 +2259,15 @@ def api_addon_manager_image_check():
                 'Accept': 'application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.index.v1+json',
             }, timeout=10
         )
-        return jsonify({'available': man_r.status_code == 200})
+        sc = man_r.status_code
+        if sc == 200:
+            return jsonify({'status': 'ok'})
+        elif sc == 404:
+            return jsonify({'status': 'building'})
+        elif sc in (401, 403):
+            return jsonify({'status': 'forbidden'})
+        else:
+            return jsonify({'status': 'unknown', 'http': sc})
     except Exception:
         log.exception("image-check fehlgeschlagen")
         return jsonify({'error': 'internal error'}), 500
