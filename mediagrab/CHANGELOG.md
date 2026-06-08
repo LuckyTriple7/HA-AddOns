@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.19] — 2026-06-08
+
+### Security
+- Uncontrolled command line: `cmd.append(url)` → `cmd += ['--', url]` in `api_info` — `--` trennt Flags von URL-Argument (CodeQL CRITICAL #756)
+
 ## [1.0.18] — 2026-06-08
 
 ### Changed

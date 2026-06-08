@@ -754,7 +754,7 @@ def api_info():
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd.append(url)
+    cmd += ['--', url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
