@@ -15,7 +15,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Hole aktuelle Nextcloud-Version (linuxserver.io)
         id: remote
@@ -84,7 +84,7 @@ jobs:
 
       - name: Pull Request erstellen
         if: steps.compare.outputs.rebuild == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: dev
