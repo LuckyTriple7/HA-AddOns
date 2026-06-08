@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.11] — 2026-06-08
+
+### Security
+- Path Injection: `_safe_media_path()` prüft jetzt zusätzlich zur Regex ob der Pfad absolut ist, Verzeichnistrenner enthält oder `..`-Segmente hat; Caller-Sites übergeben `filename` direkt statt über `_SAFE_FILE_RE.match()` (CodeQL HIGH #52, #55, #57, #123, #125)
+
 ## [1.0.10] — 2026-06-08
 
 ### Security

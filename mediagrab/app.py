@@ -282,7 +282,13 @@ def _validate_url(url: str) -> 'str | None':
 
 def _safe_media_path(filename: str) -> 'Path | None':
     """Returns resolved path only if within MEDIA_DIR — rejects traversal attempts."""
-    m = _SAFE_FILE_RE.match(filename or '')
+    raw = (filename or '').strip()
+    if not raw:
+        return None
+    candidate = Path(raw)
+    if candidate.is_absolute() or candidate.name != raw or any(part == '..' for part in candidate.parts):
+        return None
+    m = _SAFE_FILE_RE.fullmatch(raw)
     if not m:
         return None
     safe_name = m.group(0)
@@ -946,15 +952,12 @@ def api_files():
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    fm = _SAFE_FILE_RE.match(filename or '')
-    if not fm:
-        return jsonify({'error': 'invalid_path'}), 400
-    safe_name = fm.group(0)
-    p = _safe_media_path(safe_name)
+    p = _safe_media_path(filename)
     if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
+    safe_name = p.name
     p.unlink()
     with _meta_lock:
         meta = _load_meta()
@@ -968,15 +971,12 @@ def api_file_delete(filename):
 def api_file_platform(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    fm = _SAFE_FILE_RE.match(filename or '')
-    if not fm:
-        return jsonify({'error': 'invalid_path'}), 400
-    safe_name = fm.group(0)
-    data     = request.json or {}
-    platform = data.get('platform', '').strip()
-    p = _safe_media_path(safe_name)
+    p = _safe_media_path(filename)
     if not p:
         return jsonify({'error': 'invalid_path'}), 400
+    safe_name = p.name
+    data     = request.json or {}
+    platform = data.get('platform', '').strip()
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
@@ -997,17 +997,14 @@ def api_file_platform(filename):
 def api_file_tag(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    fm = _SAFE_FILE_RE.match(filename or '')
-    if not fm:
+    p = _safe_media_path(filename)
+    if not p:
         return jsonify({'error': 'invalid_path'}), 400
-    safe_name = fm.group(0)
+    safe_name = p.name
     data = request.json or {}
     tag  = data.get('tag', '').strip()
     if len(tag) > 50:
         return jsonify({'error': 'tag_too_long'}), 400
-    p = _safe_media_path(safe_name)
-    if not p:
-        return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
@@ -1028,25 +1025,19 @@ def api_file_tag(filename):
 def stream_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    fm = _SAFE_FILE_RE.match(filename or '')
-    if not fm:
-        abort(400)
-    p = _safe_media_path(fm.group(0))
+    p = _safe_media_path(filename)
     if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), fm.group(0), as_attachment=False)
+    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=False)
 
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    fm = _SAFE_FILE_RE.match(filename or '')
-    if not fm:
-        abort(400)
-    p = _safe_media_path(fm.group(0))
+    p = _safe_media_path(filename)
     if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), fm.group(0), as_attachment=True)
+    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=True)
 
 @app.route('/manifest.json')
 def manifest():
