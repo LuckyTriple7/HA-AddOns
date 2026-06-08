@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="GitPulse"
 LABEL org.opencontainers.image.description="GitHub Control Panel for Home Assistant"
