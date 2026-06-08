@@ -42,7 +42,7 @@ jobs:
         if: steps.upstream.outputs.version != steps.tracked.outputs.version
         id: versions
         run: |
-          ADDON_VER=$(grep '^version:' firefox/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          ADDON_VER=$(grep '^version:' firefox/config.yaml | sed 's/version: *"\(.*\)"/\1/')
           MAJOR=$(echo $ADDON_VER | cut -d. -f1)
           MINOR=$(echo $ADDON_VER | cut -d. -f2)
           PATCH=$(echo $ADDON_VER | cut -d. -f3)

@@ -22,7 +22,7 @@ jobs:
       - name: Get add-on version
         id: ver
         run: |
-          VERSION=$(grep '^version:' mariadb2/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          VERSION=$(grep '^version:' mariadb2/config.yaml | sed 's/version: *"\(.*\)"/\1/')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building image for add-on v${VERSION}"
 

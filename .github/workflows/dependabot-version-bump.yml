@@ -82,17 +82,9 @@ jobs:
             # CHANGELOG aktualisieren
             CHANGELOG="$ADDON/CHANGELOG.md"
             if [ -f "$CHANGELOG" ]; then
-              python3 - "$CHANGELOG" "$NEW" "$DATE" <<'PYEOF'
-import sys
-path, version, date = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path) as f:
-    content = f.read()
-lines = content.split('\n')
-entry = f"\n## [{version}] - {date}\n\n### Dependencies\n- Dependabot: Abhängigkeiten aktualisiert\n"
-lines.insert(1, entry)
-with open(path, 'w') as f:
-    f.write('\n'.join(lines))
-PYEOF
+              awk -v new="$NEW" -v dt="$DATE" \
+                'NR==1{print; print ""; print "## ["new"] - "dt; print ""; print "### Dependencies"; print "- Dependabot: Abhaengigkeiten aktualisiert"; next}{print}' \
+                "$CHANGELOG" > /tmp/cl_tmp && mv /tmp/cl_tmp "$CHANGELOG"
             fi
 
             echo "✓ $ADDON: $CURRENT → $NEW"

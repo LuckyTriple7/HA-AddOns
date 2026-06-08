@@ -204,5 +204,15 @@
   "am_btn_dep": "+Dep",
   "am_btn_patch": "+Patch",
   "am_btn_dep_title": "Dependabot style: increment last part (1.5.6 → 1.5.6.1)",
-  "am_btn_patch_title": "Manual: bump patch (1.5.6 → 1.5.7, 1.5.6.1 → 1.5.7)"
+  "am_btn_patch_title": "Manual: bump patch (1.5.6 → 1.5.7, 1.5.6.1 → 1.5.7)",
+  "am_btn_revert": "History",
+  "am_revert_title": "Version History",
+  "am_revert_loading": "Loading history…",
+  "am_revert_no_history": "No history found",
+  "am_revert_error": "Error loading history",
+  "am_revert_restore": "Restore",
+  "am_revert_close": "Close",
+  "am_revert_current": "current",
+  "am_revert_ok": "Restored!",
+  "am_revert_err": "Revert failed"
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.30.1] - 2026-06-08
+
+Bump python from 3.13-alpine3.21 to 3.14-alpine3.21
+
+
 ## [1.0.30] - 2026-06-07
 
 ### Changed

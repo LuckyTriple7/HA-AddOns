@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.5.1] - 2026-06-08
+
+### Dependencies
+- Dependabot: Abhaengigkeiten aktualisiert
+
 ## [1.2.5] - 2026-06-08
 
 ### Security
