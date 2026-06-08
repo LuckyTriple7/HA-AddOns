@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="MessengerPortal for Home Assistant"
 LABEL org.opencontainers.image.description="Central launcher for Messenger add-ons with login protection"
