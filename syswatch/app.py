@@ -9,6 +9,7 @@ import threading
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify, send_from_directory,
                    Response, stream_with_context)
@@ -1431,7 +1432,11 @@ def set_lang(lang: str):
     if lang not in ('de', 'en'):
         abort(400)
     cookie_lang = 'en' if lang == 'en' else 'de'
-    ref  = request.referrer or url_for('index')
+    ref = request.referrer or '/'
+    ref = ref.replace('\\', '')
+    parsed_ref = urlparse(ref)
+    if parsed_ref.scheme or parsed_ref.netloc or not ref.startswith('/'):
+        ref = '/'
     resp = make_response(redirect(ref))
     resp.set_cookie('lang', cookie_lang, max_age=365 * 24 * 3600, samesite='Lax')
     return resp

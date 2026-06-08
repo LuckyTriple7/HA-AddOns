@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.23] — 2026-06-08
+
+### Security
+- Open Redirect: `_safe_next()` via `urlparse` verstärkt — Schema/Netloc-Prüfung statt reinem `/`-Check (CodeQL MEDIUM #36, #37, #131)
+
 ## [1.0.22] — 2026-06-08
 
 ### Security
