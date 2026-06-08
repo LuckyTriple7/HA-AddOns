@@ -389,6 +389,8 @@
           style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_tg }}</button>
         <button id="stab-email" onclick="_sTab('email')"
           style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_email }}</button>
+        <button id="stab-browser" onclick="_sTab('browser')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_browser }}</button>
       </div>
       <!-- Tab: Repos -->
       <div id="stab-panel-repos">
@@ -415,6 +417,11 @@
       <div id="stab-panel-tg" style="display:none">
         <div id="settings-tg-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_tg_hint }}</div>
         <div id="settings-tg-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
+      </div>
+      <!-- Tab: Browser -->
+      <div id="stab-panel-browser" style="display:none">
+        <div id="settings-br-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_br_hint }}</div>
+        <div id="settings-br-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
       </div>
       <!-- Tab: E-Mail -->
       <div id="stab-panel-email" style="display:none">
@@ -605,6 +612,17 @@
   let ghFavorites = [];
   let activeRepo = null;
   let notifEnabled = false;
+  // Browser-Notification-Tracking (client-seitig, reset bei Reload)
+  let _bn_first  = true;
+  let _bn_prs    = {};   // {repo: Set<number>}
+  let _bn_issues = {};   // {repo: Set<number>}
+  let _bn_runs   = {};   // {run_id: conclusion|null}
+  let _bn_stars  = {};   // {repo: number}
+  let _bn_forks  = {};   // {repo: number}
+  let _bn_sec    = {};   // {repo: number} alert count
+  function _bnNotif() {
+    try { return JSON.parse(localStorage.getItem('gp_bn_notif') || '{}'); } catch { return {}; }
+  }
   let _prFilter = '';
   let _issueFilter = '';
   let _prStateFilter  = 'open';
@@ -716,7 +734,7 @@
   let _sMyRepos = [], _sWatchRepos = [];
 
   function _sTab(name) {
-    ['repos','tg','email'].forEach(t => {
+    ['repos','tg','email','browser'].forEach(t => {
       const panel = document.getElementById('stab-panel-'+t);
       const btn   = document.getElementById('stab-'+t);
       const active = t === name;
@@ -794,6 +812,25 @@
         if (testBtn) testBtn.disabled = !emOk;
         document.getElementById('test-email-result').textContent = '';
 
+        // Browser-Tab: aus localStorage
+        const brCfg = _bnNotif();
+        const brOk  = 'Notification' in window && Notification.permission === 'granted';
+        const brEl  = document.getElementById('settings-br-toggles');
+        brEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
+          const checked = brCfg[key] !== false;
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;${brOk?'cursor:pointer':'opacity:.4;cursor:not-allowed'};padding:3px 0">
+            <input type="checkbox" id="br-${key}" ${checked ? 'checked' : ''} ${brOk?'':'disabled'}
+              style="width:14px;height:14px;accent-color:var(--accent)">
+            ${label}
+          </label>`;
+        }).join('');
+        const brHint = document.getElementById('settings-br-hint');
+        if (brHint) brHint.innerHTML = brOk
+          ? '{{ t.settings_br_hint }}'
+          : `<span style="color:var(--yellow)">⚠️ {{ t.settings_br_not_granted }}</span>`;
+        const brTabBtn = document.getElementById('stab-browser');
+        if (brTabBtn) brTabBtn.style.opacity = brOk ? '1' : '0.45';
+
         _sTab('repos');
         document.getElementById('settings-modal').classList.add('show');
       })
@@ -827,13 +864,16 @@
   }
 
   function saveRepoConfig() {
-    const tgNotif = {}, emNotif = {};
+    const tgNotif = {}, emNotif = {}, brNotif = {};
     _tgNotifDefs.forEach(({key}) => {
       const tgEl = document.getElementById('tg-' + key);
       const emEl = document.getElementById('em-' + key);
+      const brEl = document.getElementById('br-' + key);
       tgNotif[key] = tgEl ? tgEl.checked : true;
       emNotif[key] = emEl ? emEl.checked : true;
+      brNotif[key] = brEl ? brEl.checked : true;
     });
+    localStorage.setItem('gp_bn_notif', JSON.stringify(brNotif));
     fetch(u('/api/config/repos'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -1817,8 +1857,7 @@
     renderCI(data);
     renderReleases(data);
     renderSecurity(data);
-    // Browser-Benachrichtigung für neue Releases
-    (data.new_releases||[]).forEach(rel => fireNotification(rel));
+    _fireBrowserNotifs(data);
   }
 
   // ── Auto-Refresh nach Aktionen ────────────────────────────────────
@@ -1951,7 +1990,7 @@
       const hhmm  = until.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
       if (statusEl)   statusEl.innerHTML = `<span style="color:var(--yellow)">🔕 {{ t.notif_snoozed }} ${hhmm}</span>`;
       if (snoozeSection) snoozeSection.style.display = '';
-      if (enableSection) enableSection.style.display = 'none';
+      if (enableSection) { enableSection.style.display = ''; enableSection.innerHTML = `<button style="width:100%;background:var(--accent);color:#fff;border:none;padding:7px;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;margin-top:6px" onclick="enableNotifs()">{{ t.notif_unsnooze }}</button>`; }
     } else {
       btn.style.color   = 'var(--accent)';
       btn.style.opacity = '1';
@@ -2025,17 +2064,94 @@
     _updateBellUI();
   }
 
-  function fireNotification(rel) {
+  function _fireBN(title, body, url, tag) {
     if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
     if (_isSnoozed()) return;
-    const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
-    const n = new Notification(`${label}: ${rel.repo}`, {
-      body: rel.tag,
-      icon: u('/static/icon-192.png'),
-      tag:  rel.repo + '@' + rel.tag,
-    });
-    n.onclick = () => window.open(rel.url, '_blank');
+    const n = new Notification(title, { body, icon: u('/static/icon-192.png'), tag: tag || title });
+    if (url) n.onclick = () => { window.open(url, '_blank'); n.close(); };
   }
+
+  function _fireBrowserNotifs(data) {
+    const bn = _bnNotif();
+    const _con_labels = {success:'Erfolgreich',failure:'Fehlgeschlagen',cancelled:'Abgebrochen',timed_out:'Timeout',skipped:'Übersprungen'};
+    const _con_icons  = {success:'✅',failure:'❌',cancelled:'⏹',timed_out:'⏱',skipped:'⏭'};
+
+    for (const repo of (data.my_repos || [])) {
+      const rname = repo.repo;
+      const rshort = repo.name || rname.split('/')[1];
+
+      // Neue PRs
+      if (bn.new_pr !== false) {
+        if (!_bn_prs[rname]) _bn_prs[rname] = new Set();
+        for (const pr of (repo.pulls || [])) {
+          if (!_bn_first && !_bn_prs[rname].has(pr.number))
+            _fireBN(`🔀 Neuer PR: ${rshort}`, `#${pr.number} ${pr.title}`, pr.url, `pr-${rname}-${pr.number}`);
+          _bn_prs[rname].add(pr.number);
+        }
+      }
+
+      // Neue Issues
+      if (bn.new_issue !== false) {
+        if (!_bn_issues[rname]) _bn_issues[rname] = new Set();
+        for (const iss of (repo.issues || [])) {
+          if (!_bn_first && !_bn_issues[rname].has(iss.number))
+            _fireBN(`🐛 Neues Issue: ${rshort}`, `#${iss.number} ${iss.title}`, iss.url, `iss-${rname}-${iss.number}`);
+          _bn_issues[rname].add(iss.number);
+        }
+      }
+
+      // Workflow gestartet / beendet
+      for (const run of (repo.runs || [])) {
+        const prevCon = _bn_runs[run.id];
+        if (!_bn_first) {
+          if (prevCon === undefined && run.conclusion == null && bn.workflow_started !== false)
+            _fireBN(`▶️ Workflow gestartet: ${rshort}`, run.name, run.url, `run-start-${run.id}`);
+          if (prevCon === null && run.conclusion != null && bn.workflow_completed !== false) {
+            const icon = _con_icons[run.conclusion] || '⚠️';
+            const label = _con_labels[run.conclusion] || run.conclusion;
+            _fireBN(`${icon} Workflow beendet: ${rshort}`, `${run.name} — ${label}`, run.url, `run-done-${run.id}`);
+          }
+        }
+        _bn_runs[run.id] = run.conclusion ?? null;
+      }
+
+      // Stars / Forks
+      if (bn.star_fork !== false && !_bn_first) {
+        if (_bn_stars[rname] != null && repo.stars !== _bn_stars[rname]) {
+          const diff = repo.stars - _bn_stars[rname];
+          _fireBN(diff > 0 ? `⭐ Star erhalten: ${rshort}` : `💔 Star verloren: ${rshort}`,
+            `Jetzt ${repo.stars} Stars`, null, `star-${rname}`);
+        }
+        if (_bn_forks[rname] != null && repo.forks !== _bn_forks[rname]) {
+          _fireBN(`🍴 Neuer Fork: ${rshort}`, `Jetzt ${repo.forks} Forks`, null, `fork-${rname}`);
+        }
+      }
+      _bn_stars[rname] = repo.stars;
+      _bn_forks[rname] = repo.forks;
+
+      // Security Alerts
+      if (bn.security !== false && !_bn_first) {
+        const sec = repo.security || {};
+        const cnt = (sec.dependabot||[]).length + (sec.code_scanning||[]).length + (sec.secret_scanning||[]).length;
+        if (_bn_sec[rname] != null && cnt > _bn_sec[rname])
+          _fireBN(`🔴 Security Alert: ${rshort}`, `${cnt - _bn_sec[rname]} neue Alert(s)`, null, `sec-${rname}`);
+        _bn_sec[rname] = cnt;
+      }
+    }
+
+    // Neue Releases
+    if (bn.releases !== false) {
+      for (const rel of (data.new_releases || [])) {
+        const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
+        _fireBN(`${label}: ${rel.repo}`, rel.tag, rel.url, `rel-${rel.repo}-${rel.tag}`);
+      }
+    }
+
+    _bn_first = false;
+  }
+
+  // Legacy-Alias (wird noch in render() aufgerufen)
+  function fireNotification(rel) { /* ersetzt durch _fireBrowserNotifs */ }
 
   // ── PWA Install ───────────────────────────────────────────────────
   let deferredInstall = null;

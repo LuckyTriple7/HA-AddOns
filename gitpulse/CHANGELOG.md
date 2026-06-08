@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.60] - 2026-06-08
+
+### Added
+- Browser-Benachrichtigungen: Vierter Tab „Browser" im Settings-Modal mit denselben 10 Kategorien wie Telegram/E-Mail
+- Einstellungen werden in `localStorage` gespeichert (gerätelokal, kein Backend nötig)
+- Tab und Checkboxen ausgegraut wenn Notification-Berechtigung nicht erteilt
+
+### Fixed
+- Stummschaltung konnte nicht aufgehoben werden — Glocken-Dropdown zeigt jetzt „Stummschaltung aufheben"-Button im Snooze-Zustand
+- Browser-Benachrichtigungen wurden nur für Releases gefeuert — alle 10 Kategorien werden jetzt per client-seitigem Diff erkannt
+- Erster Seitenladevorgang löst keine Benachrichtigungs-Flut mehr aus (`_bn_first`-Flag)
+
+---
+
 ## [0.1.59] - 2026-06-08
 
 ### Changed

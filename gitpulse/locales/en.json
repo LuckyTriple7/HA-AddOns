@@ -166,6 +166,11 @@
   "notif_snooze_4h": "4 hours",
   "notif_snooze_tomorrow": "Until tomorrow",
   "notif_disable": "Disable",
+  "notif_unsnooze": "Unsnooze notifications",
+
+  "settings_tab_browser": "Browser",
+  "settings_br_hint": "Browser notifications are shown directly in the browser.",
+  "settings_br_not_granted": "Browser notification permission not granted — please allow in your browser.",
 
   "banner_offline_title": "Connection lost",
   "banner_offline_sub": "Reconnecting…",

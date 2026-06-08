@@ -166,6 +166,11 @@
   "notif_snooze_4h": "4 Stunden",
   "notif_snooze_tomorrow": "Bis morgen",
   "notif_disable": "Deaktivieren",
+  "notif_unsnooze": "Stummschaltung aufheben",
+
+  "settings_tab_browser": "Browser",
+  "settings_br_hint": "Browser-Benachrichtigungen werden direkt im Browser angezeigt.",
+  "settings_br_not_granted": "Berechtigung für Browser-Benachrichtigungen nicht erteilt — bitte im Browser erlauben.",
 
   "banner_offline_title": "Verbindung unterbrochen",
   "banner_offline_sub": "Stelle Verbindung wieder her…",
