@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.24] — 2026-06-08
+
+### Security
+- Open Redirect: `_safe_next()` robuster — `isinstance`-Check, `strip()`, `//`-Präfix-Schutz, `urlsplit` statt `urlparse` (CodeQL MEDIUM #36, #37, #131)
+- Open Redirect: `set_lang()` Referrer via `urlsplit`/`urlunsplit` auf Pfad/Query/Fragment reduziert vor Übergabe an `_safe_next()` (CodeQL MEDIUM #37)
+
 ## [1.0.23] — 2026-06-08
 
 ### Security

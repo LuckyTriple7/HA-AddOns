@@ -795,6 +795,8 @@ function toggleTheme() {
 
 // ── Initialise ────────────────────────────────────────────────────────────────
 
+let _pollActive = false;
+
 (function init() {
   document.querySelectorAll('th[data-col]').forEach(th => {
     th.addEventListener('click', () => sortBy(th.dataset.col));
@@ -856,8 +858,6 @@ function tick() {
 let _offlineFails = 0;
 function showOfflineBanner() { document.getElementById('offline-banner').style.display = 'flex'; }
 function hideOfflineBanner() { document.getElementById('offline-banner').style.display = 'none'; }
-
-let _pollActive = false;
 
 async function longPoll() {
   if (_pollActive || perfPaused || document.hidden) return;
