@@ -1,0 +1,104 @@
+name: Dependabot Auto-Version-Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+
+jobs:
+  version-bump:
+    if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Geänderte Add-ons ermitteln
+        id: addons
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+            const known = [
+              'mediagrab', 'gitpulse', 'syswatch', 'messenger-portal',
+              'cardboard', 'signal', 'telegram', 'whatsapp', 'firefox',
+              'filebox', 'collabora', 'nextcloud', 'mariadb2',
+              'phpmyadmin-mariadb2', 'claudecode', 'playwright-browser',
+              'ubuntu-webtop'
+            ];
+            const addons = [...new Set(
+              files.data
+                .map(f => f.filename.split('/')[0])
+                .filter(d => known.includes(d))
+            )];
+            console.log('Betroffene Add-ons:', addons);
+            return addons;
+
+      - name: Version bumpen
+        env:
+          ADDONS: ${{ steps.addons.outputs.result }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          DATE=$(date +%Y-%m-%d)
+          CHANGED=0
+
+          for ADDON in $(echo "$ADDONS" | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin)))"); do
+            CONFIG="$ADDON/config.yaml"
+            [ -f "$CONFIG" ] || { echo "Kein config.yaml für $ADDON — überspringe"; continue; }
+
+            CURRENT=$(grep '^version:' "$CONFIG" | sed 's/version: *"\(.*\)"/\1/')
+            DOTS=$(echo "$CURRENT" | tr -cd '.' | wc -c)
+
+            if [ "$DOTS" -eq 2 ]; then
+              # 1.0.25 → 1.0.25.1
+              NEW="${CURRENT}.1"
+            elif [ "$DOTS" -eq 3 ]; then
+              # 1.0.25.1 → 1.0.25.2
+              BASE=$(echo "$CURRENT" | cut -d. -f1-3)
+              N=$(echo "$CURRENT" | cut -d. -f4)
+              NEW="${BASE}.$((N + 1))"
+            else
+              echo "Unbekanntes Versionsformat für $ADDON: $CURRENT — überspringe"
+              continue
+            fi
+
+            # config.yaml aktualisieren
+            sed -i "s/version: \"$CURRENT\"/version: \"$NEW\"/" "$CONFIG"
+
+            # CHANGELOG aktualisieren
+            CHANGELOG="$ADDON/CHANGELOG.md"
+            if [ -f "$CHANGELOG" ]; then
+              python3 - "$CHANGELOG" "$NEW" "$DATE" <<'PYEOF'
+import sys
+path, version, date = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f:
+    content = f.read()
+lines = content.split('\n')
+entry = f"\n## [{version}] - {date}\n\n### Dependencies\n- Dependabot: Abhängigkeiten aktualisiert\n"
+lines.insert(1, entry)
+with open(path, 'w') as f:
+    f.write('\n'.join(lines))
+PYEOF
+            fi
+
+            echo "✓ $ADDON: $CURRENT → $NEW"
+            CHANGED=1
+          done
+
+          if [ "$CHANGED" -eq 1 ]; then
+            git add -A
+            git commit -m "chore(deps): Auto-Version-Bump nach Dependabot-Merge"
+            git push origin dev
+          else
+            echo "Keine Add-on-Verzeichnisse betroffen (z.B. nur GitHub Actions) — kein Bump"
+          fi
