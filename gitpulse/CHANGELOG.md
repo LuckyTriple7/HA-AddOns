@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.65] - 2026-06-08
+
+### Added
+- Add-on Manager: neuer Tab zum Verwalten von Add-on-Versionen und CHANGELOG-Einträgen
+- Config-Option `addon_manager` (default: false) zum Aktivieren des Features
+- GitHub Git Trees API für atomare Commits (config.yaml + CHANGELOG.md in einem Commit)
+- Bestätigungs-Dialog vor jedem Commit
+- DE/EN Übersetzungen
+
 ## [0.1.64] - 2026-06-08
 
 ### Security

@@ -180,5 +180,24 @@
   "min_ago": " min ago",
   "hr_ago": " hr ago",
   "day_ago": " d ago",
-  "log_lines": " lines"
+  "log_lines": " lines",
+
+  "tab_addon_manager": "Add-on Releases",
+  "am_repo_label": "Repository",
+  "am_branch_label": "Branch",
+  "am_load": "Load Add-ons",
+  "am_loading": "Loading…",
+  "am_no_addons": "No add-ons found",
+  "am_error_load": "Error loading add-ons",
+  "am_current_ver": "Current",
+  "am_next_ver": "New Version",
+  "am_changelog_label": "CHANGELOG Entry",
+  "am_changelog_placeholder": "### Fixed\n- ...",
+  "am_commit_btn": "Commit & Push",
+  "am_confirm_title": "Bump version?",
+  "am_confirm_yes": "Yes, commit",
+  "am_confirm_no": "Cancel",
+  "am_commit_ok": "Committed!",
+  "am_commit_err": "Commit failed",
+  "am_err_no_changelog": "Please fill in the CHANGELOG entry"
 }

@@ -314,6 +314,10 @@
       {{ t.tab_releases }}
       <span id="badge-releases" class="badge" style="display:none">0</span>
     </div>
+    {% if addon_manager %}<div class="tab" data-tab="addonmgr" onclick="switchTab('addonmgr')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
+      {{ t.tab_addon_manager }}
+    </div>{% endif %}
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
       {{ t.tab_console }}
@@ -548,6 +552,33 @@
         <div id="console-out"></div>
       </div>
     </div>
+
+    {% if addon_manager %}
+    <!-- ── Tab: Add-on Manager ────────────────────────────── -->
+    <div id="tab-addonmgr" style="display:none">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <select id="am-repo" style="flex:1;min-width:180px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:0.85rem"></select>
+        <select id="am-branch" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:0.85rem">
+          <option value="dev">dev</option>
+          <option value="main">main</option>
+        </select>
+        <button class="hdr-btn" onclick="amLoad()" id="am-load-btn" style="white-space:nowrap">{{ t.am_load }}</button>
+      </div>
+      <div id="am-list"></div>
+    </div>
+
+    <!-- Confirm-Dialog Add-on Manager -->
+    <div id="am-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+        <div style="font-weight:600;font-size:1rem;margin-bottom:8px">{{ t.am_confirm_title }}</div>
+        <div id="am-confirm-msg" style="font-size:0.88rem;color:var(--muted);margin-bottom:20px;line-height:1.5"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button class="hdr-btn" style="background:var(--card)" onclick="amConfirmCancel()">{{ t.am_confirm_no }}</button>
+          <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043" onclick="amConfirmYes()">{{ t.am_confirm_yes }}</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <script>
@@ -577,7 +608,7 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','prs','issues','ci','releases','security','console'];
+  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'console'];
   let activeTab = 'repos';
   const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security' };
   const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security' };
@@ -2163,6 +2194,109 @@
   loadFavorites();
   connectSSE();
   initNotifications();
+
+  {% if addon_manager %}
+  // ── Add-on Manager ────────────────────────────────────────────────
+  let _amPending = null; // { repo, branch, addon_dir, new_version, changelog_entry, old_version, name }
+
+  async function amLoad() {
+    const repo   = document.getElementById('am-repo').value;
+    const branch = document.getElementById('am-branch').value;
+    const btn    = document.getElementById('am-load-btn');
+    const list   = document.getElementById('am-list');
+    if (!repo) return;
+    btn.disabled = true;
+    btn.textContent = '{{ t.am_loading }}';
+    list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_loading }}</div>';
+    try {
+      const r = await fetch(u(`/api/addon-manager/addons?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`));
+      const d = await r.json();
+      if (!r.ok || d.error) { list.innerHTML = `<div style="color:#f85149">${escHtml(d.error||'{{ t.am_error_load }}')}</div>`; return; }
+      if (!d.addons || d.addons.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_no_addons }}</div>'; return; }
+      list.innerHTML = d.addons.map(a => amCard(a, repo, branch)).join('');
+    } catch(e) {
+      list.innerHTML = `<div style="color:#f85149">{{ t.am_error_load }}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '{{ t.am_load }}';
+    }
+  }
+
+  function amCard(a, repo, branch) {
+    const id = `am-${a.dir}`;
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-weight:600;font-size:0.95rem">${escHtml(a.name)}</span>
+        <span style="font-size:0.8rem;color:var(--muted)">${escHtml(a.dir)}</span>
+        <span style="font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px">{{ t.am_current_ver }}: <b>${escHtml(a.version)}</b></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
+        <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.85rem">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.am_changelog_label }}:</label>
+        <textarea id="${id}-cl" rows="4" placeholder="{{ t.am_changelog_placeholder }}" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.83rem;font-family:monospace;resize:vertical"></textarea>
+      </div>
+      <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043"
+        onclick="amAskConfirm(${JSON.stringify(a.dir)},${JSON.stringify(a.name)},${JSON.stringify(repo)},${JSON.stringify(branch)})">
+        {{ t.am_commit_btn }}
+      </button>
+      <span id="${id}-status" style="font-size:0.82rem;margin-left:10px"></span>
+    </div>`;
+  }
+
+  function amAskConfirm(dir, name, repo, branch) {
+    const ver = document.getElementById(`am-${dir}-ver`).value.trim();
+    const cl  = document.getElementById(`am-${dir}-cl`).value.trim();
+    if (!cl) { document.getElementById(`am-${dir}-status`).textContent = '{{ t.am_err_no_changelog }}'; return; }
+    _amPending = { repo, branch, addon_dir: dir, new_version: ver, changelog_entry: cl, name };
+    const msg = `<b>${escHtml(name)}</b> → <b>v${escHtml(ver)}</b><br><span style="font-size:0.82rem;color:var(--muted)">Branch: ${escHtml(branch)} · Repo: ${escHtml(repo)}</span>`;
+    document.getElementById('am-confirm-msg').innerHTML = msg;
+    const ov = document.getElementById('am-confirm-overlay');
+    ov.style.display = 'flex';
+  }
+
+  function amConfirmCancel() {
+    document.getElementById('am-confirm-overlay').style.display = 'none';
+    _amPending = null;
+  }
+
+  async function amConfirmYes() {
+    document.getElementById('am-confirm-overlay').style.display = 'none';
+    if (!_amPending) return;
+    const p = _amPending;
+    _amPending = null;
+    const statusEl = document.getElementById(`am-${p.addon_dir}-status`);
+    if (statusEl) statusEl.textContent = '{{ t.am_loading }}';
+    try {
+      const r = await fetch(u('/api/addon-manager/commit'), {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(p)
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:#f85149">{{ t.am_commit_err }}: ${escHtml(d.error||'')}</span>`;
+      } else {
+        if (statusEl) statusEl.innerHTML = `<span style="color:#2ea043">✓ {{ t.am_commit_ok }} <a href="${escHtml(d.commit_url)}" target="_blank" rel="noopener noreferrer">${escHtml(d.commit_sha)}</a></span>`;
+      }
+    } catch(e) {
+      if (statusEl) statusEl.innerHTML = `<span style="color:#f85149">{{ t.am_commit_err }}</span>`;
+    }
+  }
+
+  // Repos für Add-on Manager aus config laden
+  (async () => {
+    try {
+      const r = await fetch(u('/api/config/repos'));
+      const d = await r.json();
+      const sel = document.getElementById('am-repo');
+      const repos = [...(d.my_repos||[]), ...(d.watch_repos||[])].filter(Boolean);
+      sel.innerHTML = repos.map(r => `<option value="${escHtml(r)}">${escHtml(r)}</option>`).join('');
+    } catch(e) {}
+  })();
+  {% endif %}
   </script>
 </body>
 </html>

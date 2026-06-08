@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import hashlib
 import hmac
 import json
@@ -1187,6 +1188,7 @@ def index():
     cfg  = load_config()
     resp = make_response(render_template('index.html', t=t, lang=lang,
                                          poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
+                                         addon_manager=bool(cfg.get('addon_manager', False)),
                                          script_root=request.script_root))
     return resp
 
@@ -2025,6 +2027,168 @@ def events():
                     mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache',
                              'X-Accel-Buffering': 'no'})
+
+
+# ── Add-on Manager ────────────────────────────────────────────────────────────
+
+def _gh_get_file_content(owner: str, repo: str, path: str, token: str, branch: str) -> dict | None:
+    try:
+        r = http.get(
+            f'{GITHUB_API}/repos/{owner}/{repo}/contents/{path}',
+            headers=_gh_headers(token), params={'ref': branch}, timeout=15
+        )
+        return r.json() if r.status_code == 200 else None
+    except Exception:
+        return None
+
+def _next_version_manual(current: str) -> str:
+    parts = current.split('.')
+    if len(parts) >= 3:
+        parts = parts[:3]
+        parts[2] = str(int(parts[2]) + 1)
+        return '.'.join(parts)
+    return current
+
+@app.route('/api/addon-manager/addons')
+def api_addon_manager_addons():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    branch    = request.args.get('branch', 'dev').strip() or 'dev'
+    if not repo_full or '/' not in repo_full:
+        return jsonify({'error': 'invalid_repo'}), 400
+    owner, repo = repo_full.split('/', 1)
+    try:
+        r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/contents/',
+                     headers=_gh_headers(token), params={'ref': branch}, timeout=15)
+        if r.status_code != 200:
+            return jsonify({'error': 'api_error', 'status': r.status_code}), 502
+        entries = r.json()
+    except Exception:
+        log.exception("addon-manager: Repo-Inhalt konnte nicht geladen werden")
+        return jsonify({'error': 'internal error'}), 500
+    dirs = sorted(e['name'] for e in entries if e['type'] == 'dir' and not e['name'].startswith('.'))
+    addons = []
+    for dir_name in dirs:
+        cf = _gh_get_file_content(owner, repo, f'{dir_name}/config.yaml', token, branch)
+        if not cf:
+            continue
+        try:
+            content = base64.b64decode(cf['content']).decode('utf-8')
+        except Exception:
+            continue
+        name = dir_name
+        version = ''
+        for line in content.splitlines():
+            if line.startswith('name:') and not name or name == dir_name:
+                name = line.split(':', 1)[1].strip().strip('"\'')
+            if line.startswith('version:'):
+                version = line.split(':', 1)[1].strip().strip('"\'')
+        if not version:
+            continue
+        addons.append({
+            'dir': dir_name,
+            'name': name,
+            'version': version,
+            'next_version': _next_version_manual(version),
+        })
+    return jsonify({'addons': addons, 'repo': repo_full, 'branch': branch})
+
+
+@app.route('/api/addon-manager/commit', methods=['POST'])
+def api_addon_manager_commit():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    body          = request.get_json(silent=True) or {}
+    repo_full     = body.get('repo', '').strip()
+    addon_dir     = body.get('addon_dir', '').strip()
+    new_version   = body.get('new_version', '').strip()
+    changelog_txt = body.get('changelog_entry', '').strip()
+    branch        = body.get('branch', 'dev').strip() or 'dev'
+    if not repo_full or '/' not in repo_full:
+        return jsonify({'error': 'invalid_repo'}), 400
+    if not addon_dir or not new_version or not changelog_txt:
+        return jsonify({'error': 'missing_fields'}), 400
+    owner, repo = repo_full.split('/', 1)
+    date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    config_path    = f'{addon_dir}/config.yaml'
+    changelog_path = f'{addon_dir}/CHANGELOG.md'
+    cf = _gh_get_file_content(owner, repo, config_path, token, branch)
+    if not cf:
+        return jsonify({'error': 'config_not_found'}), 404
+    try:
+        config_content = base64.b64decode(cf['content']).decode('utf-8')
+        old_match = re.search(r'^version:\s*"([^"]+)"', config_content, re.MULTILINE)
+        if not old_match:
+            return jsonify({'error': 'version_not_found'}), 400
+        old_version = old_match.group(1)
+        new_config  = config_content.replace(f'version: "{old_version}"', f'version: "{new_version}"', 1)
+        cl_content = ''
+        clf = _gh_get_file_content(owner, repo, changelog_path, token, branch)
+        if clf:
+            cl_content = base64.b64decode(clf['content']).decode('utf-8')
+        entry = f'\n## [{new_version}] - {date_str}\n\n{changelog_txt}\n'
+        lines = cl_content.split('\n') if cl_content else ['']
+        lines.insert(1, entry)
+        new_changelog = '\n'.join(lines)
+        # Git Trees API — atomarer Commit mit beiden Dateien
+        ref_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/ref/heads/{branch}',
+                         headers=_gh_headers(token), timeout=15)
+        if ref_r.status_code != 200:
+            return jsonify({'error': 'branch_not_found'}), 404
+        head_sha = ref_r.json()['object']['sha']
+        commit_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/commits/{head_sha}',
+                            headers=_gh_headers(token), timeout=15)
+        base_tree_sha = commit_r.json()['tree']['sha']
+        tree_r = http.post(
+            f'{GITHUB_API}/repos/{owner}/{repo}/git/trees',
+            headers=_gh_headers(token),
+            json={'base_tree': base_tree_sha, 'tree': [
+                {'path': config_path,    'mode': '100644', 'type': 'blob', 'content': new_config},
+                {'path': changelog_path, 'mode': '100644', 'type': 'blob', 'content': new_changelog},
+            ]}, timeout=15
+        )
+        if tree_r.status_code != 201:
+            return jsonify({'error': 'tree_failed'}), 502
+        new_tree_sha = tree_r.json()['sha']
+        commit_r2 = http.post(
+            f'{GITHUB_API}/repos/{owner}/{repo}/git/commits',
+            headers=_gh_headers(token),
+            json={'message': f'chore: {addon_dir} v{new_version}',
+                  'tree': new_tree_sha, 'parents': [head_sha]},
+            timeout=15
+        )
+        if commit_r2.status_code != 201:
+            return jsonify({'error': 'commit_failed'}), 502
+        new_commit_sha = commit_r2.json()['sha']
+        upd_r = http.patch(
+            f'{GITHUB_API}/repos/{owner}/{repo}/git/refs/heads/{branch}',
+            headers=_gh_headers(token),
+            json={'sha': new_commit_sha}, timeout=15
+        )
+        if upd_r.status_code not in (200, 201):
+            return jsonify({'error': 'ref_update_failed'}), 502
+        log.info("addon-manager: %s v%s → v%s (%s)", addon_dir, old_version, new_version, new_commit_sha[:7])
+        return jsonify({
+            'status': 'committed',
+            'old_version': old_version,
+            'new_version': new_version,
+            'commit_sha': new_commit_sha[:7],
+            'commit_url': f'https://github.com/{owner}/{repo}/commit/{new_commit_sha}',
+        })
+    except Exception:
+        log.exception("addon-manager: Commit fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────

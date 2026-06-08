@@ -180,5 +180,24 @@
   "min_ago": " Min",
   "hr_ago": " Std",
   "day_ago": " T",
-  "log_lines": " Zeilen"
+  "log_lines": " Zeilen",
+
+  "tab_addon_manager": "Add-on Releases",
+  "am_repo_label": "Repository",
+  "am_branch_label": "Branch",
+  "am_load": "Add-ons laden",
+  "am_loading": "Laden…",
+  "am_no_addons": "Keine Add-ons gefunden",
+  "am_error_load": "Fehler beim Laden",
+  "am_current_ver": "Aktuell",
+  "am_next_ver": "Neue Version",
+  "am_changelog_label": "CHANGELOG-Eintrag",
+  "am_changelog_placeholder": "### Fixed\n- ...",
+  "am_commit_btn": "Commit & Push",
+  "am_confirm_title": "Version erhöhen?",
+  "am_confirm_yes": "Ja, committen",
+  "am_confirm_no": "Abbrechen",
+  "am_commit_ok": "Committed!",
+  "am_commit_err": "Fehler beim Commit",
+  "am_err_no_changelog": "Bitte CHANGELOG-Eintrag ausfüllen"
 }
