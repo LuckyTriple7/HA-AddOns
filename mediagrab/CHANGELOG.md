@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.17] — 2026-06-08
+
+### Security
+- Path Injection: `_safe_media_path()` nutzt jetzt `werkzeug.secure_filename()` als primäre Sanitierung + Path-Checks als Backstop (CodeQL #51–#59)
+- Route-Converter `<path:filename>` → `<filename>` für delete/platform/tag — verhindert `/` im URL-Parameter
+- `is_file()`-Check vor `unlink()` — verhindert versehentliches Löschen von Verzeichnissen
+
 ## [1.0.16] — 2026-06-08
 
 ### Security
