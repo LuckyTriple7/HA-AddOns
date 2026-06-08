@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.25] — 2026-06-08
+
+### Security
+- Open Redirect: `_safe_next()` gibt jetzt via `urlunsplit` zurück (Taint-Kette unterbrochen, CodeQL MEDIUM #36)
+- Open Redirect: Neues `_allowed_next()` mit Allowlist `{'/'}` für Login-`next`-Parameter (CodeQL MEDIUM #37)
+- Login-Route nutzt jetzt `_allowed_next` statt `_safe_next` (beide POST- und GET-Pfade)
+
 ## [1.0.24] — 2026-06-08
 
 ### Security
