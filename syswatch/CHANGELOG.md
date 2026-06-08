@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.4] - 2026-06-08
+
+### Security
+- Cookie Injection: `cookie_lang` aus Literal statt URL-Parameter in `set_lang()` (CodeQL MEDIUM #49)
+
 ## [1.2.3] - 2026-06-08
 
 ### Security

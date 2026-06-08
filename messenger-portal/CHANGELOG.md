@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.4] - 2026-06-08
+
+### Security
+- Cookie Injection: `cookie_lang` aus Literal statt URL-Parameter in `set_lang()` (CodeQL MEDIUM #47)
+
 ## [1.2.3] - 2026-06-07
 
 ### Security

@@ -319,7 +319,7 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 '--merge-output-format', 'mp4']
 
-    cmd.append(url)
+    cmd += ['--', url]
     return cmd
 
 def _run_download(job_id: str) -> None:
@@ -507,10 +507,9 @@ def _safe_next(url: str) -> str:
 
 @app.route('/set-lang/<lang>')
 def set_lang(lang):
-    if lang not in ('de', 'en'):
-        lang = 'de'
+    cookie_lang = 'en' if lang == 'en' else 'de'
     resp = make_response(redirect(request.referrer or '/'))
-    resp.set_cookie('mg_lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
+    resp.set_cookie('mg_lang', cookie_lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
     return resp
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -750,11 +749,26 @@ def api_info():
         return jsonify({'error': 'no_url'}), 400
     if not _is_safe_external_media_url(url):
         return jsonify({'error': 'invalid_url'}), 400
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+            return jsonify({'error': 'invalid_url'}), 400
+        if parsed.username is not None or parsed.password is not None:
+            return jsonify({'error': 'invalid_url'}), 400
+        if parsed.fragment:
+            return jsonify({'error': 'invalid_url'}), 400
+        canonical_url = urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, parsed.query, '')
+        )
+        if any(ord(ch) < 32 for ch in canonical_url):
+            return jsonify({'error': 'invalid_url'}), 400
+    except Exception:
+        return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd += ['--', url]
+    cmd += ['--', canonical_url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -776,8 +790,9 @@ def api_info():
         })
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("Video-Info Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/jobs')
 def api_jobs():
@@ -841,8 +856,9 @@ def api_ytdlp_version():
     try:
         r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
         return jsonify({'version': r.stdout.strip()})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("yt-dlp Version Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/ytdlp/update', methods=['POST'])
 def api_ytdlp_update():
@@ -873,8 +889,9 @@ def api_ytdlp_update():
         return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        log.exception("yt-dlp Update Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/api/cookies/status')
 def api_cookies_status():

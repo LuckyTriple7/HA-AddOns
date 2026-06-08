@@ -1,5 +1,21 @@
 # Changelog — MediaGrab
 
+## [1.0.22] — 2026-06-08
+
+### Security
+- Cookie Injection: `cookie_lang` aus Literal statt URL-Parameter in `set_lang()` — Taint-Kette unterbrochen (CodeQL MEDIUM #50)
+
+## [1.0.21] — 2026-06-08
+
+### Security
+- Command Injection: `cmd.append(url)` → `cmd += ['--', url]` in `_build_cmd`
+- Information Exposure: `str(e)` in api_info, api_ytdlp_version, api_ytdlp_update durch `'internal error'` + `log.exception()` ersetzt (durch v1.0.2-Revert wieder reingerutscht)
+
+## [1.0.20] — 2026-06-08
+
+### Security
+- Uncontrolled command line: URL-Kanonisierung via `urlsplit` vor yt-dlp — blockiert Credentials, Fragments und Control-Chars; übergibt nur `canonical_url` (CodeQL #757)
+
 ## [1.0.19] — 2026-06-08
 
 ### Security
