@@ -766,7 +766,8 @@ def _trigger_repo_poll(repo_name: str) -> None:
                 _gh_cache['my_repos'] = repos
             _gh_cache['last_poll'] = int(time.time())
         _notify_sse()
-        log.info("Webhook-Repo-Poll abgeschlossen: %s", repo_name)
+        if _verbose():
+            log.info("Webhook-Repo-Poll abgeschlossen: %s", repo_name)
     except Exception as e:
         log.error("Webhook-Repo-Poll Fehler (%s): %s", repo_name, e)
 
@@ -994,7 +995,8 @@ def _do_poll(cfg: dict, token: str) -> None:
         _gh_cache['rate_limit']    = dict(_rate_limit)
 
     _notify_sse()
-    log.info("Poll abgeschlossen — %d Repos, %d Watch-Releases", len(repo_data), len(releases))
+    if _verbose():
+        log.info("Poll abgeschlossen — %d Repos, %d Watch-Releases", len(repo_data), len(releases))
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────

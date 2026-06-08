@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.51] - 2026-06-08
+
+### Fixed
+- "Poll abgeschlossen" und "Webhook-Repo-Poll abgeschlossen" nur noch bei aktivem `verbose_log` — erschienen bisher immer im Log
+
+---
+
 ## [0.1.50] - 2026-06-08
 
 ### Added
