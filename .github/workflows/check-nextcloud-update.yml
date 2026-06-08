@@ -61,7 +61,7 @@ jobs:
         id: newversion
         if: steps.compare.outputs.rebuild == 'true'
         run: |
-          CURRENT=$(grep '^version:' nextcloud/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          CURRENT=$(grep '^version:' nextcloud/config.yaml | sed 's/version: *"\(.*\)"/\1/')
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
           PATCH=$(echo "$CURRENT" | cut -d. -f3)
@@ -74,7 +74,7 @@ jobs:
         run: |
           NC_VERSION="${{ steps.remote.outputs.remote }}"
           NEW_VERSION="${{ steps.newversion.outputs.new_version }}"
-          CURRENT=$(grep '^version:' nextcloud/config.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          CURRENT=$(grep '^version:' nextcloud/config.yaml | sed 's/version: *"\(.*\)"/\1/')
 
           echo "${NC_VERSION}" > .nextcloud-version
           sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" nextcloud/config.yaml
