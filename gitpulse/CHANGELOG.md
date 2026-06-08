@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.72] - 2026-06-09
+
+### Added
+- CI-Tab: aufklappbares Workflows-Panel zeigt alle Workflows mit Status-Badge (aktiv/deaktiviert/inaktiv); per Button direkt aktivieren oder deaktivieren ohne GitHub zu öffnen
+
 ## [0.1.71] - 2026-06-09
 
 ### Added

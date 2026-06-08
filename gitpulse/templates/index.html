@@ -665,6 +665,7 @@
   let _ciTimeFilter = 'all';
   let _ciStatusFilter = 'all';
   let _ciFilter = '';
+  let _ciWfExpanded = false;
   let _secFilter = '';
   let _ciPage = 1;
   const CI_PAGE_SIZE = 50;
@@ -719,7 +720,7 @@
   function openDispatchModal(repo) {
     _dispatchRepo = repo;
     const repoData = (ghData?.my_repos || []).find(r => r.repo === repo);
-    const wfs = repoData?.workflows || [];
+    const wfs = (repoData?.workflows || []).filter(w => w.dispatchable);
     const wfSel = document.getElementById('dispatch-wf-select');
     wfSel.innerHTML = wfs.length
       ? wfs.map(w => `<option value="${w.id}">${escHtml(w.name)}</option>`).join('')
@@ -1135,6 +1136,32 @@
     .catch(e => alert(String(e)));
   }
 
+  async function toggleWorkflowState(repo, workflowId, enable, btnId) {
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.disabled = true; btn.textContent = '{{ t.ci_wf_toggling }}'; }
+    try {
+      const r = await fetch(u('/api/workflow/toggle'), {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ repo, workflow_id: workflowId, enable }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.error) {
+        if (btn) { btn.disabled = false; btn.textContent = '{{ t.ci_wf_toggle_err }}'; }
+        return;
+      }
+      // State lokal aktualisieren damit kein Full-Reload nötig
+      const repoData = (ghData?.my_repos || []).find(rd => rd.repo === repo);
+      if (repoData) {
+        const wf = (repoData.workflows || []).find(w => w.id === workflowId);
+        if (wf) { wf.state = d.new_state; wf.dispatchable = enable; }
+      }
+      renderCI(ghData);
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '{{ t.ci_wf_toggle_err }}'; }
+    }
+  }
+
   // ── i18n helpers ──────────────────────────────────────────────────
   const T = {
     no_prs:          '{{ t.no_prs }}',
@@ -1188,6 +1215,14 @@
     ci_status_success:   '{{ t.ci_status_success }}',
     ci_status_failed:    '{{ t.ci_status_failed }}',
     ci_status_cancelled: '{{ t.ci_status_cancelled }}',
+    ci_wf_section:       '{{ t.ci_wf_section }}',
+    ci_wf_state_active:  '{{ t.ci_wf_state_active }}',
+    ci_wf_state_disabled:'{{ t.ci_wf_state_disabled }}',
+    ci_wf_state_inactive:'{{ t.ci_wf_state_inactive }}',
+    ci_wf_enable:        '{{ t.ci_wf_enable }}',
+    ci_wf_disable:       '{{ t.ci_wf_disable }}',
+    ci_wf_toggling:      '{{ t.ci_wf_toggling }}',
+    ci_wf_toggle_err:    '{{ t.ci_wf_toggle_err }}',
   };
 
   function relTime(iso) {
@@ -1631,6 +1666,40 @@
       ${(_ciTimeFilter!=='all'||_ciStatusFilter!=='all')?`<span style="font-size:.73rem;color:var(--muted);margin-left:4px">${filteredRuns.length} / ${repo.runs.length}</span>`:''}
     </div>`;
 
+    // Workflows-Verwaltungs-Panel
+    const allWfs = repo.workflows || [];
+    const wfsPanelHtml = allWfs.length ? (() => {
+      const activeCount   = allWfs.filter(w => w.state === 'active').length;
+      const disabledCount = allWfs.length - activeCount;
+      const summary = `${activeCount} ${T.ci_wf_state_active}${disabledCount ? ' · ' + disabledCount + ' ' + T.ci_wf_state_disabled : ''}`;
+      const wfRows = allWfs.map(wf => {
+        const isActive  = wf.state === 'active';
+        const isFork    = wf.state === 'disabled_fork';
+        const stateLabel = isActive ? T.ci_wf_state_active
+                         : wf.state === 'disabled_inactivity' ? T.ci_wf_state_inactive
+                         : T.ci_wf_state_disabled;
+        const stateColor = isActive ? '#2ea043' : 'var(--muted)';
+        const stateBg    = isActive ? '#2ea04318' : 'var(--bg)';
+        const stateBorder= isActive ? '#2ea04366' : 'var(--border)';
+        return `<div class="run-row" style="padding:7px 0">
+          <span style="flex:1;font-size:.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(wf.path)}">${escHtml(wf.name)}</span>
+          <span style="font-size:.72rem;color:${stateColor};background:${stateBg};border:1px solid ${stateBorder};border-radius:4px;padding:1px 7px;white-space:nowrap;flex-shrink:0">${stateLabel}</span>
+          ${!isFork ? `<button id="wftoggle-${wf.id}" class="act-btn ${isActive ? 'act-btn-cancel' : 'act-btn-dispatch'}" style="font-size:.75rem;padding:2px 8px;flex-shrink:0" onclick="toggleWorkflowState(${safeJsArg(repo.repo)},${wf.id},${!isActive},'wftoggle-${wf.id}')">
+            ${isActive ? T.ci_wf_disable : T.ci_wf_enable}
+          </button>` : `<span style="font-size:.72rem;color:var(--muted)">fork</span>`}
+        </div>`;
+      }).join('');
+      return `<div class="card" style="margin-bottom:8px">
+        <div class="card-header" style="cursor:pointer;gap:8px;user-select:none" onclick="_ciWfExpanded=!_ciWfExpanded;renderCI(ghData)">
+          <span>⚙</span>
+          <span>${T.ci_wf_section}</span>
+          <span style="font-size:.75rem;color:var(--muted)">${summary}</span>
+          <span style="margin-left:auto">${_ciWfExpanded ? '▴' : '▾'}</span>
+        </div>
+        ${_ciWfExpanded ? `<div class="card-body">${wfRows}</div>` : ''}
+      </div>`;
+    })() : '';
+
     const repoFavs = ghFavorites.filter(f => f.repo === repo.repo);
     const favsHtml = repoFavs.length ? `<div class="card" style="margin-bottom:8px">
       <div class="card-header" style="gap:8px">
@@ -1674,7 +1743,7 @@
         </div>
         <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
     }).join('');
-    el.innerHTML = filterBar + favsHtml + `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
+    el.innerHTML = filterBar + wfsPanelHtml + favsHtml + `<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--accent)"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       CI / Actions — ${repo.name}
       ${dispatchBtn}
