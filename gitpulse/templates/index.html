@@ -371,6 +371,9 @@
       <div style="font-size:.72rem;color:var(--muted);margin-top:12px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;line-height:1.6">
         🔑 {{ t.settings_token_scopes }}
       </div>
+      <div class="settings-section-label" style="margin-top:18px">{{ t.settings_tg_title }}</div>
+      <div id="settings-tg-hint" style="font-size:.72rem;color:var(--muted);margin-bottom:8px">{{ t.settings_tg_hint }}</div>
+      <div id="settings-tg-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px"></div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm" onclick="saveRepoConfig()">{{ t.settings_save }}</button>
@@ -665,6 +668,19 @@
   // ── Settings: Repo-Verwaltung ─────────────────────────────────────
   let _sMyRepos = [], _sWatchRepos = [];
 
+  const _tgNotifDefs = [
+    { key:'startup',             label:'{{ t.tg_startup }}' },
+    { key:'new_pr',              label:'{{ t.tg_new_pr }}' },
+    { key:'pr_closed',           label:'{{ t.tg_pr_closed }}' },
+    { key:'new_issue',           label:'{{ t.tg_new_issue }}' },
+    { key:'workflow_started',    label:'{{ t.tg_workflow_started }}' },
+    { key:'workflow_completed',  label:'{{ t.tg_workflow_completed }}' },
+    { key:'releases',            label:'{{ t.tg_releases }}' },
+    { key:'repo_stats',          label:'{{ t.tg_repo_stats }}' },
+    { key:'star_fork',           label:'{{ t.tg_star_fork }}' },
+    { key:'security',            label:'{{ t.tg_security }}' },
+  ];
+
   function openSettings() {
     fetch(u('/api/config/repos'))
       .then(r => r.json())
@@ -678,6 +694,15 @@
         srcEl.textContent = data.source === 'user'
           ? '{{ t.settings_source_user }}'
           : '{{ t.settings_source_options }}';
+        const tgCfg = data.tg_notifications || {};
+        const tgEl  = document.getElementById('settings-tg-toggles');
+        tgEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
+          const checked = tgCfg[key] !== false;
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;cursor:pointer;padding:3px 0">
+            <input type="checkbox" id="tg-${key}" ${checked ? 'checked' : ''} style="width:14px;height:14px;accent-color:var(--accent)">
+            ${label}
+          </label>`;
+        }).join('');
         document.getElementById('settings-modal').classList.add('show');
       })
       .catch(e => alert(String(e)));
@@ -710,10 +735,15 @@
   }
 
   function saveRepoConfig() {
+    const tgNotif = {};
+    _tgNotifDefs.forEach(({key}) => {
+      const el = document.getElementById('tg-' + key);
+      tgNotif[key] = el ? el.checked : true;
+    });
     fetch(u('/api/config/repos'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos}),
+      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos, tg_notifications: tgNotif}),
     })
     .then(r => r.json())
     .then(data => {

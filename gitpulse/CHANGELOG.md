@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.54] - 2026-06-08
+
+### Added
+- Settings-Modal: Neue Sektion „Telegram Benachrichtigungen" mit 10 einzeln schaltbaren Typen (Start, neue PRs, PR geschlossen, neue Issues, Workflow gestartet/beendet, Releases, Repo-Statistiken, Stars & Forks, Security Alerts)
+- Einstellungen werden in `gitpulse_repos.json` gespeichert (Add-on-Updates-sicher); Bot-Token und Chat-ID bleiben in den Add-on-Optionen
+- Alle `_send_telegram`-Aufrufe (Poll + Webhook) prüfen jetzt die jeweilige Einstellung
+
+---
+
 ## [0.1.53] - 2026-06-08
 
 ### Fixed
