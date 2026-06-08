@@ -359,6 +359,8 @@
           style="background:none;border:none;border-bottom:2px solid var(--accent);padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--accent);cursor:pointer">{{ t.settings_tab_repos }}</button>
         <button id="stab-tg" onclick="_sTab('tg')"
           style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_tg }}</button>
+        <button id="stab-email" onclick="_sTab('email')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_email }}</button>
       </div>
       <!-- Tab: Repos -->
       <div id="stab-panel-repos">
@@ -383,8 +385,18 @@
       </div>
       <!-- Tab: Telegram -->
       <div id="stab-panel-tg" style="display:none">
-        <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_tg_hint }}</div>
+        <div id="settings-tg-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_tg_hint }}</div>
         <div id="settings-tg-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
+      </div>
+      <!-- Tab: E-Mail -->
+      <div id="stab-panel-email" style="display:none">
+        <div id="settings-em-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_em_hint }}</div>
+        <div id="settings-em-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:12px"></div>
+        <button id="btn-test-email" onclick="sendTestEmail(this)"
+          style="font-size:.8rem;padding:5px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">
+          📧 {{ t.settings_em_test }}
+        </button>
+        <span id="test-email-result" style="font-size:.78rem;margin-left:8px"></span>
       </div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
@@ -681,7 +693,7 @@
   let _sMyRepos = [], _sWatchRepos = [];
 
   function _sTab(name) {
-    ['repos','tg'].forEach(t => {
+    ['repos','tg','email'].forEach(t => {
       const panel = document.getElementById('stab-panel-'+t);
       const btn   = document.getElementById('stab-'+t);
       const active = t === name;
@@ -737,6 +749,28 @@
           : `<span style="color:var(--yellow)">⚠️ {{ t.settings_tg_not_configured }}</span>`;
         const tgTabBtn = document.getElementById('stab-tg');
         if (tgTabBtn) tgTabBtn.style.opacity = tgOk ? '1' : '0.45';
+
+        const emCfg = data.email_notifications || {};
+        const emOk  = data.email_configured === true;
+        const emEl  = document.getElementById('settings-em-toggles');
+        emEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
+          const checked = emCfg[key] !== false;
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;${emOk?'cursor:pointer':'opacity:.4;cursor:not-allowed'};padding:3px 0">
+            <input type="checkbox" id="em-${key}" ${checked ? 'checked' : ''} ${emOk?'':'disabled'}
+              style="width:14px;height:14px;accent-color:var(--accent)">
+            ${label}
+          </label>`;
+        }).join('');
+        const emHint = document.getElementById('settings-em-hint');
+        if (emHint) emHint.innerHTML = emOk
+          ? '{{ t.settings_em_hint }}'
+          : `<span style="color:var(--yellow)">⚠️ {{ t.settings_em_not_configured }}</span>`;
+        const emTabBtn = document.getElementById('stab-email');
+        if (emTabBtn) emTabBtn.style.opacity = emOk ? '1' : '0.45';
+        const testBtn = document.getElementById('btn-test-email');
+        if (testBtn) testBtn.disabled = !emOk;
+        document.getElementById('test-email-result').textContent = '';
+
         _sTab('repos');
         document.getElementById('settings-modal').classList.add('show');
       })
@@ -770,21 +804,38 @@
   }
 
   function saveRepoConfig() {
-    const tgNotif = {};
+    const tgNotif = {}, emNotif = {};
     _tgNotifDefs.forEach(({key}) => {
-      const el = document.getElementById('tg-' + key);
-      tgNotif[key] = el ? el.checked : true;
+      const tgEl = document.getElementById('tg-' + key);
+      const emEl = document.getElementById('em-' + key);
+      tgNotif[key] = tgEl ? tgEl.checked : true;
+      emNotif[key] = emEl ? emEl.checked : true;
     });
     fetch(u('/api/config/repos'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos, tg_notifications: tgNotif}),
+      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos,
+                            tg_notifications: tgNotif, email_notifications: emNotif}),
     })
     .then(r => r.json())
     .then(data => {
       if (data.status === 'saved') { closeModal('settings-modal'); triggerRefresh(3); }
     })
     .catch(e => alert(String(e)));
+  }
+
+  function sendTestEmail(btn) {
+    _btnWait(btn);
+    const resEl = document.getElementById('test-email-result');
+    resEl.textContent = '';
+    fetch(u('/api/test-email'), {method:'POST'})
+      .then(r => r.json().then(d => ({ok: r.ok, d})))
+      .then(({ok, d}) => {
+        _btnRestore(btn);
+        resEl.style.color = ok ? 'var(--green)' : 'var(--red)';
+        resEl.textContent = ok ? '✅ {{ t.settings_em_test_ok }}' : ('❌ ' + (d.error || '{{ t.error_unknown }}'));
+      })
+      .catch(e => { _btnRestore(btn); resEl.style.color='var(--red)'; resEl.textContent='❌ '+String(e); });
   }
 
   // ── Issue schließen ───────────────────────────────────────────────

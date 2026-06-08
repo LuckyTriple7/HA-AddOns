@@ -113,6 +113,7 @@
 
   "settings_tab_repos": "Repos",
   "settings_tab_tg": "Telegram",
+  "settings_tab_email": "E-Mail",
   "settings_tg_title": "Telegram Notifications",
   "settings_tg_hint": "Bot token and chat ID are configured in the add-on options.",
   "settings_tg_not_configured": "Telegram not active — bot token and/or chat ID missing in add-on options.",
@@ -126,6 +127,11 @@
   "tg_repo_stats":         "📊 Repo statistics",
   "tg_star_fork":          "⭐ Stars & forks",
   "tg_security":           "🔴 Security alerts",
+
+  "settings_em_hint": "SMTP server is configured in the add-on options (smtp_host, smtp_to).",
+  "settings_em_not_configured": "E-mail not active — smtp_host and/or smtp_to missing in add-on options.",
+  "settings_em_test": "Send test e-mail",
+  "settings_em_test_ok": "Test e-mail sent successfully",
 
   "merge_title": "Merge Pull Request",
   "merge_method": "Merge method",

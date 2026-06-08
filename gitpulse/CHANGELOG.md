@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.57] - 2026-06-08
+
+### Added
+- E-Mail-Benachrichtigungen via SMTP (Python stdlib `smtplib`, keine neue Dependency)
+- Neue Add-on-Optionen: `smtp_host`, `smtp_port` (Standard 587), `smtp_user`, `smtp_password`, `smtp_to`, `smtp_tls` (STARTTLS)
+- Settings-Modal: Dritter Tab „E-Mail" mit denselben 10 Benachrichtigungs-Typen wie Telegram
+- Test-E-Mail-Button im E-Mail-Tab mit sofortigem Feedback
+- Tab und Checkboxen ausgegraut wenn SMTP nicht konfiguriert
+- `_tg_em()` Hilfsfunktion: sendet Telegram + E-Mail in einem Aufruf, prüft je eigene Einstellungen
+
+---
+
 ## [0.1.56] - 2026-06-08
 
 ### Changed

@@ -7,10 +7,13 @@ import os
 import queue
 import re
 import secrets
+import smtplib
 import time
 import threading
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, abort, jsonify,
                    Response, stream_with_context)
@@ -731,6 +734,48 @@ def _send_telegram(token: str, chat_id: str, text: str) -> None:
         log.error("Telegram senden fehlgeschlagen: %s", e)
 
 
+def _send_email(cfg: dict, subject: str, html_body: str) -> None:
+    host     = cfg.get('smtp_host', '').strip()
+    port     = int(cfg.get('smtp_port', 587))
+    user     = cfg.get('smtp_user', '').strip()
+    password = cfg.get('smtp_password', '').strip()
+    to       = cfg.get('smtp_to', '').strip()
+    use_tls  = bool(cfg.get('smtp_tls', True))
+    if not host or not to:
+        return
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = user or f'gitpulse@{host}'
+        msg['To']      = to
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        if use_tls:
+            with smtplib.SMTP(host, port, timeout=15) as s:
+                s.ehlo()
+                s.starttls()
+                s.ehlo()
+                if user and password:
+                    s.login(user, password)
+                s.sendmail(msg['From'], [to], msg.as_string())
+        else:
+            with smtplib.SMTP_SSL(host, port, timeout=15) as s:
+                if user and password:
+                    s.login(user, password)
+                s.sendmail(msg['From'], [to], msg.as_string())
+    except Exception as e:
+        log.error("E-Mail senden fehlgeschlagen: %s", e)
+
+
+def _email_html(title: str, lines: list[str]) -> str:
+    body = ''.join(f'<p style="margin:4px 0">{l}</p>' for l in lines)
+    return (
+        '<div style="font-family:sans-serif;max-width:480px;padding:20px;'
+        'background:#0d1117;color:#c9d1d9;border-radius:8px">'
+        f'<h3 style="margin:0 0 12px;color:#58a6ff">{title}</h3>'
+        f'{body}</div>'
+    )
+
+
 # ── SSE helpers ───────────────────────────────────────────────────────────────
 
 def _notify_sse() -> None:
@@ -770,6 +815,14 @@ def _trigger_repo_poll(repo_name: str) -> None:
             log.info("Webhook-Repo-Poll abgeschlossen: %s", repo_name)
     except Exception as e:
         log.error("Webhook-Repo-Poll Fehler (%s): %s", repo_name, e)
+
+
+def _tg_em(cfg: dict, tg_token: str, tg_chat: str, tg_notif: dict, em_notif: dict,
+           key: str, tg_text: str, em_subject: str, em_lines: list) -> None:
+    if tg_token and tg_chat and tg_notif.get(key, True):
+        _send_telegram(tg_token, tg_chat, tg_text)
+    if em_notif.get(key, True):
+        _send_email(cfg, em_subject, _email_html(em_subject, em_lines))
 
 
 # ── Poll worker ───────────────────────────────────────────────────────────────
@@ -833,6 +886,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     tg_token   = cfg.get('telegram_bot_token', '').strip()
     tg_chat    = cfg.get('telegram_chat_id', '').strip()
     tg_notif   = (user_repos or {}).get('tg_notifications', {})
+    em_notif   = (user_repos or {}).get('email_notifications', {})
     run_limit  = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
 
     if _verbose():
@@ -858,23 +912,21 @@ def _do_poll(cfg: dict, token: str) -> None:
         for pr in rd.get('pulls', []):
             key = pr['number']
             if key not in _seen_prs[rname]:
-                if _first_poll_done and tg_token and tg_chat and tg_notif.get('new_pr', True):
-                    _send_telegram(tg_token, tg_chat,
-                        f"🔀 Neuer PR: <b>{rname}</b>\n"
-                        f"#{pr['number']} {pr['title']}\n"
-                        f"von @{pr['user']}\n"
-                        f"<a href=\"{pr['url']}\">PR öffnen</a>")
+                if _first_poll_done:
+                    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'new_pr',
+                        f"🔀 Neuer PR: <b>{rname}</b>\n#{pr['number']} {pr['title']}\nvon @{pr['user']}\n<a href=\"{pr['url']}\">PR öffnen</a>",
+                        f"Neuer PR: {rname}",
+                        [f"#{pr['number']} {pr['title']}", f"von @{pr['user']}", f"<a href=\"{pr['url']}\">PR öffnen</a>"])
                 _seen_prs[rname].add(key)
 
         for iss in rd.get('issues', []):
             key = iss['number']
             if key not in _seen_issues[rname]:
-                if _first_poll_done and tg_token and tg_chat and tg_notif.get('new_issue', True):
-                    _send_telegram(tg_token, tg_chat,
-                        f"🐛 Neues Issue: <b>{rname}</b>\n"
-                        f"#{iss['number']} {iss['title']}\n"
-                        f"von @{iss['user']}\n"
-                        f"<a href=\"{iss['url']}\">Issue öffnen</a>")
+                if _first_poll_done:
+                    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'new_issue',
+                        f"🐛 Neues Issue: <b>{rname}</b>\n#{iss['number']} {iss['title']}\nvon @{iss['user']}\n<a href=\"{iss['url']}\">Issue öffnen</a>",
+                        f"Neues Issue: {rname}",
+                        [f"#{iss['number']} {iss['title']}", f"von @{iss['user']}", f"<a href=\"{iss['url']}\">Issue öffnen</a>"])
                 _seen_issues[rname].add(key)
 
         for run in rd.get('runs', []):
@@ -885,44 +937,39 @@ def _do_poll(cfg: dict, token: str) -> None:
                            'skipped': 'Übersprungen', 'timed_out': 'Timeout'}
             _evt_labels = {'push': 'Push', 'pull_request': 'PR', 'workflow_dispatch': 'Manuell',
                            'schedule': 'Zeitplan', 'release': 'Release'}
-            run_info = (f"<b>{run['name']}</b> #{run.get('run_number','')}\n"
-                        f"Branch: {run.get('branch','?')} · {_evt_labels.get(run.get('event',''), run.get('event','?'))}\n"
-                        f"von @{run.get('actor','?')} · {run.get('head_sha','')[:7]}\n")
+            run_info_tg = (f"<b>{run['name']}</b> #{run.get('run_number','')}\n"
+                           f"Branch: {run.get('branch','?')} · {_evt_labels.get(run.get('event',''), run.get('event','?'))}\n"
+                           f"von @{run.get('actor','?')} · {run.get('head_sha','')[:7]}\n")
+            run_info_em = [f"<b>{run['name']}</b> #{run.get('run_number','')}",
+                           f"Branch: {run.get('branch','?')} · {_evt_labels.get(run.get('event',''), run.get('event','?'))}",
+                           f"von @{run.get('actor','?')} · {run.get('head_sha','')[:7]}"]
             if run_id not in _known_run_conclusions:
-                # Erster Kontakt mit diesem Run
-                if _first_poll_done and tg_token and tg_chat:
+                if _first_poll_done:
                     if curr_con is None:
-                        # Läuft gerade → "gestartet"
-                        if tg_notif.get('workflow_started', True):
-                            _send_telegram(tg_token, tg_chat,
-                                f"▶️ <b>Workflow gestartet:</b> {rname}\n"
-                                + run_info
-                                + f"<a href=\"{run['url']}\">Details</a>")
+                        _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'workflow_started',
+                            f"▶️ <b>Workflow gestartet:</b> {rname}\n" + run_info_tg + f"<a href=\"{run['url']}\">Details</a>",
+                            f"Workflow gestartet: {rname}",
+                            run_info_em + [f"<a href=\"{run['url']}\">Details</a>"])
                     else:
-                        # Schon abgeschlossen wenn zuerst gesehen → nur Abschluss
-                        if tg_notif.get('workflow_completed', True):
-                            icon  = _con_icons.get(curr_con, '⚠️')
-                            label = _con_labels.get(curr_con, curr_con)
-                            _send_telegram(tg_token, tg_chat,
-                                f"{icon} <b>Workflow beendet:</b> {rname}\n"
-                                + run_info
-                                + f"Status: {label}\n"
-                                + f"<a href=\"{run['url']}\">Details</a>")
+                        icon  = _con_icons.get(curr_con, '⚠️')
+                        label = _con_labels.get(curr_con, curr_con)
+                        _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'workflow_completed',
+                            f"{icon} <b>Workflow beendet:</b> {rname}\n" + run_info_tg + f"Status: {label}\n<a href=\"{run['url']}\">Details</a>",
+                            f"Workflow beendet: {rname} — {label}",
+                            run_info_em + [f"Status: {label}", f"<a href=\"{run['url']}\">Details</a>"])
             else:
                 prev_con = _known_run_conclusions[run_id]
                 if prev_con is None and curr_con is not None:
-                    # Gerade abgeschlossen
-                    if _first_poll_done and tg_token and tg_chat and tg_notif.get('workflow_completed', True):
-                        icon  = _con_icons.get(curr_con, '⚠️')
-                        label = _con_labels.get(curr_con, curr_con)
-                        _send_telegram(tg_token, tg_chat,
-                            f"{icon} <b>Workflow beendet:</b> {rname}\n"
-                            + run_info
-                            + f"Status: {label}\n"
-                            + f"<a href=\"{run['url']}\">Details</a>")
+                    icon  = _con_icons.get(curr_con, '⚠️')
+                    label = _con_labels.get(curr_con, curr_con)
+                    if _first_poll_done:
+                        _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'workflow_completed',
+                            f"{icon} <b>Workflow beendet:</b> {rname}\n" + run_info_tg + f"Status: {label}\n<a href=\"{run['url']}\">Details</a>",
+                            f"Workflow beendet: {rname} — {label}",
+                            run_info_em + [f"Status: {label}", f"<a href=\"{run['url']}\">Details</a>"])
             _known_run_conclusions[run_id] = curr_con
 
-    # Telegram: Stars / Forks / Watchers Änderungen erkennen
+    # Benachrichtigungen: Stars / Forks / Watchers Änderungen erkennen
     for rd in repo_data:
         rname = rd['repo']
         curr_stats = {
@@ -930,45 +977,57 @@ def _do_poll(cfg: dict, token: str) -> None:
             'forks':    rd.get('forks', 0),
             'watchers': rd.get('watchers', 0),
         }
-        if rname in _repo_stats and _first_poll_done and tg_token and tg_chat and tg_notif.get('repo_stats', True):
+        if rname in _repo_stats and _first_poll_done:
             prev_stats = _repo_stats[rname]
-            changes = []
+            changes_tg = []
+            changes_em = []
             if curr_stats['stars'] != prev_stats['stars']:
                 diff = curr_stats['stars'] - prev_stats['stars']
                 sign = '+' if diff > 0 else ''
-                changes.append(f"⭐ Stars: {prev_stats['stars']} → {curr_stats['stars']} ({sign}{diff})")
+                changes_tg.append(f"⭐ Stars: {prev_stats['stars']} → {curr_stats['stars']} ({sign}{diff})")
+                changes_em.append(f"⭐ Stars: {prev_stats['stars']} → {curr_stats['stars']} ({sign}{diff})")
             if curr_stats['forks'] != prev_stats['forks']:
                 diff = curr_stats['forks'] - prev_stats['forks']
                 sign = '+' if diff > 0 else ''
-                changes.append(f"🍴 Forks: {prev_stats['forks']} → {curr_stats['forks']} ({sign}{diff})")
+                changes_tg.append(f"🍴 Forks: {prev_stats['forks']} → {curr_stats['forks']} ({sign}{diff})")
+                changes_em.append(f"🍴 Forks: {prev_stats['forks']} → {curr_stats['forks']} ({sign}{diff})")
             if curr_stats['watchers'] != prev_stats['watchers']:
                 diff = curr_stats['watchers'] - prev_stats['watchers']
                 sign = '+' if diff > 0 else ''
-                changes.append(f"👁 Watchers: {prev_stats['watchers']} → {curr_stats['watchers']} ({sign}{diff})")
-            if changes:
-                _send_telegram(tg_token, tg_chat,
-                    f"📊 <b>Repo-Statistiken:</b> <b>{rname}</b>\n" + '\n'.join(changes))
+                changes_tg.append(f"👁 Watchers: {prev_stats['watchers']} → {curr_stats['watchers']} ({sign}{diff})")
+                changes_em.append(f"👁 Watchers: {prev_stats['watchers']} → {curr_stats['watchers']} ({sign}{diff})")
+            if changes_tg:
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'repo_stats',
+                    f"📊 <b>Repo-Statistiken:</b> <b>{rname}</b>\n" + '\n'.join(changes_tg),
+                    f"Repo-Statistiken: {rname}",
+                    changes_em)
         _repo_stats[rname] = curr_stats
 
-    # Telegram Startup-Nachricht (einmalig beim ersten Poll)
-    if not _first_poll_done and tg_token and tg_chat and tg_notif.get('startup', True):
-        msg = "🚀 <b>GitPulse gestartet</b>\n"
+    # Startup-Nachricht (einmalig beim ersten Poll)
+    if not _first_poll_done:
+        msg_tg = "🚀 <b>GitPulse gestartet</b>\n"
+        msg_em = ["🚀 <b>GitPulse gestartet</b>"]
         if repo_data:
-            msg += "\n<b>Eigene Repos:</b>"
+            msg_tg += "\n<b>Eigene Repos:</b>"
+            msg_em.append("<b>Eigene Repos:</b>")
             for rd in repo_data:
                 prs    = rd.get('open_prs', 0)
                 issues = rd.get('open_issues', 0)
-                msg += f"\n• <b>{rd['name']}</b> — {prs} PR{'s' if prs != 1 else ''}, {issues} Issue{'s' if issues != 1 else ''}"
+                line   = f"• <b>{rd['name']}</b> — {prs} PR{'s' if prs != 1 else ''}, {issues} Issue{'s' if issues != 1 else ''}"
+                msg_tg += f"\n{line}"
+                msg_em.append(line)
         else:
-            msg += "\nKeine eigenen Repos konfiguriert."
-        _send_telegram(tg_token, tg_chat, msg)
+            msg_tg += "\nKeine eigenen Repos konfiguriert."
+            msg_em.append("Keine eigenen Repos konfiguriert.")
+        _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'startup',
+               msg_tg, "GitPulse gestartet", msg_em)
 
     _first_poll_done = True
 
     # Watch-Repos Releases
     releases = _fetch_releases(watch_repos, token, incl_betas)
 
-    # Neue Releases erkennen + Telegram-Benachrichtigung
+    # Neue Releases erkennen + Benachrichtigung
     new_releases = []
     for rel in releases:
         key = f"{rel['repo']}@{rel['tag']}"
@@ -976,12 +1035,11 @@ def _do_poll(cfg: dict, token: str) -> None:
             new_releases.append(rel)
             _seen_releases.add(key)
             log.info("Neues Release: %s %s", rel['repo'], rel['tag'])
-            if tg_token and tg_chat and tg_notif.get('releases', True):
-                label = '🔵 Pre-Release' if rel['prerelease'] else '🟢 Release'
-                _send_telegram(tg_token, tg_chat,
-                               f"{label}: <b>{rel['repo']}</b>\n"
-                               f"Version: <code>{rel['tag']}</code>\n"
-                               f"<a href=\"{rel['url']}\">Release-Seite</a>")
+            rl_type = '🔵 Pre-Release' if rel['prerelease'] else '🟢 Release'
+            _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'releases',
+                f"{rl_type}: <b>{rel['repo']}</b>\nVersion: <code>{rel['tag']}</code>\n<a href=\"{rel['url']}\">Release-Seite</a>",
+                f"{rl_type}: {rel['repo']} {rel['tag']}",
+                [f"Repo: <b>{rel['repo']}</b>", f"Version: <b>{rel['tag']}</b>", f"<a href=\"{rel['url']}\">Release-Seite</a>"])
 
     if new_releases:
         save_seen_releases()
@@ -1322,21 +1380,27 @@ def api_config_repos_get():
     cfg        = load_config()
     user_repos = load_user_repos()
     tg_notif      = (user_repos or {}).get('tg_notifications', {})
+    em_notif      = (user_repos or {}).get('email_notifications', {})
     tg_configured = bool(cfg.get('telegram_bot_token', '').strip() and cfg.get('telegram_chat_id', '').strip())
+    em_configured = bool(cfg.get('smtp_host', '').strip() and cfg.get('smtp_to', '').strip())
     if user_repos is not None:
         return jsonify({
-            'source':            'user',
-            'my_repos':          user_repos.get('my_repos', []),
-            'watch_repos':       user_repos.get('watch_repos', []),
-            'tg_notifications':  tg_notif,
-            'tg_configured':     tg_configured,
+            'source':              'user',
+            'my_repos':            user_repos.get('my_repos', []),
+            'watch_repos':         user_repos.get('watch_repos', []),
+            'tg_notifications':    tg_notif,
+            'tg_configured':       tg_configured,
+            'email_notifications': em_notif,
+            'email_configured':    em_configured,
         })
     return jsonify({
-        'source':            'options',
-        'my_repos':          [r for r in cfg.get('my_repos', [])    if r.strip()],
-        'watch_repos':       [r for r in cfg.get('watch_repos', []) if r.strip()],
-        'tg_notifications':  tg_notif,
-        'tg_configured':     tg_configured,
+        'source':              'options',
+        'my_repos':            [r for r in cfg.get('my_repos', [])    if r.strip()],
+        'watch_repos':         [r for r in cfg.get('watch_repos', []) if r.strip()],
+        'tg_notifications':    tg_notif,
+        'tg_configured':       tg_configured,
+        'email_notifications': em_notif,
+        'email_configured':    em_configured,
     })
 
 
@@ -1349,13 +1413,34 @@ def api_config_repos_save():
     my_repos    = [r.strip() for r in body.get('my_repos', [])    if r.strip()]
     watch_repos = [r.strip() for r in body.get('watch_repos', []) if r.strip()]
     tg_raw      = body.get('tg_notifications') or {}
+    em_raw      = body.get('email_notifications') or {}
     tg_notif    = {k: bool(tg_raw.get(k, True)) for k in _TG_NOTIF_KEYS}
+    em_notif    = {k: bool(em_raw.get(k, True)) for k in _TG_NOTIF_KEYS}
     existing    = load_user_repos() or {}
-    existing.update({'my_repos': my_repos, 'watch_repos': watch_repos, 'tg_notifications': tg_notif})
+    existing.update({'my_repos': my_repos, 'watch_repos': watch_repos,
+                     'tg_notifications': tg_notif, 'email_notifications': em_notif})
     save_user_repos(existing)
     _etag_cache.clear()  # frischer Poll für neue Repos
     log.info("Repo-Config gespeichert: %d eigene, %d Watch-Repos", len(my_repos), len(watch_repos))
     return jsonify({'status': 'saved', 'my_repos': my_repos, 'watch_repos': watch_repos})
+
+
+@app.route('/api/test-email', methods=['POST'])
+def api_test_email():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg = load_config()
+    if not cfg.get('smtp_host', '').strip() or not cfg.get('smtp_to', '').strip():
+        return jsonify({'error': 'SMTP nicht konfiguriert (smtp_host / smtp_to fehlen)'}), 400
+    try:
+        _send_email(cfg, 'GitPulse Test-E-Mail',
+                    _email_html('GitPulse Test-E-Mail',
+                                ['Dies ist eine Test-Nachricht von GitPulse.',
+                                 'E-Mail-Benachrichtigungen sind korrekt konfiguriert. ✅']))
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/issue/close', methods=['POST'])
@@ -1564,9 +1649,11 @@ def github_webhook():
     if repo_full not in my_repos:
         return jsonify({'status': 'ignored'}), 200
 
-    tg_token = cfg.get('telegram_bot_token', '').strip()
-    tg_chat  = cfg.get('telegram_chat_id', '').strip()
-    tg_notif = (load_user_repos() or {}).get('tg_notifications', {})
+    tg_token  = cfg.get('telegram_bot_token', '').strip()
+    tg_chat   = cfg.get('telegram_chat_id', '').strip()
+    _wh_urepos = load_user_repos() or {}
+    tg_notif  = _wh_urepos.get('tg_notifications', {})
+    em_notif  = _wh_urepos.get('email_notifications', {})
 
     if event == 'pull_request':
         pr     = payload.get('pull_request', {})
@@ -1574,22 +1661,22 @@ def github_webhook():
         if action == 'opened':
             if pr_num:
                 _seen_prs[repo_full].add(pr_num)  # Duplikat-Schutz für nächsten Poll
-            if _first_poll_done and tg_token and tg_chat and tg_notif.get('new_pr', True):
-                _send_telegram(tg_token, tg_chat,
-                    f"🔀 Neuer PR: <b>{repo_full}</b>\n"
-                    f"#{pr_num} {pr.get('title','')}\n"
-                    f"von @{(pr.get('user') or {}).get('login','?')}\n"
-                    f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>")
+            if _first_poll_done:
+                user_login = (pr.get('user') or {}).get('login','?')
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'new_pr',
+                    f"🔀 Neuer PR: <b>{repo_full}</b>\n#{pr_num} {pr.get('title','')}\nvon @{user_login}\n<a href=\"{pr.get('html_url','')}\">PR öffnen</a>",
+                    f"Neuer PR: {repo_full}",
+                    [f"#{pr_num} {pr.get('title','')}", f"von @{user_login}", f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>"])
         elif action == 'closed':
             merged = pr.get('merged', False)
-            if _first_poll_done and tg_token and tg_chat and tg_notif.get('pr_closed', True):
+            if _first_poll_done:
                 icon = '⎇' if merged else '✕'
                 verb = 'gemerged' if merged else 'geschlossen'
-                _send_telegram(tg_token, tg_chat,
-                    f"{icon} PR {verb}: <b>{repo_full}</b>\n"
-                    f"#{pr_num} {pr.get('title','')}\n"
-                    f"von @{(pr.get('user') or {}).get('login','?')}\n"
-                    f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>")
+                user_login = (pr.get('user') or {}).get('login','?')
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'pr_closed',
+                    f"{icon} PR {verb}: <b>{repo_full}</b>\n#{pr_num} {pr.get('title','')}\nvon @{user_login}\n<a href=\"{pr.get('html_url','')}\">PR öffnen</a>",
+                    f"PR {verb}: {repo_full}",
+                    [f"#{pr_num} {pr.get('title','')}", f"von @{user_login}", f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>"])
             with _gh_lock:
                 for rd in _gh_cache.get('my_repos', []):
                     if rd['repo'] == repo_full:
@@ -1623,12 +1710,12 @@ def github_webhook():
         if action == 'opened':
             if iss_num:
                 _seen_issues[repo_full].add(iss_num)  # Duplikat-Schutz
-            if _first_poll_done and tg_token and tg_chat and tg_notif.get('new_issue', True):
-                _send_telegram(tg_token, tg_chat,
-                    f"🐛 Neues Issue: <b>{repo_full}</b>\n"
-                    f"#{iss_num} {issue.get('title','')}\n"
-                    f"von @{(issue.get('user') or {}).get('login','?')}\n"
-                    f"<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>")
+            if _first_poll_done:
+                user_login = (issue.get('user') or {}).get('login','?')
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'new_issue',
+                    f"🐛 Neues Issue: <b>{repo_full}</b>\n#{iss_num} {issue.get('title','')}\nvon @{user_login}\n<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>",
+                    f"Neues Issue: {repo_full}",
+                    [f"#{iss_num} {issue.get('title','')}", f"von @{user_login}", f"<a href=\"{issue.get('html_url','')}\">Issue öffnen</a>"])
         threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event == 'workflow_run':
@@ -1638,17 +1725,19 @@ def github_webhook():
         _con_icons  = {'success':'✅','failure':'❌','cancelled':'⏹','skipped':'⏭','timed_out':'⏱'}
         _con_labels = {'success':'Erfolgreich','failure':'Fehlgeschlagen','cancelled':'Abgebrochen',
                        'skipped':'Übersprungen','timed_out':'Timeout'}
-        run_info = (f"<b>{run.get('name','')}</b> #{run.get('run_number','')}\n"
-                    f"Branch: {run.get('head_branch','?')} · "
-                    f"von @{(run.get('triggering_actor') or run.get('actor') or {}).get('login','?')}\n")
+        run_actor   = (run.get('triggering_actor') or run.get('actor') or {}).get('login','?')
+        run_info_tg = (f"<b>{run.get('name','')}</b> #{run.get('run_number','')}\n"
+                       f"Branch: {run.get('head_branch','?')} · von @{run_actor}\n")
+        run_info_em = [f"<b>{run.get('name','')}</b> #{run.get('run_number','')}",
+                       f"Branch: {run.get('head_branch','?')} · von @{run_actor}"]
         if action == 'requested':
             if run_id:
                 _known_run_conclusions[run_id] = None  # Duplikat-Schutz
-            if _first_poll_done and tg_token and tg_chat and tg_notif.get('workflow_started', True):
-                _send_telegram(tg_token, tg_chat,
-                    f"▶️ <b>Workflow gestartet:</b> {repo_full}\n"
-                    + run_info
-                    + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+            if _first_poll_done:
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'workflow_started',
+                    f"▶️ <b>Workflow gestartet:</b> {repo_full}\n" + run_info_tg + f"<a href=\"{run.get('html_url','')}\">Details</a>",
+                    f"Workflow gestartet: {repo_full}",
+                    run_info_em + [f"<a href=\"{run.get('html_url','')}\">Details</a>"])
             # Neuen Run sofort in den Cache einfügen damit die UI ihn sofort sieht
             head_msg = (run.get('head_commit') or {}).get('message', '')
             new_entry = {
@@ -1679,14 +1768,13 @@ def github_webhook():
         elif action == 'completed':
             if run_id:
                 _known_run_conclusions[run_id] = curr_con  # Duplikat-Schutz
-            if _first_poll_done and tg_token and tg_chat and tg_notif.get('workflow_completed', True):
+            if _first_poll_done:
                 icon  = _con_icons.get(curr_con, '⚠️')
                 label = _con_labels.get(curr_con, curr_con)
-                _send_telegram(tg_token, tg_chat,
-                    f"{icon} <b>Workflow beendet:</b> {repo_full}\n"
-                    + run_info
-                    + f"Status: {label}\n"
-                    + f"<a href=\"{run.get('html_url','')}\">Details</a>")
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'workflow_completed',
+                    f"{icon} <b>Workflow beendet:</b> {repo_full}\n" + run_info_tg + f"Status: {label}\n<a href=\"{run.get('html_url','')}\">Details</a>",
+                    f"Workflow beendet: {repo_full} — {label}",
+                    run_info_em + [f"Status: {label}", f"<a href=\"{run.get('html_url','')}\">Details</a>"])
             # Run-Status sofort im Cache patchen — kein Warten auf den vollen Poll
             with _gh_lock:
                 for rd in _gh_cache.get('my_repos', []):
@@ -1706,13 +1794,14 @@ def github_webhook():
 
     elif event == 'star':
         count = (payload.get('repository') or {}).get('stargazers_count', 0)
-        if _first_poll_done and tg_token and tg_chat and tg_notif.get('star_fork', True):
+        if _first_poll_done:
             user = (payload.get('sender') or {}).get('login', '?')
             icon = '⭐' if action == 'created' else '💔'
             verb = 'erhalten' if action == 'created' else 'verloren'
-            _send_telegram(tg_token, tg_chat,
-                f"{icon} <b>Star {verb}:</b> {repo_full}\n"
-                f"von @{user} · jetzt {count} Stars")
+            _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'star_fork',
+                f"{icon} <b>Star {verb}:</b> {repo_full}\nvon @{user} · jetzt {count} Stars",
+                f"Star {verb}: {repo_full}",
+                [f"von @{user}", f"jetzt {count} Stars"])
         with _gh_lock:
             for rd in _gh_cache.get('my_repos', []):
                 if rd['repo'] == repo_full:
@@ -1722,10 +1811,11 @@ def github_webhook():
     elif event == 'fork':
         forks  = (payload.get('repository') or {}).get('forks_count', 0)
         forkee = (payload.get('forkee') or {}).get('full_name', '?')
-        if _first_poll_done and tg_token and tg_chat and tg_notif.get('star_fork', True):
-            _send_telegram(tg_token, tg_chat,
-                f"🍴 <b>Neuer Fork:</b> {repo_full}\n"
-                f"→ {forkee} · jetzt {forks} Forks")
+        if _first_poll_done:
+            _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'star_fork',
+                f"🍴 <b>Neuer Fork:</b> {repo_full}\n→ {forkee} · jetzt {forks} Forks",
+                f"Neuer Fork: {repo_full}",
+                [f"→ {forkee}", f"jetzt {forks} Forks"])
         with _gh_lock:
             for rd in _gh_cache.get('my_repos', []):
                 if rd['repo'] == repo_full:
@@ -1747,12 +1837,10 @@ def github_webhook():
         }
         icon, label = _action_map.get(action, ('⚠️', action))
         log.warning("Secret Scanning Alert [%s] in %s (#%s)", action, repo_full, alert_num)
-        if tg_token and tg_chat and tg_notif.get('security', True):
-            _send_telegram(tg_token, tg_chat,
-                f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n"
-                f"#{alert_num} · {label}\n"
-                f"Typ: {secret_type}\n"
-                + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
+        _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
+            f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n#{alert_num} · {label}\nTyp: {secret_type}\n" + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''),
+            f"Secret Scanning Alert: {repo_full}",
+            [f"#{alert_num} · {label}", f"Typ: {secret_type}"] + ([f"<a href=\"{alert_url}\">Alert anzeigen</a>"] if alert_url else []))
 
     elif event == 'code_scanning_alert':
         alert     = payload.get('alert', {})
@@ -1778,16 +1866,14 @@ def github_webhook():
         sev_icon = _sev_icons.get(severity, '⚠️')
         act_label = _action_map.get(action, action)
         log.warning("Code Scanning Alert [%s/%s] in %s: %s (#%s)", severity, action, repo_full, desc, alert_num)
-        if tg_token and tg_chat and tg_notif.get('security', True) and action in ('created', 'appeared_in_branch', 'reopened', 'reopened_by_user'):
-            msg = (f"{sev_icon} <b>Code Scanning Alert:</b> {repo_full}\n"
-                   f"#{alert_num} · {severity.upper()} · {act_label}\n"
-                   f"Tool: {tool_name}\n"
-                   f"{desc}\n")
-            if loc_str:
-                msg += f"📄 {loc_str}\n"
-            if alert_url:
-                msg += f"<a href=\"{alert_url}\">Alert anzeigen</a>"
-            _send_telegram(tg_token, tg_chat, msg)
+        if action in ('created', 'appeared_in_branch', 'reopened', 'reopened_by_user'):
+            em_lines = [f"#{alert_num} · {severity.upper()} · {act_label}", f"Tool: {tool_name}", desc]
+            if loc_str: em_lines.append(f"📄 {loc_str}")
+            if alert_url: em_lines.append(f"<a href=\"{alert_url}\">Alert anzeigen</a>")
+            tg_msg = (f"{sev_icon} <b>Code Scanning Alert:</b> {repo_full}\n#{alert_num} · {severity.upper()} · {act_label}\nTool: {tool_name}\n{desc}\n"
+                      + (f"📄 {loc_str}\n" if loc_str else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
+            _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
+                tg_msg, f"Code Scanning Alert: {repo_full} [{severity.upper()}]", em_lines)
 
     elif event == 'dependabot_alert':
         alert    = payload.get('alert', {})
@@ -1814,16 +1900,14 @@ def github_webhook():
         sev_icon  = _sev_icons.get(severity, '⚠️')
         act_label = _action_map.get(action, action)
         log.warning("Dependabot Alert [%s/%s] in %s: %s %s (#%s)", severity, action, repo_full, pkg_name, ecosystem, alert_num)
-        if tg_token and tg_chat and tg_notif.get('security', True) and action in ('created', 'reopened', 'auto_reopened', 'reintroduced'):
-            msg = (f"{sev_icon} <b>Dependabot Alert:</b> {repo_full}\n"
-                   f"#{alert_num} · {severity.upper()} · {act_label}\n"
-                   f"Paket: {pkg_name} ({ecosystem})\n"
-                   f"{summary}\n")
-            if fixed_in:
-                msg += f"Fix verfügbar: {fixed_in}\n"
-            if alert_url:
-                msg += f"<a href=\"{alert_url}\">Alert anzeigen</a>"
-            _send_telegram(tg_token, tg_chat, msg)
+        if action in ('created', 'reopened', 'auto_reopened', 'reintroduced'):
+            em_lines = [f"#{alert_num} · {severity.upper()} · {act_label}", f"Paket: {pkg_name} ({ecosystem})", summary]
+            if fixed_in: em_lines.append(f"Fix verfügbar: {fixed_in}")
+            if alert_url: em_lines.append(f"<a href=\"{alert_url}\">Alert anzeigen</a>")
+            tg_msg = (f"{sev_icon} <b>Dependabot Alert:</b> {repo_full}\n#{alert_num} · {severity.upper()} · {act_label}\nPaket: {pkg_name} ({ecosystem})\n{summary}\n"
+                      + (f"Fix verfügbar: {fixed_in}\n" if fixed_in else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
+            _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
+                tg_msg, f"Dependabot Alert: {repo_full} [{severity.upper()}]", em_lines)
 
     return jsonify({'status': 'ok'}), 200
 
