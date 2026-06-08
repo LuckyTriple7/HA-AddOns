@@ -499,16 +499,27 @@ def _require_auth() -> bool:
     return not is_valid_session(request.cookies.get('mg_session'))
 
 def _safe_next(url: str) -> str:
-    if url and url.startswith('/') and not url.startswith('//'):
-        return url
-    return ''
+    if not url or not isinstance(url, str):
+        return ''
+    cleaned = url.strip().replace('\\', '/')
+    if not cleaned:
+        return ''
+    parts = urllib.parse.urlsplit(cleaned)
+    if parts.scheme or parts.netloc:
+        return ''
+    if not cleaned.startswith('/') or cleaned.startswith('//'):
+        return ''
+    return cleaned
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @app.route('/set-lang/<lang>')
 def set_lang(lang):
     cookie_lang = 'en' if lang == 'en' else 'de'
-    resp = make_response(redirect(request.referrer or '/'))
+    ref = request.referrer or ''
+    parts = urllib.parse.urlsplit(ref)
+    next_url = urllib.parse.urlunsplit(('', '', parts.path or '/', parts.query, parts.fragment))
+    resp = make_response(redirect(_safe_next(next_url) or '/'))
     resp.set_cookie('mg_lang', cookie_lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
     return resp
 
