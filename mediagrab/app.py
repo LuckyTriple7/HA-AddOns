@@ -282,23 +282,15 @@ def _validate_url(url: str) -> 'str | None':
 
 def _safe_media_path(filename: str) -> 'Path | None':
     """Returns resolved path only if within MEDIA_DIR — rejects traversal attempts."""
-    raw = (filename or '').strip()
-    if not raw:
-        return None
-    candidate = Path(raw)
-    if candidate.is_absolute() or candidate.name != raw or any(part == '..' for part in candidate.parts):
-        return None
-    m = _SAFE_FILE_RE.fullmatch(raw)
+    m = _SAFE_FILE_RE.match(filename or '')
     if not m:
         return None
     safe_name = m.group(0)
-    base_resolved = MEDIA_DIR.resolve()
-    resolved = (base_resolved / safe_name).resolve()
-    try:
-        resolved.relative_to(base_resolved)
-    except ValueError:
-        return None
-    return resolved
+    resolved = (MEDIA_DIR / safe_name).resolve()
+    base = str(MEDIA_DIR.resolve())
+    if str(resolved).startswith(base + os.sep) or str(resolved) == base:
+        return resolved
+    return None
 
 _PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
@@ -774,9 +766,8 @@ def api_info():
         })
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception:
-        log.exception("Video-Info Fehler")
-        return jsonify({'error': 'internal error'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/jobs')
 def api_jobs():
@@ -840,9 +831,8 @@ def api_ytdlp_version():
     try:
         r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
         return jsonify({'version': r.stdout.strip()})
-    except Exception:
-        log.exception("yt-dlp Version Fehler")
-        return jsonify({'error': 'internal error'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/ytdlp/update', methods=['POST'])
 def api_ytdlp_update():
@@ -873,9 +863,8 @@ def api_ytdlp_update():
         return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception:
-        log.exception("yt-dlp Update Fehler")
-        return jsonify({'error': 'internal error'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/cookies/status')
 def api_cookies_status():
@@ -952,12 +941,15 @@ def api_files():
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = _safe_media_path(filename)
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        return jsonify({'error': 'invalid_path'}), 400
+    safe_name = fm.group(0)
+    p = _safe_media_path(safe_name)
     if not p:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
-    safe_name = p.name
     p.unlink()
     with _meta_lock:
         meta = _load_meta()
@@ -971,12 +963,15 @@ def api_file_delete(filename):
 def api_file_platform(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = _safe_media_path(filename)
-    if not p:
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
         return jsonify({'error': 'invalid_path'}), 400
-    safe_name = p.name
+    safe_name = fm.group(0)
     data     = request.json or {}
     platform = data.get('platform', '').strip()
+    p = _safe_media_path(safe_name)
+    if not p:
+        return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
@@ -997,14 +992,17 @@ def api_file_platform(filename):
 def api_file_tag(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = _safe_media_path(filename)
-    if not p:
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
         return jsonify({'error': 'invalid_path'}), 400
-    safe_name = p.name
+    safe_name = fm.group(0)
     data = request.json or {}
     tag  = data.get('tag', '').strip()
     if len(tag) > 50:
         return jsonify({'error': 'tag_too_long'}), 400
+    p = _safe_media_path(safe_name)
+    if not p:
+        return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
@@ -1025,19 +1023,25 @@ def api_file_tag(filename):
 def stream_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = _safe_media_path(filename)
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        abort(400)
+    p = _safe_media_path(fm.group(0))
     if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=False)
+    return send_from_directory(str(MEDIA_DIR), fm.group(0), as_attachment=False)
 
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = _safe_media_path(filename)
+    fm = _SAFE_FILE_RE.match(filename or '')
+    if not fm:
+        abort(400)
+    p = _safe_media_path(fm.group(0))
     if not p:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=True)
+    return send_from_directory(str(MEDIA_DIR), fm.group(0), as_attachment=True)
 
 @app.route('/manifest.json')
 def manifest():

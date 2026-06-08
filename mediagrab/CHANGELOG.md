@@ -1,15 +1,5 @@
 # Changelog — MediaGrab
 
-## [1.0.11] — 2026-06-08
-
-### Security
-- Path Injection: `_safe_media_path()` prüft jetzt zusätzlich zur Regex ob der Pfad absolut ist, Verzeichnistrenner enthält oder `..`-Segmente hat; Caller-Sites übergeben `filename` direkt statt über `_SAFE_FILE_RE.match()` (CodeQL HIGH #52, #55, #57, #123, #125)
-
-## [1.0.10] — 2026-06-08
-
-### Security
-- Information Exposure: Exception-Details (`str(e)`) nicht mehr in HTTP-Responses zurückgegeben; stattdessen generische `'internal error'`-Meldung + internes `log.exception()` (CodeQL #19–#21)
-
 ## [1.0.9] — 2026-06-07
 
 ### Security
