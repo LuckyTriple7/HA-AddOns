@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.67] - 2026-06-09
+
+### Fixed
+- Add-on Manager: HA-Config-Label für `addon_manager` in translations/de.yaml + en.yaml ergänzt
+
+### Added
+- Add-on Manager: Quick-Buttons +Patch (1.5.6→1.5.7) und +Dep (1.5.6→1.5.6.1) neben dem Versionsfeld
+
 ## [0.1.66] - 2026-06-08
 
 ### Added

@@ -56,3 +56,6 @@ configuration:
   smtp_tls:
     name: Use STARTTLS
     description: "true (default) = STARTTLS on port 587. false = direct SSL/TLS on port 465. Also set to false for port 25."
+  addon_manager:
+    name: Enable Add-on Manager
+    description: "Enables the 'Add-on Releases' tab in GitPulse. Allows bumping versions and editing CHANGELOG entries for all add-ons in the repo directly from the UI. Default: false."

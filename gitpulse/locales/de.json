@@ -200,5 +200,9 @@
   "am_commit_ok": "Committed!",
   "am_commit_err": "Fehler beim Commit",
   "am_err_no_changelog": "Bitte CHANGELOG-Eintrag ausfüllen",
-  "am_count_label": "Add-ons"
+  "am_count_label": "Add-ons",
+  "am_btn_dep": "+Dep",
+  "am_btn_patch": "+Patch",
+  "am_btn_dep_title": "Dependabot-Stil: letzte Stelle erhöhen (1.5.6 → 1.5.6.1)",
+  "am_btn_patch_title": "Manuell: Patch erhöhen (1.5.6 → 1.5.7, 1.5.6.1 → 1.5.7)"
 }
