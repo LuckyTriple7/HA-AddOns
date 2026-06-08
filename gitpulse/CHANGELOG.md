@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.50] - 2026-06-08
+
+### Added
+- Webhook `pull_request closed`: PR sofort aus offener Liste entfernen, in geschlossene Liste einfügen + Telegram-Benachrichtigung (⎇ gemerged / ✕ geschlossen)
+- Merge-Button: Spinner `⏳` + disabled während GitHub-Request, verhindert Doppelklick
+- Issue schließen / Workflow abbrechen / Workflow wiederholen: Button sofort deaktiviert nach Klick, wird bei Fehler wiederhergestellt
+- Settings-Modal: Token-Berechtigungs-Hinweis (repo, contents:write, security_events, actions:write)
+
+---
+
 ## [0.1.49] - 2026-06-07
 
 ### Security / Fixed

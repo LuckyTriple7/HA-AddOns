@@ -109,6 +109,7 @@
   "settings_save": "Speichern",
   "settings_source_user": "✓ Verwaltet durch GitPulse (persistent)",
   "settings_source_options": "Aus HA Add-on Einstellungen (wird bei Updates überschrieben)",
+  "settings_token_scopes": "Token-Berechtigungen: repo (lesen) · contents:write (PRs mergen) · security_events (Dependabot) · actions:write (Workflows starten/abbrechen)",
 
   "merge_title": "Pull Request mergen",
   "merge_method": "Merge-Methode",

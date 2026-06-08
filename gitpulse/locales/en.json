@@ -109,6 +109,7 @@
   "settings_save": "Save",
   "settings_source_user": "✓ Managed by GitPulse (persistent)",
   "settings_source_options": "From HA add-on options (may reset on updates)",
+  "settings_token_scopes": "Token permissions: repo (read) · contents:write (merge PRs) · security_events (Dependabot) · actions:write (trigger/cancel workflows)",
 
   "merge_title": "Merge Pull Request",
   "merge_method": "Merge method",

@@ -368,6 +368,9 @@
                onkeydown="if(event.key==='Enter') settingsAdd('watch')">
         <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
       </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:12px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;line-height:1.6">
+        🔑 {{ t.settings_token_scopes }}
+      </div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm" onclick="saveRepoConfig()">{{ t.settings_save }}</button>
@@ -560,9 +563,11 @@
     document.getElementById('merge-modal').classList.add('show');
   }
   function confirmMerge() {
-    const method = document.getElementById('merge-method-select').value;
-    const errEl  = document.getElementById('merge-err');
+    const method    = document.getElementById('merge-method-select').value;
+    const errEl     = document.getElementById('merge-err');
+    const confirmBtn = document.querySelector('#merge-modal .modal-btn-confirm');
     errEl.style.display = 'none';
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '⏳'; }
     fetch(u('/api/pr/merge'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -572,13 +577,18 @@
     .then(({ok, data}) => {
       if (ok) {
         closeModal('merge-modal');
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = T.btn_merge; }
         triggerRefresh(5);
       } else {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = T.btn_merge; }
         errEl.textContent = data.error || '{{ t.error_unknown }}';
         errEl.style.display = 'block';
       }
     })
-    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+    .catch(e => {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = T.btn_merge; }
+      errEl.textContent = String(e); errEl.style.display = 'block';
+    });
   }
 
   // ── Dispatch Modal ────────────────────────────────────────────────
@@ -693,7 +703,11 @@
   }
 
   // ── Issue schließen ───────────────────────────────────────────────
-  function closeIssue(repo, number) {
+  function _btnWait(btn)    { if (btn) { btn.disabled = true;  btn._orig = btn.innerHTML; btn.innerHTML = '⏳'; } }
+  function _btnRestore(btn) { if (btn) { btn.disabled = false; btn.innerHTML = btn._orig || btn.innerHTML; } }
+
+  function closeIssue(btn, repo, number) {
+    _btnWait(btn);
     fetch(u('/api/issue/close'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -702,9 +716,9 @@
     .then(r => r.json().then(d => ({ok: r.ok, data: d})))
     .then(({ok, data}) => {
       if (ok) triggerRefresh(3);
-      else alert(data.error || T.error_unknown);
+      else { _btnRestore(btn); alert(data.error || T.error_unknown); }
     })
-    .catch(e => alert(String(e)));
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
   // ── Comment Modal ─────────────────────────────────────────────────
@@ -735,7 +749,8 @@
   }
 
   // ── Cancel Workflow ───────────────────────────────────────────────
-  function cancelWorkflow(repo, runId) {
+  function cancelWorkflow(btn, repo, runId) {
+    _btnWait(btn);
     fetch(u('/api/workflow/cancel'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -744,13 +759,14 @@
     .then(r => r.json().then(d => ({ok: r.ok, data: d})))
     .then(({ok, data}) => {
       if (ok) triggerRefresh(5);
-      else alert(data.error || T.error_unknown);
+      else { _btnRestore(btn); alert(data.error || T.error_unknown); }
     })
-    .catch(e => alert(String(e)));
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
   // ── Rerun Workflow ────────────────────────────────────────────────
-  function rerunWorkflow(repo, runId) {
+  function rerunWorkflow(btn, repo, runId) {
+    _btnWait(btn);
     fetch(u('/api/workflow/rerun'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -759,9 +775,9 @@
     .then(r => r.json().then(d => ({ok: r.ok, data: d})))
     .then(({ok, data}) => {
       if (ok) triggerRefresh(5);
-      else alert(data.error || '{{ t.error_unknown }}');
+      else { _btnRestore(btn); alert(data.error || '{{ t.error_unknown }}'); }
     })
-    .catch(e => alert(String(e)));
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
   // ── Workflow-Favoriten ────────────────────────────────────────────
@@ -1253,7 +1269,7 @@
           </div>
         </div>
         ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
-        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
+        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
       </div>`).join('') + '</div></div>';
   }
 
@@ -1399,8 +1415,8 @@
           ${run.actor_avatar ? `<img class="avatar" src="${escHtml(run.actor_avatar)}" alt="${escHtml(run.actor)}" title="@${escHtml(run.actor)}" style="width:20px;height:20px;flex-shrink:0" loading="lazy">` : ''}
           <span class="run-branch">${escHtml(run.branch)}</span>
           <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;flex-shrink:0">${timeDisp}</span>
-          ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow('${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
-          ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
+          ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow(this,'${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
+          ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow(this,'${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
           ${canDelete ? `<button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteWorkflowRun('${escHtml(repo.repo)}',${run.id})">🗑 ${T.btn_delete_run}</button>` : ''}
           <button class="act-btn act-btn-detail" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs">▾</button>
         </div>

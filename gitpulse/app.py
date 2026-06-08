@@ -1557,6 +1557,41 @@ def github_webhook():
                     f"#{pr_num} {pr.get('title','')}\n"
                     f"von @{(pr.get('user') or {}).get('login','?')}\n"
                     f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>")
+        elif action == 'closed':
+            merged = pr.get('merged', False)
+            if _first_poll_done and tg_token and tg_chat:
+                icon = '⎇' if merged else '✕'
+                verb = 'gemerged' if merged else 'geschlossen'
+                _send_telegram(tg_token, tg_chat,
+                    f"{icon} PR {verb}: <b>{repo_full}</b>\n"
+                    f"#{pr_num} {pr.get('title','')}\n"
+                    f"von @{(pr.get('user') or {}).get('login','?')}\n"
+                    f"<a href=\"{pr.get('html_url','')}\">PR öffnen</a>")
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo_full:
+                        rd['pulls'] = [p for p in rd.get('pulls', []) if p.get('number') != pr_num]
+                        rd['open_prs'] = len(rd['pulls'])
+                        existing_closed = {p.get('number') for p in rd.get('closed_pulls', [])}
+                        if pr_num and pr_num not in existing_closed:
+                            rd.setdefault('closed_pulls', []).insert(0, {
+                                'number':     pr_num,
+                                'title':      pr.get('title', ''),
+                                'state':      'closed',
+                                'draft':      pr.get('draft', False),
+                                'url':        pr.get('html_url', ''),
+                                'user':       (pr.get('user') or {}).get('login', ''),
+                                'avatar':     (pr.get('user') or {}).get('avatar_url', ''),
+                                'labels':     [l['name'] for l in pr.get('labels', [])],
+                                'created':    pr.get('created_at', ''),
+                                'updated':    pr.get('updated_at', ''),
+                                'merged_at':  pr.get('merged_at'),
+                                'comments':   (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
+                                'review_state': 'none',
+                            })
+                            rd['closed_pulls'] = rd['closed_pulls'][:50]
+                        break
+            _notify_sse()
         threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event == 'issues':
