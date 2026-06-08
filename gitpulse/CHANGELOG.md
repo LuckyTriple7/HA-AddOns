@@ -1,5 +1,105 @@
 # Changelog
 
+## [0.1.60] - 2026-06-08
+
+### Added
+- Browser-Benachrichtigungen: Vierter Tab „Browser" im Settings-Modal mit denselben 10 Kategorien wie Telegram/E-Mail
+- Einstellungen werden in `localStorage` gespeichert (gerätelokal, kein Backend nötig)
+- Tab und Checkboxen ausgegraut wenn Notification-Berechtigung nicht erteilt
+
+### Fixed
+- Stummschaltung konnte nicht aufgehoben werden — Glocken-Dropdown zeigt jetzt „Stummschaltung aufheben"-Button im Snooze-Zustand
+- Browser-Benachrichtigungen wurden nur für Releases gefeuert — alle 10 Kategorien werden jetzt per client-seitigem Diff erkannt
+- Erster Seitenladevorgang löst keine Benachrichtigungs-Flut mehr aus (`_bn_first`-Flag)
+
+---
+
+## [0.1.59] - 2026-06-08
+
+### Changed
+- Browser-Benachrichtigungen: Notification-Banner entfernt, stattdessen Glocken-Button im Header
+- Glocken-Icon zeigt Status: 🔔 Aktiv (blau), 🔕 Stummgeschaltet (gelb), ⛔ Deaktiviert (ausgegraut)
+- Snooze-Dropdown: 1 Stunde, 4 Stunden, Bis morgen (08:00), Deaktivieren
+- Snooze-Zustand wird in localStorage gespeichert (bleibt nach Reload erhalten)
+- Browser fragt beim ersten Laden automatisch nach Berechtigung (kein Banner mehr)
+
+---
+
+## [0.1.58] - 2026-06-08
+
+### Added
+- HA Add-on-Übersetzungen für alle 6 SMTP-Optionen (de + en): smtp_host, smtp_port, smtp_user, smtp_password, smtp_to, smtp_tls
+
+---
+
+## [0.1.57] - 2026-06-08
+
+### Added
+- E-Mail-Benachrichtigungen via SMTP (Python stdlib `smtplib`, keine neue Dependency)
+- Neue Add-on-Optionen: `smtp_host`, `smtp_port` (Standard 587), `smtp_user`, `smtp_password`, `smtp_to`, `smtp_tls` (STARTTLS)
+- Settings-Modal: Dritter Tab „E-Mail" mit denselben 10 Benachrichtigungs-Typen wie Telegram
+- Test-E-Mail-Button im E-Mail-Tab mit sofortigem Feedback
+- Tab und Checkboxen ausgegraut wenn SMTP nicht konfiguriert
+- `_tg_em()` Hilfsfunktion: sendet Telegram + E-Mail in einem Aufruf, prüft je eigene Einstellungen
+
+---
+
+## [0.1.56] - 2026-06-08
+
+### Changed
+- Settings → Telegram-Tab: Checkboxen und Tab-Button werden ausgegraut wenn Bot-Token oder Chat-ID in den Add-on-Einstellungen fehlen; Hinweistext erklärt die fehlende Konfiguration
+
+---
+
+## [0.1.55] - 2026-06-08
+
+### Changed
+- Settings-Modal: Zwei Tabs „Repos" und „Telegram" — Fenster bleibt kompakt, keine langen Scroll-Seiten mehr
+
+---
+
+## [0.1.54] - 2026-06-08
+
+### Added
+- Settings-Modal: Neue Sektion „Telegram Benachrichtigungen" mit 10 einzeln schaltbaren Typen (Start, neue PRs, PR geschlossen, neue Issues, Workflow gestartet/beendet, Releases, Repo-Statistiken, Stars & Forks, Security Alerts)
+- Einstellungen werden in `gitpulse_repos.json` gespeichert (Add-on-Updates-sicher); Bot-Token und Chat-ID bleiben in den Add-on-Optionen
+- Alle `_send_telegram`-Aufrufe (Poll + Webhook) prüfen jetzt die jeweilige Einstellung
+
+---
+
+## [0.1.53] - 2026-06-08
+
+### Fixed
+- PR- und Issue-Tab: Trefferzähler wird jetzt immer angezeigt wenn Suchfeld aktiv ist (nicht nur wenn Einträge gefiltert wurden)
+
+---
+
+## [0.1.52] - 2026-06-08
+
+### Added
+- CI/Actions-Tab: Suchfeld filtert Runs nach Name, Branch, Actor, Commit-Message und Run-Nummer — Treffer-Zähler eingeblendet
+- Security-Tab: Suchfeld filtert Dependabot-Alerts nach Paket/Zusammenfassung, Code-Scanning nach Beschreibung/Rule-ID/Pfad/Tool und Secret-Scanning nach Typ — Treffer-Zähler eingeblendet
+- Repo-Wechsel setzt CI-Suchfeld zurück
+
+---
+
+## [0.1.51] - 2026-06-08
+
+### Fixed
+- "Poll abgeschlossen" und "Webhook-Repo-Poll abgeschlossen" nur noch bei aktivem `verbose_log` — erschienen bisher immer im Log
+
+---
+
+## [0.1.50] - 2026-06-08
+
+### Added
+- Webhook `pull_request closed`: PR sofort aus offener Liste entfernen, in geschlossene Liste einfügen + Telegram-Benachrichtigung (⎇ gemerged / ✕ geschlossen)
+- Merge-Button: Spinner `⏳` + disabled während GitHub-Request, verhindert Doppelklick
+- Issue schließen / Workflow abbrechen / Workflow wiederholen: Button sofort deaktiviert nach Klick, wird bei Fehler wiederhergestellt
+- Settings-Modal: Token-Berechtigungs-Hinweis (repo, contents:write, security_events, actions:write)
+
+---
+
 ## [0.1.49] - 2026-06-07
 
 ### Security / Fixed

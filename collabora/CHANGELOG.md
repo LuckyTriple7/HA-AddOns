@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.5] - 2026-06-08
+- Collabora Base-Image aktualisiert (neuer collabora/code Digest)
+
 ## [1.0.4] - 2026-06-04
 - Log-Ausgaben mit Datum und Uhrzeit: `[INFO] [YYYY-MM-DD HH:MM:SS] Nachricht`
 

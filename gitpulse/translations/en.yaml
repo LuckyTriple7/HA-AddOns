@@ -38,3 +38,21 @@ configuration:
   webhook_secret:
     name: Webhook Secret
     description: "Secret password for GitHub webhooks (minimum 20 characters recommended). Must be entered identically in GitHub → Repository → Settings → Webhooks. Webhook URL: https://your-domain:17793/webhook. Leave empty to disable webhooks."
+  smtp_host:
+    name: SMTP Server (Hostname)
+    description: "Hostname of the outgoing mail server, e.g. smtp.gmail.com or smtp.office365.com. Leave empty to disable e-mail notifications."
+  smtp_port:
+    name: SMTP Port
+    description: "Port of the mail server. 587 = STARTTLS (default, recommended), 465 = SSL/TLS, 25 = unencrypted (not recommended)."
+  smtp_user:
+    name: SMTP Username
+    description: "Login name for the mail server, usually the full e-mail address. Leave empty if the server requires no authentication."
+  smtp_password:
+    name: SMTP Password
+    description: "Password for SMTP access. For Gmail use an app password (Google Account → Security → App Passwords). Leave empty if no authentication is needed."
+  smtp_to:
+    name: Recipient E-Mail Address
+    description: "E-mail address to send notifications to. Required if smtp_host is set."
+  smtp_tls:
+    name: Use STARTTLS
+    description: "true (default) = STARTTLS on port 587. false = direct SSL/TLS on port 465. Also set to false for port 25."

@@ -152,10 +152,17 @@
     #install-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
 
     /* ── Notif banner ───────────────────────────────────────── */
-    #notif-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; align-items:center; gap:10px; font-size:0.83rem; }
-    #notif-banner.show { display:flex; }
-    #notif-banner strong { flex:1; }
-    #notif-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
+    #bell-menu { display:none; position:absolute; top:calc(100% + 6px); right:0; background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:14px 16px; min-width:220px; box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:1000; }
+    #bell-menu.show { display:block; }
+    #bell-menu .bm-title { font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px; }
+    #bell-menu .bm-status { font-size:.85rem;font-weight:600;margin-bottom:10px; }
+    #bell-menu .bm-snooze-label { font-size:.76rem;color:var(--muted);margin-bottom:5px; }
+    #bell-menu .bm-chips { display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px; }
+    #bell-menu .bm-chip { background:none;border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:14px;font-size:.76rem;cursor:pointer; }
+    #bell-menu .bm-chip:hover { border-color:var(--accent);color:var(--accent); }
+    #bell-menu .bm-disable { width:100%;background:none;border:1px solid var(--border);color:var(--muted);padding:6px;border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:2px; }
+    #bell-menu .bm-disable:hover { border-color:var(--red);color:var(--red); }
+    .bell-btn { position:relative; }
 
     /* ── Token Warning ──────────────────────────────────────── */
     .token-warning { background:rgba(210,153,34,.1); border:1px solid rgba(210,153,34,.3); color:var(--yellow); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; font-size:0.83rem; }
@@ -249,6 +256,27 @@
     </button>
     <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
     <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <div class="bell-btn" id="bell-wrap">
+      <button id="bell-btn" class="hdr-btn" onclick="toggleBellMenu(event)" title="{{ t.notif_title }}">
+        <svg id="bell-icon" viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      </button>
+      <div id="bell-menu">
+        <div class="bm-title">{{ t.notif_title }}</div>
+        <div id="bm-status" class="bm-status"></div>
+        <div id="bm-snooze-section">
+          <div class="bm-snooze-label">{{ t.notif_snooze_label }}</div>
+          <div class="bm-chips">
+            <button class="bm-chip" onclick="snoozeNotifs(1)">{{ t.notif_snooze_1h }}</button>
+            <button class="bm-chip" onclick="snoozeNotifs(4)">{{ t.notif_snooze_4h }}</button>
+            <button class="bm-chip" onclick="snoozeTomorrow()">{{ t.notif_snooze_tomorrow }}</button>
+          </div>
+          <button class="bm-disable" onclick="disableNotifs()">{{ t.notif_disable }}</button>
+        </div>
+        <div id="bm-enable-section" style="display:none">
+          <button style="width:100%;background:var(--accent);color:#fff;border:none;padding:7px;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer" onclick="enableNotifs()">{{ t.btn_enable }}</button>
+        </div>
+      </div>
+    </div>
     <button class="hdr-btn" onclick="toggleTheme()">
       <svg class="icon-moon" viewBox="0 0 24 24" style="display:block"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
       <svg class="icon-sun" viewBox="0 0 24 24" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -353,20 +381,57 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         {{ t.settings_title }}
       </h3>
-      <div id="settings-source" class="settings-source"></div>
-      <div class="settings-section-label">{{ t.settings_my_repos }}</div>
-      <div id="settings-my-list" class="repo-chips"></div>
-      <div class="repo-add-row">
-        <input id="settings-my-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
-               onkeydown="if(event.key==='Enter') settingsAdd('my')">
-        <button onclick="settingsAdd('my')">{{ t.settings_add }}</button>
+      <!-- Tab-Bar -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:14px">
+        <button id="stab-repos" onclick="_sTab('repos')"
+          style="background:none;border:none;border-bottom:2px solid var(--accent);padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--accent);cursor:pointer">{{ t.settings_tab_repos }}</button>
+        <button id="stab-tg" onclick="_sTab('tg')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_tg }}</button>
+        <button id="stab-email" onclick="_sTab('email')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_email }}</button>
+        <button id="stab-browser" onclick="_sTab('browser')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_browser }}</button>
       </div>
-      <div class="settings-section-label">{{ t.settings_watch_repos }}</div>
-      <div id="settings-watch-list" class="repo-chips"></div>
-      <div class="repo-add-row">
-        <input id="settings-watch-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
-               onkeydown="if(event.key==='Enter') settingsAdd('watch')">
-        <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
+      <!-- Tab: Repos -->
+      <div id="stab-panel-repos">
+        <div id="settings-source" class="settings-source"></div>
+        <div class="settings-section-label">{{ t.settings_my_repos }}</div>
+        <div id="settings-my-list" class="repo-chips"></div>
+        <div class="repo-add-row">
+          <input id="settings-my-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+                 onkeydown="if(event.key==='Enter') settingsAdd('my')">
+          <button onclick="settingsAdd('my')">{{ t.settings_add }}</button>
+        </div>
+        <div class="settings-section-label">{{ t.settings_watch_repos }}</div>
+        <div id="settings-watch-list" class="repo-chips"></div>
+        <div class="repo-add-row">
+          <input id="settings-watch-input" type="text" placeholder="{{ t.settings_repo_placeholder }}"
+                 onkeydown="if(event.key==='Enter') settingsAdd('watch')">
+          <button onclick="settingsAdd('watch')">{{ t.settings_add }}</button>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:12px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;line-height:1.6">
+          🔑 {{ t.settings_token_scopes }}
+        </div>
+      </div>
+      <!-- Tab: Telegram -->
+      <div id="stab-panel-tg" style="display:none">
+        <div id="settings-tg-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_tg_hint }}</div>
+        <div id="settings-tg-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
+      </div>
+      <!-- Tab: Browser -->
+      <div id="stab-panel-browser" style="display:none">
+        <div id="settings-br-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_br_hint }}</div>
+        <div id="settings-br-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
+      </div>
+      <!-- Tab: E-Mail -->
+      <div id="stab-panel-email" style="display:none">
+        <div id="settings-em-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_em_hint }}</div>
+        <div id="settings-em-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:12px"></div>
+        <button id="btn-test-email" onclick="sendTestEmail(this)"
+          style="font-size:.8rem;padding:5px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer">
+          📧 {{ t.settings_em_test }}
+        </button>
+        <span id="test-email-result" style="font-size:.78rem;margin-left:8px"></span>
       </div>
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('settings-modal')">{{ t.btn_cancel }}</button>
@@ -399,11 +464,6 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm1 17H11V11h2v6zm0-8H11V7h2v2z"/></svg>
       <strong>{{ t.install_banner }}</strong>
       <button onclick="installPWA()">{{ t.btn_install }}</button>
-    </div>
-    <div id="notif-banner">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <strong>{{ t.notif_request }}</strong>
-      <button onclick="requestNotifPermission()">{{ t.btn_enable }}</button>
     </div>
 
     <!-- ── Tab: Repos Übersicht ────────────────────────────────── -->
@@ -451,6 +511,15 @@
 
     <!-- ── Tab: CI ──────────────────────────────────────────── -->
     <div id="tab-ci" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="position:relative;flex:1">
+          <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input id="ci-filter" type="search" placeholder="{{ t.filter_placeholder }}"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px 6px 30px;border-radius:5px;font-size:.83rem;"
+            oninput="applyCIFilter()">
+        </div>
+        <span id="ci-filter-count" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></span>
+      </div>
       <div id="ci-list"></div>
     </div>
 
@@ -465,7 +534,16 @@
 
     <!-- ── Tab: Security ──────────────────────────────────── -->
     <div id="tab-security" style="display:none">
-      <div id="security-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 6px;border-bottom:1px solid var(--border)"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="position:relative;flex:1">
+          <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input id="sec-filter" type="search" placeholder="{{ t.filter_placeholder }}"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px 6px 30px;border-radius:5px;font-size:.83rem;"
+            oninput="applySecFilter()">
+        </div>
+        <span id="sec-filter-count" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></span>
+      </div>
+      <div id="security-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 6px;border-bottom:1px solid var(--border)"></div>
       <div id="security-list"></div>
     </div>
 
@@ -534,12 +612,25 @@
   let ghFavorites = [];
   let activeRepo = null;
   let notifEnabled = false;
+  // Browser-Notification-Tracking (client-seitig, reset bei Reload)
+  let _bn_first  = true;
+  let _bn_prs    = {};   // {repo: Set<number>}
+  let _bn_issues = {};   // {repo: Set<number>}
+  let _bn_runs   = {};   // {run_id: conclusion|null}
+  let _bn_stars  = {};   // {repo: number}
+  let _bn_forks  = {};   // {repo: number}
+  let _bn_sec    = {};   // {repo: number} alert count
+  function _bnNotif() {
+    try { return JSON.parse(localStorage.getItem('gp_bn_notif') || '{}'); } catch { return {}; }
+  }
   let _prFilter = '';
   let _issueFilter = '';
   let _prStateFilter  = 'open';
   let _issStateFilter = 'open';
   let _ciTimeFilter = 'all';
   let _ciStatusFilter = 'all';
+  let _ciFilter = '';
+  let _secFilter = '';
   let _ciPage = 1;
   const CI_PAGE_SIZE = 50;
 
@@ -560,9 +651,11 @@
     document.getElementById('merge-modal').classList.add('show');
   }
   function confirmMerge() {
-    const method = document.getElementById('merge-method-select').value;
-    const errEl  = document.getElementById('merge-err');
+    const method    = document.getElementById('merge-method-select').value;
+    const errEl     = document.getElementById('merge-err');
+    const confirmBtn = document.querySelector('#merge-modal .modal-btn-confirm');
     errEl.style.display = 'none';
+    if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '⏳'; }
     fetch(u('/api/pr/merge'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -572,13 +665,18 @@
     .then(({ok, data}) => {
       if (ok) {
         closeModal('merge-modal');
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = T.btn_merge; }
         triggerRefresh(5);
       } else {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = T.btn_merge; }
         errEl.textContent = data.error || '{{ t.error_unknown }}';
         errEl.style.display = 'block';
       }
     })
-    .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
+    .catch(e => {
+      if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = T.btn_merge; }
+      errEl.textContent = String(e); errEl.style.display = 'block';
+    });
   }
 
   // ── Dispatch Modal ────────────────────────────────────────────────
@@ -635,6 +733,33 @@
   // ── Settings: Repo-Verwaltung ─────────────────────────────────────
   let _sMyRepos = [], _sWatchRepos = [];
 
+  function _sTab(name) {
+    ['repos','tg','email','browser'].forEach(t => {
+      const panel = document.getElementById('stab-panel-'+t);
+      const btn   = document.getElementById('stab-'+t);
+      const active = t === name;
+      if (panel) panel.style.display = active ? '' : 'none';
+      if (btn) {
+        btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+        btn.style.color             = active ? 'var(--accent)' : 'var(--muted)';
+        btn.style.fontWeight        = active ? '600' : '400';
+      }
+    });
+  }
+
+  const _tgNotifDefs = [
+    { key:'startup',             label:'{{ t.tg_startup }}' },
+    { key:'new_pr',              label:'{{ t.tg_new_pr }}' },
+    { key:'pr_closed',           label:'{{ t.tg_pr_closed }}' },
+    { key:'new_issue',           label:'{{ t.tg_new_issue }}' },
+    { key:'workflow_started',    label:'{{ t.tg_workflow_started }}' },
+    { key:'workflow_completed',  label:'{{ t.tg_workflow_completed }}' },
+    { key:'releases',            label:'{{ t.tg_releases }}' },
+    { key:'repo_stats',          label:'{{ t.tg_repo_stats }}' },
+    { key:'star_fork',           label:'{{ t.tg_star_fork }}' },
+    { key:'security',            label:'{{ t.tg_security }}' },
+  ];
+
   function openSettings() {
     fetch(u('/api/config/repos'))
       .then(r => r.json())
@@ -648,6 +773,65 @@
         srcEl.textContent = data.source === 'user'
           ? '{{ t.settings_source_user }}'
           : '{{ t.settings_source_options }}';
+        const tgCfg = data.tg_notifications || {};
+        const tgOk  = data.tg_configured === true;
+        const tgEl  = document.getElementById('settings-tg-toggles');
+        tgEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
+          const checked = tgCfg[key] !== false;
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;${tgOk?'cursor:pointer':'opacity:.4;cursor:not-allowed'};padding:3px 0">
+            <input type="checkbox" id="tg-${key}" ${checked ? 'checked' : ''} ${tgOk?'':'disabled'}
+              style="width:14px;height:14px;accent-color:var(--accent)">
+            ${label}
+          </label>`;
+        }).join('');
+        const tgHint = document.getElementById('settings-tg-hint');
+        if (tgHint) tgHint.innerHTML = tgOk
+          ? '{{ t.settings_tg_hint }}'
+          : `<span style="color:var(--yellow)">⚠️ {{ t.settings_tg_not_configured }}</span>`;
+        const tgTabBtn = document.getElementById('stab-tg');
+        if (tgTabBtn) tgTabBtn.style.opacity = tgOk ? '1' : '0.45';
+
+        const emCfg = data.email_notifications || {};
+        const emOk  = data.email_configured === true;
+        const emEl  = document.getElementById('settings-em-toggles');
+        emEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
+          const checked = emCfg[key] !== false;
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;${emOk?'cursor:pointer':'opacity:.4;cursor:not-allowed'};padding:3px 0">
+            <input type="checkbox" id="em-${key}" ${checked ? 'checked' : ''} ${emOk?'':'disabled'}
+              style="width:14px;height:14px;accent-color:var(--accent)">
+            ${label}
+          </label>`;
+        }).join('');
+        const emHint = document.getElementById('settings-em-hint');
+        if (emHint) emHint.innerHTML = emOk
+          ? '{{ t.settings_em_hint }}'
+          : `<span style="color:var(--yellow)">⚠️ {{ t.settings_em_not_configured }}</span>`;
+        const emTabBtn = document.getElementById('stab-email');
+        if (emTabBtn) emTabBtn.style.opacity = emOk ? '1' : '0.45';
+        const testBtn = document.getElementById('btn-test-email');
+        if (testBtn) testBtn.disabled = !emOk;
+        document.getElementById('test-email-result').textContent = '';
+
+        // Browser-Tab: aus localStorage
+        const brCfg = _bnNotif();
+        const brOk  = 'Notification' in window && Notification.permission === 'granted';
+        const brEl  = document.getElementById('settings-br-toggles');
+        brEl.innerHTML = _tgNotifDefs.map(({key, label}) => {
+          const checked = brCfg[key] !== false;
+          return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;${brOk?'cursor:pointer':'opacity:.4;cursor:not-allowed'};padding:3px 0">
+            <input type="checkbox" id="br-${key}" ${checked ? 'checked' : ''} ${brOk?'':'disabled'}
+              style="width:14px;height:14px;accent-color:var(--accent)">
+            ${label}
+          </label>`;
+        }).join('');
+        const brHint = document.getElementById('settings-br-hint');
+        if (brHint) brHint.innerHTML = brOk
+          ? '{{ t.settings_br_hint }}'
+          : `<span style="color:var(--yellow)">⚠️ {{ t.settings_br_not_granted }}</span>`;
+        const brTabBtn = document.getElementById('stab-browser');
+        if (brTabBtn) brTabBtn.style.opacity = brOk ? '1' : '0.45';
+
+        _sTab('repos');
         document.getElementById('settings-modal').classList.add('show');
       })
       .catch(e => alert(String(e)));
@@ -680,10 +864,21 @@
   }
 
   function saveRepoConfig() {
+    const tgNotif = {}, emNotif = {}, brNotif = {};
+    _tgNotifDefs.forEach(({key}) => {
+      const tgEl = document.getElementById('tg-' + key);
+      const emEl = document.getElementById('em-' + key);
+      const brEl = document.getElementById('br-' + key);
+      tgNotif[key] = tgEl ? tgEl.checked : true;
+      emNotif[key] = emEl ? emEl.checked : true;
+      brNotif[key] = brEl ? brEl.checked : true;
+    });
+    localStorage.setItem('gp_bn_notif', JSON.stringify(brNotif));
     fetch(u('/api/config/repos'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos}),
+      body: JSON.stringify({my_repos: _sMyRepos, watch_repos: _sWatchRepos,
+                            tg_notifications: tgNotif, email_notifications: emNotif}),
     })
     .then(r => r.json())
     .then(data => {
@@ -692,8 +887,26 @@
     .catch(e => alert(String(e)));
   }
 
+  function sendTestEmail(btn) {
+    _btnWait(btn);
+    const resEl = document.getElementById('test-email-result');
+    resEl.textContent = '';
+    fetch(u('/api/test-email'), {method:'POST'})
+      .then(r => r.json().then(d => ({ok: r.ok, d})))
+      .then(({ok, d}) => {
+        _btnRestore(btn);
+        resEl.style.color = ok ? 'var(--green)' : 'var(--red)';
+        resEl.textContent = ok ? '✅ {{ t.settings_em_test_ok }}' : ('❌ ' + (d.error || '{{ t.error_unknown }}'));
+      })
+      .catch(e => { _btnRestore(btn); resEl.style.color='var(--red)'; resEl.textContent='❌ '+String(e); });
+  }
+
   // ── Issue schließen ───────────────────────────────────────────────
-  function closeIssue(repo, number) {
+  function _btnWait(btn)    { if (btn) { btn.disabled = true;  btn._orig = btn.innerHTML; btn.innerHTML = '⏳'; } }
+  function _btnRestore(btn) { if (btn) { btn.disabled = false; btn.innerHTML = btn._orig || btn.innerHTML; } }
+
+  function closeIssue(btn, repo, number) {
+    _btnWait(btn);
     fetch(u('/api/issue/close'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -702,9 +915,9 @@
     .then(r => r.json().then(d => ({ok: r.ok, data: d})))
     .then(({ok, data}) => {
       if (ok) triggerRefresh(3);
-      else alert(data.error || T.error_unknown);
+      else { _btnRestore(btn); alert(data.error || T.error_unknown); }
     })
-    .catch(e => alert(String(e)));
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
   // ── Comment Modal ─────────────────────────────────────────────────
@@ -735,7 +948,8 @@
   }
 
   // ── Cancel Workflow ───────────────────────────────────────────────
-  function cancelWorkflow(repo, runId) {
+  function cancelWorkflow(btn, repo, runId) {
+    _btnWait(btn);
     fetch(u('/api/workflow/cancel'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -744,13 +958,14 @@
     .then(r => r.json().then(d => ({ok: r.ok, data: d})))
     .then(({ok, data}) => {
       if (ok) triggerRefresh(5);
-      else alert(data.error || T.error_unknown);
+      else { _btnRestore(btn); alert(data.error || T.error_unknown); }
     })
-    .catch(e => alert(String(e)));
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
   // ── Rerun Workflow ────────────────────────────────────────────────
-  function rerunWorkflow(repo, runId) {
+  function rerunWorkflow(btn, repo, runId) {
+    _btnWait(btn);
     fetch(u('/api/workflow/rerun'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -759,13 +974,22 @@
     .then(r => r.json().then(d => ({ok: r.ok, data: d})))
     .then(({ok, data}) => {
       if (ok) triggerRefresh(5);
-      else alert(data.error || '{{ t.error_unknown }}');
+      else { _btnRestore(btn); alert(data.error || '{{ t.error_unknown }}'); }
     })
-    .catch(e => alert(String(e)));
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
   // ── Workflow-Favoriten ────────────────────────────────────────────
   // ── Such-/Filterleiste ────────────────────────────────────────────
+  function applyCIFilter() {
+    _ciFilter = (document.getElementById('ci-filter')?.value || '').toLowerCase();
+    _ciPage = 1;
+    if (ghData) renderCI(ghData);
+  }
+  function applySecFilter() {
+    _secFilter = (document.getElementById('sec-filter')?.value || '').toLowerCase();
+    if (ghData) renderSecurity(ghData);
+  }
   function setPRState(s) {
     _prStateFilter = s;
     document.getElementById('pr-btn-open').classList.toggle('active', s === 'open');
@@ -1140,7 +1364,8 @@
 
   function selectRepo(repo) {
     activeRepo = repo;
-    _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all';
+    _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all'; _ciFilter = '';
+    const ciInput = document.getElementById('ci-filter'); if (ciInput) ciInput.value = '';
     document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
     renderPRs(ghData);
     renderIssues(ghData);
@@ -1169,8 +1394,7 @@
           String(pr.number).includes(f) ||
           pr.labels.some(l => l.toLowerCase().includes(f)))
       : allPRs;
-    if (countEl) countEl.textContent = f && filtered.length !== allPRs.length
-      ? `${filtered.length} ${T.rl_of} ${allPRs.length}` : '';
+    if (countEl) countEl.textContent = f ? `${filtered.length} / ${allPRs.length}` : '';
     if (!filtered.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${emptyMsg}</div></div>`;
       return;
@@ -1228,8 +1452,7 @@
           String(iss.number).includes(f) ||
           iss.labels.some(l => l.toLowerCase().includes(f)))
       : allIssues;
-    if (countEl) countEl.textContent = f && filtered.length !== allIssues.length
-      ? `${filtered.length} ${T.rl_of} ${allIssues.length}` : '';
+    if (countEl) countEl.textContent = f ? `${filtered.length} / ${allIssues.length}` : '';
     if (!filtered.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${emptyMsg}</div></div>`;
       return;
@@ -1253,7 +1476,7 @@
           </div>
         </div>
         ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
-        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue('${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
+        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
       </div>`).join('') + '</div></div>';
   }
 
@@ -1344,7 +1567,17 @@
     };
     const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-skipped' };
     const timeFiltered   = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
-    const filteredRuns   = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
+    const statusFiltered = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
+    const filteredRuns   = _ciFilter
+      ? statusFiltered.filter(r =>
+          r.name.toLowerCase().includes(_ciFilter) ||
+          (r.branch||'').toLowerCase().includes(_ciFilter) ||
+          (r.actor||'').toLowerCase().includes(_ciFilter) ||
+          (r.head_message||'').toLowerCase().includes(_ciFilter) ||
+          String(r.run_number||'').includes(_ciFilter))
+      : statusFiltered;
+    const _ciCountEl = document.getElementById('ci-filter-count');
+    if (_ciCountEl) _ciCountEl.textContent = _ciFilter ? `${filteredRuns.length} / ${repo.runs.length}` : '';
     const _ciTotalPages = Math.max(1, Math.ceil(filteredRuns.length / CI_PAGE_SIZE));
     if (_ciPage > _ciTotalPages) _ciPage = _ciTotalPages;
     const pagedRuns = filteredRuns.slice((_ciPage - 1) * CI_PAGE_SIZE, _ciPage * CI_PAGE_SIZE);
@@ -1399,8 +1632,8 @@
           ${run.actor_avatar ? `<img class="avatar" src="${escHtml(run.actor_avatar)}" alt="${escHtml(run.actor)}" title="@${escHtml(run.actor)}" style="width:20px;height:20px;flex-shrink:0" loading="lazy">` : ''}
           <span class="run-branch">${escHtml(run.branch)}</span>
           <span style="font-size:.7rem;color:var(--muted);white-space:nowrap;flex-shrink:0">${timeDisp}</span>
-          ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow('${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
-          ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow('${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
+          ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow(this,'${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
+          ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow(this,'${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
           ${canDelete ? `<button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteWorkflowRun('${escHtml(repo.repo)}',${run.id})">🗑 ${T.btn_delete_run}</button>` : ''}
           <button class="act-btn act-btn-detail" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs">▾</button>
         </div>
@@ -1507,6 +1740,12 @@
     // ── Alerts filtern ──────────────────────────────────────────────
     const matchSev  = a => !_secActiveSev.size  || _secActiveSev.has(_secSevOf(a, ''));
     const matchType = type => !_secActiveType.size || _secActiveType.has(type);
+    const sf = _secFilter;
+    const matchText = {
+      dependabot:      a => !sf || (a.package||'').toLowerCase().includes(sf) || (a.summary||'').toLowerCase().includes(sf) || String(a.number||'').includes(sf),
+      code_scanning:   a => !sf || (a.description||'').toLowerCase().includes(sf) || (a.rule_id||'').toLowerCase().includes(sf) || (a.path||'').toLowerCase().includes(sf) || (a.tool||'').toLowerCase().includes(sf) || String(a.number||'').includes(sf),
+      secret_scanning: a => !sf || (a.type||'').toLowerCase().includes(sf) || String(a.number||'').includes(sf),
+    };
 
     const repos = allRepos.map(repo => {
       const sec = repo.security || {};
@@ -1514,12 +1753,19 @@
         ...repo,
         security: {
           dependabot_access: sec.dependabot_access,
-          dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      : [],
-          code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   : [],
-          secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) : [],
+          dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => (!_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      && matchText.dependabot(a))      : [],
+          code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => (!_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   && matchText.code_scanning(a))   : [],
+          secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => (!_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) && matchText.secret_scanning(a)) : [],
         }
       };
     }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length || r.security.dependabot_access === false);
+
+    const _secCountEl = document.getElementById('sec-filter-count');
+    if (_secCountEl) {
+      const total = allRepos.reduce((s,r) => { const sec=r.security||{}; return s+(sec.dependabot||[]).length+(sec.code_scanning||[]).length+(sec.secret_scanning||[]).length; }, 0);
+      const shown = repos.reduce((s,r) => { const sec=r.security||{}; return s+sec.dependabot.length+sec.code_scanning.length+sec.secret_scanning.length; }, 0);
+      _secCountEl.textContent = sf ? `${shown} / ${total}` : '';
+    }
 
     if (!repos.length) {
       el.innerHTML = `<div class="empty" style="padding:32px">{{ t.security_none_filtered }}</div>`;
@@ -1611,8 +1857,7 @@
     renderCI(data);
     renderReleases(data);
     renderSecurity(data);
-    // Browser-Benachrichtigung für neue Releases
-    (data.new_releases||[]).forEach(rel => fireNotification(rel));
+    _fireBrowserNotifs(data);
   }
 
   // ── Auto-Refresh nach Aktionen ────────────────────────────────────
@@ -1718,31 +1963,195 @@
   }
 
   // ── Browser Notifications ─────────────────────────────────────────
-  function initNotifications() {
-    if (!('Notification' in window)) return;
-    notifEnabled = Notification.permission === 'granted';
-    if (Notification.permission === 'default') {
-      document.getElementById('notif-banner').classList.add('show');
+  let _snoozedUntil = parseInt(localStorage.getItem('gp_snooze') || '0', 10);
+
+  function _isSnoozed() { return _snoozedUntil > Date.now(); }
+
+  function _updateBellUI() {
+    const btn  = document.getElementById('bell-btn');
+    const icon = document.getElementById('bell-icon');
+    const statusEl   = document.getElementById('bm-status');
+    const snoozeSection = document.getElementById('bm-snooze-section');
+    const enableSection = document.getElementById('bm-enable-section');
+    if (!btn) return;
+    const granted = 'Notification' in window && Notification.permission === 'granted';
+    if (!granted) {
+      btn.style.color  = 'var(--muted)';
+      btn.style.opacity = '0.5';
+      icon.innerHTML   = '<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zM3.01 4.4 1.6 5.82 8 12.22V13l-2 2v1h12l.01-.01 2.6 2.6 1.41-1.41L3.01 4.4z"/>';
+      if (statusEl)   statusEl.innerHTML = '<span style="color:var(--muted)">⛔ {{ t.notif_off }}</span>';
+      if (snoozeSection) snoozeSection.style.display = 'none';
+      if (enableSection) enableSection.style.display = '';
+    } else if (_isSnoozed()) {
+      btn.style.color   = 'var(--yellow)';
+      btn.style.opacity = '1';
+      icon.innerHTML    = '<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>';
+      const until = new Date(_snoozedUntil);
+      const hhmm  = until.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      if (statusEl)   statusEl.innerHTML = `<span style="color:var(--yellow)">🔕 {{ t.notif_snoozed }} ${hhmm}</span>`;
+      if (snoozeSection) snoozeSection.style.display = '';
+      if (enableSection) { enableSection.style.display = ''; enableSection.innerHTML = `<button style="width:100%;background:var(--accent);color:#fff;border:none;padding:7px;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer;margin-top:6px" onclick="enableNotifs()">{{ t.notif_unsnooze }}</button>`; }
+    } else {
+      btn.style.color   = 'var(--accent)';
+      btn.style.opacity = '1';
+      icon.innerHTML    = '<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>';
+      if (statusEl)   statusEl.innerHTML = '<span style="color:var(--green)">🔔 {{ t.notif_active }}</span>';
+      if (snoozeSection) snoozeSection.style.display = '';
+      if (enableSection) enableSection.style.display = 'none';
     }
   }
 
-  function requestNotifPermission() {
-    Notification.requestPermission().then(p => {
-      notifEnabled = p === 'granted';
-      document.getElementById('notif-banner').classList.remove('show');
-    });
+  function toggleBellMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('bell-menu');
+    const isOpen = menu.classList.contains('show');
+    document.querySelectorAll('.bell-btn #bell-menu.show').forEach(m => m.classList.remove('show'));
+    if (!isOpen) { _updateBellUI(); menu.classList.add('show'); }
   }
 
-  function fireNotification(rel) {
-    if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-    const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
-    const n = new Notification(`${label}: ${rel.repo}`, {
-      body: rel.tag,
-      icon: '/static/icon-192.png',
-      tag:  rel.repo + '@' + rel.tag,
-    });
-    n.onclick = () => window.open(rel.url, '_blank');
+  document.addEventListener('click', () => {
+    document.getElementById('bell-menu')?.classList.remove('show');
+  });
+
+  function snoozeNotifs(hours) {
+    _snoozedUntil = Date.now() + hours * 3600000;
+    localStorage.setItem('gp_snooze', String(_snoozedUntil));
+    _updateBellUI();
+    document.getElementById('bell-menu')?.classList.remove('show');
   }
+
+  function snoozeTomorrow() {
+    const t = new Date(); t.setDate(t.getDate()+1); t.setHours(8,0,0,0);
+    _snoozedUntil = t.getTime();
+    localStorage.setItem('gp_snooze', String(_snoozedUntil));
+    _updateBellUI();
+    document.getElementById('bell-menu')?.classList.remove('show');
+  }
+
+  function disableNotifs() {
+    snoozeNotifs(24 * 365);
+  }
+
+  function enableNotifs() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      notifEnabled = true;
+      _snoozedUntil = 0;
+      localStorage.removeItem('gp_snooze');
+      _updateBellUI();
+      document.getElementById('bell-menu')?.classList.remove('show');
+    } else {
+      Notification.requestPermission().then(p => {
+        notifEnabled = p === 'granted';
+        _snoozedUntil = 0;
+        localStorage.removeItem('gp_snooze');
+        _updateBellUI();
+        document.getElementById('bell-menu')?.classList.remove('show');
+      });
+    }
+  }
+
+  function initNotifications() {
+    if (!('Notification' in window)) return;
+    _snoozedUntil = parseInt(localStorage.getItem('gp_snooze') || '0', 10);
+    notifEnabled  = Notification.permission === 'granted';
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(p => {
+        notifEnabled = p === 'granted';
+        _updateBellUI();
+      });
+    }
+    _updateBellUI();
+  }
+
+  function _fireBN(title, body, url, tag) {
+    if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (_isSnoozed()) return;
+    const n = new Notification(title, { body, icon: u('/static/icon-192.png'), tag: tag || title });
+    if (url) n.onclick = () => { window.open(url, '_blank'); n.close(); };
+  }
+
+  function _fireBrowserNotifs(data) {
+    const bn = _bnNotif();
+    const _con_labels = {success:'Erfolgreich',failure:'Fehlgeschlagen',cancelled:'Abgebrochen',timed_out:'Timeout',skipped:'Übersprungen'};
+    const _con_icons  = {success:'✅',failure:'❌',cancelled:'⏹',timed_out:'⏱',skipped:'⏭'};
+
+    for (const repo of (data.my_repos || [])) {
+      const rname = repo.repo;
+      const rshort = repo.name || rname.split('/')[1];
+
+      // Neue PRs
+      if (bn.new_pr !== false) {
+        if (!_bn_prs[rname]) _bn_prs[rname] = new Set();
+        for (const pr of (repo.pulls || [])) {
+          if (!_bn_first && !_bn_prs[rname].has(pr.number))
+            _fireBN(`🔀 Neuer PR: ${rshort}`, `#${pr.number} ${pr.title}`, pr.url, `pr-${rname}-${pr.number}`);
+          _bn_prs[rname].add(pr.number);
+        }
+      }
+
+      // Neue Issues
+      if (bn.new_issue !== false) {
+        if (!_bn_issues[rname]) _bn_issues[rname] = new Set();
+        for (const iss of (repo.issues || [])) {
+          if (!_bn_first && !_bn_issues[rname].has(iss.number))
+            _fireBN(`🐛 Neues Issue: ${rshort}`, `#${iss.number} ${iss.title}`, iss.url, `iss-${rname}-${iss.number}`);
+          _bn_issues[rname].add(iss.number);
+        }
+      }
+
+      // Workflow gestartet / beendet
+      for (const run of (repo.runs || [])) {
+        const prevCon = _bn_runs[run.id];
+        if (!_bn_first) {
+          if (prevCon === undefined && run.conclusion == null && bn.workflow_started !== false)
+            _fireBN(`▶️ Workflow gestartet: ${rshort}`, run.name, run.url, `run-start-${run.id}`);
+          if (prevCon === null && run.conclusion != null && bn.workflow_completed !== false) {
+            const icon = _con_icons[run.conclusion] || '⚠️';
+            const label = _con_labels[run.conclusion] || run.conclusion;
+            _fireBN(`${icon} Workflow beendet: ${rshort}`, `${run.name} — ${label}`, run.url, `run-done-${run.id}`);
+          }
+        }
+        _bn_runs[run.id] = run.conclusion ?? null;
+      }
+
+      // Stars / Forks
+      if (bn.star_fork !== false && !_bn_first) {
+        if (_bn_stars[rname] != null && repo.stars !== _bn_stars[rname]) {
+          const diff = repo.stars - _bn_stars[rname];
+          _fireBN(diff > 0 ? `⭐ Star erhalten: ${rshort}` : `💔 Star verloren: ${rshort}`,
+            `Jetzt ${repo.stars} Stars`, null, `star-${rname}`);
+        }
+        if (_bn_forks[rname] != null && repo.forks !== _bn_forks[rname]) {
+          _fireBN(`🍴 Neuer Fork: ${rshort}`, `Jetzt ${repo.forks} Forks`, null, `fork-${rname}`);
+        }
+      }
+      _bn_stars[rname] = repo.stars;
+      _bn_forks[rname] = repo.forks;
+
+      // Security Alerts
+      if (bn.security !== false && !_bn_first) {
+        const sec = repo.security || {};
+        const cnt = (sec.dependabot||[]).length + (sec.code_scanning||[]).length + (sec.secret_scanning||[]).length;
+        if (_bn_sec[rname] != null && cnt > _bn_sec[rname])
+          _fireBN(`🔴 Security Alert: ${rshort}`, `${cnt - _bn_sec[rname]} neue Alert(s)`, null, `sec-${rname}`);
+        _bn_sec[rname] = cnt;
+      }
+    }
+
+    // Neue Releases
+    if (bn.releases !== false) {
+      for (const rel of (data.new_releases || [])) {
+        const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
+        _fireBN(`${label}: ${rel.repo}`, rel.tag, rel.url, `rel-${rel.repo}-${rel.tag}`);
+      }
+    }
+
+    _bn_first = false;
+  }
+
+  // Legacy-Alias (wird noch in render() aufgerufen)
+  function fireNotification(rel) { /* ersetzt durch _fireBrowserNotifs */ }
 
   // ── PWA Install ───────────────────────────────────────────────────
   let deferredInstall = null;
