@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.62] - 2026-06-08
+
+### Security
+- Information Exposure: Exception-Details (`str(e)`) nicht mehr in HTTP-Responses zurückgegeben; stattdessen generische `'internal error'`-Meldung + internes `log.exception()` (CodeQL #6–#11, #13, #124)
+
 ## [0.1.61] - 2026-06-08
 
 ### Removed
