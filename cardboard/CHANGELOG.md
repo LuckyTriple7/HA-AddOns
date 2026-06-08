@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8.1] - 2026-06-08
+
+### Dependencies
+- Dependabot: Abhaengigkeiten aktualisiert
+
 ## [1.0.8] - 2026-06-08
 
 ### Security

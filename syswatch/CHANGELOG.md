@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.6.1] - 2026-06-08
+
+### Dependencies
+- Dependabot: Abhaengigkeiten aktualisiert
+
 ## [1.2.6] - 2026-06-08
 
 ### Fixed

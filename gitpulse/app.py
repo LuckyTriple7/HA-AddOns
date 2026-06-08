@@ -551,16 +551,18 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
         })
 
-    # Dispatchable workflows (haben workflow_dispatch trigger)
+    # Alle Workflows (inkl. deaktivierte) für Verwaltung + Dispatch
     wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token) or {}
     workflows = []
     for wf in (wf_raw.get('workflows') or []):
-        if wf.get('state') == 'active':
-            workflows.append({
-                'id':   wf['id'],
-                'name': wf['name'],
-                'path': wf['path'],
-            })
+        state = wf.get('state', 'active')
+        workflows.append({
+            'id':          wf['id'],
+            'name':        wf['name'],
+            'path':        wf['path'],
+            'state':       state,
+            'dispatchable': state == 'active',
+        })
 
     latest_release = None
     if repo not in _no_release_repos:
@@ -1621,6 +1623,47 @@ def api_workflow_delete():
     except Exception as e:
         log.error("Workflow-Delete Fehler: %s", e)
         return jsonify({'error': 'internal_error'}), 500
+
+
+@app.route('/api/workflow/toggle', methods=['POST'])
+def api_workflow_toggle():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body        = request.get_json(silent=True) or {}
+    repo        = body.get('repo', '').strip()
+    workflow_id = body.get('workflow_id')
+    enable      = bool(body.get('enable', True))
+    if not repo or not workflow_id:
+        return jsonify({'error': 'missing_fields'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    action = 'enable' if enable else 'disable'
+    try:
+        r = http.put(
+            f'{GITHUB_API}/repos/{repo}/actions/workflows/{workflow_id}/{action}',
+            headers=_gh_headers(token), timeout=15,
+        )
+        if r.status_code == 204:
+            new_state = 'active' if enable else 'disabled_manually'
+            log.info("Workflow %s in %s: %s", workflow_id, repo, action)
+            with _gh_lock:
+                for rd in _gh_cache.get('my_repos', []):
+                    if rd['repo'] == repo:
+                        for wf in rd.get('workflows', []):
+                            if wf['id'] == workflow_id:
+                                wf['state'] = new_state
+                                wf['dispatchable'] = enable
+            return jsonify({'status': action + 'd', 'new_state': new_state})
+        try:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+        except Exception:
+            msg = f'HTTP {r.status_code}'
+        return jsonify({'error': msg}), r.status_code
+    except Exception:
+        log.exception("Workflow-Toggle Fehler")
+        return jsonify({'error': 'internal error'}), 500
 
 
 @app.route('/webhook', methods=['POST'])
