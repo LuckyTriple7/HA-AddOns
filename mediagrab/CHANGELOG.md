@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.12] — 2026-06-08
+
+### Changed
+- Revert fehlerhafter Security-Fixes (v1.0.10/v1.0.11) die Streams gebrochen haben — zurück auf stabilen Stand v1.0.9
+
 ## [1.0.9] — 2026-06-07
 
 ### Security
