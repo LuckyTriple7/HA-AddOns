@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.26.1] - 2026-06-08
+
+Bump python from 3.11-alpine to 3.14-alpine
+
+
 ## [1.0.25] — 2026-06-08
 
 ### Security
