@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.21] — 2026-06-08
+
+### Security
+- Command Injection: `cmd.append(url)` → `cmd += ['--', url]` in `_build_cmd`
+- Information Exposure: `str(e)` in api_info, api_ytdlp_version, api_ytdlp_update durch `'internal error'` + `log.exception()` ersetzt (durch v1.0.2-Revert wieder reingerutscht)
+
 ## [1.0.20] — 2026-06-08
 
 ### Security
