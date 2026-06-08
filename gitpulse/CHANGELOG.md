@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.66] - 2026-06-08
+
+### Added
+- Add-on Manager: Kachel zeigt Anzahl der gefundenen Add-ons nach dem Laden
+
 ## [0.1.65] - 2026-06-08
 
 ### Added

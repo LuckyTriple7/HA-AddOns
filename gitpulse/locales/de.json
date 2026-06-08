@@ -199,5 +199,6 @@
   "am_confirm_no": "Abbrechen",
   "am_commit_ok": "Committed!",
   "am_commit_err": "Fehler beim Commit",
-  "am_err_no_changelog": "Bitte CHANGELOG-Eintrag ausfüllen"
+  "am_err_no_changelog": "Bitte CHANGELOG-Eintrag ausfüllen",
+  "am_count_label": "Add-ons"
 }

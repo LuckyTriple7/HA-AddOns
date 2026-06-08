@@ -199,5 +199,6 @@
   "am_confirm_no": "Cancel",
   "am_commit_ok": "Committed!",
   "am_commit_err": "Commit failed",
-  "am_err_no_changelog": "Please fill in the CHANGELOG entry"
+  "am_err_no_changelog": "Please fill in the CHANGELOG entry",
+  "am_count_label": "add-ons"
 }

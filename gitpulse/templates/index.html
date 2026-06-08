@@ -563,6 +563,9 @@
           <option value="main">main</option>
         </select>
         <button class="hdr-btn" onclick="amLoad()" id="am-load-btn" style="white-space:nowrap">{{ t.am_load }}</button>
+        <div id="am-count-chip" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 12px;font-size:0.82rem;color:var(--muted)">
+          <span id="am-count-val">0</span> {{ t.am_count_label }}
+        </div>
       </div>
       <div id="am-list"></div>
     </div>
@@ -2212,7 +2215,13 @@
       const r = await fetch(u(`/api/addon-manager/addons?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`));
       const d = await r.json();
       if (!r.ok || d.error) { list.innerHTML = `<div style="color:#f85149">${escHtml(d.error||'{{ t.am_error_load }}')}</div>`; return; }
-      if (!d.addons || d.addons.length === 0) { list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_no_addons }}</div>'; return; }
+      if (!d.addons || d.addons.length === 0) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_no_addons }}</div>';
+        document.getElementById('am-count-chip').style.display = 'none';
+        return;
+      }
+      document.getElementById('am-count-val').textContent = d.addons.length;
+      document.getElementById('am-count-chip').style.display = '';
       list.innerHTML = d.addons.map(a => amCard(a, repo, branch)).join('');
     } catch(e) {
       list.innerHTML = `<div style="color:#f85149">{{ t.am_error_load }}</div>`;
