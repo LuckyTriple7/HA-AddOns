@@ -454,6 +454,15 @@
 
     <!-- ── Tab: CI ──────────────────────────────────────────── -->
     <div id="tab-ci" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="position:relative;flex:1">
+          <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input id="ci-filter" type="search" placeholder="{{ t.filter_placeholder }}"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px 6px 30px;border-radius:5px;font-size:.83rem;"
+            oninput="applyCIFilter()">
+        </div>
+        <span id="ci-filter-count" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></span>
+      </div>
       <div id="ci-list"></div>
     </div>
 
@@ -468,7 +477,16 @@
 
     <!-- ── Tab: Security ──────────────────────────────────── -->
     <div id="tab-security" style="display:none">
-      <div id="security-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 6px;border-bottom:1px solid var(--border)"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="position:relative;flex:1">
+          <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input id="sec-filter" type="search" placeholder="{{ t.filter_placeholder }}"
+            style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px 6px 30px;border-radius:5px;font-size:.83rem;"
+            oninput="applySecFilter()">
+        </div>
+        <span id="sec-filter-count" style="font-size:.75rem;color:var(--muted);white-space:nowrap"></span>
+      </div>
+      <div id="security-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 6px;border-bottom:1px solid var(--border)"></div>
       <div id="security-list"></div>
     </div>
 
@@ -543,6 +561,8 @@
   let _issStateFilter = 'open';
   let _ciTimeFilter = 'all';
   let _ciStatusFilter = 'all';
+  let _ciFilter = '';
+  let _secFilter = '';
   let _ciPage = 1;
   const CI_PAGE_SIZE = 50;
 
@@ -782,6 +802,15 @@
 
   // ── Workflow-Favoriten ────────────────────────────────────────────
   // ── Such-/Filterleiste ────────────────────────────────────────────
+  function applyCIFilter() {
+    _ciFilter = (document.getElementById('ci-filter')?.value || '').toLowerCase();
+    _ciPage = 1;
+    if (ghData) renderCI(ghData);
+  }
+  function applySecFilter() {
+    _secFilter = (document.getElementById('sec-filter')?.value || '').toLowerCase();
+    if (ghData) renderSecurity(ghData);
+  }
   function setPRState(s) {
     _prStateFilter = s;
     document.getElementById('pr-btn-open').classList.toggle('active', s === 'open');
@@ -1156,7 +1185,8 @@
 
   function selectRepo(repo) {
     activeRepo = repo;
-    _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all';
+    _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all'; _ciFilter = '';
+    const ciInput = document.getElementById('ci-filter'); if (ciInput) ciInput.value = '';
     document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
     renderPRs(ghData);
     renderIssues(ghData);
@@ -1360,7 +1390,17 @@
     };
     const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-skipped' };
     const timeFiltered   = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
-    const filteredRuns   = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
+    const statusFiltered = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
+    const filteredRuns   = _ciFilter
+      ? statusFiltered.filter(r =>
+          r.name.toLowerCase().includes(_ciFilter) ||
+          (r.branch||'').toLowerCase().includes(_ciFilter) ||
+          (r.actor||'').toLowerCase().includes(_ciFilter) ||
+          (r.head_message||'').toLowerCase().includes(_ciFilter) ||
+          String(r.run_number||'').includes(_ciFilter))
+      : statusFiltered;
+    const _ciCountEl = document.getElementById('ci-filter-count');
+    if (_ciCountEl) _ciCountEl.textContent = _ciFilter ? `${filteredRuns.length} / ${repo.runs.length}` : '';
     const _ciTotalPages = Math.max(1, Math.ceil(filteredRuns.length / CI_PAGE_SIZE));
     if (_ciPage > _ciTotalPages) _ciPage = _ciTotalPages;
     const pagedRuns = filteredRuns.slice((_ciPage - 1) * CI_PAGE_SIZE, _ciPage * CI_PAGE_SIZE);
@@ -1523,6 +1563,12 @@
     // ── Alerts filtern ──────────────────────────────────────────────
     const matchSev  = a => !_secActiveSev.size  || _secActiveSev.has(_secSevOf(a, ''));
     const matchType = type => !_secActiveType.size || _secActiveType.has(type);
+    const sf = _secFilter;
+    const matchText = {
+      dependabot:      a => !sf || (a.package||'').toLowerCase().includes(sf) || (a.summary||'').toLowerCase().includes(sf) || String(a.number||'').includes(sf),
+      code_scanning:   a => !sf || (a.description||'').toLowerCase().includes(sf) || (a.rule_id||'').toLowerCase().includes(sf) || (a.path||'').toLowerCase().includes(sf) || (a.tool||'').toLowerCase().includes(sf) || String(a.number||'').includes(sf),
+      secret_scanning: a => !sf || (a.type||'').toLowerCase().includes(sf) || String(a.number||'').includes(sf),
+    };
 
     const repos = allRepos.map(repo => {
       const sec = repo.security || {};
@@ -1530,12 +1576,19 @@
         ...repo,
         security: {
           dependabot_access: sec.dependabot_access,
-          dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      : [],
-          code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   : [],
-          secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => !_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) : [],
+          dependabot:      matchType('dependabot')      ? (sec.dependabot     ||[]).filter(a => (!_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'dependabot')))      && matchText.dependabot(a))      : [],
+          code_scanning:   matchType('code_scanning')   ? (sec.code_scanning  ||[]).filter(a => (!_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'code_scanning')))   && matchText.code_scanning(a))   : [],
+          secret_scanning: matchType('secret_scanning') ? (sec.secret_scanning||[]).filter(a => (!_secActiveSev.size || _secActiveSev.has(_secSevOf(a,'secret_scanning'))) && matchText.secret_scanning(a)) : [],
         }
       };
     }).filter(r => r.security.dependabot.length || r.security.code_scanning.length || r.security.secret_scanning.length || r.security.dependabot_access === false);
+
+    const _secCountEl = document.getElementById('sec-filter-count');
+    if (_secCountEl) {
+      const total = allRepos.reduce((s,r) => { const sec=r.security||{}; return s+(sec.dependabot||[]).length+(sec.code_scanning||[]).length+(sec.secret_scanning||[]).length; }, 0);
+      const shown = repos.reduce((s,r) => { const sec=r.security||{}; return s+sec.dependabot.length+sec.code_scanning.length+sec.secret_scanning.length; }, 0);
+      _secCountEl.textContent = sf ? `${shown} / ${total}` : '';
+    }
 
     if (!repos.length) {
       el.innerHTML = `<div class="empty" style="padding:32px">{{ t.security_none_filtered }}</div>`;

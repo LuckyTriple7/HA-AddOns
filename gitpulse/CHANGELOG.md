@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.52] - 2026-06-08
+
+### Added
+- CI/Actions-Tab: Suchfeld filtert Runs nach Name, Branch, Actor, Commit-Message und Run-Nummer — Treffer-Zähler eingeblendet
+- Security-Tab: Suchfeld filtert Dependabot-Alerts nach Paket/Zusammenfassung, Code-Scanning nach Beschreibung/Rule-ID/Pfad/Tool und Secret-Scanning nach Typ — Treffer-Zähler eingeblendet
+- Repo-Wechsel setzt CI-Suchfeld zurück
+
+---
+
 ## [0.1.51] - 2026-06-08
 
 ### Fixed
