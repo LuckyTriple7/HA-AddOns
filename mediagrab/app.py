@@ -78,16 +78,21 @@ _ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
 PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'X', 'Vimeo', 'SoundCloud', 'Twitch', 'Reddit', 'Dailymotion', 'Sonstiges']
 
 def _detect_platform(url: str) -> str:
-    u = url.lower()
-    if 'youtube.com' in u or 'youtu.be' in u: return 'YouTube'
-    if 'tiktok.com' in u:                      return 'TikTok'
-    if 'instagram.com' in u:                   return 'Instagram'
-    if 'twitter.com' in u or 'x.com' in u:    return 'X'
-    if 'vimeo.com' in u:                       return 'Vimeo'
-    if 'soundcloud.com' in u:                  return 'SoundCloud'
-    if 'twitch.tv' in u:                       return 'Twitch'
-    if 'reddit.com' in u:                      return 'Reddit'
-    if 'dailymotion.com' in u:                 return 'Dailymotion'
+    try:
+        host = (urllib.parse.urlparse(url).hostname or '').lower()
+    except Exception:
+        host = ''
+    def _is_host(domain: str) -> bool:
+        return host == domain or host.endswith('.' + domain)
+    if _is_host('youtube.com') or _is_host('youtu.be'): return 'YouTube'
+    if _is_host('tiktok.com'):                           return 'TikTok'
+    if _is_host('instagram.com'):                        return 'Instagram'
+    if _is_host('twitter.com') or _is_host('x.com'):    return 'X'
+    if _is_host('vimeo.com'):                            return 'Vimeo'
+    if _is_host('soundcloud.com'):                       return 'SoundCloud'
+    if _is_host('twitch.tv'):                            return 'Twitch'
+    if _is_host('reddit.com'):                           return 'Reddit'
+    if _is_host('dailymotion.com'):                      return 'Dailymotion'
     return 'Sonstiges'
 
 def _load_meta() -> dict:
@@ -651,6 +656,10 @@ def api_download():
     urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
     if not urls:
         return jsonify({'error': 'no_url'}), 400
+    for _u in urls:
+        _p = urllib.parse.urlparse(_u)
+        if _p.scheme not in ('http', 'https') or not _p.netloc:
+            return jsonify({'error': 'invalid_url'}), 400
 
     fmt = data.get('fmt', 'best_video')
     if fmt not in VALID_FORMATS:
@@ -699,6 +708,9 @@ def api_info():
     url  = (data.get('url') or '').strip()
     if not url:
         return jsonify({'error': 'no_url'}), 400
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        return jsonify({'error': 'invalid_url'}), 400
 
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
