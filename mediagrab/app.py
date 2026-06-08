@@ -78,21 +78,16 @@ _ytdlp_ver_cache: dict = {'ver': None, 'ts': 0.0}  # cached for 1h
 PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'X', 'Vimeo', 'SoundCloud', 'Twitch', 'Reddit', 'Dailymotion', 'Sonstiges']
 
 def _detect_platform(url: str) -> str:
-    try:
-        host = urllib.parse.urlparse(url).netloc.lower()
-        if host.startswith('www.'):
-            host = host[4:]
-    except Exception:
-        host = ''
-    if host in ('youtube.com', 'youtu.be') or host.endswith('.youtube.com'): return 'YouTube'
-    if host == 'tiktok.com'      or host.endswith('.tiktok.com'):             return 'TikTok'
-    if host == 'instagram.com'   or host.endswith('.instagram.com'):          return 'Instagram'
-    if host in ('twitter.com', 'x.com') or host.endswith(('.twitter.com', '.x.com')): return 'X'
-    if host == 'vimeo.com'       or host.endswith('.vimeo.com'):              return 'Vimeo'
-    if host == 'soundcloud.com'  or host.endswith('.soundcloud.com'):         return 'SoundCloud'
-    if host == 'twitch.tv'       or host.endswith('.twitch.tv'):              return 'Twitch'
-    if host == 'reddit.com'      or host.endswith('.reddit.com'):             return 'Reddit'
-    if host == 'dailymotion.com' or host.endswith('.dailymotion.com'):        return 'Dailymotion'
+    u = url.lower()
+    if 'youtube.com' in u or 'youtu.be' in u: return 'YouTube'
+    if 'tiktok.com' in u:                      return 'TikTok'
+    if 'instagram.com' in u:                   return 'Instagram'
+    if 'twitter.com' in u or 'x.com' in u:    return 'X'
+    if 'vimeo.com' in u:                       return 'Vimeo'
+    if 'soundcloud.com' in u:                  return 'SoundCloud'
+    if 'twitch.tv' in u:                       return 'Twitch'
+    if 'reddit.com' in u:                      return 'Reddit'
+    if 'dailymotion.com' in u:                 return 'Dailymotion'
     return 'Sonstiges'
 
 def _load_meta() -> dict:
@@ -272,28 +267,6 @@ def _parse_error(lines: list[str]) -> str:
 
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
-_URL_SAFE_RE  = re.compile(r'^(https?://[^\s\x00-\x1f<>"\'{|}\\^`\[\]]{1,2048})$')
-_SAFE_FILE_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9 _\-.()\[\]]{0,253}$')
-
-def _validate_url(url: str) -> 'str | None':
-    """Returns sanitized URL string or None if invalid."""
-    m = _URL_SAFE_RE.match(url or '')
-    return m.group(1) if m else None
-
-def _safe_media_path(filename: str) -> 'Path | None':
-    """Returns resolved path only if within MEDIA_DIR — rejects traversal attempts."""
-    m = _SAFE_FILE_RE.fullmatch(filename or '')
-    if not m:
-        return None
-    safe_name = m.group(0)
-    base_resolved = MEDIA_DIR.resolve()
-    resolved = (base_resolved / safe_name).resolve()
-    try:
-        resolved.relative_to(base_resolved)
-    except ValueError:
-        return None
-    return resolved
-
 _PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
@@ -339,7 +312,7 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 '--merge-output-format', 'mp4']
 
-    cmd += ['--', url]
+    cmd.append(url)
     return cmd
 
 def _run_download(job_id: str) -> None:
@@ -519,18 +492,8 @@ def _require_auth() -> bool:
     return not is_valid_session(request.cookies.get('mg_session'))
 
 def _safe_next(url: str) -> str:
-    """Returns url only if it is a safe relative path — prevents open redirect."""
-    if not url:
-        return ''
-    try:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme or parsed.netloc:
-            return ''
-        path = parsed.path
-        if path and not path.startswith('//'):
-            return path
-    except Exception:
-        pass
+    if url and url.startswith('/') and not url.startswith('//'):
+        return url
     return ''
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -539,8 +502,7 @@ def _safe_next(url: str) -> str:
 def set_lang(lang):
     if lang not in ('de', 'en'):
         lang = 'de'
-    ref_path = _safe_next(urllib.parse.urlparse(request.referrer or '/').path) or '/'
-    resp = make_response(redirect(ref_path))
+    resp = make_response(redirect(request.referrer or '/'))
     resp.set_cookie('mg_lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
     return resp
 
@@ -686,12 +648,9 @@ def api_download():
         return jsonify({'error': 'unauthorized'}), 401
     data = request.json or {}
 
-    raw_urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
-    if not raw_urls:
+    urls = [l.strip() for l in (data.get('url') or '').splitlines() if l.strip()]
+    if not urls:
         return jsonify({'error': 'no_url'}), 400
-    urls = [_validate_url(u) for u in raw_urls]
-    if not all(urls):
-        return jsonify({'error': 'invalid_url'}), 400
 
     fmt = data.get('fmt', 'best_video')
     if fmt not in VALID_FORMATS:
@@ -740,16 +699,14 @@ def api_info():
     url  = (data.get('url') or '').strip()
     if not url:
         return jsonify({'error': 'no_url'}), 400
-    safe_url = _validate_url(url)
-    if not safe_url:
-        return jsonify({'error': 'invalid_url'}), 400
 
-    cmd = ['yt-dlp', '--batch-file', '-', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
+    cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
+    cmd.append(url)
 
     try:
-        result = subprocess.run(cmd, input=safe_url + '\n', capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
             return jsonify({'error': 'fetch_failed'}), 400
         info = json.loads(result.stdout.splitlines()[0])
@@ -768,9 +725,8 @@ def api_info():
         })
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception:
-        log.exception("Video-Info Fehler")
-        return jsonify({'error': 'internal error'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/jobs')
 def api_jobs():
@@ -834,9 +790,8 @@ def api_ytdlp_version():
     try:
         r = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
         return jsonify({'version': r.stdout.strip()})
-    except Exception:
-        log.exception("yt-dlp Version Fehler")
-        return jsonify({'error': 'internal error'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/ytdlp/update', methods=['POST'])
 def api_ytdlp_update():
@@ -867,9 +822,8 @@ def api_ytdlp_update():
         return jsonify({'ok': True, 'up_to_date': False, 'version': new_ver})
     except subprocess.TimeoutExpired:
         return jsonify({'error': 'timeout'}), 504
-    except Exception:
-        log.exception("yt-dlp Update Fehler")
-        return jsonify({'error': 'internal error'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/cookies/status')
 def api_cookies_status():
@@ -946,19 +900,20 @@ def api_files():
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = _safe_media_path(filename)
-    if not p:
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
         return jsonify({'error': 'invalid_path'}), 400
-    safe_name = p.name
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     p.unlink()
     with _meta_lock:
         meta = _load_meta()
-        if safe_name in meta:
-            meta.pop(safe_name)
+        if filename in meta:
+            meta.pop(filename)
             _save_meta(meta)
-    log.info('Datei gelöscht: %s', safe_name)
+    log.info('Datei gelöscht: %s', filename)
     return jsonify({'ok': True})
 
 @app.route('/api/file/platform/<path:filename>', methods=['POST'])
@@ -967,23 +922,24 @@ def api_file_platform(filename):
         return jsonify({'error': 'unauthorized'}), 401
     data     = request.json or {}
     platform = data.get('platform', '').strip()
-    p = _safe_media_path(filename)
-    if not p:
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
         return jsonify({'error': 'invalid_path'}), 400
-    safe_name = p.name
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
-        entry = meta.get(safe_name, {})
+        entry = meta.get(filename, {})
         if platform:
             entry['platform'] = platform
         else:
             entry.pop('platform', None)
         if entry:
-            meta[safe_name] = entry
+            meta[filename] = entry
         else:
-            meta.pop(safe_name, None)
+            meta.pop(filename, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'platform': platform})
 
@@ -991,30 +947,28 @@ def api_file_platform(filename):
 def api_file_tag(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
-    p = _safe_media_path(filename)
-    if not p:
-        return jsonify({'error': 'invalid_path'}), 400
-    safe_name = p.name
     data = request.json or {}
     tag  = data.get('tag', '').strip()
     if len(tag) > 50:
         return jsonify({'error': 'tag_too_long'}), 400
-    p = _safe_media_path(safe_name)
-    if not p:
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
         return jsonify({'error': 'invalid_path'}), 400
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
     with _meta_lock:
         meta = _load_meta()
-        entry = meta.get(safe_name, {})
+        entry = meta.get(filename, {})
         if tag:
             entry['tag'] = tag
         else:
             entry.pop('tag', None)
         if entry:
-            meta[safe_name] = entry
+            meta[filename] = entry
         else:
-            meta.pop(safe_name, None)
+            meta.pop(filename, None)
         _save_meta(meta)
     return jsonify({'ok': True, 'tag': tag})
 
@@ -1022,19 +976,23 @@ def api_file_tag(filename):
 def stream_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = _safe_media_path(filename)
-    if not p:
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=False)
+    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=False)
 
 @app.route('/files/<path:filename>')
 def serve_file(filename):
     if _require_auth():
         return redirect(url_for('login'))
-    p = _safe_media_path(filename)
-    if not p:
+    p = (MEDIA_DIR / filename).resolve()
+    try:
+        p.relative_to(MEDIA_DIR.resolve())
+    except ValueError:
         abort(400)
-    return send_from_directory(str(MEDIA_DIR), p.name, as_attachment=True)
+    return send_from_directory(str(MEDIA_DIR), filename, as_attachment=True)
 
 @app.route('/manifest.json')
 def manifest():
