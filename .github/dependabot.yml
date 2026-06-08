@@ -5,6 +5,7 @@ updates:
   # ── GitHub Actions ────────────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -16,6 +17,7 @@ updates:
   # ── Python (pip) ──────────────────────────────────────────────────────────────
   - package-ecosystem: "pip"
     directory: "/mediagrab"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -23,6 +25,7 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/gitpulse"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -30,6 +33,7 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/syswatch"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -37,6 +41,7 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/messenger-portal"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -44,6 +49,7 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/cardboard/rootfs/app"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -52,6 +58,7 @@ updates:
   # ── Docker (Base Images) ──────────────────────────────────────────────────────
   - package-ecosystem: "docker"
     directory: "/mediagrab"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -59,6 +66,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/gitpulse"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -66,6 +74,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/syswatch"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -73,6 +82,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/messenger-portal"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -80,6 +90,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/cardboard"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -87,6 +98,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/signal"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -94,6 +106,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/telegram"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -101,6 +114,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/whatsapp"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -108,6 +122,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/firefox"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -115,6 +130,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/filebox"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -122,6 +138,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/collabora"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -129,6 +146,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/nextcloud"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -136,6 +154,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/mariadb2"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -143,6 +162,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/phpmyadmin-mariadb2"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -150,6 +170,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/claudecode"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -157,6 +178,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/playwright-browser"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -164,6 +186,7 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/ubuntu-webtop"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
