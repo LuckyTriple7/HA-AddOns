@@ -286,11 +286,13 @@ def _safe_media_path(filename: str) -> 'Path | None':
     if not m:
         return None
     safe_name = m.group(0)
-    resolved = (MEDIA_DIR / safe_name).resolve()
-    base = str(MEDIA_DIR.resolve())
-    if str(resolved).startswith(base + os.sep) or str(resolved) == base:
-        return resolved
-    return None
+    base_resolved = MEDIA_DIR.resolve()
+    resolved = (base_resolved / safe_name).resolve()
+    try:
+        resolved.relative_to(base_resolved)
+    except ValueError:
+        return None
+    return resolved
 
 _PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
