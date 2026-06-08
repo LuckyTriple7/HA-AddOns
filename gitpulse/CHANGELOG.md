@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.78] - 2026-06-09
+
+### Added
+- Pull Requests: "Schließen"-Button (✕) zum direkten Schließen eines PRs ohne Merge
+
 ## [0.1.77] - 2026-06-09
 
 ### Fixed

@@ -94,6 +94,7 @@
   "fav_saved": "Favorite saved",
   "fav_already": "Already saved as favorite",
   "btn_close_issue": "Close",
+  "btn_close_pr": "Close",
   "btn_comment": "Comment",
 
   "review_approved": "Approved",

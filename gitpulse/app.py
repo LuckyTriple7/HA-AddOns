@@ -1246,6 +1246,38 @@ def api_reset_seen():
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/pr/close', methods=['POST'])
+def api_pr_close():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body   = request.get_json(silent=True) or {}
+    repo   = body.get('repo', '').strip()
+    pr_nr  = body.get('number')
+    if not repo or not pr_nr:
+        return jsonify({'error': 'repo und number erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.patch(
+            f'{GITHUB_API}/repos/{repo}/pulls/{pr_nr}',
+            headers=_gh_headers(token),
+            json={'state': 'closed'},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 200:
+            log.info("PR #%s in %s geschlossen", pr_nr, repo)
+            return jsonify({'status': 'closed'})
+        msg = r.json().get('message', f'HTTP {r.status_code}')
+        log.warning("PR-Close fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception:
+        log.exception("PR-Close Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
 @app.route('/api/pr/merge', methods=['POST'])
 def api_pr_merge():
     redir = _auth_required(request)
