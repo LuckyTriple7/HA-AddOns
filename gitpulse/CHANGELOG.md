@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.68] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Repo-Dropdown zeigt nur noch `my_repos`, nicht mehr `watch_repos`
+
 ## [0.1.67] - 2026-06-09
 
 ### Fixed

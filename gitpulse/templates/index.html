@@ -2326,7 +2326,7 @@
       const r = await fetch(u('/api/config/repos'));
       const d = await r.json();
       const sel = document.getElementById('am-repo');
-      const repos = [...(d.my_repos||[]), ...(d.watch_repos||[])].filter(Boolean);
+      const repos = (d.my_repos||[]).filter(Boolean);
       sel.innerHTML = repos.map(r => `<option value="${escHtml(r)}">${escHtml(r)}</option>`).join('');
     } catch(e) {}
   })();
