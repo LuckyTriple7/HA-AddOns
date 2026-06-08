@@ -1,5 +1,10 @@
 # Changelog — MariaDB 2
 
+## [1.0.1.1] - 2026-06-08
+
+Bump alpine from 3.21 to 3.23
+
+
 ## [1.0.0] - 2026-06-04
 - Log-Ausgaben mit Zeitstempel: `[INFO] [HH:MM:SS] Nachricht`
 
