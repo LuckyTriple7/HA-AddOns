@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.77] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Image-Check GHCR Token-Exchange nutzt jetzt `owner:token` als Basic-Auth (statt `:token`); behebt 403 auf Manifest-Anfragen
+
 ## [0.1.76] - 2026-06-09
 
 ### Fixed

@@ -2251,11 +2251,23 @@ def api_addon_manager_image_check():
         return jsonify({'error': 'missing_params'}), 400
     # image = ghcr.io/luckytriple7/claudecode → owner/name = luckytriple7/claudecode
     repo_part = image.removeprefix('ghcr.io/') if image.startswith('ghcr.io/') else image
+    owner = repo_part.split('/')[0]
     try:
+        import base64 as _b64
+        # GHCR token exchange requires "owner:token" Basic auth, not ":token"
+        creds = _b64.b64encode(f'{owner}:{token}'.encode()).decode()
+        tok_r = http.get(
+            'https://ghcr.io/token',
+            params={'scope': f'repository:{repo_part}:pull', 'service': 'ghcr.io'},
+            headers={'Authorization': f'Basic {creds}'}, timeout=10
+        )
+        if tok_r.status_code != 200:
+            return jsonify({'status': 'forbidden'})
+        bearer = tok_r.json().get('token', '')
         man_r = http.head(
             f'https://ghcr.io/v2/{repo_part}/manifests/{version}',
             headers={
-                'Authorization': f'Bearer {token}',
+                'Authorization': f'Bearer {bearer}',
                 'Accept': 'application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.index.v1+json',
             }, timeout=10
         )
