@@ -17,6 +17,7 @@ from pathlib import Path
 from flask import (Flask, render_template, request, redirect,
                    url_for, make_response, jsonify, abort, send_from_directory)
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import secure_filename
 
 logging.basicConfig(
     format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -753,7 +754,7 @@ def api_info():
     cmd = ['yt-dlp', '--dump-json', '--no-playlist', '--no-download', '--no-warnings']
     if Path(COOKIES_PATH).exists():
         cmd += ['--cookies', COOKIES_PATH]
-    cmd.append(url)
+    cmd += ['--', url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -946,7 +947,7 @@ def api_files():
                           'platform': entry.get('platform', ''), 'tag': entry.get('tag', '')})
     return jsonify(files)
 
-@app.route('/api/file/delete/<path:filename>', methods=['POST'])
+@app.route('/api/file/delete/<filename>', methods=['POST'])
 def api_file_delete(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
@@ -956,6 +957,8 @@ def api_file_delete(filename):
     safe_name = p.name
     if not p.exists():
         return jsonify({'error': 'not_found'}), 404
+    if not p.is_file():
+        return jsonify({'error': 'invalid_path'}), 400
     p.unlink()
     with _meta_lock:
         meta = _load_meta()
@@ -965,7 +968,7 @@ def api_file_delete(filename):
     log.info('Datei gelöscht: %s', safe_name)
     return jsonify({'ok': True})
 
-@app.route('/api/file/platform/<path:filename>', methods=['POST'])
+@app.route('/api/file/platform/<filename>', methods=['POST'])
 def api_file_platform(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
@@ -991,7 +994,7 @@ def api_file_platform(filename):
         _save_meta(meta)
     return jsonify({'ok': True, 'platform': platform})
 
-@app.route('/api/file/tag/<path:filename>', methods=['POST'])
+@app.route('/api/file/tag/<filename>', methods=['POST'])
 def api_file_tag(filename):
     if _require_auth():
         return jsonify({'error': 'unauthorized'}), 401
