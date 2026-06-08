@@ -2340,8 +2340,8 @@
         el.textContent = '✓ {{ t.am_img_ok }}';
         el.style.color = '#2ea043';
       } else if (d.status === 'building') {
-        el.textContent = '⏳ {{ t.am_img_building }}';
-        el.style.color = 'var(--muted)';
+        el.textContent = '✗ {{ t.am_img_building }}';
+        el.style.color = '#f85149';
       } else if (d.status === 'forbidden') {
         el.textContent = '🔒 {{ t.am_img_forbidden }}';
         el.style.color = '#f85149';

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.79] - 2026-06-09
+
+### Fixed
+- Add-on Manager: 404 von GHCR zeigt "✗ Image nicht verfügbar" (rot) statt "⏳ Build läuft noch" — 404 bedeutet nur dass das Image fehlt, nicht dass ein Build läuft
+
 ## [0.1.78] - 2026-06-09
 
 ### Added
