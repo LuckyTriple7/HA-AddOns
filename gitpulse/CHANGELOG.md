@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.63] - 2026-06-08
+
+### Security
+- Cookie Injection: `cookie_lang` aus Literal statt URL-Parameter in `set_lang()` (CodeQL MEDIUM #48)
+
 ## [0.1.62] - 2026-06-08
 
 ### Security

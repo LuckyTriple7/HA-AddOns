@@ -507,10 +507,9 @@ def _safe_next(url: str) -> str:
 
 @app.route('/set-lang/<lang>')
 def set_lang(lang):
-    if lang not in ('de', 'en'):
-        lang = 'de'
+    cookie_lang = 'en' if lang == 'en' else 'de'
     resp = make_response(redirect(request.referrer or '/'))
-    resp.set_cookie('mg_lang', lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
+    resp.set_cookie('mg_lang', cookie_lang, max_age=60 * 60 * 24 * 365, samesite='Lax')
     return resp
 
 @app.route('/login', methods=['GET', 'POST'])

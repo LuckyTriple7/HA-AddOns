@@ -1120,11 +1120,10 @@ def service_worker():
 
 @app.route('/set-lang/<lang>')
 def set_lang(lang: str):
-    if lang not in ('de', 'en'):
-        lang = 'en'
+    cookie_lang = 'en' if lang == 'en' else 'de'
     next_url = request.args.get('next', '/')
     resp = make_response(redirect(next_url))
-    resp.set_cookie('lang', lang, max_age=365 * 86400, samesite='Lax')
+    resp.set_cookie('lang', cookie_lang, max_age=365 * 86400, samesite='Lax')
     return resp
 
 

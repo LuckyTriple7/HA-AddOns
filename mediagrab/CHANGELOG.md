@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.22] — 2026-06-08
+
+### Security
+- Cookie Injection: `cookie_lang` aus Literal statt URL-Parameter in `set_lang()` — Taint-Kette unterbrochen (CodeQL MEDIUM #50)
+
 ## [1.0.21] — 2026-06-08
 
 ### Security

@@ -1430,9 +1430,10 @@ def logout():
 def set_lang(lang: str):
     if lang not in ('de', 'en'):
         abort(400)
+    cookie_lang = 'en' if lang == 'en' else 'de'
     ref  = request.referrer or url_for('index')
     resp = make_response(redirect(ref))
-    resp.set_cookie('lang', lang, max_age=365 * 24 * 3600, samesite='Lax')
+    resp.set_cookie('lang', cookie_lang, max_age=365 * 24 * 3600, samesite='Lax')
     return resp
 
 
