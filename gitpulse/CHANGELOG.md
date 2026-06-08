@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.53] - 2026-06-08
+
+### Fixed
+- PR- und Issue-Tab: Trefferzähler wird jetzt immer angezeigt wenn Suchfeld aktiv ist (nicht nur wenn Einträge gefiltert wurden)
+
+---
+
 ## [0.1.52] - 2026-06-08
 
 ### Added

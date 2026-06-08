@@ -1215,8 +1215,7 @@
           String(pr.number).includes(f) ||
           pr.labels.some(l => l.toLowerCase().includes(f)))
       : allPRs;
-    if (countEl) countEl.textContent = f && filtered.length !== allPRs.length
-      ? `${filtered.length} ${T.rl_of} ${allPRs.length}` : '';
+    if (countEl) countEl.textContent = f ? `${filtered.length} / ${allPRs.length}` : '';
     if (!filtered.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg><div>${emptyMsg}</div></div>`;
       return;
@@ -1274,8 +1273,7 @@
           String(iss.number).includes(f) ||
           iss.labels.some(l => l.toLowerCase().includes(f)))
       : allIssues;
-    if (countEl) countEl.textContent = f && filtered.length !== allIssues.length
-      ? `${filtered.length} ${T.rl_of} ${allIssues.length}` : '';
+    if (countEl) countEl.textContent = f ? `${filtered.length} / ${allIssues.length}` : '';
     if (!filtered.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><div>${emptyMsg}</div></div>`;
       return;
