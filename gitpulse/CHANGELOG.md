@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.58] - 2026-06-08
+
+### Added
+- HA Add-on-Übersetzungen für alle 6 SMTP-Optionen (de + en): smtp_host, smtp_port, smtp_user, smtp_password, smtp_to, smtp_tls
+
+---
+
 ## [0.1.57] - 2026-06-08
 
 ### Added
