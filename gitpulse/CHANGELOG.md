@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.73.1] - 2026-06-08
+
+Bump python from 3.11-alpine to 3.14-alpine in /gitpulse
+
+
 ## [0.1.72] - 2026-06-09
 
 ### Added
