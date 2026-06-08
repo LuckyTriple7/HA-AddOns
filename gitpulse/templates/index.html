@@ -152,10 +152,17 @@
     #install-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
 
     /* ── Notif banner ───────────────────────────────────────── */
-    #notif-banner { display:none; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; align-items:center; gap:10px; font-size:0.83rem; }
-    #notif-banner.show { display:flex; }
-    #notif-banner strong { flex:1; }
-    #notif-banner button { background:var(--accent); color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem; font-weight:600; }
+    #bell-menu { display:none; position:absolute; top:calc(100% + 6px); right:0; background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:14px 16px; min-width:220px; box-shadow:0 8px 24px rgba(0,0,0,.35); z-index:1000; }
+    #bell-menu.show { display:block; }
+    #bell-menu .bm-title { font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px; }
+    #bell-menu .bm-status { font-size:.85rem;font-weight:600;margin-bottom:10px; }
+    #bell-menu .bm-snooze-label { font-size:.76rem;color:var(--muted);margin-bottom:5px; }
+    #bell-menu .bm-chips { display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px; }
+    #bell-menu .bm-chip { background:none;border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:14px;font-size:.76rem;cursor:pointer; }
+    #bell-menu .bm-chip:hover { border-color:var(--accent);color:var(--accent); }
+    #bell-menu .bm-disable { width:100%;background:none;border:1px solid var(--border);color:var(--muted);padding:6px;border-radius:6px;font-size:.8rem;cursor:pointer;margin-top:2px; }
+    #bell-menu .bm-disable:hover { border-color:var(--red);color:var(--red); }
+    .bell-btn { position:relative; }
 
     /* ── Token Warning ──────────────────────────────────────── */
     .token-warning { background:rgba(210,153,34,.1); border:1px solid rgba(210,153,34,.3); color:var(--yellow); border-radius:var(--r); padding:10px 14px; margin-bottom:12px; font-size:0.83rem; }
@@ -249,6 +256,27 @@
     </button>
     <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
     <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <div class="bell-btn" id="bell-wrap">
+      <button id="bell-btn" class="hdr-btn" onclick="toggleBellMenu(event)" title="{{ t.notif_title }}">
+        <svg id="bell-icon" viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+      </button>
+      <div id="bell-menu">
+        <div class="bm-title">{{ t.notif_title }}</div>
+        <div id="bm-status" class="bm-status"></div>
+        <div id="bm-snooze-section">
+          <div class="bm-snooze-label">{{ t.notif_snooze_label }}</div>
+          <div class="bm-chips">
+            <button class="bm-chip" onclick="snoozeNotifs(1)">{{ t.notif_snooze_1h }}</button>
+            <button class="bm-chip" onclick="snoozeNotifs(4)">{{ t.notif_snooze_4h }}</button>
+            <button class="bm-chip" onclick="snoozeTomorrow()">{{ t.notif_snooze_tomorrow }}</button>
+          </div>
+          <button class="bm-disable" onclick="disableNotifs()">{{ t.notif_disable }}</button>
+        </div>
+        <div id="bm-enable-section" style="display:none">
+          <button style="width:100%;background:var(--accent);color:#fff;border:none;padding:7px;border-radius:6px;font-size:.82rem;font-weight:600;cursor:pointer" onclick="enableNotifs()">{{ t.btn_enable }}</button>
+        </div>
+      </div>
+    </div>
     <button class="hdr-btn" onclick="toggleTheme()">
       <svg class="icon-moon" viewBox="0 0 24 24" style="display:block"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
       <svg class="icon-sun" viewBox="0 0 24 24" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -429,11 +457,6 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm1 17H11V11h2v6zm0-8H11V7h2v2z"/></svg>
       <strong>{{ t.install_banner }}</strong>
       <button onclick="installPWA()">{{ t.btn_install }}</button>
-    </div>
-    <div id="notif-banner">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
-      <strong>{{ t.notif_request }}</strong>
-      <button onclick="requestNotifPermission()">{{ t.btn_enable }}</button>
     </div>
 
     <!-- ── Tab: Repos Übersicht ────────────────────────────────── -->
@@ -1901,27 +1924,114 @@
   }
 
   // ── Browser Notifications ─────────────────────────────────────────
-  function initNotifications() {
-    if (!('Notification' in window)) return;
-    notifEnabled = Notification.permission === 'granted';
-    if (Notification.permission === 'default') {
-      document.getElementById('notif-banner').classList.add('show');
+  let _snoozedUntil = parseInt(localStorage.getItem('gp_snooze') || '0', 10);
+
+  function _isSnoozed() { return _snoozedUntil > Date.now(); }
+
+  function _updateBellUI() {
+    const btn  = document.getElementById('bell-btn');
+    const icon = document.getElementById('bell-icon');
+    const statusEl   = document.getElementById('bm-status');
+    const snoozeSection = document.getElementById('bm-snooze-section');
+    const enableSection = document.getElementById('bm-enable-section');
+    if (!btn) return;
+    const granted = 'Notification' in window && Notification.permission === 'granted';
+    if (!granted) {
+      btn.style.color  = 'var(--muted)';
+      btn.style.opacity = '0.5';
+      icon.innerHTML   = '<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zM3.01 4.4 1.6 5.82 8 12.22V13l-2 2v1h12l.01-.01 2.6 2.6 1.41-1.41L3.01 4.4z"/>';
+      if (statusEl)   statusEl.innerHTML = '<span style="color:var(--muted)">⛔ {{ t.notif_off }}</span>';
+      if (snoozeSection) snoozeSection.style.display = 'none';
+      if (enableSection) enableSection.style.display = '';
+    } else if (_isSnoozed()) {
+      btn.style.color   = 'var(--yellow)';
+      btn.style.opacity = '1';
+      icon.innerHTML    = '<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>';
+      const until = new Date(_snoozedUntil);
+      const hhmm  = until.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      if (statusEl)   statusEl.innerHTML = `<span style="color:var(--yellow)">🔕 {{ t.notif_snoozed }} ${hhmm}</span>`;
+      if (snoozeSection) snoozeSection.style.display = '';
+      if (enableSection) enableSection.style.display = 'none';
+    } else {
+      btn.style.color   = 'var(--accent)';
+      btn.style.opacity = '1';
+      icon.innerHTML    = '<path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>';
+      if (statusEl)   statusEl.innerHTML = '<span style="color:var(--green)">🔔 {{ t.notif_active }}</span>';
+      if (snoozeSection) snoozeSection.style.display = '';
+      if (enableSection) enableSection.style.display = 'none';
     }
   }
 
-  function requestNotifPermission() {
-    Notification.requestPermission().then(p => {
-      notifEnabled = p === 'granted';
-      document.getElementById('notif-banner').classList.remove('show');
-    });
+  function toggleBellMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('bell-menu');
+    const isOpen = menu.classList.contains('show');
+    document.querySelectorAll('.bell-btn #bell-menu.show').forEach(m => m.classList.remove('show'));
+    if (!isOpen) { _updateBellUI(); menu.classList.add('show'); }
+  }
+
+  document.addEventListener('click', () => {
+    document.getElementById('bell-menu')?.classList.remove('show');
+  });
+
+  function snoozeNotifs(hours) {
+    _snoozedUntil = Date.now() + hours * 3600000;
+    localStorage.setItem('gp_snooze', String(_snoozedUntil));
+    _updateBellUI();
+    document.getElementById('bell-menu')?.classList.remove('show');
+  }
+
+  function snoozeTomorrow() {
+    const t = new Date(); t.setDate(t.getDate()+1); t.setHours(8,0,0,0);
+    _snoozedUntil = t.getTime();
+    localStorage.setItem('gp_snooze', String(_snoozedUntil));
+    _updateBellUI();
+    document.getElementById('bell-menu')?.classList.remove('show');
+  }
+
+  function disableNotifs() {
+    snoozeNotifs(24 * 365);
+  }
+
+  function enableNotifs() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      notifEnabled = true;
+      _snoozedUntil = 0;
+      localStorage.removeItem('gp_snooze');
+      _updateBellUI();
+      document.getElementById('bell-menu')?.classList.remove('show');
+    } else {
+      Notification.requestPermission().then(p => {
+        notifEnabled = p === 'granted';
+        _snoozedUntil = 0;
+        localStorage.removeItem('gp_snooze');
+        _updateBellUI();
+        document.getElementById('bell-menu')?.classList.remove('show');
+      });
+    }
+  }
+
+  function initNotifications() {
+    if (!('Notification' in window)) return;
+    _snoozedUntil = parseInt(localStorage.getItem('gp_snooze') || '0', 10);
+    notifEnabled  = Notification.permission === 'granted';
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(p => {
+        notifEnabled = p === 'granted';
+        _updateBellUI();
+      });
+    }
+    _updateBellUI();
   }
 
   function fireNotification(rel) {
     if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (_isSnoozed()) return;
     const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
     const n = new Notification(`${label}: ${rel.repo}`, {
       body: rel.tag,
-      icon: '/static/icon-192.png',
+      icon: u('/static/icon-192.png'),
       tag:  rel.repo + '@' + rel.tag,
     });
     n.onclick = () => window.open(rel.url, '_blank');

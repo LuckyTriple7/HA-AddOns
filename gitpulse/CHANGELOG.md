@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.59] - 2026-06-08
+
+### Changed
+- Browser-Benachrichtigungen: Notification-Banner entfernt, stattdessen Glocken-Button im Header
+- Glocken-Icon zeigt Status: 🔔 Aktiv (blau), 🔕 Stummgeschaltet (gelb), ⛔ Deaktiviert (ausgegraut)
+- Snooze-Dropdown: 1 Stunde, 4 Stunden, Bis morgen (08:00), Deaktivieren
+- Snooze-Zustand wird in localStorage gespeichert (bleibt nach Reload erhalten)
+- Browser fragt beim ersten Laden automatisch nach Berechtigung (kein Banner mehr)
+
+---
+
 ## [0.1.58] - 2026-06-08
 
 ### Added
