@@ -1522,8 +1522,12 @@ app.get('/', (req, res) => {
     #ch-name { font-size: 15px; font-weight: 600; }
     #ch-phone { font-size: 12px; color: #8696a0; }
     #ch-stats { font-size: 11px; color: #8696a0; margin-top: 2px; white-space: nowrap; }
+    #msg-search-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; margin-left: auto; }
+    #msg-search-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
+    #msg-search-btn.active { border-color: #3cdb7c; color: #3cdb7c; }
+    html.light #msg-search-btn:hover, html.light #msg-search-btn.active { border-color: #25d366; color: #25d366; }
     #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; }
-    #export-btn { margin-left: auto; }
+    #export-btn { }
     #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
@@ -1864,7 +1868,7 @@ app.get('/', (req, res) => {
           <div id="ch-phone"></div>
           <div id="ch-stats"></div>
         </div>
-        <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen">🔍</button>
+        <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
         <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🚮</button>
         <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
@@ -2712,6 +2716,7 @@ app.get('/', (req, res) => {
       const bar = document.getElementById('msg-search-bar');
       if (bar.classList.contains('open')) { closeMsgSearch(); return; }
       bar.classList.add('open');
+      document.getElementById('msg-search-btn').classList.add('active');
       const inp = document.getElementById('msg-search-input');
       inp.placeholder = t('msgSearchPlaceholder');
       inp.value = '';
@@ -2723,6 +2728,7 @@ app.get('/', (req, res) => {
 
     function closeMsgSearch() {
       document.getElementById('msg-search-bar').classList.remove('open');
+      document.getElementById('msg-search-btn').classList.remove('active');
       document.getElementById('msg-search-input').value = '';
       clearMsgHighlights();
       _searchMatches = [];
