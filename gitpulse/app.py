@@ -97,6 +97,8 @@ _sse_lock = threading.Lock()
 _gh_cache: dict = {
     'my_repos':    [],
     'releases':    [],
+    'my_activity': {'prs': [], 'issues': []},
+    'gh_login':    '',
     'token_ok':    None,
     'token_scopes': '',
     'token_expires': '',
@@ -761,7 +763,7 @@ def _fetch_my_activity(login: str, token: str) -> dict:
     try:
         r = http.get(
             f'{GITHUB_API}/search/issues',
-            params={'q': f'author:{login}+type:pr+state:open', 'per_page': 50, 'sort': 'updated'},
+            params={'q': f'author:{login} type:pr state:open', 'per_page': 50, 'sort': 'updated'},
             headers=_gh_headers(token), timeout=15,
         )
         if r.status_code == 200:
@@ -783,7 +785,7 @@ def _fetch_my_activity(login: str, token: str) -> dict:
     try:
         r = http.get(
             f'{GITHUB_API}/search/issues',
-            params={'q': f'author:{login}+type:issue+state:open', 'per_page': 50, 'sort': 'updated'},
+            params={'q': f'author:{login} type:issue state:open', 'per_page': 50, 'sort': 'updated'},
             headers=_gh_headers(token), timeout=15,
         )
         if r.status_code == 200:

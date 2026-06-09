@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.96] - 2026-06-09
+
+### Fixed
+- Meine Aktivität: GitHub Search API 422 — Leerzeichen statt `+` als Query-Separator (requests enkodiert `+` zu `%2B`)
+- Meine Aktivität: `undefined` beim ersten Render — `my_activity` in `_gh_cache`-Initialisierung ergänzt
+
 ## [0.1.95] - 2026-06-09
 
 ### Added
