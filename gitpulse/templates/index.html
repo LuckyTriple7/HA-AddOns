@@ -2530,16 +2530,19 @@
         + show.map(pr => {
           const date = pr.merged_at || pr.closed_at || '';
           const dateStr = date ? new Date(date).toLocaleDateString() : '';
-          const preview = (pr.body || '').slice(0, 200).replace(/</g,'&lt;');
-          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:background .15s"
-            onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''"
-            onclick="amUsePrBody(${JSON.stringify(pr.body || '')})">
-            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:4px;flex-wrap:wrap">
+          const titleJs  = JSON.stringify(pr.title || '');
+          const bodyJs   = JSON.stringify(pr.body  || '');
+          const hasBody  = (pr.body || '').trim().length > 0;
+          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;background:var(--bg)">
+            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:6px;flex-wrap:wrap">
               <span style="font-weight:600;font-size:0.88rem">#${pr.number} ${escHtml(pr.title)}</span>
               <span style="font-size:0.75rem;color:var(--muted)">${escHtml(pr.branch)}</span>
               <span style="font-size:0.75rem;color:var(--muted);margin-left:auto">${dateStr}</span>
             </div>
-            ${preview ? `<div style="font-size:0.78rem;color:var(--muted);white-space:pre-wrap;max-height:60px;overflow:hidden">${preview}${pr.body.length > 200 ? '…' : ''}</div>` : ''}
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px" onclick="amUsePrBody(${titleJs})">{{ t.am_pick_use_title }}</button>
+              ${hasBody ? `<button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px;color:var(--muted)" onclick="amUsePrBody(${bodyJs})">{{ t.am_pick_use_body }}</button>` : ''}
+            </div>
           </div>`;
         }).join('');
     } catch(e) {

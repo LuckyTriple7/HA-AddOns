@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.82] - 2026-06-09
+
+### Fixed
+- Add-on Manager PR-Picker: Einträge haben jetzt festen Hintergrund (war transparent); separate Buttons "Titel übernehmen" / "Body übernehmen" statt Body-Klick auf die ganze Karte
+
 ## [0.1.81] - 2026-06-09
 
 ### Security

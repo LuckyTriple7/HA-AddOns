@@ -224,6 +224,8 @@
   "am_pick_pr_title": "PR als Changelog",
   "am_pick_pr_none": "Keine geschlossenen PRs gefunden",
   "am_pick_pr_filtered": "Gefiltert nach diesem Add-on (Branch/Titel)",
+  "am_pick_use_title": "Titel übernehmen",
+  "am_pick_use_body": "Body übernehmen",
   "am_revert_title": "Versionsverlauf",
   "am_revert_loading": "Lade Verlauf…",
   "am_revert_no_history": "Kein Verlauf gefunden",
