@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.81] - 2026-06-09
+
+### Security
+- Browser-Bestätigung vor: Issue schließen, Workflow-Run abbrechen, Workflow-Run löschen, Workflow deaktivieren
+
 ## [0.1.80] - 2026-06-09
 
 ### Added

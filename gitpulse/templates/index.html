@@ -953,6 +953,7 @@
   function _btnRestore(btn) { if (btn) { btn.disabled = false; btn.innerHTML = btn._orig || btn.innerHTML; } }
 
   function closeIssue(btn, repo, number) {
+    if (!confirm('Issue #' + number + ' schließen?')) return;
     _btnWait(btn);
     fetch(u('/api/issue/close'), {
       method: 'POST',
@@ -1012,6 +1013,7 @@
 
   // ── Cancel Workflow ───────────────────────────────────────────────
   function cancelWorkflow(btn, repo, runId) {
+    if (!confirm('Workflow-Run #' + runId + ' abbrechen?')) return;
     _btnWait(btn);
     fetch(u('/api/workflow/cancel'), {
       method: 'POST',
@@ -1150,6 +1152,7 @@
   }
 
   function deleteWorkflowRun(repo, runId) {
+    if (!confirm('Workflow-Run #' + runId + ' löschen?')) return;
     fetch(u('/api/workflow/delete'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -1164,6 +1167,7 @@
   }
 
   async function toggleWorkflowState(repo, workflowId, enable, btnId) {
+    if (!enable && !confirm('Workflow deaktivieren?')) return;
     const btn = document.getElementById(btnId);
     if (btn) { btn.disabled = true; btn.textContent = '{{ t.ci_wf_toggling }}'; }
     try {
