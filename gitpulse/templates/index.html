@@ -306,11 +306,6 @@
       {{ t.tab_security }}
       <span id="badge-security" class="badge badge-red" style="display:none">0</span>
     </div>
-    <div class="tab" data-tab="activity" onclick="switchTab('activity')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      {{ t.tab_activity }}
-      <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
-    </div>
     <div class="tab" data-tab="ci" onclick="switchTab('ci')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       {{ t.tab_ci }}
@@ -324,6 +319,11 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
       {{ t.tab_addon_manager }}
     </div>{% endif %}
+    <div class="tab" data-tab="activity" onclick="switchTab('activity')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      {{ t.tab_activity }}
+      <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
+    </div>
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
       {{ t.tab_console }}
@@ -510,11 +510,6 @@
       <div id="issue-list"></div>
     </div>
 
-    <!-- ── Tab: Meine Aktivität ───────────────────────────── -->
-    <div id="tab-activity" style="display:none">
-      <div id="activity-list"></div>
-    </div>
-
     <!-- ── Tab: CI ──────────────────────────────────────────── -->
     <div id="tab-ci" style="display:none">
       <div id="ci-repo-selector" class="repo-tabs"></div>
@@ -553,6 +548,11 @@
       </div>
       <div id="security-filter-bar" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0 6px;border-bottom:1px solid var(--border)"></div>
       <div id="security-list"></div>
+    </div>
+
+    <!-- ── Tab: Meine Aktivität ───────────────────────────── -->
+    <div id="tab-activity" style="display:none">
+      <div id="activity-list"></div>
     </div>
 
     <!-- ── Tab: Console ─────────────────────────────────────── -->
@@ -647,7 +647,7 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','prs','issues','activity','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'console'];
+  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'activity','console'];
   let activeTab = 'repos';
   const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security', activity: 'chip-activity' };
   const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security', 'chip-activity': 'chip-new-activity' };
