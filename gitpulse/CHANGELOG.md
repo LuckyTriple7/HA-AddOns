@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.91.1] - 2026-06-09
+
+chore(deps): Bump requests from 2.33.0 to 2.34.2 in /gitpulse
+
+
 ## [0.1.91] - 2026-06-09
 
 ### Fixed
