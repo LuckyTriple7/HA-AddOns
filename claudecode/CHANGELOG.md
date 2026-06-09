@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.31] - 2026-06-09
+
+### Changed
+- Rebuild für Claude Code 2.1.169
+
+
 ## [1.0.30.1] - 2026-06-08
 
 Bump python from 3.13-alpine3.21 to 3.14-alpine3.21
