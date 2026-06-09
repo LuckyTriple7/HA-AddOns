@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.2.8] - 2026-06-09
+
+### Changed
+- Chart-Diagramme: Aktueller Wert (z.B. „9.9%") wird jetzt oben rechts *über* dem Datenbereich angezeigt — kein Überlappen mit der Linie mehr
+- Chart-Footer: Min / Avg / Max der letzten 24h werden für alle drei Charts (CPU, RAM, Temperatur) farbkodiert unterhalb des Diagramms angezeigt
+
 ## [1.2.7] - 2026-06-09
 
 ### Fixed
