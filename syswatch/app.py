@@ -816,6 +816,34 @@ def _telegram_unexpected_stop_notif(name: str) -> None:
         _pending_restart_msgs[name] = result
 
 
+def _stop_container_core(name: str) -> tuple[bool, str]:
+    """Stoppt Container. Supervisor-API zuerst (verhindert Watchdog-Neustart), Fallback Docker."""
+    # Supervisor bevorzugt: hält den Watchdog davon ab, den Container neu zu starten
+    slug = _supervisor_addon_slug(name)
+    if slug:
+        if _supervisor_action(slug, 'stop'):
+            log.info("Add-on gestoppt (Supervisor): %s (slug=%s)", name, slug)
+            _manually_stopped[name] = time.time()
+            return True, ''
+        log.warning("Supervisor-Stop fehlgeschlagen für '%s' (slug=%s) — versuche Docker", name, slug)
+    # Fallback: Docker-Socket (für reguläre Container ohne Supervisor-Eintrag)
+    socket_path = _find_docker_socket() if _docker_available else None
+    if not socket_path:
+        return False, 'Docker-Socket nicht verfügbar'
+    try:
+        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
+        container = client.containers.get(name)
+        container.stop(timeout=10)
+        log.info("Container gestoppt (Docker): %s", name)
+        _manually_stopped[name] = time.time()
+        return True, ''
+    except docker_lib.errors.NotFound:
+        return False, f"Container '{name}' nicht gefunden"
+    except Exception:
+        log.exception("Stop-Fehler (Docker) für '%s'", name)
+        return False, 'internal error'
+
+
 def _start_container_core(name: str) -> tuple[bool, str]:
     """Startet Container via Docker (Fallback: Supervisor). Gibt (ok, fehlermeldung) zurück."""
     socket_path = _find_docker_socket() if _docker_available else None
@@ -1624,19 +1652,10 @@ def api_stop(name: str):
     if body.get('password', '') != config.get('password', ''):
         log.warning("Stop abgelehnt (falsches Passwort): container='%s'", name)
         return jsonify({'error': 'wrong_password'}), 403
-    socket_path = _find_docker_socket() if _docker_available else None
-    if not socket_path:
-        return jsonify({'error': 'Docker-Socket nicht verfügbar'}), 503
-    try:
-        client    = docker_lib.DockerClient(base_url=f'unix://{socket_path}')
-        container = client.containers.get(name)
-        container.stop(timeout=10)
-        log.info("Container gestoppt: %s", name)
-        _manually_stopped[name] = time.time()
+    ok, err = _stop_container_core(name)
+    if ok:
         return jsonify({'ok': True})
-    except Exception:
-        log.exception("Stop-Fehler für '%s'", name)
-        return jsonify({'error': 'internal error'}), 500
+    return jsonify({'error': err}), (404 if 'nicht gefunden' in err else 503 if 'Socket' in err else 500)
 
 
 # ── Startup ────────────────────────────────────────────────────────────────────

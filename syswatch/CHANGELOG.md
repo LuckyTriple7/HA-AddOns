@@ -1,5 +1,11 @@
 # Changelog — HA SysWatch
 
+## [1.2.10] - 2026-06-09
+
+### Fixed
+- Stop-Button: HA Add-ons werden jetzt über die Supervisor API gestoppt (`POST /addons/{slug}/stop`) statt direkt über Docker — verhindert, dass der Watchdog den Container sofort neu startet
+- Reguläre Docker-Container (kein Supervisor-Eintrag) weiterhin über Docker-Socket gestoppt
+
 ## [1.2.9] - 2026-06-09
 
 ### Fixed
