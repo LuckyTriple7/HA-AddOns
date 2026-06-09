@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.98] - 2026-06-09
+
+### Fixed
+- Meine Aktivität: Schließen-Button nur für eigene Repos (`my_repos`) sichtbar — fremde Repos haben keine API-Schreibrechte
+
 ## [0.1.97] - 2026-06-09
 
 ### Added
