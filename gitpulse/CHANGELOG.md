@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.97] - 2026-06-09
+
+### Added
+- Meine Aktivität: Kommentar-Benachrichtigungen via Telegram, E-Mail und Browser wenn jemand einen eigenen PR oder Issue kommentiert (kein extra API-Call — nutzt `comments`-Zähler aus Search API)
+- Meine Aktivität: Kommentar-Anzahl wird direkt in der Item-Zeile angezeigt (💬)
+
 ## [0.1.96] - 2026-06-09
 
 ### Fixed

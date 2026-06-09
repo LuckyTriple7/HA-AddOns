@@ -1877,6 +1877,7 @@
               ? `<span class="pr-state-open">⇄ PR</span>`
               : `<span style="color:var(--yellow)">● Issue</span>`}
             <span>${relTime(item.updated)}</span>
+            ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
             ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
@@ -2397,6 +2398,12 @@
         if (!_bn_first && !_bn_act_iss.has(k))
           _fireBN(`🐛 Eigenes Issue offen: ${iss.repo.split('/')[1]}`, `#${iss.number} ${iss.title}`, iss.url, `act-iss-${k}`);
         _bn_act_iss.add(k);
+      }
+      for (const c of (data.new_activity_comments || [])) {
+        const label = c.kind === 'pr' ? 'PR' : 'Issue';
+        _fireBN(`💬 Neuer Kommentar auf deinem ${label}: ${c.item.repo.split('/')[1]}`,
+          `#${c.item.number} ${c.item.title} · ${c.new_cnt} neuer Kommentar${c.new_cnt > 1 ? 'e' : ''}`,
+          c.item.url, `act-comment-${c.item.repo}-${c.item.number}`);
       }
     }
 

@@ -97,8 +97,9 @@ _sse_lock = threading.Lock()
 _gh_cache: dict = {
     'my_repos':    [],
     'releases':    [],
-    'my_activity': {'prs': [], 'issues': []},
-    'gh_login':    '',
+    'my_activity':           {'prs': [], 'issues': []},
+    'new_activity_comments': [],
+    'gh_login':              '',
     'token_ok':    None,
     'token_scopes': '',
     'token_expires': '',
@@ -118,6 +119,9 @@ _seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
 
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
 _gh_login: str = ''
+
+# Kommentar-Zähler für eigene PRs/Issues — erkennt neue Kommentare ohne extra API-Call
+_activity_comment_counts: dict[str, int] = {}  # "repo#number" -> comment count
 
 # Repos ohne Releases — 404 bekommen, 1h warten bevor erneut geprüft wird
 _NO_RELEASE_TTL = 3600
@@ -778,6 +782,7 @@ def _fetch_my_activity(login: str, token: str) -> dict:
                     'draft':      item.get('draft', False),
                     'updated':    item['updated_at'],
                     'created':    item['created_at'],
+                    'comments':   item.get('comments', 0),
                     'labels':     [l['name'] for l in item.get('labels', [])],
                 })
     except Exception as e:
@@ -792,14 +797,15 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             for item in r.json().get('items', []):
                 repo_full = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
                 issues.append({
-                    'number':  item['number'],
-                    'title':   item['title'],
-                    'url':     item['html_url'],
-                    'repo':    repo_full,
-                    'state':   item['state'],
-                    'updated': item['updated_at'],
-                    'created': item['created_at'],
-                    'labels':  [l['name'] for l in item.get('labels', [])],
+                    'number':   item['number'],
+                    'title':    item['title'],
+                    'url':      item['html_url'],
+                    'repo':     repo_full,
+                    'state':    item['state'],
+                    'updated':  item['updated_at'],
+                    'created':  item['created_at'],
+                    'comments': item.get('comments', 0),
+                    'labels':   [l['name'] for l in item.get('labels', [])],
                 })
     except Exception as e:
         log.error("my_activity Issues: %s", e)
@@ -1172,39 +1178,48 @@ def _do_poll(cfg: dict, token: str) -> None:
     # Eigene Aktivität (PRs + Issues die ich erstellt habe)
     activity = _fetch_my_activity(_gh_login, token)
     activity_changed = False
-    if _first_poll_done:
-        for pr in activity['prs']:
-            key = f"{pr['repo']}#{pr['number']}:open"
+    new_activity_comments = []
+    all_items = [('pr', pr) for pr in activity['prs']] + [('issue', iss) for iss in activity['issues']]
+    for kind, item in all_items:
+        key = f"{item['repo']}#{item['number']}:open"
+        ckey = f"{item['repo']}#{item['number']}"
+        cnt = item.get('comments', 0)
+        if _first_poll_done:
             if key not in _seen_activity:
                 _seen_activity.add(key)
                 activity_changed = True
+                if kind == 'pr':
+                    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
+                        f"🔀 Neuer eigener PR: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>",
+                        f"Neuer eigener PR: {item['repo']} #{item['number']} {item['title']}",
+                        [f"Repo: <b>{item['repo']}</b>", f"PR: <a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>"])
+                else:
+                    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
+                        f"🐛 Neues eigenes Issue: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#I{item['number']} {item['title']}</a>",
+                        f"Neues eigenes Issue: {item['repo']} #{item['number']} {item['title']}",
+                        [f"Repo: <b>{item['repo']}</b>", f"Issue: <a href=\"{item['url']}\">#I{item['number']} {item['title']}</a>"])
+            prev_cnt = _activity_comment_counts.get(ckey)
+            if prev_cnt is not None and cnt > prev_cnt:
+                label = 'PR' if kind == 'pr' else 'Issue'
+                new_cnt = cnt - prev_cnt
                 _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
-                    f"🔀 Neuer eigener PR: <b>{pr['repo']}</b>\n<a href=\"{pr['url']}\">#PR{pr['number']} {pr['title']}</a>",
-                    f"Neuer eigener PR: {pr['repo']} #{pr['number']} {pr['title']}",
-                    [f"Repo: <b>{pr['repo']}</b>", f"PR: <a href=\"{pr['url']}\">#PR{pr['number']} {pr['title']}</a>"])
-        for iss in activity['issues']:
-            key = f"{iss['repo']}#{iss['number']}:open"
-            if key not in _seen_activity:
-                _seen_activity.add(key)
-                activity_changed = True
-                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
-                    f"🐛 Neues eigenes Issue: <b>{iss['repo']}</b>\n<a href=\"{iss['url']}\">#I{iss['number']} {iss['title']}</a>",
-                    f"Neues eigenes Issue: {iss['repo']} #{iss['number']} {iss['title']}",
-                    [f"Repo: <b>{iss['repo']}</b>", f"Issue: <a href=\"{iss['url']}\">#I{iss['number']} {iss['title']}</a>"])
-    else:
-        for pr in activity['prs']:
-            _seen_activity.add(f"{pr['repo']}#{pr['number']}:open")
-        for iss in activity['issues']:
-            _seen_activity.add(f"{iss['repo']}#{iss['number']}:open")
-        activity_changed = True
+                    f"💬 Neuer Kommentar auf deinem {label}: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>\n{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}",
+                    f"Neuer Kommentar auf {label} {item['repo']} #{item['number']}",
+                    [f"Repo: <b>{item['repo']}</b>", f"{label}: <a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>", f"{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}"])
+                new_activity_comments.append({'kind': kind, 'item': item, 'new_cnt': new_cnt})
+        else:
+            _seen_activity.add(key)
+            activity_changed = True
+        _activity_comment_counts[ckey] = cnt
     if activity_changed:
         save_seen_activity()
 
     with _gh_lock:
         _gh_cache['my_repos']      = repo_data
         _gh_cache['releases']      = releases
-        _gh_cache['my_activity']   = activity
-        _gh_cache['gh_login']      = _gh_login
+        _gh_cache['my_activity']          = activity
+        _gh_cache['new_activity_comments'] = new_activity_comments
+        _gh_cache['gh_login']             = _gh_login
         _gh_cache['token_ok']      = True
         _gh_cache['token_scopes']  = scopes
         _gh_cache['token_expires'] = expires
