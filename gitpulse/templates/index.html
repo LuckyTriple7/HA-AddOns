@@ -2382,7 +2382,7 @@
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
         <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem">
         <button class="hdr-btn" title="{{ t.am_btn_patch_title }}" onclick="amBumpPatch('${id}-ver')" style="font-size:0.78rem;padding:3px 8px">{{ t.am_btn_patch }}</button>
-        <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver')" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
+        <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver', ${safeJsArg(a.version)})" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.am_changelog_label }}:</label>
@@ -2417,15 +2417,17 @@
     }
   }
 
-  function amBumpDep(inputId) {
+  function amBumpDep(inputId, currentVersion) {
     const inp = document.getElementById(inputId);
     if (!inp) return;
-    const parts = inp.value.trim().split('.');
-    if (parts.length === 3) {
-      inp.value = inp.value.trim() + '.1';
-    } else if (parts.length === 4) {
-      parts[3] = String(parseInt(parts[3], 10) + 1);
-      inp.value = parts.join('.');
+    const base = (currentVersion || inp.value).trim();
+    const parts = base.split('.');
+    if (parts.length >= 4) {
+      const p = parts.slice(0, 4);
+      p[3] = String(parseInt(p[3], 10) + 1);
+      inp.value = p.join('.');
+    } else if (parts.length === 3) {
+      inp.value = base + '.1';
     }
   }
 
@@ -2558,9 +2560,11 @@
     const text = field === 'title' ? item.title : item.body;
     if (_amPrTargetId) {
       const el = document.getElementById(_amPrTargetId);
-      if (el) el.value = text;
+      if (el) {
+        const existing = el.value.trim();
+        el.value = existing ? existing + '\n' + text : text;
+      }
     }
-    amClosePrPicker();
   }
 
   function amClosePrPicker() {

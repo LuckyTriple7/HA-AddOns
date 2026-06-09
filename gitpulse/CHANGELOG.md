@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.86] - 2026-06-09
+
+### Fixed
+- Add-on Manager: +Dep rechnet jetzt korrekt von der aktuellen Version (1.0.8.1 → 1.0.8.2 statt 1.0.9.1)
+- Add-on Manager: PR-Titel/Body übernehmen hängt neue Einträge an statt zu überschreiben; Picker bleibt offen für mehrere Auswahlen
+
 ## [0.1.85] - 2026-06-09
 
 ### Fixed
