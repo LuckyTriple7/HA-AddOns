@@ -2506,9 +2506,11 @@
 
   // ── PR-Picker ─────────────────────────────────────────────────────
   let _amPrTargetId = null;
+  let _amPrItems = [];
 
   async function amOpenPrPicker(addonDir, addonName, repo, clInputId) {
     _amPrTargetId = clInputId;
+    _amPrItems = [];
     const ov   = document.getElementById('am-pr-overlay');
     const list = document.getElementById('am-pr-list');
     document.getElementById('am-pr-title').textContent = `{{ t.am_pick_pr_title }} — ${addonName}`;
@@ -2526,13 +2528,13 @@
         list.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_pick_pr_none }}</div>`;
         return;
       }
+      // Store PR data by index — avoids putting strings directly in onclick attributes
+      _amPrItems = show.map(pr => ({title: pr.title || '', body: pr.body || ''}));
       list.innerHTML = (filtered ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">{{ t.am_pick_pr_filtered }}</div>` : '')
-        + show.map(pr => {
+        + show.map((pr, i) => {
           const date = pr.merged_at || pr.closed_at || '';
           const dateStr = date ? new Date(date).toLocaleDateString() : '';
-          const titleJs  = JSON.stringify(pr.title || '');
-          const bodyJs   = JSON.stringify(pr.body  || '');
-          const hasBody  = (pr.body || '').trim().length > 0;
+          const hasBody = (pr.body || '').trim().length > 0;
           return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;background:var(--bg)">
             <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:6px;flex-wrap:wrap">
               <span style="font-weight:600;font-size:0.88rem">#${pr.number} ${escHtml(pr.title)}</span>
@@ -2540,8 +2542,8 @@
               <span style="font-size:0.75rem;color:var(--muted);margin-left:auto">${dateStr}</span>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px" onclick="amUsePrBody(${titleJs})">{{ t.am_pick_use_title }}</button>
-              ${hasBody ? `<button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px;color:var(--muted)" onclick="amUsePrBody(${bodyJs})">{{ t.am_pick_use_body }}</button>` : ''}
+              <button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px" onclick="amPickByIdx(${i},'title')">{{ t.am_pick_use_title }}</button>
+              ${hasBody ? `<button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px;color:var(--muted)" onclick="amPickByIdx(${i},'body')">{{ t.am_pick_use_body }}</button>` : ''}
             </div>
           </div>`;
         }).join('');
@@ -2550,10 +2552,13 @@
     }
   }
 
-  function amUsePrBody(body) {
+  function amPickByIdx(i, field) {
+    const item = _amPrItems[i];
+    if (!item) return;
+    const text = field === 'title' ? item.title : item.body;
     if (_amPrTargetId) {
       const el = document.getElementById(_amPrTargetId);
-      if (el) el.value = body;
+      if (el) el.value = text;
     }
     amClosePrPicker();
   }

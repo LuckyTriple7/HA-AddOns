@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.84] - 2026-06-09
+
+### Fixed
+- PR-Picker: "Titel übernehmen" Button funktioniert jetzt — PR-Daten werden per Index-Array referenziert statt als String im onclick-Attribut (JSON.stringify erzeugte doppelte Anführungszeichen die das HTML brachen)
+
 ## [0.1.83] - 2026-06-09
 
 ### Security
