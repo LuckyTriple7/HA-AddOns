@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.95] - 2026-06-09
+
+### Added
+- Neuer Tab "Meine Aktivität": zeigt alle offenen PRs und Issues die der authentifizierte GitHub-User erstellt hat, quer über alle Repos
+- Summary-Kachel für eigene Aktivität mit Blink-Effekt bei neuen Einträgen
+- Benachrichtigungen (Telegram, E-Mail, Browser) für neue eigene PRs/Issues — separat abschaltbar
+
 ## [0.1.94] - 2026-06-09
 
 ### Fixed

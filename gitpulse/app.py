@@ -110,6 +110,13 @@ _gh_lock = threading.Lock()
 _SEEN_PATH = '/data/seen_releases.json'
 _seen_releases: set[str] = set()
 
+# Seen activity — eigene PRs/Issues, persistent
+_SEEN_ACTIVITY_PATH = '/data/seen_activity.json'
+_seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
+
+# GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
+_gh_login: str = ''
+
 # Repos ohne Releases — 404 bekommen, 1h warten bevor erneut geprüft wird
 _NO_RELEASE_TTL = 3600
 _no_release_repos: dict[str, float] = {}  # repo -> timestamp der letzten 404
@@ -292,6 +299,26 @@ def save_seen_releases() -> None:
             json.dump(list(_seen_releases), f)
     except Exception as e:
         log.warning("seen_releases konnte nicht gespeichert werden: %s", e)
+
+
+def load_seen_activity() -> None:
+    global _seen_activity
+    try:
+        with open(_SEEN_ACTIVITY_PATH) as f:
+            _seen_activity = set(json.load(f))
+        log.info("Bekannte Aktivitäten geladen: %d Einträge", len(_seen_activity))
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("seen_activity konnte nicht geladen werden: %s", e)
+
+
+def save_seen_activity() -> None:
+    try:
+        with open(_SEEN_ACTIVITY_PATH, 'w') as f:
+            json.dump(list(_seen_activity), f)
+    except Exception as e:
+        log.warning("seen_activity konnte nicht gespeichert werden: %s", e)
 
 
 # ── Workflow-Favoriten (Persistence) ──────────────────────────────────────────
@@ -726,6 +753,57 @@ def _fetch_releases(repos: list[str], token: str, include_betas: bool) -> list[d
     return results
 
 
+def _fetch_my_activity(login: str, token: str) -> dict:
+    """Eigene offene PRs und Issues via GitHub Search API."""
+    if not login:
+        return {'prs': [], 'issues': []}
+    prs, issues = [], []
+    try:
+        r = http.get(
+            f'{GITHUB_API}/search/issues',
+            params={'q': f'author:{login}+type:pr+state:open', 'per_page': 50, 'sort': 'updated'},
+            headers=_gh_headers(token), timeout=15,
+        )
+        if r.status_code == 200:
+            for item in r.json().get('items', []):
+                repo_full = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
+                prs.append({
+                    'number':     item['number'],
+                    'title':      item['title'],
+                    'url':        item['html_url'],
+                    'repo':       repo_full,
+                    'state':      item['state'],
+                    'draft':      item.get('draft', False),
+                    'updated':    item['updated_at'],
+                    'created':    item['created_at'],
+                    'labels':     [l['name'] for l in item.get('labels', [])],
+                })
+    except Exception as e:
+        log.error("my_activity PRs: %s", e)
+    try:
+        r = http.get(
+            f'{GITHUB_API}/search/issues',
+            params={'q': f'author:{login}+type:issue+state:open', 'per_page': 50, 'sort': 'updated'},
+            headers=_gh_headers(token), timeout=15,
+        )
+        if r.status_code == 200:
+            for item in r.json().get('items', []):
+                repo_full = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
+                issues.append({
+                    'number':  item['number'],
+                    'title':   item['title'],
+                    'url':     item['html_url'],
+                    'repo':    repo_full,
+                    'state':   item['state'],
+                    'updated': item['updated_at'],
+                    'created': item['created_at'],
+                    'labels':  [l['name'] for l in item.get('labels', [])],
+                })
+    except Exception as e:
+        log.error("my_activity Issues: %s", e)
+    return {'prs': prs, 'issues': issues}
+
+
 def _send_telegram(token: str, chat_id: str, text: str) -> None:
     try:
         r = http.post(
@@ -881,7 +959,7 @@ def _poll_worker() -> None:
 
 
 def _do_poll(cfg: dict, token: str) -> None:
-    global _seen_releases, _first_poll_done
+    global _seen_releases, _seen_activity, _first_poll_done, _gh_login
 
     token_ok, scopes, expires = _check_token(token)
     if not token_ok:
@@ -890,6 +968,15 @@ def _do_poll(cfg: dict, token: str) -> None:
             _gh_cache['error'] = 'Token ungültig oder abgelaufen'
         _notify_sse()
         return
+
+    if not _gh_login:
+        try:
+            r = http.get(f'{GITHUB_API}/user', headers=_gh_headers(token), timeout=10)
+            if r.status_code == 200:
+                _gh_login = r.json().get('login', '')
+                log.info("GitHub-Login: %s", _gh_login)
+        except Exception as e:
+            log.warning("GitHub-Login konnte nicht geladen werden: %s", e)
 
     user_repos = load_user_repos()
     if user_repos is not None:
@@ -1080,9 +1167,42 @@ def _do_poll(cfg: dict, token: str) -> None:
     if new_releases:
         save_seen_releases()
 
+    # Eigene Aktivität (PRs + Issues die ich erstellt habe)
+    activity = _fetch_my_activity(_gh_login, token)
+    activity_changed = False
+    if _first_poll_done:
+        for pr in activity['prs']:
+            key = f"{pr['repo']}#{pr['number']}:open"
+            if key not in _seen_activity:
+                _seen_activity.add(key)
+                activity_changed = True
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
+                    f"🔀 Neuer eigener PR: <b>{pr['repo']}</b>\n<a href=\"{pr['url']}\">#PR{pr['number']} {pr['title']}</a>",
+                    f"Neuer eigener PR: {pr['repo']} #{pr['number']} {pr['title']}",
+                    [f"Repo: <b>{pr['repo']}</b>", f"PR: <a href=\"{pr['url']}\">#PR{pr['number']} {pr['title']}</a>"])
+        for iss in activity['issues']:
+            key = f"{iss['repo']}#{iss['number']}:open"
+            if key not in _seen_activity:
+                _seen_activity.add(key)
+                activity_changed = True
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
+                    f"🐛 Neues eigenes Issue: <b>{iss['repo']}</b>\n<a href=\"{iss['url']}\">#I{iss['number']} {iss['title']}</a>",
+                    f"Neues eigenes Issue: {iss['repo']} #{iss['number']} {iss['title']}",
+                    [f"Repo: <b>{iss['repo']}</b>", f"Issue: <a href=\"{iss['url']}\">#I{iss['number']} {iss['title']}</a>"])
+    else:
+        for pr in activity['prs']:
+            _seen_activity.add(f"{pr['repo']}#{pr['number']}:open")
+        for iss in activity['issues']:
+            _seen_activity.add(f"{iss['repo']}#{iss['number']}:open")
+        activity_changed = True
+    if activity_changed:
+        save_seen_activity()
+
     with _gh_lock:
         _gh_cache['my_repos']      = repo_data
         _gh_cache['releases']      = releases
+        _gh_cache['my_activity']   = activity
+        _gh_cache['gh_login']      = _gh_login
         _gh_cache['token_ok']      = True
         _gh_cache['token_scopes']  = scopes
         _gh_cache['token_expires'] = expires
@@ -1483,7 +1603,7 @@ def api_ci_jobs():
 _TG_NOTIF_KEYS = (
     'startup', 'new_pr', 'pr_closed', 'new_issue',
     'workflow_started', 'workflow_completed',
-    'releases', 'repo_stats', 'star_fork', 'security',
+    'releases', 'repo_stats', 'star_fork', 'security', 'my_activity',
 )
 
 
@@ -2548,6 +2668,7 @@ def api_addon_manager_revert():
 if __name__ == '__main__':
     load_sessions()
     load_seen_releases()
+    load_seen_activity()
 
     # Initiales Token-Ablauf-Warning
     cfg   = load_config()

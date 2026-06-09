@@ -306,6 +306,11 @@
       {{ t.tab_security }}
       <span id="badge-security" class="badge badge-red" style="display:none">0</span>
     </div>
+    <div class="tab" data-tab="activity" onclick="switchTab('activity')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      {{ t.tab_activity }}
+      <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
+    </div>
     <div class="tab" data-tab="ci" onclick="switchTab('ci')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
       {{ t.tab_ci }}
@@ -505,6 +510,11 @@
       <div id="issue-list"></div>
     </div>
 
+    <!-- ── Tab: Meine Aktivität ───────────────────────────── -->
+    <div id="tab-activity" style="display:none">
+      <div id="activity-list"></div>
+    </div>
+
     <!-- ── Tab: CI ──────────────────────────────────────────── -->
     <div id="tab-ci" style="display:none">
       <div id="ci-repo-selector" class="repo-tabs"></div>
@@ -637,10 +647,10 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'console'];
+  const TABS = ['repos','prs','issues','activity','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'console'];
   let activeTab = 'repos';
-  const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security' };
-  const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security' };
+  const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security', activity: 'chip-activity' };
+  const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security', 'chip-activity': 'chip-new-activity' };
 
   function switchTab(name) {
     TABS.forEach(t => {
@@ -663,13 +673,15 @@
   let activeRepo = null;
   let notifEnabled = false;
   // Browser-Notification-Tracking (client-seitig, reset bei Reload)
-  let _bn_first  = true;
-  let _bn_prs    = {};   // {repo: Set<number>}
-  let _bn_issues = {};   // {repo: Set<number>}
-  let _bn_runs   = {};   // {run_id: conclusion|null}
-  let _bn_stars  = {};   // {repo: number}
-  let _bn_forks  = {};   // {repo: number}
-  let _bn_sec    = {};   // {repo: number} alert count
+  let _bn_first    = true;
+  let _bn_prs      = {};   // {repo: Set<number>}
+  let _bn_issues   = {};   // {repo: Set<number>}
+  let _bn_runs     = {};   // {run_id: conclusion|null}
+  let _bn_stars    = {};   // {repo: number}
+  let _bn_forks    = {};   // {repo: number}
+  let _bn_sec      = {};   // {repo: number} alert count
+  let _bn_act_prs  = new Set();   // "repo#number" gesehene eigene PRs
+  let _bn_act_iss  = new Set();   // "repo#number" gesehene eigene Issues
   function _bnNotif() {
     try { return JSON.parse(localStorage.getItem('gp_bn_notif') || '{}'); } catch { return {}; }
   }
@@ -810,6 +822,7 @@
     { key:'repo_stats',          label:'{{ t.tg_repo_stats }}' },
     { key:'star_fork',           label:'{{ t.tg_star_fork }}' },
     { key:'security',            label:'{{ t.tg_security }}' },
+    { key:'my_activity',         label:'{{ t.tg_my_activity }}' },
   ];
 
   function openSettings() {
@@ -1322,6 +1335,8 @@
   function renderSummary(data) {
     let totalPRs = 0, totalIssues = 0, totalRuns = 0, hasActive = false, hasFailed = false;
     let totalSec = 0, hasSecCritical = false, hasSecHigh = false;
+    const act = data.my_activity || {};
+    const totalActivity = (act.prs || []).length + (act.issues || []).length;
     (data.my_repos || []).forEach(r => {
       totalPRs    += r.open_prs    || 0;
       totalIssues += r.open_issues || 0;
@@ -1346,6 +1361,7 @@
       <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
       <div class="stat-chip" id="chip-prs"      onclick="switchTab('prs')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
       <div class="stat-chip" id="chip-issues"   onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
+      <div class="stat-chip" id="chip-activity" onclick="switchTab('activity')"><div class="num" style="color:var(--accent)">${totalActivity}</div><div class="lbl">{{ t.stat_activity }}</div></div>
       <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
@@ -1356,17 +1372,20 @@
       _applyChipBlink('chip-issues',   'chip-new-issues',   totalIssues   > _chipCounts.issues);
       _applyChipBlink('chip-releases', 'chip-new-releases', totalReleases > _chipCounts.releases);
       _applyChipBlink('chip-security', 'chip-new-security', totalSec      > _chipCounts.security);
+      _applyChipBlink('chip-activity', 'chip-new-activity', totalActivity > _chipCounts.activity);
     }
-    _chipCounts = { prs: totalPRs, issues: totalIssues, releases: totalReleases, security: totalSec };
+    _chipCounts = { prs: totalPRs, issues: totalIssues, releases: totalReleases, security: totalSec, activity: totalActivity };
 
     const newRel   = (data.new_releases || []).length;
     const badgePR  = document.getElementById('badge-prs');
     const badgeIss = document.getElementById('badge-issues');
     const badgeRel = document.getElementById('badge-releases');
     const badgeSec = document.getElementById('badge-security');
-    if (totalPRs)   { badgePR.textContent  = totalPRs;   badgePR.style.display  = ''; } else badgePR.style.display  = 'none';
-    if (totalIssues){ badgeIss.textContent = totalIssues; badgeIss.style.display = ''; } else badgeIss.style.display = 'none';
-    if (newRel)     { badgeRel.textContent = newRel;      badgeRel.style.display = ''; } else badgeRel.style.display = 'none';
+    const badgeAct = document.getElementById('badge-activity');
+    if (totalPRs)     { badgePR.textContent  = totalPRs;      badgePR.style.display  = ''; } else badgePR.style.display  = 'none';
+    if (totalIssues)  { badgeIss.textContent = totalIssues;   badgeIss.style.display = ''; } else badgeIss.style.display = 'none';
+    if (newRel)       { badgeRel.textContent = newRel;        badgeRel.style.display = ''; } else badgeRel.style.display = 'none';
+    if (totalActivity){ badgeAct.textContent = totalActivity; badgeAct.style.display = ''; } else badgeAct.style.display = 'none';
     if (totalSec)   { badgeSec.textContent = totalSec;    badgeSec.style.display = ''; } else badgeSec.style.display = 'none';
   }
 
@@ -1835,6 +1854,49 @@
     el.innerHTML = html;
   }
 
+  // ── Render: My Activity ──────────────────────────────────────────
+  function renderActivity(data) {
+    const el  = document.getElementById('activity-list');
+    const act = data.my_activity || {};
+    const prs    = act.prs    || [];
+    const issues = act.issues || [];
+    if (!prs.length && !issues.length) {
+      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><div>${T.no_activity}</div></div>`;
+      return;
+    }
+    const itemRow = (item, type) => `
+      <div class="item-row">
+        <div class="item-main">
+          <div class="item-title">
+            <span style="font-size:.72rem;color:var(--muted);margin-right:4px">${escHtml(item.repo)}</span>
+            <a href="${item.url}" target="_blank" rel="noopener noreferrer">#${item.number} ${escHtml(item.title)}</a>
+            ${item.draft ? `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">Draft</span>` : ''}
+          </div>
+          <div class="item-meta">
+            ${type === 'pr'
+              ? `<span class="pr-state-open">⇄ PR</span>`
+              : `<span style="color:var(--yellow)">● Issue</span>`}
+            <span>${relTime(item.updated)}</span>
+            ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    let html = '';
+    if (prs.length) {
+      html += `<div class="card" style="margin-bottom:10px"><div class="card-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--green)"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg>
+        {{ t.activity_my_prs }} (${prs.length})
+      </div><div class="card-body">${prs.map(p => itemRow(p, 'pr')).join('')}</div></div>`;
+    }
+    if (issues.length) {
+      html += `<div class="card"><div class="card-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        {{ t.activity_my_issues }} (${issues.length})
+      </div><div class="card-body">${issues.map(i => itemRow(i, 'issue')).join('')}</div></div>`;
+    }
+    el.innerHTML = html;
+  }
+
   // ── Main render ───────────────────────────────────────────────────
   // ── Render: Security ─────────────────────────────────────────────
   // ── Security filter state ────────────────────────────────────────────
@@ -2024,6 +2086,7 @@
     renderRepoSelector(data.my_repos || []);
     renderPRs(data);
     renderIssues(data);
+    renderActivity(data);
     renderCI(data);
     renderReleases(data);
     renderSecurity(data);
@@ -2314,6 +2377,23 @@
       for (const rel of (data.new_releases || [])) {
         const label = rel.prerelease ? '🔵 Pre-Release' : '🟢 Release';
         _fireBN(`${label}: ${rel.repo}`, rel.tag, rel.url, `rel-${rel.repo}-${rel.tag}`);
+      }
+    }
+
+    // Eigene Aktivität
+    if (bn.my_activity !== false) {
+      const act = data.my_activity || {};
+      for (const pr of (act.prs || [])) {
+        const k = `${pr.repo}#${pr.number}`;
+        if (!_bn_first && !_bn_act_prs.has(k))
+          _fireBN(`🔀 Eigener PR offen: ${pr.repo.split('/')[1]}`, `#${pr.number} ${pr.title}`, pr.url, `act-pr-${k}`);
+        _bn_act_prs.add(k);
+      }
+      for (const iss of (act.issues || [])) {
+        const k = `${iss.repo}#${iss.number}`;
+        if (!_bn_first && !_bn_act_iss.has(k))
+          _fireBN(`🐛 Eigenes Issue offen: ${iss.repo.split('/')[1]}`, `#${iss.number} ${iss.title}`, iss.url, `act-iss-${k}`);
+        _bn_act_iss.add(k);
       }
     }
 
