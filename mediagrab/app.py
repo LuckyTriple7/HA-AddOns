@@ -400,9 +400,23 @@ def _run_download(job_id: str) -> None:
 
                 m = _PLAYLIST_RE.search(line)
                 if m:
+                    new_pos   = int(m.group(1))
+                    new_count = int(m.group(2))
                     with _jobs_lock:
-                        _jobs[job_id]['playlist_pos']   = int(m.group(1))
-                        _jobs[job_id]['playlist_count'] = int(m.group(2))
+                        prev_fname = _jobs[job_id].get('filename', '')
+                        prev_pos   = _jobs[job_id].get('playlist_pos', 0)
+                        _job_url   = _jobs[job_id].get('url', '')
+                        _jobs[job_id]['playlist_pos']   = new_pos
+                        _jobs[job_id]['playlist_count'] = new_count
+                    # Save Playlist tag for the just-finished item (only when playlist checkbox was ticked)
+                    if prev_pos > 0 and prev_fname and job.get('playlist'):
+                        with _meta_lock:
+                            meta = _load_meta()
+                            entry = meta.get(prev_fname) or {}
+                            entry.setdefault('platform', _detect_platform(_job_url))
+                            entry['tag'] = 'Playlist'
+                            meta[prev_fname] = entry
+                            _save_meta(meta)
                     continue
 
                 m = _ALREADY_RE.search(line)
@@ -436,13 +450,17 @@ def _run_download(job_id: str) -> None:
                     _jobs[job_id]['status']   = 'done'
                     _jobs[job_id]['progress'] = 100.0
                     _jobs[job_id]['eta']      = ''
-                    fname   = _jobs[job_id].get('filename', '')
-                    job_url = _jobs[job_id].get('url', '')
+                    fname      = _jobs[job_id].get('filename', '')
+                    job_url    = _jobs[job_id].get('url', '')
+                    is_playlist = _jobs[job_id].get('playlist', False)
                     log.info('Download fertig: job=%s file=%s', job_id, fname)
                     if fname:
                         with _meta_lock:
                             meta = _load_meta()
-                            meta[fname] = {'platform': _detect_platform(job_url)}
+                            entry = {'platform': _detect_platform(job_url)}
+                            if is_playlist:
+                                entry['tag'] = 'Playlist'
+                            meta[fname] = entry
                             _save_meta(meta)
                 else:
                     err = _parse_error(output_lines)

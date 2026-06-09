@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.29] - 2026-06-09
+
+### Added
+- Playlist-Tag: Alle Dateien eines Playlist-Downloads erhalten automatisch den Tag "Playlist" (wenn der Haken "Ganze Playlist" gesetzt war)
+
 ## [1.0.28] - 2026-06-09
 
 ### Added
