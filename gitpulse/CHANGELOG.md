@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.1.80] - 2026-06-09
+
+### Added
+- Add-on Manager: "Aus PR"-Button öffnet Overlay mit letzten geschlossenen PRs; Branch/Titel-Filter zeigt passende PRs für das jeweilige Add-on zuerst; Klick übernimmt PR-Body als Changelog-Eintrag
+
+## [0.1.79] - 2026-06-09
+
+### Fixed
+- Add-on Manager: 404 von GHCR zeigt "✗ Image nicht verfügbar" (rot) statt "⏳ Build läuft noch" — 404 bedeutet nur dass das Image fehlt, nicht dass ein Build läuft
+
+## [0.1.78] - 2026-06-09
+
+### Added
+- Pull Requests: "Schließen"-Button (✕) zum direkten Schließen eines PRs ohne Merge
+
+## [0.1.77] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Image-Check GHCR Token-Exchange nutzt jetzt `owner:token` als Basic-Auth (statt `:token`); behebt 403 auf Manifest-Anfragen
+
+## [0.1.76] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Image-Check unterscheidet jetzt 200/404/403 korrekt — 404 = Build läuft, 403 = kein Zugriff (Token-Problem), statt alles als "Build läuft" anzuzeigen
+
+## [0.1.75] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Image-Check nutzt GitHub PAT direkt als Bearer-Token gegen GHCR (kein Token-Exchange mehr); behebt 403-Fehler bei öffentlichen Paketen
+
+## [0.1.74] - 2026-06-09
+
+### Added
+- Add-on Manager: Image-Check — zeigt direkt ob das Docker-Image für die aktuelle Version in GHCR verfügbar ist (✓ grün) oder der Build noch läuft (⏳)
+
+## [0.1.73.1] - 2026-06-08
+
+Bump python from 3.11-alpine to 3.14-alpine in /gitpulse
+
 ## [0.1.72] - 2026-06-09
 
 ### Added

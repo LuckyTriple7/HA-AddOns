@@ -1246,6 +1246,81 @@ def api_reset_seen():
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/pr/recent-closed')
+def api_pr_recent_closed():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    repo_full = request.args.get('repo', '').strip()
+    addon_dir = request.args.get('addon_dir', '').strip()
+    if not repo_full or '/' not in repo_full:
+        return jsonify({'error': 'invalid_params'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    try:
+        r = http.get(
+            f'{GITHUB_API}/repos/{repo_full}/pulls',
+            headers=_gh_headers(token),
+            params={'state': 'closed', 'per_page': 30, 'sort': 'updated', 'direction': 'desc'},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code != 200:
+            return jsonify({'error': f'github_{r.status_code}'}), 502
+        prs = []
+        needle = addon_dir.lower() if addon_dir else ''
+        for pr in r.json():
+            branch = pr.get('head', {}).get('ref', '')
+            title  = pr.get('title', '')
+            matches = bool(needle and (needle in branch.lower() or needle in title.lower()))
+            prs.append({
+                'number':    pr['number'],
+                'title':     title,
+                'body':      pr.get('body') or '',
+                'merged_at': pr.get('merged_at'),
+                'closed_at': pr.get('closed_at'),
+                'branch':    branch,
+                'matches':   matches,
+            })
+        return jsonify({'prs': prs})
+    except Exception:
+        log.exception("recent-closed PRs Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
+@app.route('/api/pr/close', methods=['POST'])
+def api_pr_close():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body   = request.get_json(silent=True) or {}
+    repo   = body.get('repo', '').strip()
+    pr_nr  = body.get('number')
+    if not repo or not pr_nr:
+        return jsonify({'error': 'repo und number erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.patch(
+            f'{GITHUB_API}/repos/{repo}/pulls/{pr_nr}',
+            headers=_gh_headers(token),
+            json={'state': 'closed'},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 200:
+            log.info("PR #%s in %s geschlossen", pr_nr, repo)
+            return jsonify({'status': 'closed'})
+        msg = r.json().get('message', f'HTTP {r.status_code}')
+        log.warning("PR-Close fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception:
+        log.exception("PR-Close Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
 @app.route('/api/pr/merge', methods=['POST'])
 def api_pr_merge():
     redir = _auth_required(request)
@@ -2127,18 +2202,22 @@ def api_addon_manager_addons():
             continue
         name = dir_name
         version = ''
+        image = ''
         for line in content.splitlines():
             if line.startswith('name:') and not name or name == dir_name:
                 name = line.split(':', 1)[1].strip().strip('"\'')
             if line.startswith('version:'):
                 version = line.split(':', 1)[1].strip().strip('"\'')
+            if line.startswith('image:'):
+                image = line.split(':', 1)[1].strip().strip('"\'')
         if not version:
             continue
         addons.append({
-            'dir': dir_name,
-            'name': name,
-            'version': version,
+            'dir':          dir_name,
+            'name':         name,
+            'version':      version,
             'next_version': _next_version_manual(version),
+            'image':        image,
         })
     return jsonify({'addons': addons, 'repo': repo_full, 'branch': branch})
 
@@ -2231,6 +2310,53 @@ def api_addon_manager_commit():
         })
     except Exception:
         log.exception("addon-manager: Commit fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+
+
+@app.route('/api/addon-manager/image-check')
+def api_addon_manager_image_check():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg     = load_config()
+    token   = cfg.get('github_token', '').strip()
+    image   = request.args.get('image', '').strip()   # ghcr.io/owner/name
+    version = request.args.get('version', '').strip()
+    if not image or not version or not token:
+        return jsonify({'error': 'missing_params'}), 400
+    # image = ghcr.io/luckytriple7/claudecode → owner/name = luckytriple7/claudecode
+    repo_part = image.removeprefix('ghcr.io/') if image.startswith('ghcr.io/') else image
+    owner = repo_part.split('/')[0]
+    try:
+        import base64 as _b64
+        # GHCR token exchange requires "owner:token" Basic auth, not ":token"
+        creds = _b64.b64encode(f'{owner}:{token}'.encode()).decode()
+        tok_r = http.get(
+            'https://ghcr.io/token',
+            params={'scope': f'repository:{repo_part}:pull', 'service': 'ghcr.io'},
+            headers={'Authorization': f'Basic {creds}'}, timeout=10
+        )
+        if tok_r.status_code != 200:
+            return jsonify({'status': 'forbidden'})
+        bearer = tok_r.json().get('token', '')
+        man_r = http.head(
+            f'https://ghcr.io/v2/{repo_part}/manifests/{version}',
+            headers={
+                'Authorization': f'Bearer {bearer}',
+                'Accept': 'application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.index.v1+json',
+            }, timeout=10
+        )
+        sc = man_r.status_code
+        if sc == 200:
+            return jsonify({'status': 'ok'})
+        elif sc == 404:
+            return jsonify({'status': 'building'})
+        elif sc in (401, 403):
+            return jsonify({'status': 'forbidden'})
+        else:
+            return jsonify({'status': 'unknown', 'http': sc})
+    except Exception:
+        log.exception("image-check fehlgeschlagen")
         return jsonify({'error': 'internal error'}), 500
 
 

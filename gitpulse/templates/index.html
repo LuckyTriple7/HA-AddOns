@@ -582,6 +582,17 @@
       </div>
     </div>
 
+    <!-- PR-Picker-Overlay Add-on Manager -->
+    <div id="am-pr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9002;align-items:center;justify-content:center">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:680px;width:95%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
+          <div id="am-pr-title" style="font-weight:600;font-size:1rem;flex:1"></div>
+          <button class="hdr-btn" onclick="amClosePrPicker()">{{ t.am_revert_close }}</button>
+        </div>
+        <div id="am-pr-list" style="overflow-y:auto;flex:1"></div>
+      </div>
+    </div>
+
     <!-- History/Revert-Overlay Add-on Manager -->
     <div id="am-history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9001;align-items:center;justify-content:center">
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:620px;width:95%;max-height:78vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
@@ -956,6 +967,22 @@
     .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
+  function closePR(btn, repo, number) {
+    if (!confirm(T.btn_close_pr + ' #' + number + '?')) return;
+    _btnWait(btn);
+    fetch(u('/api/pr/close'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, number}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      if (ok) triggerRefresh(3);
+      else { _btnRestore(btn); alert(data.error || T.error_unknown); }
+    })
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
+  }
+
   // ── Comment Modal ─────────────────────────────────────────────────
   let _commentRepo = null, _commentNr = null;
   function openCommentModal(repo, number, title) {
@@ -1194,6 +1221,7 @@
     btn_cancel_run:    '{{ t.btn_cancel_run }}',
     btn_delete_run:    '{{ t.btn_delete_run }}',
     btn_close_issue:   '{{ t.btn_close_issue }}',
+    btn_close_pr:      '{{ t.btn_close_pr }}',
     btn_comment:       '{{ t.btn_comment }}',
     review_approved:   '{{ t.review_approved }}',
     review_changes:    '{{ t.review_changes }}',
@@ -1495,6 +1523,7 @@
           </div>
         </div>
         ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
+        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
         ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
       </div>`;
     }).join('') + '</div></div>';
@@ -2303,11 +2332,36 @@
       document.getElementById('am-count-val').textContent = d.addons.length;
       document.getElementById('am-count-chip').style.display = '';
       list.innerHTML = d.addons.map(a => amCard(a, repo, branch)).join('');
+      d.addons.forEach(a => { if (a.image) amCheckImage(a.image, a.version, `am-${a.dir}-imgbadge`); });
     } catch(e) {
       list.innerHTML = `<div style="color:#f85149">{{ t.am_error_load }}</div>`;
     } finally {
       btn.disabled = false;
       btn.textContent = '{{ t.am_load }}';
+    }
+  }
+
+  async function amCheckImage(image, version, badgeId) {
+    const el = document.getElementById(badgeId);
+    if (!el) return;
+    try {
+      const r = await fetch(u(`/api/addon-manager/image-check?image=${encodeURIComponent(image)}&version=${encodeURIComponent(version)}`));
+      const d = await r.json();
+      if (d.status === 'ok') {
+        el.textContent = '✓ {{ t.am_img_ok }}';
+        el.style.color = '#2ea043';
+      } else if (d.status === 'building') {
+        el.textContent = '✗ {{ t.am_img_building }}';
+        el.style.color = '#f85149';
+      } else if (d.status === 'forbidden') {
+        el.textContent = '🔒 {{ t.am_img_forbidden }}';
+        el.style.color = '#f85149';
+      } else {
+        el.textContent = '? {{ t.am_img_unknown }}';
+        el.style.color = 'var(--muted)';
+      }
+    } catch(e) {
+      el.textContent = '? {{ t.am_img_unknown }}';
     }
   }
 
@@ -2318,6 +2372,7 @@
         <span style="font-weight:600;font-size:0.95rem">${escHtml(a.name)}</span>
         <span style="font-size:0.8rem;color:var(--muted)">${escHtml(a.dir)}</span>
         <span style="font-size:0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px">{{ t.am_current_ver }}: <b>${escHtml(a.version)}</b></span>
+        ${a.image ? `<span id="${id}-imgbadge" title="${escHtml(a.image)}:${escHtml(a.version)}" style="font-size:0.78rem;color:var(--muted);white-space:nowrap">⏳ {{ t.am_img_checking }}</span>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
@@ -2337,6 +2392,10 @@
         <button class="hdr-btn" style="font-size:0.82rem;padding:3px 10px;color:var(--muted)"
           onclick="amShowHistory(${safeJsArg(a.dir)},${safeJsArg(a.name)},${safeJsArg(a.version)},${safeJsArg(repo)},${safeJsArg(branch)})">
           {{ t.am_btn_revert }}
+        </button>
+        <button class="hdr-btn" style="font-size:0.82rem;padding:3px 10px;color:var(--muted)"
+          onclick="amOpenPrPicker(${safeJsArg(a.dir)},${safeJsArg(a.name)},${safeJsArg(repo)},'${id}-cl')">
+          {{ t.am_btn_pick_pr }}
         </button>
         <span id="${id}-status" style="font-size:0.82rem"></span>
       </div>
@@ -2439,6 +2498,62 @@
 
   function amCloseHistory() {
     document.getElementById('am-history-overlay').style.display = 'none';
+  }
+
+  // ── PR-Picker ─────────────────────────────────────────────────────
+  let _amPrTargetId = null;
+
+  async function amOpenPrPicker(addonDir, addonName, repo, clInputId) {
+    _amPrTargetId = clInputId;
+    const ov   = document.getElementById('am-pr-overlay');
+    const list = document.getElementById('am-pr-list');
+    document.getElementById('am-pr-title').textContent = `{{ t.am_pick_pr_title }} — ${addonName}`;
+    list.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_revert_loading }}</div>`;
+    ov.style.display = 'flex';
+    try {
+      const r = await fetch(u(`/api/pr/recent-closed?repo=${encodeURIComponent(repo)}&addon_dir=${encodeURIComponent(addonDir)}`));
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      const prs = d.prs || [];
+      const matches = prs.filter(p => p.matches);
+      const show = matches.length >= 2 ? matches : prs;
+      const filtered = matches.length >= 2;
+      if (show.length === 0) {
+        list.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_pick_pr_none }}</div>`;
+        return;
+      }
+      list.innerHTML = (filtered ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">{{ t.am_pick_pr_filtered }}</div>` : '')
+        + show.map(pr => {
+          const date = pr.merged_at || pr.closed_at || '';
+          const dateStr = date ? new Date(date).toLocaleDateString() : '';
+          const preview = (pr.body || '').slice(0, 200).replace(/</g,'&lt;');
+          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:background .15s"
+            onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''"
+            onclick="amUsePrBody(${JSON.stringify(pr.body || '')})">
+            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:4px;flex-wrap:wrap">
+              <span style="font-weight:600;font-size:0.88rem">#${pr.number} ${escHtml(pr.title)}</span>
+              <span style="font-size:0.75rem;color:var(--muted)">${escHtml(pr.branch)}</span>
+              <span style="font-size:0.75rem;color:var(--muted);margin-left:auto">${dateStr}</span>
+            </div>
+            ${preview ? `<div style="font-size:0.78rem;color:var(--muted);white-space:pre-wrap;max-height:60px;overflow:hidden">${preview}${pr.body.length > 200 ? '…' : ''}</div>` : ''}
+          </div>`;
+        }).join('');
+    } catch(e) {
+      list.innerHTML = `<div style="color:#f85149;font-size:0.85rem;padding:16px 0">{{ t.am_revert_error }}</div>`;
+    }
+  }
+
+  function amUsePrBody(body) {
+    if (_amPrTargetId) {
+      const el = document.getElementById(_amPrTargetId);
+      if (el) el.value = body;
+    }
+    amClosePrPicker();
+  }
+
+  function amClosePrPicker() {
+    document.getElementById('am-pr-overlay').style.display = 'none';
+    _amPrTargetId = null;
   }
 
   function amAskRevert(addonDir, addonName, repo, branch, sha, version) {

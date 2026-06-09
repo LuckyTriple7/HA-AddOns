@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev, main]
     paths:
-      - 'firefox/**'
+      - 'firefox/config.yaml'
   workflow_dispatch:
 
 permissions:

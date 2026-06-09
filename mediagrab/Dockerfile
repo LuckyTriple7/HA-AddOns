@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="MediaGrab"
 LABEL org.opencontainers.image.description="yt-dlp Web-GUI for Home Assistant"
