@@ -67,8 +67,8 @@ jobs:
           echo "${{ steps.ffver.outputs.version }}" > .firefox-version
           git add .firefox-version
           git diff --staged --quiet || git commit -m "Track Firefox ESR ${{ steps.ffver.outputs.version }}"
-          git pull --rebase origin main
-          git push
+          git pull --rebase origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Alte Image-Versionen aufräumen
         uses: actions/delete-package-versions@v5
