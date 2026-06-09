@@ -677,6 +677,7 @@
   let _ciStatusFilter = 'all';
   let _ciFilter = '';
   let _ciWfExpanded = false;
+  const _expandedRunIds = new Map(); // runId → repo
   let _secFilter = '';
   let _ciPage = 1;
   const CI_PAGE_SIZE = 50;
@@ -1600,6 +1601,7 @@
     const el = document.getElementById('jobs-' + runId);
     if (!el) return;
     if (el.style.display === 'none') {
+      _expandedRunIds.set(String(runId), repo);
       el.style.display = '';
       if (!el.dataset.loaded) {
         el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Lade…</div>';
@@ -1635,6 +1637,8 @@
           });
       }
     } else {
+      _expandedRunIds.delete(String(runId));
+
       el.style.display = 'none';
     }
   }
@@ -1781,6 +1785,15 @@
       CI / Actions — ${repo.name}
       ${dispatchBtn}
     </div><div class="card-body">${rows}</div></div>` + paginationBar;
+    // Restore previously expanded job panels after re-render
+    if (_expandedRunIds.size > 0) {
+      setTimeout(() => {
+        _expandedRunIds.forEach((repoName, id) => {
+          const jobEl = document.getElementById('jobs-' + id);
+          if (jobEl && jobEl.style.display === 'none') toggleJobs(repoName, id);
+        });
+      }, 0);
+    }
   }
 
   // ── Render: Releases ──────────────────────────────────────────────

@@ -16,7 +16,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Get latest FileBrowser version (GitHub API)
         id: upstream
@@ -68,7 +68,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.upstream.outputs.version != steps.tracked.outputs.version
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: dev

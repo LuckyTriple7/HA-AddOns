@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.91] - 2026-06-09
+
+### Fixed
+- CI/Actions: Aufgeklappte Job-Details bleiben nach Poll erhalten — expanded Run-IDs werden in einer Map gespeichert und nach dem Re-Render wiederhergestellt
+
+## [0.1.90] - 2026-06-09
+
+### Security
+- Image-Check: `elif startswith('ghcr.io/')` via `urlparse(f'https://{image}')` ersetzt (CodeQL: Incomplete URL substring sanitization #134)
+- Image-Check: Längen-Check (>300) + bounded Regex `{0,99}` statt `+` verhindert ReDoS (CodeQL: Polynomial ReDoS #134)
+
 ## [0.1.89] - 2026-06-09
 
 ### Fixed
