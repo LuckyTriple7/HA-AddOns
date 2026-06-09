@@ -1864,6 +1864,7 @@
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><div>${T.no_activity}</div></div>`;
       return;
     }
+    const myRepoSet = new Set((data.my_repos || []).map(r => r.repo));
     const itemRow = (item, type) => `
       <div class="item-row">
         <div class="item-main">
@@ -1881,9 +1882,9 @@
             ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
-        ${type === 'pr'
+        ${myRepoSet.has(item.repo) ? (type === 'pr'
           ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
-          : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`}
+          : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`) : ''}
       </div>`;
     let html = '';
     if (prs.length) {
