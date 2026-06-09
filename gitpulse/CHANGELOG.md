@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.87] - 2026-06-09
+
+### Fixed
+- Add-on Manager: PR-Picker schließt nach Auswahl wieder korrekt
+
 ## [0.1.86] - 2026-06-09
 
 ### Fixed
