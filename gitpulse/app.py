@@ -1246,6 +1246,49 @@ def api_reset_seen():
     return jsonify({'status': 'ok'})
 
 
+@app.route('/api/pr/recent-closed')
+def api_pr_recent_closed():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    repo_full = request.args.get('repo', '').strip()
+    addon_dir = request.args.get('addon_dir', '').strip()
+    if not repo_full or '/' not in repo_full:
+        return jsonify({'error': 'invalid_params'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    try:
+        r = http.get(
+            f'{GITHUB_API}/repos/{repo_full}/pulls',
+            headers=_gh_headers(token),
+            params={'state': 'closed', 'per_page': 30, 'sort': 'updated', 'direction': 'desc'},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code != 200:
+            return jsonify({'error': f'github_{r.status_code}'}), 502
+        prs = []
+        needle = addon_dir.lower() if addon_dir else ''
+        for pr in r.json():
+            branch = pr.get('head', {}).get('ref', '')
+            title  = pr.get('title', '')
+            matches = bool(needle and (needle in branch.lower() or needle in title.lower()))
+            prs.append({
+                'number':    pr['number'],
+                'title':     title,
+                'body':      pr.get('body') or '',
+                'merged_at': pr.get('merged_at'),
+                'closed_at': pr.get('closed_at'),
+                'branch':    branch,
+                'matches':   matches,
+            })
+        return jsonify({'prs': prs})
+    except Exception:
+        log.exception("recent-closed PRs Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
 @app.route('/api/pr/close', methods=['POST'])
 def api_pr_close():
     redir = _auth_required(request)

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.80] - 2026-06-09
+
+### Added
+- Add-on Manager: "Aus PR"-Button öffnet Overlay mit letzten geschlossenen PRs; Branch/Titel-Filter zeigt passende PRs für das jeweilige Add-on zuerst; Klick übernimmt PR-Body als Changelog-Eintrag
+
 ## [0.1.79] - 2026-06-09
 
 ### Fixed
