@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.88] - 2026-06-09
+
+### Fixed
+- CI/Actions: Workflow-Liste wächst nach dem initialen Load nicht mehr auf 500 zurück — beim initialen Start werden bis zu 500 Runs geladen, bei jedem weiteren Poll werden neue Runs vorne eingefügt und bestehende Einträge aktualisiert statt ersetzt
+
 ## [0.1.87] - 2026-06-09
 
 ### Fixed

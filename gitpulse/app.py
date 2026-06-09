@@ -900,7 +900,27 @@ def _do_poll(cfg: dict, token: str) -> None:
     repo_data = []
     for repo in my_repos:
         try:
-            data = _fetch_repo_data(repo, token, run_limit)
+            # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
+            poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
+            data = _fetch_repo_data(repo, token, poll_limit)
+
+            if _first_poll_done:
+                with _gh_lock:
+                    existing = next(
+                        (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
+                    )
+                if existing:
+                    new_runs = data.get('runs', [])
+                    new_ids  = {r['id'] for r in new_runs}
+                    # Bestehende Runs mit frischen Status-Daten aktualisieren
+                    updated = [
+                        next((r for r in new_runs if r['id'] == er['id']), er)
+                        for er in existing.get('runs', [])
+                    ]
+                    # Neue Runs vorne einfügen
+                    brand_new = [r for r in new_runs if r['id'] not in {er['id'] for er in existing.get('runs', [])}]
+                    data['runs'] = brand_new + updated
+
             repo_data.append(data)
             if _verbose():
                 pr_cnt = int(data['open_prs'])
