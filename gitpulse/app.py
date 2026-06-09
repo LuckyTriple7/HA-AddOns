@@ -110,8 +110,9 @@ _gh_lock = threading.Lock()
 _SEEN_PATH = '/data/seen_releases.json'
 _seen_releases: set[str] = set()
 
-# Repos ohne Releases — 404 einmal bekommen, bis Neustart überspringen
-_no_release_repos: set[str] = set()
+# Repos ohne Releases — 404 bekommen, 1h warten bevor erneut geprüft wird
+_NO_RELEASE_TTL = 3600
+_no_release_repos: dict[str, float] = {}  # repo -> timestamp der letzten 404
 
 # ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit)
 _etag_cache: dict[str, tuple] = {}
@@ -565,7 +566,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         })
 
     latest_release = None
-    if repo not in _no_release_repos:
+    _last_404 = _no_release_repos.get(repo, 0)
+    if time.time() - _last_404 > _NO_RELEASE_TTL:
         url = f'{GITHUB_API}/repos/{repo}/releases/latest'
         try:
             r = http.get(url, headers=_gh_headers(token), timeout=15)
@@ -579,8 +581,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                     'prerelease': release_raw.get('prerelease', False),
                 }
             elif r.status_code == 404:
-                _no_release_repos.add(repo)
-                log.info("%s hat noch keine Releases — Abfrage bis Neustart übersprungen", repo)
+                _no_release_repos[repo] = time.time()
+                log.info("%s hat noch keine Releases — nächste Prüfung in 1h", repo)
             else:
                 log.warning("GitHub API /repos/%s/releases/latest → HTTP %d", repo, r.status_code)
         except Exception as e:

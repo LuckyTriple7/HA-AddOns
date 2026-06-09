@@ -1,9 +1,17 @@
 # Changelog
 
+## [0.1.92] - 2026-06-09
+
+### Added
+- Releases-Tab: Eigene Repos (`my_repos`) werden jetzt oben als eigener Abschnitt angezeigt, Watch-Repos darunter
+- Issues-Tab: Repo-Wechsler-Chips (wie im PR-Tab) — bei mehreren Repos direkt im Issues-Tab umschaltbar
+
+### Fixed
+- `_no_release_repos`: Repos ohne Releases werden nach 1 Stunde erneut geprüft statt dauerhaft bis Neustart übersprungen
+
 ## [0.1.91.1] - 2026-06-09
 
 chore(deps): Bump requests from 2.33.0 to 2.34.2 in /gitpulse
-
 
 ## [0.1.91] - 2026-06-09
 

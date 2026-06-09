@@ -487,6 +487,7 @@
 
     <!-- ── Tab: Issues ──────────────────────────────────────── -->
     <div id="tab-issues" style="display:none">
+      <div id="issue-repo-selector" class="repo-tabs"></div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <button id="iss-btn-open"   class="ci-filter-btn active" onclick="setIssState('open')">{{ t.filter_open }}</button>
         <button id="iss-btn-closed" class="ci-filter-btn"        onclick="setIssState('closed')">{{ t.filter_closed }}</button>
@@ -1457,12 +1458,14 @@
 
   // ── Render: Repo selector ─────────────────────────────────────────
   function renderRepoSelector(repos) {
-    const el = document.getElementById('repo-selector');
-    if (!repos || repos.length <= 1) { el.innerHTML = ''; return; }
-    el.innerHTML = repos.map((r,i) =>
+    const chips = (!repos || repos.length <= 1) ? '' : repos.map((r,i) =>
       `<button class="repo-tab${(!activeRepo && i===0)||activeRepo===r.repo?' active':''}" onclick="selectRepo('${r.repo}')">${r.name}</button>`
     ).join('');
-    if (!activeRepo) activeRepo = repos[0].repo;
+    const el = document.getElementById('repo-selector');
+    if (el) el.innerHTML = chips;
+    const elIss = document.getElementById('issue-repo-selector');
+    if (elIss) elIss.innerHTML = chips;
+    if (!activeRepo && repos && repos.length) activeRepo = repos[0].repo;
   }
 
   function selectRepo(repo) {
@@ -1798,22 +1801,34 @@
 
   // ── Render: Releases ──────────────────────────────────────────────
   function renderReleases(data) {
-    const releases = data.releases || [];
+    const watchReleases = data.releases || [];
+    const myReleases = (data.my_repos || [])
+      .filter(r => r.latest_release)
+      .map(r => ({ ...r.latest_release, repo: r.repo }));
     const el = document.getElementById('release-list');
-    if (!releases.length) {
+    if (!watchReleases.length && !myReleases.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><div>${T.no_releases}</div></div>`;
       return;
     }
     const newKeys = new Set((data.new_releases||[]).map(r => r.repo+'@'+r.tag));
-    el.innerHTML = `<div class="card"><div class="card-body">` +
-    releases.map(rel => `
+    const relRow = rel => `
       <div class="release-row">
         ${newKeys.has(rel.repo+'@'+rel.tag)?'<div class="new-dot" title="{{ t.badge_new }}"></div>':'<div style="width:8px"></div>'}
         <span class="release-tag ${rel.prerelease?'release-pre':''}">${escHtml(rel.tag)}</span>
         <span class="release-repo">${escHtml(rel.repo)}</span>
         <a href="${rel.url}" target="_blank" rel="noopener noreferrer" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
         <span class="release-date">${relTime(rel.date)}</span>
-      </div>`).join('') + '</div></div>';
+      </div>`;
+    let html = '';
+    if (myReleases.length) {
+      html += `<div class="card" style="margin-bottom:10px"><div class="card-header" style="font-size:.78rem;color:var(--muted)">{{ t.releases_my_repos }}</div><div class="card-body">` +
+        myReleases.map(relRow).join('') + '</div></div>';
+    }
+    if (watchReleases.length) {
+      html += `<div class="card"><div class="card-header" style="font-size:.78rem;color:var(--muted)">{{ t.releases_watch_repos }}</div><div class="card-body">` +
+        watchReleases.map(relRow).join('') + '</div></div>';
+    }
+    el.innerHTML = html;
   }
 
   // ── Main render ───────────────────────────────────────────────────

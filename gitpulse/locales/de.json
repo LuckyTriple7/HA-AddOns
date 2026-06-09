@@ -39,6 +39,8 @@
   "no_closed_issues": "Keine geschlossenen Issues",
   "no_runs": "Keine Workflow-Runs gefunden",
   "no_releases": "Noch keine Releases gefunden",
+  "releases_my_repos": "Eigene Repos",
+  "releases_watch_repos": "Beobachtete Repos",
 
   "pr_open": "Offen",
   "pr_draft": "Entwurf",
