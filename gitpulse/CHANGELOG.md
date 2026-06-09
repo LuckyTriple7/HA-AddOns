@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.85] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Overlays und Karten nicht mehr transparent — `var(--card)` → `var(--surf)`, `var(--fg)` → `var(--text)`, `var(--hover)` → `var(--surf2)` (alle drei waren undefiniert)
+
 ## [0.1.84] - 2026-06-09
 
 ### Fixed
