@@ -506,6 +506,7 @@
 
     <!-- ── Tab: CI ──────────────────────────────────────────── -->
     <div id="tab-ci" style="display:none">
+      <div id="ci-repo-selector" class="repo-tabs"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div style="position:relative;flex:1">
           <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -529,6 +530,7 @@
 
     <!-- ── Tab: Security ──────────────────────────────────── -->
     <div id="tab-security" style="display:none">
+      <div id="security-repo-selector" class="repo-tabs"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <div style="position:relative;flex:1">
           <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -1461,10 +1463,10 @@
     const chips = (!repos || repos.length <= 1) ? '' : repos.map((r,i) =>
       `<button class="repo-tab${(!activeRepo && i===0)||activeRepo===r.repo?' active':''}" onclick="selectRepo('${r.repo}')">${r.name}</button>`
     ).join('');
-    const el = document.getElementById('repo-selector');
-    if (el) el.innerHTML = chips;
-    const elIss = document.getElementById('issue-repo-selector');
-    if (elIss) elIss.innerHTML = chips;
+    ['repo-selector','issue-repo-selector','ci-repo-selector','security-repo-selector'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = chips;
+    });
     if (!activeRepo && repos && repos.length) activeRepo = repos[0].repo;
   }
 
@@ -1476,6 +1478,7 @@
     renderPRs(ghData);
     renderIssues(ghData);
     renderCI(ghData);
+    renderSecurity(ghData);
   }
 
   // ── Render: PRs ───────────────────────────────────────────────────
@@ -1864,6 +1867,7 @@
     const _sevLabel = { critical:'CRITICAL', high:'HIGH', medium:'MEDIUM', low:'LOW', unknown:'?' };
 
     const allRepos = (data.my_repos || []).filter(r => {
+      if (r.repo !== activeRepo) return false;
       const sec = r.security || {};
       return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length
           || sec.dependabot_access === false;

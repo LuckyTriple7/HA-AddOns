@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.93] - 2026-06-09
+
+### Added
+- Workflows (CI) und Security: Repo-Wechsler-Chips — alle vier Tabs (PRs, Issues, CI, Security) zeigen denselben Selektor und sind synchron
+
 ## [0.1.92] - 2026-06-09
 
 ### Added
