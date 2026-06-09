@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.91] - 2026-06-09
+
+### Fixed
+- CI/Actions: Aufgeklappte Job-Details bleiben nach Poll erhalten — expanded Run-IDs werden in einer Map gespeichert und nach dem Re-Render wiederhergestellt
+
 ## [0.1.90] - 2026-06-09
 
 ### Security
