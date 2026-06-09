@@ -1880,6 +1880,9 @@
             ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
         </div>
+        ${type === 'pr'
+          ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
+          : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`}
       </div>`;
     let html = '';
     if (prs.length) {
