@@ -4,7 +4,7 @@
 
 ### Fixed
 - Add-on Manager: +Dep rechnet jetzt korrekt von der aktuellen Version (1.0.8.1 → 1.0.8.2 statt 1.0.9.1)
-- Add-on Manager: PR-Titel/Body übernehmen hängt neue Einträge an statt zu überschreiben; Picker bleibt offen für mehrere Auswahlen
+- Add-on Manager: mehrere PR-Titel übernehmen überschreibt nicht mehr — jeder Eintrag wird in einer neuen Zeile angehängt
 
 ## [0.1.85] - 2026-06-09
 
