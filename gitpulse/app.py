@@ -801,12 +801,22 @@ def _trigger_repo_poll(repo_name: str) -> None:
         return
     try:
         run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
-        data = _fetch_repo_data(repo_name, token, run_limit)
+        data = _fetch_repo_data(repo_name, token, min(50, run_limit))
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
             updated = False
             for i, rd in enumerate(repos):
                 if rd['repo'] == repo_name:
+                    # Runs mergen statt ersetzen — bestehende Liste wächst nie zurück auf 500
+                    new_runs      = data.get('runs', [])
+                    existing_runs = rd.get('runs', [])
+                    existing_ids  = {r['id'] for r in existing_runs}
+                    merged = [
+                        next((r for r in new_runs if r['id'] == er['id']), er)
+                        for er in existing_runs
+                    ]
+                    brand_new = [r for r in new_runs if r['id'] not in existing_ids]
+                    data['runs'] = brand_new + merged
                     repos[i] = data
                     updated  = True
                     break
@@ -900,7 +910,27 @@ def _do_poll(cfg: dict, token: str) -> None:
     repo_data = []
     for repo in my_repos:
         try:
-            data = _fetch_repo_data(repo, token, run_limit)
+            # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
+            poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
+            data = _fetch_repo_data(repo, token, poll_limit)
+
+            if _first_poll_done:
+                with _gh_lock:
+                    existing = next(
+                        (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
+                    )
+                if existing:
+                    new_runs = data.get('runs', [])
+                    new_ids  = {r['id'] for r in new_runs}
+                    # Bestehende Runs mit frischen Status-Daten aktualisieren
+                    updated = [
+                        next((r for r in new_runs if r['id'] == er['id']), er)
+                        for er in existing.get('runs', [])
+                    ]
+                    # Neue Runs vorne einfügen
+                    brand_new = [r for r in new_runs if r['id'] not in {er['id'] for er in existing.get('runs', [])}]
+                    data['runs'] = brand_new + updated
+
             repo_data.append(data)
             if _verbose():
                 pr_cnt = int(data['open_prs'])
@@ -2325,7 +2355,17 @@ def api_addon_manager_image_check():
     if not image or not version or not token:
         return jsonify({'error': 'missing_params'}), 400
     # image = ghcr.io/luckytriple7/claudecode → owner/name = luckytriple7/claudecode
-    repo_part = image.removeprefix('ghcr.io/') if image.startswith('ghcr.io/') else image
+    if '://' in image:
+        parsed = urlparse(image)
+        if parsed.hostname != 'ghcr.io':
+            return jsonify({'error': 'invalid_image'}), 400
+        repo_part = parsed.path.lstrip('/')
+    elif image.startswith('ghcr.io/'):
+        repo_part = image[len('ghcr.io/'):]
+    else:
+        repo_part = image
+    if not re.fullmatch(r'[A-Za-z0-9._-]+/[A-Za-z0-9._-]+', repo_part):
+        return jsonify({'error': 'invalid_image'}), 400
     owner = repo_part.split('/')[0]
     try:
         import base64 as _b64

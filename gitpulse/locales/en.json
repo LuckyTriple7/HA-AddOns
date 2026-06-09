@@ -224,6 +224,8 @@
   "am_pick_pr_title": "PR as Changelog",
   "am_pick_pr_none": "No closed PRs found",
   "am_pick_pr_filtered": "Filtered by this add-on (branch/title)",
+  "am_pick_use_title": "Use title",
+  "am_pick_use_body": "Use body",
   "am_revert_title": "Version History",
   "am_revert_loading": "Loading history…",
   "am_revert_no_history": "No history found",

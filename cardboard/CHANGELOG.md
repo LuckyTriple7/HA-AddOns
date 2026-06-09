@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.8.3] - 2026-06-09
+
+chore(deps): Bump pyyaml from 6.0.1 to 6.0.3 in /cardboard/rootfs/app
+chore(deps): Bump httpx from 0.27.0 to 0.28.1 in /cardboard/rootfs/app
+chore(deps): Bump python-multipart from 0.0.27 to 0.0.32 in /cardboard/rootfs/app
+chore(deps): Bump fastapi from 0.111.0 to 0.136.3 in /cardboard/rootfs/app
+
+
+## [1.0.8.2] - 2026-06-09
+
+chore(deps): Bump uvicorn from 0.30.1 to 0.49.0 in /cardboard/rootfs/app
+chore(deps): Bump python from 3.11-alpine to 3.14-alpine in /cardboard
+chore(deps): Bump python-multipart from 0.0.9 to 0.0.27 in /cardboard/rootfs/app
+
+
 ## [1.0.8.1] - 2026-06-08
 
 ### Dependencies
