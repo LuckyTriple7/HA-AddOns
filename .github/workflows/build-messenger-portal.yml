@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev, main]
     paths:
-      - 'messenger-portal/**'
+      - 'messenger-portal/config.yaml'
   workflow_dispatch:
 
 permissions:

@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev, main]
     paths:
-      - 'mediagrab/**'
+      - 'mediagrab/config.yaml'
   workflow_dispatch:
 
 permissions:

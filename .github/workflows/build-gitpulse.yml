@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev, main]
     paths:
-      - 'gitpulse/**'
+      - 'gitpulse/config.yaml'
   workflow_dispatch:
 
 permissions:

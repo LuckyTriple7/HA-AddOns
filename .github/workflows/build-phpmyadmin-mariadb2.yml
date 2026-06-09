@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev, main]
     paths:
-      - 'phpmyadmin-mariadb2/**'
+      - 'phpmyadmin-mariadb2/config.yaml'
   workflow_dispatch:
 
 permissions:
