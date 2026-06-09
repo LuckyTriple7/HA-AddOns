@@ -75,5 +75,5 @@ jobs:
         with:
           package-name: firefox
           package-type: container
-          min-versions-to-keep: 5
+          min-versions-to-keep: 20
           token: ${{ secrets.GITHUB_TOKEN }}
