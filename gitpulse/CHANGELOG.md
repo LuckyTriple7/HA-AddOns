@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.89] - 2026-06-09
+
+### Fixed
+- CI/Actions: Webhook-Repo-Poll (`_trigger_repo_poll`) ersetzte den Run-Cache mit frischen 500 Runs — jetzt wird auch dort gemergt, nicht ersetzt
+
 ## [0.1.88] - 2026-06-09
 
 ### Fixed

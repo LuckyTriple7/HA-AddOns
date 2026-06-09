@@ -801,12 +801,22 @@ def _trigger_repo_poll(repo_name: str) -> None:
         return
     try:
         run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
-        data = _fetch_repo_data(repo_name, token, run_limit)
+        data = _fetch_repo_data(repo_name, token, min(50, run_limit))
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
             updated = False
             for i, rd in enumerate(repos):
                 if rd['repo'] == repo_name:
+                    # Runs mergen statt ersetzen — bestehende Liste wächst nie zurück auf 500
+                    new_runs      = data.get('runs', [])
+                    existing_runs = rd.get('runs', [])
+                    existing_ids  = {r['id'] for r in existing_runs}
+                    merged = [
+                        next((r for r in new_runs if r['id'] == er['id']), er)
+                        for er in existing_runs
+                    ]
+                    brand_new = [r for r in new_runs if r['id'] not in existing_ids]
+                    data['runs'] = brand_new + merged
                     repos[i] = data
                     updated  = True
                     break
