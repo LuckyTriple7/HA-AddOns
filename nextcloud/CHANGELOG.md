@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.12
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 34.0.0
+
 ## [1.0.11] - 2026-06-04
 - fix: timeout: 30 — verhindert Exit 137 (SIGKILL) beim Stopp des Add-ons
 
