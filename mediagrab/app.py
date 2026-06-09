@@ -274,10 +274,12 @@ def _parse_error(lines: list[str]) -> str:
 
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
-_PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
-_DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
-_MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
-_ALREADY_RE = re.compile(r'\[download\] (.+) has already been downloaded')
+_PROG_RE      = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
+_DEST_RE      = re.compile(r'\[download\] Destination:\s+(.+)')
+_MERGE_RE     = re.compile(r'\[Merger\] Merging formats into "(.+)"')
+_ALREADY_RE   = re.compile(r'\[download\] (.+) has already been downloaded')
+_ENCODE_RE    = re.compile(r'\[(?:ExtractAudio|VideoConvertor)\]')
+_PLAYLIST_RE  = re.compile(r'\[download\] Downloading item (\d+) of (\d+)')
 
 def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies: bool = True) -> list[str]:
     config = get_config()
@@ -371,6 +373,7 @@ def _run_download(job_id: str) -> None:
                         _jobs[job_id]['progress'] = pct
                         _jobs[job_id]['speed']    = m.group(2).strip()
                         _jobs[job_id]['eta']      = m.group(3).strip()
+                        _jobs[job_id]['phase']    = ''
                     continue
 
                 m = _DEST_RE.search(line)
@@ -383,6 +386,23 @@ def _run_download(job_id: str) -> None:
                 if m:
                     with _jobs_lock:
                         _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                        _jobs[job_id]['phase']    = 'encoding'
+                    continue
+
+                if _ENCODE_RE.search(line):
+                    with _jobs_lock:
+                        _jobs[job_id]['phase'] = 'encoding'
+                    m2 = re.search(r'Destination:\s+(.+)', line)
+                    if m2:
+                        with _jobs_lock:
+                            _jobs[job_id]['filename'] = Path(m2.group(1).strip()).name
+                    continue
+
+                m = _PLAYLIST_RE.search(line)
+                if m:
+                    with _jobs_lock:
+                        _jobs[job_id]['playlist_pos']   = int(m.group(1))
+                        _jobs[job_id]['playlist_count'] = int(m.group(2))
                     continue
 
                 m = _ALREADY_RE.search(line)
@@ -704,14 +724,17 @@ def api_download():
             'subtitles':  bool(data.get('subtitles', False)),
             'playlist':   bool(data.get('playlist', False)),
             'use_cookies': bool(data.get('use_cookies', True)),
-            'status':     'pending',
-            'progress':   0.0,
-            'speed':      '',
-            'eta':        '',
-            'filename':   '',
-            'error':      '',
-            'proc':       None,
-            'created_at': time.time(),
+            'status':         'pending',
+            'progress':        0.0,
+            'speed':           '',
+            'eta':             '',
+            'phase':           '',
+            'playlist_pos':    0,
+            'playlist_count':  0,
+            'filename':        '',
+            'error':           '',
+            'proc':            None,
+            'created_at':      time.time(),
         }
         with _jobs_lock:
             _jobs[job_id] = job

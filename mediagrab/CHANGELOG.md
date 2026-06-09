@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.28] - 2026-06-09
+
+### Added
+- Encoding-Indikator: Während Audio-Konvertierung / Video-Merge zeigt die Queue ein gelb pulsierendes "⚙ Encoding…" statt Geschwindigkeit/ETA
+- Playlist-Fortschritt: Download-Queue zeigt "📋 X / Y" für die aktuelle Position in einer Playlist
+- Dateiliste aktualisiert sich automatisch nach jedem abgeschlossenen Playlist-Item (nicht erst am Ende)
+
 ## [1.0.27] - 2026-06-09
 
 ### Fixed
