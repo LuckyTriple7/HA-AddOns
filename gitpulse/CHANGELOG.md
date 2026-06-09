@@ -1,9 +1,51 @@
 # Changelog
 
+## [0.1.98] - 2026-06-09
+
+### Fixed
+- Meine Aktivität: Schließen-Button nur für eigene Repos (`my_repos`) sichtbar — fremde Repos haben keine API-Schreibrechte
+
+## [0.1.97] - 2026-06-09
+
+### Added
+- Meine Aktivität: Kommentar-Benachrichtigungen via Telegram, E-Mail und Browser wenn jemand einen eigenen PR oder Issue kommentiert (kein extra API-Call — nutzt `comments`-Zähler aus Search API)
+- Meine Aktivität: Kommentar-Anzahl wird direkt in der Item-Zeile angezeigt (💬)
+
+## [0.1.96] - 2026-06-09
+
+### Fixed
+- Meine Aktivität: GitHub Search API 422 — Leerzeichen statt `+` als Query-Separator (requests enkodiert `+` zu `%2B`)
+- Meine Aktivität: `undefined` beim ersten Render — `my_activity` in `_gh_cache`-Initialisierung ergänzt
+
+## [0.1.95] - 2026-06-09
+
+### Added
+- Neuer Tab "Meine Aktivität": zeigt alle offenen PRs und Issues die der authentifizierte GitHub-User erstellt hat, quer über alle Repos
+- Summary-Kachel für eigene Aktivität mit Blink-Effekt bei neuen Einträgen
+- Benachrichtigungen (Telegram, E-Mail, Browser) für neue eigene PRs/Issues — separat abschaltbar
+
+## [0.1.94] - 2026-06-09
+
+### Fixed
+- `mobile-web-app-capable` Meta-Tag ergänzt (Deprecation-Warnung im Browser behoben)
+
+## [0.1.93] - 2026-06-09
+
+### Added
+- Workflows (CI) und Security: Repo-Wechsler-Chips — alle vier Tabs (PRs, Issues, CI, Security) zeigen denselben Selektor und sind synchron
+
+## [0.1.92] - 2026-06-09
+
+### Added
+- Releases-Tab: Eigene Repos (`my_repos`) werden jetzt oben als eigener Abschnitt angezeigt, Watch-Repos darunter
+- Issues-Tab: Repo-Wechsler-Chips (wie im PR-Tab) — bei mehreren Repos direkt im Issues-Tab umschaltbar
+
+### Fixed
+- `_no_release_repos`: Repos ohne Releases werden nach 1 Stunde erneut geprüft statt dauerhaft bis Neustart übersprungen
+
 ## [0.1.91.1] - 2026-06-09
 
 chore(deps): Bump requests from 2.33.0 to 2.34.2 in /gitpulse
-
 
 ## [0.1.91] - 2026-06-09
 

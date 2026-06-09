@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.27] - 2026-06-09
+
+### Fixed
+- `mobile-web-app-capable` Meta-Tag ergänzt (Deprecation-Warnung im Browser behoben)
+
 ## [1.0.26.1] - 2026-06-08
 
 Bump python from 3.11-alpine to 3.14-alpine

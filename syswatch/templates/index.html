@@ -6,6 +6,7 @@
   <title>{{ t.title }}</title>
   <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
   <meta name="theme-color" content="#0d1117">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
@@ -1394,7 +1395,13 @@ function openSysHist(metric, label) {
   fetch('/api/sysinfo/history', { credentials: 'include' })
     .then(r => r.json())
     .then(json => {
-      drawSysChart(canvas, json.data || [], metric);
+      const data    = json.data || [];
+      drawSysChart(canvas, data, metric);
+      const src     = metric === 'temp' ? data.filter(d => d.t != null) : data;
+      const mVals   = src.map(d => metric === 'cpu' ? d.c : metric === 'ram' ? d.r : d.t);
+      const yUnit   = metric === 'temp' ? '°C' : '%';
+      const colorFn = metric === 'temp' ? tempColor : sysPctColor;
+      renderSysHistStats(footer, mVals, yUnit, colorFn);
       if (metric === 'cpu' || metric === 'temp') renderSysHistFooter(footer);
     })
     .catch(() => {
@@ -1411,6 +1418,20 @@ function tempColor(t) {
   if (t >= 75) return '#f97316';
   if (t >= 60) return '#eab308';
   return '#22c55e';
+}
+
+function renderSysHistStats(el, vals, yUnit, colorFn) {
+  if (!vals || !vals.length) return;
+  const mn  = Math.min(...vals);
+  const mx  = Math.max(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const cf  = colorFn || (() => 'inherit');
+  el.innerHTML =
+    `<span class="hist-sensor" style="flex-basis:100%">` +
+    `Min: <b style="color:${cf(mn)}">${mn.toFixed(1)}${yUnit}</b>` +
+    `&ensp;·&ensp;Avg: <b style="color:${cf(avg)}">${avg.toFixed(1)}${yUnit}</b>` +
+    `&ensp;·&ensp;Max: <b style="color:${cf(mx)}">${mx.toFixed(1)}${yUnit}</b>` +
+    `</span>`;
 }
 
 function renderSysHistFooter(el) {
@@ -1430,7 +1451,7 @@ function renderSysHistFooter(el) {
   });
   if (!parts.length)
     parts.push(`<span style="opacity:.5">${T.hist_no_sensors || 'No sensor data available'}</span>`);
-  el.innerHTML = parts.join('');
+  el.innerHTML += parts.join('');
 }
 
 function drawSysChartError(canvas, msg) {
@@ -1557,7 +1578,7 @@ function drawSysChart(canvas, history, metric) {
     ctx.stroke();
   }
 
-  // Aktueller Wert als Dot + Label
+  // Aktueller Wert: Dot am Datenpunkt + Label oben rechts außerhalb des Datenbereichs
   const lastV = vals[vals.length - 1];
   const lastX = px(tsMs[tsMs.length - 1]);
   const lastY = py(lastV);
@@ -1566,8 +1587,8 @@ function drawSysChart(canvas, history, metric) {
   ctx.fillStyle = valColor(lastV); ctx.fill();
   ctx.fillStyle = valColor(lastV);
   ctx.font = 'bold 12px system-ui,sans-serif';
-  ctx.textAlign = lastX > PAD.left + cW - 40 ? 'right' : 'left';
-  ctx.fillText(lastV.toFixed(1) + yUnit, lastX + (ctx.textAlign === 'right' ? -8 : 8), lastY - 8);
+  ctx.textAlign = 'right';
+  ctx.fillText(lastV.toFixed(1) + yUnit, PAD.left + cW, PAD.top - 4);
 
   // Rahmen
   ctx.strokeStyle = bdr + '66'; ctx.lineWidth = 1;

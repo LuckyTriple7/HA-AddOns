@@ -11,6 +11,7 @@
   "tab_repos_overview": "Repos",
   "tab_repos": "Pull Requests",
   "tab_issues": "Issues",
+  "tab_activity": "My Activity",
   "tab_ci": "CI / Actions",
   "tab_releases": "Releases",
   "tab_security": "Security",
@@ -19,6 +20,7 @@
   "stat_repos": "Repos",
   "stat_prs": "Open PRs",
   "stat_issues": "Open Issues",
+  "stat_activity": "My Activity",
   "stat_releases": "Watch Releases",
   "stat_workflows": "Workflows",
   "stat_stars": "Stars",
@@ -39,6 +41,8 @@
   "no_closed_issues": "No closed issues",
   "no_runs": "No workflow runs found",
   "no_releases": "No releases found yet",
+  "releases_my_repos": "My repos",
+  "releases_watch_repos": "Watched repos",
 
   "pr_open": "Open",
   "pr_draft": "Draft",
@@ -136,6 +140,11 @@
   "tg_repo_stats":         "📊 Repo statistics",
   "tg_star_fork":          "⭐ Stars & forks",
   "tg_security":           "🔴 Security alerts",
+  "tg_my_activity":        "👤 My activity (own PRs & issues)",
+
+  "no_activity":           "No open PRs or issues created by you",
+  "activity_my_prs":       "My open pull requests",
+  "activity_my_issues":    "My open issues",
 
   "settings_em_hint": "SMTP server is configured in the add-on options (smtp_host, smtp_to).",
   "settings_em_not_configured": "E-mail not active — smtp_host and/or smtp_to missing in add-on options.",
