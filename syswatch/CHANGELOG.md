@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.11] - 2026-06-09
+
+### Added
+- `webui`-Feld in config.yaml: HA zeigt jetzt den Button „Benutzeroberfläche öffnen" — passt sich automatisch an den konfigurierten Host-Port an
+
 ## [1.2.10] - 2026-06-09
 
 ### Fixed
