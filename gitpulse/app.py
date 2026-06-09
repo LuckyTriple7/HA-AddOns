@@ -2325,7 +2325,17 @@ def api_addon_manager_image_check():
     if not image or not version or not token:
         return jsonify({'error': 'missing_params'}), 400
     # image = ghcr.io/luckytriple7/claudecode → owner/name = luckytriple7/claudecode
-    repo_part = image.removeprefix('ghcr.io/') if image.startswith('ghcr.io/') else image
+    if '://' in image:
+        parsed = urlparse(image)
+        if parsed.hostname != 'ghcr.io':
+            return jsonify({'error': 'invalid_image'}), 400
+        repo_part = parsed.path.lstrip('/')
+    elif image.startswith('ghcr.io/'):
+        repo_part = image[len('ghcr.io/'):]
+    else:
+        repo_part = image
+    if not re.fullmatch(r'[A-Za-z0-9._-]+/[A-Za-z0-9._-]+', repo_part):
+        return jsonify({'error': 'invalid_image'}), 400
     owner = repo_part.split('/')[0]
     try:
         import base64 as _b64

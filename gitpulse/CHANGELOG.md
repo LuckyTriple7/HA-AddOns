@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.83] - 2026-06-09
+
+### Security
+- Image-Check: URL-Validierung via `urlparse` + hostname-Check statt `startswith`-Substring (CodeQL: Incomplete URL substring sanitization)
+
 ## [0.1.82] - 2026-06-09
 
 ### Fixed
