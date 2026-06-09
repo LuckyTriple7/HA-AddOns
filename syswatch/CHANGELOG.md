@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.7] - 2026-06-09
+
+### Fixed
+- `mobile-web-app-capable` Meta-Tag ergänzt (Deprecation-Warnung im Browser behoben)
+
 ## [1.2.6.1] - 2026-06-08
 
 ### Dependencies

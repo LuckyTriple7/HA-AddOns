@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.94] - 2026-06-09
+
+### Fixed
+- `mobile-web-app-capable` Meta-Tag ergänzt (Deprecation-Warnung im Browser behoben)
+
 ## [0.1.93] - 2026-06-09
 
 ### Added
