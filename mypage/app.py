@@ -16,6 +16,7 @@ import re
 import secrets
 import shutil
 import smtplib
+import subprocess
 import threading
 import time
 import uuid
@@ -61,7 +62,8 @@ USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
-USERFILES_ROOT = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
+USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
+SMB_MOUNTED    = bool(os.environ.get('MYPAGE_USERFILES'))
 LOCALES_PATH  = _BASE + '/locales'
 
 PUBLIC_PORT = 17760
@@ -70,7 +72,7 @@ ADMIN_PORT  = 17761
 GITHUB_API = 'https://api.github.com'
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-USERFILES_ROOT.mkdir(parents=True, exist_ok=True)
+USERFILES_BASE.mkdir(parents=True, exist_ok=True)
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
@@ -149,6 +151,7 @@ DEFAULT_SITE = {
         'accent': '#58a6ff', 'mode': 'dark', 'layout': 'cards',
         'show_counter': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
+        'storage_subdir': '',
         'contact_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
@@ -635,10 +638,52 @@ def save_users(users: list) -> None:
             log.warning("users.json konnte nicht gespeichert werden: %s", e)
 
 
+def storage_available() -> bool:
+    """False, wenn SMB konfiguriert ist, aber der Mount gerade nicht erreichbar ist.
+    Bewusst kein Fallback auf lokalen Speicher — das würde Datei-Chaos geben."""
+    if not SMB_MOUNTED:
+        return True
+    try:
+        if not os.path.ismount(str(USERFILES_BASE)):
+            return False
+        os.listdir(USERFILES_BASE)
+        return True
+    except OSError:
+        return False
+
+
+def userfiles_root() -> Path:
+    """Wurzel der Benutzerdateien — Basis (lokal oder SMB) + gewählter Unterordner."""
+    base = USERFILES_BASE.resolve()
+    sub = (load_site()['design'].get('storage_subdir') or '').strip().strip('/')
+    if sub:
+        p = (base / sub).resolve()
+        if p == base or base in p.parents:
+            return p
+    return base
+
+
 def user_dir(user: dict) -> Path:
-    d = USERFILES_ROOT / user['id']
+    d = userfiles_root() / user['id']
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def store_user_file(d: Path, f) -> Path | None:
+    """Upload sicher in Benutzerordner speichern (Namens-Kollisionen durchnummerieren)."""
+    name = secure_filename(f.filename or '')
+    if not name:
+        return None
+    target = (d / name).resolve()
+    if target.parent != d.resolve():
+        return None
+    base, ext = os.path.splitext(name)
+    n = 1
+    while target.exists():
+        target = d / f'{base}({n}){ext}'
+        n += 1
+    f.save(target)
+    return target
 
 
 def user_usage_bytes(user: dict) -> int:
@@ -693,6 +738,52 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
                    'Bitte ändere nichts an diesem Konto, das du nicht selbst angefragt hast.',
                ]),
                to=user['email'])
+
+
+def _smb_watchdog() -> None:
+    """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
+    mountpoint = os.environ.get('MYPAGE_USERFILES', '')
+    if not mountpoint:
+        return
+    while True:
+        time.sleep(60)
+        try:
+            cfg = load_config()
+            server = (cfg.get('smb_server') or '').strip()
+            share  = (cfg.get('smb_share') or '').strip()
+            if not server or not share:
+                continue
+            healthy = False
+            try:
+                if os.path.ismount(mountpoint):
+                    os.listdir(mountpoint)
+                    healthy = True
+            except OSError:
+                healthy = False
+            if healthy:
+                continue
+            log.warning("SMB-Mount nicht verfügbar — versuche Remount von //%s/%s ...", server, share)
+            subprocess.run(['umount', '-l', mountpoint], capture_output=True, timeout=30)
+            opts = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
+                    'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft')
+            user = (cfg.get('smb_user') or '').strip()
+            if user:
+                cred = '/tmp/.smbcred-watchdog'
+                with open(cred, 'w') as f:
+                    f.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
+                os.chmod(cred, 0o600)
+                opts += f',credentials={cred}'
+            else:
+                opts += ',guest'
+            r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
+                                '-o', opts], capture_output=True, text=True, timeout=60)
+            if r.returncode == 0:
+                log.info("SMB-Mount wiederhergestellt")
+            else:
+                log.warning("SMB-Remount fehlgeschlagen: %s — nächster Versuch in 60 s",
+                            (r.stderr or '').strip()[:200])
+        except Exception as e:
+            log.warning("SMB-Watchdog-Fehler: %s", e)
 
 
 # ── Home-Assistant-Sensoren ───────────────────────────────────────────────────
@@ -1223,15 +1314,17 @@ def api_users():
     err = _api_auth()
     if err:
         return err
+    storage_ok = storage_available()
     out = []
     for u in load_users():
-        used = user_usage_bytes(u)
+        used = user_usage_bytes(u) if storage_ok else 0
         out.append({'id': u['id'], 'email': u['email'], 'quota_mb': u.get('quota_mb', 500),
                     'used_mb': round(used / 1048576, 1),
-                    'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()),
+                    'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()) if storage_ok else 0,
                     'created': u.get('created', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
-                    'storage': str(USERFILES_ROOT)})
+                    'storage': str(userfiles_root()) if storage_ok else '',
+                    'smb': SMB_MOUNTED, 'storage_ok': storage_ok})
 
 
 @admin_app.route('/api/users', methods=['POST'])
@@ -1298,6 +1391,95 @@ def api_user_edit(uid: str):
                              daemon=True).start()
     save_users(users)
     return jsonify({'ok': True, 'mail_sent': mail_sent})
+
+
+def _admin_get_user(uid: str) -> dict | None:
+    return next((u for u in load_users() if u['id'] == uid), None)
+
+
+@admin_app.route('/api/users/<uid>/files', methods=['GET', 'POST'])
+def api_user_files(uid: str):
+    err = _api_auth()
+    if err:
+        return err
+    user = _admin_get_user(uid)
+    if user is None:
+        return jsonify({'error': 'not found'}), 404
+    if not storage_available():
+        return jsonify({'error': 'storage'}), 503
+    d = user_dir(user)
+    if request.method == 'POST':
+        f = request.files.get('file')
+        if not f or not f.filename:
+            return jsonify({'error': 'no file'}), 400
+        target = store_user_file(d, f)
+        if target is None:
+            return jsonify({'error': 'invalid name'}), 400
+        if user_usage_bytes(user) > user.get('quota_mb', 500) * 1048576:
+            target.unlink(missing_ok=True)
+            return jsonify({'error': 'quota'}), 413
+        log.info("Admin: Datei '%s' für '%s' hinterlegt", target.name, user['email'])
+        return jsonify({'ok': True, 'name': target.name})
+    files = []
+    for f in sorted(d.iterdir()):
+        if f.is_file():
+            st = f.stat()
+            files.append({'name': f.name, 'size': st.st_size,
+                          'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M')})
+    return jsonify({'files': files})
+
+
+@admin_app.route('/api/users/<uid>/files/<path:name>', methods=['GET', 'DELETE'])
+def api_user_file(uid: str, name: str):
+    err = _api_auth()
+    if err:
+        return err
+    user = _admin_get_user(uid)
+    if user is None:
+        return jsonify({'error': 'not found'}), 404
+    if not storage_available():
+        return jsonify({'error': 'storage'}), 503
+    d = user_dir(user)
+    if request.method == 'DELETE':
+        safe = secure_filename(name)
+        target = (d / safe).resolve()
+        if safe and target.parent == d.resolve() and target.is_file():
+            target.unlink()
+            return jsonify({'ok': True})
+        return jsonify({'error': 'not found'}), 404
+    return send_from_directory(d, name, as_attachment=True)
+
+
+@admin_app.route('/api/storage', methods=['GET', 'POST'])
+def api_storage():
+    """Unterordner für Mitglieder-Dateien durchsuchen/festlegen (z. B. auf dem SMB-Share)."""
+    err = _api_auth()
+    if err:
+        return err
+    if not storage_available():
+        return jsonify({'error': 'storage'}), 503
+    base = USERFILES_BASE.resolve()
+    if request.method == 'POST':
+        sub = _clean_str((request.get_json(silent=True) or {}).get('subdir'), 300).strip('/')
+        if sub:
+            p = (base / sub).resolve()
+            if not (p == base or base in p.parents) or not p.is_dir():
+                return jsonify({'error': 'invalid dir'}), 400
+        site = load_site()
+        site['design']['storage_subdir'] = sub
+        save_site(site)
+        log.info("Mitglieder-Speicherort: %s", userfiles_root())
+        return jsonify({'ok': True})
+    rel = _clean_str(request.args.get('path') or '', 300).strip('/')
+    cur = (base / rel).resolve() if rel else base
+    if not (cur == base or base in cur.parents) or not cur.is_dir():
+        return jsonify({'error': 'invalid dir'}), 400
+    try:
+        dirs = sorted(d.name for d in cur.iterdir() if d.is_dir())
+    except OSError:
+        dirs = []
+    return jsonify({'base': str(base), 'path': rel, 'dirs': dirs, 'smb': SMB_MOUNTED,
+                    'active': load_site()['design'].get('storage_subdir', '')})
 
 
 @admin_app.route('/api/export')
@@ -1618,7 +1800,8 @@ def _member_page(member: dict | None, msg: str = ''):
     site = load_site()
     files = []
     used = quota = 0
-    if member:
+    storage_down = member is not None and not storage_available()
+    if member and not storage_down:
         quota = member.get('quota_mb', 500) * 1048576
         for f in sorted(user_dir(member).iterdir()):
             if f.is_file():
@@ -1628,6 +1811,7 @@ def _member_page(member: dict | None, msg: str = ''):
                 used += st.st_size
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
+                           storage_down=storage_down,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -1677,23 +1861,14 @@ def member_upload():
     member = current_member(request)
     if member is None:
         abort(403)
+    if not storage_available():
+        return redirect('/bereich?msg=storage')
     f = request.files.get('file')
     if not f or not f.filename:
         return redirect('/bereich?msg=nofile')
-    name = secure_filename(f.filename)
-    if not name:
+    target = store_user_file(user_dir(member), f)
+    if target is None:
         return redirect('/bereich?msg=nofile')
-    d = user_dir(member)
-    target = (d / name).resolve()
-    if target.parent != d.resolve():
-        abort(400)
-    # Bei Namenskollision durchnummerieren statt überschreiben
-    base, ext = os.path.splitext(name)
-    n = 1
-    while target.exists():
-        target = d / f'{base}({n}){ext}'
-        n += 1
-    f.save(target)
     quota = member.get('quota_mb', 500) * 1048576
     if user_usage_bytes(member) > quota:
         target.unlink(missing_ok=True)
@@ -1707,6 +1882,8 @@ def member_download(name: str):
     member = current_member(request)
     if member is None:
         abort(403)
+    if not storage_available():
+        return redirect('/bereich?msg=storage')
     # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt
     return send_from_directory(user_dir(member), name, as_attachment=True)
 
@@ -1716,6 +1893,8 @@ def member_delete():
     member = current_member(request)
     if member is None:
         abort(403)
+    if not storage_available():
+        return redirect('/bereich?msg=storage')
     name = secure_filename(request.form.get('name') or '')
     d = user_dir(member)
     target = (d / name).resolve()
@@ -1808,12 +1987,13 @@ if __name__ == '__main__':
     upload_max = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
     public_app.config['MAX_CONTENT_LENGTH'] = upload_max * 1024 * 1024
     log.info("Mitglieder-Bereich: Speicher unter %s, Upload-Limit %d MB",
-             USERFILES_ROOT, upload_max)
+             userfiles_root(), upload_max)
 
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()
     threading.Thread(target=_sensor_worker, daemon=True).start()
     threading.Thread(target=_geoip_worker, daemon=True).start()
+    threading.Thread(target=_smb_watchdog, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)

@@ -64,7 +64,15 @@ Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Datei
 
 ### Optionaler SMB-Speicher
 
-Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` in den Add-on-Optionen setzen und das Add-on neu starten. Schlägt der Mount fehl (Server aus, falsches Passwort), startet das Add-on trotzdem und nutzt den lokalen Speicher (`/addon_configs/…/users`) — es gehen keine Funktionen verloren. Beim Wechsel des Speicherorts werden bestehende Dateien **nicht** automatisch umgezogen; einfach vorher per Share kopieren.
+Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe (z. B. FritzBox-NAS) ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` in den Add-on-Optionen setzen und das Add-on neu starten.
+
+- **Unterordner wählbar**: Im Benutzer-Tab gibt es einen Ordner-Browser, mit dem du den genauen Zielordner auf dem Share festlegst. Bestehende Dateien werden beim Wechsel **nicht** automatisch umgezogen.
+- **Kein Fallback**: Ist der SMB-Speicher nicht erreichbar (Server aus, Neustart), geht der Dateibereich bewusst **offline** — Benutzer und Admin sehen eine entsprechende Meldung. So landen nie versehentlich Dateien auf der SD-Karte.
+- **Automatische Wiederverbindung**: Ein Watchdog prüft jede Minute und mountet nach einem FritzBox-/NAS-Neustart automatisch neu (`soft`-Mount verhindert hängende Zugriffe).
+
+### Dateien für Benutzer hinterlegen
+
+Im Benutzer-Tab öffnet der „Dateien"-Button pro Benutzer eine Dateiverwaltung: Du kannst Dateien **hinterlegen** (zählt gegen die Quota des Benutzers), herunterladen und löschen — praktisch, um jemandem etwas bereitzustellen, ohne dass er selbst hochladen muss.
 
 ## Home-Assistant-Sensoren
 

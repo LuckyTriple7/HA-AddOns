@@ -396,7 +396,10 @@
           </div>
           <div>
             <label>{{ t.user_password }}</label>
-            <input type="text" id="u-password" placeholder="{{ t.user_pw_hint }}">
+            <div class="upload-row">
+              <input type="text" id="u-password" placeholder="{{ t.user_pw_hint }}">
+              <button class="btn secondary small" onclick="el('u-password').value = genPassword()" title="{{ t.user_gen_pw }}">🎲 {{ t.user_gen_pw }}</button>
+            </div>
           </div>
         </div>
         <label>{{ t.user_quota }}</label>
@@ -404,9 +407,20 @@
         <div><button class="btn" onclick="createUser()">{{ t.user_create }}</button></div>
         <p class="hint" id="u-storage"></p>
       </div>
+      <div class="panel" id="storage-warn" style="display:none;border-color:var(--red)">
+        <h3 style="color:var(--red)">⚠ {{ t.storage_down_admin_title }}</h3>
+        <p class="hint">{{ t.storage_down_admin }}</p>
+      </div>
       <div class="panel">
         <h3>{{ t.users_heading }}</h3>
         <div class="proj-list" id="user-list"></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.storage_heading }}</h3>
+        <p class="hint">{{ t.storage_hint }}</p>
+        <div class="hint" id="st-current" style="margin-bottom:8px"></div>
+        <div id="st-dirs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <button class="btn small" onclick="useStorageDir()">{{ t.storage_use }}</button>
       </div>
     </section>
 
@@ -544,6 +558,21 @@
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benutzer-Dateien-Modal -->
+  <div class="modal-bg" id="ufiles-modal">
+    <div class="modal">
+      <h3 id="uf-title"></h3>
+      <div class="proj-list" id="uf-list" style="margin-top:14px"></div>
+      <div class="upload-row" style="margin-top:14px">
+        <input type="file" id="uf-file">
+        <button class="btn small" onclick="adminUploadFile()">⬆ {{ t.ufiles_upload }}</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('ufiles-modal').classList.remove('open')">{{ t.cancel }}</button>
       </div>
     </div>
   </div>
@@ -845,12 +874,29 @@
     }
 
     // ── Benutzer ──
+    function genPassword() {
+      // 8 Zeichen: Groß, Klein, Zahlen — keine Sonderzeichen, keine verwechselbaren (O/0, l/1)
+      const U = 'ABCDEFGHJKLMNPQRSTUVWXYZ', L = 'abcdefghjkmnpqrstuvwxyz', D = '23456789';
+      const all = U + L + D;
+      const rnd = max => crypto.getRandomValues(new Uint32Array(1))[0] % max;
+      const pick = s => s[rnd(s.length)];
+      const pw = [pick(U), pick(L), pick(D)];
+      while (pw.length < 8) pw.push(pick(all));
+      for (let i = pw.length - 1; i > 0; i--) {
+        const j = rnd(i + 1);
+        [pw[i], pw[j]] = [pw[j], pw[i]];
+      }
+      return pw.join('');
+    }
     async function loadUsers() {
       const r = await api('api/users');
       if (!r.ok) return;
       const data = await r.json();
-      el('u-storage').textContent = T.user_storage + ': ' + data.storage +
-        (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off);
+      el('storage-warn').style.display = data.storage_ok ? 'none' : '';
+      el('u-storage').textContent = data.storage_ok
+        ? T.user_storage + ': ' + data.storage + (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off)
+        : '';
+      if (data.storage_ok) loadStorageDirs('');
       const list = el('user-list');
       list.innerHTML = '';
       if (!data.users.length) {
@@ -862,6 +908,7 @@
         div.className = 'proj-item';
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
+            <button class="btn secondary small">📁 ${T.user_files_btn}</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
             <button class="btn secondary small">${T.user_quota_btn}</button>
             <button class="btn danger small">✕</button>
@@ -869,9 +916,10 @@
         div.querySelector('.proj-name').textContent = u.email;
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created}`;
-        const [pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [filesBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        filesBtn.onclick = () => openUserFiles(u);
         pwBtn.onclick = async () => {
-          const pw = prompt(T.user_new_pw_prompt);
+          const pw = prompt(T.user_new_pw_prompt, genPassword());
           if (!pw) return;
           if (pw.length < 8) { toast(T.user_pw_short, true); return; }
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { password: pw });
@@ -915,6 +963,102 @@
       } else {
         toast(T.error_save, true);
       }
+    }
+
+    // ── Benutzer-Dateien (Admin) ──
+    let ufUser = null;
+    function openUserFiles(u) {
+      ufUser = u;
+      el('uf-title').textContent = T.ufiles_title.replace('{email}', u.email);
+      el('ufiles-modal').classList.add('open');
+      loadUserFiles();
+    }
+    async function loadUserFiles() {
+      const r = await api('api/users/' + ufUser.id + '/files');
+      const list = el('uf-list');
+      if (!r.ok) {
+        list.innerHTML = `<div class="empty-note">${r.status === 503 ? T.storage_down_admin : T.error_load}</div>`;
+        return;
+      }
+      const data = await r.json();
+      list.innerHTML = '';
+      if (!data.files.length) {
+        list.innerHTML = `<div class="empty-note">${T.member_no_files}</div>`;
+        return;
+      }
+      data.files.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const size = f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.round(f.size / 1024) + ' KB';
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small">⬇</button>
+            <button class="btn danger small">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = f.name;
+        div.querySelector('.proj-meta').textContent = size + ' · ' + f.mtime;
+        const [dlBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        dlBtn.onclick = () => { window.location.href = 'api/users/' + ufUser.id + '/files/' + encodeURIComponent(f.name); };
+        delBtn.onclick = async () => {
+          if (!confirm(T.member_confirm_delete)) return;
+          const r2 = await fetch('api/users/' + ufUser.id + '/files/' + encodeURIComponent(f.name),
+                                 { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) { loadUserFiles(); loadUsers(); }
+        };
+        list.appendChild(div);
+      });
+    }
+    async function adminUploadFile() {
+      const f = el('uf-file').files[0];
+      if (!f) { toast(T.member_err_nofile, true); return; }
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/users/' + ufUser.id + '/files',
+                            { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        toast(T.ufiles_uploaded);
+        el('uf-file').value = '';
+        loadUserFiles();
+        loadUsers();
+      } else if (r.status === 413) {
+        toast(T.member_err_quota, true);
+      } else if (r.status === 503) {
+        toast(T.storage_down_admin, true);
+      } else {
+        toast(T.error_upload_generic, true);
+      }
+    }
+
+    // ── Speicherort-Browser ──
+    let stPath = '';
+    async function loadStorageDirs(path) {
+      const r = await api('api/storage' + (path ? '?path=' + encodeURIComponent(path) : ''));
+      if (!r.ok) { el('st-current').textContent = T.storage_down_admin; el('st-dirs').innerHTML = ''; return; }
+      const data = await r.json();
+      stPath = data.path;
+      el('st-current').textContent = T.storage_current + ': ' + data.base + (stPath ? '/' + stPath : '') +
+        (data.active === stPath ? ' ✓ ' + T.storage_active : '');
+      const box = el('st-dirs');
+      box.innerHTML = '';
+      if (stPath) {
+        const up = document.createElement('button');
+        up.className = 'btn secondary small';
+        up.textContent = '⬆ ..';
+        up.onclick = () => loadStorageDirs(stPath.split('/').slice(0, -1).join('/'));
+        box.appendChild(up);
+      }
+      data.dirs.forEach(d => {
+        const b = document.createElement('button');
+        b.className = 'btn secondary small';
+        b.textContent = '📁 ' + d;
+        b.onclick = () => loadStorageDirs(stPath ? stPath + '/' + d : d);
+        box.appendChild(b);
+      });
+    }
+    async function useStorageDir() {
+      const r = await apiJson('api/storage', 'POST', { subdir: stPath });
+      toast(r.ok ? T.storage_saved : T.error_save, !r.ok);
+      if (r.ok) loadUsers();
     }
 
     // ── System: Wartungsmodus & Backup ──

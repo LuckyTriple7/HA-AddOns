@@ -91,7 +91,11 @@
     {% else %}
     <div class="card">
       <h1>{{ t.member_files }}</h1>
+      {% if storage_down %}
+      <div class="msg err">{{ t.member_err_storage }}</div>
+      {% else %}
       {% if msg == 'uploaded' %}<div class="msg ok">{{ t.member_uploaded }}</div>{% endif %}
+      {% if msg == 'storage' %}<div class="msg err">{{ t.member_err_storage }}</div>{% endif %}
       {% if msg == 'quota' %}<div class="msg err">{{ t.member_err_quota }}</div>{% endif %}
       {% if msg == 'nofile' %}<div class="msg err">{{ t.member_err_nofile }}</div>{% endif %}
       <div class="meta-row">
@@ -124,6 +128,7 @@
         <input type="file" name="file" required>
         <button class="btn small" type="submit">⬆ {{ t.member_upload }}</button>
       </form>
+      {% endif %}
     </div>
     {% endif %}
   </main>
