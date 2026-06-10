@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.11] - 2026-06-10
+- Fix: Video-Wiedergabe wurde durch Poll-Re-Render unterbrochen — renderMessages nur noch bei geändertem Nachrichten-Fingerprint (Anzahl + IDs + Video-mediaFile)
+- Fix: Videos werden nicht mehr sofort heruntergeladen — Platzhalter „⬇ Video herunterladen · X MB" mit On-Demand-Download per Klick
+- Fix: Video-Anhang-Extensions (mp4/webm) korrekt erkannt statt fälschlich als jpg gespeichert
+- Neu: `/api/fetch-video` Endpoint für On-Demand-Download von Signal-Videos
+
 ## [1.6.10] - 2026-06-10
 - Fix: Videos werden jetzt korrekt als `video`-Typ erkannt (statt fälschlicherweise als `photo`) — `<video>`-Player statt defektem `<img>`; Chatliste zeigt `📹 Video` statt `📷 Foto`; betrifft eingehende und ausgehende Videos
 

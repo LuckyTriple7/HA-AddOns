@@ -315,11 +315,13 @@ function processEnvelope(envelope) {
       contact: normPhone(dm.quote.author) === PHONE_NUMBER ? 'Ich' : (dm.quote.author || ''),
     };
   }
-  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, quotedMsg };
+  const videoAtt = isVideo ? dm.attachments.find(a => (a.contentType || '').startsWith('video/')) : null;
+  const videoSize = videoAtt ? (videoAtt.size || 0) : undefined;
+  const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, videoSize, quotedMsg };
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
-      if (att.id) downloadAttachment(att.id, att.contentType || 'image/jpeg', msgId);
+      if (att.id && !(att.contentType || '').startsWith('video/')) downloadAttachment(att.id, att.contentType || 'image/jpeg', msgId);
     }
   }
 
@@ -383,7 +385,7 @@ async function pollMessages() {
 
 async function downloadAttachment(attId, contentType, msgId) {
   try {
-    const ext = contentType.includes('ogg') ? 'ogg' : contentType.includes('aac') ? 'aac' : contentType.includes('mpeg') ? 'mp3' : contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
+    const ext = contentType.includes('webm') ? 'webm' : contentType.startsWith('video/') ? 'mp4' : contentType.includes('ogg') ? 'ogg' : contentType.includes('aac') ? 'aac' : contentType.includes('mpeg') ? 'mp3' : contentType.includes('png') ? 'png' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : 'jpg';
     const filename = `${msgId.replace(/[^a-zA-Z0-9_-]/g, '_')}.${ext}`;
     const filepath = path.resolve(MEDIA_DIR, filename);
     if (!filepath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return;
@@ -634,6 +636,25 @@ app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
     }
     res.json({ deleted: count, freedMb: (freed / (1024 * 1024)).toFixed(1) });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/fetch-video', async (req, res) => {
+  const { msgId } = req.body;
+  if (!msgId) return res.status(400).json({ error: 'msgId required' });
+  let storedMsg = null;
+  for (const msgs of messagesByChatId.values()) { storedMsg = msgs.find(m => m.id === msgId); if (storedMsg) break; }
+  if (!storedMsg) return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+  if (storedMsg.mediaFile) return res.json({ success: true, mediaFile: storedMsg.mediaFile });
+  if (!storedMsg.attIds || !storedMsg.attIds.length) return res.status(400).json({ error: 'Keine Anhang-IDs gespeichert' });
+  try {
+    const att = storedMsg.attIds.find(a => (a.ct || '').startsWith('video/')) || storedMsg.attIds[0];
+    if (storedMsg.videoSize && storedMsg.videoSize > MEDIA_MAX_MB * 1024 * 1024) {
+      return res.status(413).json({ error: `Video zu groß (${(storedMsg.videoSize/1024/1024).toFixed(1)} MB, max ${MEDIA_MAX_MB} MB)` });
+    }
+    await downloadAttachment(att.id, att.ct, msgId);
+    if (!storedMsg.mediaFile) return res.status(500).json({ error: 'Download fehlgeschlagen' });
+    res.json({ success: true, mediaFile: storedMsg.mediaFile });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/fetch-media/:chatId', async (req, res) => {
@@ -1421,6 +1442,7 @@ let currentStatus = '';
 let selectedChatId = null;
 let allChats = [];
 let currentFilter = 'all';
+let _lastMsgFingerprint = {};
 let lastSeenTime = JSON.parse(localStorage.getItem('signal_last_seen') || '{}');
 let showPhotos = ${DOWNLOAD_MEDIA} && localStorage.getItem('signal_show_photos') !== 'false';
 
@@ -1647,6 +1669,7 @@ function openChat(chat) {
     av.style.fontSize = '14px';
   }
   renderChats(allChats);
+  _lastMsgFingerprint[chat.id] = '';
   loadMessages(chat.id);
 }
 
@@ -1657,10 +1680,20 @@ function closeChat() {
   clearAttach();
 }
 
+function msgFingerprint(msgs) {
+  if (!msgs || !msgs.length) return '';
+  const last = msgs[msgs.length - 1];
+  const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey;
+}
+
 async function loadMessages(chatId) {
   if (!chatId) return;
   try {
     const msgs = await fetch(api('/api/messages/' + encodeURIComponent(chatId))).then(r => r.json());
+    const fp = msgFingerprint(msgs);
+    if (_lastMsgFingerprint[chatId] === fp) return;
+    _lastMsgFingerprint[chatId] = fp;
     renderMessages(msgs);
     updateChatStats(chatId);
   } catch (e) {}
@@ -1697,18 +1730,22 @@ function renderMessages(msgs) {
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'voice') {
       content = '<span class="photo-placeholder">🎵 Sprachnachricht</span>';
-    } else if (m.type === 'video' && m.mediaFile) {
-      content = showPhotos
-        ? \`<video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></video>\`
-        : '<span class="photo-placeholder">📹 Video</span>';
+    } else if (m.type === 'video') {
+      if (m.mediaFile) {
+        content = \`<video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></video>\`;
+      } else {
+        const sz = m.videoSize || 0;
+        const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
+        content = \`<span class="photo-placeholder" data-msgid="\${escHtml(m.id)}" onclick="fetchVideo(this)" style="cursor:pointer;opacity:0.85;user-select:none;text-decoration:underline">⬇ Video herunterladen\${mb}</span>\`;
+      }
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.mediaFile) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
-    } else if (showPhotos && (m.type === 'photo' || m.type === 'video' || (m.attIds && m.attIds.length > 0))) {
-      content = m.type === 'video' ? '<span class="photo-placeholder">📹 Video</span>' : '<span class="photo-placeholder">📷 Foto</span>';
+    } else if (m.type === 'photo' && (m.attIds && m.attIds.length > 0)) {
+      content = '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'document' && m.filename) {
       content = \`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
@@ -1738,6 +1775,26 @@ function setReply(msgId, contact, preview, from, ts) {
 function clearReply() {
   _replyMsgId = null; _replyFrom = null; _replyTs = null; _replyBody = null;
   document.getElementById('reply-bar').classList.remove('active');
+}
+
+async function fetchVideo(el) {
+  const msgId = el.dataset.msgid;
+  if (!msgId) return;
+  el.textContent = '⏳';
+  el.style.cursor = 'default';
+  el.onclick = null;
+  try {
+    const r = await fetch(api('/api/fetch-video'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msgId })
+    }).then(r => r.json());
+    if (r.mediaFile) {
+      _lastMsgFingerprint[selectedChatId] = '';
+      await loadMessages(selectedChatId);
+    } else {
+      el.textContent = '❌ ' + (r.error || 'Fehler');
+    }
+  } catch(e) { el.textContent = '❌ Fehler'; }
 }
 
 let _fwdMsgId = null;
