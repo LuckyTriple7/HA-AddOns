@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.3] - 2026-06-10
+
+### Changed
+- **Body-Expand**: Markdown wird jetzt gerendert statt als Rohtext angezeigt — `## Überschriften`, `**fett**`, `[Links](url)` klickbar, `- [x]` Checkboxen mit ☑/☐, Inline-Code mit Hintergrund; linker Akzentstreifen für bessere visuelle Abgrenzung
+
 ## [0.3.2] - 2026-06-10
 
 ### Fixed

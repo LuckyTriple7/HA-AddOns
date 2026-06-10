@@ -1590,7 +1590,7 @@
           ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
           ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;background:var(--surf2);border-top:1px solid var(--border)">${escHtml((pr.body||'').trim())}</div>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((pr.body||'').trim())}</div>` : ''}
         <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     }).join('') + '</div></div>';
@@ -1652,7 +1652,7 @@
           ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
           ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;background:var(--surf2);border-top:1px solid var(--border)">${escHtml((iss.body||'').trim())}</div>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((iss.body||'').trim())}</div>` : ''}
         <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     }).join('') + '</div></div>';
@@ -1950,7 +1950,7 @@
         <img src="${escHtml(c.avatar)}" alt="${escHtml(c.user)}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0">
         <div style="flex:1;min-width:0">
           <div style="font-size:.72rem;font-weight:600;color:var(--accent)">@${escHtml(c.user)} <span style="font-weight:400;color:var(--muted)">${relTime(c.created)}</span></div>
-          <div style="font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;margin-top:2px">${escHtml((c.body||'').trim())}</div>
+          <div style="font-size:.78rem;color:var(--text);line-height:1.5;margin-top:2px">${renderMd((c.body||'').trim())}</div>
         </div>
       </div>`).join('');
     el.dataset.open = '1';
@@ -1997,7 +1997,7 @@
             ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
             : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`) : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;background:var(--surf2);border-top:1px solid var(--border)">${escHtml((item.body||'').trim())}</div>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((item.body||'').trim())}</div>` : ''}
         <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     };
@@ -2555,6 +2555,58 @@
   }
 
   // ── Utils ─────────────────────────────────────────────────────────
+  function renderMd(raw) {
+    if (!raw) return '';
+    const lines = raw.split('\n');
+    let html = '';
+    for (const line of lines) {
+      let l = line;
+      // Headings
+      if (/^#{1,3}\s/.test(l)) {
+        const lvl = l.match(/^#+/)[0].length;
+        const txt = inlineMd(l.replace(/^#+\s*/, ''));
+        const sz = lvl === 1 ? '.9rem' : lvl === 2 ? '.85rem' : '.8rem';
+        html += `<div style="font-weight:700;font-size:${sz};margin:6px 0 2px;color:var(--text)">${txt}</div>`;
+        continue;
+      }
+      // Horizontal rule
+      if (/^(-{3,}|\*{3,})$/.test(l.trim())) {
+        html += `<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">`;
+        continue;
+      }
+      // Checkbox list
+      if (/^\s*-\s*\[[ xX]\]/.test(l)) {
+        const checked = /\[[ xX]\]/.test(l) && !/\[ \]/.test(l);
+        const txt = inlineMd(l.replace(/^\s*-\s*\[[ xX]\]\s*/, ''));
+        html += `<div style="display:flex;gap:5px;align-items:baseline;margin:1px 0">
+          <span style="color:${checked ? 'var(--green)' : 'var(--muted)'};flex-shrink:0">${checked ? '☑' : '☐'}</span>
+          <span style="color:var(--text)">${txt}</span></div>`;
+        continue;
+      }
+      // Bullet list
+      if (/^\s*[-*]\s/.test(l)) {
+        const txt = inlineMd(l.replace(/^\s*[-*]\s*/, ''));
+        html += `<div style="display:flex;gap:5px;margin:1px 0"><span style="color:var(--muted);flex-shrink:0">•</span><span>${txt}</span></div>`;
+        continue;
+      }
+      // Empty line
+      if (l.trim() === '') { html += '<div style="height:4px"></div>'; continue; }
+      // Normal paragraph
+      html += `<div>${inlineMd(l)}</div>`;
+    }
+    return html;
+  }
+
+  function inlineMd(s) {
+    return s
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code style="background:var(--surf2);padding:1px 4px;border-radius:3px;font-size:.9em">$1</code>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">$1</a>');
+  }
+
   function escHtml(s) {
     return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
