@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.16] - 2026-06-10
+- UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — einheitlich mit WhatsApp und Telegram
+
 ## [1.6.15] - 2026-06-10
 - Fix: Häkchen-Update jetzt In-Place (kein Re-Render) — nur ackKey im Fingerprint geändert → updateAckMarksInPlace() aktualisiert nur .bubble-time, Video/Audio-Wiedergabe wird nicht unterbrochen
 

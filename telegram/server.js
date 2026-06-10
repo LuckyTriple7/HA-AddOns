@@ -1307,7 +1307,7 @@ html.light .reaction-badge { background: #f0f2f5; border-color: #d9dbdf; color: 
 html.dark .reaction-badge.own { background: rgba(42,171,238,0.12); }
 html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .reaction-badge:hover { opacity: 0.8; }
-.bubble.photo-bubble { padding: 0; overflow: hidden; position: relative; }
+.bubble.photo-bubble { padding: 0; overflow: hidden; position: relative; max-width: 280px; }
 .bubble.photo-bubble .bubble-time { position: absolute; bottom: 3px; right: 5px; background: rgba(0,0,0,0.45); color: rgba(255,255,255,0.95) !important; border-radius: 8px; padding: 0 5px; float: none; margin: 0; }
 .bubble.photo-bubble .msg-ack { color: rgba(255,255,255,0.95) !important; }
 .voice-wrap { padding: 2px 0; }
@@ -2266,7 +2266,7 @@ function renderMessages(msgs) {
           })()
       if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
-      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:200px;max-height:200px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
+      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
     } else if(isDoc){
       content=\`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;

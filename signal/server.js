@@ -964,7 +964,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #logout-btn:hover { color: #f15c5c; }
 #topbar-back { display: none; }
 #topbar-back:hover { color: rgba(255,255,255,0.9); }
-.msg-img { max-width: 200px; max-height: 200px; border-radius: 8px; cursor: zoom-in; display: block; margin-top: 4px; }
+.msg-img { width: 100%; height: auto; max-height: 360px; border-radius: 8px; cursor: zoom-in; display: block; }
+.bubble.photo-bubble { padding: 0; overflow: hidden; max-width: 280px; }
 .photo-placeholder { color: #3a76f8; }
 .bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .bubble-doc .doc-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1776,7 +1777,8 @@ function renderMessages(msgs) {
     const chatForReply = allChats.find(c => c.id === selectedChatId);
     const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name || selectedChatId || '');
     const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
-    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
+    const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
+    return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
