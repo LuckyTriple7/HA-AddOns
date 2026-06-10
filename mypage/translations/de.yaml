@@ -1,0 +1,16 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Login-Benutzername für das Admin-Panel (Port 17761).
+  password:
+    name: Passwort
+    description: Login-Passwort für das Admin-Panel — bitte unbedingt ändern!
+  session_hours:
+    name: Session-Dauer
+    description: Gültigkeit der Login-Session in Stunden.
+  github_token:
+    name: GitHub-Token
+    description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.
+network:
+  17760/tcp: Öffentliche Homepage
+  17761/tcp: Admin-Panel (Login-geschützt)

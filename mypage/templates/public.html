@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ site.design.mode }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="description" content="{{ loc(site.profile, 'tagline') }}">
+  <meta property="og:title" content="{{ site.design.site_title or site.profile.name or 'MyPage' }}">
+  <meta property="og:description" content="{{ loc(site.profile, 'tagline') }}">
+  {% if site.profile.avatar %}<meta property="og:image" content="{{ site.profile.avatar }}">
+  <link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6;
+      transition: background .2s, color .2s;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+
+    /* Header */
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+    .brand:hover { text-decoration: none; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 9px; border-radius: 5px; font-size: 0.75rem; text-decoration: none; }
+    .lang-btn:hover { text-decoration: none; color: var(--text); }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px; border-radius: 5px; cursor: pointer; display: inline-flex; }
+    .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-moon { display: block; } .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+
+    /* Hero */
+    .hero { padding: 64px 0 48px; display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+    .avatar {
+      width: 128px; height: 128px; border-radius: 50%; object-fit: cover;
+      border: 3px solid var(--accent); flex-shrink: 0;
+    }
+    .hero h1 { font-size: 2.1rem; line-height: 1.2; margin-bottom: 6px; }
+    .tagline { font-size: 1.1rem; color: var(--accent); font-weight: 500; margin-bottom: 12px; }
+    .bio { color: var(--muted); max-width: 640px; white-space: pre-line; }
+    .social { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .social a {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surf); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 12px; font-size: 0.83rem; color: var(--text);
+    }
+    .social a:hover { border-color: var(--accent); text-decoration: none; }
+    .social svg { width: 15px; height: 15px; fill: currentColor; }
+
+    /* Projekte */
+    .section-title { font-size: 1.4rem; margin: 24px 0 20px; display: flex; align-items: center; gap: 10px; }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; padding-bottom: 48px; }
+    .card {
+      background: var(--surf); border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden; display: flex; flex-direction: column;
+      transition: transform .15s, border-color .15s, box-shadow .15s;
+    }
+    .card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+    .card-img { width: 100%; height: 160px; object-fit: cover; background: var(--surf2); border-bottom: 1px solid var(--border); }
+    .card-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .card-title { font-size: 1.05rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .stars { font-size: 0.78rem; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+    .stars svg { width: 13px; height: 13px; fill: #e3b341; }
+    .card-desc { font-size: 0.86rem; color: var(--muted); flex: 1; }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag {
+      font-size: 0.7rem; padding: 2px 9px; border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; }
+    .lang-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; color: var(--muted); }
+    .lang-dot i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .card-links { display: flex; gap: 10px; font-size: 0.8rem; font-weight: 500; }
+
+    /* Footer */
+    footer.site {
+      border-top: 1px solid var(--border); padding: 22px 0; text-align: center;
+      font-size: 0.78rem; color: var(--muted);
+    }
+    .counter { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; }
+    .counter svg { width: 13px; height: 13px; fill: currentColor; }
+    .empty { color: var(--muted); text-align: center; padding: 60px 0; }
+    @media (max-width: 600px) {
+      .hero { padding: 40px 0 28px; gap: 20px; }
+      .avatar { width: 96px; height: 96px; }
+      .hero h1 { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/">{{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
+      <div class="header-actions">
+        <a href="/set-lang/de?next=/" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="/set-lang/en?next=/" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="Theme">
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      {% if site.profile.avatar %}<img class="avatar" src="{{ site.profile.avatar }}" alt="{{ site.profile.name }}">{% endif %}
+      <div>
+        <h1>{{ site.profile.name or 'MyPage' }}</h1>
+        {% if loc(site.profile, 'tagline') %}<div class="tagline">{{ loc(site.profile, 'tagline') }}</div>{% endif %}
+        {% if loc(site.profile, 'bio') %}<p class="bio">{{ loc(site.profile, 'bio') }}</p>{% endif %}
+        <div class="social">
+          {% if site.profile.github %}
+          <a href="https://github.com/{{ site.profile.github }}" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.03-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub
+          </a>
+          {% endif %}
+          {% if site.profile.email %}
+          <a href="mailto:{{ site.profile.email }}">
+            <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            E-Mail
+          </a>
+          {% endif %}
+          {% for link in site.profile.links %}
+          <a href="{{ link.url }}" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+            {{ link.label or link.url }}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {% if site.projects %}
+    <h2 class="section-title">{{ t.projects }}</h2>
+    <div class="grid">
+      {% for p in site.projects %}
+      <article class="card">
+        {% if p.image %}<img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+        <div class="card-body">
+          <div class="card-title">
+            <span>{{ p.title }}</span>
+            {% if p.stars %}
+            <span class="stars"><svg viewBox="0 0 24 24"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>{{ p.stars }}</span>
+            {% endif %}
+          </div>
+          {% if loc(p, 'desc') %}<p class="card-desc">{{ loc(p, 'desc') }}</p>{% endif %}
+          {% if p.tags %}
+          <div class="tags">{% for tag in p.tags %}<span class="tag">{{ tag }}</span>{% endfor %}</div>
+          {% endif %}
+          <div class="card-footer">
+            {% if p.language %}
+            <span class="lang-dot"><i data-lang="{{ p.language }}"></i>{{ p.language }}</span>
+            {% else %}<span></span>{% endif %}
+            <div class="card-links">
+              {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">{{ t.demo }}</a>{% endif %}
+              {% if p.repo_url %}<a href="{{ p.repo_url }}" target="_blank" rel="noopener">GitHub</a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">{{ t.no_projects }}</p>
+    {% endif %}
+  </main>
+
+  <footer class="site">
+    <div class="wrap">
+      {% if site.design.footer_text %}<div>{{ site.design.footer_text }}</div>
+      {% else %}<div>&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>{% endif %}
+      {% if site.design.show_counter %}
+      <div class="counter">
+        <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+        {{ total_visitors }} {{ t.visitors }}
+      </div>
+      {% endif %}
+    </div>
+  </footer>
+
+  <script>
+    (function(){
+      const saved = localStorage.getItem('mp-public-theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+    })();
+    function toggleTheme(){
+      const c = document.documentElement.getAttribute('data-theme') || 'dark';
+      const n = c === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', n);
+      localStorage.setItem('mp-public-theme', n);
+    }
+    // Sprachfarben für die Projekt-Punkte (GitHub-Farbschema)
+    const LANG_COLORS = {
+      'Python':'#3572A5','JavaScript':'#f1e05a','TypeScript':'#3178c6','HTML':'#e34c26',
+      'CSS':'#563d7c','Shell':'#89e051','Dockerfile':'#384d54','Go':'#00ADD8','Rust':'#dea584',
+      'C':'#555555','C++':'#f34b7d','C#':'#178600','Java':'#b07219','PHP':'#4F5D95',
+      'Ruby':'#701516','Swift':'#F05138','Kotlin':'#A97BFF','Lua':'#000080','Vue':'#41b883'
+    };
+    document.querySelectorAll('.lang-dot i').forEach(el => {
+      el.style.background = LANG_COLORS[el.dataset.lang] || 'var(--muted)';
+    });
+  </script>
+</body>
+</html>

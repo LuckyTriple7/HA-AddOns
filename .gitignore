@@ -1,5 +1,7 @@
 .claude/
 gitpulse/dev_data/
+mypage/dev_data/
+mypage/.venv/
 __pycache__/
 *.pyc
 .env

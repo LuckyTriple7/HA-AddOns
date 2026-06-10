@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyPage – {{ t.admin_title }}</title>
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; --yellow:#e3b341; }
+    [data-theme="light"] { --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background .2s, color .2s; }
+    a { color: var(--accent); text-decoration: none; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+    header { background: var(--surf); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+    .header-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
+    .logo { font-weight: 700; font-size: 1.05rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .logo svg { width: 20px; height: 20px; fill: var(--accent); }
+    nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+    .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; }
+    .tab-btn:hover { color: var(--text); background: var(--surf2); }
+    .tab-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .icon-btn, .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    .icon-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-moon { display: block; } .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+
+    main { padding: 24px 0 60px; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    h2 { font-size: 1.15rem; margin-bottom: 16px; }
+    .panel { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
+    .panel h3 { font-size: 0.95rem; margin-bottom: 14px; color: var(--text); }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
+    label:first-of-type { margin-top: 0; }
+    input[type="text"], input[type="email"], input[type="url"], textarea, select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 11px; border-radius: 6px; font-size: 0.87rem; font-family: inherit;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 70px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+    .btn { background: var(--green); border: 1px solid var(--green-h); color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; margin-top: 16px; }
+    .btn:hover { background: var(--green-h); }
+    .btn.secondary { background: var(--surf2); border-color: var(--border); color: var(--text); font-weight: 500; }
+    .btn.secondary:hover { border-color: var(--accent); }
+    .btn.danger { background: none; border-color: var(--red); color: var(--red); }
+    .btn.small { padding: 4px 10px; font-size: 0.76rem; margin-top: 0; }
+
+    .proj-list { display: flex; flex-direction: column; gap: 10px; }
+    .proj-item { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+    .proj-thumb { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; background: var(--surf2); flex-shrink: 0; }
+    .proj-info { flex: 1; min-width: 0; }
+    .proj-name { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
+    .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
+    .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 30px 14px; }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; width: 100%; max-width: 620px; }
+    .modal h3 { margin-bottom: 4px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    .gh-repo { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .gh-repo:last-child { border-bottom: none; }
+    .gh-repo input { width: auto; }
+    .gh-repo .gh-desc { color: var(--muted); font-size: 0.76rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gh-list { max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 12px; }
+    .gh-search-row { display: flex; gap: 8px; align-items: flex-end; }
+    .gh-search-row > div { flex: 1; }
+
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .stat-card .num { font-size: 1.7rem; font-weight: 700; color: var(--accent); }
+    .stat-card .lbl { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 0.78rem; }
+    .bar-date { width: 84px; color: var(--muted); flex-shrink: 0; }
+    .bar-track { flex: 1; background: var(--surf2); border-radius: 4px; height: 18px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
+    .bar-num { width: 90px; text-align: right; color: var(--muted); flex-shrink: 0; }
+
+    .vtable { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .vtable th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .vtable td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+    .vtable tr:last-child td { border-bottom: none; }
+    .vtable .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
+    .badge-bot { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
+    .badge-new { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--green-h) 18%, transparent); color: var(--green-h); }
+
+    .upload-row { display: flex; gap: 8px; align-items: center; }
+    .upload-row input[type="text"] { flex: 1; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.err { background: var(--red); }
+    .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; }
+    .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .link-row input { flex: 1; }
+    .empty-note { color: var(--muted); font-size: 0.85rem; padding: 18px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2 2 9h2v11h6v-6h4v6h6V9h2L12 2zm0 2.5L18 9v9h-2v-6H8v6H6V9l6-4.5z"/></svg>
+        MyPage
+      </div>
+      <nav>
+        <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
+        <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
+        <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
+        <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
+      </nav>
+      <div class="header-actions">
+        <a href="{{ url_for('set_lang', lang='de', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="{{ url_for('set_lang', lang='en', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <button class="icon-btn" onclick="toggleTheme()" type="button">
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+        </button>
+        {% if not ingress %}<a class="icon-btn" href="{{ url_for('logout') }}">{{ t.logout }}</a>{% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Profil -->
+    <section class="tab active" id="tab-profile">
+      <div class="panel">
+        <h3>{{ t.profile_heading }}</h3>
+        <div class="row">
+          <div>
+            <label>{{ t.field_name }}</label>
+            <input type="text" id="p-name">
+          </div>
+          <div>
+            <label>{{ t.field_github_user }}</label>
+            <input type="text" id="p-github" placeholder="LuckyTriple7">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_tagline }} (DE)</label>
+            <input type="text" id="p-tagline_de">
+          </div>
+          <div>
+            <label>{{ t.field_tagline }} (EN)</label>
+            <input type="text" id="p-tagline_en">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_bio }} (DE)</label>
+            <textarea id="p-bio_de"></textarea>
+          </div>
+          <div>
+            <label>{{ t.field_bio }} (EN)</label>
+            <textarea id="p-bio_en"></textarea>
+          </div>
+        </div>
+        <label>{{ t.field_avatar }}</label>
+        <div class="upload-row">
+          <input type="text" id="p-avatar" placeholder="https://… {{ t.or_upload }}">
+          <button class="btn secondary small" onclick="pickUpload(u => { el('p-avatar').value = u; })">{{ t.upload }}</button>
+        </div>
+        <p class="hint">{{ t.avatar_hint }}</p>
+        <label>{{ t.field_email }}</label>
+        <input type="email" id="p-email">
+        <label>{{ t.field_links }}</label>
+        <div id="p-links"></div>
+        <button class="btn secondary small" onclick="addLinkRow()">+ {{ t.add_link }}</button>
+        <div><button class="btn" onclick="saveProfile()">{{ t.save }}</button></div>
+      </div>
+    </section>
+
+    <!-- Projekte -->
+    <section class="tab" id="tab-projects">
+      <div class="panel">
+        <h3>{{ t.github_import }}</h3>
+        <div class="gh-search-row">
+          <div>
+            <label>{{ t.field_github_user }}</label>
+            <input type="text" id="gh-user" placeholder="LuckyTriple7">
+          </div>
+          <button class="btn secondary" style="margin-top:0" onclick="loadGithubRepos()">{{ t.load_repos }}</button>
+        </div>
+        <div id="gh-results"></div>
+      </div>
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.my_projects }}
+          <button class="btn small" onclick="openProjectModal()">+ {{ t.new_project }}</button>
+        </h3>
+        <div class="proj-list" id="proj-list"></div>
+      </div>
+    </section>
+
+    <!-- Design -->
+    <section class="tab" id="tab-design">
+      <div class="panel">
+        <h3>{{ t.design_heading }}</h3>
+        <div class="row">
+          <div>
+            <label>{{ t.field_site_title }}</label>
+            <input type="text" id="d-site_title">
+          </div>
+          <div>
+            <label>{{ t.field_accent }}</label>
+            <input type="color" id="d-accent" style="width:100%;height:38px;padding:3px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_mode }}</label>
+            <select id="d-mode">
+              <option value="dark">{{ t.mode_dark }}</option>
+              <option value="light">{{ t.mode_light }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.field_counter }}</label>
+            <select id="d-show_counter">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
+          </div>
+        </div>
+        <label>{{ t.field_footer }}</label>
+        <input type="text" id="d-footer_text">
+        <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.preview_heading }}</h3>
+        <p class="hint">{{ t.preview_hint }}</p>
+      </div>
+    </section>
+
+    <!-- Statistik -->
+    <section class="tab" id="tab-stats">
+      <div class="stat-cards">
+        <div class="stat-card"><div class="num" id="s-total">–</div><div class="lbl">{{ t.stat_total }}</div></div>
+        <div class="stat-card"><div class="num" id="s-today-views">–</div><div class="lbl">{{ t.stat_today_views }}</div></div>
+        <div class="stat-card"><div class="num" id="s-today-uniques">–</div><div class="lbl">{{ t.stat_today_uniques }}</div></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.stat_last30 }}</h3>
+        <div id="s-bars"></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.visitor_log }}</h3>
+        <div style="overflow-x:auto">
+          <table class="vtable">
+            <thead>
+              <tr><th>{{ t.col_time }}</th><th>IP</th><th>{{ t.col_browser }}</th><th>{{ t.col_lang }}</th><th>{{ t.col_ref }}</th><th></th></tr>
+            </thead>
+            <tbody id="s-log"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Projekt-Modal -->
+  <div class="modal-bg" id="proj-modal">
+    <div class="modal">
+      <h3 id="pm-title">{{ t.new_project }}</h3>
+      <label>{{ t.field_title }} *</label>
+      <input type="text" id="pm-titlefield">
+      <div class="row">
+        <div>
+          <label>{{ t.field_desc }} (DE)</label>
+          <textarea id="pm-desc_de"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_desc }} (EN)</label>
+          <textarea id="pm-desc_en"></textarea>
+        </div>
+      </div>
+      <label>{{ t.field_image }}</label>
+      <div class="upload-row">
+        <input type="text" id="pm-image" placeholder="https://… {{ t.or_upload }}">
+        <button class="btn secondary small" onclick="pickUpload(u => { el('pm-image').value = u; })">{{ t.upload }}</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_url }}</label>
+          <input type="url" id="pm-url">
+        </div>
+        <div>
+          <label>{{ t.field_repo_url }}</label>
+          <input type="url" id="pm-repo_url">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_tags }}</label>
+          <input type="text" id="pm-tags" placeholder="home-assistant, docker, flask">
+        </div>
+        <div>
+          <label>{{ t.field_language }}</label>
+          <input type="text" id="pm-language" placeholder="Python">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const T = {{ t|tojson }};
+    let SITE = null;
+    let editingId = null;
+    let uploadCb = null;
+
+    const el = id => document.getElementById(id);
+    // Relative URLs, damit alles auch hinter dem HA-Ingress-Proxy funktioniert
+    const api = path => fetch(path.replace(/^\//, ''), { credentials: 'same-origin' });
+    const apiJson = (path, method, body) => fetch(path.replace(/^\//, ''), {
+      method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const assetUrl = u => (u || '').replace(/^\//, '');
+
+    function toast(msg, isErr) {
+      const t = el('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (isErr ? ' err' : '');
+      setTimeout(() => t.className = 'toast', 2200);
+    }
+
+    // ── Theme ──
+    (function(){
+      const t = localStorage.getItem('mp-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+    function toggleTheme(){
+      const c = document.documentElement.getAttribute('data-theme') || 'dark';
+      const n = c === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', n);
+      localStorage.setItem('mp-theme', n);
+    }
+
+    // ── Tabs ──
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+        el('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'stats') loadStats();
+      });
+    });
+
+    // ── Site laden ──
+    async function loadSite() {
+      const r = await api('api/site');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      SITE = await r.json();
+      fillProfile();
+      fillDesign();
+      renderProjects();
+    }
+
+    // ── Profil ──
+    function fillProfile() {
+      const p = SITE.profile;
+      ['name','tagline_de','tagline_en','bio_de','bio_en','avatar','github','email'].forEach(k => {
+        el('p-' + k).value = p[k] || '';
+      });
+      el('p-links').innerHTML = '';
+      (p.links || []).forEach(l => addLinkRow(l.label, l.url));
+    }
+    function addLinkRow(label, url) {
+      const div = document.createElement('div');
+      div.className = 'link-row';
+      div.innerHTML = `<input type="text" placeholder="${T.link_label}" value="">` +
+                      `<input type="text" placeholder="https://…" value="">` +
+                      `<button class="btn danger small" onclick="this.parentElement.remove()">✕</button>`;
+      div.children[0].value = label || '';
+      div.children[1].value = url || '';
+      el('p-links').appendChild(div);
+    }
+    async function saveProfile() {
+      const links = [...el('p-links').children].map(row => ({
+        label: row.children[0].value.trim(),
+        url:   row.children[1].value.trim(),
+      })).filter(l => l.url);
+      const body = { links };
+      ['name','tagline_de','tagline_en','bio_de','bio_en','avatar','github','email'].forEach(k => {
+        body[k] = el('p-' + k).value;
+      });
+      const r = await apiJson('api/profile', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    // ── Design ──
+    function fillDesign() {
+      const d = SITE.design;
+      el('d-site_title').value = d.site_title || '';
+      el('d-accent').value = d.accent || '#58a6ff';
+      el('d-mode').value = d.mode || 'dark';
+      el('d-show_counter').value = d.show_counter ? '1' : '0';
+      el('d-footer_text').value = d.footer_text || '';
+    }
+    async function saveDesign() {
+      const r = await apiJson('api/design', 'POST', {
+        site_title:   el('d-site_title').value,
+        accent:       el('d-accent').value,
+        mode:         el('d-mode').value,
+        show_counter: el('d-show_counter').value === '1',
+        footer_text:  el('d-footer_text').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    // ── Projekte ──
+    function renderProjects() {
+      const list = el('proj-list');
+      list.innerHTML = '';
+      if (!SITE.projects.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_projects_admin}</div>`;
+        return;
+      }
+      SITE.projects.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const img = p.image ? `<img class="proj-thumb" src="${assetUrl(p.image)}" alt="">` : `<div class="proj-thumb"></div>`;
+        const badge = p.repo_full_name ? `<span class="badge">GitHub</span>` : '';
+        const meta = [p.language, p.stars ? '★ ' + p.stars : '', (p.tags || []).join(', ')].filter(Boolean).join(' · ');
+        div.innerHTML = img +
+          `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>` +
+          `<div class="proj-actions">
+             <button class="btn secondary small" onclick="moveProject('${p.id}','up')" ${i===0?'disabled':''}>↑</button>
+             <button class="btn secondary small" onclick="moveProject('${p.id}','down')" ${i===SITE.projects.length-1?'disabled':''}>↓</button>
+             <button class="btn secondary small" onclick="openProjectModal('${p.id}')">${T.edit}</button>
+             <button class="btn danger small" onclick="deleteProject('${p.id}')">✕</button>
+           </div>`;
+        div.querySelector('.proj-name').textContent = p.title;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
+        div.querySelector('.proj-meta').textContent = meta;
+        list.appendChild(div);
+      });
+    }
+    function openProjectModal(id) {
+      editingId = id || null;
+      const p = id ? SITE.projects.find(x => x.id === id) : {};
+      el('pm-title').textContent = id ? T.edit_project : T.new_project;
+      el('pm-titlefield').value = p.title || '';
+      el('pm-desc_de').value = p.desc_de || '';
+      el('pm-desc_en').value = p.desc_en || '';
+      el('pm-image').value = p.image || '';
+      el('pm-url').value = p.url || '';
+      el('pm-repo_url').value = p.repo_url || '';
+      el('pm-tags').value = (p.tags || []).join(', ');
+      el('pm-language').value = p.language || '';
+      el('proj-modal').classList.add('open');
+    }
+    function closeProjectModal() { el('proj-modal').classList.remove('open'); }
+    async function saveProject() {
+      const body = {
+        title:    el('pm-titlefield').value,
+        desc_de:  el('pm-desc_de').value,
+        desc_en:  el('pm-desc_en').value,
+        image:    el('pm-image').value,
+        url:      el('pm-url').value,
+        repo_url: el('pm-repo_url').value,
+        tags:     el('pm-tags').value,
+        language: el('pm-language').value,
+      };
+      if (editingId) {
+        const old = SITE.projects.find(x => x.id === editingId);
+        body.repo_full_name = old.repo_full_name || '';
+        body.stars = old.stars || 0;
+      }
+      if (!body.title.trim()) { toast(T.error_title, true); return; }
+      const r = editingId
+        ? await apiJson('api/projects/' + editingId, 'PUT', body)
+        : await apiJson('api/projects', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { closeProjectModal(); loadSite(); }
+    }
+    async function deleteProject(id) {
+      if (!confirm(T.confirm_delete)) return;
+      const r = await fetch('api/projects/' + id, { method: 'DELETE', credentials: 'same-origin' });
+      toast(r.ok ? T.deleted : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+    async function moveProject(id, dir) {
+      await apiJson('api/projects/' + id + '/move', 'POST', { dir });
+      loadSite();
+    }
+
+    // ── GitHub-Import ──
+    async function loadGithubRepos() {
+      const user = el('gh-user').value.trim();
+      if (!user) { toast(T.error_user, true); return; }
+      el('gh-results').innerHTML = `<p class="hint">${T.loading}</p>`;
+      const r = await api('api/github/repos?user=' + encodeURIComponent(user));
+      if (!r.ok) { el('gh-results').innerHTML = `<p class="hint">${T.error_github}</p>`; return; }
+      const data = await r.json();
+      if (!data.repos.length) { el('gh-results').innerHTML = `<p class="hint">${T.no_repos}</p>`; return; }
+      const existing = new Set(SITE.projects.map(p => p.repo_full_name).filter(Boolean));
+      let html = '<div class="gh-list">';
+      data.repos.forEach((repo, i) => {
+        const dis = existing.has(repo.full_name);
+        html += `<label class="gh-repo" style="${dis ? 'opacity:.45' : 'cursor:pointer'}">
+          <input type="checkbox" data-i="${i}" ${dis ? 'disabled' : ''}>
+          <strong>${repo.name}</strong>
+          <span class="gh-desc"></span>
+          <span class="hint" style="margin:0">★ ${repo.stars}</span>
+        </label>`;
+      });
+      html += '</div>';
+      html += `<button class="btn" onclick="importSelected()">${T.import_selected}</button>`;
+      el('gh-results').innerHTML = html;
+      // Beschreibungen sicher als Text setzen (kein HTML-Injection-Risiko)
+      el('gh-results').querySelectorAll('.gh-repo').forEach((row, i) => {
+        row.querySelector('.gh-desc').textContent = data.repos[i].description || '';
+      });
+      window._ghRepos = data.repos;
+    }
+    async function importSelected() {
+      const selected = [...el('gh-results').querySelectorAll('input:checked')]
+        .map(cb => window._ghRepos[parseInt(cb.dataset.i)]);
+      if (!selected.length) { toast(T.error_select, true); return; }
+      const r = await apiJson('api/github/import', 'POST', { repos: selected });
+      if (r.ok) {
+        const data = await r.json();
+        toast(T.imported.replace('{n}', data.added));
+        loadGithubRepos();
+        loadSite();
+      } else { toast(T.error_save, true); }
+    }
+
+    // ── Upload ──
+    function pickUpload(cb) {
+      uploadCb = cb;
+      el('file-input').click();
+    }
+    el('file-input').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        const data = await r.json();
+        if (uploadCb) uploadCb(data.url);
+        toast(T.uploaded);
+      } else { toast(T.error_upload, true); }
+      e.target.value = '';
+    });
+
+    // ── Statistik ──
+    async function loadStats() {
+      const r = await api('api/stats');
+      if (!r.ok) return;
+      const s = await r.json();
+      el('s-total').textContent = s.total;
+      el('s-today-views').textContent = s.today.views;
+      el('s-today-uniques').textContent = s.today.uniques;
+      const max = Math.max(1, ...s.days.map(d => d.views));
+      el('s-bars').innerHTML = s.days.map(d =>
+        `<div class="bar-row">
+           <span class="bar-date">${d.date}</span>
+           <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.views / max * 100)}%"></div></div>
+           <span class="bar-num">${d.views} / ${d.uniques}</span>
+         </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
+      renderVisitorLog(s.log || []);
+    }
+    function browserInfo(ua) {
+      if (!ua) return '–';
+      let b = 'Browser';
+      if (/edg\//i.test(ua)) b = 'Edge';
+      else if (/opr\/|opera/i.test(ua)) b = 'Opera';
+      else if (/firefox\//i.test(ua)) b = 'Firefox';
+      else if (/chrome\//i.test(ua)) b = 'Chrome';
+      else if (/safari\//i.test(ua)) b = 'Safari';
+      else b = ua.split(/[\s/]/)[0];
+      let os = '';
+      if (/windows/i.test(ua)) os = 'Windows';
+      else if (/android/i.test(ua)) os = 'Android';
+      else if (/iphone|ipad|ios/i.test(ua)) os = 'iOS';
+      else if (/mac os/i.test(ua)) os = 'macOS';
+      else if (/linux/i.test(ua)) os = 'Linux';
+      return os ? `${b} · ${os}` : b;
+    }
+    function renderVisitorLog(log) {
+      const tbody = el('s-log');
+      tbody.innerHTML = '';
+      if (!log.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="hint">${T.no_data}</td></tr>`;
+        return;
+      }
+      log.forEach(v => {
+        const tr = document.createElement('tr');
+        const time = new Date(v.ts * 1000).toLocaleString();
+        const lang = (v.lang || '').split(',')[0];
+        tr.innerHTML = `<td></td><td class="mono"></td><td title=""></td><td></td><td title=""></td><td></td>`;
+        tr.children[0].textContent = time;
+        tr.children[1].textContent = v.ip;
+        tr.children[2].textContent = browserInfo(v.ua);
+        tr.children[2].title = v.ua || '';
+        tr.children[3].textContent = lang;
+        tr.children[4].textContent = v.ref || '–';
+        tr.children[4].title = v.ref || '';
+        tr.children[5].innerHTML = v.bot ? `<span class="badge-bot">Bot</span>` : (v.new ? `<span class="badge-new">${T.badge_new}</span>` : '');
+        tbody.appendChild(tr);
+      });
+    }
+
+    loadSite();
+  </script>
+</body>
+</html>
