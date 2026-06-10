@@ -59,3 +59,6 @@ configuration:
   addon_manager:
     name: Enable Add-on Manager
     description: "Enables the 'Add-on Releases' tab in GitPulse. Allows bumping versions and editing CHANGELOG entries for all add-ons in the repo directly from the UI. Default: false."
+  digest_hour:
+    name: Daily Digest Hour
+    description: "Hour (0–23) at which a daily summary of all open PRs, issues and security alerts is sent via e-mail and Telegram. -1 = disabled (default). Example: 8 = every day at 08:xx."

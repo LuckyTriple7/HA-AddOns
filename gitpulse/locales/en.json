@@ -141,6 +141,8 @@
   "tg_star_fork":          "⭐ Stars & forks",
   "tg_security":           "🔴 Security alerts",
   "tg_my_activity":        "👤 My activity (own PRs & issues)",
+  "tg_review_request":     "🔍 Review requested",
+  "tg_digest":             "📋 Daily digest (once per day)",
 
   "no_activity":           "No open PRs, issues or review requests found",
   "activity_my_prs":       "My open pull requests",

@@ -1290,6 +1290,7 @@
   }
 
   function labelColor(name) {
+    if (name == null) return '#8b949e';
     const colors = { bug:'#f85149', enhancement:'#58a6ff', documentation:'#a371f7',
                      question:'#d29922', 'good first issue':'#3fb950', help:'#e3b341',
                      wontfix:'#8b949e', duplicate:'#8b949e', invalid:'#f0883e' };
@@ -1563,7 +1564,7 @@
             : `<span style="color:var(--red)">✕ ${T.pr_closed}</span>`)
         : `<span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>`;
       const bkey   = repo.repo + '#' + pr.number;
-      const bdomId = CSS.escape(bkey);
+      const bdomId = mkId(bkey);
       const hasBody = (pr.body || '').trim().length > 0;
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
@@ -1579,7 +1580,7 @@
               ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(bkey)},this)">${T.pr_body_show}</button>` : ''}
               ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
-              ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+              ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
           ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
@@ -1625,7 +1626,7 @@
     </div><div class="card-body">` +
     filtered.map(iss => {
       const bkey   = repo.repo + '#' + iss.number;
-      const bdomId = CSS.escape(bkey);
+      const bdomId = mkId(bkey);
       const hasBody = (iss.body || '').trim().length > 0;
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
@@ -1642,7 +1643,7 @@
               ${iss.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${iss.comments}</span>` : ''}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(bkey)},this)">${T.pr_body_show}</button>` : ''}
               ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
-              ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+              ${(iss.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
           ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
@@ -1903,7 +1904,7 @@
   let _commentsCache  = {};          // "repo#number" → {total, comments}
 
   function toggleBody(key, btnEl) {
-    const div = document.getElementById('body-' + key);
+    const div = document.getElementById('body-' + mkId(key));
     if (!div) return;
     const show = div.style.display === 'none';
     div.style.display = show ? '' : 'none';
@@ -1961,9 +1962,7 @@
     const myRepoSet = new Set((data.my_repos || []).map(r => r.repo));
 
     const itemRow = (item, type, showClose = true) => {
-      const bkey   = escHtml(item.repo) + '%23' + item.number;
-      const bdomId = 'body-' + CSS.escape(item.repo + '#' + item.number);
-      const cdomId = 'cmts-' + CSS.escape(item.repo + '#' + item.number);
+      const bdomId = mkId(item.repo + '#' + item.number);
       const hasBody = (item.body || '').trim().length > 0;
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
@@ -1984,7 +1983,7 @@
               ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(item.repo+'#'+item.number)},this)">${T.pr_body_show}</button>` : ''}
               ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}</button>` : ''}
-              ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+              ${(item.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
           ${showClose && myRepoSet.has(item.repo) ? (type !== 'issue'
@@ -2550,8 +2549,9 @@
 
   // ── Utils ─────────────────────────────────────────────────────────
   function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+  const mkId = s => String(s).replace(/[^a-zA-Z0-9_-]/g, '_');
   function safeJsArg(v) {
     return JSON.stringify(String(v)).replace(/"/g, '&quot;');
   }

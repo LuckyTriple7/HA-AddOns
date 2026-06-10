@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-06-10
+
+### Fixed
+- **Kommentare-Button** in Meine Aktivität, PRs und Issues tat nichts: `CSS.escape()` erzeugte Backslash-IDs in HTML-Attributen (`hacs\/default\#8357`), die im JS-String-Kontext als Escape-Sequenzen interpretiert wurden → `getElementById` fand das Element nie; ersetzt durch `mkId()` (nur `[a-zA-Z0-9_-]`)
+- **Body-Expand-Button** (▼ Beschreibung) im Aktivitäts-Tab ebenfalls durch denselben ID-Bug betroffen
+- **"undefined" als Label-Chip**: `escHtml(null/undefined)` erzeugte `"null"`/`"undefined"` als Text; `labelColor(null)` crashte; beide Funktionen abgesichert, Label-Arrays mit `.filter(Boolean)` gefiltert
+- **Fehlende Übersetzung**: `tg_review_request` und `tg_digest` in `en.json` ergänzt (Toggle-Beschriftung in den Einstellungen war leer)
+
 ## [0.3.0] - 2026-06-10
 
 ### Added
