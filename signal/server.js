@@ -866,10 +866,10 @@ app.delete('/api/messages/:chatId/:msgId', deleteRateLimit, async (req, res) => 
       });
       if (!r.ok) {
         const t = await r.text().catch(() => '');
-        console.warn(`[WARN] Signal delete-for-everyone not supported by this API version: ${t.trim()}`);
+        dbg(`delete-for-everyone not supported: ${t.trim()}`);
       }
     } catch (e) {
-      console.warn('[WARN] Signal delete-for-everyone:', e.message);
+      dbg(`delete-for-everyone: ${e.message}`);
     }
   }
   res.json({ success: true });
@@ -1983,6 +1983,7 @@ function openImg(src) {
 async function deleteMsg(chatId, msgId) {
   try {
     await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(msgId)), {method:'DELETE'});
+    _lastMsgFingerprint[chatId] = '';
     await loadMessages(chatId);
   } catch(e) {}
 }

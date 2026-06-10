@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.12] - 2026-06-10
+- Fix: WARN-Spam beim Löschen entfernt — delete-for-everyone API nicht unterstützt, Fehler wird nur noch als DEBUG geloggt
+- Fix: deleteMsg() löscht Fingerprint vor loadMessages() damit gelöschte Nachrichten sofort verschwinden
+
 ## [1.6.11] - 2026-06-10
 - Fix: Video-Wiedergabe wurde durch Poll-Re-Render unterbrochen — renderMessages nur noch bei geändertem Nachrichten-Fingerprint (Anzahl + IDs + Video-mediaFile)
 - Fix: Videos werden nicht mehr sofort heruntergeladen — Platzhalter „⬇ Video herunterladen · X MB" mit On-Demand-Download per Klick
