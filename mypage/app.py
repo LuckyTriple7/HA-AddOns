@@ -654,6 +654,18 @@ def storage_available() -> bool:
         return False
 
 
+def drop_fs_caches() -> bool:
+    """Dentry-/Inode-Cache verwerfen — entwertet stale SMB-Handles ohne Remount.
+    Uploads (neue Dateien) funktionieren auch bei stale Cache, nur Reads alter
+    Dateien hängen — oft reicht das hier schon."""
+    try:
+        with open('/proc/sys/vm/drop_caches', 'w') as f:
+            f.write('2\n')
+        return True
+    except OSError:
+        return False
+
+
 _remount_lock = threading.Lock()
 SMB_MOUNT_OPTS = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
                   'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,actimeo=5')
@@ -671,7 +683,8 @@ def remount_smb() -> bool:
             share  = (cfg.get('smb_share') or '').strip()
             if not server or not share:
                 return False
-            subprocess.run(['umount', '-l', mountpoint], capture_output=True, timeout=30)
+            # force + lazy: harte Trennung, damit keine stale Superblocks übrig bleiben
+            subprocess.run(['umount', '-f', '-l', mountpoint], capture_output=True, timeout=30)
             opts = SMB_MOUNT_OPTS
             user = (cfg.get('smb_user') or '').strip()
             if user:
@@ -684,10 +697,18 @@ def remount_smb() -> bool:
                 opts += ',guest'
             r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
                                 '-o', opts], capture_output=True, text=True, timeout=60)
-            if r.returncode == 0:
-                log.info("SMB-Mount erneuert")
-                return True
-            log.warning("SMB-Remount fehlgeschlagen: %s", (r.stderr or '').strip()[:200])
+            if r.returncode != 0:
+                log.warning("SMB-Remount fehlgeschlagen: %s", (r.stderr or '').strip()[:200])
+                return False
+            # Erst als Erfolg melden, wenn die neue Session wirklich antwortet
+            for _ in range(6):
+                try:
+                    os.listdir(mountpoint)
+                    log.info("SMB-Mount erneuert und verifiziert")
+                    return True
+                except OSError:
+                    time.sleep(0.5)
+            log.warning("SMB-Remount: Mount ok, aber Share antwortet noch nicht")
             return False
         except Exception as e:
             log.warning("SMB-Remount-Fehler: %s", e)
@@ -1949,17 +1970,42 @@ def _serve_user_file(d: Path, name: str):
         # conditional=False vermeidet Range/ETag-Sonderfälle auf CIFS-Mounts
         return send_file(target, as_attachment=True, download_name=safe, conditional=False)
     except OSError as e:
-        # FritzBox trennt inaktive SMB-Verbindungen → stale handle: einmal
-        # neu mounten und direkt erneut versuchen
+        # FritzBox trennt inaktive SMB-Verbindungen → stale handle: neu mounten,
+        # Dateizugriff verifizieren (mit Wartezeit) und erst dann erneut ausliefern
         if SMB_MOUNTED and e.errno in (errno.ESTALE, errno.EIO):
-            log.warning("Stale SMB-Handle bei '%s' — Remount und zweiter Versuch", safe)
-            if remount_smb():
+            # Stufe 1: nur den Cache verwerfen — die Session lebt meist noch
+            if drop_fs_caches():
                 try:
+                    os.stat(target)
+                    log.info("Stale Handle bei '%s' durch Cache-Drop behoben", safe)
                     return send_file(target, as_attachment=True, download_name=safe,
                                      conditional=False)
-                except Exception as e2:
-                    log.error("Download '%s' auch nach Remount fehlgeschlagen: %s", safe, e2)
-                    abort(503)
+                except OSError:
+                    pass
+            # Stufe 2: harter Remount mit Verifikation
+            log.warning("Stale SMB-Handle bei '%s' — Remount und zweiter Versuch", safe)
+            for attempt in (1, 2):
+                if not remount_smb():
+                    break
+                ready = False
+                for _ in range(6):
+                    try:
+                        os.stat(target)
+                        ready = True
+                        break
+                    except OSError as e_stat:
+                        if e_stat.errno not in (errno.ESTALE, errno.EIO):
+                            break
+                        time.sleep(0.5)
+                if ready:
+                    try:
+                        return send_file(target, as_attachment=True, download_name=safe,
+                                         conditional=False)
+                    except Exception as e2:
+                        log.error("Download '%s' nach Remount %d fehlgeschlagen: %s",
+                                  safe, attempt, e2)
+                else:
+                    log.warning("Datei '%s' nach Remount %d weiterhin stale", safe, attempt)
         log.error("Download '%s' fehlgeschlagen: %s", safe, e)
         abort(503)
     except Exception as e:
