@@ -2165,13 +2165,31 @@ function msgFingerprint(msgs) {
   return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + ackKey;
 }
 
+function updateAckMarksInPlace(msgs) {
+  msgs.filter(m => m.fromMe).forEach(m => {
+    const row = document.querySelector(\`.bubble-row[data-msgid="\${escHtml(m.id)}"]\`);
+    if (!row) return;
+    const timeEl = row.querySelector('.bubble-time');
+    if (!timeEl) return;
+    const d = new Date(m.timestamp);
+    const time = d.toLocaleTimeString(locale(), {hour:'2-digit', minute:'2-digit'});
+    timeEl.innerHTML = time + ackMark(m.ack || 0);
+  });
+}
+
 async function loadMessages(chatId, forceRender = false) {
   if (!chatId) return;
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
     const fp = msgFingerprint(msgs);
     if (!forceRender && _lastMsgFingerprint[chatId] === fp) return; // nichts geändert
+    const prev = _lastMsgFingerprint[chatId] || '';
     _lastMsgFingerprint[chatId] = fp;
+    // Nur ACK geändert? In-Place-Update statt Full-Re-Render
+    if (!forceRender && prev && fp.slice(0, fp.lastIndexOf(':')) === prev.slice(0, prev.lastIndexOf(':'))) {
+      updateAckMarksInPlace(msgs);
+      return;
+    }
     renderMessages(msgs);
     if (window.pollReactions) window.pollReactions();
     updateChatStats(chatId);

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.15] - 2026-06-10
+- Fix: Häkchen-Update jetzt In-Place (kein Re-Render) — nur ackKey im Fingerprint geändert → updateAckMarksInPlace() aktualisiert nur .bubble-time, Video/Audio-Wiedergabe wird nicht unterbrochen
+
 ## [1.6.14] - 2026-06-10
 - Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ACK-Summe im msgFingerprint; Re-Render wird ausgelöst sobald sich ein Lesestatus ändert
 
