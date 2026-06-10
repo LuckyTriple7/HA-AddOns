@@ -667,10 +667,11 @@ def drop_fs_caches() -> bool:
 
 
 _remount_lock = threading.Lock()
-# cache=none: kein Handle-/Seiten-Caching — verhindert stale handles auf
-# FritzBox-Shares komplett (kostet etwas Durchsatz, ist hier aber egal)
+# noserverino: FritzBox liefert instabile Inode-Nummern → Client vergibt eigene
+# (DER Fix gegen ESTALE direkt nach Uploads); cache=none/actimeo=1 als Gürtel+Hosenträger
 SMB_MOUNT_OPTS = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
-                  'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,cache=none,actimeo=1')
+                  'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,'
+                  'noserverino,cache=none,actimeo=1')
 
 
 def remount_smb() -> bool:
