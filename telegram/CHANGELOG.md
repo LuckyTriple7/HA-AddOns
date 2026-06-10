@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.9] - 2026-06-10
+- fix: Chat-Header-Buttons (Suche, Export, Löschen) auf einheitlichen Stil angeglichen — gleiche Border, Farbe und Padding wie WhatsApp
+
+---
+
 ## [1.6.8] - 2026-06-10
 - UI: Alle Emoji-Icons (🎬 🗑️ ↺ ↑↓ 🌐 💾 ✕ 😊 📎 📄 ↪ ↩) durch konsistente SVG-Icons ersetzt
 - Feature: Nachrichtensuche in Chats — Suchleiste im Chat-Header mit Vorwärts-/Rückwärts-Navigation und Highlight
