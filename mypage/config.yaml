@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.1.13"
+version: "0.1.14"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -42,6 +42,8 @@ options:
   password: "changeme123"
   session_hours: 24
   github_token: ""
+  visit_log_max: 500
+  user_journal_max: 100
   geoip_lookup: false
   geoip_api_key: ""
   telegram_bot_token: ""
@@ -63,6 +65,8 @@ schema:
   password: str
   session_hours: int
   github_token: str?
+  visit_log_max: int?
+  user_journal_max: int?
   geoip_lookup: bool?
   geoip_api_key: str?
   telegram_bot_token: str?

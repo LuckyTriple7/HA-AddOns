@@ -8,6 +8,8 @@
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
+| `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder werden daraus berechnet |
+| `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_lookup` | Exakte Länder-Erkennung über ipapi.is (Standard: aus — Besucher-IPs werden an den Dienst übertragen) |
 | `geoip_api_key` | Optional: ipapi.is-Key — ohne Key ca. 1.000 Lookups/Tag frei |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |

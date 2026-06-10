@@ -431,7 +431,12 @@ _BOT_UA = ('bot', 'crawl', 'spider', 'curl', 'wget', 'python-requests',
            'headless', 'lighthouse', 'pingdom', 'uptime')
 
 
-VISIT_LOG_MAX = 500
+def visit_log_max() -> int:
+    """Konfigurierbares Limit für das Besucher-Log (Option visit_log_max)."""
+    try:
+        return max(50, min(10000, int(load_config().get('visit_log_max') or 500)))
+    except (TypeError, ValueError):
+        return 500
 
 
 def total_uniques(stats: dict) -> int:
@@ -560,7 +565,7 @@ def count_visit(req) -> None:
         'bot':  is_bot,
         'new':  is_new,
     })
-    del visit_log[:-VISIT_LOG_MAX]
+    del visit_log[:-visit_log_max()]
 
     if not is_bot:
         base_uniques = total_uniques(stats)
@@ -805,7 +810,12 @@ def current_member(req) -> dict | None:
     return next((u for u in load_users() if u['id'] == uid), None)
 
 
-USER_JOURNAL_MAX = 100
+def user_journal_max() -> int:
+    """Konfigurierbares Limit für das Journal pro Benutzer (Option user_journal_max)."""
+    try:
+        return max(20, min(1000, int(load_config().get('user_journal_max') or 100)))
+    except (TypeError, ValueError):
+        return 100
 
 
 def log_user_event(uid: str, action: str, detail: str = '', ip: str = '') -> None:
@@ -817,7 +827,7 @@ def log_user_event(uid: str, action: str, detail: str = '', ip: str = '') -> Non
     entry = {'ts': int(time.time()), 'action': action, 'detail': detail[:150], 'ip': ip}
     journal = user.setdefault('journal', [])
     journal.append(entry)
-    del journal[:-USER_JOURNAL_MAX]
+    del journal[:-user_journal_max()]
     if action == 'login':
         user['last_login'] = {'ts': entry['ts'], 'ip': ip}
     save_users(users)
@@ -1739,7 +1749,7 @@ def api_stats():
         'total_uniques': total_uniques(stats),
         'today':         stats['days'].get(today, {'views': 0, 'uniques': 0}),
         'days':      [{'date': d, **stats['days'][d]} for d in days],
-        'log':       list(reversed(stats.get('log', [])))[:100],
+        'log':       list(reversed(stats.get('log', [])))[:min(visit_log_max(), 500)],
         'referrers': referrers,
         'browsers':  browsers,
         'countries': countries,
