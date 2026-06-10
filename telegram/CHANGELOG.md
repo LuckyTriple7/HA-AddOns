@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.10] - 2026-06-10
+- fix: Storage-Anzeige nutzt jetzt SVG-Icon statt 💾-Emoji (wie WhatsApp)
+
+---
+
 ## [1.6.9] - 2026-06-10
 - fix: Chat-Header-Buttons (Suche, Export, Löschen) auf einheitlichen Stil angeglichen — gleiche Border, Farbe und Padding wie WhatsApp
 
