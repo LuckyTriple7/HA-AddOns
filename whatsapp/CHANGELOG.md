@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.16] - 2026-06-10
+- UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — Caption und Bild haben immer dieselbe Breite, max-height 360px verhindert sehr hohe Bilder
+
 ## [1.7.15] - 2026-06-10
 - Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ackUpdatedAt-Timestamp wird im message_ack-Event gesetzt, im since-Filter berücksichtigt und das .time-Element in-place im DOM aktualisiert
 

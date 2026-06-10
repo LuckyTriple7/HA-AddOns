@@ -1691,7 +1691,7 @@ app.get('/', (req, res) => {
     .reaction-badge:hover { opacity: 0.8; }
     .bubble-wrap.out .bubble { background: #005c4b; border-top-right-radius: 0; }
     .bubble-wrap.in  .bubble { background: #202c33; border-top-left-radius: 0; }
-    .bubble.bubble-photo { padding: 0; overflow: hidden; }
+    .bubble.bubble-photo { padding: 0; overflow: hidden; max-width: 280px; }
     .bubble.bubble-photo .time { display: block; padding: 2px 8px 4px; text-align: right; }
     .bubble.bubble-photo .caption { padding: 4px 10px 0; }
     .bubble .time {
@@ -2670,7 +2670,7 @@ app.get('/', (req, res) => {
           const img = document.createElement('img');
           img.className = 'msg-img';
           img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
-          img.style.cssText = 'max-width:200px;max-height:200px;display:block;cursor:zoom-in;';
+          img.style.cssText = 'width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in;';
           img.loading = 'lazy';
           img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
           bub.appendChild(img);
