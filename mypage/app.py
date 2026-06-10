@@ -680,7 +680,8 @@ def store_user_file(d: Path, f) -> Path | None:
     base, ext = os.path.splitext(name)
     n = 1
     while target.exists():
-        target = d / f'{base}({n}){ext}'
+        # Unterstrich statt Klammern: übersteht secure_filename beim Download/Löschen
+        target = d / f'{base}_{n}{ext}'
         n += 1
     f.save(target)
     return target
@@ -1480,7 +1481,7 @@ def api_user_file(uid: str, name: str):
             target.unlink()
             return jsonify({'ok': True})
         return jsonify({'error': 'not found'}), 404
-    return send_from_directory(d, name, as_attachment=True)
+    return _serve_user_file(d, name)
 
 
 @admin_app.route('/api/storage', methods=['GET', 'POST'])
@@ -1693,6 +1694,17 @@ def public_uploads(filename: str):
 def _base_url() -> str:
     site = load_site()
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
+
+
+@public_app.route('/favicon.ico')
+def favicon():
+    site = load_site()
+    icon = site['design'].get('favicon') or site['profile'].get('avatar') or ''
+    if icon.startswith('/uploads/'):
+        return send_from_directory(UPLOADS_DIR, icon.removeprefix('/uploads/'), max_age=86400)
+    if icon.startswith(('http://', 'https://')):
+        return redirect(icon)
+    return '', 204
 
 
 @public_app.route('/robots.txt')
@@ -1910,6 +1922,21 @@ def member_upload():
     return redirect('/bereich?msg=uploaded')
 
 
+def _serve_user_file(d: Path, name: str):
+    """Datei-Download mit explizitem Pfad-Check und Fehler-Logging (SMB kann zicken)."""
+    safe = secure_filename(name)
+    target = (d / safe).resolve()
+    if not safe or target.parent != d.resolve() or not target.is_file():
+        abort(404)
+    try:
+        # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt;
+        # conditional=False vermeidet Range/ETag-Sonderfälle auf CIFS-Mounts
+        return send_file(target, as_attachment=True, download_name=safe, conditional=False)
+    except Exception as e:
+        log.error("Download '%s' fehlgeschlagen: %s", safe, e)
+        abort(503)
+
+
 @public_app.route('/bereich/dl/<path:name>')
 def member_download(name: str):
     member = current_member(request)
@@ -1917,8 +1944,7 @@ def member_download(name: str):
         abort(403)
     if not storage_available():
         return redirect('/bereich?msg=storage')
-    # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt
-    return send_from_directory(user_dir(member), name, as_attachment=True)
+    return _serve_user_file(user_dir(member), name)
 
 
 @public_app.route('/bereich/delete', methods=['POST'])
