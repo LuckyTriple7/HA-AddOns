@@ -592,16 +592,27 @@ def _browser_name(ua: str) -> str:
     return 'Other'
 
 
+def _own_hosts() -> set[str]:
+    """Eigene Hostnamen (mit/ohne www) — interne Navigation zählt nicht als Referrer."""
+    host = urlparse(load_site()['design'].get('public_url') or '').netloc.lower()
+    if not host:
+        return set()
+    bare = host.removeprefix('www.')
+    return {bare, 'www.' + bare}
+
+
 def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     """Top-Referrer, Browser- und Länder-Verteilung aus dem Besucher-Log."""
     referrers: dict[str, int] = {}
     browsers:  dict[str, int] = {}
     countries: dict[str, int] = {}
+    own = _own_hosts()
     for v in visit_log:
         if v.get('bot'):
             continue
-        host = urlparse(v.get('ref') or '').netloc
-        if host:
+        # Hostname exakt vergleichen (nie substring), Port ggf. abschneiden
+        host = urlparse(v.get('ref') or '').netloc.lower()
+        if host and host.split(':')[0] not in own:
             referrers[host] = referrers.get(host, 0) + 1
         b = _browser_name(v.get('ua') or '')
         browsers[b] = browsers.get(b, 0) + 1
