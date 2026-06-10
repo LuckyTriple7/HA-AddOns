@@ -418,6 +418,7 @@
       <div class="panel">
         <h3>{{ t.storage_heading }}</h3>
         <p class="hint">{{ t.storage_hint }}</p>
+        <div class="hint" id="st-active" style="margin-bottom:4px;font-weight:600"></div>
         <div class="hint" id="st-current" style="margin-bottom:8px"></div>
         <div id="st-dirs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
         <button class="btn small" onclick="useStorageDir()">{{ t.storage_use }}</button>
@@ -668,7 +669,7 @@
         el('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'stats') loadStats();
         if (btn.dataset.tab === 'messages') loadMessages();
-        if (btn.dataset.tab === 'users') loadUsers();
+        if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); }
         if (btn.dataset.tab === 'design') initPreview();
       });
     });
@@ -896,7 +897,6 @@
       el('u-storage').textContent = data.storage_ok
         ? T.user_storage + ': ' + data.storage + (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off)
         : '';
-      if (data.storage_ok) loadStorageDirs('');
       const list = el('user-list');
       list.innerHTML = '';
       if (!data.users.length) {
@@ -1031,13 +1031,17 @@
 
     // ── Speicherort-Browser ──
     let stPath = '';
+    let stLoaded = false;
+    function initStorageBrowser() {
+      if (!stLoaded) { stLoaded = true; loadStorageDirs(''); }
+    }
     async function loadStorageDirs(path) {
       const r = await api('api/storage' + (path ? '?path=' + encodeURIComponent(path) : ''));
       if (!r.ok) { el('st-current').textContent = T.storage_down_admin; el('st-dirs').innerHTML = ''; return; }
       const data = await r.json();
       stPath = data.path;
-      el('st-current').textContent = T.storage_current + ': ' + data.base + (stPath ? '/' + stPath : '') +
-        (data.active === stPath ? ' ✓ ' + T.storage_active : '');
+      el('st-active').textContent = '✓ ' + T.storage_active_label + ': ' + data.base + (data.active ? '/' + data.active : '');
+      el('st-current').textContent = T.storage_current + ': ' + data.base + (stPath ? '/' + stPath : '');
       const box = el('st-dirs');
       box.innerHTML = '';
       if (stPath) {
@@ -1058,7 +1062,11 @@
     async function useStorageDir() {
       const r = await apiJson('api/storage', 'POST', { subdir: stPath });
       toast(r.ok ? T.storage_saved : T.error_save, !r.ok);
-      if (r.ok) loadUsers();
+      if (r.ok) {
+        // Browser bleibt im gewählten Ordner stehen, Aktiv-Anzeige + Nutzerliste aktualisieren
+        await loadStorageDirs(stPath);
+        loadUsers();
+      }
     }
 
     // ── System: Wartungsmodus & Backup ──
