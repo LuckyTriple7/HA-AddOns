@@ -300,8 +300,9 @@ function processEnvelope(envelope) {
   if (seenMsgIds.has(msgId)) { dbg(`processEnvelope: duplicate skipped ${msgId}`); return; }
   seenMsgIds.add(msgId);
   const isVoice = hasAttachments && dm.attachments.some(a => (a.contentType || '').startsWith('audio/'));
-  const msgType = isVoice ? 'voice' : hasAttachments ? 'photo' : 'text';
-  const previewText = dm.message || (isVoice ? '🎵 Sprachnachricht' : hasAttachments ? '📷 Foto' : '');
+  const isVideo = !isVoice && hasAttachments && dm.attachments.some(a => (a.contentType || '').startsWith('video/'));
+  const msgType = isVoice ? 'voice' : isVideo ? 'video' : hasAttachments ? 'photo' : 'text';
+  const previewText = dm.message || (isVoice ? '🎵 Sprachnachricht' : isVideo ? '📹 Video' : hasAttachments ? '📷 Foto' : '');
 
   const attIds = hasAttachments
     ? dm.attachments.filter(a => a.id).map(a => ({ id: a.id, ct: a.contentType || 'image/jpeg' }))
@@ -502,7 +503,7 @@ app.get('/api/last-received', (req, res) => {
       chatName: chat?.name || chatId,
       contact: chat?.name || chatId,
       type: last.type || 'text',
-      preview: last.body || (last.type === 'photo' ? '📷 Foto' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
+      preview: last.body || (last.type === 'video' ? '📹 Video' : last.type === 'photo' ? '📷 Foto' : last.type === 'voice' ? '🎵 Sprachnachricht' : '[Medien]'),
     });
   }
   res.json(lastReceivedMsg);
@@ -735,7 +736,7 @@ app.post('/api/forward', async (req, res) => {
   if (!origMsg) return res.status(404).json({ error: 'Message not found' });
   try {
     let payload;
-    if ((origMsg.type === 'photo' || origMsg.type === 'voice') && origMsg.mediaFile) {
+    if ((origMsg.type === 'photo' || origMsg.type === 'voice' || origMsg.type === 'video') && origMsg.mediaFile) {
       const fp = MEDIA_DIR + origMsg.mediaFile;
       if (fs.existsSync(fp)) {
         const ext = origMsg.mediaFile.split('.').pop();
@@ -751,7 +752,7 @@ app.post('/api/forward', async (req, res) => {
     const newMsgId = `${PHONE_NUMBER}_${signalTs}`;
     if (!seenMsgIds.has(newMsgId)) {
       seenMsgIds.add(newMsgId);
-      const preview = origMsg.body || (origMsg.type === 'photo' ? '📷 Foto' : origMsg.type === 'voice' ? '🎵 Sprachnachricht' : '');
+      const preview = origMsg.body || (origMsg.type === 'video' ? '📹 Video' : origMsg.type === 'photo' ? '📷 Foto' : origMsg.type === 'voice' ? '🎵 Sprachnachricht' : '');
       const newMsg = { id: newMsgId, from: PHONE_NUMBER, body: origMsg.body || '', timestamp: signalTs, fromMe: true, ack: 0, signalTimestamp: signalTs, type: origMsg.type || 'text', mediaFile: origMsg.mediaFile || null };
       if (!messagesByChatId.has(to)) messagesByChatId.set(to, []);
       messagesByChatId.get(to).push(newMsg);
@@ -1696,13 +1697,18 @@ function renderMessages(msgs) {
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'voice') {
       content = '<span class="photo-placeholder">🎵 Sprachnachricht</span>';
+    } else if (m.type === 'video' && m.mediaFile) {
+      content = showPhotos
+        ? \`<video controls style="max-width:280px;max-height:360px;display:block;border-radius:8px" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}"></video>\`
+        : '<span class="photo-placeholder">📹 Video</span>';
+      if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.mediaFile) {
       content = showPhotos
         ? \`<img class="msg-img" src="\${api('/api/media/'+encodeURIComponent(m.mediaFile))}" onclick="openImg(this.src)" alt="Foto">\`
         : '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
-    } else if (showPhotos && (m.type === 'photo' || (m.attIds && m.attIds.length > 0))) {
-      content = '<span class="photo-placeholder">📷 Foto</span>';
+    } else if (showPhotos && (m.type === 'photo' || m.type === 'video' || (m.attIds && m.attIds.length > 0))) {
+      content = m.type === 'video' ? '<span class="photo-placeholder">📹 Video</span>' : '<span class="photo-placeholder">📷 Foto</span>';
       if (m.body) content += \`<div>\${formatText(m.body)}</div>\`;
     } else if (m.type === 'document' && m.filename) {
       content = \`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
@@ -1713,7 +1719,7 @@ function renderMessages(msgs) {
     const quotedHtml = m.quotedMsg ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(m.quotedMsg.contact||'')}</div><div class="quoted-text">\${escHtml(m.quotedMsg.body||'')}</div></div>\` : '';
     const chatForReply = allChats.find(c => c.id === selectedChatId);
     const replyContact = m.fromMe ? 'Ich' : (chatForReply?.name || selectedChatId || '');
-    const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='photo'?'📷 Foto':'')).slice(0,60));
+    const replyPreview = escHtml((m.body || (m.type==='voice'?'🎵 Sprachnachricht':m.type==='video'?'📹 Video':m.type==='photo'?'📷 Foto':'')).slice(0,60));
     return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
   if (atBottom) el.scrollTop = el.scrollHeight;

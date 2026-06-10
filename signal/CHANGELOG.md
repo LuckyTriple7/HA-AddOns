@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.10] - 2026-06-10
+- Fix: Videos werden jetzt korrekt als `video`-Typ erkannt (statt fälschlicherweise als `photo`) — `<video>`-Player statt defektem `<img>`; Chatliste zeigt `📹 Video` statt `📷 Foto`; betrifft eingehende und ausgehende Videos
+
 ## [1.6.9] - 2026-06-10
 - UI: Alle Emoji-Icons (🎬 🗑️ ↑↓ 🌐 📥 💾 ✕ 😊 📎 📄 ↪ ↩) durch konsistente SVG-Icons ersetzt
 - Feature: Nachrichtensuche in Chats — Suchleiste im Chat-Header mit Highlight und Vor-/Zurück-Navigation
