@@ -592,13 +592,18 @@ def _browser_name(ua: str) -> str:
     return 'Other'
 
 
-def _own_hosts() -> set[str]:
-    """Eigene Hostnamen (mit/ohne www) — interne Navigation zählt nicht als Referrer."""
+def _own_domain() -> str:
+    """Eigene Basis-Domain (ohne www) — interne Navigation zählt nicht als Referrer."""
     host = urlparse(load_site()['design'].get('public_url') or '').netloc.lower()
-    if not host:
-        return set()
-    bare = host.removeprefix('www.')
-    return {bare, 'www.' + bare}
+    return host.split(':')[0].removeprefix('www.')
+
+
+def _is_own_host(host: str, own: str) -> bool:
+    """Exakter Vergleich oder echte Subdomain (Suffix mit Punkt) — nie Substring."""
+    if not own or not host:
+        return False
+    host = host.split(':')[0]
+    return host == own or host.endswith('.' + own)
 
 
 def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
@@ -606,13 +611,12 @@ def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     referrers: dict[str, int] = {}
     browsers:  dict[str, int] = {}
     countries: dict[str, int] = {}
-    own = _own_hosts()
+    own = _own_domain()
     for v in visit_log:
         if v.get('bot'):
             continue
-        # Hostname exakt vergleichen (nie substring), Port ggf. abschneiden
         host = urlparse(v.get('ref') or '').netloc.lower()
-        if host and host.split(':')[0] not in own:
+        if host and not _is_own_host(host, own):
             referrers[host] = referrers.get(host, 0) + 1
         b = _browser_name(v.get('ua') or '')
         browsers[b] = browsers.get(b, 0) + 1
