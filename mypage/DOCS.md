@@ -10,6 +10,11 @@
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
 | `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
+| `smtp_host` | Optional: SMTP-Server — neue Kontaktnachrichten werden per E-Mail gemeldet |
+| `smtp_port` | SMTP-Port, meist 587 (STARTTLS) oder 465 (SSL) |
+| `smtp_user` / `smtp_password` | Zugangsdaten für den Mailversand (App-Passwort empfohlen) |
+| `smtp_to` | Empfängeradresse der Benachrichtigungen |
+| `smtp_tls` | `true` für Port 587 (STARTTLS), `false` für Port 465 (SSL) |
 
 ## Ports
 
@@ -37,7 +42,7 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 - Reihenfolge per ↑/↓-Buttons ändern.
 
 ### Nachrichten
-Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz über ein unsichtbares Honeypot-Feld plus Rate-Limit (5 Nachrichten/Stunde pro IP). Mit Telegram-Bot-Token und Chat-ID in den Add-on-Optionen wirst du sofort benachrichtigt.
+Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz über ein unsichtbares Honeypot-Feld plus Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID) und/oder **E-Mail** (SMTP-Optionen) — beides in den Add-on-Optionen, wie bei GitPulse.
 
 ### Blog
 Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einzelne Beiträge unter `/blog/<id>`, die neuesten drei erscheinen auf der Startseite.

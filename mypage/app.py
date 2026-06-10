@@ -6,16 +6,20 @@ Zwei Server in einem Prozess:
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
 import hashlib
+import html as html_mod
 import io
 import json
 import logging
 import os
 import re
 import secrets
+import smtplib
 import threading
 import time
 import uuid
 import zipfile
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -246,6 +250,50 @@ def send_telegram(text: str) -> None:
                   json={'chat_id': chat, 'text': text}, timeout=10)
     except Exception as e:
         log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+
+
+def send_email(subject: str, html_body: str) -> None:
+    cfg      = load_config()
+    host     = (cfg.get('smtp_host') or '').strip()
+    port     = int(cfg.get('smtp_port') or 587)
+    user     = (cfg.get('smtp_user') or '').strip()
+    password = (cfg.get('smtp_password') or '').strip()
+    to       = (cfg.get('smtp_to') or '').strip()
+    use_tls  = bool(cfg.get('smtp_tls', True))
+    if not host or not to:
+        return
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = user or f'mypage@{host}'
+        msg['To']      = to
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        if use_tls:
+            with smtplib.SMTP(host, port, timeout=15) as s:
+                s.ehlo()
+                s.starttls()
+                s.ehlo()
+                if user and password:
+                    s.login(user, password)
+                s.sendmail(msg['From'], [to], msg.as_string())
+        else:
+            with smtplib.SMTP_SSL(host, port, timeout=15) as s:
+                if user and password:
+                    s.login(user, password)
+                s.sendmail(msg['From'], [to], msg.as_string())
+        log.info("E-Mail-Benachrichtigung an '%s' gesendet", to)
+    except Exception as e:
+        log.error("E-Mail senden fehlgeschlagen: %s", e)
+
+
+def _email_html(title: str, lines: list[str]) -> str:
+    body = ''.join(f'<p style="margin:4px 0">{l}</p>' for l in lines)
+    return (
+        '<div style="font-family:sans-serif;max-width:480px;padding:20px;'
+        'background:#0d1117;color:#c9d1d9;border-radius:8px">'
+        f'<h3 style="margin:0 0 12px;color:#58a6ff">{title}</h3>'
+        f'{body}</div>'
+    )
 
 
 def save_sessions() -> None:
@@ -1324,8 +1372,17 @@ def contact():
         'text':  message,
     })
     save_messages(msgs)
-    send_telegram(f"📨 MyPage — neue Nachricht von {name}"
-                  + (f" ({email})" if email else "") + f":\n\n{message[:500]}")
+    def _notify():
+        send_telegram(f"📨 MyPage — neue Nachricht von {name}"
+                      + (f" ({email})" if email else "") + f":\n\n{message[:500]}")
+        esc = html_mod.escape
+        send_email(f'MyPage — neue Nachricht von {name}',
+                   _email_html('📨 Neue Kontaktnachricht', [
+                       f'<b>Von:</b> {esc(name)}' + (f' &lt;{esc(email)}&gt;' if email else ''),
+                       f'<b>Nachricht:</b><br>{esc(message).replace(chr(10), "<br>")}',
+                   ]))
+
+    threading.Thread(target=_notify, daemon=True).start()
     log.info("Kontaktnachricht von '%s' gespeichert", name)
     return jsonify({'ok': True})
 

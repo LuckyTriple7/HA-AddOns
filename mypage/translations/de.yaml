@@ -17,6 +17,24 @@ configuration:
   telegram_chat_id:
     name: Telegram-Chat-ID
     description: Chat-ID für die Telegram-Benachrichtigungen.
+  smtp_host:
+    name: SMTP-Server
+    description: Optional — neue Kontaktnachrichten werden per E-Mail gemeldet.
+  smtp_port:
+    name: SMTP-Port
+    description: Meist 587 (STARTTLS) oder 465 (SSL).
+  smtp_user:
+    name: SMTP-Benutzer
+    description: Anmeldename beim Mailserver (oft die Absenderadresse).
+  smtp_password:
+    name: SMTP-Passwort
+    description: Passwort bzw. App-Passwort für den Mailversand.
+  smtp_to:
+    name: Empfängeradresse
+    description: An diese Adresse werden die Benachrichtigungen geschickt.
+  smtp_tls:
+    name: STARTTLS verwenden
+    description: An für Port 587 (STARTTLS), aus für Port 465 (SSL).
 network:
   17760/tcp: Öffentliche Homepage
   17761/tcp: Admin-Panel (Login-geschützt)

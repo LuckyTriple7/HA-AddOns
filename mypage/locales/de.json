@@ -66,7 +66,7 @@
 
   "field_favicon": "Favicon (URL oder Upload)",
   "field_contact_enabled": "Kontaktformular anzeigen",
-  "contact_telegram_hint": "Tipp: Mit Telegram-Bot-Token + Chat-ID in den Add-on-Optionen wirst du bei neuen Nachrichten sofort benachrichtigt.",
+  "contact_telegram_hint": "Tipp: Benachrichtigungen bei neuen Nachrichten per Telegram (Bot-Token + Chat-ID) oder E-Mail (SMTP) — einstellbar in den Add-on-Optionen.",
   "preview_reload": "Neu laden",
   "preview_open": "In neuem Tab öffnen",
 
