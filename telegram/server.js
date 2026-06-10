@@ -2247,7 +2247,7 @@ function renderMessages(msgs) {
           })()
       if(m.mediaFile && m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else if(isPhoto){
-      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
+      content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:200px;max-height:200px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
     } else if(isDoc){
       content=\`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;

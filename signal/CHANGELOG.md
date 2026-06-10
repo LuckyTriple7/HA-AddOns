@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.13] - 2026-06-10
+- UI: Foto-Thumbnail auf max 200×200px verkleinert (war 250×250 + object-fit:cover); kein Zuschneiden mehr, einheitlich mit WhatsApp und Telegram
+
 ## [1.6.12] - 2026-06-10
 - Fix: WARN-Spam beim Löschen entfernt — delete-for-everyone API nicht unterstützt, Fehler wird nur noch als DEBUG geloggt
 - Fix: deleteMsg() löscht Fingerprint vor loadMessages() damit gelöschte Nachrichten sofort verschwinden

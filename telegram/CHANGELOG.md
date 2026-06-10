@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.12] - 2026-06-10
+- UI: Foto-Thumbnail auf max 200×200px verkleinert (war 320×400); einheitlich mit WhatsApp und Signal
+
 ## [1.6.11] - 2026-06-10
 - fix: Export-HTML-Button nutzt jetzt Download-Pfeil-Icon wie WhatsApp (statt Datenbank-Icon)
 

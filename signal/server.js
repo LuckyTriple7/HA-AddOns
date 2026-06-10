@@ -964,7 +964,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; h
 #logout-btn:hover { color: #f15c5c; }
 #topbar-back { display: none; }
 #topbar-back:hover { color: rgba(255,255,255,0.9); }
-.msg-img { max-width: 250px; max-height: 250px; border-radius: 8px; cursor: zoom-in; display: block; object-fit: cover; margin-top: 4px; }
+.msg-img { max-width: 200px; max-height: 200px; border-radius: 8px; cursor: zoom-in; display: block; margin-top: 4px; }
 .photo-placeholder { color: #3a76f8; }
 .bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .bubble-doc .doc-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
