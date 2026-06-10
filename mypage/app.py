@@ -726,17 +726,16 @@ def current_member(req) -> dict | None:
 def send_welcome_email(user: dict, password: str, subject: str | None = None) -> None:
     site = load_site()
     base = (site['design'].get('public_url') or '').rstrip('/')
-    url = (base + '/bereich') if base else '/bereich'
+    url = (base + '/bereich') if base else ''
     title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
     esc = html_mod.escape
+    lines = [f'Hallo, für dich wurde ein persönlicher Dateibereich auf <b>{esc(title)}</b> eingerichtet.',
+             f'<b>Login:</b> <a href="{esc(url)}">{esc(url)}</a>' if url else '',
+             f'<b>Benutzername:</b> {esc(user["email"])}',
+             f'<b>Passwort:</b> {esc(password)}',
+             'Wenn du dieses Konto nicht erwartet hast, kannst du diese E-Mail ignorieren.']
     send_email(subject or f'Dein Zugang zu {title}',
-               _email_html(f'🔑 Dein Zugang zu {esc(title)}', [
-                   f'Hallo, für dich wurde ein persönlicher Bereich auf <b>{esc(title)}</b> eingerichtet.',
-                   f'<b>Login:</b> <a href="{esc(url)}">{esc(url)}</a>',
-                   f'<b>Benutzername:</b> {esc(user["email"])}',
-                   f'<b>Passwort:</b> {esc(password)}',
-                   'Bitte ändere nichts an diesem Konto, das du nicht selbst angefragt hast.',
-               ]),
+               _email_html(f'🔑 Dein Zugang zu {esc(title)}', [l for l in lines if l]),
                to=user['email'])
 
 
@@ -1353,7 +1352,8 @@ def api_user_create():
     if mail_sent:
         threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Benutzer '%s' angelegt (Quota %d MB)", email, quota)
-    return jsonify({'ok': True, 'mail_sent': mail_sent})
+    return jsonify({'ok': True, 'mail_sent': mail_sent,
+                    'no_url': not (load_site()['design'].get('public_url') or '').strip()})
 
 
 @admin_app.route('/api/users/<uid>', methods=['PUT', 'DELETE'])
@@ -1390,7 +1390,8 @@ def api_user_edit(uid: str):
                              args=(user, password, f'Neues Passwort für deinen Bereich'),
                              daemon=True).start()
     save_users(users)
-    return jsonify({'ok': True, 'mail_sent': mail_sent})
+    return jsonify({'ok': True, 'mail_sent': mail_sent,
+                    'no_url': not (load_site()['design'].get('public_url') or '').strip()})
 
 
 def _admin_get_user(uid: str) -> dict | None:

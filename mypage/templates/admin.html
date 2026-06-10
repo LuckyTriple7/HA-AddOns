@@ -925,7 +925,8 @@
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { password: pw });
           if (r2.ok) {
             const d2 = await r2.json();
-            toast(d2.mail_sent ? T.user_pw_mailed : T.saved);
+            if (d2.mail_sent && d2.no_url) toast(T.user_no_url_warn, true);
+            else toast(d2.mail_sent ? T.user_pw_mailed : T.saved);
           } else toast(T.error_save, true);
         };
         quotaBtn.onclick = async () => {
@@ -954,7 +955,8 @@
       });
       if (r.ok) {
         const d = await r.json();
-        toast(d.mail_sent ? T.user_created_mailed : T.user_created);
+        if (d.mail_sent && d.no_url) toast(T.user_no_url_warn, true);
+        else toast(d.mail_sent ? T.user_created_mailed : T.user_created);
         el('u-email').value = '';
         el('u-password').value = '';
         loadUsers();

@@ -45,6 +45,7 @@
   "user_smtp_off": "Welcome email: no mail server configured",
   "no_users": "No users yet.",
   "user_gen_pw": "Generate",
+  "user_no_url_warn": "User created, but: the public URL is missing in the Design tab — the email therefore contains no login link!",
   "user_files_btn": "Files",
   "ufiles_title": "Files of {email}",
   "ufiles_upload": "Add file",
