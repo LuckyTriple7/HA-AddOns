@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2] - 2026-06-10
+
+### Fixed
+- **"▼ Beschreibung"-Button** zeigte "undefined": `T.pr_body_show` / `T.pr_body_hide` fehlten im JS-Übersetzungsobjekt `T`
+- **SyntaxError beim Klick auf Beschreibungs-Button**: `JSON.stringify(bkey)` in `onclick="..."` erzeugte doppelte Anführungszeichen im HTML-Attribut → Browser bricht das Attribut vorzeitig ab → `toggleBody(` unvollständig; ersetzt durch `safeJsArg(bkey)` (verwendet `&quot;`)
+- **Kommentare-Toggle**: erneuter Klick auf Kommentare-Button schließt die Vorschau jetzt wieder
+- **`no_activity`** ins T-Objekt ergänzt (war Jinja2-direkt, jetzt konsistent)
+
 ## [0.3.1] - 2026-06-10
 
 ### Fixed

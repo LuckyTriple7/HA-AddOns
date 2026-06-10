@@ -1277,6 +1277,9 @@
     ci_wf_disable:       '{{ t.ci_wf_disable }}',
     ci_wf_toggling:      '{{ t.ci_wf_toggling }}',
     ci_wf_toggle_err:    '{{ t.ci_wf_toggle_err }}',
+    pr_body_show:        '{{ t.pr_body_show }}',
+    pr_body_hide:        '{{ t.pr_body_hide }}',
+    no_activity:         '{{ t.no_activity }}',
   };
 
   function relTime(iso) {
@@ -1578,7 +1581,7 @@
               <span>${relTime(pr.updated)}</span>
               ${!closed ? reviewBadge(pr.review_state) : ''}
               ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(bkey)},this)">${T.pr_body_show}</button>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${T.pr_body_show}</button>` : ''}
               ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
               ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
@@ -1641,7 +1644,7 @@
               <span>@${escHtml(iss.user)}</span>
               <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
               ${iss.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${iss.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(bkey)},this)">${T.pr_body_show}</button>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${T.pr_body_show}</button>` : ''}
               ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
               ${(iss.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
@@ -1916,6 +1919,7 @@
     const ckey = repo + '#' + number;
     const el = document.getElementById(containerId);
     if (!el) return;
+    if (el.dataset.open === '1') { el.innerHTML = ''; el.dataset.open = '0'; return; }
     if (_commentsCache[ckey]) { _renderComments(el, _commentsCache[ckey]); return; }
     el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_loading }}</div>`;
     fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number))
@@ -1926,6 +1930,7 @@
       })
       .catch(() => {
         el.innerHTML = `<div style="font-size:.78rem;color:var(--red);padding:6px 0">Fehler</div>`;
+        el.dataset.open = '0';
       });
   }
 
@@ -1933,6 +1938,7 @@
     const cs = data.comments || [];
     if (!cs.length) {
       el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_none }}</div>`;
+      el.dataset.open = '1';
       return;
     }
     const total = data.total || cs.length;
@@ -1947,6 +1953,7 @@
           <div style="font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;margin-top:2px">${escHtml((c.body||'').trim())}</div>
         </div>
       </div>`).join('');
+    el.dataset.open = '1';
   }
 
   function renderActivity(data) {
@@ -1981,7 +1988,7 @@
                   : `<span style="color:var(--yellow)">● Issue</span>`}
               <span>${relTime(item.updated)}</span>
               ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(item.repo+'#'+item.number)},this)">${T.pr_body_show}</button>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(item.repo+'#'+item.number)},this)">${T.pr_body_show}</button>` : ''}
               ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}</button>` : ''}
               ${(item.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
