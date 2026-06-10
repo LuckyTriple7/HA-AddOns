@@ -8,6 +8,7 @@ Zwei Server in einem Prozess:
 import hashlib
 import html as html_mod
 import io
+import ipaddress
 import json
 import logging
 import os
@@ -415,13 +416,91 @@ def total_uniques(stats: dict) -> int:
     return sum(d.get('uniques', 0) for d in stats.get('days', {}).values())
 
 
-def _guess_country(req) -> str:
-    """Besucherland: Cloudflare-Header, sonst Näherung über Accept-Language."""
+# GeoIP-Lookup über ipapi.is (Opt-in, IPs werden nur bei aktivierter Option gesendet)
+_geo_cache: dict[str, str] = {}  # ip → Ländercode ('' = abgefragt, kein Ergebnis)
+GEO_CACHE_MAX       = 5000
+GEO_LOOKUPS_PER_RUN = 20
+
+
+def _geo_enabled() -> bool:
+    return bool(load_config().get('geoip_lookup'))
+
+
+def _cf_country(req) -> str:
     c = (req.headers.get('CF-IPCountry') or '').strip().upper()
-    if len(c) == 2 and c.isalpha() and c != 'XX':
-        return c
+    return c if len(c) == 2 and c.isalpha() and c != 'XX' else ''
+
+
+def _lang_country(req) -> str:
     m = re.search(r'[a-zA-Z]{2,3}-([A-Za-z]{2})\b', req.headers.get('Accept-Language') or '')
     return m.group(1).upper() if m else ''
+
+
+def _guess_country(req) -> str:
+    """Besucherland: Cloudflare-Header > GeoIP-Cache > Accept-Language-Näherung."""
+    ip = get_client_ip(req)
+    return _cf_country(req) or _geo_cache.get(ip, '') or _lang_country(req)
+
+
+def _lookup_ip(ip: str) -> str:
+    """Land einer IP über ipapi.is — private/ungültige IPs werden nie gesendet."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+            return ''
+    except ValueError:
+        return ''
+    try:
+        params = {'q': ip}
+        key = (load_config().get('geoip_api_key') or '').strip()
+        if key:
+            params['key'] = key
+        r = http.get('https://api.ipapi.is/', params=params, timeout=10)
+        if r.status_code == 200:
+            code = ((r.json().get('location') or {}).get('country_code') or '').strip().upper()
+            if len(code) == 2 and code.isalpha():
+                return code
+    except Exception as e:
+        log.warning("GeoIP-Lookup fehlgeschlagen: %s", e)
+    return ''
+
+
+def _geoip_worker() -> None:
+    """Trägt Länder für Log-Einträge ohne Land nach (max. 20 Lookups/Minute)."""
+    while True:
+        time.sleep(60)
+        if not _geo_enabled():
+            continue
+        try:
+            stats = load_stats()
+            pending: list[str] = []
+            for v in reversed(stats.get('log', [])):
+                ip = v.get('ip') or ''
+                if not v.get('country') and not v.get('bot') and ip and ip not in _geo_cache:
+                    if ip not in pending:
+                        pending.append(ip)
+                if len(pending) >= GEO_LOOKUPS_PER_RUN:
+                    break
+            for ip in pending:
+                if len(_geo_cache) >= GEO_CACHE_MAX:
+                    _geo_cache.clear()
+                _geo_cache[ip] = _lookup_ip(ip)
+                time.sleep(1.5)
+            if not pending:
+                continue
+            # Frisch laden und Cache anwenden, damit parallele Besuche nicht verloren gehen
+            stats = load_stats()
+            changed = False
+            for v in stats.get('log', []):
+                code = _geo_cache.get(v.get('ip') or '')
+                if not v.get('country') and code:
+                    v['country'] = code
+                    changed = True
+            if changed:
+                save_stats(stats)
+                log.info("GeoIP: %d IP(s) nachgeschlagen", len(pending))
+        except Exception as e:
+            log.warning("GeoIP-Worker-Fehler: %s", e)
 
 
 def count_visit(req) -> None:
@@ -1427,6 +1506,7 @@ if __name__ == '__main__':
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()
     threading.Thread(target=_sensor_worker, daemon=True).start()
+    threading.Thread(target=_geoip_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)

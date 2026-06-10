@@ -11,6 +11,12 @@ configuration:
   github_token:
     name: GitHub-Token
     description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.
+  geoip_lookup:
+    name: GeoIP-Lookup (ipapi.is)
+    description: Ermittelt das Besucherland exakt über ipapi.is. Achtung — Besucher-IPs werden dabei an den Dienst übertragen (Datenschutzerklärung anpassen!).
+  geoip_api_key:
+    name: ipapi.is API-Key
+    description: Optional — ohne Key ca. 1.000 Lookups/Tag frei. Bei mehr Traffic kostenlosen Key auf ipapi.is holen.
   telegram_bot_token:
     name: Telegram-Bot-Token
     description: Optional — neue Kontaktnachrichten werden per Telegram gemeldet.

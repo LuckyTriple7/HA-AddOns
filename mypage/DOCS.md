@@ -8,6 +8,8 @@
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
+| `geoip_lookup` | Exakte Länder-Erkennung über ipapi.is (Standard: aus — Besucher-IPs werden an den Dienst übertragen) |
+| `geoip_api_key` | Optional: ipapi.is-Key — ohne Key ca. 1.000 Lookups/Tag frei |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
 | `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
 | `smtp_host` | Optional: SMTP-Server — neue Kontaktnachrichten werden per E-Mail gemeldet |
@@ -84,7 +86,10 @@ Aufrufe gesamt, Aufrufe und eindeutige Besucher heute, Verlauf der letzten 30 Ta
 
 Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, IP-Adresse, Browser/User-Agent, Sprache und Referrer (Bots werden markiert). Hinweis: Wer die Seite öffentlich betreibt, sollte die IP-Speicherung ggf. in seiner Datenschutzerklärung erwähnen.
 
-**Länder-Erkennung:** Hinter Cloudflare wird das echte Besucherland aus dem `CF-IPCountry`-Header übernommen. Hinter anderen Proxys (z. B. NGINX) wird das Land näherungsweise aus der Browser-Sprache abgeleitet (`de-DE` → Deutschland) — keine GeoIP-Datenbank nötig, aber entsprechend ungenau.
+**Länder-Erkennung** (in dieser Reihenfolge):
+1. **Cloudflare-Header** `CF-IPCountry` — exakt, falls die Seite hinter Cloudflare läuft
+2. **GeoIP-Lookup über [ipapi.is](https://ipapi.is)** — exakt, wenn die Option `geoip_lookup` aktiviert ist. Ein Hintergrund-Worker schlägt maximal 20 neue IPs pro Minute nach, jede IP nur einmal (Cache); private IPs werden nie übertragen. **Datenschutz:** Besucher-IPs werden dabei an ipapi.is gesendet — das gehört in die Datenschutzerklärung. Ohne API-Key sind ~1.000 Lookups/Tag frei, dank Cache reicht das für die meisten Seiten locker.
+3. **Browser-Sprache** als Näherung (`de-DE` → Deutschland) — Fallback, wenn beides nicht greift
 
 **Reverse-Proxy (NGINX):** Damit Besucher-IPs, Brute-Force-Schutz und Rate-Limit korrekt arbeiten, muss der Proxy die Original-IP weiterreichen: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`
 
