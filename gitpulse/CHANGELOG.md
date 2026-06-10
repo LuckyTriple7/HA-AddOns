@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.0] - 2026-06-10
+
+### Fixed
+- JavaScript-Syntaxfehler (überzähliges `)`) in Security-Tab behoben — UI war seit v0.1.99 komplett leer
+
 ## [0.1.99] - 2026-06-10
 
 ### Fixed
