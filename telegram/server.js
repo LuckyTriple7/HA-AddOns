@@ -1888,7 +1888,7 @@ async function loadStorage() {
     const d = await fetch(api('/api/storage')).then(r => r.json());
     const el = document.getElementById('storage-info');
     if (!el) return;
-    el.textContent = '💾 ' + d.mb + ' MB';
+    el.innerHTML = '${_SVG.disk} ' + d.mb + ' MB';
     if (d.mediaMb !== undefined) {
       const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
       el.title = lang === 'de'
