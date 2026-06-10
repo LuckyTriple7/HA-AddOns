@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- 🔧 **Fix SMB-Mount** („Permission denied"): eigenes AppArmor-Profil mit mount/umount-Rechten (wie bei FileBox)
+
 ## 0.1.0
 
 - 🔐 **Persönlicher Bereich** (`/bereich`, Login-Link im Footer): Multi-User-Dateiablage zum einfachen Teilen
