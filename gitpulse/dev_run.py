@@ -12,7 +12,6 @@ Voraussetzungen:  pip install flask requests
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -65,12 +64,11 @@ if not options_path.exists() or args.token:
     options_path.write_text(json.dumps(options, indent=2), encoding='utf-8')
     print(f'Config: {options_path}')
 
-env = {**os.environ,
-       'GITPULSE_BASE': str(HERE),
-       'GITPULSE_DATA': str(DATA)}
+for k, v in {'GITPULSE_BASE': str(HERE), 'GITPULSE_DATA': str(DATA)}.items():
+    os.environ[k] = v
 
 print(f'GitPulse startet auf http://localhost:17792')
 print(f'Login: {args.user} / {args.password}')
 print('Strg+C zum Beenden\n')
 
-subprocess.run([sys.executable, str(HERE / 'app.py')], env=env)
+os.execv(sys.executable, [sys.executable, str(HERE / 'app.py')])
