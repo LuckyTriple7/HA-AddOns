@@ -909,6 +909,7 @@
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
             <button class="btn secondary small">📁 ${T.user_files_btn}</button>
+            <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
             <button class="btn secondary small">${T.user_quota_btn}</button>
             <button class="btn danger small">✕</button>
@@ -916,8 +917,20 @@
         div.querySelector('.proj-name').textContent = u.email;
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created}`;
-        const [filesBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [filesBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         filesBtn.onclick = () => openUserFiles(u);
+        resendBtn.onclick = async () => {
+          if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
+          const r2 = await fetch('api/users/' + u.id + '/resend', { method: 'POST', credentials: 'same-origin' });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            toast(d2.no_url ? T.user_no_url_warn : T.user_resent, d2.no_url);
+          } else if (r2.status === 400) {
+            toast(T.user_smtp_off, true);
+          } else {
+            toast(T.error_save, true);
+          }
+        };
         pwBtn.onclick = async () => {
           const pw = prompt(T.user_new_pw_prompt, genPassword());
           if (!pw) return;

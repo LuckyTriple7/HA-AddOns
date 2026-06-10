@@ -723,6 +723,17 @@ def current_member(req) -> dict | None:
     return next((u for u in load_users() if u['id'] == uid), None)
 
 
+def generate_member_password() -> str:
+    """8 Zeichen, Groß/Klein/Zahlen, keine Sonderzeichen, keine verwechselbaren Zeichen."""
+    up, low, dig = 'ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789'
+    chars = [secrets.choice(up), secrets.choice(low), secrets.choice(dig)]
+    pool = up + low + dig
+    while len(chars) < 8:
+        chars.append(secrets.choice(pool))
+    secrets.SystemRandom().shuffle(chars)
+    return ''.join(chars)
+
+
 def send_welcome_email(user: dict, password: str, subject: str | None = None) -> None:
     site = load_site()
     base = (site['design'].get('public_url') or '').rstrip('/')
@@ -1396,6 +1407,27 @@ def api_user_edit(uid: str):
 
 def _admin_get_user(uid: str) -> dict | None:
     return next((u for u in load_users() if u['id'] == uid), None)
+
+
+@admin_app.route('/api/users/<uid>/resend', methods=['POST'])
+def api_user_resend(uid: str):
+    """Zugangsdaten erneut senden — erzeugt ein neues Passwort (Hash kennt das alte nicht)."""
+    err = _api_auth()
+    if err:
+        return err
+    if not smtp_configured():
+        return jsonify({'error': 'no smtp'}), 400
+    users = load_users()
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return jsonify({'error': 'not found'}), 404
+    password = generate_member_password()
+    user['pw_hash'] = generate_password_hash(password)
+    save_users(users)
+    threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
+    log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
+    return jsonify({'ok': True,
+                    'no_url': not (load_site()['design'].get('public_url') or '').strip()})
 
 
 @admin_app.route('/api/users/<uid>/files', methods=['GET', 'POST'])
