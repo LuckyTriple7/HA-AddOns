@@ -16,7 +16,8 @@ if [ -n "$SMB_SERVER" ] && [ -n "$SMB_SHARE" ]; then
     umount "$MOUNTPOINT" 2>/dev/null || true
     export MYPAGE_USERFILES="$MOUNTPOINT"
 
-    OPTS="vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,actimeo=5"
+    # cache=none: kein Handle-/Seiten-Caching — verhindert stale handles auf FritzBox-Shares
+    OPTS="vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,cache=none,actimeo=1"
     if [ -n "$SMB_USER" ]; then
         # Zugangsdaten über Credentials-Datei (Sonderzeichen-sicher, nicht in ps sichtbar)
         CRED_FILE="/tmp/.smbcred"

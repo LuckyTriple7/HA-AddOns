@@ -667,8 +667,10 @@ def drop_fs_caches() -> bool:
 
 
 _remount_lock = threading.Lock()
+# cache=none: kein Handle-/Seiten-Caching — verhindert stale handles auf
+# FritzBox-Shares komplett (kostet etwas Durchsatz, ist hier aber egal)
 SMB_MOUNT_OPTS = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
-                  'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,actimeo=5')
+                  'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,cache=none,actimeo=1')
 
 
 def remount_smb() -> bool:

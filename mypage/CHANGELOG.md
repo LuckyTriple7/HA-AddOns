@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+
+- 🔧 SMB-Mount jetzt mit **`cache=none`** (+ `actimeo=1`): kein Handle-/Seiten-Caching mehr — stale file handles auf FritzBox-Shares werden damit an der Wurzel verhindert
+
 ## 0.1.8
 
 - 🔧 **Stale-Handle-Fix, Stufe 2** (Remount reichte nicht immer):
