@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.99] - 2026-06-10
+
+### Fixed
+- Security: 403 (fehlender Scope) und 404 (Dependabot nicht aktiviert) werden jetzt unterschieden — 🔒-Hinweis erscheint nur noch bei echtem Scope-Fehler, nicht wenn Dependabot schlicht nicht eingerichtet ist
+
 ## [0.1.98] - 2026-06-09
 
 ### Fixed
