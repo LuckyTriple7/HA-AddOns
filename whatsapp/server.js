@@ -566,7 +566,8 @@ client.on('message_create', async (msg) => {
   const isText = msg.type === 'chat' || msg.type === 'text';
   const isImage = msg.type === 'image' || msg.type === 'sticker';
   const isDocument = msg.type === 'document';
-  if (!isText && !isImage && !isDocument) { dbg(`message_create: skipping type=${msg.type}`); return; }
+  const isVideo = msg.type === 'video';
+  if (!isText && !isImage && !isDocument && !isVideo) { dbg(`message_create: skipping type=${msg.type}`); return; }
   if (msg.__logged) return;
   const chat = await msg.getChat().catch(() => null);
   if (!chat) return;
@@ -580,6 +581,8 @@ client.on('message_create', async (msg) => {
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
+  } else if (isVideo) {
+    type = 'video';
   }
   let quotedMsgDataOut = null;
   if (msg.hasQuotedMsg) {
@@ -596,6 +599,7 @@ client.on('message_create', async (msg) => {
     id: msg.id._serialized,
     body: msg.body || '',
     type, mediaFile, filename,
+    videoSize: isVideo ? (msg._data?.size || 0) : undefined,
     timestamp: msg.timestamp * 1000,
     fromMe: true,
     contact: 'Ich',

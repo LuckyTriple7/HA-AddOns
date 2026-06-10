@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.13] - 2026-06-10
+- Fix: Selbst gesendete Videos erscheinen jetzt in Chatliste und Chat — bisher wurden sie im `message_create`-Handler übersprungen; Platzhalter mit Download-on-Demand wie bei empfangenen Videos
+
 ## [1.7.12] - 2026-06-10
 - UI: Alle Emoji-Icons (🎬 🗑️ 💾 ↑↓ 🌐 🚮 😊 📎 📍 📄) durch konsistente SVG-Icons ersetzt — Topbar, Chat-Header und Sendeleiste einheitlich professionell
 
