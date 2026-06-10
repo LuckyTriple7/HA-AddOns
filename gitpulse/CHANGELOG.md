@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5] - 2026-06-10
+
+### Fixed
+- **CI-Tab**: Laufzeit aktiver Workflow-Runs aktualisiert sich jetzt sekündlich live (vorher statischer Wert vom letzten Poll)
+- **CI-Tab**: ▾-Pfeil dreht sich beim Aufklappen der Job-Details um 180°
+
 ## [0.3.4] - 2026-06-10
 
 ### Fixed

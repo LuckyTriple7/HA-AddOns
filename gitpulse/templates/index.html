@@ -119,6 +119,8 @@
     .run-step-row { display:flex; align-items:center; gap:6px; padding:2px 14px 2px 54px; font-size:.71rem; color:var(--muted); }
     .act-btn-detail { color:var(--muted); border-color:var(--border); padding:2px 7px; font-size:.75rem; }
     .act-btn-detail:hover { border-color:var(--accent); color:var(--accent); }
+    .act-btn-detail .jobs-arrow { display:inline-block; transition:transform .15s; }
+    .act-btn-detail.open .jobs-arrow { transform:rotate(180deg); }
 
     /* ── Releases ───────────────────────────────────────────── */
     .release-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
@@ -1670,13 +1672,22 @@
     return m + 'm' + (s ? ' ' + s + 's' : '');
   }
 
+  // Laufzeit aktiver Runs sekündlich aktualisieren
+  setInterval(() => {
+    document.querySelectorAll('.run-dur-live').forEach(el => {
+      el.textContent = ciDuration(el.dataset.started, null);
+    });
+  }, 1000);
+
   // ── Jobs expandieren ──────────────────────────────────────────────
   function toggleJobs(repo, runId) {
     const el = document.getElementById('jobs-' + runId);
     if (!el) return;
+    const btn = document.getElementById('jobsbtn-' + runId);
     if (el.style.display === 'none') {
       _expandedRunIds.set(String(runId), repo);
       el.style.display = '';
+      if (btn) btn.classList.add('open');
       if (!el.dataset.loaded) {
         el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Lade…</div>';
         fetch(u('/api/ci/jobs?repo=' + encodeURIComponent(repo) + '&run_id=' + runId))
@@ -1712,7 +1723,7 @@
       }
     } else {
       _expandedRunIds.delete(String(runId));
-
+      if (btn) btn.classList.remove('open');
       el.style.display = 'none';
     }
   }
@@ -1831,8 +1842,9 @@
       const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
       const canCancel = ['in_progress','queued','waiting'].includes(run.status);
       const canDelete = run.status === 'completed';
-      const dur       = ciDuration(run.created, run.updated || (run.status !== 'completed' ? null : run.updated));
-      const timeDisp  = formatRunTime(run.created) + (dur ? ' · ' + dur : '');
+      const liveRun   = ['in_progress','queued','waiting'].includes(run.status);
+      const dur       = ciDuration(run.created, liveRun ? null : run.updated);
+      const timeDisp  = formatRunTime(run.created) + (dur ? ` · <span${liveRun ? ` class="run-dur-live" data-started="${escHtml(run.created)}"` : ''}>${dur}</span>` : '');
       return `
         <div class="run-row">
           <div class="run-dot ${ciStatusClass(status)}"></div>
@@ -1850,7 +1862,7 @@
           ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow(this,'${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
           ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow(this,'${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
           ${canDelete ? `<button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteWorkflowRun('${escHtml(repo.repo)}',${run.id})">🗑 ${T.btn_delete_run}</button>` : ''}
-          <button class="act-btn act-btn-detail" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs">▾</button>
+          <button class="act-btn act-btn-detail" id="jobsbtn-${run.id}" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs"><span class="jobs-arrow">▾</span></button>
         </div>
         <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
     }).join('');
