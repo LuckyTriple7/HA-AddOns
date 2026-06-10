@@ -142,9 +142,24 @@
   "tg_security":           "🔴 Security alerts",
   "tg_my_activity":        "👤 My activity (own PRs & issues)",
 
-  "no_activity":           "No open PRs or issues created by you",
+  "no_activity":           "No open PRs, issues or review requests found",
   "activity_my_prs":       "My open pull requests",
   "activity_my_issues":    "My open issues",
+  "activity_review_prs":   "Requested to review",
+
+  "pr_body_show":          "▼ Description",
+  "pr_body_hide":          "▲ Description",
+  "comments_load":         "Comments",
+  "comments_loading":      "Loading comments…",
+  "comments_none":         "No comments yet",
+  "comments_total":        "Total:",
+  "comments_showing":      "Showing last:",
+
+  "insights_license":      "License",
+  "insights_no_license":   "No license",
+  "insights_has_ci":       "CI workflows active",
+  "insights_no_ci":        "No CI",
+  "insights_security_alerts": "Security alerts — click to open security tab",
 
   "settings_em_hint": "SMTP server is configured in the add-on options (smtp_host, smtp_to).",
   "settings_em_not_configured": "E-mail not active — smtp_host and/or smtp_to missing in add-on options.",

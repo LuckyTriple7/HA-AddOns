@@ -685,8 +685,8 @@
   function _bnNotif() {
     try { return JSON.parse(localStorage.getItem('gp_bn_notif') || '{}'); } catch { return {}; }
   }
-  let _prFilter = '';
-  let _issueFilter = '';
+  let _prFilter    = _loadFilter('gp_pr_filter', '');
+  let _issueFilter = _loadFilter('gp_iss_filter', '');
   let _prStateFilter  = 'open';
   let _issStateFilter = 'open';
   let _ciTimeFilter = 'all';
@@ -823,6 +823,8 @@
     { key:'star_fork',           label:'{{ t.tg_star_fork }}' },
     { key:'security',            label:'{{ t.tg_security }}' },
     { key:'my_activity',         label:'{{ t.tg_my_activity }}' },
+    { key:'review_request',      label:'{{ t.tg_review_request }}' },
+    { key:'digest',              label:'{{ t.tg_digest }}' },
   ];
 
   function openSettings() {
@@ -1087,10 +1089,12 @@
   }
   function applyPRFilter() {
     _prFilter = (document.getElementById('pr-filter')?.value || '').toLowerCase();
+    _saveFilter('gp_pr_filter', _prFilter);
     if (ghData) renderPRs(ghData);
   }
   function applyIssueFilter() {
     _issueFilter = (document.getElementById('issue-filter')?.value || '').toLowerCase();
+    _saveFilter('gp_iss_filter', _issueFilter);
     if (ghData) renderIssues(ghData);
   }
   function setCIFilter(f) {
@@ -1441,6 +1445,21 @@
             <span style="font-size:.67rem;color:var(--muted)">{{ t.stat_watchers }}</span>
           </div>
         </div>
+        ${(() => {
+          const ins = repo.insights || {};
+          const chips = [];
+          if (ins.has_license)
+            chips.push(`<span title="{{ t.insights_license }}: ${escHtml(ins.license_name||'?')}" style="display:flex;align-items:center;gap:3px;font-size:.7rem;color:var(--green)">⚖️ ${escHtml(ins.license_name||'?')}</span>`);
+          else
+            chips.push(`<span title="{{ t.insights_no_license }}" style="display:flex;align-items:center;gap:3px;font-size:.7rem;color:var(--muted)">⚖️ <span style="color:var(--muted)">{{ t.insights_no_license }}</span></span>`);
+          if (ins.has_ci)
+            chips.push(`<span title="{{ t.insights_has_ci }}" style="font-size:.7rem;color:var(--green)">⚙️ CI</span>`);
+          else
+            chips.push(`<span title="{{ t.insights_no_ci }}" style="font-size:.7rem;color:var(--muted)">⚙️ <span style="color:var(--muted)">{{ t.insights_no_ci }}</span></span>`);
+          if (ins.security_count > 0)
+            chips.push(`<span title="{{ t.insights_security_alerts }}" style="font-size:.7rem;color:var(--red)" onclick="selectRepo('${escHtml(repo.repo)}');switchTab('security')" style="cursor:pointer">🔒 ${ins.security_count}</span>`);
+          return `<div style="display:flex;gap:10px;align-items:center;padding:5px 12px;border-top:1px solid var(--border);background:var(--surf2);flex-wrap:wrap">${chips.join('')}</div>`;
+        })()}
       </div>`;
     }).join('');
   }
@@ -1495,11 +1514,15 @@
     _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all'; _ciFilter = '';
     const ciInput = document.getElementById('ci-filter'); if (ciInput) ciInput.value = '';
     document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
+    try { localStorage.setItem('gp_active_repo', repo); } catch {}
     renderPRs(ghData);
     renderIssues(ghData);
     renderCI(ghData);
     renderSecurity(ghData);
   }
+
+  function _saveFilter(key, val) { try { localStorage.setItem(key, val); } catch {} }
+  function _loadFilter(key, def) { try { return localStorage.getItem(key) ?? def; } catch { return def; } }
 
   // ── Render: PRs ───────────────────────────────────────────────────
   function renderPRs(data) {
@@ -1539,23 +1562,32 @@
             ? `<span style="color:#a371f7">⎇ ${T.pr_merged}</span>`
             : `<span style="color:var(--red)">✕ ${T.pr_closed}</span>`)
         : `<span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>`;
+      const bkey   = repo.repo + '#' + pr.number;
+      const bdomId = CSS.escape(bkey);
+      const hasBody = (pr.body || '').trim().length > 0;
       return `
-      <div class="item-row">
-        <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
-        <div class="item-main">
-          <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
-          <div class="item-meta">
-            ${stateSpan}
-            <span>@${escHtml(pr.user)}</span>
-            <span>${relTime(pr.updated)}</span>
-            ${!closed ? reviewBadge(pr.review_state) : ''}
-            ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
-            ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
+          <div class="item-main">
+            <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
+            <div class="item-meta">
+              ${stateSpan}
+              <span>@${escHtml(pr.user)}</span>
+              <span>${relTime(pr.updated)}</span>
+              ${!closed ? reviewBadge(pr.review_state) : ''}
+              ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(bkey)},this)">${T.pr_body_show}</button>` : ''}
+              ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
+              ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+            </div>
           </div>
+          ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
+          ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
+          ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
         </div>
-        ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
-        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
-        ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;background:var(--surf2);border-top:1px solid var(--border)">${escHtml((pr.body||'').trim())}</div>` : ''}
+        <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     }).join('') + '</div></div>';
   }
@@ -1591,23 +1623,35 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
       Issues — ${repo.name} (${filtered.length}${f && filtered.length !== allIssues.length ? ' / ' + allIssues.length : ''})
     </div><div class="card-body">` +
-    filtered.map(iss => `
-      <div class="item-row">
-        <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
-        <div class="item-main">
-          <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
-          <div class="item-meta">
-            ${closed
-              ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
-              : `<span class="pr-state-open">● ${T.iss_open}</span>`}
-            <span>@${escHtml(iss.user)}</span>
-            <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
-            ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+    filtered.map(iss => {
+      const bkey   = repo.repo + '#' + iss.number;
+      const bdomId = CSS.escape(bkey);
+      const hasBody = (iss.body || '').trim().length > 0;
+      return `
+      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
+          <div class="item-main">
+            <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
+            <div class="item-meta">
+              ${closed
+                ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
+                : `<span class="pr-state-open">● ${T.iss_open}</span>`}
+              <span>@${escHtml(iss.user)}</span>
+              <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
+              ${iss.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${iss.comments}</span>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(bkey)},this)">${T.pr_body_show}</button>` : ''}
+              ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
+              ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+            </div>
           </div>
+          ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
+          ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
         </div>
-        ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
-        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
-      </div>`).join('') + '</div></div>';
+        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;background:var(--surf2);border-top:1px solid var(--border)">${escHtml((iss.body||'').trim())}</div>` : ''}
+        <div id="cmts-${bdomId}" style="padding:0 12px"></div>
+      </div>`;
+    }).join('') + '</div></div>';
   }
 
   // ── CI helpers ────────────────────────────────────────────────────
@@ -1855,37 +1899,103 @@
   }
 
   // ── Render: My Activity ──────────────────────────────────────────
+  let _actBodyVisible = new Set();  // "repo#number" — aufgeklappte Bodies in Activity
+  let _commentsCache  = {};          // "repo#number" → {total, comments}
+
+  function toggleBody(key, btnEl) {
+    const div = document.getElementById('body-' + key);
+    if (!div) return;
+    const show = div.style.display === 'none';
+    div.style.display = show ? '' : 'none';
+    btnEl.textContent = show ? T.pr_body_hide : T.pr_body_show;
+    if (show) _actBodyVisible.add(key); else _actBodyVisible.delete(key);
+  }
+
+  function loadComments(repo, number, containerId) {
+    const ckey = repo + '#' + number;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (_commentsCache[ckey]) { _renderComments(el, _commentsCache[ckey]); return; }
+    el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_loading }}</div>`;
+    fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number))
+      .then(r => r.json())
+      .then(d => {
+        _commentsCache[ckey] = d;
+        _renderComments(el, d);
+      })
+      .catch(() => {
+        el.innerHTML = `<div style="font-size:.78rem;color:var(--red);padding:6px 0">Fehler</div>`;
+      });
+  }
+
+  function _renderComments(el, data) {
+    const cs = data.comments || [];
+    if (!cs.length) {
+      el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_none }}</div>`;
+      return;
+    }
+    const total = data.total || cs.length;
+    const hdr = total > cs.length
+      ? `<div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">{{ t.comments_total }} ${total} — {{ t.comments_showing }} ${cs.length}</div>`
+      : '';
+    el.innerHTML = hdr + cs.map(c => `
+      <div style="display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--border)">
+        <img src="${escHtml(c.avatar)}" alt="${escHtml(c.user)}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.72rem;font-weight:600;color:var(--accent)">@${escHtml(c.user)} <span style="font-weight:400;color:var(--muted)">${relTime(c.created)}</span></div>
+          <div style="font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;margin-top:2px">${escHtml((c.body||'').trim())}</div>
+        </div>
+      </div>`).join('');
+  }
+
   function renderActivity(data) {
     const el  = document.getElementById('activity-list');
     const act = data.my_activity || {};
-    const prs    = act.prs    || [];
-    const issues = act.issues || [];
-    if (!prs.length && !issues.length) {
+    const prs        = act.prs        || [];
+    const issues     = act.issues     || [];
+    const reviewPRs  = act.review_prs || [];
+    if (!prs.length && !issues.length && !reviewPRs.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><div>${T.no_activity}</div></div>`;
       return;
     }
     const myRepoSet = new Set((data.my_repos || []).map(r => r.repo));
-    const itemRow = (item, type) => `
-      <div class="item-row">
-        <div class="item-main">
-          <div class="item-title">
-            <span style="font-size:.72rem;color:var(--muted);margin-right:4px">${escHtml(item.repo)}</span>
-            <a href="${item.url}" target="_blank" rel="noopener noreferrer">#${item.number} ${escHtml(item.title)}</a>
-            ${item.draft ? `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">Draft</span>` : ''}
+
+    const itemRow = (item, type, showClose = true) => {
+      const bkey   = escHtml(item.repo) + '%23' + item.number;
+      const bdomId = 'body-' + CSS.escape(item.repo + '#' + item.number);
+      const cdomId = 'cmts-' + CSS.escape(item.repo + '#' + item.number);
+      const hasBody = (item.body || '').trim().length > 0;
+      return `
+      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div class="item-main">
+            <div class="item-title">
+              <span style="font-size:.72rem;color:var(--muted);margin-right:4px">${escHtml(item.repo)}</span>
+              <a href="${item.url}" target="_blank" rel="noopener noreferrer">#${item.number} ${escHtml(item.title)}</a>
+              ${item.draft ? `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">Draft</span>` : ''}
+            </div>
+            <div class="item-meta">
+              ${type === 'review'
+                ? `<span style="color:#a371f7">👁 Review</span>`
+                : type === 'pr'
+                  ? `<span class="pr-state-open">⇄ PR</span>`
+                  : `<span style="color:var(--yellow)">● Issue</span>`}
+              <span>${relTime(item.updated)}</span>
+              ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${JSON.stringify(item.repo+'#'+item.number)},this)">${T.pr_body_show}</button>` : ''}
+              ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}</button>` : ''}
+              ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
+            </div>
           </div>
-          <div class="item-meta">
-            ${type === 'pr'
-              ? `<span class="pr-state-open">⇄ PR</span>`
-              : `<span style="color:var(--yellow)">● Issue</span>`}
-            <span>${relTime(item.updated)}</span>
-            ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
-            ${(item.labels||[]).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
-          </div>
+          ${showClose && myRepoSet.has(item.repo) ? (type !== 'issue'
+            ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
+            : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`) : ''}
         </div>
-        ${myRepoSet.has(item.repo) ? (type === 'pr'
-          ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
-          : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`) : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);white-space:pre-wrap;word-break:break-word;background:var(--surf2);border-top:1px solid var(--border)">${escHtml((item.body||'').trim())}</div>` : ''}
+        <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
+    };
+
     let html = '';
     if (prs.length) {
       html += `<div class="card" style="margin-bottom:10px"><div class="card-header">
@@ -1894,10 +2004,16 @@
       </div><div class="card-body">${prs.map(p => itemRow(p, 'pr')).join('')}</div></div>`;
     }
     if (issues.length) {
-      html += `<div class="card"><div class="card-header">
+      html += `<div class="card" style="margin-bottom:10px"><div class="card-header">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
         {{ t.activity_my_issues }} (${issues.length})
       </div><div class="card-body">${issues.map(i => itemRow(i, 'issue')).join('')}</div></div>`;
+    }
+    if (reviewPRs.length) {
+      html += `<div class="card"><div class="card-header">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="#a371f7"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+        {{ t.activity_review_prs }} (${reviewPRs.length})
+      </div><div class="card-body">${reviewPRs.map(p => itemRow(p, 'review', false)).join('')}</div></div>`;
     }
     el.innerHTML = html;
   }
@@ -2083,8 +2199,18 @@
 
   function render(data) {
     ghData = data;
-    if (!activeRepo && data.my_repos && data.my_repos.length)
-      activeRepo = data.my_repos[0].repo;
+    if (!activeRepo && data.my_repos && data.my_repos.length) {
+      const saved = _loadFilter('gp_active_repo', '');
+      const repos = data.my_repos.map(r => r.repo);
+      activeRepo = (saved && repos.includes(saved)) ? saved : repos[0];
+    }
+    // Filter-Felder aus localStorage vorbelegen (einmalig beim ersten Render)
+    if (!ghData || ghData === data) {
+      const prEl  = document.getElementById('pr-filter');
+      const issEl = document.getElementById('issue-filter');
+      if (prEl  && !prEl.value  && _prFilter)    prEl.value  = _prFilter;
+      if (issEl && !issEl.value && _issueFilter) issEl.value = _issueFilter;
+    }
     renderSummary(data);
     renderTokenAlert(data);
     renderRateLimit(data);

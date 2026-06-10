@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] - 2026-06-10
+
+### Added
+- **Filter-Persistenz**: aktiver Repo-Wechsler und Suchtext je Tab werden in localStorage gespeichert und nach Seiten-Reload wiederhergestellt
+- **Review-Requests**: neuer Bereich „Zur Review angefragt" in Meine Aktivität — PRs bei denen du als Reviewer angefragt bist (`review-requested:@me`) mit Benachrichtigung
+- **Body-Expand**: PR- und Issue-Beschreibung aufklappbar direkt in der Liste (▼ Beschreibung)
+- **Inline-Kommentarvorschau**: Letzte 3 Kommentare eines PR/Issue on-demand ladbar (neuer `/api/comments`-Endpunkt, gecacht im Browser bis Reload)
+- **Tages-Digest E-Mail**: tägliche Zusammenfassung aller offenen PRs, Issues und Security-Alerts — konfigurierbar via `digest_hour` (0–23, -1 = deaktiviert); ergänzt Echtzeit-Benachrichtigungen
+- **Repo-Insights-Ampel**: neue Zeile in jedem Repo-Card — Lizenz (⚖️), CI aktiv (⚙️) und Security-Alert-Zähler (🔒) auf einen Blick; Security-Zähler ist klickbar
+
+### Changed
+- `no_activity`-Text aktualisiert (enthält jetzt Review-Requests)
+- Benachrichtigungstypen `review_request` und `digest` in TG/E-Mail/Browser-Einstellungen wählbar
+
 ## [0.2.1] - 2026-06-10
 
 ### Fixed

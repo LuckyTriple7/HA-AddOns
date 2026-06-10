@@ -141,10 +141,27 @@
   "tg_star_fork":          "⭐ Stars & Forks",
   "tg_security":           "🔴 Security Alerts",
   "tg_my_activity":        "👤 Meine Aktivität (eigene PRs & Issues)",
+  "tg_review_request":     "🔍 Review angefragt",
+  "tg_digest":             "📋 Tages-Digest (einmal täglich)",
 
-  "no_activity":           "Keine offenen eigenen PRs oder Issues gefunden",
+  "no_activity":           "Keine offenen eigenen PRs, Issues oder Review-Requests gefunden",
   "activity_my_prs":       "Meine offenen Pull Requests",
   "activity_my_issues":    "Meine offenen Issues",
+  "activity_review_prs":   "Zur Review angefragt",
+
+  "pr_body_show":          "▼ Beschreibung",
+  "pr_body_hide":          "▲ Beschreibung",
+  "comments_load":         "Kommentare",
+  "comments_loading":      "Lade Kommentare…",
+  "comments_none":         "Keine Kommentare",
+  "comments_total":        "Gesamt:",
+  "comments_showing":      "Letzte:",
+
+  "insights_license":      "Lizenz",
+  "insights_no_license":   "Keine Lizenz",
+  "insights_has_ci":       "CI-Workflows aktiv",
+  "insights_no_ci":        "Kein CI",
+  "insights_security_alerts": "Security Alerts — klicken um Security-Tab zu öffnen",
 
   "settings_em_hint": "SMTP-Server wird in den Add-on-Einstellungen konfiguriert (smtp_host, smtp_to).",
   "settings_em_not_configured": "E-Mail nicht aktiv — smtp_host und/oder smtp_to fehlen in den Add-on-Einstellungen.",
