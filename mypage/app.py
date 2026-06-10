@@ -22,6 +22,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import markdown as md_lib
+try:
+    from PIL import Image
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
@@ -119,12 +124,14 @@ DEFAULT_SITE = {
     },
     'projects': [],
     'design': {
-        'accent': '#58a6ff', 'mode': 'dark', 'show_counter': True,
+        'accent': '#58a6ff', 'mode': 'dark', 'layout': 'cards',
+        'show_counter': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'contact_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
     },
+    'posts': [],
     'legal': {
         'impressum_de': '', 'impressum_en': '',
         'privacy_de': '', 'privacy_en': '',
@@ -353,8 +360,17 @@ _BOT_UA = ('bot', 'crawl', 'spider', 'curl', 'wget', 'python-requests',
 VISIT_LOG_MAX = 500
 
 
+def total_uniques(stats: dict) -> int:
+    """Eindeutige Besucher gesamt — Altbestand wird aus den Tageswerten migriert."""
+    if 'total_uniques' in stats:
+        return stats['total_uniques']
+    return sum(d.get('uniques', 0) for d in stats.get('days', {}).values())
+
+
 def count_visit(req) -> None:
     global _seen_today, _seen_day
+    if req.headers.get('X-MyPage-Export'):
+        return  # interner Abruf für den statischen Export
     ua = req.headers.get('User-Agent') or ''
     is_bot = (not ua) or any(b in ua.lower() for b in _BOT_UA)
     ip = get_client_ip(req)
@@ -385,11 +401,13 @@ def count_visit(req) -> None:
     del visit_log[:-VISIT_LOG_MAX]
 
     if not is_bot:
+        base_uniques = total_uniques(stats)
         day = stats['days'].setdefault(today, {'views': 0, 'uniques': 0})
         day['views'] += 1
         if is_new:
             day['uniques'] += 1
         stats['total'] = stats.get('total', 0) + 1
+        stats['total_uniques'] = base_uniques + (1 if is_new else 0)
     # Alte Tage aufräumen
     if len(stats['days']) > STATS_KEEP_DAYS:
         for k in sorted(stats['days'])[:-STATS_KEEP_DAYS]:
@@ -428,6 +446,62 @@ def aggregate_visits(visit_log: list) -> tuple[list, list]:
     top_brw = sorted(browsers.items(),  key=lambda x: x[1], reverse=True)
     return ([{'name': k, 'count': c} for k, c in top_ref],
             [{'name': k, 'count': c} for k, c in top_brw])
+
+
+# ── Home-Assistant-Sensoren ───────────────────────────────────────────────────
+
+SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
+
+
+def push_ha_sensors() -> None:
+    """Meldet Besucherzahlen als Sensoren an Home Assistant (Supervisor-API)."""
+    if not SUPERVISOR_TOKEN:
+        return
+    stats = load_stats()
+    today = stats['days'].get(date.today().isoformat(), {'views': 0, 'uniques': 0})
+    sensors = [
+        ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
+        ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
+        ('mypage_views_today',    today['views'],        'MyPage Aufrufe heute',   'mdi:eye',           'Aufrufe'),
+        ('mypage_visitors_today', today['uniques'],      'MyPage Besucher heute',  'mdi:account',       'Besucher'),
+    ]
+    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    for sid, state, name, icon, unit in sensors:
+        try:
+            http.post(f'http://supervisor/core/api/states/sensor.{sid}',
+                      headers=headers, timeout=10,
+                      json={'state': state,
+                            'attributes': {'friendly_name': name, 'icon': icon,
+                                           'unit_of_measurement': unit}})
+        except Exception as e:
+            log.warning("HA-Sensor '%s' konnte nicht aktualisiert werden: %s", sid, e)
+            return
+
+
+def _sensor_worker() -> None:
+    if not SUPERVISOR_TOKEN:
+        log.info("Kein SUPERVISOR_TOKEN — HA-Sensoren deaktiviert (Dev-Modus)")
+        return
+    while True:
+        push_ha_sensors()
+        time.sleep(120)
+
+
+# ── Blog-Posts ────────────────────────────────────────────────────────────────
+
+def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
+    p = existing or {'id': uuid.uuid4().hex[:12]}
+    p['date']     = _clean_str(raw.get('date'), 10)
+    p['title_de'] = _clean_str(raw.get('title_de'), 150)
+    p['title_en'] = _clean_str(raw.get('title_en'), 150)
+    p['text_de']  = _clean_str(raw.get('text_de'), 30000)
+    p['text_en']  = _clean_str(raw.get('text_en'), 30000)
+    p['image']    = _clean_str(raw.get('image'), 500)
+    return p
+
+
+def sorted_posts(site: dict) -> list:
+    return sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
 
 
 # ── GitHub-Import ─────────────────────────────────────────────────────────────
@@ -469,6 +543,21 @@ def fetch_github_repos(user: str) -> list[dict]:
         })
     repos.sort(key=lambda x: x['stars'], reverse=True)
     return repos
+
+
+def fetch_github_readme(full_name: str) -> str:
+    """README eines Repos als Markdown (leer bei Fehler)."""
+    if not _GH_REPO_RE.match(full_name):
+        return ''
+    try:
+        h = _gh_headers()
+        h['Accept'] = 'application/vnd.github.raw+json'
+        r = http.get(f'{GITHUB_API}/repos/{full_name}/readme', headers=h, timeout=15)
+        if r.status_code == 200:
+            return r.text[:20000]
+    except Exception as e:
+        log.warning("README von '%s' konnte nicht geladen werden: %s", full_name, e)
+    return ''
 
 
 def refresh_project_stars() -> None:
@@ -663,8 +752,13 @@ def api_design():
     accent = _clean_str(raw.get('accent'), 9)
     if re.match(r'^#[0-9A-Fa-f]{6}$', accent):
         d['accent'] = accent
-    if raw.get('mode') in ('dark', 'light'):
+    if raw.get('mode') in ('dark', 'light', 'auto'):
         d['mode'] = raw['mode']
+    if raw.get('layout') in ('cards', 'list', 'minimal'):
+        d['layout'] = raw['layout']
+    if 'public_url' in raw:
+        url = _clean_str(raw['public_url'], 200).rstrip('/')
+        d['public_url'] = url if url.startswith(('http://', 'https://')) or not url else ''
     for flag in ('show_counter', 'contact_enabled', 'maintenance'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -845,6 +939,77 @@ def api_project_move(pid: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/posts', methods=['POST'])
+def api_post_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 150) or _clean_str(raw.get('title_en'), 150)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    site.setdefault('posts', []).append(_normalize_post(raw))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/posts/<pid>', methods=['PUT', 'DELETE'])
+def api_post_edit(pid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    posts = site.setdefault('posts', [])
+    idx = next((i for i, p in enumerate(posts) if p.get('id') == pid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        posts.pop(idx)
+    else:
+        posts[idx] = _normalize_post(request.get_json(silent=True) or {}, posts[idx])
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/export')
+def api_export():
+    """Statischer HTML-Export der öffentlichen Seite (für z. B. GitHub Pages)."""
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    loc = _loc_factory('de')
+    legal = site.get('legal', {})
+    pages = {'index.html': '/?static=1'}
+    for p in site['projects']:
+        if _has_detail(p):
+            pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
+    posts = sorted_posts(site)
+    if posts:
+        pages['blog/index.html'] = '/blog'
+        for po in posts:
+            pages[f"blog/{po['id']}/index.html"] = f"/blog/{po['id']}"
+    if loc(legal, 'impressum').strip():
+        pages['impressum/index.html'] = '/impressum'
+    if loc(legal, 'privacy').strip():
+        pages['datenschutz/index.html'] = '/datenschutz'
+
+    client = public_app.test_client()
+    headers = {'Accept-Language': 'de', 'X-MyPage-Export': '1'}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for fname, path in pages.items():
+            r = client.get(path, headers=headers)
+            if r.status_code == 200:
+                z.writestr(fname, r.data)
+        for f in UPLOADS_DIR.iterdir():
+            if f.is_file():
+                z.write(f, 'uploads/' + f.name)
+    buf.seek(0)
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name=f'mypage-export-{date.today().isoformat()}.zip')
+
+
 @admin_app.route('/api/upload', methods=['POST'])
 def api_upload():
     err = _api_auth()
@@ -856,6 +1021,22 @@ def api_upload():
     ext = Path(f.filename).suffix.lower()
     if ext not in ALLOWED_UPLOAD_EXT:
         return jsonify({'error': 'file type not allowed'}), 400
+    # Bilder verkleinern und als WebP speichern (GIFs unverändert, wegen Animation)
+    if _HAS_PIL and ext != '.gif':
+        try:
+            img = Image.open(f.stream)
+            img.thumbnail((1600, 1600))
+            if img.mode not in ('RGB', 'RGBA'):
+                img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
+            name = uuid.uuid4().hex + '.webp'
+            target = (UPLOADS_DIR / name).resolve()
+            if target.parent != UPLOADS_DIR.resolve():
+                abort(400)
+            img.save(target, 'WEBP', quality=82)
+            return jsonify({'ok': True, 'url': '/uploads/' + name})
+        except Exception as e:
+            log.warning("Bild-Optimierung fehlgeschlagen, speichere Original: %s", e)
+            f.stream.seek(0)
     name = uuid.uuid4().hex + ext
     target = (UPLOADS_DIR / name).resolve()
     if target.parent != UPLOADS_DIR.resolve():
@@ -886,6 +1067,7 @@ def api_github_import():
         return err
     raw = request.get_json(silent=True) or {}
     repos = raw.get('repos') or []
+    import_readme = bool(raw.get('import_readme'))
     if not isinstance(repos, list):
         return jsonify({'error': 'invalid payload'}), 400
     site = load_site()
@@ -898,6 +1080,7 @@ def api_github_import():
         if not full_name or not _GH_REPO_RE.match(full_name) or full_name in existing:
             continue
         site['projects'].append(_normalize_project({
+            'long_de':        fetch_github_readme(full_name) if import_readme else '',
             'title':          repo.get('name') or full_name.split('/')[-1],
             'desc_de':        repo.get('description', ''),
             'desc_en':        repo.get('description', ''),
@@ -924,8 +1107,9 @@ def api_stats():
     days = sorted(stats['days'].keys(), reverse=True)[:30]
     referrers, browsers = aggregate_visits(stats.get('log', []))
     return jsonify({
-        'total':     stats.get('total', 0),
-        'today':     stats['days'].get(today, {'views': 0, 'uniques': 0}),
+        'total':         stats.get('total', 0),
+        'total_uniques': total_uniques(stats),
+        'today':         stats['days'].get(today, {'views': 0, 'uniques': 0}),
         'days':      [{'date': d, **stats['days'][d]} for d in days],
         'log':       list(reversed(stats.get('log', [])))[:100],
         'referrers': referrers,
@@ -961,9 +1145,41 @@ def public_uploads(filename: str):
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
 
 
+def _base_url() -> str:
+    site = load_site()
+    return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
+
+
 @public_app.route('/robots.txt')
 def robots():
-    return 'User-agent: *\nAllow: /\n', 200, {'Content-Type': 'text/plain'}
+    return (f'User-agent: *\nAllow: /\nSitemap: {_base_url()}/sitemap.xml\n',
+            200, {'Content-Type': 'text/plain'})
+
+
+@public_app.route('/sitemap.xml')
+def sitemap():
+    site = load_site()
+    base = _base_url()
+    urls = [base + '/']
+    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p)]
+    posts = sorted_posts(site)
+    if posts:
+        urls.append(base + '/blog')
+        urls += [f"{base}/blog/{p['id']}" for p in posts]
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    for u in urls:
+        xml += f'  <url><loc>{u}</loc></url>\n'
+    xml += '</urlset>\n'
+    return xml, 200, {'Content-Type': 'application/xml'}
+
+
+@public_app.errorhandler(404)
+def not_found(_e):
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('404.html', t=t, lang=lang, site=site), 404
 
 
 def _loc_factory(lang: str):
@@ -998,15 +1214,51 @@ def public_index():
     email = site['profile'].get('email', '')
     email_parts = email.split('@', 1) if '@' in email else None
     projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects']]
+    static_export = bool(request.args.get('static'))
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
                            sections=site.get('sections', {}),
-                           contact_enabled=bool(site['design'].get('contact_enabled')),
-                           total_visitors=stats.get('total', 0),
+                           latest_posts=sorted_posts(site)[:3],
+                           static_export=static_export,
+                           contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,
+                           total_visitors=total_uniques(stats),
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/blog')
+def blog_index():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    posts = sorted_posts(site)
+    if not posts:
+        abort(404)
+    count_visit(request)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
+                           posts=posts, year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/blog/<pid>')
+def blog_post(pid: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
+    if post is None:
+        abort(404)
+    count_visit(request)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
+                           text_html=render_md(loc(post, 'text')),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -1100,6 +1352,7 @@ if __name__ == '__main__':
 
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()
+    threading.Thread(target=_sensor_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)

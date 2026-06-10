@@ -17,6 +17,38 @@
   "tab_content": "Inhalte",
   "tab_messages": "Nachrichten",
   "tab_system": "System",
+  "tab_blog": "Blog",
+
+  "blog_heading": "Blog",
+  "blog_all": "Alle Beiträge",
+  "blog_hint": "Beiträge erscheinen unter /blog, die neuesten drei auch auf der Startseite. Markdown wird unterstützt.",
+  "new_post": "Neuer Beitrag",
+  "edit_post": "Beitrag bearbeiten",
+  "no_posts": "Noch keine Beiträge.",
+  "field_date": "Datum",
+  "field_text_md": "Text (Markdown)",
+
+  "field_layout": "Projekt-Layout",
+  "layout_cards": "Karten",
+  "layout_list": "Liste",
+  "layout_minimal": "Minimal",
+  "mode_auto": "Automatisch (Systemeinstellung)",
+  "field_public_url": "Öffentliche URL (für SEO/Sitemap)",
+
+  "import_readme": "README der Repos als Detailtext übernehmen",
+
+  "export_heading": "Statischer Export",
+  "export_hint": "Lädt die komplette Seite als statisches HTML-Paket (deutsch) — z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.",
+  "export_download": "Export herunterladen",
+
+  "sensors_heading": "Home-Assistant-Sensoren",
+  "sensors_hint": "Das Add-on meldet automatisch sensor.mypage_views_total, sensor.mypage_visitors_total, sensor.mypage_views_today und sensor.mypage_visitors_today an Home Assistant (alle 2 Minuten).",
+
+  "stat_total_uniques": "Besucher gesamt",
+
+  "nf_title": "Seite nicht gefunden",
+  "nf_text": "Die angeforderte Seite existiert nicht (mehr).",
+  "nf_home": "Zur Startseite",
 
   "skills_heading": "Skills",
   "field_skills": "Skills (kommagetrennt)",

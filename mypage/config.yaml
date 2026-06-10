@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.0.3"
+version: "0.0.4"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -19,6 +19,8 @@ panel_title: MyPage
 ingress: true
 ingress_port: 17761
 ingress_stream: true
+
+homeassistant_api: true
 
 ports:
   17760/tcp: 17760

@@ -39,9 +39,34 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 ### Nachrichten
 Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz über ein unsichtbares Honeypot-Feld plus Rate-Limit (5 Nachrichten/Stunde pro IP). Mit Telegram-Bot-Token und Chat-ID in den Add-on-Optionen wirst du sofort benachrichtigt.
 
+### Blog
+Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einzelne Beiträge unter `/blog/<id>`, die neuesten drei erscheinen auf der Startseite.
+
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
+- **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
+
+## Home-Assistant-Sensoren
+
+Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
+
+| Sensor | Inhalt |
+|---|---|
+| `sensor.mypage_views_total` | Seitenaufrufe gesamt |
+| `sensor.mypage_visitors_total` | Eindeutige Besucher gesamt |
+| `sensor.mypage_views_today` | Aufrufe heute |
+| `sensor.mypage_visitors_today` | Eindeutige Besucher heute |
+
+Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei Besucherrekord).
+
+## SEO
+
+`sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain). Strukturierte Daten (JSON-LD) für Person und Blog-Beiträge sind eingebaut.
+
+## Bilder
+
+Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben).
 
 ### Design
 Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel), Besucherzähler ein/aus, Footer-Text.

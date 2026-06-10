@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.4
+
+- 🔢 **Fix Besucherzähler**: Der öffentliche Zähler zeigt jetzt eindeutige Besucher (pro Tag dedupliziert) — ein Browser-Refresh zählt nicht mehr hoch
+- 🎨 **Layout-Themes**: Projekte als Karten, Liste oder Minimal-Ansicht
+- 📰 **Blog**: Beiträge mit Markdown unter `/blog`, die neuesten drei auf der Startseite — neuer Admin-Tab
+- 🏠 **Home-Assistant-Sensoren**: Aufrufe/Besucher (gesamt + heute) als `sensor.mypage_*` in HA
+- 📥 **README-Import**: Beim GitHub-Import optional das README als Detailtext übernehmen
+- 🌗 **Auto-Theme**: folgt auf Wunsch der Systemeinstellung des Besuchers
+- 🚫 **Eigene 404-Seite** im Seiten-Design
+- 🔍 **SEO**: `sitemap.xml`, `robots.txt` mit Sitemap-Verweis, JSON-LD (Person + BlogPosting), Feld „Öffentliche URL"
+- 📦 **Statischer Export**: komplette Seite als HTML-Paket (z. B. für GitHub Pages)
+- 🖼 **Bild-Optimierung**: Uploads werden auf max. 1600 px verkleinert und als WebP gespeichert
+- 📊 Statistik: neue Karte „Besucher gesamt"
+
 ## 0.0.3
 
 - 🛠 **Wartungsmodus**: Schalter im neuen System-Tab — öffentliche Seite zeigt einen Hinweis (HTTP 503), Admin bleibt erreichbar

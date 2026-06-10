@@ -136,6 +136,7 @@
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
+        <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
@@ -236,6 +237,9 @@
           </div>
           <button class="btn secondary" style="margin-top:0" onclick="loadGithubRepos()">{{ t.load_repos }}</button>
         </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+          <input type="checkbox" id="gh-readme" style="width:auto"> {{ t.import_readme }}
+        </label>
         <div id="gh-results"></div>
       </div>
       <div class="panel">
@@ -244,6 +248,18 @@
           <button class="btn small" onclick="openProjectModal()">+ {{ t.new_project }}</button>
         </h3>
         <div class="proj-list" id="proj-list"></div>
+      </div>
+    </section>
+
+    <!-- Blog -->
+    <section class="tab" id="tab-blog">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.blog_heading }}
+          <button class="btn small" onclick="openPostModal()">+ {{ t.new_post }}</button>
+        </h3>
+        <p class="hint">{{ t.blog_hint }}</p>
+        <div class="proj-list" id="post-list"></div>
       </div>
     </section>
 
@@ -267,6 +283,7 @@
             <select id="d-mode">
               <option value="dark">{{ t.mode_dark }}</option>
               <option value="light">{{ t.mode_light }}</option>
+              <option value="auto">{{ t.mode_auto }}</option>
             </select>
           </div>
           <div>
@@ -275,6 +292,20 @@
               <option value="1">{{ t.yes }}</option>
               <option value="0">{{ t.no }}</option>
             </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_layout }}</label>
+            <select id="d-layout">
+              <option value="cards">{{ t.layout_cards }}</option>
+              <option value="list">{{ t.layout_list }}</option>
+              <option value="minimal">{{ t.layout_minimal }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.field_public_url }}</label>
+            <input type="text" id="d-public_url" placeholder="https://meine-domain.de">
           </div>
         </div>
         <div class="row">
@@ -377,12 +408,22 @@
         <input type="file" id="restore-input" accept=".zip" style="display:none">
         <p class="hint">{{ t.restore_hint }}</p>
       </div>
+      <div class="panel">
+        <h3>{{ t.export_heading }}</h3>
+        <p class="hint">{{ t.export_hint }}</p>
+        <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.sensors_heading }}</h3>
+        <p class="hint">{{ t.sensors_hint }}</p>
+      </div>
     </section>
 
     <!-- Statistik -->
     <section class="tab" id="tab-stats">
       <div class="stat-cards">
         <div class="stat-card"><div class="num" id="s-total">–</div><div class="lbl">{{ t.stat_total }}</div></div>
+        <div class="stat-card"><div class="num" id="s-total-uniques">–</div><div class="lbl">{{ t.stat_total_uniques }}</div></div>
         <div class="stat-card"><div class="num" id="s-today-views">–</div><div class="lbl">{{ t.stat_today_views }}</div></div>
         <div class="stat-card"><div class="num" id="s-today-uniques">–</div><div class="lbl">{{ t.stat_today_uniques }}</div></div>
       </div>
@@ -476,6 +517,50 @@
     </div>
   </div>
 
+  <!-- Blog-Post-Modal -->
+  <div class="modal-bg" id="post-modal">
+    <div class="modal">
+      <h3 id="bm-title">{{ t.new_post }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.field_date }}</label>
+          <input type="date" id="bm-date">
+        </div>
+        <div>
+          <label>{{ t.field_image }}</label>
+          <div class="upload-row">
+            <input type="text" id="bm-image" placeholder="https://… {{ t.or_upload }}">
+            <button class="btn secondary small" onclick="pickUpload(u => { el('bm-image').value = u; })">{{ t.upload }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="bm-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="bm-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_text_md }} (DE)</label>
+          <textarea id="bm-text_de" rows="10"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_text_md }} (EN)</label>
+          <textarea id="bm-text_en" rows="10"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="savePost()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
   <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
   <div class="toast" id="toast"></div>
 
@@ -538,6 +623,66 @@
       fillSections();
       fillSystem();
       renderProjects();
+      renderPosts();
+    }
+
+    // ── Blog ──
+    let editingPostId = null;
+    function renderPosts() {
+      const list = el('post-list');
+      list.innerHTML = '';
+      const posts = [...(SITE.posts || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (!posts.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_posts}</div>`;
+        return;
+      }
+      posts.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small">${T.edit}</button>
+            <button class="btn danger small">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
+        div.querySelector('.proj-meta').textContent = p.date || '';
+        const [editBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        editBtn.onclick = () => openPostModal(p.id);
+        delBtn.onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await fetch('api/posts/' + p.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        list.appendChild(div);
+      });
+    }
+    function openPostModal(id) {
+      editingPostId = id || null;
+      const p = id ? SITE.posts.find(x => x.id === id) : {};
+      el('bm-title').textContent = id ? T.edit_post : T.new_post;
+      el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
+      el('bm-image').value = p.image || '';
+      el('bm-title_de').value = p.title_de || '';
+      el('bm-title_en').value = p.title_en || '';
+      el('bm-text_de').value = p.text_de || '';
+      el('bm-text_en').value = p.text_en || '';
+      el('post-modal').classList.add('open');
+    }
+    async function savePost() {
+      const body = {
+        date:     el('bm-date').value,
+        image:    el('bm-image').value,
+        title_de: el('bm-title_de').value,
+        title_en: el('bm-title_en').value,
+        text_de:  el('bm-text_de').value,
+        text_en:  el('bm-text_en').value,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingPostId
+        ? await apiJson('api/posts/' + editingPostId, 'PUT', body)
+        : await apiJson('api/posts', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('post-modal').classList.remove('open'); loadSite(); }
     }
 
     // ── Live-Vorschau ──
@@ -756,6 +901,8 @@
       el('d-show_counter').value = d.show_counter ? '1' : '0';
       el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
+      el('d-layout').value = d.layout || 'cards';
+      el('d-public_url').value = d.public_url || '';
       el('d-footer_text').value = d.footer_text || '';
     }
     async function saveDesign() {
@@ -763,6 +910,8 @@
         site_title:      el('d-site_title').value,
         accent:          el('d-accent').value,
         mode:            el('d-mode').value,
+        layout:          el('d-layout').value,
+        public_url:      el('d-public_url').value,
         show_counter:    el('d-show_counter').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',
         favicon:         el('d-favicon').value,
@@ -905,7 +1054,8 @@
       const selected = [...el('gh-results').querySelectorAll('input:checked')]
         .map(cb => window._ghRepos[parseInt(cb.dataset.i)]);
       if (!selected.length) { toast(T.error_select, true); return; }
-      const r = await apiJson('api/github/import', 'POST', { repos: selected });
+      const r = await apiJson('api/github/import', 'POST',
+        { repos: selected, import_readme: el('gh-readme').checked });
       if (r.ok) {
         const data = await r.json();
         toast(T.imported.replace('{n}', data.added));
@@ -939,6 +1089,7 @@
       if (!r.ok) return;
       const s = await r.json();
       el('s-total').textContent = s.total;
+      el('s-total-uniques').textContent = s.total_uniques;
       el('s-today-views').textContent = s.today.views;
       el('s-today-uniques').textContent = s.today.uniques;
       const max = Math.max(1, ...s.days.map(d => d.views));

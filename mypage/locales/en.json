@@ -17,6 +17,38 @@
   "tab_content": "Content",
   "tab_messages": "Messages",
   "tab_system": "System",
+  "tab_blog": "Blog",
+
+  "blog_heading": "Blog",
+  "blog_all": "All posts",
+  "blog_hint": "Posts appear under /blog, the latest three also on the homepage. Markdown is supported.",
+  "new_post": "New post",
+  "edit_post": "Edit post",
+  "no_posts": "No posts yet.",
+  "field_date": "Date",
+  "field_text_md": "Text (Markdown)",
+
+  "field_layout": "Project layout",
+  "layout_cards": "Cards",
+  "layout_list": "List",
+  "layout_minimal": "Minimal",
+  "mode_auto": "Automatic (system setting)",
+  "field_public_url": "Public URL (for SEO/sitemap)",
+
+  "import_readme": "Use the repos' README as detail text",
+
+  "export_heading": "Static export",
+  "export_hint": "Downloads the whole site as a static HTML package (German) — e.g. for GitHub Pages. Contact form and language switcher are disabled in the export.",
+  "export_download": "Download export",
+
+  "sensors_heading": "Home Assistant sensors",
+  "sensors_hint": "The add-on automatically reports sensor.mypage_views_total, sensor.mypage_visitors_total, sensor.mypage_views_today and sensor.mypage_visitors_today to Home Assistant (every 2 minutes).",
+
+  "stat_total_uniques": "Total visitors",
+
+  "nf_title": "Page not found",
+  "nf_text": "The requested page does not exist (anymore).",
+  "nf_home": "Back to home",
 
   "skills_heading": "Skills",
   "field_skills": "Skills (comma-separated)",
