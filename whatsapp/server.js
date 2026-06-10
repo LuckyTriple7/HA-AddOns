@@ -1382,6 +1382,23 @@ app.get('/api/contact/:chatId', async (req, res) => {
 });
 
 // ── Web UI ────────────────────────────────────────────────────────────────────
+const _SVG = {
+  moon:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  sun:        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+  disk:       '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+  imageOn:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  imageOff:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+  trash:      '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  chevUp:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
+  chevDown:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevLeft:   '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  download:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  x:          '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  smile:      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+  paperclip:  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  pin:        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  doc:        '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+};
 
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -1422,11 +1439,12 @@ app.get('/', (req, res) => {
     #topbar-back:hover { color: #e9edef; }
     .photo-toggle-btn {
       background: none; border: 1px solid #8696a0; color: #e9edef;
-      padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1;
+      padding: 4px 8px; border-radius: 6px; cursor: pointer; opacity: 0.55; line-height: 1;
+      display: inline-flex; align-items: center; justify-content: center;
     }
     .photo-toggle-btn:hover { opacity: 0.8; }
     .photo-toggle-btn.active { opacity: 1; background: rgba(60,219,124,0.15); border-color: #3cdb7c; color: #3cdb7c; }
-    .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; opacity: 0.55; line-height: 1; }
+    .scroll-btn { background: none; border: 1px solid #8696a0; color: #e9edef; padding: 4px 8px; border-radius: 6px; cursor: pointer; opacity: 0.55; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     .scroll-btn:hover { opacity: 0.8; }
     .photo-placeholder { display: none; }
     body.hide-photos .msg-img { display: none !important; }
@@ -1526,12 +1544,11 @@ app.get('/', (req, res) => {
     #msg-search-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #msg-search-btn.active { border-color: #3cdb7c; color: #3cdb7c; }
     html.light #msg-search-btn:hover, html.light #msg-search-btn.active { border-color: #25d366; color: #25d366; }
-    #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; }
-    #export-btn { }
+    #export-btn, #spam-delete-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     #export-btn:hover { border-color: #3cdb7c; color: #3cdb7c; }
     #spam-delete-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #spam-delete-btn:disabled { opacity: 0.4; cursor: default; }
-    #delete-mode-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 15px; flex-shrink: 0; line-height: 1; transition: color 0.15s, border-color 0.15s; }
+    #delete-mode-btn { background: none; border: 1px solid rgba(134,150,160,0.5); color: #8696a0; padding: 5px 8px; border-radius: 6px; cursor: pointer; flex-shrink: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s, border-color 0.15s; }
     #delete-mode-btn:hover { border-color: #f15c5c; color: #f15c5c; }
     #delete-mode-btn.active { border-color: #f15c5c; color: #f15c5c; }
     #messages.delete-mode .bubble-wrap { cursor: pointer; }
@@ -1568,10 +1585,10 @@ app.get('/', (req, res) => {
     .attach-info { flex:1; min-width:0; }
     #attach-name { font-size:13px; color:#e9edef; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
     #attach-size { font-size:11px; color:#8696a0; }
-    #attach-icon { font-size:28px; flex-shrink:0; }
-    #attach-cancel { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
+    #attach-icon { flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#8696a0; }
+    #attach-cancel { background:none; border:none; color:#8696a0; cursor:pointer; line-height:1; padding:4px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
     #attach-cancel:hover { color:#e9edef; }
-    #send-bar #attach-btn, #send-bar #location-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; }
+    #send-bar #attach-btn, #send-bar #location-btn { background:none; border:none; cursor:pointer; padding:6px; border-radius:50%; flex-shrink:0; line-height:1; color:#8696a0; width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center; }
     #send-bar #attach-btn:hover, #send-bar #location-btn:hover { background:rgba(255,255,255,0.08); }
     .bubble-deleted { font-style:italic; color:rgba(233,237,239,0.75); font-size:13px; padding:2px 0; }
     .bubble-deleted .del-icon { margin-right:5px; opacity:0.9; }
@@ -1586,7 +1603,7 @@ app.get('/', (req, res) => {
     .reply-bar-content { flex:1; overflow:hidden; }
     #reply-bar-sender { font-size:11px; font-weight:600; color:#3cdb7c; }
     #reply-bar-text { font-size:12px; color:#8696a0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #reply-close { background:none; border:none; color:#8696a0; cursor:pointer; font-size:16px; line-height:1; padding:4px; flex-shrink:0; }
+    #reply-close { background:none; border:none; color:#8696a0; cursor:pointer; line-height:1; padding:4px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
     #reply-close:hover { color:#e9edef; }
 
     #msg-search-bar {
@@ -1601,10 +1618,10 @@ app.get('/', (req, res) => {
     #msg-search-input::placeholder { color: #8696a0; }
     #msg-search-nav { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     #msg-search-count { font-size: 12px; color: #8696a0; min-width: 40px; text-align: center; }
-    .msg-search-nav-btn { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 16px; padding: 4px 6px; line-height: 1; border-radius: 4px; }
+    .msg-search-nav-btn { background: none; border: none; color: #8696a0; cursor: pointer; padding: 4px 6px; line-height: 1; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; }
     .msg-search-nav-btn:hover { color: #e9edef; background: rgba(255,255,255,0.08); }
     .msg-search-nav-btn:disabled { opacity: 0.3; cursor: default; }
-    #msg-search-close { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 18px; padding: 4px; line-height: 1; }
+    #msg-search-close { background: none; border: none; color: #8696a0; cursor: pointer; padding: 4px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     #msg-search-close:hover { color: #e9edef; }
     .msg-highlight { background: rgba(255,214,0,0.35) !important; border-radius: 3px; }
     .msg-highlight-active { background: rgba(255,165,0,0.55) !important; }
@@ -1710,7 +1727,7 @@ app.get('/', (req, res) => {
     .emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; }
     #send-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; line-height: 1; width: auto; height: auto; }
     #send-bar .emoji-btn:hover { background: #2a3942; }
-    #send-bar #emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; color: #8696a0; width: auto; height: auto; }
+    #send-bar #emoji-toggle { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; line-height: 1; color: #8696a0; width: auto; height: auto; display: inline-flex; align-items: center; justify-content: center; }
     #send-bar #emoji-toggle:hover { background: rgba(255,255,255,0.08); }
     #msg-input {
       flex: 1; background: #2a3942; border: none; border-radius: 8px;
@@ -1727,7 +1744,7 @@ app.get('/', (req, res) => {
     /* Back button (mobile only) */
     #back-btn {
       display: none; background: none; border: none;
-      color: #e9edef; font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0;
+      color: #e9edef; cursor: pointer; padding: 4px 8px 4px 0; align-items: center; justify-content: center;
       line-height: 1; flex-shrink: 0;
     }
 
@@ -1745,7 +1762,7 @@ app.get('/', (req, res) => {
       body.chat-open .topbar .status-dot { display: none; }
       body.chat-open #topbar-back { display: inline-flex; margin-right: auto; }
       /* Chat-Header-Buttons kleiner */
-      #export-btn, #spam-delete-btn, #delete-mode-btn, #msg-search-btn { font-size: 14px; padding: 4px 5px; }
+      #export-btn, #spam-delete-btn, #delete-mode-btn, #msg-search-btn { padding: 4px 5px; }
       /* Send-Bar kompakter */
       #send-bar { padding: 6px 8px; gap: 4px; }
       #send-bar #emoji-toggle, #send-bar #attach-btn, #send-bar #location-btn { font-size: 17px; padding: 4px; }
@@ -1830,14 +1847,14 @@ app.get('/', (req, res) => {
   <div class="topbar" id="topbar" style="display:none;">
     <button id="topbar-back" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
     <h1 ondblclick="waConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">WhatsApp</h1>
-    <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
+    <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;opacity:0.75;display:inline-flex;align-items:center;justify-content:center;color:#8696a0;"></button>
     <div class="status-dot connected" id="status-dot" data-i18n-title="statusConnected" title="Verbunden"></div>
     <span class="storage-info" id="storage-info"></span>
-    ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
-    ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
-    <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
-    <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
-    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
+    ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
+    ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
+    <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
+    <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
+    <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:13px;padding:0 8px;font-weight:500;">DE</button>
     <button class="logout-btn" data-i18n-title="btnLogout" title="Abmelden" onclick="confirmLogout()"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
   </div>
 
@@ -1861,7 +1878,7 @@ app.get('/', (req, res) => {
         <p data-i18n="welcomeMsg">Wähle einen Chat aus der Liste</p>
       </div>
       <div id="chat-header" style="display:none;">
-        <button id="back-btn" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück">&#8592;</button>
+        <button id="back-btn" onclick="closeChat()" data-i18n-title="btnBack" title="Zurück">${_SVG.chevLeft}</button>
         <div class="avatar" id="ch-avatar"></div>
         <div id="ch-info">
           <div id="ch-name"></div>
@@ -1869,18 +1886,18 @@ app.get('/', (req, res) => {
           <div id="ch-stats"></div>
         </div>
         <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="ttMsgSearch" title="Nachrichten durchsuchen"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-        <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
-        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">🚮</button>
-        <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
+        <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.download}</button>
+        <button id="spam-delete-btn" onclick="deleteSpam()" data-i18n-title="ttSpamDelete" title="Häufig weitergeleitete Nachrichten löschen">${_SVG.trash}</button>
+        <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
       </div>
       <div id="msg-search-bar">
         <input id="msg-search-input" type="text" data-i18n-pl="msgSearchPlaceholder" placeholder="Suchen…" oninput="onMsgSearchInput(this.value)" onkeydown="if(event.key==='Escape')closeMsgSearch();">
         <div id="msg-search-nav">
-          <button class="msg-search-nav-btn" id="msg-search-prev" onclick="stepMsgSearch(-1)" title="Vorheriger">▲</button>
+          <button class="msg-search-nav-btn" id="msg-search-prev" onclick="stepMsgSearch(-1)" title="Vorheriger">${_SVG.chevUp}</button>
           <span id="msg-search-count"></span>
-          <button class="msg-search-nav-btn" id="msg-search-next" onclick="stepMsgSearch(1)" title="Nächster">▼</button>
+          <button class="msg-search-nav-btn" id="msg-search-next" onclick="stepMsgSearch(1)" title="Nächster">${_SVG.chevDown}</button>
         </div>
-        <button id="msg-search-close" onclick="closeMsgSearch()">✕</button>
+        <button id="msg-search-close" onclick="closeMsgSearch()">${_SVG.x}</button>
       </div>
       <div id="messages" style="display:none;"></div>
       <div id="reply-bar">
@@ -1888,26 +1905,26 @@ app.get('/', (req, res) => {
           <div id="reply-bar-sender"></div>
           <div id="reply-bar-text"></div>
         </div>
-        <button id="reply-close" onclick="clearReply()">✕</button>
+        <button id="reply-close" onclick="clearReply()">${_SVG.x}</button>
       </div>
       <div id="attach-bar">
         <div class="attach-preview">
           <img id="attach-thumb" alt="">
-          <span id="attach-icon">📄</span>
+          <span id="attach-icon">${_SVG.doc}</span>
           <div class="attach-info">
             <span id="attach-name"></span>
             <span id="attach-size"></span>
           </div>
         </div>
-        <button id="attach-cancel" onclick="clearAttach()">✕</button>
+        <button id="attach-cancel" onclick="clearAttach()">${_SVG.x}</button>
       </div>
       <div id="send-bar" style="display:none;">
         <input type="file" id="file-input" style="display:none;" onchange="onFileSelected(event)">
         <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
         <div style="display:flex;align-items:center;gap:0;flex-shrink:0;">
-          <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">😊</button>
-          <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">📎</button>
-          <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">📍</button>
+          <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="btnEmoji" title="Emoji">${_SVG.smile}</button>
+          <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="btnAttach" title="Datei anhängen">${_SVG.paperclip}</button>
+          <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">${_SVG.pin}</button>
         </div>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
@@ -2003,7 +2020,7 @@ app.get('/', (req, res) => {
         searchChats:'🔍  Chats durchsuchen…', loadingChats:'Lade Chats…',
         welcomeMsg:'Wähle einen Chat aus der Liste', noChats:'Keine Chats',
         btnBack:'Zurück',
-        ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'🚮 Spam löschen',
+        ttExport:'Chat als HTML exportieren', ttSpamDelete:'Häufig weitergeleitete Nachrichten löschen', btnSpamDelete:'Spam löschen',
         ttMsgSearch:'Nachrichten durchsuchen', msgSearchPlaceholder:'Suchen…', msgSearchNoResult:'Keine Treffer',
         deleteMode:'Nachrichten löschen', deleteModeCancel:'Abbrechen', deleteConfirm:(n)=>n+(n===1?' Nachricht':' Nachrichten')+' wirklich löschen?',
         btnEmoji:'Emoji', btnAttach:'Datei anhängen', btnLocation:'Standort senden', msgInput:'Nachricht…', attachCaption:'Bildunterschrift (optional)…', btnSend:'Senden',
@@ -2041,7 +2058,7 @@ app.get('/', (req, res) => {
         searchChats:'🔍  Search chats…', loadingChats:'Loading chats…',
         welcomeMsg:'Select a chat from the list', noChats:'No chats',
         btnBack:'Back',
-        ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'🚮 Delete Spam',
+        ttExport:'Export chat as HTML', ttSpamDelete:'Delete frequently forwarded messages', btnSpamDelete:'Delete Spam',
         ttMsgSearch:'Search messages', msgSearchPlaceholder:'Search…', msgSearchNoResult:'No results',
         deleteMode:'Delete messages', deleteModeCancel:'Cancel', deleteConfirm:(n)=>'Really delete '+n+' message'+(n===1?'':'s')+'?',
         btnEmoji:'Emoji', btnAttach:'Attach file', btnLocation:'Send location', msgInput:'Message…', attachCaption:'Caption (optional)…', btnSend:'Send',
@@ -2079,7 +2096,7 @@ app.get('/', (req, res) => {
       document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
       document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
       const lb = document.getElementById('lang-btn');
-      if (lb) lb.textContent = lang === 'de' ? '🌐 DE' : '🌐 EN';
+      if (lb) lb.textContent = lang === 'de' ? 'DE' : 'EN';
       const ptb = document.getElementById('photo-toggle');
       if (ptb) ptb.title = document.body.classList.contains('hide-photos') ? t('photosOff') : t('photosOn');
     }
@@ -2091,7 +2108,7 @@ app.get('/', (req, res) => {
     function applyTheme() {
       var isDark = document.documentElement.classList.contains('dark');
       var btn = document.getElementById('theme-btn');
-      if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+      if (btn) btn.innerHTML = isDark ? '${_SVG.sun}' : '${_SVG.moon}';
     }
     function toggleTheme() {
       var html = document.documentElement;
@@ -2181,9 +2198,9 @@ app.get('/', (req, res) => {
       var btn = document.getElementById('delete-mode-btn');
       if (!btn) return;
       var n = selectedMsgs.size;
-      if (!isDeleteMode) { btn.textContent = '✕'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
-      else if (n === 0) { btn.textContent = '✕'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
-      else { btn.textContent = '🗑️'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
+      if (!isDeleteMode) { btn.innerHTML = '${_SVG.x}'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
+      else if (n === 0) { btn.innerHTML = '${_SVG.x}'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
+      else { btn.innerHTML = n + ' ${_SVG.trash}'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
     }
     async function confirmDeleteSelected() {
       var n = selectedMsgs.size;
@@ -2308,7 +2325,7 @@ app.get('/', (req, res) => {
         const d = await fetch('api/storage').then(r => r.json());
         const el = document.getElementById('storage-info');
         if (!el) return;
-        el.textContent = '💾 ' + d.mb + ' MB';
+        el.innerHTML = '${_SVG.disk} ' + d.mb + ' MB';
         if (d.mediaMb !== undefined) {
           const autoAt = d.limitMb, autoTo = Math.round(d.limitMb * 0.8);
           el.title = lang === 'de'
@@ -2339,13 +2356,13 @@ app.get('/', (req, res) => {
       const hiding = !document.body.classList.contains('hide-photos');
       document.body.classList.toggle('hide-photos', hiding);
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+      if (btn) { btn.classList.toggle('active', !hiding); btn.innerHTML = hiding ? '${_SVG.imageOff}' : '${_SVG.imageOn}'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
       localStorage.setItem('wa-hide-photos', hiding ? '1' : '');
     }
     if (localStorage.getItem('wa-hide-photos')) {
       document.body.classList.add('hide-photos');
       const btn = document.getElementById('photo-toggle');
-      if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = t('photosOff'); }
+      if (btn) { btn.classList.remove('active'); btn.innerHTML = '${_SVG.imageOff}'; btn.title = t('photosOff'); }
     }
 
     function ackMark(ack) {
@@ -2828,7 +2845,7 @@ app.get('/', (req, res) => {
       const wraps = _spamDeleteWraps.slice();
       closeSpamModal();
       const btn = document.getElementById('spam-delete-btn');
-      if (btn) { btn.disabled = true; btn.textContent = t('spamDeleting'); }
+      if (btn) { btn.disabled = true; btn.innerHTML = t('spamDeleting'); }
       try {
         const r = await fetch('api/delete-batch/' + encodeURIComponent(selectedChatId), {
           method: 'POST',
@@ -2837,9 +2854,9 @@ app.get('/', (req, res) => {
         }).then(r => r.json());
         for (const wrap of wraps) wrap.remove();
         await pollChats();
-        if (btn) { btn.textContent = tf('spamDeleted', r.deleted); setTimeout(() => { btn.textContent = t('btnSpamDelete'); }, 3000); }
+        if (btn) { btn.innerHTML = tf('spamDeleted', r.deleted); setTimeout(() => { btn.innerHTML = '${_SVG.trash}'; }, 3000); }
       } catch(e) {
-        if (btn) { btn.textContent = t('spamError'); setTimeout(() => { btn.textContent = t('btnSpamDelete'); }, 3000); }
+        if (btn) { btn.innerHTML = t('spamError'); setTimeout(() => { btn.innerHTML = '${_SVG.trash}'; }, 3000); }
       } finally {
         if (btn) btn.disabled = false;
       }
