@@ -1,21 +1,10 @@
 # Changelog — MediaGrab
 
-## [1.0.30] - 2026-06-09
+## [1.0.28] — 2026-06-10
 
-### Added
-- `webui`-Feld in config.yaml: HA zeigt jetzt den Button „Benutzeroberfläche öffnen" — passt sich automatisch an den konfigurierten Host-Port an
+### Geändert
+- Rebuild für yt-dlp 2026.06.09
 
-## [1.0.29] - 2026-06-09
-
-### Added
-- Playlist-Tag: Alle Dateien eines Playlist-Downloads erhalten automatisch den Tag "Playlist" (wenn der Haken "Ganze Playlist" gesetzt war)
-
-## [1.0.28] - 2026-06-09
-
-### Added
-- Encoding-Indikator: Während Audio-Konvertierung / Video-Merge zeigt die Queue ein gelb pulsierendes "⚙ Encoding…" statt Geschwindigkeit/ETA
-- Playlist-Fortschritt: Download-Queue zeigt "📋 X / Y" für die aktuelle Position in einer Playlist
-- Dateiliste aktualisiert sich automatisch nach jedem abgeschlossenen Playlist-Item (nicht erst am Ende)
 
 ## [1.0.27] - 2026-06-09
 
