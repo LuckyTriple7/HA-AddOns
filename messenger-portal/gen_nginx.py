@@ -108,8 +108,6 @@ def proxy_block(slug: str, name: str, host: str, port: int) -> str:
 
         # Inject back-to-portal button
         sub_filter '</body>' '{BACK_BTN}';
-
-        proxy_cookie_path / {prefix};
     }}
 
     location @offline_{slug} {{
@@ -165,6 +163,7 @@ server {{
         proxy_set_header        Content-Length  "";
         proxy_set_header        Cookie          $http_cookie;
         proxy_set_header        X-Real-IP       $remote_addr;
+        proxy_set_header        X-Ingress-Path  $http_x_ingress_path;
     }}
 
     location @login_redirect {{
@@ -181,8 +180,9 @@ server {{
     location = /status {{
         access_log off;
         proxy_pass         http://127.0.0.1:5000;
-        proxy_set_header   Host   $host;
-        proxy_set_header   Cookie $http_cookie;
+        proxy_set_header   Host           $host;
+        proxy_set_header   Cookie         $http_cookie;
+        proxy_set_header   X-Ingress-Path $http_x_ingress_path;
     }}
 
     # ── Flask app (login, portal, static) ────────────────
@@ -192,6 +192,7 @@ server {{
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   X-Ingress-Path    $http_x_ingress_path;
     }}
 {proxy_blocks}
 }}
