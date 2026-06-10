@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.0.32] - 2026-06-10
+
+### Fixed
+- Teilen-Button: ↗-Text durch korrektes SVG-Share-Icon ersetzt
+
 ## [1.0.31] - 2026-06-10
 
 ### Added
