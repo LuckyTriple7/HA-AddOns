@@ -115,12 +115,13 @@ claude --continue
 
 ### Modellauswahl
 
-Es stehen drei Modelle zur Verfügung:
+Es stehen vier Modelle zur Verfügung:
 
 | Modell | Am besten für |
 |--------|--------------|
 | `claude-sonnet-4-6` | Beste Balance aus Geschwindigkeit und Leistung (Standard) |
-| `claude-opus-4-7` | Leistungsstärkstes Modell, für komplexe Aufgaben |
+| `claude-fable-5` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
+| `claude-opus-4-8` | Sehr stark, für komplexe Aufgaben |
 | `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
 
 `auto_update_claude` aktivieren, damit neue Modelle automatisch verfügbar werden, sobald Anthropic sie veröffentlicht – ohne Update des Add-ons.
@@ -372,12 +373,13 @@ claude --continue
 
 ### Model Selection
 
-Three models are available:
+Four models are available:
 
 | Model | Best for |
 |-------|----------|
 | `claude-sonnet-4-6` | Best balance of speed and capability (default) |
-| `claude-opus-4-7` | Most powerful, for complex tasks |
+| `claude-fable-5` | Most powerful, for the hardest tasks |
+| `claude-opus-4-8` | Very capable, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
 
 Enable `auto_update_claude` to ensure new models become available as Anthropic releases them, without needing an add-on update.
