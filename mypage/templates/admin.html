@@ -114,6 +114,7 @@
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
+        <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
       </nav>
       <div class="header-actions">
@@ -237,6 +238,40 @@
       <div class="panel">
         <h3>{{ t.preview_heading }}</h3>
         <p class="hint">{{ t.preview_hint }}</p>
+      </div>
+    </section>
+
+    <!-- Rechtliches -->
+    <section class="tab" id="tab-legal">
+      <div class="panel">
+        <h3>{{ t.legal_impressum }}</h3>
+        <p class="hint">{{ t.legal_hint_impressum }}</p>
+        <div class="row">
+          <div>
+            <label>DE</label>
+            <textarea id="l-impressum_de" rows="10"></textarea>
+          </div>
+          <div>
+            <label>EN ({{ t.optional }})</label>
+            <textarea id="l-impressum_en" rows="10"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.legal_privacy }}</h3>
+        <p class="hint">{{ t.legal_hint_privacy }}</p>
+        <div class="row">
+          <div>
+            <label>DE</label>
+            <textarea id="l-privacy_de" rows="14"></textarea>
+          </div>
+          <div>
+            <label>EN ({{ t.optional }})</label>
+            <textarea id="l-privacy_en" rows="14"></textarea>
+          </div>
+        </div>
+        <button class="btn" onclick="saveLegal()">{{ t.save }}</button>
+        <p class="hint">{{ t.legal_footer_hint }}</p>
       </div>
     </section>
 
@@ -369,7 +404,25 @@
       SITE = await r.json();
       fillProfile();
       fillDesign();
+      fillLegal();
       renderProjects();
+    }
+
+    // ── Rechtliches ──
+    function fillLegal() {
+      const l = SITE.legal || {};
+      ['impressum_de','impressum_en','privacy_de','privacy_en'].forEach(k => {
+        el('l-' + k).value = l[k] || '';
+      });
+    }
+    async function saveLegal() {
+      const body = {};
+      ['impressum_de','impressum_en','privacy_de','privacy_en'].forEach(k => {
+        body[k] = el('l-' + k).value;
+      });
+      const r = await apiJson('api/legal', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
     }
 
     // ── Profil ──

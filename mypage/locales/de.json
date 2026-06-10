@@ -12,7 +12,15 @@
   "tab_profile": "Profil",
   "tab_projects": "Projekte",
   "tab_design": "Design",
+  "tab_legal": "Rechtliches",
   "tab_stats": "Statistik",
+
+  "legal_impressum": "Impressum",
+  "legal_privacy": "Datenschutzerklärung",
+  "legal_hint_impressum": "Pflicht für nicht rein private Seiten (§5 DDG). Vorlage z. B. über den Impressum-Generator von e-recht24.de erstellen und hier einfügen.",
+  "legal_hint_privacy": "Pflicht nach Art. 13 DSGVO — u. a. wegen des Besucher-Logs (IP-Adressen). Vorlage z. B. über datenschutz-generator.de (für Privatpersonen kostenlos) erstellen und hier einfügen.",
+  "legal_footer_hint": "Sobald Text eingetragen ist, erscheinen die Links automatisch im Footer der öffentlichen Seite (/impressum und /datenschutz). Leere Seiten werden nicht verlinkt.",
+  "optional": "optional",
 
   "profile_heading": "Über mich",
   "field_name": "Name",

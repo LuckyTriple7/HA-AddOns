@@ -12,7 +12,15 @@
   "tab_profile": "Profile",
   "tab_projects": "Projects",
   "tab_design": "Design",
+  "tab_legal": "Legal",
   "tab_stats": "Statistics",
+
+  "legal_impressum": "Imprint",
+  "legal_privacy": "Privacy policy",
+  "legal_hint_impressum": "Required in Germany for non-private sites (§5 DDG). Generate a template, e.g. with the e-recht24.de imprint generator, and paste it here.",
+  "legal_hint_privacy": "Required by Art. 13 GDPR — among other things because of the visitor log (IP addresses). Generate a template, e.g. with datenschutz-generator.de (free for individuals), and paste it here.",
+  "legal_footer_hint": "Once text is entered, the links appear automatically in the footer of the public page (/impressum and /datenschutz). Empty pages are not linked.",
+  "optional": "optional",
 
   "profile_heading": "About me",
   "field_name": "Name",

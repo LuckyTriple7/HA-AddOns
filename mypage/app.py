@@ -110,6 +110,10 @@ DEFAULT_SITE = {
         'accent': '#58a6ff', 'mode': 'dark', 'show_counter': True,
         'site_title': '', 'footer_text': '',
     },
+    'legal': {
+        'impressum_de': '', 'impressum_en': '',
+        'privacy_de': '', 'privacy_en': '',
+    },
 }
 
 
@@ -567,6 +571,21 @@ def api_design():
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/legal', methods=['POST'])
+def api_legal():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    site = load_site()
+    legal = site['legal']
+    for k in ('impressum_de', 'impressum_en', 'privacy_de', 'privacy_en'):
+        if k in raw:
+            legal[k] = _clean_str(raw[k], 20000)
+    save_site(site)
+    return jsonify({'ok': True})
+
+
 @admin_app.route('/api/projects', methods=['POST'])
 def api_project_create():
     err = _api_auth()
@@ -735,6 +754,14 @@ def robots():
     return 'User-agent: *\nAllow: /\n', 200, {'Content-Type': 'text/plain'}
 
 
+def _loc_factory(lang: str):
+    def loc(obj: dict, key: str) -> str:
+        if lang == 'en':
+            return obj.get(f'{key}_en') or obj.get(f'{key}_de') or ''
+        return obj.get(f'{key}_de') or obj.get(f'{key}_en') or ''
+    return loc
+
+
 @public_app.route('/')
 def public_index():
     count_visit(request)
@@ -742,15 +769,36 @@ def public_index():
     t = load_translations(lang)
     site = load_site()
     stats = load_stats()
-
-    def loc(obj: dict, key: str) -> str:
-        if lang == 'en':
-            return obj.get(f'{key}_en') or obj.get(f'{key}_de') or ''
-        return obj.get(f'{key}_de') or obj.get(f'{key}_en') or ''
-
+    legal = site.get('legal', {})
+    loc = _loc_factory(lang)
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            total_visitors=stats.get('total', 0),
+                           has_impressum=bool(loc(legal, 'impressum').strip()),
+                           has_privacy=bool(loc(legal, 'privacy').strip()),
                            year=datetime.now(timezone.utc).year)
+
+
+def _legal_page(kind: str):
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    text = _loc_factory(lang)(site.get('legal', {}), kind)
+    if not text.strip():
+        abort(404)
+    title = t.get('legal_' + kind, kind)
+    return render_template('legal.html', t=t, lang=lang, site=site,
+                           title=title, text=text,
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/impressum')
+def impressum():
+    return _legal_page('impressum')
+
+
+@public_app.route('/datenschutz')
+def datenschutz():
+    return _legal_page('privacy')
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

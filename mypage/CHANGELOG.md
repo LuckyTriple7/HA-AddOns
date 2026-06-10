@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.2
+
+- ⚖️ Neuer Tab „Rechtliches": Impressum und Datenschutzerklärung (DE/EN) pflegbar
+- Links erscheinen automatisch im Footer der öffentlichen Seite (`/impressum`, `/datenschutz`), sobald Text eingetragen ist
+
 ## 0.0.1
 
 - 🎉 Erstveröffentlichung
