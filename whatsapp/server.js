@@ -678,11 +678,11 @@ client.on('message_ack', (msg, ack) => {
   const msgs = messagesByChatId.get(msg.to);
   if (msgs) {
     const stored = msgs.find(m => m.id === msg.id._serialized);
-    if (stored) { stored.ack = ack; return; }
+    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); return; }
   }
   for (const list of messagesByChatId.values()) {
     const stored = list.find(m => m.id === msg.id._serialized);
-    if (stored) { stored.ack = ack; break; }
+    if (stored) { stored.ack = ack; stored.ackUpdatedAt = Date.now(); break; }
   }
 });
 
@@ -813,7 +813,7 @@ app.get('/api/messages', (req, res) => {
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts)) : msgs);
+  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts)) : msgs);
 });
 
 app.post('/api/send', async (req, res) => {
@@ -2577,6 +2577,16 @@ app.get('/', (req, res) => {
         // lastMsgTime mit deletedAt aktualisieren (deletedAt kann neuer sein als timestamp)
         const effectiveTs = (m.deleted && m.deletedAt) ? Math.max(m.timestamp, m.deletedAt) : m.timestamp;
         if (effectiveTs > (lastMsgTime[selectedChatId] || 0)) lastMsgTime[selectedChatId] = effectiveTs;
+
+        // ACK-Update: Häkchen in-place aktualisieren ohne Bubble neu zu erstellen
+        if (m.fromMe && m.ackUpdatedAt) {
+          const existingWrap = msgList.querySelector('.bubble-wrap[data-msgid="' + m.id + '"]');
+          if (existingWrap) {
+            const timeEl = existingWrap.querySelector('.time');
+            if (timeEl) timeEl.innerHTML = fmtTime(m.timestamp) + ackMark(m.ack || 0);
+            return;
+          }
+        }
 
         // Gelöschte Nachrichten: vorhandenen Wrap in-place aktualisieren statt neu erstellen
         if (m.deleted) {

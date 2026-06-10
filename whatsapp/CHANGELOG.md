@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.15] - 2026-06-10
+- Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ackUpdatedAt-Timestamp wird im message_ack-Event gesetzt, im since-Filter berücksichtigt und das .time-Element in-place im DOM aktualisiert
+
 ## [1.7.14] - 2026-06-10
 - UI: Foto-Thumbnail im Chat auf max 200×200px verkleinert (war 320×400 + width:100%); Klick öffnet weiterhin Vollbild-Lightbox
 
