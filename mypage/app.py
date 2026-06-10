@@ -5,6 +5,7 @@ Zwei Server in einem Prozess:
   - Port 17760: öffentliche Homepage (kein Login, Besucherzähler)
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
+import errno
 import hashlib
 import html as html_mod
 import io
@@ -640,16 +641,57 @@ def save_users(users: list) -> None:
 
 def storage_available() -> bool:
     """False, wenn SMB konfiguriert ist, aber der Mount gerade nicht erreichbar ist.
-    Bewusst kein Fallback auf lokalen Speicher — das würde Datei-Chaos geben."""
+    Bewusst kein Fallback auf lokalen Speicher — das würde Datei-Chaos geben.
+    Prüft den aktiven Ordner (nicht nur die Mount-Wurzel), um stale Handles zu erkennen."""
     if not SMB_MOUNTED:
         return True
     try:
         if not os.path.ismount(str(USERFILES_BASE)):
             return False
-        os.listdir(USERFILES_BASE)
+        os.listdir(userfiles_root())
         return True
     except OSError:
         return False
+
+
+_remount_lock = threading.Lock()
+SMB_MOUNT_OPTS = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
+                  'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,actimeo=5')
+
+
+def remount_smb() -> bool:
+    """SMB-Mount erneuern (FritzBox trennt inaktive Verbindungen → stale handles)."""
+    mountpoint = os.environ.get('MYPAGE_USERFILES', '')
+    if not mountpoint:
+        return False
+    with _remount_lock:
+        try:
+            cfg = load_config()
+            server = (cfg.get('smb_server') or '').strip()
+            share  = (cfg.get('smb_share') or '').strip()
+            if not server or not share:
+                return False
+            subprocess.run(['umount', '-l', mountpoint], capture_output=True, timeout=30)
+            opts = SMB_MOUNT_OPTS
+            user = (cfg.get('smb_user') or '').strip()
+            if user:
+                cred = '/tmp/.smbcred-watchdog'
+                with open(cred, 'w') as f:
+                    f.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
+                os.chmod(cred, 0o600)
+                opts += f',credentials={cred}'
+            else:
+                opts += ',guest'
+            r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
+                                '-o', opts], capture_output=True, text=True, timeout=60)
+            if r.returncode == 0:
+                log.info("SMB-Mount erneuert")
+                return True
+            log.warning("SMB-Remount fehlgeschlagen: %s", (r.stderr or '').strip()[:200])
+            return False
+        except Exception as e:
+            log.warning("SMB-Remount-Fehler: %s", e)
+            return False
 
 
 def userfiles_root() -> Path:
@@ -753,46 +795,15 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
 
 def _smb_watchdog() -> None:
     """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
-    mountpoint = os.environ.get('MYPAGE_USERFILES', '')
-    if not mountpoint:
+    if not os.environ.get('MYPAGE_USERFILES', ''):
         return
     while True:
         time.sleep(60)
         try:
-            cfg = load_config()
-            server = (cfg.get('smb_server') or '').strip()
-            share  = (cfg.get('smb_share') or '').strip()
-            if not server or not share:
+            if storage_available():
                 continue
-            healthy = False
-            try:
-                if os.path.ismount(mountpoint):
-                    os.listdir(mountpoint)
-                    healthy = True
-            except OSError:
-                healthy = False
-            if healthy:
-                continue
-            log.warning("SMB-Mount nicht verfügbar — versuche Remount von //%s/%s ...", server, share)
-            subprocess.run(['umount', '-l', mountpoint], capture_output=True, timeout=30)
-            opts = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
-                    'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft')
-            user = (cfg.get('smb_user') or '').strip()
-            if user:
-                cred = '/tmp/.smbcred-watchdog'
-                with open(cred, 'w') as f:
-                    f.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
-                os.chmod(cred, 0o600)
-                opts += f',credentials={cred}'
-            else:
-                opts += ',guest'
-            r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
-                                '-o', opts], capture_output=True, text=True, timeout=60)
-            if r.returncode == 0:
-                log.info("SMB-Mount wiederhergestellt")
-            else:
-                log.warning("SMB-Remount fehlgeschlagen: %s — nächster Versuch in 60 s",
-                            (r.stderr or '').strip()[:200])
+            log.warning("SMB-Mount nicht verfügbar — versuche Remount ...")
+            remount_smb()
         except Exception as e:
             log.warning("SMB-Watchdog-Fehler: %s", e)
 
@@ -1848,12 +1859,17 @@ def _member_page(member: dict | None, msg: str = ''):
     storage_down = member is not None and not storage_available()
     if member and not storage_down:
         quota = member.get('quota_mb', 500) * 1048576
-        for f in sorted(user_dir(member).iterdir()):
-            if f.is_file():
-                st = f.stat()
-                files.append({'name': f.name, 'size': st.st_size,
-                              'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M')})
-                used += st.st_size
+        try:
+            for f in sorted(user_dir(member).iterdir()):
+                if f.is_file():
+                    st = f.stat()
+                    files.append({'name': f.name, 'size': st.st_size,
+                                  'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M')})
+                    used += st.st_size
+        except OSError as e:
+            log.warning("Dateiliste für '%s' fehlgeschlagen: %s", member['email'], e)
+            storage_down = True
+            files = []
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down,
@@ -1932,6 +1948,20 @@ def _serve_user_file(d: Path, name: str):
         # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt;
         # conditional=False vermeidet Range/ETag-Sonderfälle auf CIFS-Mounts
         return send_file(target, as_attachment=True, download_name=safe, conditional=False)
+    except OSError as e:
+        # FritzBox trennt inaktive SMB-Verbindungen → stale handle: einmal
+        # neu mounten und direkt erneut versuchen
+        if SMB_MOUNTED and e.errno in (errno.ESTALE, errno.EIO):
+            log.warning("Stale SMB-Handle bei '%s' — Remount und zweiter Versuch", safe)
+            if remount_smb():
+                try:
+                    return send_file(target, as_attachment=True, download_name=safe,
+                                     conditional=False)
+                except Exception as e2:
+                    log.error("Download '%s' auch nach Remount fehlgeschlagen: %s", safe, e2)
+                    abort(503)
+        log.error("Download '%s' fehlgeschlagen: %s", safe, e)
+        abort(503)
     except Exception as e:
         log.error("Download '%s' fehlgeschlagen: %s", safe, e)
         abort(503)
