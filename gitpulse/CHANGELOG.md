@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.4] - 2026-06-10
+
+### Fixed
+- **"▼ Beschreibung"-Button** hatte schwarze Schrift im Dark Mode: `color:var(--muted)` Fallback `#8b949e` ergänzt, damit die Farbe auch im HA-Ingress korrekt aufgelöst wird
+
 ## [0.3.3] - 2026-06-10
 
 ### Changed
