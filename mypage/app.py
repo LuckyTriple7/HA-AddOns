@@ -790,6 +790,24 @@ def current_member(req) -> dict | None:
     return next((u for u in load_users() if u['id'] == uid), None)
 
 
+USER_JOURNAL_MAX = 100
+
+
+def log_user_event(uid: str, action: str, detail: str = '', ip: str = '') -> None:
+    """Journal-Eintrag pro Benutzer (Login, Upload, Download, Löschen, …)."""
+    users = load_users()
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return
+    entry = {'ts': int(time.time()), 'action': action, 'detail': detail[:150], 'ip': ip}
+    journal = user.setdefault('journal', [])
+    journal.append(entry)
+    del journal[:-USER_JOURNAL_MAX]
+    if action == 'login':
+        user['last_login'] = {'ts': entry['ts'], 'ip': ip}
+    save_users(users)
+
+
 def generate_member_password() -> str:
     """8 Zeichen, Groß/Klein/Zahlen, keine Sonderzeichen, keine verwechselbaren Zeichen."""
     up, low, dig = 'ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789'
@@ -1211,7 +1229,7 @@ def api_backup():
         return err
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        for name in ('site.json', 'stats.json', 'messages.json'):
+        for name in ('site.json', 'stats.json', 'messages.json', 'users.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -1240,7 +1258,7 @@ def api_restore():
             for member in names:
                 # Nur bekannte Dateien zulassen — Zip-Slip ausgeschlossen, da
                 # Zielpfade aus Whitelist bzw. Basename + Extension-Check entstehen
-                if member in ('site.json', 'stats.json', 'messages.json'):
+                if member in ('site.json', 'stats.json', 'messages.json', 'users.json'):
                     target = Path(_DATA) / member
                 elif member.startswith('uploads/'):
                     name = Path(member).name
@@ -1367,7 +1385,8 @@ def api_users():
         out.append({'id': u['id'], 'email': u['email'], 'quota_mb': u.get('quota_mb', 500),
                     'used_mb': round(used / 1048576, 1),
                     'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()) if storage_ok else 0,
-                    'created': u.get('created', '')})
+                    'created': u.get('created', ''),
+                    'last_login': u.get('last_login')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
                     'smb': SMB_MOUNTED, 'storage_ok': storage_ok})
@@ -1460,10 +1479,22 @@ def api_user_resend(uid: str):
     password = generate_member_password()
     user['pw_hash'] = generate_password_hash(password)
     save_users(users)
+    log_user_event(uid, 'pw_reset')
     threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
     return jsonify({'ok': True,
                     'no_url': not (load_site()['design'].get('public_url') or '').strip()})
+
+
+@admin_app.route('/api/users/<uid>/journal')
+def api_user_journal(uid: str):
+    err = _api_auth()
+    if err:
+        return err
+    user = _admin_get_user(uid)
+    if user is None:
+        return jsonify({'error': 'not found'}), 404
+    return jsonify({'journal': list(reversed(user.get('journal', [])))})
 
 
 @admin_app.route('/api/users/<uid>/files', methods=['GET', 'POST'])
@@ -1487,6 +1518,7 @@ def api_user_files(uid: str):
         if user_usage_bytes(user) > user.get('quota_mb', 500) * 1048576:
             target.unlink(missing_ok=True)
             return jsonify({'error': 'quota'}), 413
+        log_user_event(uid, 'admin_upload', target.name)
         log.info("Admin: Datei '%s' für '%s' hinterlegt", target.name, user['email'])
         return jsonify({'ok': True, 'name': target.name})
     files = []
@@ -1514,6 +1546,7 @@ def api_user_file(uid: str, name: str):
         target = (d / safe).resolve()
         if safe and target.parent == d.resolve() and target.is_file():
             target.unlink()
+            log_user_event(uid, 'admin_delete', safe)
             return jsonify({'ok': True})
         return jsonify({'error': 'not found'}), 404
     return _serve_user_file(d, name)
@@ -1923,6 +1956,7 @@ def member_login():
     token = secrets.token_hex(32)
     user_sessions[token] = [user['id'], time.time() + USER_SESSION_HOURS * 3600]
     save_user_sessions()
+    log_user_event(user['id'], 'login', '', ip)
     resp = make_response(redirect('/bereich'))
     resp.set_cookie('usession', token, httponly=True, samesite='Lax',
                     max_age=USER_SESSION_HOURS * 3600)
@@ -1958,6 +1992,7 @@ def member_upload():
     if user_usage_bytes(member) > quota:
         target.unlink(missing_ok=True)
         return redirect('/bereich?msg=quota')
+    log_user_event(member['id'], 'upload', target.name, get_client_ip(request))
     log.info("Mitglied '%s': Datei '%s' hochgeladen", member['email'], target.name)
     return redirect('/bereich?msg=uploaded')
 
@@ -2023,7 +2058,9 @@ def member_download(name: str):
         abort(403)
     if not storage_available():
         return redirect('/bereich?msg=storage')
-    return _serve_user_file(user_dir(member), name)
+    resp = _serve_user_file(user_dir(member), name)
+    log_user_event(member['id'], 'download', secure_filename(name), get_client_ip(request))
+    return resp
 
 
 @public_app.route('/bereich/delete', methods=['POST'])
@@ -2038,6 +2075,7 @@ def member_delete():
     target = (d / name).resolve()
     if name and target.parent == d.resolve() and target.is_file():
         target.unlink()
+        log_user_event(member['id'], 'delete', name, get_client_ip(request))
         log.info("Mitglied '%s': Datei '%s' gelöscht", member['email'], name)
     return redirect('/bereich')
 

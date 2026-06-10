@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11
+
+- 📜 **Benutzer-Journal**: neuer Button pro Benutzer — Anmeldungen, Up-/Downloads, Löschungen und Admin-Aktionen mit Zeit, Datei und IP (letzte 100 Einträge)
+- 🕐 **Letzter Login** (Zeit + IP) in der Benutzerzeile
+- 💾 `users.json` ist jetzt Teil von Backup & Restore
+
 ## 0.1.10
 
 - 🎯 **Echte Ursache der stale handles gefunden**: Die FritzBox liefert über SMB instabile Inode-Nummern — ESTALE trat deshalb sogar direkt nach einem Upload auf. Mount jetzt mit **`noserverino`** (Client vergibt eigene, stabile Inode-Nummern)
