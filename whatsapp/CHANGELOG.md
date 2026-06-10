@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.12] - 2026-06-10
+- UI: Alle Emoji-Icons (🎬 🗑️ 💾 ↑↓ 🌐 🚮 😊 📎 📍 📄) durch konsistente SVG-Icons ersetzt — Topbar, Chat-Header und Sendeleiste einheitlich professionell
+
 ## [1.7.11] - 2026-06-08
 - Fix: Such-Button als SVG-Icon (statt Emoji), passend zu den anderen Header-Buttons; grüne Hervorhebung wenn aktiv
 
