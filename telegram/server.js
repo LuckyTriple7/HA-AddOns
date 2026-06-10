@@ -1188,8 +1188,6 @@ html.light #topbar { background: #517DA2; color: #fff; }
 .scroll-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; align-items: center; justify-content: center; opacity: 0.55; }
 #refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
-#export-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#export-btn:hover { border-color: #fff; color: #fff; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .photo-placeholder { display: none; }
@@ -1316,9 +1314,10 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble-doc .doc-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
-#delete-mode-btn { background: none; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, color 0.15s; }
-#delete-mode-btn:hover { opacity: 1; }
-#delete-mode-btn.active { color: #e74c3c; opacity: 1; }
+#export-btn, #delete-mode-btn { background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
+#export-btn:hover { border-color: rgba(255,255,255,0.8); color: #fff; }
+#delete-mode-btn:hover { border-color: #e74c3c; color: #e74c3c; }
+#delete-mode-btn.active { border-color: #e74c3c; color: #e74c3c; }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
 .bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
@@ -1419,8 +1418,8 @@ html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333
 #file-input { display: none; }
 
 /* ── Nachrichtensuche ── */
-#msg-search-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#msg-search-btn:hover { border-color: #fff; color: #fff; }
+#msg-search-btn { background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.65); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
+#msg-search-btn:hover { border-color: rgba(255,255,255,0.8); color: #fff; }
 #msg-search-btn.active { color: #2AABEE; border-color: #2AABEE; }
 #msg-search-bar { display: none; align-items: center; gap: 8px; padding: 6px 12px; flex-shrink: 0; }
 html.dark #msg-search-bar { background: #1a2533; border-bottom: 1px solid #1A2432; }
