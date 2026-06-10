@@ -5,7 +5,7 @@
 1. [GitHub Token](#github-token)
 2. [Konfigurationsreferenz](#konfigurationsreferenz)
 3. [Tabs & Features](#tabs--features)
-4. [Telegram-Benachrichtigungen](#telegram-benachrichtigungen)
+4. [Benachrichtigungen](#benachrichtigungen)
 5. [GitHub Webhooks](#github-webhooks)
 6. [Tipps & Hinweise](#tipps--hinweise)
 
@@ -37,7 +37,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 
 **Empfohlene Ablaufzeit**: 90 Tage — GitPulse warnt 14 Tage vor Ablauf mit einem gelben Badge im Header.
 
-> Watch-Repos (Release-Tracking externer Repos) benötigen nur öffentlichen Zugriff — dafür braucht der Token keine speziellen Rechte auf diese Repos.
+> Watch-Repos (Release-Tracking externer Repos wie z. B. `home-assistant/core`) benötigen nur öffentlichen Zugriff — dafür braucht der Token keine speziellen Rechte auf diese Repos.
 
 ---
 
@@ -49,21 +49,30 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 | `password` | `secret` | Login-Passwort (nur relevant bei direktem Zugang auf Port 17792) |
 | `session_hours` | `24` | Sitzungsdauer in Stunden vor erneuter Anmeldung |
 | `github_token` | — | Fine-Grained PAT (siehe oben) |
-| `my_repos` | — | Eigene Repos als `owner/repo` — vollständiges Monitoring (PRs, Issues, CI, Releases) |
-| `watch_repos` | `home-assistant/core` | Nur Release-Tracking, kein Schreibzugriff erforderlich |
+| `my_repos` | — | Eigene Repos als `owner/repo` — vollständiges Monitoring (PRs, Issues, CI, Releases, Security) |
+| `watch_repos` | `home-assistant/core` | Nur Release-Tracking; kein Schreibzugriff erforderlich |
 | `include_ha_betas` | `true` | HA Beta/RC-Releases im Releases-Tab anzeigen |
 | `poll_interval` | `300` | Abfrageintervall in Sekunden (Minimum 10, empfohlen 30–300) |
-| `verbose_log` | `false` | Detailliertere Logging-Ausgabe bei jedem Poll-Zyklus |
+| `verbose_log` | `false` | Detailliertere Logging-Ausgabe je Poll-Zyklus |
 | `workflow_run_limit` | `25` | Maximale Anzahl geladener Workflow-Runs pro Repo (Maximum 50) |
+| `addon_manager` | `false` | Add-on-Manager-Tab aktivieren (Versions-Bump direkt aus der UI) |
 | `telegram_bot_token` | — | Telegram-Bot-Token für Benachrichtigungen (leer = deaktiviert) |
 | `telegram_chat_id` | — | Telegram-Chat-ID für Benachrichtigungen |
 | `webhook_secret` | — | Webhook-Secret für GitHub Webhooks (leer = Webhooks vollständig deaktiviert) |
+| `smtp_host` | — | SMTP-Serveradresse für E-Mail-Benachrichtigungen |
+| `smtp_port` | `587` | SMTP-Port (typischerweise 587 für STARTTLS, 465 für SSL) |
+| `smtp_user` | — | SMTP-Benutzername |
+| `smtp_password` | — | SMTP-Passwort |
+| `smtp_to` | — | Empfänger-E-Mail-Adresse |
+| `smtp_tls` | `true` | STARTTLS aktivieren |
 
 ### Hinweise
 
 **`my_repos`** — Repos können alternativ direkt im Dashboard über den ⚙-Button verwaltet werden. Die Dashboard-Konfiguration wird in `/data/gitpulse_repos.json` gespeichert und überlebt Add-on-Updates dauerhaft. Sobald diese Datei existiert, wird `my_repos` aus den HA-Optionen ignoriert.
 
-**`poll_interval`** — Mit aktivierten Webhooks kann ein höherer Intervall (z. B. 300 Sekunden) gesetzt werden, da Updates sofort ankommen. Das Polling bleibt als Fallback erhalten.
+**`watch_repos`** — Nur für Release-Tracking geeignet (z. B. `home-assistant/core`, `Hyundai-Kia-Connect/kia_uvo`). PRs, Issues, CI und Security werden für Watch-Repos nicht abgefragt.
+
+**`poll_interval`** — Mit aktivierten Webhooks kann ein höheres Intervall (z. B. 300 s) gesetzt werden, da Updates sofort ankommen. Das Polling bleibt als Fallback erhalten.
 
 **`workflow_run_limit`** — Höhere Werte bedeuten mehr API-Aufrufe pro Poll-Zyklus. Bei vielen Repos und niedrigem Poll-Intervall kann das Rate-Limit schneller erreicht werden.
 
@@ -77,55 +86,82 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 
 - Offene PRs und Issues mit Klick-Navigation in den jeweiligen Detail-Tab
 - Letzter CI-Run mit Status
-- **Stars ⭐, Forks 🍴, Watchers 👁** als kompakte Statistikzeile — Änderungen lösen Telegram-Benachrichtigungen aus
+- **Stars ⭐, Forks 🍴, Watchers 👁** als kompakte Statistikzeile — Änderungen lösen Benachrichtigungen aus
 - Repo-Name als Link — öffnet GitHub im neuen Tab
 
 ### Pull Requests
 
 - Liste aller offenen PRs über alle eigenen Repos
+- **Repo-Wechsler** oben im Tab: zwischen Repos umschalten; Zähler zeigt PRs je Repo
 - **Review-Status** je PR: ✓ Approved / ✗ Changes requested / ○ Ausstehend
 - **Kommentaranzahl** (PR-Kommentare + Review-Kommentare)
-- Aktionen: PR auf GitHub öffnen · **Mergen** (Merge / Squash / Rebase) · **💬 Kommentieren**
-- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label — Trefferanzahl wird angezeigt
+- Aktionen: PR auf GitHub öffnen · **Mergen** (Merge / Squash / Rebase) · **PR schließen** · **💬 Kommentieren**
+- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label
 
 ### Issues
 
 - Liste aller offenen Issues über alle eigenen Repos
+- **Repo-Wechsler** oben im Tab (synchron mit PRs, CI und Security)
 - Aktionen: Issue öffnen · **✕ Schließen** · **💬 Kommentieren**
-- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label — Trefferanzahl wird angezeigt
+- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label
 
 ### CI / Actions
 
-- Workflow-Runs aller eigenen Repos (Anzahl über `workflow_run_limit` konfigurierbar, Standard 25)
-- **Quickfilter**: Alle / Letzte Stunde / Letzte 6 Std. / Heute / Gestern — Treffer-/Gesamtanzahl wird angezeigt
+- Workflow-Runs aller eigenen Repos (Anzahl über `workflow_run_limit` konfigurierbar)
+- **Repo-Wechsler** oben im Tab (synchron mit PRs, Issues und Security)
+- **Quickfilter**: Alle / Letzte Stunde / Letzte 6 Std. / Heute / Gestern
 - Zeitanzeige: Uhrzeit (HH:MM) + Laufzeit; bei älteren Runs wird das Datum vorangestellt
-- Commit-Beschreibung füllt die volle Spaltenbreite
 - **▾ Details**: klappt Jobs und Steps mit Einzellaufzeiten auf (on-demand, kein extra API-Call)
 - Aktionen je Run: **▶ Neustarten** · **■ Stoppen** (laufende Runs) · **🗑 Löschen** (abgeschlossene Runs)
 - **Workflow starten (Dispatch)**: Workflow + Branch auswählen; Branch-Dropdown wird von GitHub geladen, Default-Branch ist vorausgewählt
 - **⭐ Workflow-Favoriten**: Im Dispatch-Modal „⭐ Favorit speichern" — speichert Workflow + Branch dauerhaft. Favoriten erscheinen als eigene Karte im CI-Tab und können mit **▶** sofort ausgelöst oder mit **🗑** gelöscht werden.
 
+### Releases
+
+- Neue Releases aller eigenen Repos und Watch-Repos, aufgeteilt nach Kategorie
+- **Grüner pulsierender Punkt** bei ungesehenen Releases
+- „Als gelesen markieren" — Releases werden persistent als gesehen gespeichert
+- HA Beta/RC-Releases optional einblenden (`include_ha_betas`)
+- Benachrichtigungen bei neuen Releases (Telegram, E-Mail, Browser)
+
 ### Security
 
 Alle offenen Security-Alerts aller eigenen Repos auf einen Blick:
 
+- **Repo-Wechsler** oben im Tab (synchron mit PRs, Issues und CI)
 - **🤖 Dependabot** — veraltete Dependencies mit Schwachstellen (Paket, Ecosystem, Summary, Fix-Version)
 - **🔍 Code Scanning** — CodeQL-Findings (Tool, Regel, Beschreibung, Datei + Zeile)
 - **🔑 Secret Scanning** — versehentlich eingecheckte Secrets
 
 Schweregrad-Icons: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · 🟢 LOW
 
-Die Tile in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning, **gelb** bei MEDIUM/LOW, **grün** bei 0 Alerts. Der Badge am Tab-Button blinkt wenn neue Alerts hinzukommen.
+Die Kachel in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning, **gelb** bei MEDIUM/LOW, **grün** bei 0 Alerts. Der Badge am Tab-Button blinkt bei neuen Alerts.
 
-**Voraussetzung**: PAT benötigt zusätzliche Berechtigungen (siehe [GitHub Token](#github-token)).
+> Repos ohne Dependabot oder ohne Security-Features zeigen keinen Warn-Banner — GitPulse unterscheidet automatisch zwischen „Token fehlt Berechtigung" (🔒-Hinweis) und „Dependabot auf diesem Repo nicht aktiviert" (kein Hinweis).
 
-### Releases
+**Voraussetzung**: PAT benötigt Dependabot-, Secret-Scanning- und Security-Events-Berechtigungen (siehe [GitHub Token](#github-token)).
 
-- Neue Releases aller Watch-Repos und eigenen Repos
-- **Grüner pulsierender Punkt** bei ungesehenen Releases
-- „Als gelesen markieren" — Releases werden persistent als gesehen gespeichert
-- HA Beta/RC-Releases optional einblenden (`include_ha_betas`)
-- Telegram-Benachrichtigung bei neuen Releases
+### Meine Aktivität
+
+Zeigt alle offenen PRs und Issues, die du selbst erstellt hast — repo-übergreifend:
+
+- **Meine offenen Pull Requests** — alle eigenen offenen PRs in allen Repos (eigene und fremde)
+- **Meine offenen Issues** — alle eigenen offenen Issues in allen Repos
+- **💬 Kommentar-Zähler** je Eintrag — neue Kommentare werden erkannt und lösen Benachrichtigungen aus
+- **Schließen-Button** — sichtbar nur für Repos in denen du Schreibzugriff hast (`my_repos`); mit Sicherheitsabfrage im Browser
+- Benachrichtigungen (Telegram, E-Mail, Browser) für neue eigene PRs/Issues und neue Kommentare — separat abschaltbar
+
+### Add-on Manager *(optional)*
+
+Nur sichtbar wenn `addon_manager: true` in den Add-on-Einstellungen.
+
+Ermöglicht es, Versions-Bumps für HA Add-ons direkt aus der GitPulse-UI vorzunehmen:
+
+- Alle Add-ons im konfigurierten Repo werden geladen (Erkennung über `config.yaml`)
+- **+Dep** — Dependabot-Stil: letzte Stelle erhöhen (`1.5.6 → 1.5.6.1`)
+- **+Patch** — manuell: Patch-Version erhöhen (`1.5.6 → 1.5.7`, `1.5.6.1 → 1.5.7`)
+- CHANGELOG-Eintrag schreiben; aus geschlossenen PRs befüllen
+- Commit & Push direkt aus der UI — Image-Verfügbarkeit wird nach dem Build geprüft
 
 ### Console
 
@@ -142,9 +178,13 @@ Die Tile in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning, 
 
 ---
 
-## Telegram-Benachrichtigungen
+## Benachrichtigungen
 
-### Bot einrichten
+GitPulse unterstützt drei unabhängige Benachrichtigungskanäle: **Telegram**, **E-Mail (SMTP)** und **Browser-Benachrichtigungen**. Jeder Kanal kann pro Ereignistyp einzeln aktiviert oder deaktiviert werden (⚙ → Einstellungen → Telegram / E-Mail / Browser).
+
+### Telegram
+
+#### Bot einrichten
 
 1. In Telegram [@BotFather](https://t.me/BotFather) öffnen → `/newbot`
 2. Namen und Username vergeben → Bot-Token kopieren
@@ -152,20 +192,30 @@ Die Tile in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning, 
 4. Chat-ID ermitteln: [@userinfobot](https://t.me/userinfobot) öffnen → Chat-ID aus der Antwort kopieren
 5. Token (`telegram_bot_token`) und Chat-ID (`telegram_chat_id`) in der Add-on-Konfiguration eintragen
 
-### Benachrichtigungstypen
+### E-Mail (SMTP)
+
+SMTP-Zugangsdaten (`smtp_host`, `smtp_port`, `smtp_user`, `smtp_password`, `smtp_to`, `smtp_tls`) in der Add-on-Konfiguration eintragen. Eine Test-E-Mail kann über ⚙ → E-Mail → „Test-E-Mail senden" verschickt werden.
+
+### Browser-Benachrichtigungen
+
+Benachrichtigungen werden direkt im Browser angezeigt (Desktop-Benachrichtigungen). Beim ersten Mal muss die Browser-Berechtigung erteilt werden. Benachrichtigungen können einzeln pro Ereignistyp aktiviert/deaktiviert und für 1 Stunde, 4 Stunden oder bis morgen stummgeschaltet werden.
+
+### Ereignistypen
 
 | Ereignis | Inhalt |
 |---|---|
 | Add-on-Start | Zusammenfassung aller offenen PRs und Issues je Repo |
 | Neuer PR | Titel, Autor, Branch, Link |
+| PR geschlossen / gemerged | Titel, Ergebnis, Link |
 | Neues Issue | Titel, Autor, Link |
 | Workflow gestartet | Name, Branch, Trigger, Autor, Commit-SHA |
 | Workflow beendet | Name, Ergebnis (✅ / ❌ / ⏹ / ⏭ / ⏱) |
 | Neues Release | Repo, Version, Link |
 | Stars/Forks/Watchers | Vorher → Nachher mit Differenz |
-| 🚨 Secret Scanning Alert | Typ, Alert-Nr., Aktion (gefunden / geleakt / behoben), Link |
-| 🔴 Code Scanning Alert | Schweregrad, Tool, Regel, Datei:Zeile, Link — nur bei `created`/`reopened` |
-| 🟠 Dependabot Alert | Schweregrad, Paket, Ecosystem, Summary, Fix-Version, Link — nur bei `created`/`reopened` |
+| 🚨 Secret Scanning Alert | Typ, Alert-Nr., Aktion, Link |
+| 🔴 Code Scanning Alert | Schweregrad, Tool, Regel, Datei:Zeile, Link |
+| 🟠 Dependabot Alert | Schweregrad, Paket, Ecosystem, Summary, Fix-Version, Link |
+| 👤 Meine Aktivität | Neuer eigener PR oder Issue · neuer Kommentar auf eigenem PR/Issue |
 
 ---
 
@@ -224,8 +274,7 @@ Empfohlene Events:
 - Issues
 - Workflow runs
 - Pushes
-- Branch or tag creation
-- Branch or tag deletion
+- Branch or tag creation / deletion
 - Stars
 - Secret scanning alerts
 - Code scanning alerts
@@ -243,22 +292,22 @@ Nach dem Speichern sendet GitHub automatisch ein `ping`-Event. Im GitPulse-Log (
 
 - Alle eingehenden Webhooks werden per **HMAC-SHA256** (`X-Hub-Signature-256`) verifiziert — nicht signierte oder falsch signierte Requests werden mit `403 Forbidden` abgewiesen.
 - Ohne `webhook_secret` startet Port 17793 **nicht** — der Port bleibt geschlossen.
-- **Duplikat-Schutz**: Webhook-Events werden sofort als gesehen markiert, sodass der nächste Poll keine doppelten Telegram-Benachrichtigungen auslöst.
+- **Duplikat-Schutz**: Webhook-Events werden sofort als gesehen markiert, sodass der nächste Poll keine doppelten Benachrichtigungen auslöst.
 - Das Polling bleibt als Fallback aktiv (z. B. wenn Webhooks verloren gehen).
 
 ### Verarbeitete Ereignistypen
 
 | GitHub Event | Aktion |
 |---|---|
-| `pull_request` | Cache aktualisieren, Telegram bei neuem PR |
-| `issues` | Cache aktualisieren, Telegram bei neuem Issue |
-| `workflow_run` | Cache aktualisieren, Telegram bei Start/Ende |
+| `pull_request` | Cache aktualisieren, Benachrichtigung bei neuem PR |
+| `issues` | Cache aktualisieren, Benachrichtigung bei neuem Issue |
+| `workflow_run` | Cache aktualisieren, Benachrichtigung bei Start/Ende |
 | `push` | Cache aktualisieren |
 | `create` / `delete` | Cache aktualisieren (Branches/Tags) |
 | `star` / `fork` | Cache aktualisieren |
-| `secret_scanning_alert` | Sofortige Telegram-Benachrichtigung — immer, auch vor erstem Poll |
-| `code_scanning_alert` | Telegram bei `created` / `appeared_in_branch` / `reopened` mit Schweregrad + Fundort |
-| `dependabot_alert` | Telegram bei `created` / `reopened` / `reintroduced` mit Schweregrad + Fix-Version |
+| `secret_scanning_alert` | Sofortige Benachrichtigung — immer, auch vor erstem Poll |
+| `code_scanning_alert` | Benachrichtigung bei `created` / `appeared_in_branch` / `reopened` |
+| `dependabot_alert` | Benachrichtigung bei `created` / `reopened` / `reintroduced` |
 | `ping` | Verbindungsbestätigung (keine weitere Aktion) |
 
 ---
@@ -276,3 +325,4 @@ Nach dem Speichern sendet GitHub automatisch ein `ping`-Event. Im GitPulse-Log (
 | `/data/gitpulse_repos.json` | Repo-Liste (aus ⚙-Manager) |
 | `/data/workflow_favorites.json` | Workflow-Favoriten |
 | `/data/seen_releases.json` | Als gelesen markierte Releases |
+| `/data/seen_activity.json` | Bereits benachrichtigte eigene PRs/Issues (Meine Aktivität) |
