@@ -54,6 +54,18 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 
+## Persönlicher Bereich (Mitglieder)
+
+Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Dateibereich pro Benutzer — praktisch zum einfachen Teilen von Dateien mit Familie und Freunden.
+
+- **Benutzer anlegen** im Admin-Tab „Benutzer": E-Mail (= Benutzername), Passwort (min. 8 Zeichen), Speicher-Quota. Ist ein Mailserver konfiguriert, bekommt der Benutzer die Zugangsdaten **automatisch per E-Mail** (ebenso bei Passwort-Reset).
+- **Sicherheit**: Passwörter werden ausschließlich als scrypt-Hash gespeichert; Brute-Force-Schutz (5 Fehlversuche → 15 Min. Sperre); jeder Benutzer sieht nur den eigenen Bereich; Downloads werden immer als Datei-Anhang ausgeliefert, hochgeladene HTML-Dateien können also nie im Browser ausgeführt werden.
+- **Limits**: `user_upload_max_mb` begrenzt die Größe pro Datei (Standard 200 MB), die Quota pro Benutzer ist im Admin einstellbar.
+
+### Optionaler SMB-Speicher
+
+Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` in den Add-on-Optionen setzen und das Add-on neu starten. Schlägt der Mount fehl (Server aus, falsches Passwort), startet das Add-on trotzdem und nutzt den lokalen Speicher (`/addon_configs/…/users`) — es gehen keine Funktionen verloren. Beim Wechsel des Speicherorts werden bestehende Dateien **nicht** automatisch umgezogen; einfach vorher per Share kopieren.
+
 ## Home-Assistant-Sensoren
 
 Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:

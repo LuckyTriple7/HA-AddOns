@@ -41,6 +41,21 @@ configuration:
   smtp_tls:
     name: STARTTLS verwenden
     description: An für Port 587 (STARTTLS), aus für Port 465 (SSL).
+  user_upload_max_mb:
+    name: Upload-Limit pro Datei (MB)
+    description: Maximale Dateigröße für Uploads im Mitglieder-Bereich.
+  smb_server:
+    name: SMB-Server (optional)
+    description: IP/Hostname eines SMB-Shares — Mitglieder-Dateien liegen dann dort statt auf der SD-Karte.
+  smb_share:
+    name: SMB-Freigabe
+    description: Name der Freigabe auf dem Server.
+  smb_user:
+    name: SMB-Benutzer
+    description: Leer lassen für Gast-Zugriff.
+  smb_password:
+    name: SMB-Passwort
+    description: Passwort des SMB-Benutzers.
 network:
   17760/tcp: Öffentliche Homepage
   17761/tcp: Admin-Panel (Login-geschützt)

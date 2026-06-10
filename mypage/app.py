@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import smtplib
 import threading
 import time
@@ -36,6 +37,8 @@ from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import requests as http
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -54,7 +57,11 @@ SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
+USERS_PATH    = _DATA + '/users.json'
+USESSIONS_PATH = _DATA + '/user_sessions.json'
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
+# Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
+USERFILES_ROOT = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
 LOCALES_PATH  = _BASE + '/locales'
 
 PUBLIC_PORT = 17760
@@ -63,13 +70,17 @@ ADMIN_PORT  = 17761
 GITHUB_API = 'https://api.github.com'
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+USERFILES_ROOT.mkdir(parents=True, exist_ok=True)
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
 public_app = Flask('mypage_public', template_folder=_BASE + '/templates')
 admin_app  = Flask('mypage_admin',  template_folder=_BASE + '/templates')
 admin_app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024   # Backups können größer sein
-public_app.config['MAX_CONTENT_LENGTH'] = 64 * 1024         # Kontaktformular: kleine Payloads
+# Öffentliche App: großzügig für Mitglieder-Uploads (Limit wird beim Start aus den
+# Optionen gesetzt), Formularfelder (Kontakt) bleiben klein
+public_app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
+public_app.config['MAX_FORM_MEMORY_SIZE'] = 2 * 1024 * 1024
 
 
 class _IngressMiddleware:
@@ -100,6 +111,12 @@ sessions: dict[str, float] = {}
 _site_lock  = threading.Lock()
 _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
+_users_lock = threading.Lock()
+
+# Mitglieder-Sessions (getrennt vom Admin)
+user_sessions: dict[str, list] = {}  # token → [user_id, expires]
+USER_SESSION_HOURS = 24 * 7
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 # Kontaktformular-Rate-Limit (IP → Zeitstempel)
 _contact_times: dict[str, list[float]] = defaultdict(list)
@@ -253,13 +270,17 @@ def send_telegram(text: str) -> None:
         log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
 
 
-def send_email(subject: str, html_body: str) -> None:
+def smtp_configured() -> bool:
+    return bool((load_config().get('smtp_host') or '').strip())
+
+
+def send_email(subject: str, html_body: str, to: str | None = None) -> None:
     cfg      = load_config()
     host     = (cfg.get('smtp_host') or '').strip()
     port     = int(cfg.get('smtp_port') or 587)
     user     = (cfg.get('smtp_user') or '').strip()
     password = (cfg.get('smtp_password') or '').strip()
-    to       = (cfg.get('smtp_to') or '').strip()
+    to       = (to or cfg.get('smtp_to') or '').strip()
     use_tls  = bool(cfg.get('smtp_tls', True))
     if not host or not to:
         return
@@ -589,6 +610,89 @@ def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     return ([{'name': k, 'count': c} for k, c in top_ref],
             [{'name': k, 'count': c} for k, c in top_brw],
             [{'name': k, 'count': c} for k, c in top_cty])
+
+
+# ── Mitglieder (geheimer Bereich) ─────────────────────────────────────────────
+
+def load_users() -> list:
+    with _users_lock:
+        try:
+            with open(USERS_PATH, encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("users.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def save_users(users: list) -> None:
+    with _users_lock:
+        try:
+            with open(USERS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(users, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("users.json konnte nicht gespeichert werden: %s", e)
+
+
+def user_dir(user: dict) -> Path:
+    d = USERFILES_ROOT / user['id']
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def user_usage_bytes(user: dict) -> int:
+    return sum(f.stat().st_size for f in user_dir(user).iterdir() if f.is_file())
+
+
+def save_user_sessions() -> None:
+    try:
+        now = time.time()
+        with open(USESSIONS_PATH, 'w') as f:
+            json.dump({k: v for k, v in user_sessions.items() if v[1] > now}, f)
+    except Exception as e:
+        log.warning("User-Sessions konnten nicht gespeichert werden: %s", e)
+
+
+def load_user_sessions() -> None:
+    global user_sessions
+    try:
+        with open(USESSIONS_PATH) as f:
+            data = json.load(f)
+        now = time.time()
+        user_sessions = {k: v for k, v in data.items() if v[1] > now}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("User-Sessions konnten nicht geladen werden: %s", e)
+
+
+def current_member(req) -> dict | None:
+    token = req.cookies.get('usession')
+    if not token or token not in user_sessions:
+        return None
+    uid, expires = user_sessions[token]
+    if time.time() > expires:
+        del user_sessions[token]
+        return None
+    return next((u for u in load_users() if u['id'] == uid), None)
+
+
+def send_welcome_email(user: dict, password: str, subject: str | None = None) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    url = (base + '/bereich') if base else '/bereich'
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    send_email(subject or f'Dein Zugang zu {title}',
+               _email_html(f'🔑 Dein Zugang zu {esc(title)}', [
+                   f'Hallo, für dich wurde ein persönlicher Bereich auf <b>{esc(title)}</b> eingerichtet.',
+                   f'<b>Login:</b> <a href="{esc(url)}">{esc(url)}</a>',
+                   f'<b>Benutzername:</b> {esc(user["email"])}',
+                   f'<b>Passwort:</b> {esc(password)}',
+                   'Bitte ändere nichts an diesem Konto, das du nicht selbst angefragt hast.',
+               ]),
+               to=user['email'])
 
 
 # ── Home-Assistant-Sensoren ───────────────────────────────────────────────────
@@ -1114,6 +1218,88 @@ def api_post_edit(pid: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/users')
+def api_users():
+    err = _api_auth()
+    if err:
+        return err
+    out = []
+    for u in load_users():
+        used = user_usage_bytes(u)
+        out.append({'id': u['id'], 'email': u['email'], 'quota_mb': u.get('quota_mb', 500),
+                    'used_mb': round(used / 1048576, 1),
+                    'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()),
+                    'created': u.get('created', '')})
+    return jsonify({'users': out, 'smtp': smtp_configured(),
+                    'storage': str(USERFILES_ROOT)})
+
+
+@admin_app.route('/api/users', methods=['POST'])
+def api_user_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    email = _clean_str(raw.get('email'), 150).lower()
+    password = str(raw.get('password') or '')
+    quota = max(1, min(100000, int(raw.get('quota_mb') or 500)))
+    if not _EMAIL_RE.match(email):
+        return jsonify({'error': 'invalid email'}), 400
+    if len(password) < 8:
+        return jsonify({'error': 'password too short'}), 400
+    users = load_users()
+    if any(u['email'] == email for u in users):
+        return jsonify({'error': 'exists'}), 409
+    user = {'id': uuid.uuid4().hex[:12], 'email': email,
+            'pw_hash': generate_password_hash(password),
+            'quota_mb': quota, 'created': date.today().isoformat()}
+    users.append(user)
+    save_users(users)
+    user_dir(user)
+    mail_sent = smtp_configured()
+    if mail_sent:
+        threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
+    log.info("Benutzer '%s' angelegt (Quota %d MB)", email, quota)
+    return jsonify({'ok': True, 'mail_sent': mail_sent})
+
+
+@admin_app.route('/api/users/<uid>', methods=['PUT', 'DELETE'])
+def api_user_edit(uid: str):
+    err = _api_auth()
+    if err:
+        return err
+    users = load_users()
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        users.remove(user)
+        save_users(users)
+        # Sessions des Benutzers beenden und Dateien entfernen
+        for tok in [t for t, v in user_sessions.items() if v[0] == uid]:
+            del user_sessions[tok]
+        save_user_sessions()
+        shutil.rmtree(user_dir(user), ignore_errors=True)
+        log.info("Benutzer '%s' gelöscht", user['email'])
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    mail_sent = False
+    if 'quota_mb' in raw:
+        user['quota_mb'] = max(1, min(100000, int(raw.get('quota_mb') or 500)))
+    password = str(raw.get('password') or '')
+    if password:
+        if len(password) < 8:
+            return jsonify({'error': 'password too short'}), 400
+        user['pw_hash'] = generate_password_hash(password)
+        mail_sent = smtp_configured()
+        if mail_sent:
+            threading.Thread(target=send_welcome_email,
+                             args=(user, password, f'Neues Passwort für deinen Bereich'),
+                             daemon=True).start()
+    save_users(users)
+    return jsonify({'ok': True, 'mail_sent': mail_sent})
+
+
 @admin_app.route('/api/export')
 def api_export():
     """Statischer HTML-Export der öffentlichen Seite (für z. B. GitHub Pages)."""
@@ -1370,6 +1556,7 @@ def public_index():
                            total_visitors=total_uniques(stats),
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),
+                           has_members=bool(load_users()) and not static_export,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -1421,6 +1608,121 @@ def project_detail(pid: str):
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
                            long_html=render_md(loc(proj, 'long')),
                            year=datetime.now(timezone.utc).year)
+
+
+# ── Mitglieder-Bereich (öffentliche App) ──────────────────────────────────────
+
+def _member_page(member: dict | None, msg: str = ''):
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    files = []
+    used = quota = 0
+    if member:
+        quota = member.get('quota_mb', 500) * 1048576
+        for f in sorted(user_dir(member).iterdir()):
+            if f.is_file():
+                st = f.stat()
+                files.append({'name': f.name, 'size': st.st_size,
+                              'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M')})
+                used += st.st_size
+    return render_template('member.html', t=t, lang=lang, site=site, member=member,
+                           files=files, used=used, quota=quota, msg=msg,
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/bereich')
+def member_area():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    return _member_page(current_member(request), request.args.get('msg', ''))
+
+
+@public_app.route('/bereich/login', methods=['POST'])
+def member_login():
+    ip = get_client_ip(request)
+    if is_rate_limited(ip):
+        return redirect('/bereich?msg=locked')
+    email = (request.form.get('email') or '').strip().lower()
+    password = request.form.get('password') or ''
+    user = next((u for u in load_users() if u['email'] == email), None)
+    if user is None or not check_password_hash(user['pw_hash'], password):
+        record_failed_attempt(ip)
+        return redirect('/bereich?msg=credentials')
+    clear_failed_attempts(ip)
+    token = secrets.token_hex(32)
+    user_sessions[token] = [user['id'], time.time() + USER_SESSION_HOURS * 3600]
+    save_user_sessions()
+    resp = make_response(redirect('/bereich'))
+    resp.set_cookie('usession', token, httponly=True, samesite='Lax',
+                    max_age=USER_SESSION_HOURS * 3600)
+    log.info("Mitglied '%s' angemeldet", email)
+    return resp
+
+
+@public_app.route('/bereich/logout')
+def member_logout():
+    token = request.cookies.get('usession')
+    if token and token in user_sessions:
+        del user_sessions[token]
+        save_user_sessions()
+    resp = make_response(redirect('/bereich'))
+    resp.delete_cookie('usession')
+    return resp
+
+
+@public_app.route('/bereich/upload', methods=['POST'])
+def member_upload():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return redirect('/bereich?msg=nofile')
+    name = secure_filename(f.filename)
+    if not name:
+        return redirect('/bereich?msg=nofile')
+    d = user_dir(member)
+    target = (d / name).resolve()
+    if target.parent != d.resolve():
+        abort(400)
+    # Bei Namenskollision durchnummerieren statt überschreiben
+    base, ext = os.path.splitext(name)
+    n = 1
+    while target.exists():
+        target = d / f'{base}({n}){ext}'
+        n += 1
+    f.save(target)
+    quota = member.get('quota_mb', 500) * 1048576
+    if user_usage_bytes(member) > quota:
+        target.unlink(missing_ok=True)
+        return redirect('/bereich?msg=quota')
+    log.info("Mitglied '%s': Datei '%s' hochgeladen", member['email'], target.name)
+    return redirect('/bereich?msg=uploaded')
+
+
+@public_app.route('/bereich/dl/<path:name>')
+def member_download(name: str):
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt
+    return send_from_directory(user_dir(member), name, as_attachment=True)
+
+
+@public_app.route('/bereich/delete', methods=['POST'])
+def member_delete():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    name = secure_filename(request.form.get('name') or '')
+    d = user_dir(member)
+    target = (d / name).resolve()
+    if name and target.parent == d.resolve() and target.is_file():
+        target.unlink()
+        log.info("Mitglied '%s': Datei '%s' gelöscht", member['email'], name)
+    return redirect('/bereich')
 
 
 @public_app.route('/contact', methods=['POST'])
@@ -1499,9 +1801,14 @@ def _run_public():
 
 if __name__ == '__main__':
     load_sessions()
+    load_user_sessions()
     cfg = load_config()
     if cfg.get('password') in ('', 'changeme123'):
         log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
+    upload_max = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
+    public_app.config['MAX_CONTENT_LENGTH'] = upload_max * 1024 * 1024
+    log.info("Mitglieder-Bereich: Speicher unter %s, Upload-Limit %d MB",
+             USERFILES_ROOT, upload_max)
 
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()

@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.description="Homepage builder for Home Assistant"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl cifs-utils jq
 
 WORKDIR /app
 

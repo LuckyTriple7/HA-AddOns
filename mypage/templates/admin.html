@@ -140,6 +140,7 @@
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
+        <button class="tab-btn" data-tab="users">{{ t.tab_users }}</button>
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
         <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
       </nav>
@@ -383,6 +384,32 @@
       <div id="msg-list"></div>
     </section>
 
+    <!-- Benutzer -->
+    <section class="tab" id="tab-users">
+      <div class="panel">
+        <h3>{{ t.user_create_heading }}</h3>
+        <p class="hint">{{ t.users_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.member_email }}</label>
+            <input type="email" id="u-email" placeholder="freund@example.com">
+          </div>
+          <div>
+            <label>{{ t.user_password }}</label>
+            <input type="text" id="u-password" placeholder="{{ t.user_pw_hint }}">
+          </div>
+        </div>
+        <label>{{ t.user_quota }}</label>
+        <input type="number" id="u-quota" value="500" min="1">
+        <div><button class="btn" onclick="createUser()">{{ t.user_create }}</button></div>
+        <p class="hint" id="u-storage"></p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.users_heading }}</h3>
+        <div class="proj-list" id="user-list"></div>
+      </div>
+    </section>
+
     <!-- System -->
     <section class="tab" id="tab-system">
       <div class="panel">
@@ -612,6 +639,7 @@
         el('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'stats') loadStats();
         if (btn.dataset.tab === 'messages') loadMessages();
+        if (btn.dataset.tab === 'users') loadUsers();
         if (btn.dataset.tab === 'design') initPreview();
       });
     });
@@ -814,6 +842,79 @@
         };
         list.appendChild(div);
       });
+    }
+
+    // ── Benutzer ──
+    async function loadUsers() {
+      const r = await api('api/users');
+      if (!r.ok) return;
+      const data = await r.json();
+      el('u-storage').textContent = T.user_storage + ': ' + data.storage +
+        (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off);
+      const list = el('user-list');
+      list.innerHTML = '';
+      if (!data.users.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_users}</div>`;
+        return;
+      }
+      data.users.forEach(u => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small">${T.user_reset_pw}</button>
+            <button class="btn secondary small">${T.user_quota_btn}</button>
+            <button class="btn danger small">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = u.email;
+        div.querySelector('.proj-meta').textContent =
+          `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created}`;
+        const [pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        pwBtn.onclick = async () => {
+          const pw = prompt(T.user_new_pw_prompt);
+          if (!pw) return;
+          if (pw.length < 8) { toast(T.user_pw_short, true); return; }
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { password: pw });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            toast(d2.mail_sent ? T.user_pw_mailed : T.saved);
+          } else toast(T.error_save, true);
+        };
+        quotaBtn.onclick = async () => {
+          const q = prompt(T.user_quota_prompt, u.quota_mb);
+          if (!q) return;
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { quota_mb: parseInt(q) || 500 });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        delBtn.onclick = async () => {
+          if (!confirm(T.user_delete_confirm.replace('{email}', u.email))) return;
+          const r2 = await fetch('api/users/' + u.id, { method: 'DELETE', credentials: 'same-origin' });
+          toast(r2.ok ? T.deleted : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        list.appendChild(div);
+      });
+    }
+    async function createUser() {
+      const email = el('u-email').value.trim();
+      const password = el('u-password').value;
+      if (!email) { toast(T.user_email_required, true); return; }
+      if (password.length < 8) { toast(T.user_pw_short, true); return; }
+      const r = await apiJson('api/users', 'POST', {
+        email, password, quota_mb: parseInt(el('u-quota').value) || 500,
+      });
+      if (r.ok) {
+        const d = await r.json();
+        toast(d.mail_sent ? T.user_created_mailed : T.user_created);
+        el('u-email').value = '';
+        el('u-password').value = '';
+        loadUsers();
+      } else if (r.status === 409) {
+        toast(T.user_exists, true);
+      } else {
+        toast(T.error_save, true);
+      }
     }
 
     // ── System: Wartungsmodus & Backup ──

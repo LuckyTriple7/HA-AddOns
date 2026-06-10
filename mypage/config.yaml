@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.0.8"
+version: "0.1.0"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -21,6 +21,10 @@ ingress_port: 17761
 ingress_stream: true
 
 homeassistant_api: true
+
+privileged:
+  - SYS_ADMIN
+  - DAC_READ_SEARCH
 
 ports:
   17760/tcp: 17760
@@ -48,6 +52,11 @@ options:
   smtp_password: ""
   smtp_to: ""
   smtp_tls: true
+  user_upload_max_mb: 200
+  smb_server: ""
+  smb_share: ""
+  smb_user: ""
+  smb_password: ""
 
 schema:
   username: str
@@ -64,3 +73,8 @@ schema:
   smtp_password: str?
   smtp_to: str?
   smtp_tls: bool?
+  user_upload_max_mb: int?
+  smb_server: str?
+  smb_share: str?
+  smb_user: str?
+  smb_password: str?

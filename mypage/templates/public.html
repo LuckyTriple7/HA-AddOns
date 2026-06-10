@@ -398,10 +398,11 @@
     <div class="wrap">
       {% if site.design.footer_text %}<div>{{ site.design.footer_text }}</div>
       {% else %}<div>&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>{% endif %}
-      {% if has_impressum or has_privacy %}
+      {% if has_impressum or has_privacy or has_members %}
       <div class="legal-links">
         {% if has_impressum %}<a href="/impressum">{{ t.legal_impressum }}</a>{% endif %}
         {% if has_privacy %}<a href="/datenschutz">{{ t.legal_privacy }}</a>{% endif %}
+        {% if has_members %}<a href="/bereich">{{ t.member_login_link }}</a>{% endif %}
       </div>
       {% endif %}
       {% if site.design.show_counter %}
