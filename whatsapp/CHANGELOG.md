@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.14] - 2026-06-10
+- UI: Foto-Thumbnail im Chat auf max 200×200px verkleinert (war 320×400 + width:100%); Klick öffnet weiterhin Vollbild-Lightbox
+
 ## [1.7.13] - 2026-06-10
 - Fix: Selbst gesendete Videos erscheinen jetzt in Chatliste und Chat — bisher wurden sie im `message_create`-Handler übersprungen; Platzhalter mit Download-on-Demand wie bei empfangenen Videos
 

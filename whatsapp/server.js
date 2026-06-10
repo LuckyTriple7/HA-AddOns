@@ -2660,7 +2660,7 @@ app.get('/', (req, res) => {
           const img = document.createElement('img');
           img.className = 'msg-img';
           img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
-          img.style.cssText = 'max-width:320px;max-height:400px;display:block;cursor:zoom-in;width:100%;';
+          img.style.cssText = 'max-width:200px;max-height:200px;display:block;cursor:zoom-in;';
           img.loading = 'lazy';
           img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
           bub.appendChild(img);
