@@ -19,6 +19,15 @@ from pathlib import Path
 HERE = Path(__file__).parent.resolve()
 DATA = HERE / 'dev_data'
 
+# .env aus Workspace-Root automatisch laden
+_env_file = HERE.parent / '.env'
+if _env_file.exists():
+    for _line in _env_file.read_text(encoding='utf-8').splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _k, _v = _line.split('=', 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 parser = argparse.ArgumentParser(description='GitPulse lokal starten')
 parser.add_argument('--token',    default=os.environ.get('GITHUB_TOKEN', ''), help='GitHub Token')
 parser.add_argument('--user',     default='admin',  help='Login-Benutzername')
