@@ -167,7 +167,7 @@
           </div>
           <div>
             <label>{{ t.field_github_user }}</label>
-            <input type="text" id="p-github" placeholder="LuckyTriple7">
+            <input type="text" id="p-github" placeholder="octocat">
           </div>
         </div>
         <div class="row">
@@ -233,7 +233,7 @@
         <div class="gh-search-row">
           <div>
             <label>{{ t.field_github_user }}</label>
-            <input type="text" id="gh-user" placeholder="LuckyTriple7">
+            <input type="text" id="gh-user" placeholder="octocat">
           </div>
           <button class="btn secondary" style="margin-top:0" onclick="loadGithubRepos()">{{ t.load_repos }}</button>
         </div>
@@ -624,6 +624,10 @@
       fillSystem();
       renderProjects();
       renderPosts();
+      // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
+      if (!el('gh-user').value && SITE.profile.github) {
+        el('gh-user').value = SITE.profile.github;
+      }
     }
 
     // ── Blog ──

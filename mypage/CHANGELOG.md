@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.5
+
+- GitHub-Import: Benutzername wird automatisch aus dem Profil vorbefüllt, neutrale Platzhalter
+
 ## 0.0.4
 
 - 🔢 **Fix Besucherzähler**: Der öffentliche Zähler zeigt jetzt eindeutige Besucher (pro Tag dedupliziert) — ein Browser-Refresh zählt nicht mehr hoch
