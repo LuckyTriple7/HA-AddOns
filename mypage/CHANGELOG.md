@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.6
+
+- 🌍 **Länder-Statistik**: Verteilung mit Flagge und Ländername im Statistik-Tab, Flagge auch im Besucher-Log
+- Erkennung über Cloudflare-Header (`CF-IPCountry`) oder näherungsweise über die Browser-Sprache (NGINX & Co., keine GeoIP-Datenbank nötig)
+
 ## 0.0.5
 
 - GitHub-Import: Benutzername wird automatisch aus dem Profil vorbefüllt, neutrale Platzhalter

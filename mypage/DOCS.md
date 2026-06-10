@@ -77,7 +77,11 @@ Impressum und Datenschutzerklärung als Freitext (DE/EN). Sobald Text eingetrage
 ### Statistik
 Aufrufe gesamt, Aufrufe und eindeutige Besucher heute, Verlauf der letzten 30 Tage. Eindeutige Besucher werden über gesalzene Tages-Hashes erkannt; bekannte Bots und Monitoring-Tools zählen nicht in die Statistik.
 
-Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, IP-Adresse, Browser/User-Agent, Sprache und Referrer (Bots werden markiert). Hinweis: Wer die Seite öffentlich betreibt, sollte die IP-Speicherung ggf. in seiner Datenschutzerklärung erwähnen.
+Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, IP-Adresse, Browser/User-Agent, Sprache und Referrer (Bots werden markiert). Hinweis: Wer die Seite öffentlich betreibt, sollte die IP-Speicherung ggf. in seiner Datenschutzerklärung erwähnen.
+
+**Länder-Erkennung:** Hinter Cloudflare wird das echte Besucherland aus dem `CF-IPCountry`-Header übernommen. Hinter anderen Proxys (z. B. NGINX) wird das Land näherungsweise aus der Browser-Sprache abgeleitet (`de-DE` → Deutschland) — keine GeoIP-Datenbank nötig, aber entsprechend ungenau.
+
+**Reverse-Proxy (NGINX):** Damit Besucher-IPs, Brute-Force-Schutz und Rate-Limit korrekt arbeiten, muss der Proxy die Original-IP weiterreichen: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`
 
 ## Sicherheit
 

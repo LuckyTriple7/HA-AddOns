@@ -431,7 +431,7 @@
         <h3>{{ t.stat_last30 }}</h3>
         <div id="s-bars"></div>
       </div>
-      <div class="row">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 18px">
         <div class="panel">
           <h3>{{ t.stat_referrers }}</h3>
           <div id="s-referrers"></div>
@@ -439,6 +439,10 @@
         <div class="panel">
           <h3>{{ t.stat_browsers }}</h3>
           <div id="s-browsers"></div>
+        </div>
+        <div class="panel">
+          <h3>{{ t.stat_countries }}</h3>
+          <div id="s-countries"></div>
         </div>
       </div>
       <div class="panel">
@@ -1105,9 +1109,21 @@
          </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
       renderDistribution('s-referrers', s.referrers || []);
       renderDistribution('s-browsers', s.browsers || []);
+      renderDistribution('s-countries', s.countries || [], countryLabel);
       renderVisitorLog(s.log || []);
     }
-    function renderDistribution(target, items) {
+    function countryFlag(code) {
+      if (!code || code.length !== 2) return '';
+      return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+    }
+    function countryLabel(code) {
+      let name = code;
+      try {
+        name = new Intl.DisplayNames([document.documentElement.lang || 'de'], { type: 'region' }).of(code) || code;
+      } catch {}
+      return (countryFlag(code) + ' ' + name).trim();
+    }
+    function renderDistribution(target, items, labelFn) {
       if (!items.length) {
         el(target).innerHTML = `<p class="hint">${T.no_data}</p>`;
         return;
@@ -1121,7 +1137,7 @@
           <div class="bar-track"><div class="bar-fill" style="width:${Math.round(i.count / max * 100)}%"></div></div>
           <span class="bar-num" style="width:46px">${i.count}</span>`;
         const lbl = row.querySelector('.bar-date');
-        lbl.textContent = i.name;
+        lbl.textContent = labelFn ? labelFn(i.name) : i.name;
         lbl.title = i.name;
         el(target).appendChild(row);
       });
@@ -1156,7 +1172,8 @@
         const lang = (v.lang || '').split(',')[0];
         tr.innerHTML = `<td></td><td class="mono"></td><td title=""></td><td></td><td title=""></td><td></td>`;
         tr.children[0].textContent = time;
-        tr.children[1].textContent = v.ip;
+        tr.children[1].textContent = (v.country ? countryFlag(v.country) + ' ' : '') + v.ip;
+        if (v.country) tr.children[1].title = countryLabel(v.country);
         tr.children[2].textContent = browserInfo(v.ua);
         tr.children[2].title = v.ua || '';
         tr.children[3].textContent = lang;

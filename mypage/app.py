@@ -367,6 +367,15 @@ def total_uniques(stats: dict) -> int:
     return sum(d.get('uniques', 0) for d in stats.get('days', {}).values())
 
 
+def _guess_country(req) -> str:
+    """Besucherland: Cloudflare-Header, sonst Näherung über Accept-Language."""
+    c = (req.headers.get('CF-IPCountry') or '').strip().upper()
+    if len(c) == 2 and c.isalpha() and c != 'XX':
+        return c
+    m = re.search(r'[a-zA-Z]{2,3}-([A-Za-z]{2})\b', req.headers.get('Accept-Language') or '')
+    return m.group(1).upper() if m else ''
+
+
 def count_visit(req) -> None:
     global _seen_today, _seen_day
     if req.headers.get('X-MyPage-Export'):
@@ -395,6 +404,7 @@ def count_visit(req) -> None:
         'ua':   ua[:300],
         'ref':  (req.headers.get('Referer') or '')[:300],
         'lang': (req.headers.get('Accept-Language') or '')[:60],
+        'country': _guess_country(req),
         'bot':  is_bot,
         'new':  is_new,
     })
@@ -430,10 +440,11 @@ def _browser_name(ua: str) -> str:
     return 'Other'
 
 
-def aggregate_visits(visit_log: list) -> tuple[list, list]:
-    """Top-Referrer und Browser-Verteilung aus dem Besucher-Log."""
+def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
+    """Top-Referrer, Browser- und Länder-Verteilung aus dem Besucher-Log."""
     referrers: dict[str, int] = {}
     browsers:  dict[str, int] = {}
+    countries: dict[str, int] = {}
     for v in visit_log:
         if v.get('bot'):
             continue
@@ -442,10 +453,15 @@ def aggregate_visits(visit_log: list) -> tuple[list, list]:
             referrers[host] = referrers.get(host, 0) + 1
         b = _browser_name(v.get('ua') or '')
         browsers[b] = browsers.get(b, 0) + 1
+        c = v.get('country') or ''
+        if c:
+            countries[c] = countries.get(c, 0) + 1
     top_ref = sorted(referrers.items(), key=lambda x: x[1], reverse=True)[:10]
     top_brw = sorted(browsers.items(),  key=lambda x: x[1], reverse=True)
+    top_cty = sorted(countries.items(), key=lambda x: x[1], reverse=True)[:15]
     return ([{'name': k, 'count': c} for k, c in top_ref],
-            [{'name': k, 'count': c} for k, c in top_brw])
+            [{'name': k, 'count': c} for k, c in top_brw],
+            [{'name': k, 'count': c} for k, c in top_cty])
 
 
 # ── Home-Assistant-Sensoren ───────────────────────────────────────────────────
@@ -1105,7 +1121,7 @@ def api_stats():
     stats = load_stats()
     today = date.today().isoformat()
     days = sorted(stats['days'].keys(), reverse=True)[:30]
-    referrers, browsers = aggregate_visits(stats.get('log', []))
+    referrers, browsers, countries = aggregate_visits(stats.get('log', []))
     return jsonify({
         'total':         stats.get('total', 0),
         'total_uniques': total_uniques(stats),
@@ -1114,6 +1130,7 @@ def api_stats():
         'log':       list(reversed(stats.get('log', [])))[:100],
         'referrers': referrers,
         'browsers':  browsers,
+        'countries': countries,
     })
 
 
