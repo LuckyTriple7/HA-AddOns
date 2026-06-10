@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ site.design.mode }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ p.title }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="description" content="{{ loc(p, 'desc') }}">
+  <meta property="og:title" content="{{ p.title }}">
+  <meta property="og:description" content="{{ loc(p, 'desc') }}">
+  {% if p.image %}<meta property="og:image" content="{{ p.image }}">{% endif %}
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#636c76;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.65;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+    header { border-bottom: 1px solid var(--border); }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; color: var(--text); }
+    .brand:hover { text-decoration: none; }
+    main { padding: 36px 0 60px; }
+    h1 { font-size: 1.7rem; margin-bottom: 6px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .stars { font-size: 0.85rem; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+    .stars svg { width: 15px; height: 15px; fill: #e3b341; }
+    .meta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; font-size: 0.85rem; color: var(--muted); }
+    .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag {
+      font-size: 0.72rem; padding: 2px 9px; border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    .links { display: flex; gap: 12px; margin-bottom: 22px; }
+    .links a {
+      background: var(--surf); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 14px; font-size: 0.85rem; color: var(--text);
+    }
+    .links a:hover { border-color: var(--accent); text-decoration: none; }
+    .hero-img { width: 100%; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 24px; }
+    .long { font-size: 0.95rem; }
+    .long h1, .long h2, .long h3 { margin: 20px 0 8px; font-size: 1.15rem; display: block; }
+    .long p { margin-bottom: 10px; }
+    .long ul, .long ol { margin: 4px 0 12px 22px; }
+    .long code { background: var(--surf); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 0.85em; }
+    .long pre { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; margin-bottom: 12px; }
+    .long pre code { border: none; background: none; padding: 0; }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 28px; }
+    .gallery img { width: 100%; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; transition: transform .15s; }
+    .gallery img:hover { transform: scale(1.02); }
+    .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 50; align-items: center; justify-content: center; cursor: pointer; }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 94vw; max-height: 92vh; border-radius: 8px; }
+    footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
+    </div>
+  </header>
+  <main class="wrap">
+    <h1>
+      {{ p.title }}
+      {% if p.stars %}<span class="stars"><svg viewBox="0 0 24 24"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>{{ p.stars }}</span>{% endif %}
+    </h1>
+    <div class="meta-row">
+      {% if p.language %}<span>{{ p.language }}</span>{% endif %}
+      {% if p.tags %}<div class="tags">{% for tag in p.tags %}<span class="tag">{{ tag }}</span>{% endfor %}</div>{% endif %}
+    </div>
+    {% if p.url or p.repo_url %}
+    <div class="links">
+      {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">{{ t.demo }}</a>{% endif %}
+      {% if p.repo_url %}<a href="{{ p.repo_url }}" target="_blank" rel="noopener">GitHub</a>{% endif %}
+    </div>
+    {% endif %}
+    {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ p.title }}">{% endif %}
+    {% if long_html %}<div class="long">{{ long_html|safe }}</div>
+    {% elif loc(p, 'desc') %}<div class="long"><p>{{ loc(p, 'desc') }}</p></div>{% endif %}
+    {% if p.gallery %}
+    <div class="gallery">
+      {% for img in p.gallery %}<img src="{{ img }}" alt="" loading="lazy" onclick="openLightbox(this.src)">{% endfor %}
+    </div>
+    {% endif %}
+  </main>
+  <footer>
+    <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
+  </footer>
+  <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" src="" alt=""></div>
+  <script>
+    const saved = localStorage.getItem('mp-public-theme');
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
+    function openLightbox(src) {
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox').classList.add('open');
+    }
+  </script>
+</body>
+</html>

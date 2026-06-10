@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.16] - 2026-06-10
+- UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — Caption und Bild haben immer dieselbe Breite, max-height 360px verhindert sehr hohe Bilder
+
+## [1.7.15] - 2026-06-10
+- Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ackUpdatedAt-Timestamp wird im message_ack-Event gesetzt, im since-Filter berücksichtigt und das .time-Element in-place im DOM aktualisiert
+
+## [1.7.14] - 2026-06-10
+- UI: Foto-Thumbnail im Chat auf max 200×200px verkleinert (war 320×400 + width:100%); Klick öffnet weiterhin Vollbild-Lightbox
+
+## [1.7.13] - 2026-06-10
+- Fix: Selbst gesendete Videos erscheinen jetzt in Chatliste und Chat — bisher wurden sie im `message_create`-Handler übersprungen; Platzhalter mit Download-on-Demand wie bei empfangenen Videos
+
+## [1.7.12] - 2026-06-10
+- UI: Alle Emoji-Icons (🎬 🗑️ 💾 ↑↓ 🌐 🚮 😊 📎 📍 📄) durch konsistente SVG-Icons ersetzt — Topbar, Chat-Header und Sendeleiste einheitlich professionell
+
 ## [1.7.11] - 2026-06-08
 - Fix: Such-Button als SVG-Icon (statt Emoji), passend zu den anderen Header-Buttons; grüne Hervorhebung wenn aktiv
 

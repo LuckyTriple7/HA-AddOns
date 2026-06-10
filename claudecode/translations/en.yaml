@@ -58,9 +58,10 @@
     name: Claude Model
     description: >-
       The Claude model to use. claude-sonnet-4-6 offers the best balance of speed
-      and capability. claude-opus-4-8 is the most powerful. claude-haiku-4-5-20251001
-      is the fastest. Auto-update Claude Code (above) ensures new models become
-      available without an add-on update.
+      and capability. claude-fable-5 is the most powerful, claude-opus-4-8 very
+      capable for complex tasks. claude-haiku-4-5-20251001 is the fastest.
+      Auto-update Claude Code (above) ensures new models become available
+      without an add-on update.
   export_memory:
     name: Export Memory
     description: >-

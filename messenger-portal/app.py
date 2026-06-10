@@ -44,8 +44,25 @@ _root.addHandler(_buf_h)
 app = Flask(__name__,
             template_folder='/app/templates',
             static_folder='/app/static')
-# x_for=1: eine vorgeschaltete Proxy-Ebene (NGINX) vertrauen
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+class _IngressMiddleware:
+    """Reads HA Supervisor X-Ingress-Path and sets WSGI SCRIPT_NAME so that
+    Flask's url_for() generates correct URLs behind the Ingress proxy."""
+    def __init__(self, wsgi_app):
+        self._app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+        if prefix:
+            environ['SCRIPT_NAME'] = prefix
+            path = environ.get('PATH_INFO', '')
+            if path.startswith(prefix):
+                environ['PATH_INFO'] = path[len(prefix):] or '/'
+        return self._app(environ, start_response)
+
+
+app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
@@ -209,6 +226,11 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
+def is_ingress() -> bool:
+    """True when the request arrives via HA Supervisor Ingress (auth handled by HA)."""
+    return bool(request.environ.get('HTTP_X_INGRESS_PATH'))
+
+
 def get_client_ip(req) -> str:
     # Cloudflare Tunnel sets CF-Connecting-IP with the real public IP
     cf = req.headers.get('CF-Connecting-IP', '').strip()
@@ -321,7 +343,7 @@ def api_logs():
 
 @app.route('/status')
 def status():
-    if not is_valid_session(request.cookies.get('mp_session')):
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
         return '', 401
     config = load_config()
     host = get_internal_host()
@@ -344,6 +366,8 @@ def proxy_offline():
 @app.route('/auth-check')
 def auth_check():
     """Called internally by nginx to validate the session cookie."""
+    if is_ingress():
+        return '', 200
     if is_valid_session(request.cookies.get('mp_session')):
         return '', 200
     return '', 401
@@ -351,7 +375,7 @@ def auth_check():
 
 @app.route('/')
 def index():
-    if not is_valid_session(request.cookies.get('mp_session')):
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
         return redirect(url_for('login'))
     config = load_config()
     lang = detect_language(request)
@@ -361,11 +385,13 @@ def index():
     )
     poll_interval = max(5, int(config.get('poll_interval', 30)))
     return render_template('index.html', messengers=messengers, t=t, lang=lang,
-                           poll_interval=poll_interval)
+                           poll_interval=poll_interval, ingress_mode=is_ingress())
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if is_ingress():
+        return redirect(url_for('index'))
     config = load_config()
     lang = detect_language(request)
     t = load_translations(lang)
@@ -404,6 +430,8 @@ def login():
 
 @app.route('/logout')
 def logout():
+    if is_ingress():
+        return redirect(url_for('index'))
     token = request.cookies.get('mp_session')
     if token in sessions:
         del sessions[token]

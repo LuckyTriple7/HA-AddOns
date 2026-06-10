@@ -54,7 +54,9 @@ for _h in _root.handlers:
 _root.addHandler(_buf_h)
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
-app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
+_BASE = os.environ.get('GITPULSE_BASE', '/app')
+_DATA = os.environ.get('GITPULSE_DATA', '/data')
+app = Flask(__name__, template_folder=_BASE + '/templates', static_folder=_BASE + '/static')
 
 
 class _IngressMiddleware:
@@ -75,11 +77,11 @@ class _IngressMiddleware:
 
 app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
-CONFIG_PATH   = '/data/options.json'
-SESSIONS_PATH = '/data/sessions.json'
-REPOS_PATH      = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
-FAVORITES_PATH  = '/data/workflow_favorites.json'
-LOCALES_PATH    = '/app/locales'
+CONFIG_PATH    = _DATA + '/options.json'
+SESSIONS_PATH  = _DATA + '/sessions.json'
+REPOS_PATH     = _DATA + '/gitpulse_repos.json'
+FAVORITES_PATH = _DATA + '/workflow_favorites.json'
+LOCALES_PATH   = _BASE + '/locales'
 
 GITHUB_API    = 'https://api.github.com'
 POLL_INTERVAL_DEFAULT = 300  # seconds
@@ -97,7 +99,7 @@ _sse_lock = threading.Lock()
 _gh_cache: dict = {
     'my_repos':    [],
     'releases':    [],
-    'my_activity':           {'prs': [], 'issues': []},
+    'my_activity':           {'prs': [], 'issues': [], 'review_prs': []},
     'new_activity_comments': [],
     'gh_login':              '',
     'token_ok':    None,
@@ -110,11 +112,11 @@ _gh_cache: dict = {
 _gh_lock = threading.Lock()
 
 # Seen releases (für Benachrichtigungen — persistent über Neustarts)
-_SEEN_PATH = '/data/seen_releases.json'
+_SEEN_PATH = _DATA + '/seen_releases.json'
 _seen_releases: set[str] = set()
 
 # Seen activity — eigene PRs/Issues, persistent
-_SEEN_ACTIVITY_PATH = '/data/seen_activity.json'
+_SEEN_ACTIVITY_PATH = _DATA + '/seen_activity.json'
 _seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
 
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
@@ -126,6 +128,12 @@ _activity_comment_counts: dict[str, int] = {}  # "repo#number" -> comment count
 # Repos ohne Releases — 404 bekommen, 1h warten bevor erneut geprüft wird
 _NO_RELEASE_TTL = 3600
 _no_release_repos: dict[str, float] = {}  # repo -> timestamp der letzten 404
+
+# Tages-Digest — Datum des letzten gesendeten Digests (YYYY-MM-DD)
+_last_digest_date: str = ''
+
+# Review-Request-Tracking — PRs die zur Review angefragt wurden (in-memory)
+_seen_review_prs: set[str] = set()
 
 # ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit)
 _etag_cache: dict[str, tuple] = {}
@@ -495,6 +503,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'mergeable':    pr.get('mergeable_state', ''),
             'comments':     (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
             'review_state': _compute_review_state(reviews_raw),
+            'body':         (pr.get('body') or '')[:1500],
         })
 
     issues_raw = _gh_get_paginated(f'/repos/{repo}/issues', token) or []
@@ -513,6 +522,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'created':   iss['created_at'],
             'updated':   iss['updated_at'],
             'closed_at': iss.get('closed_at'),
+            'body':      (iss.get('body') or '')[:1500],
         })
 
     closed_pulls_raw = _gh_get(f'/repos/{repo}/pulls', token,
@@ -622,6 +632,9 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             log.error("GitHub API Fehler (%s/releases/latest): %s", repo, e)
 
     security = _fetch_security_alerts(repo, token)
+    _sec_count = (len(security.get('dependabot', [])) +
+                  len(security.get('code_scanning', [])) +
+                  len(security.get('secret_scanning', [])))
 
     return {
         'repo':           repo,
@@ -641,6 +654,13 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         'forks':          repo_meta.get('forks_count', 0),
         'watchers':       repo_meta.get('watchers_count', 0),
         'security':       security,
+        'insights': {
+            'has_license':   bool(repo_meta.get('license')),
+            'license_name':  (repo_meta.get('license') or {}).get('spdx_id', ''),
+            'has_ci':        any(wf.get('state') == 'active' for wf in workflows),
+            'security_count': _sec_count,
+            'is_private':    bool(repo_meta.get('private', False)),
+        },
     }
 
 
@@ -768,56 +788,47 @@ def _fetch_releases(repos: list[str], token: str, include_betas: bool) -> list[d
 
 
 def _fetch_my_activity(login: str, token: str) -> dict:
-    """Eigene offene PRs und Issues via GitHub Search API."""
+    """Eigene offene PRs, Issues und Review-Requests via GitHub Search API."""
     if not login:
-        return {'prs': [], 'issues': []}
-    prs, issues = [], []
-    try:
-        r = http.get(
-            f'{GITHUB_API}/search/issues',
-            params={'q': f'author:{login} type:pr state:open', 'per_page': 50, 'sort': 'updated'},
-            headers=_gh_headers(token), timeout=15,
-        )
-        if r.status_code == 200:
-            for item in r.json().get('items', []):
-                repo_full = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
-                prs.append({
-                    'number':     item['number'],
-                    'title':      item['title'],
-                    'url':        item['html_url'],
-                    'repo':       repo_full,
-                    'state':      item['state'],
-                    'draft':      item.get('draft', False),
-                    'updated':    item['updated_at'],
-                    'created':    item['created_at'],
-                    'comments':   item.get('comments', 0),
-                    'labels':     [l['name'] for l in item.get('labels', [])],
-                })
-    except Exception as e:
-        log.error("my_activity PRs: %s", e)
-    try:
-        r = http.get(
-            f'{GITHUB_API}/search/issues',
-            params={'q': f'author:{login} type:issue state:open', 'per_page': 50, 'sort': 'updated'},
-            headers=_gh_headers(token), timeout=15,
-        )
-        if r.status_code == 200:
-            for item in r.json().get('items', []):
-                repo_full = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
-                issues.append({
-                    'number':   item['number'],
-                    'title':    item['title'],
-                    'url':      item['html_url'],
-                    'repo':     repo_full,
-                    'state':    item['state'],
-                    'updated':  item['updated_at'],
-                    'created':  item['created_at'],
-                    'comments': item.get('comments', 0),
-                    'labels':   [l['name'] for l in item.get('labels', [])],
-                })
-    except Exception as e:
-        log.error("my_activity Issues: %s", e)
-    return {'prs': prs, 'issues': issues}
+        return {'prs': [], 'issues': [], 'review_prs': []}
+    prs, issues, review_prs = [], [], []
+
+    def _search(q: str) -> list:
+        try:
+            r = http.get(
+                f'{GITHUB_API}/search/issues',
+                params={'q': q, 'per_page': 50, 'sort': 'updated'},
+                headers=_gh_headers(token), timeout=15,
+            )
+            if r.status_code == 200:
+                return r.json().get('items', [])
+        except Exception as e:
+            log.error("my_activity search '%s': %s", q, e)
+        return []
+
+    def _fmt(item: dict) -> dict:
+        return {
+            'number':   item['number'],
+            'title':    item['title'],
+            'url':      item['html_url'],
+            'repo':     item['repository_url'].removeprefix(f'{GITHUB_API}/repos/'),
+            'state':    item['state'],
+            'draft':    item.get('draft', False),
+            'updated':  item['updated_at'],
+            'created':  item['created_at'],
+            'comments': item.get('comments', 0),
+            'labels':   [l['name'] for l in item.get('labels', [])],
+            'body':     (item.get('body') or '')[:1000],
+        }
+
+    for item in _search(f'author:{login} type:pr state:open'):
+        prs.append(_fmt(item))
+    for item in _search(f'author:{login} type:issue state:open'):
+        issues.append(_fmt(item))
+    for item in _search(f'review-requested:{login} type:pr state:open'):
+        review_prs.append(_fmt(item))
+
+    return {'prs': prs, 'issues': issues, 'review_prs': review_prs}
 
 
 def _send_telegram(token: str, chat_id: str, text: str) -> None:
@@ -935,6 +946,34 @@ def _tg_em(cfg: dict, tg_token: str, tg_chat: str, tg_notif: dict, em_notif: dic
         _send_email(cfg, em_subject, _email_html(em_subject, em_lines))
 
 
+def _send_daily_digest(cfg: dict, tg_token: str, tg_chat: str,
+                       tg_notif: dict, em_notif: dict, repo_data: list) -> None:
+    """Tages-Digest einmal täglich senden — zusätzlich zu Echtzeit-Benachrichtigungen."""
+    total_prs     = sum(rd.get('open_prs', 0) for rd in repo_data)
+    total_issues  = sum(rd.get('open_issues', 0) for rd in repo_data)
+    total_sec     = sum((rd.get('insights') or {}).get('security_count', 0) for rd in repo_data)
+    today_str     = datetime.now().strftime('%d.%m.%Y')
+    subject_tg    = f"📋 <b>GitPulse Tages-Digest</b> — {today_str}"
+    subject_em    = f"GitPulse Tages-Digest — {today_str}"
+    lines_tg: list[str] = []
+    lines_em: list[str] = []
+    for rd in repo_data:
+        prs    = rd.get('open_prs', 0)
+        issues = rd.get('open_issues', 0)
+        sec    = (rd.get('insights') or {}).get('security_count', 0)
+        sec_s  = f' · 🔒 {sec}' if sec else ''
+        lines_tg.append(f"• <b>{rd['name']}</b> — {prs} PR{'s' if prs!=1 else ''}, {issues} Issue{'s' if issues!=1 else ''}{sec_s}")
+        lines_em.append(f"• <b>{rd['name']}</b> — {prs} PRs, {issues} Issues{sec_s}")
+    lines_tg.append(f"\n<b>Gesamt: {total_prs} PRs, {total_issues} Issues"
+                    + (f', 🔒 {total_sec} Alerts' if total_sec else '') + '</b>')
+    lines_em.append(f"Gesamt: {total_prs} PRs, {total_issues} Issues"
+                    + (f', 🔒 {total_sec} Alerts' if total_sec else ''))
+    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'digest',
+           subject_tg + '\n' + '\n'.join(lines_tg),
+           subject_em, lines_em)
+    log.info("Tages-Digest gesendet (%d Repos)", len(repo_data))
+
+
 # ── Poll worker ───────────────────────────────────────────────────────────────
 
 def _poll_worker() -> None:
@@ -976,6 +1015,7 @@ def _poll_worker() -> None:
 
 def _do_poll(cfg: dict, token: str) -> None:
     global _seen_releases, _seen_activity, _first_poll_done, _gh_login
+    global _last_digest_date, _seen_review_prs
 
     token_ok, scopes, expires = _check_token(token)
     if not token_ok:
@@ -1222,10 +1262,35 @@ def _do_poll(cfg: dict, token: str) -> None:
     if activity_changed:
         save_seen_activity()
 
+    # Review-Requests: benachrichtigen wenn neue PRs zur Review angefragt wurden
+    for rpr in activity.get('review_prs', []):
+        rkey = f"{rpr['repo']}#{rpr['number']}"
+        if rkey not in _seen_review_prs:
+            if _first_poll_done:
+                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'review_request',
+                    f"🔍 Review angefragt: <b>{rpr['repo']}</b>\n<a href=\"{rpr['url']}\">#PR{rpr['number']} {rpr['title']}</a>",
+                    f"Review angefragt: {rpr['repo']} #{rpr['number']} {rpr['title']}",
+                    [f"Repo: <b>{rpr['repo']}</b>",
+                     f"PR: <a href=\"{rpr['url']}\">#PR{rpr['number']} {rpr['title']}</a>"])
+            _seen_review_prs.add(rkey)
+
+    # Tages-Digest
+    digest_hour = int(cfg.get('digest_hour', -1))
+    if digest_hour >= 0 and _first_poll_done:
+        now_dt = datetime.now()
+        today  = now_dt.strftime('%Y-%m-%d')
+        if now_dt.hour == digest_hour and today != _last_digest_date:
+            _send_daily_digest(cfg, tg_token, tg_chat, tg_notif, em_notif, repo_data)
+            _last_digest_date = today
+
     with _gh_lock:
         _gh_cache['my_repos']      = repo_data
         _gh_cache['releases']      = releases
-        _gh_cache['my_activity']          = activity
+        _gh_cache['my_activity']          = {
+            'prs':        activity.get('prs', []),
+            'issues':     activity.get('issues', []),
+            'review_prs': activity.get('review_prs', []),
+        }
         _gh_cache['new_activity_comments'] = new_activity_comments
         _gh_cache['gh_login']             = _gh_login
         _gh_cache['token_ok']      = True
@@ -1554,6 +1619,47 @@ def api_branches():
         return jsonify({'error': 'internal error'}), 500
 
 
+@app.route('/api/comments')
+def api_comments():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    repo   = request.args.get('repo', '').strip()
+    number = request.args.get('number', '').strip()
+    if not repo or '/' not in repo or not number or not number.isdigit():
+        return jsonify({'error': 'invalid params'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no token'}), 400
+    try:
+        r = http.get(
+            f'{GITHUB_API}/repos/{repo}/issues/{number}/comments',
+            headers=_gh_headers(token),
+            params={'per_page': 100},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code != 200:
+            return jsonify({'error': f'HTTP {r.status_code}'}), 502
+        all_comments = r.json() if isinstance(r.json(), list) else []
+        last3 = all_comments[-3:]
+        return jsonify({
+            'total': len(all_comments),
+            'comments': [
+                {
+                    'user':    c['user']['login'],
+                    'avatar':  c['user']['avatar_url'],
+                    'body':    (c.get('body') or '')[:500],
+                    'created': c['created_at'],
+                    'url':     c.get('html_url', ''),
+                } for c in last3
+            ],
+        })
+    except Exception:
+        log.exception("Comments-Abfrage Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
 @app.route('/api/workflow/dispatch', methods=['POST'])
 def api_workflow_dispatch():
     redir = _auth_required(request)
@@ -1629,6 +1735,7 @@ _TG_NOTIF_KEYS = (
     'startup', 'new_pr', 'pr_closed', 'new_issue',
     'workflow_started', 'workflow_completed',
     'releases', 'repo_stats', 'star_fork', 'security', 'my_activity',
+    'review_request', 'digest',
 )
 
 

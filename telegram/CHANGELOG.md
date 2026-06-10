@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.6.15] - 2026-06-10
+- UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — einheitlich mit WhatsApp und Signal
+
+## [1.6.14] - 2026-06-10
+- Fix: Häkchen-Update jetzt In-Place (kein Re-Render) — nur ackKey im Fingerprint geändert → updateAckMarksInPlace() aktualisiert nur .bubble-time, Video/Audio-Wiedergabe wird nicht unterbrochen
+
+## [1.6.13] - 2026-06-10
+- Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ACK-Summe im msgFingerprint; Re-Render wird ausgelöst sobald sich ein Lesestatus ändert
+
+## [1.6.12] - 2026-06-10
+- UI: Foto-Thumbnail auf max 200×200px verkleinert (war 320×400); einheitlich mit WhatsApp und Signal
+
+## [1.6.11] - 2026-06-10
+- fix: Export-HTML-Button nutzt jetzt Download-Pfeil-Icon wie WhatsApp (statt Datenbank-Icon)
+
+## [1.6.10] - 2026-06-10
+- fix: Storage-Anzeige nutzt jetzt SVG-Icon statt 💾-Emoji (wie WhatsApp)
+
+---
+
+## [1.6.9] - 2026-06-10
+- fix: Chat-Header-Buttons (Suche, Export, Löschen) auf einheitlichen Stil angeglichen — gleiche Border, Farbe und Padding wie WhatsApp
+
+---
+
+## [1.6.8] - 2026-06-10
+- UI: Alle Emoji-Icons (🎬 🗑️ ↺ ↑↓ 🌐 💾 ✕ 😊 📎 📄 ↪ ↩) durch konsistente SVG-Icons ersetzt
+- Feature: Nachrichtensuche in Chats — Suchleiste im Chat-Header mit Vorwärts-/Rückwärts-Navigation und Highlight
+
+---
+
 ## [1.6.7] - 2026-06-07
 
 ### Security

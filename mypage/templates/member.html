@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ 'light' if site.design.mode == 'light' else 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t.member_area }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="robots" content="noindex">
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
+      --green:#238636; --green-h:#2ea043; --red:#f85149;
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+    header { border-bottom: 1px solid var(--border); }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; color: var(--text); }
+    .brand:hover { text-decoration: none; }
+    main { padding: 36px 0 60px; }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 26px; }
+    h1 { font-size: 1.3rem; margin-bottom: 18px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
+    input[type="email"], input[type="password"] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: 6px; font-size: 0.9rem;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    .btn {
+      background: var(--green); border: 1px solid var(--green-h); color: #fff;
+      padding: 9px 18px; border-radius: 6px; font-size: 0.88rem; font-weight: 600; cursor: pointer; margin-top: 16px;
+    }
+    .btn:hover { background: var(--green-h); }
+    .btn.small { padding: 4px 12px; font-size: 0.78rem; margin: 0; }
+    .btn.danger { background: none; border-color: var(--red); color: var(--red); }
+    .msg { padding: 9px 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 16px; }
+    .msg.err { background: rgba(207,34,46,.12); border: 1px solid var(--red); color: var(--red); }
+    .msg.ok { background: rgba(46,160,67,.12); border: 1px solid var(--green-h); color: var(--green-h); }
+    .login-card { max-width: 380px; margin: 0 auto; }
+    .meta-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .quota-bar { flex: 1; min-width: 180px; background: var(--surf2); border-radius: 6px; height: 10px; overflow: hidden; }
+    .quota-fill { height: 100%; background: var(--accent); }
+    .quota-text { font-size: 0.76rem; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.76rem; }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    td.size, td.date { color: var(--muted); white-space: nowrap; font-size: 0.78rem; }
+    .file-name { word-break: break-all; }
+    .upload-row { display: flex; gap: 10px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+    input[type="file"] { font-size: 0.82rem; color: var(--muted); }
+    .empty { color: var(--muted); text-align: center; padding: 28px 0; font-size: 0.88rem; }
+    .logout { font-size: 0.8rem; }
+    footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
+      {% if member %}<a class="logout" href="/bereich/logout">{{ t.member_logout }} ({{ member.email }})</a>{% endif %}
+    </div>
+  </header>
+  <main class="wrap">
+    {% if not member %}
+    <div class="card login-card">
+      <h1>{{ t.member_area }}</h1>
+      {% if msg == 'credentials' %}<div class="msg err">{{ t.error_credentials }}</div>{% endif %}
+      {% if msg == 'locked' %}<div class="msg err">{{ t.error_locked }}</div>{% endif %}
+      <form method="post" action="/bereich/login" autocomplete="on">
+        <label for="email">{{ t.member_email }}</label>
+        <input type="email" id="email" name="email" autocomplete="username" autofocus required>
+        <label for="password">{{ t.password }}</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+        <button class="btn" type="submit">{{ t.login }}</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="card">
+      <h1>{{ t.member_files }}</h1>
+      {% if storage_down %}
+      <div class="msg err">{{ t.member_err_storage }}</div>
+      {% else %}
+      {% if msg == 'uploaded' %}<div class="msg ok">{{ t.member_uploaded }}</div>{% endif %}
+      {% if msg == 'storage' %}<div class="msg err">{{ t.member_err_storage }}</div>{% endif %}
+      {% if msg == 'quota' %}<div class="msg err">{{ t.member_err_quota }}</div>{% endif %}
+      {% if msg == 'nofile' %}<div class="msg err">{{ t.member_err_nofile }}</div>{% endif %}
+      <div class="meta-row">
+        <div class="quota-bar"><div class="quota-fill" style="width:{{ (used / quota * 100)|round|int if quota else 0 }}%"></div></div>
+        <span class="quota-text">{{ (used / 1048576)|round(1) }} / {{ (quota / 1048576)|round|int }} MB</span>
+      </div>
+      {% if files %}
+      <table>
+        <thead><tr><th>{{ t.member_col_name }}</th><th>{{ t.member_col_size }}</th><th>{{ t.member_col_date }}</th><th></th></tr></thead>
+        <tbody>
+          {% for f in files %}
+          <tr>
+            <td class="file-name"><a href="/bereich/dl/{{ f.name }}">{{ f.name }}</a></td>
+            <td class="size">{% if f.size >= 1048576 %}{{ (f.size / 1048576)|round(1) }} MB{% else %}{{ (f.size / 1024)|round|int }} KB{% endif %}</td>
+            <td class="date">{{ f.mtime }}</td>
+            <td style="text-align:right">
+              <form method="post" action="/bereich/delete" style="display:inline" onsubmit="return confirm({{ t.member_confirm_delete|tojson }})">
+                <input type="hidden" name="name" value="{{ f.name }}">
+                <button class="btn danger small" type="submit">✕</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">{{ t.member_no_files }}</p>
+      {% endif %}
+      <form method="post" action="/bereich/upload" enctype="multipart/form-data" class="upload-row">
+        <input type="file" name="file" required>
+        <button class="btn small" type="submit">⬆ {{ t.member_upload }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </main>
+  <footer>
+    <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
+  </footer>
+  <script>
+    (function(){
+      const saved = localStorage.getItem('mp-public-theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+      else if ({{ site.design.mode|tojson }} === 'auto')
+        document.documentElement.setAttribute('data-theme',
+          window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    })();
+  </script>
+</body>
+</html>

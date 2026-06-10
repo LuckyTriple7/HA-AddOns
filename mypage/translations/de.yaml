@@ -1,0 +1,61 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Login-Benutzername für das Admin-Panel (Port 17761).
+  password:
+    name: Passwort
+    description: Login-Passwort für das Admin-Panel — bitte unbedingt ändern!
+  session_hours:
+    name: Session-Dauer
+    description: Gültigkeit der Login-Session in Stunden.
+  github_token:
+    name: GitHub-Token
+    description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.
+  geoip_lookup:
+    name: GeoIP-Lookup (ipapi.is)
+    description: Ermittelt das Besucherland exakt über ipapi.is. Achtung — Besucher-IPs werden dabei an den Dienst übertragen (Datenschutzerklärung anpassen!).
+  geoip_api_key:
+    name: ipapi.is API-Key
+    description: Optional — ohne Key ca. 1.000 Lookups/Tag frei. Bei mehr Traffic kostenlosen Key auf ipapi.is holen.
+  telegram_bot_token:
+    name: Telegram-Bot-Token
+    description: Optional — neue Kontaktnachrichten werden per Telegram gemeldet.
+  telegram_chat_id:
+    name: Telegram-Chat-ID
+    description: Chat-ID für die Telegram-Benachrichtigungen.
+  smtp_host:
+    name: SMTP-Server
+    description: Optional — neue Kontaktnachrichten werden per E-Mail gemeldet.
+  smtp_port:
+    name: SMTP-Port
+    description: Meist 587 (STARTTLS) oder 465 (SSL).
+  smtp_user:
+    name: SMTP-Benutzer
+    description: Anmeldename beim Mailserver (oft die Absenderadresse).
+  smtp_password:
+    name: SMTP-Passwort
+    description: Passwort bzw. App-Passwort für den Mailversand.
+  smtp_to:
+    name: Empfängeradresse
+    description: An diese Adresse werden die Benachrichtigungen geschickt.
+  smtp_tls:
+    name: STARTTLS verwenden
+    description: An für Port 587 (STARTTLS), aus für Port 465 (SSL).
+  user_upload_max_mb:
+    name: Upload-Limit pro Datei (MB)
+    description: Maximale Dateigröße für Uploads im Mitglieder-Bereich.
+  smb_server:
+    name: SMB-Server (optional)
+    description: IP/Hostname eines SMB-Shares — Mitglieder-Dateien liegen dann dort statt auf der SD-Karte.
+  smb_share:
+    name: SMB-Freigabe
+    description: Name der Freigabe auf dem Server.
+  smb_user:
+    name: SMB-Benutzer
+    description: Leer lassen für Gast-Zugriff.
+  smb_password:
+    name: SMB-Passwort
+    description: Passwort des SMB-Benutzers.
+network:
+  17760/tcp: Öffentliche Homepage
+  17761/tcp: Admin-Panel (Login-geschützt)

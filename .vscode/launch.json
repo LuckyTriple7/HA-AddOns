@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "GitPulse (lokal)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/gitpulse/dev_run.py",
+      "python": "C:/Users/andre/AppData/Local/Programs/Python/Python314/python.exe",
+      "args": [],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "GITHUB_TOKEN": ""
+      }
+    },
+    {
+      "name": "GitPulse mit Token",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/gitpulse/dev_run.py",
+      "python": "C:/Users/andre/AppData/Local/Programs/Python/Python314/python.exe",
+      "args": ["--repo", "LuckyTriple7/HA-AddOns"],
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}

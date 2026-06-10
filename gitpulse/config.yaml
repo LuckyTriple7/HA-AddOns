@@ -1,6 +1,6 @@
 name: GitPulse
 description: GitHub Control Panel — PRs, Issues, CI-Status und Release-Tracker auf einen Blick
-version: "0.2.1"
+version: "0.3.5"
 slug: gitpulse
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/gitpulse"
@@ -45,6 +45,7 @@ options:
   verbose_log: false
   workflow_run_limit: 25
   addon_manager: false
+  digest_hour: -1
   telegram_bot_token: ""
   telegram_chat_id: ""
   webhook_secret: ""
@@ -69,6 +70,7 @@ schema:
   verbose_log: bool?
   workflow_run_limit: int?
   addon_manager: bool?
+  digest_hour: int?
   telegram_bot_token: str?
   telegram_chat_id: str?
   webhook_secret: str?

@@ -56,6 +56,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 | `verbose_log` | `false` | Detailliertere Logging-Ausgabe je Poll-Zyklus |
 | `workflow_run_limit` | `25` | Maximale Anzahl geladener Workflow-Runs pro Repo (Maximum 50) |
 | `addon_manager` | `false` | Add-on-Manager-Tab aktivieren (Versions-Bump direkt aus der UI) |
+| `digest_hour` | `-1` | Tages-Digest: Stunde (0–23), zu der täglich eine Zusammenfassung gesendet wird; `-1` = deaktiviert |
 | `telegram_bot_token` | — | Telegram-Bot-Token für Benachrichtigungen (leer = deaktiviert) |
 | `telegram_chat_id` | — | Telegram-Chat-ID für Benachrichtigungen |
 | `webhook_secret` | — | Webhook-Secret für GitHub Webhooks (leer = Webhooks vollständig deaktiviert) |
@@ -87,6 +88,7 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 - Offene PRs und Issues mit Klick-Navigation in den jeweiligen Detail-Tab
 - Letzter CI-Run mit Status
 - **Stars ⭐, Forks 🍴, Watchers 👁** als kompakte Statistikzeile — Änderungen lösen Benachrichtigungen aus
+- **Insights-Zeile**: ⚖️ Lizenz · ⚙️ CI aktiv · 🔒 Security-Alert-Zähler (klickbar → Security-Tab) — fehlende Konfiguration auf einen Blick
 - Repo-Name als Link — öffnet GitHub im neuen Tab
 
 ### Pull Requests
@@ -95,15 +97,19 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 - **Repo-Wechsler** oben im Tab: zwischen Repos umschalten; Zähler zeigt PRs je Repo
 - **Review-Status** je PR: ✓ Approved / ✗ Changes requested / ○ Ausstehend
 - **Kommentaranzahl** (PR-Kommentare + Review-Kommentare)
+- **▼ Beschreibung**: PR-Body aufklappbar direkt in der Liste — Markdown wird gerendert (Überschriften, fett, Links, `- [x]` Checkboxen)
+- **💬 Kommentarvorschau**: letzte 3 Kommentare on-demand ladbar — erneuter Klick schließt die Vorschau
 - Aktionen: PR auf GitHub öffnen · **Mergen** (Merge / Squash / Rebase) · **PR schließen** · **💬 Kommentieren**
-- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label
+- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label · **Filter wird seitenübergreifend gespeichert** (localStorage)
 
 ### Issues
 
 - Liste aller offenen Issues über alle eigenen Repos
 - **Repo-Wechsler** oben im Tab (synchron mit PRs, CI und Security)
+- **▼ Beschreibung**: Issue-Body aufklappbar — Markdown wird gerendert
+- **💬 Kommentarvorschau**: letzte 3 Kommentare on-demand ladbar
 - Aktionen: Issue öffnen · **✕ Schließen** · **💬 Kommentieren**
-- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label
+- **Suche/Filter**: Live-Filter nach Titel, Autor, Nummer oder Label · Filter wird gespeichert
 
 ### CI / Actions
 
@@ -143,13 +149,16 @@ Die Kachel in der Stat-Leiste ist **rot** bei HIGH/CRITICAL oder Secret Scanning
 
 ### Meine Aktivität
 
-Zeigt alle offenen PRs und Issues, die du selbst erstellt hast — repo-übergreifend:
+Zeigt alle offenen PRs und Issues, die du selbst erstellt hast, sowie PRs bei denen du als Reviewer angefragt bist — repo-übergreifend:
 
 - **Meine offenen Pull Requests** — alle eigenen offenen PRs in allen Repos (eigene und fremde)
+- **Zur Review angefragt** — PRs bei denen du als Reviewer eingetragen bist (`review-requested:@me`)
 - **Meine offenen Issues** — alle eigenen offenen Issues in allen Repos
+- **▼ Beschreibung** + **💬 Kommentarvorschau** — wie in PRs/Issues-Tab
 - **💬 Kommentar-Zähler** je Eintrag — neue Kommentare werden erkannt und lösen Benachrichtigungen aus
 - **Schließen-Button** — sichtbar nur für Repos in denen du Schreibzugriff hast (`my_repos`); mit Sicherheitsabfrage im Browser
-- Benachrichtigungen (Telegram, E-Mail, Browser) für neue eigene PRs/Issues und neue Kommentare — separat abschaltbar
+- **Filter-Persistenz**: aktiver Repo-Wechsler und Suchtext werden in localStorage gespeichert und nach Reload wiederhergestellt
+- Benachrichtigungen (Telegram, E-Mail, Browser) für neue eigene PRs/Issues, neue Kommentare und Review-Requests — separat abschaltbar
 
 ### Add-on Manager *(optional)*
 
@@ -216,6 +225,27 @@ Benachrichtigungen werden direkt im Browser angezeigt (Desktop-Benachrichtigunge
 | 🔴 Code Scanning Alert | Schweregrad, Tool, Regel, Datei:Zeile, Link |
 | 🟠 Dependabot Alert | Schweregrad, Paket, Ecosystem, Summary, Fix-Version, Link |
 | 👤 Meine Aktivität | Neuer eigener PR oder Issue · neuer Kommentar auf eigenem PR/Issue |
+| 🔍 Review-Request | Du wurdest als Reviewer für einen PR angefragt |
+| 📋 Tages-Digest | Tägliche Zusammenfassung (konfigurierbar via `digest_hour`) |
+
+### Tages-Digest
+
+Der Tages-Digest sendet einmal täglich eine Zusammenfassung aller offenen PRs, Issues und Security-Alerts — ergänzend zu den Echtzeit-Benachrichtigungen.
+
+**Konfiguration**: `digest_hour` auf eine Stunde zwischen `0` und `23` setzen (z. B. `8` = 08:00 Uhr morgens). Der Wert `-1` deaktiviert den Digest.
+
+**Inhalt der Nachricht:**
+
+```
+📋 GitPulse Tages-Digest — 10.06.2026
+
+• home-assistant/core — 42 PRs, 15 Issues · 🔒 2 Alerts
+• LuckyTriple7/HA-AddOns — 1 PR, 0 Issues
+
+Gesamt: 43 PRs, 15 Issues, 🔒 2 Alerts
+```
+
+> Der Digest liest den **aktuellen Stand** beim Senden — er summiert keine Ereignisse über den Tag. Das Add-on muss zur konfigurierten Uhrzeit laufen; verpasste Stunden werden nicht nachgeholt.
 
 ---
 

@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.6.16] - 2026-06-10
+- UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — einheitlich mit WhatsApp und Telegram
+
+## [1.6.15] - 2026-06-10
+- Fix: Häkchen-Update jetzt In-Place (kein Re-Render) — nur ackKey im Fingerprint geändert → updateAckMarksInPlace() aktualisiert nur .bubble-time, Video/Audio-Wiedergabe wird nicht unterbrochen
+
+## [1.6.14] - 2026-06-10
+- Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ACK-Summe im msgFingerprint; Re-Render wird ausgelöst sobald sich ein Lesestatus ändert
+
+## [1.6.13] - 2026-06-10
+- UI: Foto-Thumbnail auf max 200×200px verkleinert (war 250×250 + object-fit:cover); kein Zuschneiden mehr, einheitlich mit WhatsApp und Telegram
+
+## [1.6.12] - 2026-06-10
+- Fix: WARN-Spam beim Löschen entfernt — delete-for-everyone API nicht unterstützt, Fehler wird nur noch als DEBUG geloggt
+- Fix: deleteMsg() löscht Fingerprint vor loadMessages() damit gelöschte Nachrichten sofort verschwinden
+
+## [1.6.11] - 2026-06-10
+- Fix: Video-Wiedergabe wurde durch Poll-Re-Render unterbrochen — renderMessages nur noch bei geändertem Nachrichten-Fingerprint (Anzahl + IDs + Video-mediaFile)
+- Fix: Videos werden nicht mehr sofort heruntergeladen — Platzhalter „⬇ Video herunterladen · X MB" mit On-Demand-Download per Klick
+- Fix: Video-Anhang-Extensions (mp4/webm) korrekt erkannt statt fälschlich als jpg gespeichert
+- Neu: `/api/fetch-video` Endpoint für On-Demand-Download von Signal-Videos
+
+## [1.6.10] - 2026-06-10
+- Fix: Videos werden jetzt korrekt als `video`-Typ erkannt (statt fälschlicherweise als `photo`) — `<video>`-Player statt defektem `<img>`; Chatliste zeigt `📹 Video` statt `📷 Foto`; betrifft eingehende und ausgehende Videos
+
+## [1.6.9] - 2026-06-10
+- UI: Alle Emoji-Icons (🎬 🗑️ ↑↓ 🌐 📥 💾 ✕ 😊 📎 📄 ↪ ↩) durch konsistente SVG-Icons ersetzt
+- Feature: Nachrichtensuche in Chats — Suchleiste im Chat-Header mit Highlight und Vor-/Zurück-Navigation
+
+---
+
 ## [1.6.8] - 2026-06-07
 
 ### Security

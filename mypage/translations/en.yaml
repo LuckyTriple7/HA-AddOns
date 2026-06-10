@@ -1,0 +1,61 @@
+configuration:
+  username:
+    name: Username
+    description: Login username for the admin panel (port 17761).
+  password:
+    name: Password
+    description: Login password for the admin panel — please change it!
+  session_hours:
+    name: Session duration
+    description: Validity of the login session in hours.
+  github_token:
+    name: GitHub token
+    description: Optional token — raises the API limit for GitHub import and star updates.
+  geoip_lookup:
+    name: GeoIP lookup (ipapi.is)
+    description: Resolves the visitor country precisely via ipapi.is. Note — visitor IPs are sent to that service (update your privacy policy!).
+  geoip_api_key:
+    name: ipapi.is API key
+    description: Optional — about 1,000 lookups/day are free without a key. Get a free key at ipapi.is for more traffic.
+  telegram_bot_token:
+    name: Telegram bot token
+    description: Optional — new contact messages are reported via Telegram.
+  telegram_chat_id:
+    name: Telegram chat ID
+    description: Chat ID for Telegram notifications.
+  smtp_host:
+    name: SMTP server
+    description: Optional — new contact messages are reported via email.
+  smtp_port:
+    name: SMTP port
+    description: Usually 587 (STARTTLS) or 465 (SSL).
+  smtp_user:
+    name: SMTP user
+    description: Login name for the mail server (often the sender address).
+  smtp_password:
+    name: SMTP password
+    description: Password or app password for sending mail.
+  smtp_to:
+    name: Recipient address
+    description: Notifications are sent to this address.
+  smtp_tls:
+    name: Use STARTTLS
+    description: On for port 587 (STARTTLS), off for port 465 (SSL).
+  user_upload_max_mb:
+    name: Upload limit per file (MB)
+    description: Maximum file size for uploads in the member area.
+  smb_server:
+    name: SMB server (optional)
+    description: IP/hostname of an SMB share — member files are stored there instead of the SD card.
+  smb_share:
+    name: SMB share
+    description: Name of the share on the server.
+  smb_user:
+    name: SMB user
+    description: Leave empty for guest access.
+  smb_password:
+    name: SMB password
+    description: Password of the SMB user.
+network:
+  17760/tcp: Public homepage
+  17761/tcp: Admin panel (login protected)

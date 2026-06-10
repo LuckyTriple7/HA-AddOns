@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.3.5] - 2026-06-10
+
+### Fixed
+- **CI-Tab**: Laufzeit aktiver Workflow-Runs aktualisiert sich jetzt sekündlich live (vorher statischer Wert vom letzten Poll)
+- **CI-Tab**: ▾-Pfeil dreht sich beim Aufklappen der Job-Details um 180°
+
+## [0.3.4] - 2026-06-10
+
+### Fixed
+- **"▼ Beschreibung"-Button** hatte schwarze Schrift im Dark Mode: `color:var(--muted)` Fallback `#8b949e` ergänzt, damit die Farbe auch im HA-Ingress korrekt aufgelöst wird
+
+## [0.3.3] - 2026-06-10
+
+### Changed
+- **Body-Expand**: Markdown wird jetzt gerendert statt als Rohtext angezeigt — `## Überschriften`, `**fett**`, `[Links](url)` klickbar, `- [x]` Checkboxen mit ☑/☐, Inline-Code mit Hintergrund; linker Akzentstreifen für bessere visuelle Abgrenzung
+
+## [0.3.2] - 2026-06-10
+
+### Fixed
+- **"▼ Beschreibung"-Button** zeigte "undefined": `T.pr_body_show` / `T.pr_body_hide` fehlten im JS-Übersetzungsobjekt `T`
+- **SyntaxError beim Klick auf Beschreibungs-Button**: `JSON.stringify(bkey)` in `onclick="..."` erzeugte doppelte Anführungszeichen im HTML-Attribut → Browser bricht das Attribut vorzeitig ab → `toggleBody(` unvollständig; ersetzt durch `safeJsArg(bkey)` (verwendet `&quot;`)
+- **Kommentare-Toggle**: erneuter Klick auf Kommentare-Button schließt die Vorschau jetzt wieder
+- **`no_activity`** ins T-Objekt ergänzt (war Jinja2-direkt, jetzt konsistent)
+
+## [0.3.1] - 2026-06-10
+
+### Fixed
+- **Kommentare-Button** in Meine Aktivität, PRs und Issues tat nichts: `CSS.escape()` erzeugte Backslash-IDs in HTML-Attributen (`hacs\/default\#8357`), die im JS-String-Kontext als Escape-Sequenzen interpretiert wurden → `getElementById` fand das Element nie; ersetzt durch `mkId()` (nur `[a-zA-Z0-9_-]`)
+- **Body-Expand-Button** (▼ Beschreibung) im Aktivitäts-Tab ebenfalls durch denselben ID-Bug betroffen
+- **"undefined" als Label-Chip**: `escHtml(null/undefined)` erzeugte `"null"`/`"undefined"` als Text; `labelColor(null)` crashte; beide Funktionen abgesichert, Label-Arrays mit `.filter(Boolean)` gefiltert
+- **Fehlende Übersetzung**: `tg_review_request` und `tg_digest` in `en.json` ergänzt (Toggle-Beschriftung in den Einstellungen war leer)
+
+## [0.3.0] - 2026-06-10
+
+### Added
+- **Filter-Persistenz**: aktiver Repo-Wechsler und Suchtext je Tab werden in localStorage gespeichert und nach Seiten-Reload wiederhergestellt
+- **Review-Requests**: neuer Bereich „Zur Review angefragt" in Meine Aktivität — PRs bei denen du als Reviewer angefragt bist (`review-requested:@me`) mit Benachrichtigung
+- **Body-Expand**: PR- und Issue-Beschreibung aufklappbar direkt in der Liste (▼ Beschreibung)
+- **Inline-Kommentarvorschau**: Letzte 3 Kommentare eines PR/Issue on-demand ladbar (neuer `/api/comments`-Endpunkt, gecacht im Browser bis Reload)
+- **Tages-Digest E-Mail**: tägliche Zusammenfassung aller offenen PRs, Issues und Security-Alerts — konfigurierbar via `digest_hour` (0–23, -1 = deaktiviert); ergänzt Echtzeit-Benachrichtigungen
+- **Repo-Insights-Ampel**: neue Zeile in jedem Repo-Card — Lizenz (⚖️), CI aktiv (⚙️) und Security-Alert-Zähler (🔒) auf einen Blick; Security-Zähler ist klickbar
+
+### Changed
+- `no_activity`-Text aktualisiert (enthält jetzt Review-Requests)
+- Benachrichtigungstypen `review_request` und `digest` in TG/E-Mail/Browser-Einstellungen wählbar
+
 ## [0.2.1] - 2026-06-10
 
 ### Fixed

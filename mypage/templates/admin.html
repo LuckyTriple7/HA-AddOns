@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyPage – {{ t.admin_title }}</title>
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; --yellow:#e3b341; }
+    [data-theme="light"] { --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background .2s, color .2s; }
+    a { color: var(--accent); text-decoration: none; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+    header { background: var(--surf); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+    .header-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
+    .logo { font-weight: 700; font-size: 1.05rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .logo svg { width: 20px; height: 20px; fill: var(--accent); }
+    nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+    .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; }
+    .tab-btn:hover { color: var(--text); background: var(--surf2); }
+    .tab-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .icon-btn, .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    .icon-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-moon { display: block; } .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+
+    main { padding: 24px 0 60px; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    h2 { font-size: 1.15rem; margin-bottom: 16px; }
+    .panel { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
+    .panel h3 { font-size: 0.95rem; margin-bottom: 14px; color: var(--text); }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
+    label:first-of-type { margin-top: 0; }
+    input[type="text"], input[type="email"], input[type="url"], textarea, select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 11px; border-radius: 6px; font-size: 0.87rem; font-family: inherit;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 70px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+    .btn { background: var(--green); border: 1px solid var(--green-h); color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; margin-top: 16px; }
+    .btn:hover { background: var(--green-h); }
+    .btn.secondary { background: var(--surf2); border-color: var(--border); color: var(--text); font-weight: 500; }
+    .btn.secondary:hover { border-color: var(--accent); }
+    .btn.danger { background: none; border-color: var(--red); color: var(--red); }
+    .btn.small { padding: 4px 10px; font-size: 0.76rem; margin-top: 0; }
+
+    .proj-list { display: flex; flex-direction: column; gap: 10px; }
+    .proj-item { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+    .proj-thumb { width: 52px; height: 52px; border-radius: 6px; object-fit: cover; background: var(--surf2); flex-shrink: 0; }
+    .proj-info { flex: 1; min-width: 0; }
+    .proj-name { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
+    .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
+    .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 30px 14px; }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; width: 100%; max-width: 620px; }
+    .modal h3 { margin-bottom: 4px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    .gh-repo { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .gh-repo:last-child { border-bottom: none; }
+    .gh-repo input { width: auto; }
+    .gh-repo .gh-desc { color: var(--muted); font-size: 0.76rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gh-list { max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 12px; }
+    .gh-search-row { display: flex; gap: 8px; align-items: flex-end; }
+    .gh-search-row > div { flex: 1; }
+
+    .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .stat-card .num { font-size: 1.7rem; font-weight: 700; color: var(--accent); }
+    .stat-card .lbl { font-size: 0.76rem; color: var(--muted); margin-top: 2px; }
+    .bar-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 0.78rem; }
+    .bar-date { width: 84px; color: var(--muted); flex-shrink: 0; }
+    .bar-track { flex: 1; background: var(--surf2); border-radius: 4px; height: 18px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
+    .bar-num { width: 90px; text-align: right; color: var(--muted); flex-shrink: 0; }
+
+    .vtable { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .vtable th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .vtable td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+    .vtable tr:last-child td { border-bottom: none; }
+    .vtable .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
+    .badge-bot { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
+    .badge-new { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--green-h) 18%, transparent); color: var(--green-h); }
+    .msg-badge { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: var(--red); color: #fff; margin-left: 4px; }
+
+    .entry-row { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .entry-grid { display: grid; grid-template-columns: 110px 1fr 1fr auto; gap: 10px; align-items: start; }
+    @media (max-width: 800px) { .entry-grid { grid-template-columns: 1fr; } }
+    .entry-grid textarea { min-height: 40px; }
+
+    .msg-item { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+    .msg-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .msg-from { font-weight: 600; font-size: 0.9rem; }
+    .msg-from a { font-weight: 400; font-size: 0.8rem; }
+    .msg-time { font-size: 0.74rem; color: var(--muted); }
+    .msg-text { font-size: 0.87rem; white-space: pre-wrap; }
+
+    .gallery-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .gallery-thumb { position: relative; }
+    .gallery-thumb img { width: 76px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+    .gallery-thumb button { position: absolute; top: -6px; right: -6px; background: var(--red); border: none; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 0.65rem; cursor: pointer; line-height: 1; }
+
+    .preview-frame { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+    .preview-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .maint-on { color: var(--yellow); font-weight: 600; }
+
+    .upload-row { display: flex; gap: 8px; align-items: center; }
+    .upload-row input[type="text"] { flex: 1; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.err { background: var(--red); }
+    .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; }
+    .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .link-row input { flex: 1; }
+    .empty-note { color: var(--muted); font-size: 0.85rem; padding: 18px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2 2 9h2v11h6v-6h4v6h6V9h2L12 2zm0 2.5L18 9v9h-2v-6H8v6H6V9l6-4.5z"/></svg>
+        MyPage
+      </div>
+      <nav>
+        <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
+        <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
+        <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
+        <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
+        <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
+        <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
+        <button class="tab-btn" data-tab="users">{{ t.tab_users }}</button>
+        <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
+        <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
+      </nav>
+      <div class="header-actions">
+        <a href="{{ url_for('set_lang', lang='de', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="{{ url_for('set_lang', lang='en', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <button class="icon-btn" onclick="toggleTheme()" type="button">
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+        </button>
+        {% if not ingress %}<a class="icon-btn" href="{{ url_for('logout') }}">{{ t.logout }}</a>{% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Profil -->
+    <section class="tab active" id="tab-profile">
+      <div class="panel">
+        <h3>{{ t.profile_heading }}</h3>
+        <div class="row">
+          <div>
+            <label>{{ t.field_name }}</label>
+            <input type="text" id="p-name">
+          </div>
+          <div>
+            <label>{{ t.field_github_user }}</label>
+            <input type="text" id="p-github" placeholder="octocat">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_tagline }} (DE)</label>
+            <input type="text" id="p-tagline_de">
+          </div>
+          <div>
+            <label>{{ t.field_tagline }} (EN)</label>
+            <input type="text" id="p-tagline_en">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_bio }} (DE)</label>
+            <textarea id="p-bio_de"></textarea>
+          </div>
+          <div>
+            <label>{{ t.field_bio }} (EN)</label>
+            <textarea id="p-bio_en"></textarea>
+          </div>
+        </div>
+        <label>{{ t.field_avatar }}</label>
+        <div class="upload-row">
+          <input type="text" id="p-avatar" placeholder="https://… {{ t.or_upload }}">
+          <button class="btn secondary small" onclick="pickUpload(u => { el('p-avatar').value = u; })">{{ t.upload }}</button>
+        </div>
+        <p class="hint">{{ t.avatar_hint }}</p>
+        <label>{{ t.field_email }}</label>
+        <input type="email" id="p-email">
+        <label>{{ t.field_links }}</label>
+        <div id="p-links"></div>
+        <button class="btn secondary small" onclick="addLinkRow()">+ {{ t.add_link }}</button>
+        <div><button class="btn" onclick="saveProfile()">{{ t.save }}</button></div>
+      </div>
+    </section>
+
+    <!-- Inhalte -->
+    <section class="tab" id="tab-content">
+      <div class="panel">
+        <h3>{{ t.skills_heading }}</h3>
+        <label>{{ t.field_skills }}</label>
+        <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
+        <p class="hint">{{ t.skills_hint }}</p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.news_heading }}</h3>
+        <div id="news-list"></div>
+        <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.timeline_heading }}</h3>
+        <div id="timeline-list"></div>
+        <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
+        <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
+      </div>
+    </section>
+
+    <!-- Projekte -->
+    <section class="tab" id="tab-projects">
+      <div class="panel">
+        <h3>{{ t.github_import }}</h3>
+        <div class="gh-search-row">
+          <div>
+            <label>{{ t.field_github_user }}</label>
+            <input type="text" id="gh-user" placeholder="octocat">
+          </div>
+          <button class="btn secondary" style="margin-top:0" onclick="loadGithubRepos()">{{ t.load_repos }}</button>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+          <input type="checkbox" id="gh-readme" style="width:auto"> {{ t.import_readme }}
+        </label>
+        <div id="gh-results"></div>
+      </div>
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.my_projects }}
+          <button class="btn small" onclick="openProjectModal()">+ {{ t.new_project }}</button>
+        </h3>
+        <div class="proj-list" id="proj-list"></div>
+      </div>
+    </section>
+
+    <!-- Blog -->
+    <section class="tab" id="tab-blog">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.blog_heading }}
+          <button class="btn small" onclick="openPostModal()">+ {{ t.new_post }}</button>
+        </h3>
+        <p class="hint">{{ t.blog_hint }}</p>
+        <div class="proj-list" id="post-list"></div>
+      </div>
+    </section>
+
+    <!-- Design -->
+    <section class="tab" id="tab-design">
+      <div class="panel">
+        <h3>{{ t.design_heading }}</h3>
+        <div class="row">
+          <div>
+            <label>{{ t.field_site_title }}</label>
+            <input type="text" id="d-site_title">
+          </div>
+          <div>
+            <label>{{ t.field_accent }}</label>
+            <input type="color" id="d-accent" style="width:100%;height:38px;padding:3px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_mode }}</label>
+            <select id="d-mode">
+              <option value="dark">{{ t.mode_dark }}</option>
+              <option value="light">{{ t.mode_light }}</option>
+              <option value="auto">{{ t.mode_auto }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.field_counter }}</label>
+            <select id="d-show_counter">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_layout }}</label>
+            <select id="d-layout">
+              <option value="cards">{{ t.layout_cards }}</option>
+              <option value="list">{{ t.layout_list }}</option>
+              <option value="minimal">{{ t.layout_minimal }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.field_public_url }}</label>
+            <input type="text" id="d-public_url" placeholder="https://meine-domain.de">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_favicon }}</label>
+            <div class="upload-row">
+              <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
+              <button class="btn secondary small" onclick="pickUpload(u => { el('d-favicon').value = u; })">{{ t.upload }}</button>
+            </div>
+          </div>
+          <div>
+            <label>{{ t.field_contact_enabled }}</label>
+            <select id="d-contact_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+        </div>
+        <label>{{ t.field_footer }}</label>
+        <input type="text" id="d-footer_text">
+        <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
+        <p class="hint">{{ t.contact_telegram_hint }}</p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.preview_heading }}</h3>
+        <div class="preview-toolbar">
+          <button class="btn secondary small" onclick="reloadPreview()">⟳ {{ t.preview_reload }}</button>
+          <a class="btn secondary small" id="preview-open" href="#" target="_blank" rel="noopener">{{ t.preview_open }}</a>
+          <span class="hint" style="margin:0">{{ t.preview_hint }}</span>
+        </div>
+        <iframe class="preview-frame" id="preview-frame" title="Preview"></iframe>
+      </div>
+    </section>
+
+    <!-- Rechtliches -->
+    <section class="tab" id="tab-legal">
+      <div class="panel">
+        <h3>{{ t.legal_impressum }}</h3>
+        <p class="hint">{{ t.legal_hint_impressum }}</p>
+        <div class="row">
+          <div>
+            <label>DE</label>
+            <textarea id="l-impressum_de" rows="10"></textarea>
+          </div>
+          <div>
+            <label>EN ({{ t.optional }})</label>
+            <textarea id="l-impressum_en" rows="10"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.legal_privacy }}</h3>
+        <p class="hint">{{ t.legal_hint_privacy }}</p>
+        <div class="row">
+          <div>
+            <label>DE</label>
+            <textarea id="l-privacy_de" rows="14"></textarea>
+          </div>
+          <div>
+            <label>EN ({{ t.optional }})</label>
+            <textarea id="l-privacy_en" rows="14"></textarea>
+          </div>
+        </div>
+        <button class="btn" onclick="saveLegal()">{{ t.save }}</button>
+        <p class="hint">{{ t.legal_footer_hint }}</p>
+      </div>
+    </section>
+
+    <!-- Nachrichten -->
+    <section class="tab" id="tab-messages">
+      <div class="panel">
+        <h3>{{ t.messages_heading }}</h3>
+        <p class="hint">{{ t.messages_hint }}</p>
+      </div>
+      <div id="msg-list"></div>
+    </section>
+
+    <!-- Benutzer -->
+    <section class="tab" id="tab-users">
+      <div class="panel">
+        <h3>{{ t.user_create_heading }}</h3>
+        <p class="hint">{{ t.users_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.member_email }}</label>
+            <input type="email" id="u-email" placeholder="freund@example.com">
+          </div>
+          <div>
+            <label>{{ t.user_password }}</label>
+            <div class="upload-row">
+              <input type="text" id="u-password" placeholder="{{ t.user_pw_hint }}">
+              <button class="btn secondary small" onclick="el('u-password').value = genPassword()" title="{{ t.user_gen_pw }}">🎲 {{ t.user_gen_pw }}</button>
+            </div>
+          </div>
+        </div>
+        <label>{{ t.user_quota }}</label>
+        <input type="number" id="u-quota" value="500" min="1">
+        <div><button class="btn" onclick="createUser()">{{ t.user_create }}</button></div>
+        <p class="hint" id="u-storage"></p>
+      </div>
+      <div class="panel" id="storage-warn" style="display:none;border-color:var(--red)">
+        <h3 style="color:var(--red)">⚠ {{ t.storage_down_admin_title }}</h3>
+        <p class="hint">{{ t.storage_down_admin }}</p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.users_heading }}</h3>
+        <div class="proj-list" id="user-list"></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.storage_heading }}</h3>
+        <p class="hint">{{ t.storage_hint }}</p>
+        <div class="hint" id="st-active" style="margin-bottom:4px;font-weight:600"></div>
+        <div class="hint" id="st-current" style="margin-bottom:8px"></div>
+        <div id="st-dirs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+        <button class="btn small" onclick="useStorageDir()">{{ t.storage_use }}</button>
+      </div>
+    </section>
+
+    <!-- System -->
+    <section class="tab" id="tab-system">
+      <div class="panel">
+        <h3>{{ t.maintenance_heading }} <span id="maint-state"></span></h3>
+        <p class="hint">{{ t.maintenance_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.maintenance_text }} (DE)</label>
+            <textarea id="m-text_de" rows="3"></textarea>
+          </div>
+          <div>
+            <label>{{ t.maintenance_text }} (EN, {{ t.optional }})</label>
+            <textarea id="m-text_en" rows="3"></textarea>
+          </div>
+        </div>
+        <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.backup_heading }}</h3>
+        <p class="hint">{{ t.backup_hint }}</p>
+        <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
+        <button class="btn secondary" onclick="el('restore-input').click()">⬆ {{ t.restore_upload }}</button>
+        <input type="file" id="restore-input" accept=".zip" style="display:none">
+        <p class="hint">{{ t.restore_hint }}</p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.export_heading }}</h3>
+        <p class="hint">{{ t.export_hint }}</p>
+        <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.sensors_heading }}</h3>
+        <p class="hint">{{ t.sensors_hint }}</p>
+      </div>
+    </section>
+
+    <!-- Statistik -->
+    <section class="tab" id="tab-stats">
+      <div class="stat-cards">
+        <div class="stat-card"><div class="num" id="s-total">–</div><div class="lbl">{{ t.stat_total }}</div></div>
+        <div class="stat-card"><div class="num" id="s-total-uniques">–</div><div class="lbl">{{ t.stat_total_uniques }}</div></div>
+        <div class="stat-card"><div class="num" id="s-today-views">–</div><div class="lbl">{{ t.stat_today_views }}</div></div>
+        <div class="stat-card"><div class="num" id="s-today-uniques">–</div><div class="lbl">{{ t.stat_today_uniques }}</div></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.stat_last30 }}</h3>
+        <div id="s-bars"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 18px">
+        <div class="panel">
+          <h3>{{ t.stat_referrers }}</h3>
+          <div id="s-referrers"></div>
+        </div>
+        <div class="panel">
+          <h3>{{ t.stat_browsers }}</h3>
+          <div id="s-browsers"></div>
+        </div>
+        <div class="panel">
+          <h3>{{ t.stat_countries }}</h3>
+          <div id="s-countries"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.visitor_log }}</h3>
+        <div style="overflow-x:auto">
+          <table class="vtable">
+            <thead>
+              <tr><th>{{ t.col_time }}</th><th>IP</th><th>{{ t.col_browser }}</th><th>{{ t.col_lang }}</th><th>{{ t.col_ref }}</th><th></th></tr>
+            </thead>
+            <tbody id="s-log"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Projekt-Modal -->
+  <div class="modal-bg" id="proj-modal">
+    <div class="modal">
+      <h3 id="pm-title">{{ t.new_project }}</h3>
+      <label>{{ t.field_title }} *</label>
+      <input type="text" id="pm-titlefield">
+      <div class="row">
+        <div>
+          <label>{{ t.field_desc }} (DE)</label>
+          <textarea id="pm-desc_de"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_desc }} (EN)</label>
+          <textarea id="pm-desc_en"></textarea>
+        </div>
+      </div>
+      <label>{{ t.field_image }}</label>
+      <div class="upload-row">
+        <input type="text" id="pm-image" placeholder="https://… {{ t.or_upload }}">
+        <button class="btn secondary small" onclick="pickUpload(u => { el('pm-image').value = u; })">{{ t.upload }}</button>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_url }}</label>
+          <input type="url" id="pm-url">
+        </div>
+        <div>
+          <label>{{ t.field_repo_url }}</label>
+          <input type="url" id="pm-repo_url">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_tags }}</label>
+          <input type="text" id="pm-tags" placeholder="home-assistant, docker, flask">
+        </div>
+        <div>
+          <label>{{ t.field_language }}</label>
+          <input type="text" id="pm-language" placeholder="Python">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_long }} (DE)</label>
+          <textarea id="pm-long_de" rows="6" placeholder="# Markdown wird unterstützt"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_long }} (EN)</label>
+          <textarea id="pm-long_en" rows="6"></textarea>
+        </div>
+      </div>
+      <p class="hint">{{ t.long_hint }}</p>
+      <label>{{ t.field_gallery }}</label>
+      <div class="gallery-list" id="pm-gallery"></div>
+      <button class="btn secondary small" onclick="pickUpload(u => { modalGallery.push(u); renderModalGallery(); })">+ {{ t.add_image }}</button>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benutzer-Dateien-Modal -->
+  <div class="modal-bg" id="ufiles-modal">
+    <div class="modal">
+      <h3 id="uf-title"></h3>
+      <div class="proj-list" id="uf-list" style="margin-top:14px"></div>
+      <div class="upload-row" style="margin-top:14px">
+        <input type="file" id="uf-file">
+        <button class="btn small" onclick="adminUploadFile()">⬆ {{ t.ufiles_upload }}</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('ufiles-modal').classList.remove('open')">{{ t.cancel }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Blog-Post-Modal -->
+  <div class="modal-bg" id="post-modal">
+    <div class="modal">
+      <h3 id="bm-title">{{ t.new_post }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.field_date }}</label>
+          <input type="date" id="bm-date">
+        </div>
+        <div>
+          <label>{{ t.field_image }}</label>
+          <div class="upload-row">
+            <input type="text" id="bm-image" placeholder="https://… {{ t.or_upload }}">
+            <button class="btn secondary small" onclick="pickUpload(u => { el('bm-image').value = u; })">{{ t.upload }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="bm-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="bm-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_text_md }} (DE)</label>
+          <textarea id="bm-text_de" rows="10"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_text_md }} (EN)</label>
+          <textarea id="bm-text_en" rows="10"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="savePost()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const T = {{ t|tojson }};
+    let SITE = null;
+    let editingId = null;
+    let uploadCb = null;
+
+    const el = id => document.getElementById(id);
+    // Relative URLs, damit alles auch hinter dem HA-Ingress-Proxy funktioniert
+    const api = path => fetch(path.replace(/^\//, ''), { credentials: 'same-origin' });
+    const apiJson = (path, method, body) => fetch(path.replace(/^\//, ''), {
+      method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const assetUrl = u => (u || '').replace(/^\//, '');
+
+    function toast(msg, isErr) {
+      const t = el('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (isErr ? ' err' : '');
+      setTimeout(() => t.className = 'toast', 2200);
+    }
+
+    // ── Theme ──
+    (function(){
+      const t = localStorage.getItem('mp-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+    function toggleTheme(){
+      const c = document.documentElement.getAttribute('data-theme') || 'dark';
+      const n = c === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', n);
+      localStorage.setItem('mp-theme', n);
+    }
+
+    // ── Tabs ──
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+        el('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'stats') loadStats();
+        if (btn.dataset.tab === 'messages') loadMessages();
+        if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); }
+        if (btn.dataset.tab === 'design') initPreview();
+      });
+    });
+
+    // ── Site laden ──
+    async function loadSite() {
+      const r = await api('api/site');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      SITE = await r.json();
+      fillProfile();
+      fillDesign();
+      fillLegal();
+      fillSections();
+      fillSystem();
+      renderProjects();
+      renderPosts();
+      // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
+      if (!el('gh-user').value && SITE.profile.github) {
+        el('gh-user').value = SITE.profile.github;
+      }
+    }
+
+    // ── Blog ──
+    let editingPostId = null;
+    function renderPosts() {
+      const list = el('post-list');
+      list.innerHTML = '';
+      const posts = [...(SITE.posts || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      if (!posts.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_posts}</div>`;
+        return;
+      }
+      posts.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small">${T.edit}</button>
+            <button class="btn danger small">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
+        div.querySelector('.proj-meta').textContent = p.date || '';
+        const [editBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        editBtn.onclick = () => openPostModal(p.id);
+        delBtn.onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await fetch('api/posts/' + p.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        list.appendChild(div);
+      });
+    }
+    function openPostModal(id) {
+      editingPostId = id || null;
+      const p = id ? SITE.posts.find(x => x.id === id) : {};
+      el('bm-title').textContent = id ? T.edit_post : T.new_post;
+      el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
+      el('bm-image').value = p.image || '';
+      el('bm-title_de').value = p.title_de || '';
+      el('bm-title_en').value = p.title_en || '';
+      el('bm-text_de').value = p.text_de || '';
+      el('bm-text_en').value = p.text_en || '';
+      el('post-modal').classList.add('open');
+    }
+    async function savePost() {
+      const body = {
+        date:     el('bm-date').value,
+        image:    el('bm-image').value,
+        title_de: el('bm-title_de').value,
+        title_en: el('bm-title_en').value,
+        text_de:  el('bm-text_de').value,
+        text_en:  el('bm-text_en').value,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingPostId
+        ? await apiJson('api/posts/' + editingPostId, 'PUT', body)
+        : await apiJson('api/posts', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('post-modal').classList.remove('open'); loadSite(); }
+    }
+
+    // ── Live-Vorschau ──
+    // Die öffentliche Seite läuft auf Port 17760 desselben Hosts
+    const publicUrl = () => window.location.protocol + '//' + window.location.hostname + ':17760/';
+    let previewLoaded = false;
+    function initPreview() {
+      if (!previewLoaded) { reloadPreview(); previewLoaded = true; }
+      el('preview-open').href = publicUrl();
+    }
+    function reloadPreview() {
+      el('preview-frame').src = publicUrl() + '?_=' + Date.now();
+    }
+
+    // ── Inhalte (Skills / Aktuelles / Werdegang) ──
+    function fillSections() {
+      const s = SITE.sections || {};
+      el('c-skills').value = (s.skills || []).join(', ');
+      el('news-list').innerHTML = '';
+      (s.news || []).forEach(n => addNewsRow(n));
+      el('timeline-list').innerHTML = '';
+      (s.timeline || []).forEach(e => addTimelineRow(e));
+    }
+    function addNewsRow(n) {
+      n = n || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="n-date" placeholder="2026-06">
+        <input type="text" class="n-text_de" placeholder="${T.field_desc} (DE)">
+        <input type="text" class="n-text_en" placeholder="${T.field_desc} (EN)">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+      </div>
+      <label style="margin-top:8px">{{ t.field_link }}</label>
+      <input type="text" class="n-url" placeholder="https://…">`;
+      div.querySelector('.n-date').value = n.date || '';
+      div.querySelector('.n-text_de').value = n.text_de || '';
+      div.querySelector('.n-text_en').value = n.text_en || '';
+      div.querySelector('.n-url').value = n.url || '';
+      el('news-list').appendChild(div);
+    }
+    function addTimelineRow(e) {
+      e = e || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="t-year" placeholder="2024–2026">
+        <input type="text" class="t-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="t-title_en" placeholder="${T.field_title} (EN)">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="t-text_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="t-text_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.t-year').value = e.year || '';
+      div.querySelector('.t-title_de').value = e.title_de || '';
+      div.querySelector('.t-title_en').value = e.title_en || '';
+      div.querySelector('.t-text_de').value = e.text_de || '';
+      div.querySelector('.t-text_en').value = e.text_en || '';
+      el('timeline-list').appendChild(div);
+    }
+    async function saveSections() {
+      const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
+      const news = [...el('news-list').children].map(row => ({
+        date:    row.querySelector('.n-date').value,
+        text_de: row.querySelector('.n-text_de').value,
+        text_en: row.querySelector('.n-text_en').value,
+        url:     row.querySelector('.n-url').value,
+      })).filter(n => n.text_de || n.text_en);
+      const timeline = [...el('timeline-list').children].map(row => ({
+        year:     row.querySelector('.t-year').value,
+        title_de: row.querySelector('.t-title_de').value,
+        title_en: row.querySelector('.t-title_en').value,
+        text_de:  row.querySelector('.t-text_de').value,
+        text_en:  row.querySelector('.t-text_en').value,
+      })).filter(e => e.title_de || e.title_en);
+      const r = await apiJson('api/sections', 'POST', { skills, news, timeline });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    // ── Nachrichten ──
+    async function loadMessages() {
+      const r = await api('api/messages');
+      if (!r.ok) return;
+      const data = await r.json();
+      const list = el('msg-list');
+      list.innerHTML = '';
+      const badge = el('msg-badge');
+      badge.style.display = data.messages.length ? '' : 'none';
+      badge.textContent = data.messages.length;
+      if (!data.messages.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_messages}</div>`;
+        return;
+      }
+      data.messages.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'msg-item';
+        div.innerHTML = `<div class="msg-head">
+            <span class="msg-from"></span>
+            <span style="display:flex;gap:10px;align-items:center">
+              <span class="msg-time"></span>
+              <button class="btn danger small">✕</button>
+            </span>
+          </div><div class="msg-text"></div>`;
+        const from = div.querySelector('.msg-from');
+        from.textContent = m.name;
+        if (m.email) {
+          const a = document.createElement('a');
+          a.href = 'mailto:' + m.email;
+          a.textContent = ' <' + m.email + '>';
+          from.appendChild(a);
+        }
+        div.querySelector('.msg-time').textContent = new Date(m.ts * 1000).toLocaleString();
+        div.querySelector('.msg-text').textContent = m.text;
+        div.querySelector('button').onclick = async () => {
+          if (!confirm(T.confirm_delete_msg)) return;
+          const r2 = await fetch('api/messages/' + m.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) loadMessages();
+        };
+        list.appendChild(div);
+      });
+    }
+
+    // ── Benutzer ──
+    function genPassword() {
+      // 8 Zeichen: Groß, Klein, Zahlen — keine Sonderzeichen, keine verwechselbaren (O/0, l/1)
+      const U = 'ABCDEFGHJKLMNPQRSTUVWXYZ', L = 'abcdefghjkmnpqrstuvwxyz', D = '23456789';
+      const all = U + L + D;
+      const rnd = max => crypto.getRandomValues(new Uint32Array(1))[0] % max;
+      const pick = s => s[rnd(s.length)];
+      const pw = [pick(U), pick(L), pick(D)];
+      while (pw.length < 8) pw.push(pick(all));
+      for (let i = pw.length - 1; i > 0; i--) {
+        const j = rnd(i + 1);
+        [pw[i], pw[j]] = [pw[j], pw[i]];
+      }
+      return pw.join('');
+    }
+    async function loadUsers() {
+      const r = await api('api/users');
+      if (!r.ok) return;
+      const data = await r.json();
+      el('storage-warn').style.display = data.storage_ok ? 'none' : '';
+      el('u-storage').textContent = data.storage_ok
+        ? T.user_storage + ': ' + data.storage + (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off)
+        : '';
+      const list = el('user-list');
+      list.innerHTML = '';
+      if (!data.users.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_users}</div>`;
+        return;
+      }
+      data.users.forEach(u => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small">📁 ${T.user_files_btn}</button>
+            <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
+            <button class="btn secondary small">${T.user_reset_pw}</button>
+            <button class="btn secondary small">${T.user_quota_btn}</button>
+            <button class="btn danger small">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = u.email;
+        div.querySelector('.proj-meta').textContent =
+          `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created}`;
+        const [filesBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        filesBtn.onclick = () => openUserFiles(u);
+        resendBtn.onclick = async () => {
+          if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
+          const r2 = await fetch('api/users/' + u.id + '/resend', { method: 'POST', credentials: 'same-origin' });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            toast(d2.no_url ? T.user_no_url_warn : T.user_resent, d2.no_url);
+          } else if (r2.status === 400) {
+            toast(T.user_smtp_off, true);
+          } else {
+            toast(T.error_save, true);
+          }
+        };
+        pwBtn.onclick = async () => {
+          const pw = prompt(T.user_new_pw_prompt, genPassword());
+          if (!pw) return;
+          if (pw.length < 8) { toast(T.user_pw_short, true); return; }
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { password: pw });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            if (d2.mail_sent && d2.no_url) toast(T.user_no_url_warn, true);
+            else toast(d2.mail_sent ? T.user_pw_mailed : T.saved);
+          } else toast(T.error_save, true);
+        };
+        quotaBtn.onclick = async () => {
+          const q = prompt(T.user_quota_prompt, u.quota_mb);
+          if (!q) return;
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { quota_mb: parseInt(q) || 500 });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        delBtn.onclick = async () => {
+          if (!confirm(T.user_delete_confirm.replace('{email}', u.email))) return;
+          const r2 = await fetch('api/users/' + u.id, { method: 'DELETE', credentials: 'same-origin' });
+          toast(r2.ok ? T.deleted : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        list.appendChild(div);
+      });
+    }
+    async function createUser() {
+      const email = el('u-email').value.trim();
+      const password = el('u-password').value;
+      if (!email) { toast(T.user_email_required, true); return; }
+      if (password.length < 8) { toast(T.user_pw_short, true); return; }
+      const r = await apiJson('api/users', 'POST', {
+        email, password, quota_mb: parseInt(el('u-quota').value) || 500,
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.mail_sent && d.no_url) toast(T.user_no_url_warn, true);
+        else toast(d.mail_sent ? T.user_created_mailed : T.user_created);
+        el('u-email').value = '';
+        el('u-password').value = '';
+        loadUsers();
+      } else if (r.status === 409) {
+        toast(T.user_exists, true);
+      } else {
+        toast(T.error_save, true);
+      }
+    }
+
+    // ── Benutzer-Dateien (Admin) ──
+    let ufUser = null;
+    function openUserFiles(u) {
+      ufUser = u;
+      el('uf-title').textContent = T.ufiles_title.replace('{email}', u.email);
+      el('ufiles-modal').classList.add('open');
+      loadUserFiles();
+    }
+    async function loadUserFiles() {
+      const r = await api('api/users/' + ufUser.id + '/files');
+      const list = el('uf-list');
+      if (!r.ok) {
+        list.innerHTML = `<div class="empty-note">${r.status === 503 ? T.storage_down_admin : T.error_load}</div>`;
+        return;
+      }
+      const data = await r.json();
+      list.innerHTML = '';
+      if (!data.files.length) {
+        list.innerHTML = `<div class="empty-note">${T.member_no_files}</div>`;
+        return;
+      }
+      data.files.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const size = f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.round(f.size / 1024) + ' KB';
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small">⬇</button>
+            <button class="btn danger small">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = f.name;
+        div.querySelector('.proj-meta').textContent = size + ' · ' + f.mtime;
+        const [dlBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        dlBtn.onclick = () => { window.location.href = 'api/users/' + ufUser.id + '/files/' + encodeURIComponent(f.name); };
+        delBtn.onclick = async () => {
+          if (!confirm(T.member_confirm_delete)) return;
+          const r2 = await fetch('api/users/' + ufUser.id + '/files/' + encodeURIComponent(f.name),
+                                 { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) { loadUserFiles(); loadUsers(); }
+        };
+        list.appendChild(div);
+      });
+    }
+    async function adminUploadFile() {
+      const f = el('uf-file').files[0];
+      if (!f) { toast(T.member_err_nofile, true); return; }
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/users/' + ufUser.id + '/files',
+                            { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        toast(T.ufiles_uploaded);
+        el('uf-file').value = '';
+        loadUserFiles();
+        loadUsers();
+      } else if (r.status === 413) {
+        toast(T.member_err_quota, true);
+      } else if (r.status === 503) {
+        toast(T.storage_down_admin, true);
+      } else {
+        toast(T.error_upload_generic, true);
+      }
+    }
+
+    // ── Speicherort-Browser ──
+    let stPath = '';
+    let stLoaded = false;
+    function initStorageBrowser() {
+      if (!stLoaded) { stLoaded = true; loadStorageDirs(''); }
+    }
+    async function loadStorageDirs(path) {
+      const r = await api('api/storage' + (path ? '?path=' + encodeURIComponent(path) : ''));
+      if (!r.ok) { el('st-current').textContent = T.storage_down_admin; el('st-dirs').innerHTML = ''; return; }
+      const data = await r.json();
+      stPath = data.path;
+      el('st-active').textContent = '✓ ' + T.storage_active_label + ': ' + data.base + (data.active ? '/' + data.active : '');
+      el('st-current').textContent = T.storage_current + ': ' + data.base + (stPath ? '/' + stPath : '');
+      const box = el('st-dirs');
+      box.innerHTML = '';
+      if (stPath) {
+        const up = document.createElement('button');
+        up.className = 'btn secondary small';
+        up.textContent = '⬆ ..';
+        up.onclick = () => loadStorageDirs(stPath.split('/').slice(0, -1).join('/'));
+        box.appendChild(up);
+      }
+      data.dirs.forEach(d => {
+        const b = document.createElement('button');
+        b.className = 'btn secondary small';
+        b.textContent = '📁 ' + d;
+        b.onclick = () => loadStorageDirs(stPath ? stPath + '/' + d : d);
+        box.appendChild(b);
+      });
+    }
+    async function useStorageDir() {
+      const r = await apiJson('api/storage', 'POST', { subdir: stPath });
+      toast(r.ok ? T.storage_saved : T.error_save, !r.ok);
+      if (r.ok) {
+        // Browser bleibt im gewählten Ordner stehen, Aktiv-Anzeige + Nutzerliste aktualisieren
+        await loadStorageDirs(stPath);
+        loadUsers();
+      }
+    }
+
+    // ── System: Wartungsmodus & Backup ──
+    function fillSystem() {
+      const d = SITE.design;
+      el('m-text_de').value = d.maintenance_text_de || '';
+      el('m-text_en').value = d.maintenance_text_en || '';
+      const on = !!d.maintenance;
+      el('maint-state').innerHTML = on ? `<span class="maint-on">● ${T.maintenance_on}</span>` : '';
+      el('maint-btn').textContent = on ? T.maintenance_disable : T.maintenance_enable;
+      el('maint-btn').className = on ? 'btn' : 'btn danger';
+    }
+    async function toggleMaintenance() {
+      const r = await apiJson('api/design', 'POST', {
+        maintenance: !SITE.design.maintenance,
+        maintenance_text_de: el('m-text_de').value,
+        maintenance_text_en: el('m-text_en').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+    function downloadBackup() {
+      window.location.href = 'api/backup';
+    }
+    el('restore-input').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (!confirm(T.confirm_restore)) { e.target.value = ''; return; }
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/restore', { method: 'POST', body: fd, credentials: 'same-origin' });
+      toast(r.ok ? T.restore_done : T.error_restore, !r.ok);
+      if (r.ok) loadSite();
+      e.target.value = '';
+    });
+
+    // ── Rechtliches ──
+    function fillLegal() {
+      const l = SITE.legal || {};
+      ['impressum_de','impressum_en','privacy_de','privacy_en'].forEach(k => {
+        el('l-' + k).value = l[k] || '';
+      });
+    }
+    async function saveLegal() {
+      const body = {};
+      ['impressum_de','impressum_en','privacy_de','privacy_en'].forEach(k => {
+        body[k] = el('l-' + k).value;
+      });
+      const r = await apiJson('api/legal', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    // ── Profil ──
+    function fillProfile() {
+      const p = SITE.profile;
+      ['name','tagline_de','tagline_en','bio_de','bio_en','avatar','github','email'].forEach(k => {
+        el('p-' + k).value = p[k] || '';
+      });
+      el('p-links').innerHTML = '';
+      (p.links || []).forEach(l => addLinkRow(l.label, l.url));
+    }
+    function addLinkRow(label, url) {
+      const div = document.createElement('div');
+      div.className = 'link-row';
+      div.innerHTML = `<input type="text" placeholder="${T.link_label}" value="">` +
+                      `<input type="text" placeholder="https://…" value="">` +
+                      `<button class="btn danger small" onclick="this.parentElement.remove()">✕</button>`;
+      div.children[0].value = label || '';
+      div.children[1].value = url || '';
+      el('p-links').appendChild(div);
+    }
+    async function saveProfile() {
+      const links = [...el('p-links').children].map(row => ({
+        label: row.children[0].value.trim(),
+        url:   row.children[1].value.trim(),
+      })).filter(l => l.url);
+      const body = { links };
+      ['name','tagline_de','tagline_en','bio_de','bio_en','avatar','github','email'].forEach(k => {
+        body[k] = el('p-' + k).value;
+      });
+      const r = await apiJson('api/profile', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    // ── Design ──
+    function fillDesign() {
+      const d = SITE.design;
+      el('d-site_title').value = d.site_title || '';
+      el('d-accent').value = d.accent || '#58a6ff';
+      el('d-mode').value = d.mode || 'dark';
+      el('d-show_counter').value = d.show_counter ? '1' : '0';
+      el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
+      el('d-favicon').value = d.favicon || '';
+      el('d-layout').value = d.layout || 'cards';
+      el('d-public_url').value = d.public_url || '';
+      el('d-footer_text').value = d.footer_text || '';
+    }
+    async function saveDesign() {
+      const r = await apiJson('api/design', 'POST', {
+        site_title:      el('d-site_title').value,
+        accent:          el('d-accent').value,
+        mode:            el('d-mode').value,
+        layout:          el('d-layout').value,
+        public_url:      el('d-public_url').value,
+        show_counter:    el('d-show_counter').value === '1',
+        contact_enabled: el('d-contact_enabled').value === '1',
+        favicon:         el('d-favicon').value,
+        footer_text:     el('d-footer_text').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { loadSite(); reloadPreview(); }
+    }
+
+    // ── Projekte ──
+    function renderProjects() {
+      const list = el('proj-list');
+      list.innerHTML = '';
+      if (!SITE.projects.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_projects_admin}</div>`;
+        return;
+      }
+      SITE.projects.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const img = p.image ? `<img class="proj-thumb" src="${assetUrl(p.image)}" alt="">` : `<div class="proj-thumb"></div>`;
+        const badge = p.repo_full_name ? `<span class="badge">GitHub</span>` : '';
+        const meta = [p.language, p.stars ? '★ ' + p.stars : '', (p.tags || []).join(', ')].filter(Boolean).join(' · ');
+        div.innerHTML = img +
+          `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>` +
+          `<div class="proj-actions">
+             <button class="btn secondary small" onclick="moveProject('${p.id}','up')" ${i===0?'disabled':''}>↑</button>
+             <button class="btn secondary small" onclick="moveProject('${p.id}','down')" ${i===SITE.projects.length-1?'disabled':''}>↓</button>
+             <button class="btn secondary small" onclick="openProjectModal('${p.id}')">${T.edit}</button>
+             <button class="btn danger small" onclick="deleteProject('${p.id}')">✕</button>
+           </div>`;
+        div.querySelector('.proj-name').textContent = p.title;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
+        div.querySelector('.proj-meta').textContent = meta;
+        list.appendChild(div);
+      });
+    }
+    let modalGallery = [];
+    function renderModalGallery() {
+      const box = el('pm-gallery');
+      box.innerHTML = '';
+      modalGallery.forEach((u, i) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        const img = document.createElement('img');
+        img.src = assetUrl(u);
+        const btn = document.createElement('button');
+        btn.textContent = '✕';
+        btn.onclick = () => { modalGallery.splice(i, 1); renderModalGallery(); };
+        div.append(img, btn);
+        box.appendChild(div);
+      });
+    }
+    function openProjectModal(id) {
+      editingId = id || null;
+      const p = id ? SITE.projects.find(x => x.id === id) : {};
+      el('pm-title').textContent = id ? T.edit_project : T.new_project;
+      el('pm-titlefield').value = p.title || '';
+      el('pm-desc_de').value = p.desc_de || '';
+      el('pm-desc_en').value = p.desc_en || '';
+      el('pm-image').value = p.image || '';
+      el('pm-url').value = p.url || '';
+      el('pm-repo_url').value = p.repo_url || '';
+      el('pm-tags').value = (p.tags || []).join(', ');
+      el('pm-language').value = p.language || '';
+      el('pm-long_de').value = p.long_de || '';
+      el('pm-long_en').value = p.long_en || '';
+      modalGallery = [...(p.gallery || [])];
+      renderModalGallery();
+      el('proj-modal').classList.add('open');
+    }
+    function closeProjectModal() { el('proj-modal').classList.remove('open'); }
+    async function saveProject() {
+      const body = {
+        title:    el('pm-titlefield').value,
+        desc_de:  el('pm-desc_de').value,
+        desc_en:  el('pm-desc_en').value,
+        image:    el('pm-image').value,
+        url:      el('pm-url').value,
+        repo_url: el('pm-repo_url').value,
+        tags:     el('pm-tags').value,
+        language: el('pm-language').value,
+        long_de:  el('pm-long_de').value,
+        long_en:  el('pm-long_en').value,
+        gallery:  modalGallery,
+      };
+      if (editingId) {
+        const old = SITE.projects.find(x => x.id === editingId);
+        body.repo_full_name = old.repo_full_name || '';
+        body.stars = old.stars || 0;
+      }
+      if (!body.title.trim()) { toast(T.error_title, true); return; }
+      const r = editingId
+        ? await apiJson('api/projects/' + editingId, 'PUT', body)
+        : await apiJson('api/projects', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { closeProjectModal(); loadSite(); }
+    }
+    async function deleteProject(id) {
+      if (!confirm(T.confirm_delete)) return;
+      const r = await fetch('api/projects/' + id, { method: 'DELETE', credentials: 'same-origin' });
+      toast(r.ok ? T.deleted : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+    async function moveProject(id, dir) {
+      await apiJson('api/projects/' + id + '/move', 'POST', { dir });
+      loadSite();
+    }
+
+    // ── GitHub-Import ──
+    async function loadGithubRepos() {
+      const user = el('gh-user').value.trim();
+      if (!user) { toast(T.error_user, true); return; }
+      el('gh-results').innerHTML = `<p class="hint">${T.loading}</p>`;
+      const r = await api('api/github/repos?user=' + encodeURIComponent(user));
+      if (!r.ok) { el('gh-results').innerHTML = `<p class="hint">${T.error_github}</p>`; return; }
+      const data = await r.json();
+      if (!data.repos.length) { el('gh-results').innerHTML = `<p class="hint">${T.no_repos}</p>`; return; }
+      const existing = new Set(SITE.projects.map(p => p.repo_full_name).filter(Boolean));
+      let html = '<div class="gh-list">';
+      data.repos.forEach((repo, i) => {
+        const dis = existing.has(repo.full_name);
+        html += `<label class="gh-repo" style="${dis ? 'opacity:.45' : 'cursor:pointer'}">
+          <input type="checkbox" data-i="${i}" ${dis ? 'disabled' : ''}>
+          <strong>${repo.name}</strong>
+          <span class="gh-desc"></span>
+          <span class="hint" style="margin:0">★ ${repo.stars}</span>
+        </label>`;
+      });
+      html += '</div>';
+      html += `<button class="btn" onclick="importSelected()">${T.import_selected}</button>`;
+      el('gh-results').innerHTML = html;
+      // Beschreibungen sicher als Text setzen (kein HTML-Injection-Risiko)
+      el('gh-results').querySelectorAll('.gh-repo').forEach((row, i) => {
+        row.querySelector('.gh-desc').textContent = data.repos[i].description || '';
+      });
+      window._ghRepos = data.repos;
+    }
+    async function importSelected() {
+      const selected = [...el('gh-results').querySelectorAll('input:checked')]
+        .map(cb => window._ghRepos[parseInt(cb.dataset.i)]);
+      if (!selected.length) { toast(T.error_select, true); return; }
+      const r = await apiJson('api/github/import', 'POST',
+        { repos: selected, import_readme: el('gh-readme').checked });
+      if (r.ok) {
+        const data = await r.json();
+        toast(T.imported.replace('{n}', data.added));
+        loadGithubRepos();
+        loadSite();
+      } else { toast(T.error_save, true); }
+    }
+
+    // ── Upload ──
+    function pickUpload(cb) {
+      uploadCb = cb;
+      el('file-input').click();
+    }
+    el('file-input').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        const data = await r.json();
+        if (uploadCb) uploadCb(data.url);
+        toast(T.uploaded);
+      } else { toast(T.error_upload, true); }
+      e.target.value = '';
+    });
+
+    // ── Statistik ──
+    async function loadStats() {
+      const r = await api('api/stats');
+      if (!r.ok) return;
+      const s = await r.json();
+      el('s-total').textContent = s.total;
+      el('s-total-uniques').textContent = s.total_uniques;
+      el('s-today-views').textContent = s.today.views;
+      el('s-today-uniques').textContent = s.today.uniques;
+      const max = Math.max(1, ...s.days.map(d => d.views));
+      el('s-bars').innerHTML = s.days.map(d =>
+        `<div class="bar-row">
+           <span class="bar-date">${d.date}</span>
+           <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.views / max * 100)}%"></div></div>
+           <span class="bar-num">${d.views} / ${d.uniques}</span>
+         </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
+      renderDistribution('s-referrers', s.referrers || []);
+      renderDistribution('s-browsers', s.browsers || []);
+      renderDistribution('s-countries', s.countries || [], countryLabel);
+      renderVisitorLog(s.log || []);
+    }
+    function countryFlag(code) {
+      if (!code || code.length !== 2) return '';
+      return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+    }
+    function countryLabel(code) {
+      let name = code;
+      try {
+        name = new Intl.DisplayNames([document.documentElement.lang || 'de'], { type: 'region' }).of(code) || code;
+      } catch {}
+      return (countryFlag(code) + ' ' + name).trim();
+    }
+    function renderDistribution(target, items, labelFn) {
+      if (!items.length) {
+        el(target).innerHTML = `<p class="hint">${T.no_data}</p>`;
+        return;
+      }
+      const max = Math.max(1, ...items.map(i => i.count));
+      el(target).innerHTML = '';
+      items.forEach(i => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = `<span class="bar-date" style="width:120px;overflow:hidden;text-overflow:ellipsis"></span>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(i.count / max * 100)}%"></div></div>
+          <span class="bar-num" style="width:46px">${i.count}</span>`;
+        const lbl = row.querySelector('.bar-date');
+        lbl.textContent = labelFn ? labelFn(i.name) : i.name;
+        lbl.title = i.name;
+        el(target).appendChild(row);
+      });
+    }
+    function browserInfo(ua) {
+      if (!ua) return '–';
+      let b = 'Browser';
+      if (/edg\//i.test(ua)) b = 'Edge';
+      else if (/opr\/|opera/i.test(ua)) b = 'Opera';
+      else if (/firefox\//i.test(ua)) b = 'Firefox';
+      else if (/chrome\//i.test(ua)) b = 'Chrome';
+      else if (/safari\//i.test(ua)) b = 'Safari';
+      else b = ua.split(/[\s/]/)[0];
+      let os = '';
+      if (/windows/i.test(ua)) os = 'Windows';
+      else if (/android/i.test(ua)) os = 'Android';
+      else if (/iphone|ipad|ios/i.test(ua)) os = 'iOS';
+      else if (/mac os/i.test(ua)) os = 'macOS';
+      else if (/linux/i.test(ua)) os = 'Linux';
+      return os ? `${b} · ${os}` : b;
+    }
+    function renderVisitorLog(log) {
+      const tbody = el('s-log');
+      tbody.innerHTML = '';
+      if (!log.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="hint">${T.no_data}</td></tr>`;
+        return;
+      }
+      log.forEach(v => {
+        const tr = document.createElement('tr');
+        const time = new Date(v.ts * 1000).toLocaleString();
+        const lang = (v.lang || '').split(',')[0];
+        tr.innerHTML = `<td></td><td class="mono"></td><td title=""></td><td></td><td title=""></td><td></td>`;
+        tr.children[0].textContent = time;
+        tr.children[1].textContent = (v.country ? countryFlag(v.country) + ' ' : '') + v.ip;
+        if (v.country) tr.children[1].title = countryLabel(v.country);
+        tr.children[2].textContent = browserInfo(v.ua);
+        tr.children[2].title = v.ua || '';
+        tr.children[3].textContent = lang;
+        tr.children[4].textContent = v.ref || '–';
+        tr.children[4].title = v.ref || '';
+        tr.children[5].innerHTML = v.bot ? `<span class="badge-bot">Bot</span>` : (v.new ? `<span class="badge-new">${T.badge_new}</span>` : '');
+        tbody.appendChild(tr);
+      });
+    }
+
+    loadSite();
+  </script>
+</body>
+</html>

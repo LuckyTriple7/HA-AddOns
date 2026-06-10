@@ -59,3 +59,6 @@ configuration:
   addon_manager:
     name: Add-on Manager aktivieren
     description: "Aktiviert den Tab 'Add-on Releases' in GitPulse. Damit können Versionen und CHANGELOG-Einträge für alle Add-ons im Repo direkt aus der UI heraus committet werden. Standard: false."
+  digest_hour:
+    name: Tages-Digest Uhrzeit
+    description: "Stunde (0–23), zu der einmal täglich eine Zusammenfassung aller offenen PRs, Issues und Security-Alerts per E-Mail und Telegram gesendet wird. -1 = deaktiviert (Standard). Beispiel: 8 = täglich um 08:xx Uhr."
