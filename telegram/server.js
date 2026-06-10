@@ -1108,6 +1108,27 @@ app.get('*', (req, res) => {
   res.send(getHtml());
 });
 
+const _SVG = {
+  moon:      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  sun:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+  disk:      '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+  imageOn:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  imageOff:  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+  trash:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  chevUp:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
+  chevDown:  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevLeft:  '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  search:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  refresh:   '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+  x:         '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  smile:     '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+  paperclip: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  globe:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  doc:       '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  fwd:       '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></svg>',
+  reply:     '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
+};
+
 function getHtml() {
   return `<!DOCTYPE html>
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
@@ -1160,14 +1181,14 @@ html.light #topbar { background: #517DA2; color: #fff; }
 #logout-btn:hover { color: #f15c5c; }
 #topbar-back { display: none; }
 #topbar-back:hover { color: rgba(255,255,255,0.9); }
-#photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
+#photo-toggle { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: 0.55; }
 #photo-toggle:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
 #photo-toggle.active { opacity: 1; background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.8); }
-.scroll-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 15px; opacity: 0.55; line-height: 1; }
+.scroll-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: 0.55; }
 .scroll-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
-#refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; opacity: 0.55; line-height: 1; }
+#refresh-btn { display: none; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 8px; border-radius: 6px; cursor: pointer; align-items: center; justify-content: center; opacity: 0.55; }
 #refresh-btn:hover { background: rgba(255,255,255,0.1); opacity: 0.8; }
-#export-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+#export-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 #export-btn:hover { border-color: #fff; color: #fff; }
 #refresh-btn.spinning { animation: spin 0.7s linear infinite; opacity: 1; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1252,7 +1273,7 @@ html.light #no-chat-wrap { color: #888; }
 #chat-header { display: none; align-items: center; gap: 12px; padding: 10px 16px; flex-shrink: 0; min-height: 56px; }
 html.dark #chat-header { background: #232E3C; border-bottom: 1px solid #1A2432; }
 html.light #chat-header { background: #517DA2; }
-#back-btn { display: none; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; padding: 4px 8px 4px 0; }
+#back-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 4px 8px 4px 0; align-items: center; justify-content: center; }
 #ch-name { font-size: 16px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #ch-stats { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; display: none; }
@@ -1273,7 +1294,7 @@ html.dark #reaction-picker { background: #232E3C; border: 1px solid #1A2432; }
 html.light #reaction-picker { background: #fff; border: 1px solid #d9dbdf; }
 #reaction-picker button { background: none; border: none; font-size: 24px; cursor: pointer; padding: 3px 4px; border-radius: 50%; line-height: 1; transition: transform 0.12s; }
 #reaction-picker button:hover { transform: scale(1.4); }
-.react-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 5px; line-height: 1; border-radius: 50%; flex-shrink: 0; }
+.react-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px; border-radius: 50%; flex-shrink: 0; }
 .bubble-row:hover .react-btn { opacity: 1; pointer-events: auto; }
 html.dark .react-btn { color: rgba(193,201,212,0.5); }
 html.light .react-btn { color: rgba(0,0,0,0.35); }
@@ -1292,16 +1313,16 @@ html.light .reaction-badge.own { background: rgba(42,171,238,0.1); }
 .bubble.photo-bubble .msg-ack { color: rgba(255,255,255,0.95) !important; }
 .voice-wrap { padding: 2px 0; }
 .bubble-doc { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
-.bubble-doc .doc-icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.bubble-doc .doc-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .bubble-doc .doc-name { font-size: 13px; word-break: break-all; font-weight: 500; }
 .photo-caption { padding: 4px 10px 4px; }
-#delete-mode-btn { background: none; border: none; cursor: pointer; font-size: 17px; padding: 4px 6px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, color 0.15s; }
+#delete-mode-btn { background: none; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 6px; opacity: 0.65; transition: opacity 0.15s, color 0.15s; }
 #delete-mode-btn:hover { opacity: 1; }
 #delete-mode-btn.active { color: #e74c3c; opacity: 1; }
 #messages.delete-mode .bubble-row { cursor: pointer; }
 #messages.delete-mode .fwd-btn, #messages.delete-mode .reply-btn, #messages.delete-mode .react-btn { opacity: 0 !important; pointer-events: none !important; }
 .bubble-row.selected .bubble, .bubble-row.selected .voice-wrap { background: rgba(231,76,60,0.18) !important; outline: 1px solid rgba(231,76,60,0.45); border-radius: 10px; }
-.fwd-btn, .reply-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; border-radius: 6px; flex-shrink: 0; }
+.fwd-btn, .reply-btn { opacity: 0; pointer-events: none; background: none; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .fwd-btn, .bubble-row:hover .reply-btn { opacity: 1; pointer-events: auto; }
 html.dark .fwd-btn, html.dark .reply-btn { color: rgba(193,201,212,0.5); }
 html.light .fwd-btn, html.light .reply-btn { color: rgba(0,0,0,0.35); }
@@ -1321,7 +1342,7 @@ html.light #reply-bar { background: #e8f4fb; }
 #reply-bar-text { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html.dark #reply-bar-text { color: #8696a0; }
 html.light #reply-bar-text { color: #666; }
-#reply-close { background: none; border: none; color: #8696a0; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px; flex-shrink: 0; }
+#reply-close { background: none; border: none; color: #8696a0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px; flex-shrink: 0; }
 #reply-close:hover { color: #e74c3c; }
 #fwd-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
 #fwd-modal.open { display: flex; }
@@ -1382,10 +1403,10 @@ html.light #emoji-picker { background: #fff; border-top: 1px solid #e0e0e0; }
 #input-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; width: auto; height: auto; line-height: 1; }
 html.dark #input-bar .emoji-btn:hover { background: rgba(255,255,255,0.06); }
 html.light #input-bar .emoji-btn:hover { background: #F1F1F1; }
-#emoji-toggle { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; width: auto; height: auto; line-height: 1; }
+#emoji-toggle { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 html.dark #emoji-toggle { color: #6B7B8D; }
 html.light #emoji-toggle { color: #888; }
-#input-bar #attach-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; flex-shrink: 0; width: auto; height: auto; line-height: 1; }
+#input-bar #attach-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 html.dark #input-bar #attach-btn { color: #6B7B8D; }
 html.light #input-bar #attach-btn { color: #888; }
 #input-bar #attach-btn:hover { background: rgba(0,0,0,0.08); }
@@ -1394,8 +1415,28 @@ html.light #input-bar #attach-btn { color: #888; }
 html.dark #attach-bar { background: #1A2432; border-color: #1A2432; color: #C1C9D4; }
 html.light #attach-bar { background: #e8eef4; border-color: #d0d8e0; color: #333; }
 #attach-bar .attach-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#attach-bar .attach-clear { background: none; border: none; cursor: pointer; font-size: 16px; color: #e74c3c; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+#attach-bar .attach-clear { background: none; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: #e74c3c; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
 #file-input { display: none; }
+
+/* ── Nachrichtensuche ── */
+#msg-search-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#msg-search-btn:hover { border-color: #fff; color: #fff; }
+#msg-search-btn.active { color: #2AABEE; border-color: #2AABEE; }
+#msg-search-bar { display: none; align-items: center; gap: 8px; padding: 6px 12px; flex-shrink: 0; }
+html.dark #msg-search-bar { background: #1a2533; border-bottom: 1px solid #1A2432; }
+html.light #msg-search-bar { background: #4a7295; border-bottom: 1px solid rgba(255,255,255,0.2); }
+#msg-search-bar.open { display: flex; }
+#msg-search-input { flex: 1; border: none; border-radius: 16px; padding: 6px 12px; font-size: 13px; outline: none; font-family: inherit; }
+html.dark #msg-search-input { background: #17212B; color: #C1C9D4; }
+html.dark #msg-search-input::placeholder { color: #6B7B8D; }
+html.light #msg-search-input { background: rgba(255,255,255,0.9); color: #222; }
+#msg-search-count { font-size: 12px; color: rgba(255,255,255,0.7); white-space: nowrap; min-width: 40px; text-align: right; }
+.msg-search-nav-btn { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; padding: 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.msg-search-nav-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+#msg-search-close { background: none; border: none; color: rgba(255,255,255,0.6); cursor: pointer; padding: 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#msg-search-close:hover { color: #e74c3c; }
+.msg-highlight { background: rgba(255,235,59,0.35); border-radius: 3px; }
+.msg-highlight-active { background: rgba(255,165,0,0.6); border-radius: 3px; outline: 1px solid rgba(255,165,0,0.9); }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
@@ -1474,15 +1515,15 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
 <div id="topbar">
   <button id="topbar-back" onclick="closeChat()" title="Zurück"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="15 18 9 12 15 6"/></svg></button>
   <h1 ondblclick="tgConsoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Console">Telegram</h1>
-  <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;font-size:18px;padding:4px 2px;line-height:1;flex-shrink:0;opacity:0.75;"></button>
+  <button id="theme-btn" onclick="toggleTheme()" title="Dark / Light Mode" style="background:none;border:none;cursor:pointer;padding:4px 2px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;opacity:0.75;color:inherit;"></button>
   <span class="uname" id="my-name"></span>
   <span id="storage-info"></span>
-  ${DOWNLOAD_MEDIA ? '<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">🎬</button>' : ''}
-  ${DOWNLOAD_MEDIA ? '<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">🗑️</button>' : ''}
-  <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">↺</button>
-  <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">↑</button>
-  <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">↓</button>
-  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:14px;padding:0 6px;">🌐 DE</button>
+  ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
+  ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="cleanupTitle" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
+  <button id="refresh-btn" onclick="refreshChat()" data-i18n-title="btnReload" title="Chat neu laden">${_SVG.refresh}</button>
+  <button class="scroll-btn" onclick="scrollMsgs(\'top\')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
+  <button class="scroll-btn" onclick="scrollMsgs(\'bottom\')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
+  <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="gap:4px;padding:0 8px;">${_SVG.globe} DE</button>
   <button id="logout-btn" onclick="confirmLogout()" data-i18n-title="btnLogout" title="Abmelden"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 
@@ -1503,14 +1544,22 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
   <div id="chat-panel">
     <div id="no-chat-wrap" data-i18n="noChatSelected">Wähle einen Chat aus der Liste</div>
     <div id="chat-header">
-      <button id="back-btn" onclick="closeChat()">&#8592;</button>
+      <button id="back-btn" onclick="closeChat()">${_SVG.chevLeft}</button>
       <div class="avatar" id="ch-avatar" style="width:36px;height:36px;font-size:14px;background:#2AABEE">?</div>
       <div style="flex:1;overflow:hidden">
         <div id="ch-name">–</div>
         <div id="ch-stats"></div>
       </div>
-      <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">💾</button>
-      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">✕</button>
+      <button id="msg-search-btn" onclick="toggleMsgSearch()" data-i18n-title="msgSearchTitle" title="In Nachrichten suchen">${_SVG.search}</button>
+      <button id="export-btn" onclick="exportChat()" data-i18n-title="ttExport" title="Chat exportieren">${_SVG.disk}</button>
+      <button id="delete-mode-btn" onclick="toggleDeleteMode()" title="Nachrichten löschen">${_SVG.x}</button>
+    </div>
+    <div id="msg-search-bar">
+      <input id="msg-search-input" type="text" placeholder="Nachrichten durchsuchen…" oninput="onMsgSearchInput()" onkeydown="if(event.key==='Enter'){stepMsgSearch(event.shiftKey?-1:1);}if(event.key==='Escape'){closeMsgSearch();}">
+      <span id="msg-search-count"></span>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(-1)" title="Vorheriger Treffer">${_SVG.chevUp}</button>
+      <button class="msg-search-nav-btn" onclick="stepMsgSearch(1)" title="Nächster Treffer">${_SVG.chevDown}</button>
+      <button id="msg-search-close" onclick="closeMsgSearch()">${_SVG.x}</button>
     </div>
     <div id="messages"></div>
     <div id="reply-bar">
@@ -1518,18 +1567,18 @@ html.light .logout-modal-no { background:#e0e0e0; color:#111; }
         <div id="reply-bar-sender"></div>
         <div id="reply-bar-text"></div>
       </div>
-      <button id="reply-close" onclick="clearReply()">✕</button>
+      <button id="reply-close" onclick="clearReply()">${_SVG.x}</button>
     </div>
     <div id="attach-bar">
-      <span>📎</span>
+      ${_SVG.paperclip}
       <span class="attach-name" id="attach-name"></span>
-      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">✕</button>
+      <button class="attach-clear" onclick="clearAttach()" title="Entfernen">${_SVG.x}</button>
     </div>
     <div id="input-bar">
       <div id="emoji-picker"><div class="emoji-grid" id="emoji-grid"></div></div>
       <input type="file" id="file-input" onchange="onFileSelected(this)">
-      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">😊</button>
-      <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">📎</button>
+      <button id="emoji-toggle" onclick="toggleEmojiPicker(event)" data-i18n-title="emojiTitle" title="Emoji">${_SVG.smile}</button>
+      <button id="attach-btn" onclick="document.getElementById('file-input').click()" data-i18n-title="attachTitle" title="Datei anhängen">${_SVG.paperclip}</button>
       <textarea id="msg-input" rows="1" placeholder="Nachricht…" data-i18n-pl="msgPlaceholder" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="send-btn" onclick="sendMsg()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
@@ -1573,6 +1622,7 @@ const LANG = {
     cleanupError: (e) => 'Fehler beim Cleanup: ' + e,
     statsMsg: 'Nachrichten', statsSince: 'seit',
     offlineTitle: 'Verbindung unterbrochen', offlineSub: 'Stelle Verbindung wieder her…', offlineReload: 'Neu laden',
+    msgSearchTitle: 'In Nachrichten suchen', msgSearchPlaceholder: 'Nachrichten durchsuchen…',
   },
   en: {
     spinnerConnect: 'Connecting to Telegram…', spinnerLogout: 'Logging out…',
@@ -1597,6 +1647,7 @@ const LANG = {
     cleanupError: (e) => 'Cleanup error: ' + e,
     statsMsg: 'messages', statsSince: 'since',
     offlineTitle: 'Connection lost', offlineSub: 'Reconnecting…', offlineReload: 'Reload',
+    msgSearchTitle: 'Search in messages', msgSearchPlaceholder: 'Search messages…',
   },
 };
 const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -1621,9 +1672,9 @@ function updateDeleteBtn() {
   var btn = document.getElementById('delete-mode-btn');
   if (!btn) return;
   var n = selectedMsgs.size;
-  if (!isDeleteMode) { btn.textContent = '✕'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
-  else if (n === 0) { btn.textContent = '✕'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
-  else { btn.textContent = '🗑️'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
+  if (!isDeleteMode) { btn.innerHTML = '${_SVG.x}'; btn.classList.remove('active'); btn.title = t('deleteMode'); }
+  else if (n === 0) { btn.innerHTML = '${_SVG.x}'; btn.classList.add('active'); btn.title = t('deleteModeCancel'); }
+  else { btn.innerHTML = '${_SVG.trash}'; btn.classList.add('active'); btn.title = tf('deleteConfirm', n); }
 }
 async function confirmDeleteSelected() {
   var n = selectedMsgs.size;
@@ -1634,6 +1685,91 @@ async function confirmDeleteSelected() {
   await Promise.all(ids.map(function(id){ return fetch(api('/api/messages/'+encodeURIComponent(chatId)+'/'+encodeURIComponent(id)), {method:'DELETE'}); }));
   await loadMessages(chatId);
 }
+// ── Nachrichtensuche ──────────────────────────────────────────────────────────
+let _msgSearchMatches = [], _msgSearchIdx = -1;
+function toggleMsgSearch() {
+  const bar = document.getElementById('msg-search-bar');
+  if (!bar) return;
+  if (bar.classList.contains('open')) { closeMsgSearch(); return; }
+  bar.classList.add('open');
+  document.getElementById('msg-search-btn').classList.add('active');
+  const inp = document.getElementById('msg-search-input');
+  if (inp) { inp.value = ''; inp.focus(); }
+  _msgSearchMatches = []; _msgSearchIdx = -1;
+  updateMsgSearchCount();
+}
+function closeMsgSearch() {
+  const bar = document.getElementById('msg-search-bar');
+  if (bar) bar.classList.remove('open');
+  const btn = document.getElementById('msg-search-btn');
+  if (btn) btn.classList.remove('active');
+  const inp = document.getElementById('msg-search-input');
+  if (inp) inp.value = '';
+  clearMsgHighlights();
+  _msgSearchMatches = []; _msgSearchIdx = -1;
+  updateMsgSearchCount();
+}
+function clearMsgHighlights() {
+  document.querySelectorAll('#messages .msg-highlight, #messages .msg-highlight-active').forEach(function(el) {
+    const parent = el.parentNode;
+    if (parent) { parent.replaceChild(document.createTextNode(el.textContent), el); parent.normalize(); }
+  });
+}
+function updateMsgSearchCount() {
+  const el = document.getElementById('msg-search-count');
+  if (!el) return;
+  el.textContent = _msgSearchMatches.length === 0 ? '' : (_msgSearchIdx + 1) + ' / ' + _msgSearchMatches.length;
+}
+function onMsgSearchInput() {
+  clearMsgHighlights();
+  _msgSearchMatches = []; _msgSearchIdx = -1;
+  const inp = document.getElementById('msg-search-input');
+  if (!inp) return;
+  const q = inp.value.trim();
+  if (!q) { updateMsgSearchCount(); return; }
+  const qLow = q.toLowerCase();
+  document.querySelectorAll('#messages .bubble, #messages .voice-wrap').forEach(function(bubble) {
+    highlightInNode(bubble, qLow, q);
+  });
+  _msgSearchMatches = Array.from(document.querySelectorAll('#messages .msg-highlight'));
+  if (_msgSearchMatches.length > 0) { _msgSearchIdx = 0; activateMsgSearchMatch(0); }
+  updateMsgSearchCount();
+}
+function highlightInNode(node, qLow, q) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent;
+    const idx = text.toLowerCase().indexOf(qLow);
+    if (idx === -1) return;
+    const before = document.createTextNode(text.slice(0, idx));
+    const mark = document.createElement('mark');
+    mark.className = 'msg-highlight';
+    mark.textContent = text.slice(idx, idx + q.length);
+    const after = document.createTextNode(text.slice(idx + q.length));
+    const parent = node.parentNode;
+    parent.insertBefore(before, node); parent.insertBefore(mark, node); parent.insertBefore(after, node); parent.removeChild(node);
+    highlightInNode(after, qLow, q);
+    return;
+  }
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    if (node.classList && (node.classList.contains('bubble-time') || node.classList.contains('reactions-bar') || node.classList.contains('quoted-block'))) return;
+    Array.from(node.childNodes).forEach(function(child) { highlightInNode(child, qLow, q); });
+  }
+}
+function activateMsgSearchMatch(idx) {
+  if (_msgSearchMatches.length === 0) return;
+  _msgSearchMatches.forEach(function(el) { el.className = 'msg-highlight'; });
+  const el = _msgSearchMatches[idx];
+  if (!el) return;
+  el.className = 'msg-highlight-active';
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function stepMsgSearch(dir) {
+  if (_msgSearchMatches.length === 0) return;
+  _msgSearchIdx = (_msgSearchIdx + dir + _msgSearchMatches.length) % _msgSearchMatches.length;
+  activateMsgSearchMatch(_msgSearchIdx);
+  updateMsgSearchCount();
+}
+
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
 function tf(key, ...args) { const v = LANG[lang][key]; return typeof v === 'function' ? v(...args) : (LANG.de[key] ? LANG.de[key](...args) : key); }
 function locale() { return lang === 'de' ? 'de-DE' : 'en-GB'; }
@@ -1642,7 +1778,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-pl]').forEach(el => { el.placeholder = t(el.dataset.i18nPl); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
   const lb = document.getElementById('lang-btn');
-  if (lb) lb.textContent = lang === 'de' ? '🌐 DE' : '🌐 EN';
+  if (lb) lb.innerHTML = '${_SVG.globe} ' + (lang === 'de' ? 'DE' : 'EN');
   const ptb = document.getElementById('photo-toggle');
   if (ptb) ptb.title = ptb.classList.contains('active') ? t('photosOn') : t('photosOff');
 }
@@ -1654,7 +1790,7 @@ function switchLang() {
 function applyTheme() {
   var isDark = document.documentElement.classList.contains('dark');
   var btn = document.getElementById('theme-btn');
-  if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+  if (btn) btn.innerHTML = isDark ? '${_SVG.sun}' : '${_SVG.moon}';
 }
 function toggleTheme() {
   var html = document.documentElement;
@@ -1769,13 +1905,13 @@ function togglePhotos() {
   const hiding = !document.body.classList.contains('hide-photos');
   document.body.classList.toggle('hide-photos', hiding);
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.toggle('active', !hiding); btn.textContent = hiding ? '🚫' : '🎬'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
+  if (btn) { btn.classList.toggle('active', !hiding); btn.innerHTML = hiding ? '${_SVG.imageOff}' : '${_SVG.imageOn}'; btn.title = hiding ? t('photosOff') : t('photosOn'); }
   localStorage.setItem('tg-hide-photos', hiding ? '1' : '');
 }
 if (localStorage.getItem('tg-hide-photos')) {
   document.body.classList.add('hide-photos');
   const btn = document.getElementById('photo-toggle');
-  if (btn) { btn.classList.remove('active'); btn.textContent = '🚫'; btn.title = t('photosOff'); }
+  if (btn) { btn.classList.remove('active'); btn.innerHTML = '${_SVG.imageOff}'; btn.title = t('photosOff'); }
 }
 
 async function cleanupMedia() {
@@ -1957,6 +2093,7 @@ function openChatById(id) { const c = allChats.find(c=>c.id===id); if(c) openCha
 
 function openChat(chat) {
   exitDeleteMode();
+  closeMsgSearch();
   selectedChatId = chat.id;
   _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
@@ -1966,7 +2103,7 @@ function openChat(chat) {
   document.getElementById('chat-header').style.display = 'flex';
   document.getElementById('messages').style.display = 'flex';
   document.getElementById('input-bar').style.display = 'flex';
-  document.getElementById('refresh-btn').style.display = 'inline-block';
+  document.getElementById('refresh-btn').style.display = 'inline-flex';
   clearAttach();
   document.getElementById('ch-name').textContent = chat.name || chat.id;
   document.getElementById('ch-stats').textContent = '';
@@ -1988,6 +2125,7 @@ function openChat(chat) {
 }
 
 function closeChat() {
+  closeMsgSearch();
   document.body.classList.remove('chat-open');
   selectedChatId = null;
   document.getElementById('no-chat-wrap').style.display = 'flex';
@@ -2098,7 +2236,7 @@ function renderMessages(msgs) {
         : '<span style="opacity:0.6">🎵 Sprachnachricht</span>';
     } else if(isVideo){
       content = m.mediaFile
-        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;font-size:15px;opacity:0.55;padding:4px;flex-shrink:0;line-height:1" title="Video von Disk löschen">🗑️</button></div>\`
+        ? \`<div style="display:inline-flex;align-items:flex-end;gap:6px"><video controls style="max-width:300px;max-height:400px;display:block;border-radius:8px" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}"></video><button onclick="deleteVideo('\${escHtml(m.id)}')" style="background:none;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:0.55;padding:4px;flex-shrink:0;color:currentColor" title="Video von Disk löschen">${_SVG.trash}</button></div>\`
         : (() => {
             const sz = m.videoSize || 0;
             const mb = sz ? ' · ' + (sz/1024/1024).toFixed(1) + ' MB' : '';
@@ -2112,7 +2250,7 @@ function renderMessages(msgs) {
       content=\`<span class="photo-placeholder">📷 Foto</span><img class="msg-img" src="\${BASE}/api/media/\${encodeURIComponent(m.mediaFile)}" style="max-width:320px;max-height:400px;display:block;cursor:zoom-in" loading="lazy" onclick="event.stopPropagation();openLightbox(this.src)">\`;
       if(m.body) content+=\`<div class="photo-caption">\${formatText(m.body)}</div>\`;
     } else if(isDoc){
-      content=\`<div class="bubble-doc"><span class="doc-icon">📄</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
+      content=\`<div class="bubble-doc"><span class="doc-icon">${_SVG.doc}</span><span class="doc-name">\${escHtml(m.filename)}</span></div>\`;
       if(m.body) content+=\`<div style="margin-top:4px;font-size:13px">\${formatText(m.body)}</div>\`;
     } else {
       content=formatText(m.body);
@@ -2140,7 +2278,7 @@ function renderMessages(msgs) {
       ? \`<div class="voice-wrap \${m.fromMe?'out':'in'}">\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`
       : \`<div class="bubble \${m.fromMe?'out':'in'}\${(isPhoto&&!item.isAlbum)?' photo-bubble':''}">\${quotedHtml}\${content}<span class="bubble-time">\${time}\${ack}</span></div>\`;
     var _albumAttr = item.isAlbum ? ' data-albumids="'+item.albumMsgs.map(function(am){return escHtml(am.id);}).join(',')+'"' : '';
-    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">😊</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">↪</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">↩</button></div></div>\`;
+    return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">${_SVG.smile}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">${_SVG.reply}</button></div></div>\`;
   }).join('');
   if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
