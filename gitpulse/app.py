@@ -696,7 +696,13 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             r = http.get(url, headers=_gh_headers(token),
                          params={'state': 'open', 'per_page': 30}, timeout=10)
             if r.status_code == 403:
-                return [], False   # kein Zugriff / fehlender Scope
+                try:
+                    msg = (r.json().get('message') or '').lower()
+                except Exception:
+                    msg = ''
+                if 'not enabled' in msg or 'disabled' in msg:
+                    return [], None  # Dependabot nicht aktiviert (public repo)
+                return [], False   # echter Scope-Fehler (fehlender security_events Scope)
             if r.status_code in (404, 451):
                 return [], None    # Dependabot nicht aktiviert oder nicht verfügbar
             if r.status_code != 200:

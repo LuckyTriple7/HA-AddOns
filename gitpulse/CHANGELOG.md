@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-06-10
+
+### Fixed
+- Security: Dependabot-API gibt für public Repos ohne aktiviertes Dependabot 403 (statt 404) zurück — Response-Message wird jetzt ausgewertet, um echten Scope-Fehler von "nicht aktiviert" zu unterscheiden; kein falscher 🔒-Hinweis mehr
+
 ## [0.2.0] - 2026-06-10
 
 ### Fixed
