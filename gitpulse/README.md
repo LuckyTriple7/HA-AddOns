@@ -1,35 +1,38 @@
 # GitPulse
 
-**GitHub Control Panel für Home Assistant**
+**GitHub Control Panel for Home Assistant**
 
-Zeigt Pull Requests, Issues, CI-Status, Releases und Repo-Statistiken auf einen Blick — direkt im HA-Dashboard. Unterstützt Telegram-Benachrichtigungen und GitHub Webhooks für Echtzeit-Updates.
+Monitor pull requests, issues, CI runs, security alerts, releases and your own activity — all in one HA dashboard panel. Supports Telegram, e-mail and browser notifications, GitHub Webhooks for real-time updates, and installs as a PWA.
 
 ## Features
 
-- **Repos-Tab** — Übersicht aller eigenen Repos mit PRs, Issues, CI-Status, Stars/Forks/Watchers
-- **Pull Requests** — Öffnen, mergen (Merge/Squash/Rebase), kommentieren · Suche/Filter · Review-Status
-- **Issues** — Schließen, kommentieren · Suche/Filter
-- **CI / Actions** — Workflow-Runs mit Quickfiltern, Jobs+Steps, Dispatch, Stopp, Wiederholen, Löschen · **Workflow-Favoriten**
-- **Releases** — Release-Tracker für beliebige Repos inkl. HA Beta/RC · als gelesen markieren
-- **Console** — Internes Live-Log
-- **Telegram** — Benachrichtigungen für PRs, Issues, Workflow-Start/-Ende, Releases, Stars/Forks-Änderungen
-- **Webhooks** — Optionaler Echtzeit-Empfang von GitHub-Events (< 1 s statt bis zu 5 Min. Polling)
-- **PWA** — Installierbar, funktioniert hinter Cloudflare Tunnel und HA Cloud
-- Dark / Light Mode · DE / EN · HA Ingress
+- **Repos** — Overview of all your repos: open PRs/issues, last CI run, stars/forks/watchers
+- **Pull Requests** — Open, merge (merge / squash / rebase), comment · search/filter · review status · repo switcher
+- **Issues** — Close, comment · search/filter · repo switcher
+- **CI / Actions** — Workflow runs with quick-filters, job+step details, dispatch, stop, re-run, delete · **Workflow Favorites** · repo switcher
+- **Releases** — Release tracker for any number of repos (own + watched) incl. HA beta/RC · mark as read
+- **Security** — Dependabot · Code Scanning · Secret Scanning alerts with severity icons · repo switcher
+- **My Activity** — All open PRs and issues you created, across all repos · close own items · new-comment notifications
+- **Add-on Manager** *(optional)* — Bump versions, write changelog entries and push directly from the UI
+- **Console** — Live internal log with auto-scroll
+- **Notifications** — Telegram · e-mail (SMTP) · browser notifications — each type individually toggleable per event
+- **Webhooks** — Optional real-time GitHub event receiver (< 1 s vs. up to 5 min polling)
+- **PWA** — Installable, works behind Cloudflare Tunnel and HA Cloud
+- Dark / Light mode · DE / EN · HA Ingress
 
-## Schnellstart
+## Quick Start
 
-1. GitHub Fine-Grained PAT erstellen → [DOCS.md](DOCS.md#github-token)
-2. Token, Repos und optionale Features in den Add-on-Einstellungen konfigurieren
-3. Add-on starten
+1. Create a GitHub Fine-Grained PAT → [DOCS.md](DOCS.md#github-token)
+2. Configure token, repos and optional features in the add-on settings
+3. Start the add-on
 
 ## Ports
 
-| Port | Funktion |
+| Port | Function |
 |------|----------|
-| `17792` | Web-UI (direkt, ohne Ingress) |
-| `17793` | GitHub Webhook-Empfang (optional, nur aktiv wenn `webhook_secret` gesetzt) |
+| `17792` | Web UI (direct, without Ingress) |
+| `17793` | GitHub Webhook receiver (optional — only active when `webhook_secret` is set) |
 
-## Dokumentation
+## Documentation
 
-Vollständige Konfigurationsreferenz, Token-Setup, Telegram- und Webhook-Einrichtung: **[DOCS.md](DOCS.md)**
+Full configuration reference, token setup, Telegram, e-mail and webhook configuration: **[DOCS.md](DOCS.md)**

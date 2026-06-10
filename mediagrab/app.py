@@ -274,10 +274,12 @@ def _parse_error(lines: list[str]) -> str:
 
 VALID_FORMATS = {'best_video', '1080p', '720p', '480p', '360p', 'mp3', 'm4a'}
 
-_PROG_RE    = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
-_DEST_RE    = re.compile(r'\[download\] Destination:\s+(.+)')
-_MERGE_RE   = re.compile(r'\[Merger\] Merging formats into "(.+)"')
-_ALREADY_RE = re.compile(r'\[download\] (.+) has already been downloaded')
+_PROG_RE      = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
+_DEST_RE      = re.compile(r'\[download\] Destination:\s+(.+)')
+_MERGE_RE     = re.compile(r'\[Merger\] Merging formats into "(.+)"')
+_ALREADY_RE   = re.compile(r'\[download\] (.+) has already been downloaded')
+_ENCODE_RE    = re.compile(r'\[(?:ExtractAudio|VideoConvertor)\]')
+_PLAYLIST_RE  = re.compile(r'\[download\] Downloading item (\d+) of (\d+)')
 
 def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies: bool = True) -> list[str]:
     config = get_config()
@@ -371,6 +373,7 @@ def _run_download(job_id: str) -> None:
                         _jobs[job_id]['progress'] = pct
                         _jobs[job_id]['speed']    = m.group(2).strip()
                         _jobs[job_id]['eta']      = m.group(3).strip()
+                        _jobs[job_id]['phase']    = ''
                     continue
 
                 m = _DEST_RE.search(line)
@@ -383,6 +386,37 @@ def _run_download(job_id: str) -> None:
                 if m:
                     with _jobs_lock:
                         _jobs[job_id]['filename'] = Path(m.group(1).strip()).name
+                        _jobs[job_id]['phase']    = 'encoding'
+                    continue
+
+                if _ENCODE_RE.search(line):
+                    with _jobs_lock:
+                        _jobs[job_id]['phase'] = 'encoding'
+                    m2 = re.search(r'Destination:\s+(.+)', line)
+                    if m2:
+                        with _jobs_lock:
+                            _jobs[job_id]['filename'] = Path(m2.group(1).strip()).name
+                    continue
+
+                m = _PLAYLIST_RE.search(line)
+                if m:
+                    new_pos   = int(m.group(1))
+                    new_count = int(m.group(2))
+                    with _jobs_lock:
+                        prev_fname = _jobs[job_id].get('filename', '')
+                        prev_pos   = _jobs[job_id].get('playlist_pos', 0)
+                        _job_url   = _jobs[job_id].get('url', '')
+                        _jobs[job_id]['playlist_pos']   = new_pos
+                        _jobs[job_id]['playlist_count'] = new_count
+                    # Save Playlist tag for the just-finished item (only when playlist checkbox was ticked)
+                    if prev_pos > 0 and prev_fname and job.get('playlist'):
+                        with _meta_lock:
+                            meta = _load_meta()
+                            entry = meta.get(prev_fname) or {}
+                            entry.setdefault('platform', _detect_platform(_job_url))
+                            entry['tag'] = 'Playlist'
+                            meta[prev_fname] = entry
+                            _save_meta(meta)
                     continue
 
                 m = _ALREADY_RE.search(line)
@@ -416,13 +450,17 @@ def _run_download(job_id: str) -> None:
                     _jobs[job_id]['status']   = 'done'
                     _jobs[job_id]['progress'] = 100.0
                     _jobs[job_id]['eta']      = ''
-                    fname   = _jobs[job_id].get('filename', '')
-                    job_url = _jobs[job_id].get('url', '')
+                    fname      = _jobs[job_id].get('filename', '')
+                    job_url    = _jobs[job_id].get('url', '')
+                    is_playlist = _jobs[job_id].get('playlist', False)
                     log.info('Download fertig: job=%s file=%s', job_id, fname)
                     if fname:
                         with _meta_lock:
                             meta = _load_meta()
-                            meta[fname] = {'platform': _detect_platform(job_url)}
+                            entry = {'platform': _detect_platform(job_url)}
+                            if is_playlist:
+                                entry['tag'] = 'Playlist'
+                            meta[fname] = entry
                             _save_meta(meta)
                 else:
                     err = _parse_error(output_lines)
@@ -704,14 +742,17 @@ def api_download():
             'subtitles':  bool(data.get('subtitles', False)),
             'playlist':   bool(data.get('playlist', False)),
             'use_cookies': bool(data.get('use_cookies', True)),
-            'status':     'pending',
-            'progress':   0.0,
-            'speed':      '',
-            'eta':        '',
-            'filename':   '',
-            'error':      '',
-            'proc':       None,
-            'created_at': time.time(),
+            'status':         'pending',
+            'progress':        0.0,
+            'speed':           '',
+            'eta':             '',
+            'phase':           '',
+            'playlist_pos':    0,
+            'playlist_count':  0,
+            'filename':        '',
+            'error':           '',
+            'proc':            None,
+            'created_at':      time.time(),
         }
         with _jobs_lock:
             _jobs[job_id] = job

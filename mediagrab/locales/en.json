@@ -42,6 +42,7 @@
   "btn_clear_queue": "Clear queue",
   "lbl_speed": "Speed",
   "lbl_eta": "ETA",
+  "lbl_encoding": "Encoding…",
 
   "err_age_restricted": "Age verification required — upload cookies",
   "err_private": "Video is private — cookies required",
