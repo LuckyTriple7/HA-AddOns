@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.11] - 2026-06-10
+- fix: Export-HTML-Button nutzt jetzt Download-Pfeil-Icon wie WhatsApp (statt Datenbank-Icon)
+
 ## [1.6.10] - 2026-06-10
 - fix: Storage-Anzeige nutzt jetzt SVG-Icon statt 💾-Emoji (wie WhatsApp)
 
