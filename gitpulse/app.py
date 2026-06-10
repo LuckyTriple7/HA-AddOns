@@ -54,7 +54,9 @@ for _h in _root.handlers:
 _root.addHandler(_buf_h)
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
-app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
+_BASE = os.environ.get('GITPULSE_BASE', '/app')
+_DATA = os.environ.get('GITPULSE_DATA', '/data')
+app = Flask(__name__, template_folder=_BASE + '/templates', static_folder=_BASE + '/static')
 
 
 class _IngressMiddleware:
@@ -75,11 +77,11 @@ class _IngressMiddleware:
 
 app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
-CONFIG_PATH   = '/data/options.json'
-SESSIONS_PATH = '/data/sessions.json'
-REPOS_PATH      = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
-FAVORITES_PATH  = '/data/workflow_favorites.json'
-LOCALES_PATH    = '/app/locales'
+CONFIG_PATH    = _DATA + '/options.json'
+SESSIONS_PATH  = _DATA + '/sessions.json'
+REPOS_PATH     = _DATA + '/gitpulse_repos.json'
+FAVORITES_PATH = _DATA + '/workflow_favorites.json'
+LOCALES_PATH   = _BASE + '/locales'
 
 GITHUB_API    = 'https://api.github.com'
 POLL_INTERVAL_DEFAULT = 300  # seconds
@@ -110,11 +112,11 @@ _gh_cache: dict = {
 _gh_lock = threading.Lock()
 
 # Seen releases (für Benachrichtigungen — persistent über Neustarts)
-_SEEN_PATH = '/data/seen_releases.json'
+_SEEN_PATH = _DATA + '/seen_releases.json'
 _seen_releases: set[str] = set()
 
 # Seen activity — eigene PRs/Issues, persistent
-_SEEN_ACTIVITY_PATH = '/data/seen_activity.json'
+_SEEN_ACTIVITY_PATH = _DATA + '/seen_activity.json'
 _seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
 
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
