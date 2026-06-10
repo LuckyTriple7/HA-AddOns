@@ -6,6 +6,7 @@ Zwei Server in einem Prozess:
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
 import hashlib
+import io
 import json
 import logging
 import os
@@ -14,13 +15,16 @@ import secrets
 import threading
 import time
 import uuid
+import zipfile
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+import markdown as md_lib
 from flask import (Flask, render_template, request, redirect, url_for,
-                   make_response, jsonify, abort, send_from_directory)
+                   make_response, jsonify, abort, send_from_directory,
+                   send_file)
 from werkzeug.middleware.proxy_fix import ProxyFix
 import requests as http
 
@@ -38,6 +42,7 @@ _OPTS = os.environ.get('MYPAGE_OPTIONS', '/data')
 CONFIG_PATH   = _OPTS + '/options.json'
 SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
+MESSAGES_PATH = _DATA + '/messages.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 LOCALES_PATH  = _BASE + '/locales'
@@ -53,7 +58,8 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 public_app = Flask('mypage_public', template_folder=_BASE + '/templates')
 admin_app  = Flask('mypage_admin',  template_folder=_BASE + '/templates')
-admin_app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # 8 MB Upload-Limit
+admin_app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024   # Backups können größer sein
+public_app.config['MAX_CONTENT_LENGTH'] = 64 * 1024         # Kontaktformular: kleine Payloads
 
 
 class _IngressMiddleware:
@@ -83,6 +89,12 @@ sessions: dict[str, float] = {}
 
 _site_lock  = threading.Lock()
 _stats_lock = threading.Lock()
+_msg_lock   = threading.Lock()
+
+# Kontaktformular-Rate-Limit (IP → Zeitstempel)
+_contact_times: dict[str, list[float]] = defaultdict(list)
+CONTACT_MAX_PER_HOUR = 5
+MESSAGES_MAX = 200
 
 # Brute-Force-Schutz
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -108,13 +120,26 @@ DEFAULT_SITE = {
     'projects': [],
     'design': {
         'accent': '#58a6ff', 'mode': 'dark', 'show_counter': True,
-        'site_title': '', 'footer_text': '',
+        'site_title': '', 'footer_text': '', 'favicon': '',
+        'contact_enabled': False,
+        'maintenance': False,
+        'maintenance_text_de': '', 'maintenance_text_en': '',
     },
     'legal': {
         'impressum_de': '', 'impressum_en': '',
         'privacy_de': '', 'privacy_en': '',
     },
+    'sections': {
+        'skills': [],
+        'timeline': [],
+        'news': [],
+    },
 }
+
+
+def render_md(text: str) -> str:
+    """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
+    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
 
 
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
@@ -180,6 +205,40 @@ def save_stats(data: dict) -> None:
                 json.dump(data, f)
         except Exception as e:
             log.warning("stats.json konnte nicht gespeichert werden: %s", e)
+
+
+def load_messages() -> list:
+    with _msg_lock:
+        try:
+            with open(MESSAGES_PATH, encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("messages.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def save_messages(data: list) -> None:
+    with _msg_lock:
+        try:
+            with open(MESSAGES_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data[-MESSAGES_MAX:], f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("messages.json konnte nicht gespeichert werden: %s", e)
+
+
+def send_telegram(text: str) -> None:
+    cfg = load_config()
+    token = (cfg.get('telegram_bot_token') or '').strip()
+    chat  = str(cfg.get('telegram_chat_id') or '').strip()
+    if not token or not chat:
+        return
+    try:
+        http.post(f'https://api.telegram.org/bot{token}/sendMessage',
+                  json={'chat_id': chat, 'text': text}, timeout=10)
+    except Exception as e:
+        log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
 
 
 def save_sessions() -> None:
@@ -316,6 +375,7 @@ def count_visit(req) -> None:
     visit_log.append({
         'ts':   int(time.time()),
         'ip':   ip,
+        'path': req.path[:100],
         'ua':   ua[:300],
         'ref':  (req.headers.get('Referer') or '')[:300],
         'lang': (req.headers.get('Accept-Language') or '')[:60],
@@ -335,6 +395,39 @@ def count_visit(req) -> None:
         for k in sorted(stats['days'])[:-STATS_KEEP_DAYS]:
             del stats['days'][k]
     save_stats(stats)
+
+
+def _browser_name(ua: str) -> str:
+    u = ua.lower()
+    if 'edg/' in u:
+        return 'Edge'
+    if 'opr/' in u or 'opera' in u:
+        return 'Opera'
+    if 'firefox/' in u:
+        return 'Firefox'
+    if 'chrome/' in u or 'crios/' in u:
+        return 'Chrome'
+    if 'safari/' in u:
+        return 'Safari'
+    return 'Other'
+
+
+def aggregate_visits(visit_log: list) -> tuple[list, list]:
+    """Top-Referrer und Browser-Verteilung aus dem Besucher-Log."""
+    referrers: dict[str, int] = {}
+    browsers:  dict[str, int] = {}
+    for v in visit_log:
+        if v.get('bot'):
+            continue
+        host = urlparse(v.get('ref') or '').netloc
+        if host:
+            referrers[host] = referrers.get(host, 0) + 1
+        b = _browser_name(v.get('ua') or '')
+        browsers[b] = browsers.get(b, 0) + 1
+    top_ref = sorted(referrers.items(), key=lambda x: x[1], reverse=True)[:10]
+    top_brw = sorted(browsers.items(),  key=lambda x: x[1], reverse=True)
+    return ([{'name': k, 'count': c} for k, c in top_ref],
+            [{'name': k, 'count': c} for k, c in top_brw])
 
 
 # ── GitHub-Import ─────────────────────────────────────────────────────────────
@@ -421,11 +514,22 @@ def _normalize_project(raw: dict, existing: dict | None = None) -> dict:
     p['repo_full_name'] = _clean_str(raw.get('repo_full_name'), 150)
     p['language']       = _clean_str(raw.get('language'), 50)
     p['stars']          = max(0, int(raw.get('stars') or 0))
+    p['long_de']        = _clean_str(raw.get('long_de'), 20000)
+    p['long_en']        = _clean_str(raw.get('long_en'), 20000)
+    gallery = raw.get('gallery') or []
+    if isinstance(gallery, list):
+        p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:12]
+    else:
+        p.setdefault('gallery', [])
     tags = raw.get('tags') or []
     if isinstance(tags, str):
         tags = [t.strip() for t in tags.split(',')]
     p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
     return p
+
+
+def _has_detail(p: dict) -> bool:
+    return bool((p.get('long_de') or p.get('long_en') or '').strip() or p.get('gallery'))
 
 
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
@@ -561,14 +665,119 @@ def api_design():
         d['accent'] = accent
     if raw.get('mode') in ('dark', 'light'):
         d['mode'] = raw['mode']
-    if 'show_counter' in raw:
-        d['show_counter'] = bool(raw['show_counter'])
-    if 'site_title' in raw:
-        d['site_title'] = _clean_str(raw['site_title'], 80)
-    if 'footer_text' in raw:
-        d['footer_text'] = _clean_str(raw['footer_text'], 300)
+    for flag in ('show_counter', 'contact_enabled', 'maintenance'):
+        if flag in raw:
+            d[flag] = bool(raw[flag])
+    for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
+                      ('maintenance_text_de', 1000), ('maintenance_text_en', 1000)):
+        if k in raw:
+            d[k] = _clean_str(raw[k], maxlen)
     save_site(site)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/sections', methods=['POST'])
+def api_sections():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    site = load_site()
+    sec = site['sections']
+    if isinstance(raw.get('skills'), list):
+        sec['skills'] = [_clean_str(s, 40) for s in raw['skills'] if _clean_str(s, 40)][:40]
+    if isinstance(raw.get('timeline'), list):
+        sec['timeline'] = [{
+            'year':     _clean_str(e.get('year'), 30),
+            'title_de': _clean_str(e.get('title_de'), 120),
+            'title_en': _clean_str(e.get('title_en'), 120),
+            'text_de':  _clean_str(e.get('text_de'), 1000),
+            'text_en':  _clean_str(e.get('text_en'), 1000),
+        } for e in raw['timeline'][:30] if isinstance(e, dict)]
+    if isinstance(raw.get('news'), list):
+        sec['news'] = [{
+            'date':    _clean_str(e.get('date'), 30),
+            'text_de': _clean_str(e.get('text_de'), 500),
+            'text_en': _clean_str(e.get('text_en'), 500),
+            'url':     _clean_str(e.get('url'), 500),
+        } for e in raw['news'][:30] if isinstance(e, dict)]
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/messages')
+def api_messages():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'messages': list(reversed(load_messages()))})
+
+
+@admin_app.route('/api/messages/<mid>', methods=['DELETE'])
+def api_message_delete(mid: str):
+    err = _api_auth()
+    if err:
+        return err
+    msgs = load_messages()
+    new = [m for m in msgs if m.get('id') != mid]
+    if len(new) == len(msgs):
+        return jsonify({'error': 'not found'}), 404
+    save_messages(new)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/backup')
+def api_backup():
+    err = _api_auth()
+    if err:
+        return err
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for name in ('site.json', 'stats.json', 'messages.json'):
+            p = Path(_DATA) / name
+            if p.is_file():
+                z.write(p, name)
+        for f in UPLOADS_DIR.iterdir():
+            if f.is_file():
+                z.write(f, 'uploads/' + f.name)
+    buf.seek(0)
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name=f'mypage-backup-{date.today().isoformat()}.zip')
+
+
+@admin_app.route('/api/restore', methods=['POST'])
+def api_restore():
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    try:
+        with zipfile.ZipFile(f) as z:
+            names = z.namelist()
+            if 'site.json' in names:
+                json.loads(z.read('site.json'))  # muss valides JSON sein
+            restored = 0
+            for member in names:
+                # Nur bekannte Dateien zulassen — Zip-Slip ausgeschlossen, da
+                # Zielpfade aus Whitelist bzw. Basename + Extension-Check entstehen
+                if member in ('site.json', 'stats.json', 'messages.json'):
+                    target = Path(_DATA) / member
+                elif member.startswith('uploads/'):
+                    name = Path(member).name
+                    if not name or Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+                        continue
+                    target = UPLOADS_DIR / name
+                else:
+                    continue
+                with open(target, 'wb') as dst:
+                    dst.write(z.read(member))
+                restored += 1
+    except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
+        return jsonify({'error': 'invalid backup'}), 400
+    log.info("Backup wiederhergestellt: %d Datei(en)", restored)
+    return jsonify({'ok': True, 'restored': restored})
 
 
 @admin_app.route('/api/legal', methods=['POST'])
@@ -713,11 +922,14 @@ def api_stats():
     stats = load_stats()
     today = date.today().isoformat()
     days = sorted(stats['days'].keys(), reverse=True)[:30]
+    referrers, browsers = aggregate_visits(stats.get('log', []))
     return jsonify({
-        'total':  stats.get('total', 0),
-        'today':  stats['days'].get(today, {'views': 0, 'uniques': 0}),
-        'days':   [{'date': d, **stats['days'][d]} for d in days],
-        'log':    list(reversed(stats.get('log', [])))[:100],
+        'total':     stats.get('total', 0),
+        'today':     stats['days'].get(today, {'views': 0, 'uniques': 0}),
+        'days':      [{'date': d, **stats['days'][d]} for d in days],
+        'log':       list(reversed(stats.get('log', [])))[:100],
+        'referrers': referrers,
+        'browsers':  browsers,
     })
 
 
@@ -762,26 +974,99 @@ def _loc_factory(lang: str):
     return loc
 
 
+def _maintenance_page(site: dict, lang: str):
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    text = loc(site.get('design', {}), 'maintenance_text') or t.get('maintenance_default', '')
+    resp = make_response(render_template('maintenance.html', t=t, lang=lang, site=site,
+                                         text_html=render_md(text)), 503)
+    resp.headers['Retry-After'] = '3600'
+    return resp
+
+
 @public_app.route('/')
 def public_index():
     count_visit(request)
     lang = detect_language(request)
-    t = load_translations(lang)
     site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    t = load_translations(lang)
     stats = load_stats()
     legal = site.get('legal', {})
     loc = _loc_factory(lang)
+    email = site['profile'].get('email', '')
+    email_parts = email.split('@', 1) if '@' in email else None
+    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects']]
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
+                           projects=projects,
+                           bio_html=render_md(loc(site['profile'], 'bio')),
+                           email_parts=email_parts,
+                           sections=site.get('sections', {}),
+                           contact_enabled=bool(site['design'].get('contact_enabled')),
                            total_visitors=stats.get('total', 0),
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),
                            year=datetime.now(timezone.utc).year)
 
 
+@public_app.route('/p/<pid>')
+def project_detail(pid: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    proj = next((p for p in site['projects'] if p.get('id') == pid), None)
+    if proj is None or not _has_detail(proj):
+        abort(404)
+    count_visit(request)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
+                           long_html=render_md(loc(proj, 'long')),
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/contact', methods=['POST'])
+def contact():
+    site = load_site()
+    if site['design'].get('maintenance') or not site['design'].get('contact_enabled'):
+        return jsonify({'error': 'disabled'}), 403
+    # Honeypot: Bots füllen das versteckte Feld aus → still verwerfen
+    if (request.form.get('website') or '').strip():
+        return jsonify({'ok': True})
+    ip = get_client_ip(request)
+    now = time.time()
+    _contact_times[ip] = [x for x in _contact_times[ip] if now - x < 3600]
+    if len(_contact_times[ip]) >= CONTACT_MAX_PER_HOUR:
+        return jsonify({'error': 'rate limited'}), 429
+    name    = _clean_str(request.form.get('name'), 80)
+    email   = _clean_str(request.form.get('email'), 150)
+    message = _clean_str(request.form.get('message'), 3000)
+    if not name or not message:
+        return jsonify({'error': 'missing fields'}), 400
+    _contact_times[ip].append(now)
+    msgs = load_messages()
+    msgs.append({
+        'id':    uuid.uuid4().hex[:12],
+        'ts':    int(now),
+        'name':  name,
+        'email': email,
+        'text':  message,
+    })
+    save_messages(msgs)
+    send_telegram(f"📨 MyPage — neue Nachricht von {name}"
+                  + (f" ({email})" if email else "") + f":\n\n{message[:500]}")
+    log.info("Kontaktnachricht von '%s' gespeichert", name)
+    return jsonify({'ok': True})
+
+
 def _legal_page(kind: str):
     lang = detect_language(request)
-    t = load_translations(lang)
     site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    t = load_translations(lang)
     text = _loc_factory(lang)(site.get('legal', {}), kind)
     if not text.strip():
         abort(404)

@@ -8,6 +8,8 @@
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
+| `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
+| `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
 
 ## Ports
 
@@ -23,10 +25,23 @@
 ### Profil
 Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutzername, E-Mail und beliebige weitere Links. Tagline und Bio gibt es jeweils in **DE und EN** — fehlt eine Sprache, wird automatisch die andere angezeigt.
 
+### Inhalte
+- **Skills**: kommagetrennte Liste, wird als Chips angezeigt
+- **Aktuelles**: kurze News-Einträge mit Datum und optionalem Link
+- **Werdegang**: Timeline mit Zeitraum, Titel und Text (jeweils DE/EN)
+
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
 - **Manuell**: Projekte mit Titel, Beschreibung (DE/EN), Bild, Demo-Link, GitHub-Link, Tags und Sprache anlegen.
+- **Detailseiten**: Mit Detailtext (Markdown) oder Galerie-Bildern bekommt ein Projekt eine eigene Unterseite (`/p/<id>`), die automatisch von der Karte verlinkt wird.
 - Reihenfolge per ↑/↓-Buttons ändern.
+
+### Nachrichten
+Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz über ein unsichtbares Honeypot-Feld plus Rate-Limit (5 Nachrichten/Stunde pro IP). Mit Telegram-Bot-Token und Chat-ID in den Add-on-Optionen wirst du sofort benachrichtigt.
+
+### System
+- **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
+- **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 
 ### Design
 Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel), Besucherzähler ein/aus, Footer-Text.

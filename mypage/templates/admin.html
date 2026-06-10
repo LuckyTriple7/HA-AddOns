@@ -91,6 +91,28 @@
     .vtable .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
     .badge-bot { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
     .badge-new { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--green-h) 18%, transparent); color: var(--green-h); }
+    .msg-badge { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: var(--red); color: #fff; margin-left: 4px; }
+
+    .entry-row { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .entry-grid { display: grid; grid-template-columns: 110px 1fr 1fr auto; gap: 10px; align-items: start; }
+    @media (max-width: 800px) { .entry-grid { grid-template-columns: 1fr; } }
+    .entry-grid textarea { min-height: 40px; }
+
+    .msg-item { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+    .msg-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .msg-from { font-weight: 600; font-size: 0.9rem; }
+    .msg-from a { font-weight: 400; font-size: 0.8rem; }
+    .msg-time { font-size: 0.74rem; color: var(--muted); }
+    .msg-text { font-size: 0.87rem; white-space: pre-wrap; }
+
+    .gallery-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .gallery-thumb { position: relative; }
+    .gallery-thumb img { width: 76px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+    .gallery-thumb button { position: absolute; top: -6px; right: -6px; background: var(--red); border: none; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 0.65rem; cursor: pointer; line-height: 1; }
+
+    .preview-frame { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+    .preview-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .maint-on { color: var(--yellow); font-weight: 600; }
 
     .upload-row { display: flex; gap: 8px; align-items: center; }
     .upload-row input[type="text"] { flex: 1; }
@@ -112,10 +134,13 @@
       </div>
       <nav>
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
+        <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
+        <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
+        <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
       </nav>
       <div class="header-actions">
         <a href="{{ url_for('set_lang', lang='de', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
@@ -179,6 +204,27 @@
       </div>
     </section>
 
+    <!-- Inhalte -->
+    <section class="tab" id="tab-content">
+      <div class="panel">
+        <h3>{{ t.skills_heading }}</h3>
+        <label>{{ t.field_skills }}</label>
+        <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
+        <p class="hint">{{ t.skills_hint }}</p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.news_heading }}</h3>
+        <div id="news-list"></div>
+        <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.timeline_heading }}</h3>
+        <div id="timeline-list"></div>
+        <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
+        <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
+      </div>
+    </section>
+
     <!-- Projekte -->
     <section class="tab" id="tab-projects">
       <div class="panel">
@@ -231,13 +277,35 @@
             </select>
           </div>
         </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_favicon }}</label>
+            <div class="upload-row">
+              <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
+              <button class="btn secondary small" onclick="pickUpload(u => { el('d-favicon').value = u; })">{{ t.upload }}</button>
+            </div>
+          </div>
+          <div>
+            <label>{{ t.field_contact_enabled }}</label>
+            <select id="d-contact_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+        </div>
         <label>{{ t.field_footer }}</label>
         <input type="text" id="d-footer_text">
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
+        <p class="hint">{{ t.contact_telegram_hint }}</p>
       </div>
       <div class="panel">
         <h3>{{ t.preview_heading }}</h3>
-        <p class="hint">{{ t.preview_hint }}</p>
+        <div class="preview-toolbar">
+          <button class="btn secondary small" onclick="reloadPreview()">⟳ {{ t.preview_reload }}</button>
+          <a class="btn secondary small" id="preview-open" href="#" target="_blank" rel="noopener">{{ t.preview_open }}</a>
+          <span class="hint" style="margin:0">{{ t.preview_hint }}</span>
+        </div>
+        <iframe class="preview-frame" id="preview-frame" title="Preview"></iframe>
       </div>
     </section>
 
@@ -275,6 +343,42 @@
       </div>
     </section>
 
+    <!-- Nachrichten -->
+    <section class="tab" id="tab-messages">
+      <div class="panel">
+        <h3>{{ t.messages_heading }}</h3>
+        <p class="hint">{{ t.messages_hint }}</p>
+      </div>
+      <div id="msg-list"></div>
+    </section>
+
+    <!-- System -->
+    <section class="tab" id="tab-system">
+      <div class="panel">
+        <h3>{{ t.maintenance_heading }} <span id="maint-state"></span></h3>
+        <p class="hint">{{ t.maintenance_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.maintenance_text }} (DE)</label>
+            <textarea id="m-text_de" rows="3"></textarea>
+          </div>
+          <div>
+            <label>{{ t.maintenance_text }} (EN, {{ t.optional }})</label>
+            <textarea id="m-text_en" rows="3"></textarea>
+          </div>
+        </div>
+        <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.backup_heading }}</h3>
+        <p class="hint">{{ t.backup_hint }}</p>
+        <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
+        <button class="btn secondary" onclick="el('restore-input').click()">⬆ {{ t.restore_upload }}</button>
+        <input type="file" id="restore-input" accept=".zip" style="display:none">
+        <p class="hint">{{ t.restore_hint }}</p>
+      </div>
+    </section>
+
     <!-- Statistik -->
     <section class="tab" id="tab-stats">
       <div class="stat-cards">
@@ -285,6 +389,16 @@
       <div class="panel">
         <h3>{{ t.stat_last30 }}</h3>
         <div id="s-bars"></div>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <h3>{{ t.stat_referrers }}</h3>
+          <div id="s-referrers"></div>
+        </div>
+        <div class="panel">
+          <h3>{{ t.stat_browsers }}</h3>
+          <div id="s-browsers"></div>
+        </div>
       </div>
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
@@ -341,6 +455,20 @@
           <input type="text" id="pm-language" placeholder="Python">
         </div>
       </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_long }} (DE)</label>
+          <textarea id="pm-long_de" rows="6" placeholder="# Markdown wird unterstützt"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_long }} (EN)</label>
+          <textarea id="pm-long_en" rows="6"></textarea>
+        </div>
+      </div>
+      <p class="hint">{{ t.long_hint }}</p>
+      <label>{{ t.field_gallery }}</label>
+      <div class="gallery-list" id="pm-gallery"></div>
+      <button class="btn secondary small" onclick="pickUpload(u => { modalGallery.push(u); renderModalGallery(); })">+ {{ t.add_image }}</button>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
@@ -394,6 +522,8 @@
         btn.classList.add('active');
         el('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'stats') loadStats();
+        if (btn.dataset.tab === 'messages') loadMessages();
+        if (btn.dataset.tab === 'design') initPreview();
       });
     });
 
@@ -405,8 +535,167 @@
       fillProfile();
       fillDesign();
       fillLegal();
+      fillSections();
+      fillSystem();
       renderProjects();
     }
+
+    // ── Live-Vorschau ──
+    // Die öffentliche Seite läuft auf Port 17760 desselben Hosts
+    const publicUrl = () => window.location.protocol + '//' + window.location.hostname + ':17760/';
+    let previewLoaded = false;
+    function initPreview() {
+      if (!previewLoaded) { reloadPreview(); previewLoaded = true; }
+      el('preview-open').href = publicUrl();
+    }
+    function reloadPreview() {
+      el('preview-frame').src = publicUrl() + '?_=' + Date.now();
+    }
+
+    // ── Inhalte (Skills / Aktuelles / Werdegang) ──
+    function fillSections() {
+      const s = SITE.sections || {};
+      el('c-skills').value = (s.skills || []).join(', ');
+      el('news-list').innerHTML = '';
+      (s.news || []).forEach(n => addNewsRow(n));
+      el('timeline-list').innerHTML = '';
+      (s.timeline || []).forEach(e => addTimelineRow(e));
+    }
+    function addNewsRow(n) {
+      n = n || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="n-date" placeholder="2026-06">
+        <input type="text" class="n-text_de" placeholder="${T.field_desc} (DE)">
+        <input type="text" class="n-text_en" placeholder="${T.field_desc} (EN)">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+      </div>
+      <label style="margin-top:8px">{{ t.field_link }}</label>
+      <input type="text" class="n-url" placeholder="https://…">`;
+      div.querySelector('.n-date').value = n.date || '';
+      div.querySelector('.n-text_de').value = n.text_de || '';
+      div.querySelector('.n-text_en').value = n.text_en || '';
+      div.querySelector('.n-url').value = n.url || '';
+      el('news-list').appendChild(div);
+    }
+    function addTimelineRow(e) {
+      e = e || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="t-year" placeholder="2024–2026">
+        <input type="text" class="t-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="t-title_en" placeholder="${T.field_title} (EN)">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="t-text_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="t-text_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.t-year').value = e.year || '';
+      div.querySelector('.t-title_de').value = e.title_de || '';
+      div.querySelector('.t-title_en').value = e.title_en || '';
+      div.querySelector('.t-text_de').value = e.text_de || '';
+      div.querySelector('.t-text_en').value = e.text_en || '';
+      el('timeline-list').appendChild(div);
+    }
+    async function saveSections() {
+      const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
+      const news = [...el('news-list').children].map(row => ({
+        date:    row.querySelector('.n-date').value,
+        text_de: row.querySelector('.n-text_de').value,
+        text_en: row.querySelector('.n-text_en').value,
+        url:     row.querySelector('.n-url').value,
+      })).filter(n => n.text_de || n.text_en);
+      const timeline = [...el('timeline-list').children].map(row => ({
+        year:     row.querySelector('.t-year').value,
+        title_de: row.querySelector('.t-title_de').value,
+        title_en: row.querySelector('.t-title_en').value,
+        text_de:  row.querySelector('.t-text_de').value,
+        text_en:  row.querySelector('.t-text_en').value,
+      })).filter(e => e.title_de || e.title_en);
+      const r = await apiJson('api/sections', 'POST', { skills, news, timeline });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    // ── Nachrichten ──
+    async function loadMessages() {
+      const r = await api('api/messages');
+      if (!r.ok) return;
+      const data = await r.json();
+      const list = el('msg-list');
+      list.innerHTML = '';
+      const badge = el('msg-badge');
+      badge.style.display = data.messages.length ? '' : 'none';
+      badge.textContent = data.messages.length;
+      if (!data.messages.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_messages}</div>`;
+        return;
+      }
+      data.messages.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'msg-item';
+        div.innerHTML = `<div class="msg-head">
+            <span class="msg-from"></span>
+            <span style="display:flex;gap:10px;align-items:center">
+              <span class="msg-time"></span>
+              <button class="btn danger small">✕</button>
+            </span>
+          </div><div class="msg-text"></div>`;
+        const from = div.querySelector('.msg-from');
+        from.textContent = m.name;
+        if (m.email) {
+          const a = document.createElement('a');
+          a.href = 'mailto:' + m.email;
+          a.textContent = ' <' + m.email + '>';
+          from.appendChild(a);
+        }
+        div.querySelector('.msg-time').textContent = new Date(m.ts * 1000).toLocaleString();
+        div.querySelector('.msg-text').textContent = m.text;
+        div.querySelector('button').onclick = async () => {
+          if (!confirm(T.confirm_delete_msg)) return;
+          const r2 = await fetch('api/messages/' + m.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) loadMessages();
+        };
+        list.appendChild(div);
+      });
+    }
+
+    // ── System: Wartungsmodus & Backup ──
+    function fillSystem() {
+      const d = SITE.design;
+      el('m-text_de').value = d.maintenance_text_de || '';
+      el('m-text_en').value = d.maintenance_text_en || '';
+      const on = !!d.maintenance;
+      el('maint-state').innerHTML = on ? `<span class="maint-on">● ${T.maintenance_on}</span>` : '';
+      el('maint-btn').textContent = on ? T.maintenance_disable : T.maintenance_enable;
+      el('maint-btn').className = on ? 'btn' : 'btn danger';
+    }
+    async function toggleMaintenance() {
+      const r = await apiJson('api/design', 'POST', {
+        maintenance: !SITE.design.maintenance,
+        maintenance_text_de: el('m-text_de').value,
+        maintenance_text_en: el('m-text_en').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+    function downloadBackup() {
+      window.location.href = 'api/backup';
+    }
+    el('restore-input').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (!confirm(T.confirm_restore)) { e.target.value = ''; return; }
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/restore', { method: 'POST', body: fd, credentials: 'same-origin' });
+      toast(r.ok ? T.restore_done : T.error_restore, !r.ok);
+      if (r.ok) loadSite();
+      e.target.value = '';
+    });
 
     // ── Rechtliches ──
     function fillLegal() {
@@ -465,18 +754,22 @@
       el('d-accent').value = d.accent || '#58a6ff';
       el('d-mode').value = d.mode || 'dark';
       el('d-show_counter').value = d.show_counter ? '1' : '0';
+      el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
+      el('d-favicon').value = d.favicon || '';
       el('d-footer_text').value = d.footer_text || '';
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
-        site_title:   el('d-site_title').value,
-        accent:       el('d-accent').value,
-        mode:         el('d-mode').value,
-        show_counter: el('d-show_counter').value === '1',
-        footer_text:  el('d-footer_text').value,
+        site_title:      el('d-site_title').value,
+        accent:          el('d-accent').value,
+        mode:            el('d-mode').value,
+        show_counter:    el('d-show_counter').value === '1',
+        contact_enabled: el('d-contact_enabled').value === '1',
+        favicon:         el('d-favicon').value,
+        footer_text:     el('d-footer_text').value,
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
-      if (r.ok) loadSite();
+      if (r.ok) { loadSite(); reloadPreview(); }
     }
 
     // ── Projekte ──
@@ -507,6 +800,22 @@
         list.appendChild(div);
       });
     }
+    let modalGallery = [];
+    function renderModalGallery() {
+      const box = el('pm-gallery');
+      box.innerHTML = '';
+      modalGallery.forEach((u, i) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        const img = document.createElement('img');
+        img.src = assetUrl(u);
+        const btn = document.createElement('button');
+        btn.textContent = '✕';
+        btn.onclick = () => { modalGallery.splice(i, 1); renderModalGallery(); };
+        div.append(img, btn);
+        box.appendChild(div);
+      });
+    }
     function openProjectModal(id) {
       editingId = id || null;
       const p = id ? SITE.projects.find(x => x.id === id) : {};
@@ -519,6 +828,10 @@
       el('pm-repo_url').value = p.repo_url || '';
       el('pm-tags').value = (p.tags || []).join(', ');
       el('pm-language').value = p.language || '';
+      el('pm-long_de').value = p.long_de || '';
+      el('pm-long_en').value = p.long_en || '';
+      modalGallery = [...(p.gallery || [])];
+      renderModalGallery();
       el('proj-modal').classList.add('open');
     }
     function closeProjectModal() { el('proj-modal').classList.remove('open'); }
@@ -532,6 +845,9 @@
         repo_url: el('pm-repo_url').value,
         tags:     el('pm-tags').value,
         language: el('pm-language').value,
+        long_de:  el('pm-long_de').value,
+        long_en:  el('pm-long_en').value,
+        gallery:  modalGallery,
       };
       if (editingId) {
         const old = SITE.projects.find(x => x.id === editingId);
@@ -632,7 +948,28 @@
            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.views / max * 100)}%"></div></div>
            <span class="bar-num">${d.views} / ${d.uniques}</span>
          </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
+      renderDistribution('s-referrers', s.referrers || []);
+      renderDistribution('s-browsers', s.browsers || []);
       renderVisitorLog(s.log || []);
+    }
+    function renderDistribution(target, items) {
+      if (!items.length) {
+        el(target).innerHTML = `<p class="hint">${T.no_data}</p>`;
+        return;
+      }
+      const max = Math.max(1, ...items.map(i => i.count));
+      el(target).innerHTML = '';
+      items.forEach(i => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = `<span class="bar-date" style="width:120px;overflow:hidden;text-overflow:ellipsis"></span>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(i.count / max * 100)}%"></div></div>
+          <span class="bar-num" style="width:46px">${i.count}</span>`;
+        const lbl = row.querySelector('.bar-date');
+        lbl.textContent = i.name;
+        lbl.title = i.name;
+        el(target).appendChild(row);
+      });
     }
     function browserInfo(ua) {
       if (!ua) return '–';

@@ -7,8 +7,9 @@
   <meta name="description" content="{{ loc(site.profile, 'tagline') }}">
   <meta property="og:title" content="{{ site.design.site_title or site.profile.name or 'MyPage' }}">
   <meta property="og:description" content="{{ loc(site.profile, 'tagline') }}">
-  {% if site.profile.avatar %}<meta property="og:image" content="{{ site.profile.avatar }}">
-  <link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  {% if site.profile.avatar %}<meta property="og:image" content="{{ site.profile.avatar }}">{% endif %}
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   <meta name="theme-color" content="#0d1117">
   <style>
     :root {
@@ -94,6 +95,55 @@
     .lang-dot i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     .card-links { display: flex; gap: 10px; font-size: 0.8rem; font-weight: 500; }
 
+    /* Aktuelles */
+    .news-list { display: flex; flex-direction: column; gap: 8px; padding-bottom: 28px; }
+    .news-item { display: flex; gap: 14px; align-items: baseline; font-size: 0.9rem; }
+    .news-date { color: var(--muted); font-size: 0.78rem; white-space: nowrap; min-width: 80px; }
+    .news-text a { color: var(--text); }
+    .news-text a:hover { color: var(--accent); }
+
+    /* Skills */
+    .skills { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 36px; }
+    .skill {
+      font-size: 0.82rem; padding: 5px 14px; border-radius: 999px;
+      background: var(--surf); border: 1px solid var(--border);
+    }
+    .skill:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Werdegang */
+    .timeline { padding-bottom: 40px; }
+    .tl-item { display: grid; grid-template-columns: 90px 20px 1fr; gap: 0 10px; padding-bottom: 22px; position: relative; }
+    .tl-year { color: var(--accent); font-weight: 600; font-size: 0.85rem; text-align: right; padding-top: 1px; }
+    .tl-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); margin: 4px auto 0; position: relative; z-index: 1; }
+    .tl-item::before { content: ''; position: absolute; left: 109px; top: 14px; bottom: -8px; width: 2px; background: var(--border); }
+    .tl-item:last-child::before { display: none; }
+    .tl-title { font-weight: 600; font-size: 0.95rem; }
+    .tl-text { color: var(--muted); font-size: 0.85rem; white-space: pre-line; }
+
+    /* Kontakt */
+    .contact { max-width: 560px; padding-bottom: 48px; }
+    .contact label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
+    .contact input, .contact textarea {
+      width: 100%; background: var(--surf); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: 6px; font-size: 0.88rem; font-family: inherit; box-sizing: border-box;
+    }
+    .contact input:focus, .contact textarea:focus { outline: none; border-color: var(--accent); }
+    .contact-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 600px) { .contact-row { grid-template-columns: 1fr; } }
+    .contact button {
+      margin-top: 16px; background: var(--accent); border: none; color: #fff;
+      padding: 9px 22px; border-radius: 6px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    }
+    .contact button:hover { filter: brightness(1.12); }
+    .contact button:disabled { opacity: .6; cursor: default; }
+    .contact-status { margin-top: 10px; font-size: 0.84rem; min-height: 1.2em; }
+    .contact-status.ok { color: #2ea043; }
+    .contact-status.err { color: #f85149; }
+
+    /* Markdown-Inhalte */
+    .bio p { margin-bottom: 8px; }
+    .bio ul, .bio ol { margin: 4px 0 8px 20px; }
+
     /* Footer */
     footer.site {
       border-top: 1px solid var(--border); padding: 22px 0; text-align: center;
@@ -133,7 +183,7 @@
       <div>
         <h1>{{ site.profile.name or 'MyPage' }}</h1>
         {% if loc(site.profile, 'tagline') %}<div class="tagline">{{ loc(site.profile, 'tagline') }}</div>{% endif %}
-        {% if loc(site.profile, 'bio') %}<p class="bio">{{ loc(site.profile, 'bio') }}</p>{% endif %}
+        {% if bio_html %}<div class="bio">{{ bio_html|safe }}</div>{% endif %}
         <div class="social">
           {% if site.profile.github %}
           <a href="https://github.com/{{ site.profile.github }}" target="_blank" rel="noopener">
@@ -141,8 +191,8 @@
             GitHub
           </a>
           {% endif %}
-          {% if site.profile.email %}
-          <a href="mailto:{{ site.profile.email }}">
+          {% if email_parts %}
+          <a href="#" id="email-link" data-u="{{ email_parts[0] }}" data-d="{{ email_parts[1] }}">
             <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>
             E-Mail
           </a>
@@ -157,15 +207,33 @@
       </div>
     </section>
 
-    {% if site.projects %}
+    {% if sections.news %}
+    <h2 class="section-title">{{ t.news_heading }}</h2>
+    <div class="news-list">
+      {% for n in sections.news %}
+      <div class="news-item">
+        {% if n.date %}<span class="news-date">{{ n.date }}</span>{% endif %}
+        <span class="news-text">
+          {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ loc(n, 'text') }}</a>
+          {% else %}{{ loc(n, 'text') }}{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if projects %}
     <h2 class="section-title">{{ t.projects }}</h2>
     <div class="grid">
-      {% for p in site.projects %}
+      {% for p in projects %}
       <article class="card">
-        {% if p.image %}<img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+        {% if p.image %}
+          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy"></a>
+          {% else %}<img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+        {% endif %}
         <div class="card-body">
           <div class="card-title">
-            <span>{{ p.title }}</span>
+            {% if p.has_detail %}<a href="/p/{{ p.id }}">{{ p.title }}</a>{% else %}<span>{{ p.title }}</span>{% endif %}
             {% if p.stars %}
             <span class="stars"><svg viewBox="0 0 24 24"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>{{ p.stars }}</span>
             {% endif %}
@@ -179,6 +247,7 @@
             <span class="lang-dot"><i data-lang="{{ p.language }}"></i>{{ p.language }}</span>
             {% else %}<span></span>{% endif %}
             <div class="card-links">
+              {% if p.has_detail %}<a href="/p/{{ p.id }}">{{ t.more }}</a>{% endif %}
               {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">{{ t.demo }}</a>{% endif %}
               {% if p.repo_url %}<a href="{{ p.repo_url }}" target="_blank" rel="noopener">GitHub</a>{% endif %}
             </div>
@@ -189,6 +258,51 @@
     </div>
     {% else %}
     <p class="empty">{{ t.no_projects }}</p>
+    {% endif %}
+
+    {% if sections.skills %}
+    <h2 class="section-title">{{ t.skills_heading }}</h2>
+    <div class="skills">
+      {% for s in sections.skills %}<span class="skill">{{ s }}</span>{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sections.timeline %}
+    <h2 class="section-title">{{ t.timeline_heading }}</h2>
+    <div class="timeline">
+      {% for e in sections.timeline %}
+      <div class="tl-item">
+        <div class="tl-year">{{ e.year }}</div>
+        <div class="tl-dot"></div>
+        <div class="tl-content">
+          <div class="tl-title">{{ loc(e, 'title') }}</div>
+          {% if loc(e, 'text') %}<div class="tl-text">{{ loc(e, 'text') }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if contact_enabled %}
+    <h2 class="section-title" id="kontakt">{{ t.contact_heading }}</h2>
+    <form class="contact" id="contact-form">
+      <div class="contact-row">
+        <div>
+          <label for="c-name">{{ t.contact_name }} *</label>
+          <input type="text" id="c-name" name="name" required maxlength="80">
+        </div>
+        <div>
+          <label for="c-email">{{ t.contact_email }}</label>
+          <input type="email" id="c-email" name="email" maxlength="150">
+        </div>
+      </div>
+      <label for="c-message">{{ t.contact_message }} *</label>
+      <textarea id="c-message" name="message" required maxlength="3000" rows="5"></textarea>
+      <!-- Honeypot: für Menschen unsichtbar -->
+      <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
+      <button type="submit">{{ t.contact_send }}</button>
+      <div class="contact-status" id="contact-status"></div>
+    </form>
     {% endif %}
   </main>
 
@@ -232,6 +346,44 @@
     document.querySelectorAll('.lang-dot i').forEach(el => {
       el.style.background = LANG_COLORS[el.dataset.lang] || 'var(--muted)';
     });
+
+    // E-Mail-Adresse erst im Browser zusammensetzen (Spam-Bot-Schutz)
+    const emailLink = document.getElementById('email-link');
+    if (emailLink) {
+      const addr = emailLink.dataset.u + '@' + emailLink.dataset.d;
+      emailLink.href = 'mailto:' + addr;
+    }
+
+    // Kontaktformular
+    const form = document.getElementById('contact-form');
+    if (form) {
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = form.querySelector('button');
+        const status = document.getElementById('contact-status');
+        btn.disabled = true;
+        status.className = 'contact-status';
+        status.textContent = '';
+        try {
+          const r = await fetch('/contact', { method: 'POST', body: new FormData(form) });
+          if (r.ok) {
+            status.className = 'contact-status ok';
+            status.textContent = {{ t.contact_success|tojson }};
+            form.reset();
+          } else if (r.status === 429) {
+            status.className = 'contact-status err';
+            status.textContent = {{ t.contact_rate_limited|tojson }};
+          } else {
+            status.className = 'contact-status err';
+            status.textContent = {{ t.contact_error|tojson }};
+          }
+        } catch {
+          status.className = 'contact-status err';
+          status.textContent = {{ t.contact_error|tojson }};
+        }
+        btn.disabled = false;
+      });
+    }
   </script>
 </body>
 </html>

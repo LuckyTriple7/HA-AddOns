@@ -11,6 +11,12 @@ configuration:
   github_token:
     name: GitHub token
     description: Optional token — raises the API limit for GitHub import and star updates.
+  telegram_bot_token:
+    name: Telegram bot token
+    description: Optional — new contact messages are reported via Telegram.
+  telegram_chat_id:
+    name: Telegram chat ID
+    description: Chat ID for Telegram notifications.
 network:
   17760/tcp: Public homepage
   17761/tcp: Admin panel (login protected)
