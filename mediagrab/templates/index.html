@@ -354,6 +354,8 @@
       btn_remove:     {{ t.btn_remove | tojson }},
       btn_delete:     {{ t.btn_delete | tojson }},
       btn_download_file: {{ t.btn_download_file | tojson }},
+      btn_share:         {{ t.btn_share | tojson }},
+      share_not_available: {{ t.share_not_available | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
       lbl_eta:        {{ t.lbl_eta | tojson }},
       lbl_encoding:   {{ t.lbl_encoding | tojson }},
@@ -816,6 +818,7 @@
               <span class="file-date">${fmtDate(f.mtime)}</span>
               <div class="file-acts">
                 ${isPlayable(f) ? `<button class="sm-btn" onclick="playFile('${escJs(f.name)}')">▶</button>` : ''}
+                ${navigator.share ? `<button class="sm-btn" onclick="shareFile('${escJs(f.name)}',this)" title="${esc(T.btn_share)}">↗</button>` : ''}
                 <a class="sm-btn" href="/files/${encodeURIComponent(f.name)}" download>${esc(T.btn_download_file)}</a>
                 <button class="sm-btn danger" onclick="deleteFile('${escJs(f.name)}')">${esc(T.btn_delete)}</button>
               </div>
@@ -851,6 +854,32 @@
         if (r.ok) { loadFiles(); loadDiskSpace(); }
         else toast(T.error_unknown, true);
       } catch(e) { toast(T.error_network, true); }
+    }
+
+    async function shareFile(name, btn) {
+      if (!navigator.share) { toast(T.share_not_available, true); return; }
+      const orig = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      const streamUrl = '/stream/' + encodeURIComponent(name);
+      let shared = false;
+      try {
+        const resp = await fetch(streamUrl);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const file = new File([blob], name, { type: blob.type });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: name });
+            shared = true;
+          }
+        }
+      } catch(e) {
+        if (e && e.name === 'AbortError') { btn.disabled = false; btn.textContent = orig; return; }
+      }
+      if (!shared) {
+        try { await navigator.share({ title: name, url: window.location.origin + streamUrl }); }
+        catch(e) { if (!e || e.name !== 'AbortError') toast(T.share_not_available, true); }
+      }
+      btn.disabled = false; btn.textContent = orig;
     }
 
     // ── Settings: yt-dlp ─────────────────────────────────────────────────────

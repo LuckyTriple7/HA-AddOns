@@ -64,6 +64,8 @@
   "btn_refresh": "Aktualisieren",
   "btn_delete": "Löschen",
   "btn_download_file": "Download",
+  "btn_share": "Teilen",
+  "share_not_available": "Teilen nicht verfügbar",
   "confirm_delete": "Datei \"{name}\" wirklich löschen?",
   "lbl_search": "Suchen...",
   "sort_date": "Datum",

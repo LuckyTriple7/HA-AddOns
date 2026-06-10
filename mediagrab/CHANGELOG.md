@@ -1,5 +1,14 @@
 # Changelog — MediaGrab
 
+## [1.0.31] - 2026-06-10
+
+### Added
+- Teilen-Button (↗) in der Dateiliste: teilt die Datei direkt per Web Share API an WhatsApp, Telegram usw.
+  - Lädt die Datei als Blob und übergibt sie als Anhang (File-Share)
+  - Fallback auf URL-Share wenn File-Share nicht unterstützt wird
+  - Button nur sichtbar wenn der Browser `navigator.share` unterstützt (mobile/PWA)
+  - Während des Ladevorgangs wird der Button deaktiviert und zeigt "…"
+
 ## [1.0.30] - 2026-06-09
 
 ### Added
