@@ -1684,7 +1684,8 @@ function msgFingerprint(msgs) {
   if (!msgs || !msgs.length) return '';
   const last = msgs[msgs.length - 1];
   const videoKey = msgs.filter(m => m.type === 'video').map(m => m.id + ':' + (m.mediaFile || '0')).join('|');
-  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey;
+  const ackKey = msgs.filter(m => m.fromMe).reduce((s, m) => s + (m.ack || 0), 0);
+  return msgs.length + ':' + last.id + ':' + (last.mediaFile || '') + ':' + videoKey + ':' + ackKey;
 }
 
 async function loadMessages(chatId) {

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.14] - 2026-06-10
+- Fix: Häkchen (✓ ✓✓) aktualisieren sich jetzt sofort — ACK-Summe im msgFingerprint; Re-Render wird ausgelöst sobald sich ein Lesestatus ändert
+
 ## [1.6.13] - 2026-06-10
 - UI: Foto-Thumbnail auf max 200×200px verkleinert (war 250×250 + object-fit:cover); kein Zuschneiden mehr, einheitlich mit WhatsApp und Telegram
 
