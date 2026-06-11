@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.17] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: Branch wird jetzt vor dem Commit-Schritt explizit angelegt (`POST /git/refs`) — GitHub-API setzt existierende Branch voraus und erstellt sie nicht selbst
+
 ## [0.3.16] - 2026-06-11
 
 ### Fixed

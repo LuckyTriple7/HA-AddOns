@@ -1896,20 +1896,48 @@ def api_security_autofix():
             else:
                 return jsonify({'error_code': 'timeout'}), 504
 
-        # 3. Autofix in neuen Branch committen
+        # 3. Branch anlegen (commits-Endpoint setzt existierende Branch voraus)
         ts          = int(time.time()) % 100000
-        branch_name = f'refs/heads/codeql/autofix-{alert_number}-{ts}'
-        commit_r    = http.post(
+        short_name  = f'codeql/autofix-{alert_number}-{ts}'
+        branch_ref  = f'refs/heads/{short_name}'
+
+        # Basis-SHA des Default-Branch ermitteln
+        repo_r = http.get(f'{GITHUB_API}/repos/{repo}', headers=hdrs, timeout=10)
+        _update_rate_limit(repo_r.headers)
+        default_branch = repo_r.json().get('default_branch', 'main') if repo_r.status_code == 200 else 'main'
+
+        ref_r = http.get(f'{GITHUB_API}/repos/{repo}/git/ref/heads/{default_branch}', headers=hdrs, timeout=10)
+        _update_rate_limit(ref_r.headers)
+        if ref_r.status_code != 200:
+            return jsonify({'error': f'Basis-Branch "{default_branch}" nicht gefunden'}), 500
+        base_sha = ref_r.json()['object']['sha']
+
+        create_r = http.post(
+            f'{GITHUB_API}/repos/{repo}/git/refs',
+            headers=hdrs,
+            json={'ref': branch_ref, 'sha': base_sha},
+            timeout=10
+        )
+        _update_rate_limit(create_r.headers)
+        if create_r.status_code not in (200, 201):
+            try:
+                detail = create_r.json().get('message', create_r.text[:200])
+            except Exception:
+                detail = create_r.text[:200]
+            return jsonify({'error': f'Branch konnte nicht angelegt werden: {detail}'}), 500
+
+        # 4. Autofix in die neue Branch committen
+        commit_r = http.post(
             f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix/commits',
             headers=hdrs,
-            json={'target_ref': branch_name,
+            json={'target_ref': branch_ref,
                   'message':    f'fix: CodeQL autofix for alert #{alert_number}'},
             timeout=15
         )
         _update_rate_limit(commit_r.headers)
         if commit_r.status_code == 201:
-            result   = commit_r.json()
-            branch   = result.get('target_ref', branch_name).removeprefix('refs/heads/')
+            result = commit_r.json()
+            branch = result.get('target_ref', branch_ref).removeprefix('refs/heads/')
             log.info("CodeQL Autofix Branch erstellt: %s / %s", repo, branch)
             return jsonify({'ok': True, 'branch': branch, 'sha': result.get('sha', '')})
         try:
@@ -1917,7 +1945,7 @@ def api_security_autofix():
         except Exception:
             detail = commit_r.text[:300]
         log.error("Autofix Commit fehlgeschlagen (%s #%s): HTTP %s — %s", repo, alert_number, commit_r.status_code, detail)
-        return jsonify({'error': f'Branch konnte nicht erstellt werden (HTTP {commit_r.status_code}): {detail}'}), 500
+        return jsonify({'error': f'Autofix-Commit fehlgeschlagen (HTTP {commit_r.status_code}): {detail}'}), 500
     except Exception:
         log.exception("Security-Autofix Fehler (%s #%s)", repo, alert_number)
         return jsonify({'error': 'Interner Fehler'}), 500
