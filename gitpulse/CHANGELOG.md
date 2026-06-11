@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.7] - 2026-06-11
+
+### Fixed
+- **Cherry-Pick**: Merge-Commits (z.B. "chore: merge dev → main") werden jetzt als solche markiert und standardmäßig **nicht** ausgewählt — sie enthalten hunderte Dateien und sind für Cherry-Pick ungeeignet
+- **Cherry-Pick**: 120s Timeout im Browser mit verständlicher Meldung statt endlosem "Läuft…"
+
 ## [0.3.6] - 2026-06-11
 
 ### Added

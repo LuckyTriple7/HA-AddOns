@@ -1645,12 +1645,13 @@ def api_compare():
         data = r.json()
         commits = [
             {
-                'sha':     c['sha'],
-                'short':   c['sha'][:7],
-                'message': c['commit']['message'].split('\n')[0][:120],
-                'author':  c['commit']['author']['name'],
-                'date':    c['commit']['author']['date'],
-                'url':     c.get('html_url', ''),
+                'sha':      c['sha'],
+                'short':    c['sha'][:7],
+                'message':  c['commit']['message'].split('\n')[0][:120],
+                'author':   c['commit']['author']['name'],
+                'date':     c['commit']['author']['date'],
+                'url':      c.get('html_url', ''),
+                'is_merge': len(c.get('parents', [])) > 1,
             }
             for c in data.get('commits', [])
         ]

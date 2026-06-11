@@ -3037,19 +3037,23 @@
           list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_no_commits}</div>`;
           return;
         }
-        const rows = commits.map(c => `
-          <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)" class="cp-row">
-            <input type="checkbox" class="cp-cb" value="${escHtml(c.sha)}" checked style="margin-top:2px;flex-shrink:0;accent-color:var(--accent)">
+        const rows = commits.map(c => {
+          const isMerge = !!c.is_merge;
+          return `
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);${isMerge ? 'opacity:.55' : ''}" class="cp-row">
+            <input type="checkbox" class="cp-cb" value="${escHtml(c.sha)}" ${isMerge ? '' : 'checked'} style="margin-top:2px;flex-shrink:0;accent-color:var(--accent)">
             <div style="min-width:0;flex:1">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <code style="font-size:.72rem;color:var(--accent);flex-shrink:0;background:rgba(88,166,255,.1);padding:1px 5px;border-radius:3px">${escHtml(c.short)}</code>
                 <span style="font-size:.82rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px">${escHtml(c.message)}</span>
+                ${isMerge ? '<span style="font-size:.68rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px;flex-shrink:0">merge</span>' : ''}
               </div>
               <div style="font-size:.72rem;color:var(--muted);margin-top:3px">${escHtml(c.author)} · ${relTime(c.date)}</div>
             </div>
             <a href="${escHtml(c.url)}" target="_blank" rel="noopener noreferrer"
                style="font-size:.72rem;color:var(--muted);flex-shrink:0;padding-top:2px" onclick="event.stopPropagation()">↗</a>
-          </label>`).join('');
+          </label>`;
+        }).join('');
         list.innerHTML = `
           <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">${commits.length} ${T.cp_ahead_by}</div>
           <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">${rows}</div>
@@ -3081,12 +3085,15 @@
     btn.disabled    = true;
     btn.textContent = T.cp_running;
     res.innerHTML   = '';
+    const ctrl = new AbortController();
+    const cpTimeout = setTimeout(() => ctrl.abort(), 120000);
     fetch(u('/api/cherry-pick'), {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({repo, commits: shas, target})
+      body:    JSON.stringify({repo, commits: shas, target}),
+      signal:  ctrl.signal,
     })
-      .then(r => r.json())
+      .then(r => { clearTimeout(cpTimeout); return r.json(); })
       .then(data => {
         btn.disabled  = false;
         btn.innerHTML = `🍒 ${T.cp_btn}`;
@@ -3106,10 +3113,14 @@
               : ''}`;
         }
       })
-      .catch(() => {
+      .catch(err => {
+        clearTimeout(cpTimeout);
         btn.disabled  = false;
         btn.innerHTML = `🍒 ${T.cp_btn}`;
-        res.innerHTML = `<div style="color:var(--red);font-size:.85rem">Netzwerkfehler</div>`;
+        const msg = err.name === 'AbortError'
+          ? 'Timeout — Branch wurde möglicherweise bereits erstellt, bitte GitHub prüfen'
+          : 'Netzwerkfehler';
+        res.innerHTML = `<div style="color:var(--yellow);font-size:.85rem">⚠️ ${msg}</div>`;
       });
   }
   </script>
