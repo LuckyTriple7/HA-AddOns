@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1] - 2026-06-10
+
+### Fixed
+- Security: Dependabot-API gibt für public Repos ohne aktiviertes Dependabot 403 (statt 404) zurück — Response-Message wird jetzt ausgewertet, um echten Scope-Fehler von "nicht aktiviert" zu unterscheiden; kein falscher 🔒-Hinweis mehr
+
+## [0.2.0] - 2026-06-10
+
+### Fixed
+- JavaScript-Syntaxfehler (überzähliges `)`) in Security-Tab behoben — UI war seit v0.1.99 komplett leer
+
+## [0.1.99] - 2026-06-10
+
+### Fixed
+- Security: 403 (fehlender Scope) und 404 (Dependabot nicht aktiviert) werden jetzt unterschieden — 🔒-Hinweis erscheint nur noch bei echtem Scope-Fehler, nicht wenn Dependabot schlicht nicht eingerichtet ist
+
 ## [0.1.98] - 2026-06-09
 
 ### Fixed
