@@ -17,6 +17,7 @@ import secrets
 import shutil
 import smtplib
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -786,15 +787,18 @@ def _smb_watchdog() -> None:
                     'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft')
             user = (cfg.get('smb_user') or '').strip()
             if user:
-                cred = '/tmp/.smbcred-watchdog'
-                with open(cred, 'w') as f:
-                    f.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
-                os.chmod(cred, 0o600)
-                opts += f',credentials={cred}'
+                with tempfile.TemporaryFile(mode='w+t') as cred_file:
+                    cred_file.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
+                    cred_file.flush()
+                    cred_file.seek(0)
+                    cred_fd = cred_file.fileno()
+                    opts_with_creds = f"{opts},credentials=/proc/self/fd/{cred_fd}"
+                    r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
+                                        '-o', opts_with_creds], capture_output=True, text=True, timeout=60)
             else:
                 opts += ',guest'
-            r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
-                                '-o', opts], capture_output=True, text=True, timeout=60)
+                r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
+                                    '-o', opts], capture_output=True, text=True, timeout=60)
             if r.returncode == 0:
                 log.info("SMB-Mount wiederhergestellt")
             else:
