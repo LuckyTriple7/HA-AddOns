@@ -1854,7 +1854,7 @@ def api_security_autofix():
             _update_rate_limit(cmp.headers)
             if cmp.status_code == 200:
                 ahead_by = cmp.json().get('ahead_by', 0)
-                if ahead_by > 5:
+                if ahead_by > 0:
                     return jsonify({'error_code': 'branch_ahead', 'ahead_by': ahead_by}), 409
 
         # 1. Autofix-Generierung starten
