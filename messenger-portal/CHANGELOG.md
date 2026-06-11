@@ -1,25 +1,5 @@
 # Changelog – MessengerPortal
 
-## [1.2.8] - 2026-06-10
-
-### Added
-- HA Ingress-Unterstützung: Add-on jetzt direkt in der HA-Seitenleiste erreichbar (`ingress: true`, Port 17770, Icon `mdi:message-badge`)
-- `_IngressMiddleware`: liest `X-Ingress-Path` Header, setzt `SCRIPT_NAME` – alle `url_for()`-Links passen sich automatisch an den Ingress-Pfad an
-- Auth-Bypass für Ingress: HA übernimmt die Authentifizierung; Login-Seite und Logout-Button werden via Ingress nicht angezeigt
-
-### Fixed
-- Header-Logo: `href="/"` → `url_for('index')` (absolutes `/` funktionierte nicht via Ingress)
-- Console `/api/logs`-URL: hardcoded absoluter Pfad durch `url_for('api_logs')` ersetzt
-- `proxy_cookie_path` in nginx entfernt: scoped Cookies funktionierten mit Ingress-URLs nicht (cookies sind nun unscoped)
-
-### Changed
-- `X-Ingress-Path` Header wird jetzt in allen nginx `proxy_pass`-Blöcken an Flask weitergeleitet
-
-## [1.2.7] - 2026-06-09
-
-### Added
-- `webui`-Feld in config.yaml: HA zeigt jetzt den Button „Benutzeroberfläche öffnen" — passt sich automatisch an den konfigurierten Host-Port an
-
 ## [1.2.6] - 2026-06-09
 
 ### Fixed
