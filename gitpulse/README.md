@@ -6,17 +6,16 @@ Monitor pull requests, issues, CI runs, security alerts, releases and your own a
 
 ## Features
 
-- **Repos** — Overview of all your repos: open PRs/issues, last CI run, stars/forks/watchers · repo insights badge (licence, CI, security alerts)
-- **Pull Requests** — Open, merge (merge / squash / rebase), comment · search/filter · review status · repo switcher · expandable description (Markdown rendered) · inline comment preview
-- **Issues** — Close, comment · search/filter · repo switcher · expandable description (Markdown rendered) · inline comment preview
+- **Repos** — Overview of all your repos: open PRs/issues, last CI run, stars/forks/watchers
+- **Pull Requests** — Open, merge (merge / squash / rebase), comment · search/filter · review status · repo switcher
+- **Issues** — Close, comment · search/filter · repo switcher
 - **CI / Actions** — Workflow runs with quick-filters, job+step details, dispatch, stop, re-run, delete · **Workflow Favorites** · repo switcher
 - **Releases** — Release tracker for any number of repos (own + watched) incl. HA beta/RC · mark as read
 - **Security** — Dependabot · Code Scanning · Secret Scanning alerts with severity icons · repo switcher
-- **My Activity** — All open PRs and issues you created + PRs where you are requested as reviewer · close own items · new-comment notifications · filter persistence across reloads
+- **My Activity** — All open PRs and issues you created, across all repos · close own items · new-comment notifications
 - **Add-on Manager** *(optional)* — Bump versions, write changelog entries and push directly from the UI
 - **Console** — Live internal log with auto-scroll
-- **Notifications** — Telegram · e-mail (SMTP) · browser notifications — each type individually toggleable per event (incl. review requests)
-- **Daily Digest** — Optional daily summary of all open PRs, issues and security alerts sent at a configurable hour (`digest_hour 0–23`)
+- **Notifications** — Telegram · e-mail (SMTP) · browser notifications — each type individually toggleable per event
 - **Webhooks** — Optional real-time GitHub event receiver (< 1 s vs. up to 5 min polling)
 - **PWA** — Installable, works behind Cloudflare Tunnel and HA Cloud
 - Dark / Light mode · DE / EN · HA Ingress
