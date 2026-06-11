@@ -54,9 +54,7 @@ for _h in _root.handlers:
 _root.addHandler(_buf_h)
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
-_BASE = os.environ.get('GITPULSE_BASE', '/app')
-_DATA = os.environ.get('GITPULSE_DATA', '/data')
-app = Flask(__name__, template_folder=_BASE + '/templates', static_folder=_BASE + '/static')
+app = Flask(__name__, template_folder='/app/templates', static_folder='/app/static')
 
 
 class _IngressMiddleware:
@@ -77,11 +75,11 @@ class _IngressMiddleware:
 
 app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
-CONFIG_PATH    = _DATA + '/options.json'
-SESSIONS_PATH  = _DATA + '/sessions.json'
-REPOS_PATH     = _DATA + '/gitpulse_repos.json'
-FAVORITES_PATH = _DATA + '/workflow_favorites.json'
-LOCALES_PATH   = _BASE + '/locales'
+CONFIG_PATH   = '/data/options.json'
+SESSIONS_PATH = '/data/sessions.json'
+REPOS_PATH      = '/data/gitpulse_repos.json'   # überschreibt options.json Repos (überlebt Updates)
+FAVORITES_PATH  = '/data/workflow_favorites.json'
+LOCALES_PATH    = '/app/locales'
 
 GITHUB_API    = 'https://api.github.com'
 POLL_INTERVAL_DEFAULT = 300  # seconds
@@ -99,9 +97,6 @@ _sse_lock = threading.Lock()
 _gh_cache: dict = {
     'my_repos':    [],
     'releases':    [],
-    'my_activity':           {'prs': [], 'issues': [], 'review_prs': []},
-    'new_activity_comments': [],
-    'gh_login':              '',
     'token_ok':    None,
     'token_scopes': '',
     'token_expires': '',
@@ -112,28 +107,11 @@ _gh_cache: dict = {
 _gh_lock = threading.Lock()
 
 # Seen releases (für Benachrichtigungen — persistent über Neustarts)
-_SEEN_PATH = _DATA + '/seen_releases.json'
+_SEEN_PATH = '/data/seen_releases.json'
 _seen_releases: set[str] = set()
 
-# Seen activity — eigene PRs/Issues, persistent
-_SEEN_ACTIVITY_PATH = _DATA + '/seen_activity.json'
-_seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
-
-# GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
-_gh_login: str = ''
-
-# Kommentar-Zähler für eigene PRs/Issues — erkennt neue Kommentare ohne extra API-Call
-_activity_comment_counts: dict[str, int] = {}  # "repo#number" -> comment count
-
-# Repos ohne Releases — 404 bekommen, 1h warten bevor erneut geprüft wird
-_NO_RELEASE_TTL = 3600
-_no_release_repos: dict[str, float] = {}  # repo -> timestamp der letzten 404
-
-# Tages-Digest — Datum des letzten gesendeten Digests (YYYY-MM-DD)
-_last_digest_date: str = ''
-
-# Review-Request-Tracking — PRs die zur Review angefragt wurden (in-memory)
-_seen_review_prs: set[str] = set()
+# Repos ohne Releases — 404 einmal bekommen, bis Neustart überspringen
+_no_release_repos: set[str] = set()
 
 # ETag-Cache für bedingte GitHub-API-Anfragen (spart Rate-Limit)
 _etag_cache: dict[str, tuple] = {}
@@ -315,26 +293,6 @@ def save_seen_releases() -> None:
         log.warning("seen_releases konnte nicht gespeichert werden: %s", e)
 
 
-def load_seen_activity() -> None:
-    global _seen_activity
-    try:
-        with open(_SEEN_ACTIVITY_PATH) as f:
-            _seen_activity = set(json.load(f))
-        log.info("Bekannte Aktivitäten geladen: %d Einträge", len(_seen_activity))
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        log.warning("seen_activity konnte nicht geladen werden: %s", e)
-
-
-def save_seen_activity() -> None:
-    try:
-        with open(_SEEN_ACTIVITY_PATH, 'w') as f:
-            json.dump(list(_seen_activity), f)
-    except Exception as e:
-        log.warning("seen_activity konnte nicht gespeichert werden: %s", e)
-
-
 # ── Workflow-Favoriten (Persistence) ──────────────────────────────────────────
 
 def load_favorites() -> list:
@@ -503,7 +461,6 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'mergeable':    pr.get('mergeable_state', ''),
             'comments':     (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
             'review_state': _compute_review_state(reviews_raw),
-            'body':         (pr.get('body') or '')[:1500],
         })
 
     issues_raw = _gh_get_paginated(f'/repos/{repo}/issues', token) or []
@@ -522,7 +479,6 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'created':   iss['created_at'],
             'updated':   iss['updated_at'],
             'closed_at': iss.get('closed_at'),
-            'body':      (iss.get('body') or '')[:1500],
         })
 
     closed_pulls_raw = _gh_get(f'/repos/{repo}/pulls', token,
@@ -609,8 +565,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         })
 
     latest_release = None
-    _last_404 = _no_release_repos.get(repo, 0)
-    if time.time() - _last_404 > _NO_RELEASE_TTL:
+    if repo not in _no_release_repos:
         url = f'{GITHUB_API}/repos/{repo}/releases/latest'
         try:
             r = http.get(url, headers=_gh_headers(token), timeout=15)
@@ -624,17 +579,14 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                     'prerelease': release_raw.get('prerelease', False),
                 }
             elif r.status_code == 404:
-                _no_release_repos[repo] = time.time()
-                log.info("%s hat noch keine Releases — nächste Prüfung in 1h", repo)
+                _no_release_repos.add(repo)
+                log.info("%s hat noch keine Releases — Abfrage bis Neustart übersprungen", repo)
             else:
                 log.warning("GitHub API /repos/%s/releases/latest → HTTP %d", repo, r.status_code)
         except Exception as e:
             log.error("GitHub API Fehler (%s/releases/latest): %s", repo, e)
 
     security = _fetch_security_alerts(repo, token)
-    _sec_count = (len(security.get('dependabot', [])) +
-                  len(security.get('code_scanning', [])) +
-                  len(security.get('secret_scanning', [])))
 
     return {
         'repo':           repo,
@@ -654,13 +606,6 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         'forks':          repo_meta.get('forks_count', 0),
         'watchers':       repo_meta.get('watchers_count', 0),
         'security':       security,
-        'insights': {
-            'has_license':   bool(repo_meta.get('license')),
-            'license_name':  (repo_meta.get('license') or {}).get('spdx_id', ''),
-            'has_ci':        any(wf.get('state') == 'active' for wf in workflows),
-            'security_count': _sec_count,
-            'is_private':    bool(repo_meta.get('private', False)),
-        },
     }
 
 
@@ -715,16 +660,8 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
         try:
             r = http.get(url, headers=_gh_headers(token),
                          params={'state': 'open', 'per_page': 30}, timeout=10)
-            if r.status_code == 403:
-                try:
-                    msg = (r.json().get('message') or '').lower()
-                except Exception:
-                    msg = ''
-                if 'not enabled' in msg or 'disabled' in msg:
-                    return [], None  # Dependabot nicht aktiviert (public repo)
-                return [], False   # echter Scope-Fehler (fehlender security_events Scope)
-            if r.status_code in (404, 451):
-                return [], None    # Dependabot nicht aktiviert oder nicht verfügbar
+            if r.status_code in (403, 404, 451):
+                return [], False
             if r.status_code != 200:
                 return [], True
             results = list(r.json()) if isinstance(r.json(), list) else []
@@ -785,50 +722,6 @@ def _fetch_releases(repos: list[str], token: str, include_betas: bool) -> list[d
         except Exception as e:
             log.error("Releases für %s: %s", repo, e)
     return results
-
-
-def _fetch_my_activity(login: str, token: str) -> dict:
-    """Eigene offene PRs, Issues und Review-Requests via GitHub Search API."""
-    if not login:
-        return {'prs': [], 'issues': [], 'review_prs': []}
-    prs, issues, review_prs = [], [], []
-
-    def _search(q: str) -> list:
-        try:
-            r = http.get(
-                f'{GITHUB_API}/search/issues',
-                params={'q': q, 'per_page': 50, 'sort': 'updated'},
-                headers=_gh_headers(token), timeout=15,
-            )
-            if r.status_code == 200:
-                return r.json().get('items', [])
-        except Exception as e:
-            log.error("my_activity search '%s': %s", q, e)
-        return []
-
-    def _fmt(item: dict) -> dict:
-        return {
-            'number':   item['number'],
-            'title':    item['title'],
-            'url':      item['html_url'],
-            'repo':     item['repository_url'].removeprefix(f'{GITHUB_API}/repos/'),
-            'state':    item['state'],
-            'draft':    item.get('draft', False),
-            'updated':  item['updated_at'],
-            'created':  item['created_at'],
-            'comments': item.get('comments', 0),
-            'labels':   [l['name'] for l in item.get('labels', [])],
-            'body':     (item.get('body') or '')[:1000],
-        }
-
-    for item in _search(f'author:{login} type:pr state:open'):
-        prs.append(_fmt(item))
-    for item in _search(f'author:{login} type:issue state:open'):
-        issues.append(_fmt(item))
-    for item in _search(f'review-requested:{login} type:pr state:open'):
-        review_prs.append(_fmt(item))
-
-    return {'prs': prs, 'issues': issues, 'review_prs': review_prs}
 
 
 def _send_telegram(token: str, chat_id: str, text: str) -> None:
@@ -908,22 +801,12 @@ def _trigger_repo_poll(repo_name: str) -> None:
         return
     try:
         run_limit = min(500, max(1, int(cfg.get('workflow_run_limit', 25))))
-        data = _fetch_repo_data(repo_name, token, min(50, run_limit))
+        data = _fetch_repo_data(repo_name, token, run_limit)
         with _gh_lock:
             repos   = _gh_cache.get('my_repos', [])
             updated = False
             for i, rd in enumerate(repos):
                 if rd['repo'] == repo_name:
-                    # Runs mergen statt ersetzen — bestehende Liste wächst nie zurück auf 500
-                    new_runs      = data.get('runs', [])
-                    existing_runs = rd.get('runs', [])
-                    existing_ids  = {r['id'] for r in existing_runs}
-                    merged = [
-                        next((r for r in new_runs if r['id'] == er['id']), er)
-                        for er in existing_runs
-                    ]
-                    brand_new = [r for r in new_runs if r['id'] not in existing_ids]
-                    data['runs'] = brand_new + merged
                     repos[i] = data
                     updated  = True
                     break
@@ -944,34 +827,6 @@ def _tg_em(cfg: dict, tg_token: str, tg_chat: str, tg_notif: dict, em_notif: dic
         _send_telegram(tg_token, tg_chat, tg_text)
     if em_notif.get(key, True):
         _send_email(cfg, em_subject, _email_html(em_subject, em_lines))
-
-
-def _send_daily_digest(cfg: dict, tg_token: str, tg_chat: str,
-                       tg_notif: dict, em_notif: dict, repo_data: list) -> None:
-    """Tages-Digest einmal täglich senden — zusätzlich zu Echtzeit-Benachrichtigungen."""
-    total_prs     = sum(rd.get('open_prs', 0) for rd in repo_data)
-    total_issues  = sum(rd.get('open_issues', 0) for rd in repo_data)
-    total_sec     = sum((rd.get('insights') or {}).get('security_count', 0) for rd in repo_data)
-    today_str     = datetime.now().strftime('%d.%m.%Y')
-    subject_tg    = f"📋 <b>GitPulse Tages-Digest</b> — {today_str}"
-    subject_em    = f"GitPulse Tages-Digest — {today_str}"
-    lines_tg: list[str] = []
-    lines_em: list[str] = []
-    for rd in repo_data:
-        prs    = rd.get('open_prs', 0)
-        issues = rd.get('open_issues', 0)
-        sec    = (rd.get('insights') or {}).get('security_count', 0)
-        sec_s  = f' · 🔒 {sec}' if sec else ''
-        lines_tg.append(f"• <b>{rd['name']}</b> — {prs} PR{'s' if prs!=1 else ''}, {issues} Issue{'s' if issues!=1 else ''}{sec_s}")
-        lines_em.append(f"• <b>{rd['name']}</b> — {prs} PRs, {issues} Issues{sec_s}")
-    lines_tg.append(f"\n<b>Gesamt: {total_prs} PRs, {total_issues} Issues"
-                    + (f', 🔒 {total_sec} Alerts' if total_sec else '') + '</b>')
-    lines_em.append(f"Gesamt: {total_prs} PRs, {total_issues} Issues"
-                    + (f', 🔒 {total_sec} Alerts' if total_sec else ''))
-    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'digest',
-           subject_tg + '\n' + '\n'.join(lines_tg),
-           subject_em, lines_em)
-    log.info("Tages-Digest gesendet (%d Repos)", len(repo_data))
 
 
 # ── Poll worker ───────────────────────────────────────────────────────────────
@@ -1014,8 +869,7 @@ def _poll_worker() -> None:
 
 
 def _do_poll(cfg: dict, token: str) -> None:
-    global _seen_releases, _seen_activity, _first_poll_done, _gh_login
-    global _last_digest_date, _seen_review_prs
+    global _seen_releases, _first_poll_done
 
     token_ok, scopes, expires = _check_token(token)
     if not token_ok:
@@ -1024,15 +878,6 @@ def _do_poll(cfg: dict, token: str) -> None:
             _gh_cache['error'] = 'Token ungültig oder abgelaufen'
         _notify_sse()
         return
-
-    if not _gh_login:
-        try:
-            r = http.get(f'{GITHUB_API}/user', headers=_gh_headers(token), timeout=10)
-            if r.status_code == 200:
-                _gh_login = r.json().get('login', '')
-                log.info("GitHub-Login: %s", _gh_login)
-        except Exception as e:
-            log.warning("GitHub-Login konnte nicht geladen werden: %s", e)
 
     user_repos = load_user_repos()
     if user_repos is not None:
@@ -1055,27 +900,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     repo_data = []
     for repo in my_repos:
         try:
-            # Initialer Poll: volle run_limit laden; folgende Polls: nur 50 holen + mergen
-            poll_limit = run_limit if not _first_poll_done else min(50, run_limit)
-            data = _fetch_repo_data(repo, token, poll_limit)
-
-            if _first_poll_done:
-                with _gh_lock:
-                    existing = next(
-                        (rd for rd in _gh_cache.get('my_repos', []) if rd['repo'] == repo), None
-                    )
-                if existing:
-                    new_runs = data.get('runs', [])
-                    new_ids  = {r['id'] for r in new_runs}
-                    # Bestehende Runs mit frischen Status-Daten aktualisieren
-                    updated = [
-                        next((r for r in new_runs if r['id'] == er['id']), er)
-                        for er in existing.get('runs', [])
-                    ]
-                    # Neue Runs vorne einfügen
-                    brand_new = [r for r in new_runs if r['id'] not in {er['id'] for er in existing.get('runs', [])}]
-                    data['runs'] = brand_new + updated
-
+            data = _fetch_repo_data(repo, token, run_limit)
             repo_data.append(data)
             if _verbose():
                 pr_cnt = int(data['open_prs'])
@@ -1223,76 +1048,9 @@ def _do_poll(cfg: dict, token: str) -> None:
     if new_releases:
         save_seen_releases()
 
-    # Eigene Aktivität (PRs + Issues die ich erstellt habe)
-    activity = _fetch_my_activity(_gh_login, token)
-    activity_changed = False
-    new_activity_comments = []
-    all_items = [('pr', pr) for pr in activity['prs']] + [('issue', iss) for iss in activity['issues']]
-    for kind, item in all_items:
-        key = f"{item['repo']}#{item['number']}:open"
-        ckey = f"{item['repo']}#{item['number']}"
-        cnt = item.get('comments', 0)
-        if _first_poll_done:
-            if key not in _seen_activity:
-                _seen_activity.add(key)
-                activity_changed = True
-                if kind == 'pr':
-                    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
-                        f"🔀 Neuer eigener PR: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>",
-                        f"Neuer eigener PR: {item['repo']} #{item['number']} {item['title']}",
-                        [f"Repo: <b>{item['repo']}</b>", f"PR: <a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>"])
-                else:
-                    _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
-                        f"🐛 Neues eigenes Issue: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#I{item['number']} {item['title']}</a>",
-                        f"Neues eigenes Issue: {item['repo']} #{item['number']} {item['title']}",
-                        [f"Repo: <b>{item['repo']}</b>", f"Issue: <a href=\"{item['url']}\">#I{item['number']} {item['title']}</a>"])
-            prev_cnt = _activity_comment_counts.get(ckey)
-            if prev_cnt is not None and cnt > prev_cnt:
-                label = 'PR' if kind == 'pr' else 'Issue'
-                new_cnt = cnt - prev_cnt
-                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
-                    f"💬 Neuer Kommentar auf deinem {label}: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>\n{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}",
-                    f"Neuer Kommentar auf {label} {item['repo']} #{item['number']}",
-                    [f"Repo: <b>{item['repo']}</b>", f"{label}: <a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>", f"{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}"])
-                new_activity_comments.append({'kind': kind, 'item': item, 'new_cnt': new_cnt})
-        else:
-            _seen_activity.add(key)
-            activity_changed = True
-        _activity_comment_counts[ckey] = cnt
-    if activity_changed:
-        save_seen_activity()
-
-    # Review-Requests: benachrichtigen wenn neue PRs zur Review angefragt wurden
-    for rpr in activity.get('review_prs', []):
-        rkey = f"{rpr['repo']}#{rpr['number']}"
-        if rkey not in _seen_review_prs:
-            if _first_poll_done:
-                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'review_request',
-                    f"🔍 Review angefragt: <b>{rpr['repo']}</b>\n<a href=\"{rpr['url']}\">#PR{rpr['number']} {rpr['title']}</a>",
-                    f"Review angefragt: {rpr['repo']} #{rpr['number']} {rpr['title']}",
-                    [f"Repo: <b>{rpr['repo']}</b>",
-                     f"PR: <a href=\"{rpr['url']}\">#PR{rpr['number']} {rpr['title']}</a>"])
-            _seen_review_prs.add(rkey)
-
-    # Tages-Digest
-    digest_hour = int(cfg.get('digest_hour', -1))
-    if digest_hour >= 0 and _first_poll_done:
-        now_dt = datetime.now()
-        today  = now_dt.strftime('%Y-%m-%d')
-        if now_dt.hour == digest_hour and today != _last_digest_date:
-            _send_daily_digest(cfg, tg_token, tg_chat, tg_notif, em_notif, repo_data)
-            _last_digest_date = today
-
     with _gh_lock:
         _gh_cache['my_repos']      = repo_data
         _gh_cache['releases']      = releases
-        _gh_cache['my_activity']          = {
-            'prs':        activity.get('prs', []),
-            'issues':     activity.get('issues', []),
-            'review_prs': activity.get('review_prs', []),
-        }
-        _gh_cache['new_activity_comments'] = new_activity_comments
-        _gh_cache['gh_login']             = _gh_login
         _gh_cache['token_ok']      = True
         _gh_cache['token_scopes']  = scopes
         _gh_cache['token_expires'] = expires
@@ -1619,208 +1377,6 @@ def api_branches():
         return jsonify({'error': 'internal error'}), 500
 
 
-@app.route('/api/compare')
-def api_compare():
-    redir = _auth_required(request)
-    if redir:
-        return jsonify({'error': 'unauthorized'}), 401
-    repo = request.args.get('repo', '').strip()
-    base = request.args.get('base', '').strip()
-    head = request.args.get('head', '').strip()
-    if not repo or not base or not head:
-        return jsonify({'error': 'repo, base und head erforderlich'}), 400
-    token = load_config().get('github_token', '').strip()
-    if not token:
-        return jsonify({'error': 'kein Token'}), 400
-    try:
-        r = http.get(
-            f'{GITHUB_API}/repos/{repo}/compare/{base}...{head}',
-            headers=_gh_headers(token),
-            timeout=15,
-        )
-        _update_rate_limit(r.headers)
-        if r.status_code != 200:
-            msg = r.json().get('message', f'HTTP {r.status_code}') if r.content else f'HTTP {r.status_code}'
-            return jsonify({'error': msg}), r.status_code
-        data = r.json()
-        commits = [
-            {
-                'sha':     c['sha'],
-                'short':   c['sha'][:7],
-                'message': c['commit']['message'].split('\n')[0][:120],
-                'author':  c['commit']['author']['name'],
-                'date':    c['commit']['author']['date'],
-                'url':     c.get('html_url', ''),
-            }
-            for c in data.get('commits', [])
-        ]
-        return jsonify({'commits': commits, 'ahead_by': data.get('ahead_by', 0)})
-    except Exception:
-        log.exception("Compare-Fehler (%s %s...%s)", repo, base, head)
-        return jsonify({'error': 'internal error'}), 500
-
-
-@app.route('/api/cherry-pick', methods=['POST'])
-def api_cherry_pick():
-    redir = _auth_required(request)
-    if redir:
-        return jsonify({'error': 'unauthorized'}), 401
-    data   = request.get_json(silent=True) or {}
-    repo   = data.get('repo', '').strip()
-    shas   = data.get('commits', [])
-    target = data.get('target', '').strip()
-    token  = load_config().get('github_token', '').strip()
-    if not all([token, repo, shas, target]):
-        return jsonify({'error': 'Parameter fehlen'}), 400
-    hdrs = _gh_headers(token)
-    try:
-        # 1. Ziel-Branch HEAD SHA ermitteln
-        r = http.get(f'{GITHUB_API}/repos/{repo}/git/ref/heads/{target}',
-                     headers=hdrs, timeout=10)
-        _update_rate_limit(r.headers)
-        if r.status_code != 200:
-            return jsonify({'error': f'Branch "{target}" nicht gefunden'}), 404
-        base_sha = r.json()['object']['sha']
-
-        # 2. Neuen Branch erstellen
-        short    = shas[0][:7]
-        ts       = int(time.time()) % 100000
-        new_name = f'cherry-pick/{short}-to-{target}-{ts}'
-        r2 = http.post(f'{GITHUB_API}/repos/{repo}/git/refs',
-                       headers=hdrs,
-                       json={'ref': f'refs/heads/{new_name}', 'sha': base_sha},
-                       timeout=10)
-        _update_rate_limit(r2.headers)
-        if r2.status_code not in (201, 422):
-            return jsonify({'error': f'Branch konnte nicht erstellt werden: {r2.text[:200]}'}), 500
-
-        # 3. Commits einzeln anwenden
-        errors: list[str] = []
-        for sha in shas:
-            commit_r = http.get(f'{GITHUB_API}/repos/{repo}/commits/{sha}',
-                                headers=hdrs, timeout=15)
-            _update_rate_limit(commit_r.headers)
-            if commit_r.status_code != 200:
-                errors.append(f'Commit {sha[:7]}: nicht ladbar')
-                continue
-            for f in commit_r.json().get('files', []):
-                path   = f['filename']
-                status = f['status']
-                try:
-                    if status == 'removed':
-                        ex = http.get(f'{GITHUB_API}/repos/{repo}/contents/{path}',
-                                      headers=hdrs, params={'ref': new_name}, timeout=10)
-                        if ex.status_code == 200:
-                            http.delete(f'{GITHUB_API}/repos/{repo}/contents/{path}',
-                                        headers=hdrs,
-                                        json={'message': f'cherry-pick {sha[:7]}: remove {path}',
-                                              'sha': ex.json()['sha'], 'branch': new_name},
-                                        timeout=10)
-                    else:
-                        if status == 'renamed':
-                            old_path = f.get('previous_filename', '')
-                            if old_path:
-                                ex_old = http.get(f'{GITHUB_API}/repos/{repo}/contents/{old_path}',
-                                                  headers=hdrs, params={'ref': new_name}, timeout=10)
-                                if ex_old.status_code == 200:
-                                    http.delete(f'{GITHUB_API}/repos/{repo}/contents/{old_path}',
-                                                headers=hdrs,
-                                                json={'message': f'cherry-pick {sha[:7]}: rename {old_path}',
-                                                      'sha': ex_old.json()['sha'], 'branch': new_name},
-                                                timeout=10)
-                        cr = http.get(f'{GITHUB_API}/repos/{repo}/contents/{path}',
-                                      headers=hdrs, params={'ref': sha}, timeout=10)
-                        _update_rate_limit(cr.headers)
-                        if cr.status_code != 200:
-                            errors.append(f'{path}: Inhalt nicht ladbar')
-                            continue
-                        cdata = cr.json()
-                        if cdata.get('encoding') != 'base64':
-                            errors.append(f'{path}: unbekanntes Encoding (zu groß?)')
-                            continue
-                        b64 = cdata['content'].replace('\n', '')
-                        ex  = http.get(f'{GITHUB_API}/repos/{repo}/contents/{path}',
-                                       headers=hdrs, params={'ref': new_name}, timeout=10)
-                        body: dict = {'message': f'cherry-pick {sha[:7]}: {path}',
-                                      'content': b64, 'branch': new_name}
-                        if ex.status_code == 200:
-                            body['sha'] = ex.json()['sha']
-                        put_r = http.put(f'{GITHUB_API}/repos/{repo}/contents/{path}',
-                                         headers=hdrs, json=body, timeout=10)
-                        _update_rate_limit(put_r.headers)
-                        if put_r.status_code not in (200, 201):
-                            errors.append(f'{path}: Schreiben fehlgeschlagen ({put_r.status_code})')
-                except Exception as fe:
-                    errors.append(f'{path}: {fe}')
-
-        # 4. PR erstellen
-        msg_list = []
-        for sha in shas:
-            cr  = http.get(f'{GITHUB_API}/repos/{repo}/commits/{sha}', headers=hdrs, timeout=10)
-            msg = cr.json().get('commit', {}).get('message', sha[:7]).split('\n')[0] if cr.status_code == 200 else sha[:7]
-            msg_list.append(f'- `{sha[:7]}` {msg}')
-        n        = len(shas)
-        pr_title = f'Cherry-pick: {n} commit{"s" if n != 1 else ""} → {target}'
-        pr_body  = '🍒 Cherry-picked commits:\n\n' + '\n'.join(msg_list) + '\n\n*Created by GitPulse*'
-        pr_r = http.post(f'{GITHUB_API}/repos/{repo}/pulls',
-                         headers=hdrs,
-                         json={'title': pr_title, 'head': new_name,
-                               'base': target, 'body': pr_body},
-                         timeout=15)
-        _update_rate_limit(pr_r.headers)
-        if pr_r.status_code == 201:
-            pr = pr_r.json()
-            log.info("Cherry-pick PR #%s erstellt (%s → %s)", pr['number'], new_name, target)
-            return jsonify({'pr_url': pr['html_url'], 'pr_number': pr['number'],
-                            'branch': new_name, 'errors': errors})
-        return jsonify({'branch': new_name, 'errors': errors,
-                        'error': f'PR nicht erstellt: {pr_r.json().get("message", pr_r.status_code)}'})
-    except Exception:
-        log.exception("Cherry-pick Fehler (%s)", repo)
-        return jsonify({'error': 'Interner Fehler'}), 500
-
-
-@app.route('/api/comments')
-def api_comments():
-    redir = _auth_required(request)
-    if redir:
-        return jsonify({'error': 'unauthorized'}), 401
-    repo   = request.args.get('repo', '').strip()
-    number = request.args.get('number', '').strip()
-    if not repo or '/' not in repo or not number or not number.isdigit():
-        return jsonify({'error': 'invalid params'}), 400
-    token = load_config().get('github_token', '').strip()
-    if not token:
-        return jsonify({'error': 'no token'}), 400
-    try:
-        r = http.get(
-            f'{GITHUB_API}/repos/{repo}/issues/{number}/comments',
-            headers=_gh_headers(token),
-            params={'per_page': 100},
-            timeout=15,
-        )
-        _update_rate_limit(r.headers)
-        if r.status_code != 200:
-            return jsonify({'error': f'HTTP {r.status_code}'}), 502
-        all_comments = r.json() if isinstance(r.json(), list) else []
-        last3 = all_comments[-3:]
-        return jsonify({
-            'total': len(all_comments),
-            'comments': [
-                {
-                    'user':    c['user']['login'],
-                    'avatar':  c['user']['avatar_url'],
-                    'body':    (c.get('body') or '')[:500],
-                    'created': c['created_at'],
-                    'url':     c.get('html_url', ''),
-                } for c in last3
-            ],
-        })
-    except Exception:
-        log.exception("Comments-Abfrage Fehler")
-        return jsonify({'error': 'internal error'}), 500
-
-
 @app.route('/api/workflow/dispatch', methods=['POST'])
 def api_workflow_dispatch():
     redir = _auth_required(request)
@@ -1895,8 +1451,7 @@ def api_ci_jobs():
 _TG_NOTIF_KEYS = (
     'startup', 'new_pr', 'pr_closed', 'new_issue',
     'workflow_started', 'workflow_completed',
-    'releases', 'repo_stats', 'star_fork', 'security', 'my_activity',
-    'review_request', 'digest',
+    'releases', 'repo_stats', 'star_fork', 'security',
 )
 
 
@@ -2770,21 +2325,7 @@ def api_addon_manager_image_check():
     if not image or not version or not token:
         return jsonify({'error': 'missing_params'}), 400
     # image = ghcr.io/luckytriple7/claudecode → owner/name = luckytriple7/claudecode
-    if len(image) > 300:
-        return jsonify({'error': 'invalid_image'}), 400
-    if '://' in image:
-        parsed = urlparse(image)
-        if parsed.hostname != 'ghcr.io':
-            return jsonify({'error': 'invalid_image'}), 400
-        repo_part = parsed.path.lstrip('/')
-    else:
-        # Prepend scheme so urlparse can properly validate the hostname
-        parsed = urlparse(f'https://{image}')
-        if parsed.hostname != 'ghcr.io':
-            return jsonify({'error': 'invalid_image'}), 400
-        repo_part = parsed.path.lstrip('/')
-    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,99}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}', repo_part):
-        return jsonify({'error': 'invalid_image'}), 400
+    repo_part = image.removeprefix('ghcr.io/') if image.startswith('ghcr.io/') else image
     owner = repo_part.split('/')[0]
     try:
         import base64 as _b64
@@ -2961,7 +2502,6 @@ def api_addon_manager_revert():
 if __name__ == '__main__':
     load_sessions()
     load_seen_releases()
-    load_seen_activity()
 
     # Initiales Token-Ablauf-Warning
     cfg   = load_config()
