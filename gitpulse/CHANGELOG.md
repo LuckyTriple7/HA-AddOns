@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.8] - 2026-06-11
+
+### Fixed
+- **Security-Tab**: `ghLink is not defined` Konsolenfehler behoben — `onclick`-Attribut entfernt, Links öffnen via `href`/`target="_blank"` nativ
+
 ## [0.3.7] - 2026-06-11
 
 ### Fixed

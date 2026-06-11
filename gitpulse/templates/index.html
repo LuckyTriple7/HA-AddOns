@@ -2201,7 +2201,7 @@
                 <b>${escHtml(a.package)}</b>${a.ecosystem?' <span style="color:var(--muted)">('+escHtml(a.ecosystem)+')</span>':''} — ${escHtml(a.summary)}
               </span>
               ${a.fixed_in ? `<span style="font-size:.72rem;color:var(--green);white-space:nowrap">→ ${escHtml(a.fixed_in)}</span>` : ''}
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
         </div>` : (depNoScope ? `
         <div style="margin-bottom:8px;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:8px">
@@ -2222,7 +2222,7 @@
                 <b>${escHtml(a.tool)}</b> — ${escHtml(a.description)}
               </span>
               ${a.path ? `<span style="font-size:.72rem;color:var(--muted);white-space:nowrap">${escHtml(a.path)}${a.line?':'+a.line:''}</span>` : ''}
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
         </div>` : '';
 
@@ -2236,7 +2236,7 @@
               <span>🚨</span>
               <span style="font-size:.7rem;font-weight:600;color:${_secSevColor.critical};min-width:54px">CRITICAL</span>
               <span style="flex:1">${escHtml(a.type)}</span>
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`).join('')}
         </div>` : '';
 
