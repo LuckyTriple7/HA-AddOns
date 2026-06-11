@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.14.3] - 2026-06-11
+
+Fix  Clear-text storage of sensitive information mypage #139
+
+
 ## [0.1.14.2] - 2026-06-11
 
 Fix: Clear-text storage of sensitive information #139
