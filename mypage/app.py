@@ -18,6 +18,7 @@ import secrets
 import shutil
 import smtplib
 import subprocess
+import tempfile
 import threading
 import time
 import uuid

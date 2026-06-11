@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.16
+
+- 🔧 Hotfix: fehlender `import tempfile` ließ den SMB-Mount fehlschlagen („name 'tempfile' is not defined")
+
 ## 0.1.15
 
 - 🔧 **Journal repariert**: Die CodeQL-Autofixes (0.1.14.1–0.1.14.3) waren gegen veraltete Dateistände erzeugt und hatten Journal, `noserverino`-SMB-Fix, Referrer-Filter und konfigurierbare Log-Limits mit zurückgedreht — alles wiederhergestellt
