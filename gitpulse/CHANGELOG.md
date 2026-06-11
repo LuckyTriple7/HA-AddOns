@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.11] - 2026-06-11
+
+### Fixed
+- **Branch-Manager**: SyntaxError durch einfache Anführungszeichen in Bestätigungstexten behoben (`| tojson` im Template)
+
 ## [0.3.10] - 2026-06-11
 
 ### Added
