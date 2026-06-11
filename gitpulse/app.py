@@ -2558,6 +2558,7 @@ def github_webhook():
             f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n#{alert_num} · {label}\nTyp: {secret_type}\n" + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''),
             f"Secret Scanning Alert: {repo_full}",
             [f"#{alert_num} · {label}", f"Typ: {secret_type}"] + ([f"<a href=\"{alert_url}\">Alert anzeigen</a>"] if alert_url else []))
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event == 'code_scanning_alert':
         alert     = payload.get('alert', {})
@@ -2591,6 +2592,7 @@ def github_webhook():
                       + (f"📄 {loc_str}\n" if loc_str else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Code Scanning Alert: {repo_full} [{severity.upper()}]", em_lines)
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event == 'dependabot_alert':
         alert    = payload.get('alert', {})
@@ -2625,6 +2627,7 @@ def github_webhook():
                       + (f"Fix verfügbar: {fixed_in}\n" if fixed_in else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Dependabot Alert: {repo_full} [{severity.upper()}]", em_lines)
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     return jsonify({'status': 'ok'}), 200
 

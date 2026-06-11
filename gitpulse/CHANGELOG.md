@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.13] - 2026-06-11
+
+### Fixed
+- **Webhook**: Security-Events (`code_scanning_alert`, `dependabot_alert`, `secret_scanning_alert`) lösen jetzt sofort einen Repo-Poll aus — die UI aktualisiert sich direkt nach dem Webhook, ohne auf den nächsten geplanten Poll zu warten
+
 ## [0.3.12] - 2026-06-11
 
 ### Added
