@@ -11,12 +11,6 @@ configuration:
   github_token:
     name: GitHub token
     description: Optional token — raises the API limit for GitHub import and star updates.
-  visit_log_max:
-    name: Visitor log size
-    description: How many visits the visitor log keeps (50–10000, default 500). Referrers/browsers/countries are computed from it.
-  user_journal_max:
-    name: Journal size per user
-    description: How many events the journal keeps per user (20–1000, default 100).
   geoip_lookup:
     name: GeoIP lookup (ipapi.is)
     description: Resolves the visitor country precisely via ipapi.is. Note — visitor IPs are sent to that service (update your privacy policy!).
