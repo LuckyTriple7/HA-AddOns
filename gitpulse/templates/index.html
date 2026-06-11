@@ -1331,8 +1331,12 @@
     cp_same_branch:      '{{ t.cp_same_branch }}',
     bm_protected:        '{{ t.bm_protected }}',
     bm_delete:           '{{ t.bm_delete }}',
+    bm_merged:           '{{ t.bm_merged }}',
+    bm_unmerged:         '{{ t.bm_unmerged }}',
     bm_confirm:          '{{ t.bm_confirm }}',
+    bm_confirm_pr:       '{{ t.bm_confirm_pr }}',
     bm_confirm_bulk:     '{{ t.bm_confirm_bulk }}',
+    bm_warn_pr:          '{{ t.bm_warn_pr }}',
     bm_bulk_delete:      '{{ t.bm_bulk_delete }}',
     bm_no_branches:      '{{ t.bm_no_branches }}',
     bm_select_repo:      '{{ t.bm_select_repo }}',
@@ -3153,6 +3157,8 @@
       repos.map(r => `<option value="${escHtml(r)}"${r === cur ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
   }
 
+  let _bmData = [];  // [{name, protected, open_pr, ahead_by, compare_base}]
+
   function bmLoad() {
     const repo = document.getElementById('bm-repo').value;
     const list = document.getElementById('bm-list');
@@ -3161,25 +3167,40 @@
       return;
     }
     list.innerHTML = `<div style="color:var(--muted);font-size:.85rem">${T.cp_loading}</div>`;
-    fetch(u('/api/branches?repo=' + encodeURIComponent(repo)))
+    fetch(u('/api/branches?repo=' + encodeURIComponent(repo) + '&info=1'))
       .then(r => r.json())
-      .then(names => {
-        if (!Array.isArray(names) || !names.length) {
+      .then(branches => {
+        if (!Array.isArray(branches) || !branches.length) {
           list.innerHTML = `<div style="color:var(--muted);font-size:.85rem">${T.bm_no_branches}</div>`;
           return;
         }
-        const rows = names.map(n => {
-          const prot = _BM_PROTECTED.includes(n.toLowerCase());
+        _bmData = branches;
+        const base = (branches.find(b => !b.protected) || {}).compare_base || 'main';
+        const rows = branches.map(b => {
+          const { name, protected: prot, open_pr, ahead_by } = b;
+          // Status badge
+          let badge = '';
+          if (prot) {
+            badge = `<span style="font-size:.72rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 5px;flex-shrink:0">🔒 ${T.bm_protected}</span>`;
+          } else if (open_pr) {
+            badge = `<span style="font-size:.72rem;color:var(--yellow);border:1px solid rgba(210,153,34,.4);border-radius:3px;padding:0 5px;flex-shrink:0;white-space:nowrap">⚠ PR #${open_pr}</span>`;
+          } else if (ahead_by === 0) {
+            badge = `<span style="font-size:.72rem;color:var(--green);border:1px solid rgba(63,185,80,.3);border-radius:3px;padding:0 5px;flex-shrink:0;white-space:nowrap">${T.bm_merged.replace('{base}', escHtml(base))}</span>`;
+          } else if (ahead_by > 0) {
+            badge = `<span style="font-size:.72rem;color:var(--orange);border:1px solid rgba(240,136,62,.3);border-radius:3px;padding:0 5px;flex-shrink:0;white-space:nowrap">${T.bm_unmerged.replace('{n}', ahead_by)}</span>`;
+          }
+          // Delete button (orange if open PR, red otherwise)
+          const btnColor = open_pr ? 'var(--orange)' : 'var(--red)';
+          const delBtn   = prot ? '' : `<button class="act-btn" style="font-size:.75rem;color:${btnColor};flex-shrink:0"
+                    onclick="bmDeleteOne(${safeJsArg(repo)},${safeJsArg(name)})">🗑 ${T.bm_delete}</button>`;
           return `
-            <div class="row-item" style="gap:8px;padding:7px 10px;font-size:.82rem" data-bm-branch="${escHtml(n)}">
-              <input type="checkbox" ${prot ? 'disabled' : 'class="bm-cb"'} value="${escHtml(n)}"
+            <div class="row-item" style="gap:8px;padding:7px 10px;font-size:.82rem${prot ? ';opacity:.55' : ''}" data-bm-branch="${escHtml(name)}">
+              <input type="checkbox" ${prot ? 'disabled' : `class="bm-cb" value="${escHtml(name)}"`}
                      style="flex-shrink:0;accent-color:var(--accent)">
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap${prot ? ';color:var(--muted)' : ''}">${escHtml(n)}</span>
-              ${prot
-                ? `<span style="font-size:.72rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 5px">🔒 ${T.bm_protected}</span>`
-                : `<button class="act-btn" style="font-size:.75rem;color:var(--red);flex-shrink:0"
-                           onclick="bmDeleteOne(${safeJsArg(repo)},${safeJsArg(n)})">🗑 ${T.bm_delete}</button>`}
-              <span class="bm-status" style="font-size:.75rem;min-width:40px;text-align:right"></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(name)}</span>
+              ${badge}
+              ${delBtn}
+              <span class="bm-status" style="font-size:.75rem;min-width:16px;text-align:right;flex-shrink:0"></span>
             </div>`;
         }).join('');
         list.innerHTML = `
@@ -3216,7 +3237,27 @@
   }
 
   async function bmDeleteOne(repo, branch) {
-    if (!confirm(T.bm_confirm.replace('{branch}', branch))) return;
+    const bd      = _bmData.find(b => b.name === branch) || {};
+    const openPr  = bd.open_pr;
+    const msg     = openPr
+      ? T.bm_confirm_pr.replace('{branch}', branch).replace('{n}', openPr)
+      : T.bm_confirm.replace('{branch}', branch);
+    if (!confirm(msg)) return;
+    await _bmDoDelete(repo, branch);
+  }
+
+  async function bmDeleteSelected(repo) {
+    const branches = Array.from(document.querySelectorAll('.bm-cb:checked')).map(cb => cb.value);
+    if (!branches.length) return;
+    const withPr = branches.filter(n => (_bmData.find(b => b.name === n) || {}).open_pr);
+    let msg = T.bm_confirm_bulk.replace('{n}', branches.length);
+    if (withPr.length) msg += '\n\n' + T.bm_warn_pr.replace('{n}', withPr.length);
+    if (!confirm(msg)) return;
+    for (const branch of branches) await _bmDoDelete(repo, branch);
+    bmUpdateBulkBtn();
+  }
+
+  async function _bmDoDelete(repo, branch) {
     const row    = _bmRowOf(branch);
     const status = row && row.querySelector('.bm-status');
     if (status) status.textContent = '…';
@@ -3227,7 +3268,7 @@
       });
       const data = await r.json();
       if (data.ok) {
-        if (row) { row.style.opacity = '.35'; row.style.pointerEvents = 'none'; }
+        if (row) { row.style.opacity = '.3'; row.style.pointerEvents = 'none'; }
         if (status) { status.textContent = '✓'; status.style.color = 'var(--green)'; }
       } else {
         if (status) { status.textContent = '✗ ' + escHtml(data.error || '?'); status.style.color = 'var(--red)'; }
@@ -3235,33 +3276,6 @@
     } catch {
       if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
     }
-  }
-
-  async function bmDeleteSelected(repo) {
-    const branches = Array.from(document.querySelectorAll('.bm-cb:checked')).map(cb => cb.value);
-    if (!branches.length) return;
-    if (!confirm(T.bm_confirm_bulk.replace('{n}', branches.length))) return;
-    for (const branch of branches) {
-      const row    = _bmRowOf(branch);
-      const status = row && row.querySelector('.bm-status');
-      if (status) status.textContent = '…';
-      try {
-        const r    = await fetch(u('/api/branch'), {
-          method: 'DELETE', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({repo, branch}),
-        });
-        const data = await r.json();
-        if (data.ok) {
-          if (row) { row.style.opacity = '.35'; row.style.pointerEvents = 'none'; }
-          if (status) { status.textContent = '✓'; status.style.color = 'var(--green)'; }
-        } else {
-          if (status) { status.textContent = '✗ ' + escHtml(data.error || '?'); status.style.color = 'var(--red)'; }
-        }
-      } catch {
-        if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
-      }
-    }
-    bmUpdateBulkBtn();
   }
   </script>
 </body>

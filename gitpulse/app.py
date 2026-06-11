@@ -12,6 +12,7 @@ import smtplib
 import time
 import threading
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from email.mime.multipart import MIMEMultipart
@@ -1603,17 +1604,69 @@ def api_branches():
     redir = _auth_required(request)
     if redir:
         return jsonify({'error': 'unauthorized'}), 401
-    repo  = request.args.get('repo', '').strip()
+    repo    = request.args.get('repo', '').strip()
+    do_info = request.args.get('info', '0') == '1'
     if not repo:
         return jsonify({'error': 'repo fehlt'}), 400
     cfg   = load_config()
     token = cfg.get('github_token', '').strip()
     if not token:
         return jsonify({'error': 'kein Token'}), 400
+    hdrs = _gh_headers(token)
     try:
-        branches = _gh_get_paginated(f'/repos/{repo}/branches', token)
-        names = [b['name'] for b in (branches or []) if isinstance(b, dict) and 'name' in b]
-        return jsonify(names)
+        raw = _gh_get_paginated(f'/repos/{repo}/branches', token)
+        branch_objs = [b for b in (raw or []) if isinstance(b, dict) and 'name' in b]
+
+        if not do_info:
+            return jsonify([b['name'] for b in branch_objs])
+
+        _PROTECTED = {'main', 'master', 'dev', 'develop'}
+
+        # Open PRs: head branch name → PR number
+        raw_prs = _gh_get_paginated(f'/repos/{repo}/pulls', token, params={'state': 'open'})
+        open_pr_map: dict[str, int] = {}
+        for pr in (raw_prs or []):
+            if isinstance(pr, dict):
+                ref = (pr.get('head') or {}).get('ref')
+                if ref:
+                    open_pr_map[ref] = pr.get('number')
+
+        # Compare base: first protected branch that actually exists
+        existing = {b['name'] for b in branch_objs}
+        compare_base = next(
+            (c for c in ('main', 'master', 'dev', 'develop') if c in existing),
+            None
+        )
+
+        # Parallel ahead_by checks (how many commits branch has that base doesn't)
+        def _ahead(name: str):
+            if not compare_base or name == compare_base:
+                return None
+            try:
+                r = http.get(
+                    f'{GITHUB_API}/repos/{repo}/compare/{compare_base}...{name}',
+                    headers=hdrs, params={'per_page': 1}, timeout=10
+                )
+                return r.json().get('ahead_by') if r.status_code == 200 else None
+            except Exception:
+                return None
+
+        non_prot = [b['name'] for b in branch_objs if b['name'].lower() not in _PROTECTED]
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            ahead_map = dict(zip(non_prot, ex.map(_ahead, non_prot)))
+
+        result = []
+        for b in branch_objs:
+            name = b['name']
+            prot = name.lower() in _PROTECTED
+            result.append({
+                'name':         name,
+                'protected':    prot,
+                'open_pr':      open_pr_map.get(name),
+                'ahead_by':     None if prot else ahead_map.get(name),
+                'compare_base': compare_base,
+            })
+        return jsonify(result)
     except Exception:
         log.exception("Branches-Abfrage Fehler (%s)", repo)
         return jsonify({'error': 'internal error'}), 500

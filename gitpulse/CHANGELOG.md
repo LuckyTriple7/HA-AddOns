@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.10] - 2026-06-11
+
+### Added
+- **Branch-Manager**: Merge-Status und PR-Info pro Branch
+  - ✅ "in main" — Branch ist vollständig in main/dev gemergt → sicher zu löschen
+  - ⚠ "PR #N" — Branch hat einen offenen PR → Löschen zeigt explizite Warnung, dass der PR nicht mehr mergebar wird
+  - ↑ "N nicht gemergt" — Branch hat Commits die noch nicht in main/dev sind
+  - Status wird parallel via GitHub Compare-API abgefragt (schnell auch bei vielen Branches)
+  - Bulk-Löschen warnt zusätzlich wenn Branches mit offenen PRs ausgewählt sind
+
 ## [0.3.9] - 2026-06-11
 
 ### Added
