@@ -5,7 +5,6 @@ Zwei Server in einem Prozess:
   - Port 17760: öffentliche Homepage (kein Login, Besucherzähler)
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
-import errno
 import hashlib
 import html as html_mod
 import io
@@ -431,12 +430,7 @@ _BOT_UA = ('bot', 'crawl', 'spider', 'curl', 'wget', 'python-requests',
            'headless', 'lighthouse', 'pingdom', 'uptime')
 
 
-def visit_log_max() -> int:
-    """Konfigurierbares Limit für das Besucher-Log (Option visit_log_max)."""
-    try:
-        return max(50, min(10000, int(load_config().get('visit_log_max') or 500)))
-    except (TypeError, ValueError):
-        return 500
+VISIT_LOG_MAX = 500
 
 
 def total_uniques(stats: dict) -> int:
@@ -565,7 +559,7 @@ def count_visit(req) -> None:
         'bot':  is_bot,
         'new':  is_new,
     })
-    del visit_log[:-visit_log_max()]
+    del visit_log[:-VISIT_LOG_MAX]
 
     if not is_bot:
         base_uniques = total_uniques(stats)
@@ -597,31 +591,16 @@ def _browser_name(ua: str) -> str:
     return 'Other'
 
 
-def _own_domain() -> str:
-    """Eigene Basis-Domain (ohne www) — interne Navigation zählt nicht als Referrer."""
-    host = urlparse(load_site()['design'].get('public_url') or '').netloc.lower()
-    return host.split(':')[0].removeprefix('www.')
-
-
-def _is_own_host(host: str, own: str) -> bool:
-    """Exakter Vergleich oder echte Subdomain (Suffix mit Punkt) — nie Substring."""
-    if not own or not host:
-        return False
-    host = host.split(':')[0]
-    return host == own or host.endswith('.' + own)
-
-
 def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     """Top-Referrer, Browser- und Länder-Verteilung aus dem Besucher-Log."""
     referrers: dict[str, int] = {}
     browsers:  dict[str, int] = {}
     countries: dict[str, int] = {}
-    own = _own_domain()
     for v in visit_log:
         if v.get('bot'):
             continue
-        host = urlparse(v.get('ref') or '').netloc.lower()
-        if host and not _is_own_host(host, own):
+        host = urlparse(v.get('ref') or '').netloc
+        if host:
             referrers[host] = referrers.get(host, 0) + 1
         b = _browser_name(v.get('ua') or '')
         browsers[b] = browsers.get(b, 0) + 1
@@ -661,81 +640,16 @@ def save_users(users: list) -> None:
 
 def storage_available() -> bool:
     """False, wenn SMB konfiguriert ist, aber der Mount gerade nicht erreichbar ist.
-    Bewusst kein Fallback auf lokalen Speicher — das würde Datei-Chaos geben.
-    Prüft den aktiven Ordner (nicht nur die Mount-Wurzel), um stale Handles zu erkennen."""
+    Bewusst kein Fallback auf lokalen Speicher — das würde Datei-Chaos geben."""
     if not SMB_MOUNTED:
         return True
     try:
         if not os.path.ismount(str(USERFILES_BASE)):
             return False
-        os.listdir(userfiles_root())
+        os.listdir(USERFILES_BASE)
         return True
     except OSError:
         return False
-
-
-def drop_fs_caches() -> bool:
-    """Dentry-/Inode-Cache verwerfen — entwertet stale SMB-Handles ohne Remount.
-    Uploads (neue Dateien) funktionieren auch bei stale Cache, nur Reads alter
-    Dateien hängen — oft reicht das hier schon."""
-    try:
-        with open('/proc/sys/vm/drop_caches', 'w') as f:
-            f.write('2\n')
-        return True
-    except OSError:
-        return False
-
-
-_remount_lock = threading.Lock()
-# noserverino: FritzBox liefert instabile Inode-Nummern → Client vergibt eigene
-# (DER Fix gegen ESTALE direkt nach Uploads); cache=none/actimeo=1 als Gürtel+Hosenträger
-SMB_MOUNT_OPTS = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
-                  'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft,'
-                  'noserverino,cache=none,actimeo=1')
-
-
-def remount_smb() -> bool:
-    """SMB-Mount erneuern (FritzBox trennt inaktive Verbindungen → stale handles)."""
-    mountpoint = os.environ.get('MYPAGE_USERFILES', '')
-    if not mountpoint:
-        return False
-    with _remount_lock:
-        try:
-            cfg = load_config()
-            server = (cfg.get('smb_server') or '').strip()
-            share  = (cfg.get('smb_share') or '').strip()
-            if not server or not share:
-                return False
-            # force + lazy: harte Trennung, damit keine stale Superblocks übrig bleiben
-            subprocess.run(['umount', '-f', '-l', mountpoint], capture_output=True, timeout=30)
-            opts = SMB_MOUNT_OPTS
-            user = (cfg.get('smb_user') or '').strip()
-            if user:
-                cred = '/tmp/.smbcred-watchdog'
-                with open(cred, 'w') as f:
-                    f.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
-                os.chmod(cred, 0o600)
-                opts += f',credentials={cred}'
-            else:
-                opts += ',guest'
-            r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
-                                '-o', opts], capture_output=True, text=True, timeout=60)
-            if r.returncode != 0:
-                log.warning("SMB-Remount fehlgeschlagen: %s", (r.stderr or '').strip()[:200])
-                return False
-            # Erst als Erfolg melden, wenn die neue Session wirklich antwortet
-            for _ in range(6):
-                try:
-                    os.listdir(mountpoint)
-                    log.info("SMB-Mount erneuert und verifiziert")
-                    return True
-                except OSError:
-                    time.sleep(0.5)
-            log.warning("SMB-Remount: Mount ok, aber Share antwortet noch nicht")
-            return False
-        except Exception as e:
-            log.warning("SMB-Remount-Fehler: %s", e)
-            return False
 
 
 def userfiles_root() -> Path:
@@ -810,29 +724,6 @@ def current_member(req) -> dict | None:
     return next((u for u in load_users() if u['id'] == uid), None)
 
 
-def user_journal_max() -> int:
-    """Konfigurierbares Limit für das Journal pro Benutzer (Option user_journal_max)."""
-    try:
-        return max(20, min(1000, int(load_config().get('user_journal_max') or 100)))
-    except (TypeError, ValueError):
-        return 100
-
-
-def log_user_event(uid: str, action: str, detail: str = '', ip: str = '') -> None:
-    """Journal-Eintrag pro Benutzer (Login, Upload, Download, Löschen, …)."""
-    users = load_users()
-    user = next((u for u in users if u['id'] == uid), None)
-    if user is None:
-        return
-    entry = {'ts': int(time.time()), 'action': action, 'detail': detail[:150], 'ip': ip}
-    journal = user.setdefault('journal', [])
-    journal.append(entry)
-    del journal[:-user_journal_max()]
-    if action == 'login':
-        user['last_login'] = {'ts': entry['ts'], 'ip': ip}
-    save_users(users)
-
-
 def generate_member_password() -> str:
     """8 Zeichen, Groß/Klein/Zahlen, keine Sonderzeichen, keine verwechselbaren Zeichen."""
     up, low, dig = 'ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghjkmnpqrstuvwxyz', '23456789'
@@ -862,15 +753,46 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
 
 def _smb_watchdog() -> None:
     """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
-    if not os.environ.get('MYPAGE_USERFILES', ''):
+    mountpoint = os.environ.get('MYPAGE_USERFILES', '')
+    if not mountpoint:
         return
     while True:
         time.sleep(60)
         try:
-            if storage_available():
+            cfg = load_config()
+            server = (cfg.get('smb_server') or '').strip()
+            share  = (cfg.get('smb_share') or '').strip()
+            if not server or not share:
                 continue
-            log.warning("SMB-Mount nicht verfügbar — versuche Remount ...")
-            remount_smb()
+            healthy = False
+            try:
+                if os.path.ismount(mountpoint):
+                    os.listdir(mountpoint)
+                    healthy = True
+            except OSError:
+                healthy = False
+            if healthy:
+                continue
+            log.warning("SMB-Mount nicht verfügbar — versuche Remount von //%s/%s ...", server, share)
+            subprocess.run(['umount', '-l', mountpoint], capture_output=True, timeout=30)
+            opts = ('vers=3.0,uid=0,gid=0,file_mode=0755,dir_mode=0755,'
+                    'noperm,sec=ntlmssp,nodfs,iocharset=utf8,soft')
+            user = (cfg.get('smb_user') or '').strip()
+            if user:
+                cred = '/tmp/.smbcred-watchdog'
+                with open(cred, 'w') as f:
+                    f.write(f"username={user}\npassword={cfg.get('smb_password') or ''}\n")
+                os.chmod(cred, 0o600)
+                opts += f',credentials={cred}'
+            else:
+                opts += ',guest'
+            r = subprocess.run(['mount', '-t', 'cifs', f'//{server}/{share}', mountpoint,
+                                '-o', opts], capture_output=True, text=True, timeout=60)
+            if r.returncode == 0:
+                log.info("SMB-Mount wiederhergestellt")
+            else:
+                log.warning("SMB-Remount fehlgeschlagen: %s — nächster Versuch in 60 s",
+                            (r.stderr or '').strip()[:200])
         except Exception as e:
             log.warning("SMB-Watchdog-Fehler: %s", e)
 
@@ -1254,7 +1176,7 @@ def api_backup():
         return err
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        for name in ('site.json', 'stats.json', 'messages.json', 'users.json'):
+        for name in ('site.json', 'stats.json', 'messages.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -1283,7 +1205,7 @@ def api_restore():
             for member in names:
                 # Nur bekannte Dateien zulassen — Zip-Slip ausgeschlossen, da
                 # Zielpfade aus Whitelist bzw. Basename + Extension-Check entstehen
-                if member in ('site.json', 'stats.json', 'messages.json', 'users.json'):
+                if member in ('site.json', 'stats.json', 'messages.json'):
                     target = Path(_DATA) / member
                 elif member.startswith('uploads/'):
                     name = Path(member).name
@@ -1410,8 +1332,7 @@ def api_users():
         out.append({'id': u['id'], 'email': u['email'], 'quota_mb': u.get('quota_mb', 500),
                     'used_mb': round(used / 1048576, 1),
                     'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()) if storage_ok else 0,
-                    'created': u.get('created', ''),
-                    'last_login': u.get('last_login')})
+                    'created': u.get('created', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
                     'smb': SMB_MOUNTED, 'storage_ok': storage_ok})
@@ -1504,22 +1425,10 @@ def api_user_resend(uid: str):
     password = generate_member_password()
     user['pw_hash'] = generate_password_hash(password)
     save_users(users)
-    log_user_event(uid, 'pw_reset')
     threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
     return jsonify({'ok': True,
                     'no_url': not (load_site()['design'].get('public_url') or '').strip()})
-
-
-@admin_app.route('/api/users/<uid>/journal')
-def api_user_journal(uid: str):
-    err = _api_auth()
-    if err:
-        return err
-    user = _admin_get_user(uid)
-    if user is None:
-        return jsonify({'error': 'not found'}), 404
-    return jsonify({'journal': list(reversed(user.get('journal', [])))})
 
 
 @admin_app.route('/api/users/<uid>/files', methods=['GET', 'POST'])
@@ -1543,7 +1452,6 @@ def api_user_files(uid: str):
         if user_usage_bytes(user) > user.get('quota_mb', 500) * 1048576:
             target.unlink(missing_ok=True)
             return jsonify({'error': 'quota'}), 413
-        log_user_event(uid, 'admin_upload', target.name)
         log.info("Admin: Datei '%s' für '%s' hinterlegt", target.name, user['email'])
         return jsonify({'ok': True, 'name': target.name})
     files = []
@@ -1571,7 +1479,6 @@ def api_user_file(uid: str, name: str):
         target = (d / safe).resolve()
         if safe and target.parent == d.resolve() and target.is_file():
             target.unlink()
-            log_user_event(uid, 'admin_delete', safe)
             return jsonify({'ok': True})
         return jsonify({'error': 'not found'}), 404
     return _serve_user_file(d, name)
@@ -1749,7 +1656,7 @@ def api_stats():
         'total_uniques': total_uniques(stats),
         'today':         stats['days'].get(today, {'views': 0, 'uniques': 0}),
         'days':      [{'date': d, **stats['days'][d]} for d in days],
-        'log':       list(reversed(stats.get('log', [])))[:min(visit_log_max(), 500)],
+        'log':       list(reversed(stats.get('log', [])))[:100],
         'referrers': referrers,
         'browsers':  browsers,
         'countries': countries,
@@ -1941,17 +1848,12 @@ def _member_page(member: dict | None, msg: str = ''):
     storage_down = member is not None and not storage_available()
     if member and not storage_down:
         quota = member.get('quota_mb', 500) * 1048576
-        try:
-            for f in sorted(user_dir(member).iterdir()):
-                if f.is_file():
-                    st = f.stat()
-                    files.append({'name': f.name, 'size': st.st_size,
-                                  'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M')})
-                    used += st.st_size
-        except OSError as e:
-            log.warning("Dateiliste für '%s' fehlgeschlagen: %s", member['email'], e)
-            storage_down = True
-            files = []
+        for f in sorted(user_dir(member).iterdir()):
+            if f.is_file():
+                st = f.stat()
+                files.append({'name': f.name, 'size': st.st_size,
+                              'mtime': datetime.fromtimestamp(st.st_mtime).strftime('%d.%m.%Y %H:%M')})
+                used += st.st_size
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down,
@@ -1981,7 +1883,6 @@ def member_login():
     token = secrets.token_hex(32)
     user_sessions[token] = [user['id'], time.time() + USER_SESSION_HOURS * 3600]
     save_user_sessions()
-    log_user_event(user['id'], 'login', '', ip)
     resp = make_response(redirect('/bereich'))
     resp.set_cookie('usession', token, httponly=True, samesite='Lax',
                     max_age=USER_SESSION_HOURS * 3600)
@@ -2017,7 +1918,6 @@ def member_upload():
     if user_usage_bytes(member) > quota:
         target.unlink(missing_ok=True)
         return redirect('/bereich?msg=quota')
-    log_user_event(member['id'], 'upload', target.name, get_client_ip(request))
     log.info("Mitglied '%s': Datei '%s' hochgeladen", member['email'], target.name)
     return redirect('/bereich?msg=uploaded')
 
@@ -2032,45 +1932,6 @@ def _serve_user_file(d: Path, name: str):
         # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt;
         # conditional=False vermeidet Range/ETag-Sonderfälle auf CIFS-Mounts
         return send_file(target, as_attachment=True, download_name=safe, conditional=False)
-    except OSError as e:
-        # FritzBox trennt inaktive SMB-Verbindungen → stale handle: neu mounten,
-        # Dateizugriff verifizieren (mit Wartezeit) und erst dann erneut ausliefern
-        if SMB_MOUNTED and e.errno in (errno.ESTALE, errno.EIO):
-            # Stufe 1: nur den Cache verwerfen — die Session lebt meist noch
-            if drop_fs_caches():
-                try:
-                    os.stat(target)
-                    log.info("Stale Handle bei '%s' durch Cache-Drop behoben", safe)
-                    return send_file(target, as_attachment=True, download_name=safe,
-                                     conditional=False)
-                except OSError:
-                    pass
-            # Stufe 2: harter Remount mit Verifikation
-            log.warning("Stale SMB-Handle bei '%s' — Remount und zweiter Versuch", safe)
-            for attempt in (1, 2):
-                if not remount_smb():
-                    break
-                ready = False
-                for _ in range(6):
-                    try:
-                        os.stat(target)
-                        ready = True
-                        break
-                    except OSError as e_stat:
-                        if e_stat.errno not in (errno.ESTALE, errno.EIO):
-                            break
-                        time.sleep(0.5)
-                if ready:
-                    try:
-                        return send_file(target, as_attachment=True, download_name=safe,
-                                         conditional=False)
-                    except Exception as e2:
-                        log.error("Download '%s' nach Remount %d fehlgeschlagen: %s",
-                                  safe, attempt, e2)
-                else:
-                    log.warning("Datei '%s' nach Remount %d weiterhin stale", safe, attempt)
-        log.error("Download '%s' fehlgeschlagen: %s", safe, e)
-        abort(503)
     except Exception as e:
         log.error("Download '%s' fehlgeschlagen: %s", safe, e)
         abort(503)
@@ -2083,9 +1944,7 @@ def member_download(name: str):
         abort(403)
     if not storage_available():
         return redirect('/bereich?msg=storage')
-    resp = _serve_user_file(user_dir(member), name)
-    log_user_event(member['id'], 'download', secure_filename(name), get_client_ip(request))
-    return resp
+    return _serve_user_file(user_dir(member), name)
 
 
 @public_app.route('/bereich/delete', methods=['POST'])
@@ -2100,7 +1959,6 @@ def member_delete():
     target = (d / name).resolve()
     if name and target.parent == d.resolve() and target.is_file():
         target.unlink()
-        log_user_event(member['id'], 'delete', name, get_client_ip(request))
         log.info("Mitglied '%s': Datei '%s' gelöscht", member['email'], name)
     return redirect('/bereich')
 
