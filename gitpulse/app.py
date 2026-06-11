@@ -1853,10 +1853,16 @@ def api_security_autofix():
             headers=hdrs, timeout=30
         )
         _update_rate_limit(r.headers)
+        if r.status_code == 403:
+            return jsonify({'error': 'Zugriff verweigert (403) — GitHub Copilot Autofix ist für dieses Repository nicht verfügbar. Voraussetzungen: GitHub Copilot Enterprise oder GitHub Advanced Security + Copilot für Code Scanning aktiviert.'}), 403
         if r.status_code == 404:
-            return jsonify({'error': 'Alert nicht gefunden oder Autofix nicht verfügbar (GitHub Advanced Security / Copilot erforderlich)'}), 404
+            return jsonify({'error': 'Alert #' + str(alert_number) + ' nicht gefunden oder Code Scanning nicht aktiviert.'}), 404
         if r.status_code not in (200, 202):
-            return jsonify({'error': f'Autofix konnte nicht gestartet werden (HTTP {r.status_code})'}), 500
+            try:
+                detail = r.json().get('message', r.text[:200])
+            except Exception:
+                detail = r.text[:200]
+            return jsonify({'error': f'Autofix konnte nicht gestartet werden (HTTP {r.status_code}): {detail}'}), 500
 
         # 2. Auf Status "success" pollen (max. 60 s)
         for _ in range(20):
