@@ -1,20 +1,5 @@
 # Changelog
 
-## [1.0.33] - 2026-06-10
-
-### Added
-- Neues Modell `claude-fable-5` in der Modellauswahl (Anthropics leistungsstärkstes Modell, bis 22.06.2026 ohne Credit-Verbrauch auf bezahlten Plänen)
-
-### Changed
-- Doku: veraltete Modellbezeichnung `claude-opus-4-7` durch `claude-opus-4-8` ersetzt
-
-
-## [1.0.32] - 2026-06-10
-
-### Changed
-- Rebuild für Claude Code 2.1.170
-
-
 ## [1.0.31] - 2026-06-09
 
 ### Changed
