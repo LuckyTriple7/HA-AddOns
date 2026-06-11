@@ -1870,27 +1870,35 @@ def api_security_autofix():
                 detail = r.text[:200]
             return jsonify({'error': f'Autofix konnte nicht gestartet werden (HTTP {r.status_code}): {detail}'}), 500
 
-        # 2. Auf Status "success" pollen (max. 60 s)
-        for _ in range(20):
-            time.sleep(3)
-            poll = http.get(
-                f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',
-                headers=hdrs, timeout=10
-            )
-            _update_rate_limit(poll.headers)
-            if poll.status_code != 200:
-                return jsonify({'error': f'Status-Abfrage fehlgeschlagen (HTTP {poll.status_code})'}), 500
-            status = poll.json().get('status')
-            if status == 'success':
-                break
-            if status == 'error':
-                return jsonify({'error': 'Autofix-Generierung fehlgeschlagen (kein Fix verfügbar)'}), 400
-        else:
-            return jsonify({'error': 'Timeout: Autofix-Generierung dauert zu lang (>60 s)'}), 504
+        # 2. Status aus POST-Response lesen (200 = bereits vorhanden, 202 = neu gestartet)
+        try:
+            status = r.json().get('status', 'pending')
+        except Exception:
+            status = 'pending'
+
+        # Pollen bis "success" — überspringen wenn bereits fertig (max. 60 s)
+        if status != 'success':
+            for _ in range(20):
+                time.sleep(3)
+                poll = http.get(
+                    f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',
+                    headers=hdrs, timeout=10
+                )
+                _update_rate_limit(poll.headers)
+                if poll.status_code != 200:
+                    return jsonify({'error': f'Status-Abfrage fehlgeschlagen (HTTP {poll.status_code})'}), 500
+                status = poll.json().get('status')
+                log.info("Autofix Status %s #%s: %s", repo, alert_number, status)
+                if status == 'success':
+                    break
+                if status == 'error':
+                    return jsonify({'error': 'Autofix-Generierung fehlgeschlagen (kein Fix verfügbar)'}), 400
+            else:
+                return jsonify({'error': 'Timeout: Autofix-Generierung dauert zu lang (>60 s)'}), 504
 
         # 3. Autofix in neuen Branch committen
         ts          = int(time.time()) % 100000
-        branch_name = f'codeql/autofix-{alert_number}-{ts}'
+        branch_name = f'refs/heads/codeql/autofix-{alert_number}-{ts}'
         commit_r    = http.post(
             f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix/commits',
             headers=hdrs,
@@ -1900,11 +1908,16 @@ def api_security_autofix():
         )
         _update_rate_limit(commit_r.headers)
         if commit_r.status_code == 201:
-            result = commit_r.json()
-            branch = result.get('target_ref', branch_name)
+            result   = commit_r.json()
+            branch   = result.get('target_ref', branch_name).removeprefix('refs/heads/')
             log.info("CodeQL Autofix Branch erstellt: %s / %s", repo, branch)
             return jsonify({'ok': True, 'branch': branch, 'sha': result.get('sha', '')})
-        return jsonify({'error': f'Branch konnte nicht erstellt werden (HTTP {commit_r.status_code})'}), 500
+        try:
+            detail = commit_r.json().get('message', commit_r.text[:300])
+        except Exception:
+            detail = commit_r.text[:300]
+        log.error("Autofix Commit fehlgeschlagen (%s #%s): HTTP %s — %s", repo, alert_number, commit_r.status_code, detail)
+        return jsonify({'error': f'Branch konnte nicht erstellt werden (HTTP {commit_r.status_code}): {detail}'}), 500
     except Exception:
         log.exception("Security-Autofix Fehler (%s #%s)", repo, alert_number)
         return jsonify({'error': 'Interner Fehler'}), 500
