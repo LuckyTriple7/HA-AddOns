@@ -2245,6 +2245,8 @@
               </span>
               ${a.path ? `<span style="font-size:.72rem;color:var(--muted);white-space:nowrap">${escHtml(a.path)}${a.line?':'+a.line:''}</span>` : ''}
               ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.number ? `<button class="act-btn" style="font-size:.72rem;padding:1px 7px;flex-shrink:0;color:var(--accent)"
+                              onclick="secAutofix(this,${safeJsArg(repo.repo)},${a.number})">🤖 Fix</button>` : ''}
             </div>`; }).join('')}
         </div>` : '';
 
@@ -3276,6 +3278,47 @@
       }
     } catch {
       if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
+    }
+  }
+
+  // ── Security: CodeQL Autofix ──────────────────────────────────────
+  async function secAutofix(btn, repo, alertNumber) {
+    if (!confirm(`CodeQL Autofix für Alert #${alertNumber} generieren und in neuen Branch committen?\n\nDies kann bis zu 60 Sekunden dauern.`)) return;
+    btn.disabled    = true;
+    btn.textContent = '⏳…';
+
+    let resultEl = btn.nextElementSibling;
+    if (!resultEl || !resultEl.classList.contains('sec-af-result')) {
+      resultEl = document.createElement('span');
+      resultEl.className = 'sec-af-result';
+      resultEl.style.cssText = 'font-size:.72rem;margin-left:4px;flex-shrink:0';
+      btn.after(resultEl);
+    }
+    resultEl.textContent = 'Generiere…';
+    resultEl.style.color = 'var(--muted)';
+
+    try {
+      const r    = await fetch(u('/api/security/autofix'), {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({repo, alert_number: alertNumber}),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        btn.style.display = 'none';
+        resultEl.innerHTML = `✓ <a href="https://github.com/${escHtml(repo)}/tree/${escHtml(data.branch)}"
+          target="_blank" rel="noopener noreferrer" style="color:var(--accent)">${escHtml(data.branch)}</a>`;
+        resultEl.style.color = 'var(--green)';
+      } else {
+        btn.disabled    = false;
+        btn.textContent = '🤖 Fix';
+        resultEl.textContent = '✗ ' + (data.error || '?');
+        resultEl.style.color = 'var(--red)';
+      }
+    } catch {
+      btn.disabled    = false;
+      btn.textContent = '🤖 Fix';
+      resultEl.textContent = '✗ Netzwerkfehler';
+      resultEl.style.color = 'var(--red)';
     }
   }
   </script>

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.12] - 2026-06-11
+
+### Added
+- **Security-Tab**: 🤖 Fix-Button bei jedem Code-Scanning-Alert (CodeQL) — generiert via GitHub Copilot Autofix API einen Fix und committet ihn in einen neuen Branch (`codeql/autofix-{n}-{ts}`); Branch erscheint dann im Branch-Manager mit Merge-Status
+- Erfordert GitHub Advanced Security oder Copilot; bei fehlendem Zugriff erscheint eine verständliche Fehlermeldung
+
 ## [0.3.11] - 2026-06-11
 
 ### Fixed

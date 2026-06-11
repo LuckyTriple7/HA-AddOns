@@ -1834,6 +1834,70 @@ def api_cherry_pick():
         return jsonify({'error': 'Interner Fehler'}), 500
 
 
+@app.route('/api/security/autofix', methods=['POST'])
+def api_security_autofix():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    data         = request.get_json(silent=True) or {}
+    repo         = data.get('repo', '').strip()
+    alert_number = data.get('alert_number')
+    token        = load_config().get('github_token', '').strip()
+    if not all([token, repo, alert_number]):
+        return jsonify({'error': 'Parameter fehlen'}), 400
+    hdrs = _gh_headers(token)
+    try:
+        # 1. Autofix-Generierung starten
+        r = http.post(
+            f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',
+            headers=hdrs, timeout=30
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 404:
+            return jsonify({'error': 'Alert nicht gefunden oder Autofix nicht verfügbar (GitHub Advanced Security / Copilot erforderlich)'}), 404
+        if r.status_code not in (200, 202):
+            return jsonify({'error': f'Autofix konnte nicht gestartet werden (HTTP {r.status_code})'}), 500
+
+        # 2. Auf Status "success" pollen (max. 60 s)
+        for _ in range(20):
+            time.sleep(3)
+            poll = http.get(
+                f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',
+                headers=hdrs, timeout=10
+            )
+            _update_rate_limit(poll.headers)
+            if poll.status_code != 200:
+                return jsonify({'error': f'Status-Abfrage fehlgeschlagen (HTTP {poll.status_code})'}), 500
+            status = poll.json().get('status')
+            if status == 'success':
+                break
+            if status == 'error':
+                return jsonify({'error': 'Autofix-Generierung fehlgeschlagen (kein Fix verfügbar)'}), 400
+        else:
+            return jsonify({'error': 'Timeout: Autofix-Generierung dauert zu lang (>60 s)'}), 504
+
+        # 3. Autofix in neuen Branch committen
+        ts          = int(time.time()) % 100000
+        branch_name = f'codeql/autofix-{alert_number}-{ts}'
+        commit_r    = http.post(
+            f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix/commits',
+            headers=hdrs,
+            json={'target_ref': branch_name,
+                  'message':    f'fix: CodeQL autofix for alert #{alert_number}'},
+            timeout=15
+        )
+        _update_rate_limit(commit_r.headers)
+        if commit_r.status_code == 201:
+            result = commit_r.json()
+            branch = result.get('target_ref', branch_name)
+            log.info("CodeQL Autofix Branch erstellt: %s / %s", repo, branch)
+            return jsonify({'ok': True, 'branch': branch, 'sha': result.get('sha', '')})
+        return jsonify({'error': f'Branch konnte nicht erstellt werden (HTTP {commit_r.status_code})'}), 500
+    except Exception:
+        log.exception("Security-Autofix Fehler (%s #%s)", repo, alert_number)
+        return jsonify({'error': 'Interner Fehler'}), 500
+
+
 @app.route('/api/branch', methods=['DELETE'])
 def api_delete_branch():
     redir = _auth_required(request)
