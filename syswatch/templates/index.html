@@ -1437,15 +1437,9 @@ function renderSysHistStats(el, vals, yUnit, colorFn) {
 function renderSysHistFooter(el) {
   const parts = [];
   // Kern-Temperaturen (Package + Cores)
-  // Nur "Package"-Sensoren haben History in der DB → nur diese sind klickbar
   (_lastCoreTemps || []).forEach(c => {
-    const col       = tempColor(c.temp);
-    const hasHist   = c.label.toLowerCase().includes('package');
-    if (hasHist) {
-      parts.push(`<span class="hist-sensor" onclick="openSysHist('temp',${safeJsArg(c.label)})" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ ${esc(c.label)}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
-    } else {
-      parts.push(`<span class="hist-sensor">🌡️ ${esc(c.label)}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
-    }
+    const col = tempColor(c.temp);
+    parts.push(`<span class="hist-sensor" onclick="openSysHist('temp',${safeJsArg(c.label)})" style="cursor:pointer" title="${T.hist_temp_tooltip||''}">🌡️ ${esc(c.label)}: <b style="color:${col}">${c.temp.toFixed(1)}°C</b></span>`);
   });
   if (!parts.length && _lastCpuTemp !== null) {
     const col = tempColor(_lastCpuTemp);
