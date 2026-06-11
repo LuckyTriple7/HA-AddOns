@@ -1,21 +1,5 @@
 # Changelog — HA SysWatch
 
-## [1.2.11] - 2026-06-09
-
-### Added
-- `webui`-Feld in config.yaml: HA zeigt jetzt den Button „Benutzeroberfläche öffnen" — passt sich automatisch an den konfigurierten Host-Port an
-
-## [1.2.10] - 2026-06-09
-
-### Fixed
-- Stop-Button: HA Add-ons werden jetzt über die Supervisor API gestoppt (`POST /addons/{slug}/stop`) statt direkt über Docker — verhindert, dass der Watchdog den Container sofort neu startet
-- Reguläre Docker-Container (kein Supervisor-Eintrag) weiterhin über Docker-Socket gestoppt
-
-## [1.2.9] - 2026-06-09
-
-### Fixed
-- Kern-Temperaturen im Footer (Core 0–N): nur „Package"-Sensoren sind klickbar (History in DB vorhanden); individuelle Kerne zeigen nur den Momentwert ohne Link — verhindert, dass ein falsches Diagramm geöffnet wird
-
 ## [1.2.8] - 2026-06-09
 
 ### Changed
