@@ -91,6 +91,9 @@
     .job-bar-wrap { height:4px; background:var(--border); border-radius:2px; overflow:hidden; margin-bottom:6px; }
     .job-bar { height:100%; background:var(--accent); border-radius:2px; transition:width .4s; }
     .job-bar.done { background:var(--green); } .job-bar.err { background:var(--red); }
+    .job-bar.encoding { background:var(--yellow); animation:bar-pulse 1.2s ease-in-out infinite; }
+    @keyframes bar-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .phase-label { color:var(--yellow); font-weight:600; }
     .job-meta { font-size:.75rem; color:var(--muted); display:flex; gap:14px; flex-wrap:wrap; }
     .job-error { font-size:.75rem; color:var(--red); margin-top:3px; }
     .job-actions { margin-top:8px; display:flex; gap:8px; }
@@ -353,6 +356,7 @@
       btn_download_file: {{ t.btn_download_file | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
       lbl_eta:        {{ t.lbl_eta | tojson }},
+      lbl_encoding:   {{ t.lbl_encoding | tojson }},
       status_pending:   {{ t.status_pending | tojson }},
       status_running:   {{ t.status_running | tojson }},
       status_done:      {{ t.status_done | tojson }},
@@ -496,7 +500,8 @@
 
     // ── Queue ─────────────────────────────────────────────────────────────────
     const STATUS_LABEL = { pending:T.status_pending, running:T.status_running, done:T.status_done, error:T.status_error, cancelled:T.status_cancelled };
-    let _prevDoneIds = new Set();
+    let _prevDoneIds      = new Set();
+    let _prevPlaylistPos  = {};
 
     async function loadJobs() {
       try {
@@ -509,6 +514,12 @@
         const nowDone = new Set(jobs.filter(j => j.status === 'done').map(j => j.id));
         if ([...nowDone].some(id => !_prevDoneIds.has(id))) { loadFiles(); loadDiskSpace(); }
         _prevDoneIds = nowDone;
+        const newPlaylistItem = jobs.some(j =>
+          j.status === 'running' && (j.playlist_count || 0) > 1 &&
+          (j.playlist_pos || 0) > (_prevPlaylistPos[j.id] || 0)
+        );
+        jobs.forEach(j => { _prevPlaylistPos[j.id] = j.playlist_pos || 0; });
+        if (newPlaylistItem) { loadFiles(); loadDiskSpace(); }
         const hasActive = jobs.some(j => j.status === 'pending' || j.status === 'running');
         _pollInterval = hasActive ? 500 : 2000;
       } catch(e) { _offlineFails++; if (_offlineFails >= 3) showOfflineBanner(); }
@@ -521,12 +532,17 @@
       if (!jobs.length) { list.innerHTML = '<p class="empty-note">' + esc(T.queue_empty) + '</p>'; return; }
       list.innerHTML = jobs.map(j => {
         const pct    = Math.min(100, Math.max(0, j.progress || 0));
-        const barCls = j.status === 'done' ? 'done' : j.status === 'error' ? 'err' : '';
+        const barCls = j.status === 'done' ? 'done' : j.status === 'error' ? 'err' : (j.phase === 'encoding' ? 'encoding' : '');
         const name   = j.filename || j.url;
         const metaParts = [];
         if (j.status === 'running') {
-          if (j.speed) metaParts.push(T.lbl_speed + ': ' + esc(j.speed));
-          if (j.eta)   metaParts.push(T.lbl_eta   + ': ' + esc(j.eta));
+          if (j.phase === 'encoding') {
+            metaParts.push('<span class="phase-label">⚙ ' + esc(T.lbl_encoding) + '</span>');
+          } else {
+            if (j.speed) metaParts.push(T.lbl_speed + ': ' + esc(j.speed));
+            if (j.eta)   metaParts.push(T.lbl_eta   + ': ' + esc(j.eta));
+          }
+          if ((j.playlist_count || 0) > 1) metaParts.push('📋 ' + (j.playlist_pos || 0) + ' / ' + j.playlist_count);
         }
         const canCancel = j.status === 'pending' || j.status === 'running';
         return `
