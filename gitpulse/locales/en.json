@@ -253,7 +253,9 @@
   "sec_af_generating":       "Generating autofix…",
   "sec_af_no_fix":           "No autofix available for this alert type",
   "sec_af_timeout":          "Timeout — autofix generation took too long",
-  "sec_af_network":          "Network error",
+  "sec_af_network":               "Network error",
+  "sec_af_branch_ahead":          "dev is {n} commits ahead of main — the autofix might overwrite recent changes",
+  "sec_af_branch_ahead_confirm":  "Proceed anyway?",
 
   "tab_addon_manager": "Add-on Releases",
   "am_repo_label": "Repository",

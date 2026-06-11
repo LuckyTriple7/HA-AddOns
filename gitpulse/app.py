@@ -1845,8 +1845,18 @@ def api_security_autofix():
     token        = load_config().get('github_token', '').strip()
     if not all([token, repo, alert_number]):
         return jsonify({'error': 'Parameter fehlen'}), 400
-    hdrs = _gh_headers(token)
+    force = data.get('force', False)
+    hdrs  = _gh_headers(token)
     try:
+        # 0. Warnung wenn dev deutlich vor main liegt (Autofix könnte Datei mit alter Version überschreiben)
+        if not force:
+            cmp = http.get(f'{GITHUB_API}/repos/{repo}/compare/main...dev', headers=hdrs, timeout=10)
+            _update_rate_limit(cmp.headers)
+            if cmp.status_code == 200:
+                ahead_by = cmp.json().get('ahead_by', 0)
+                if ahead_by > 5:
+                    return jsonify({'error_code': 'branch_ahead', 'ahead_by': ahead_by}), 409
+
         # 1. Autofix-Generierung starten
         r = http.post(
             f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.18] - 2026-06-11
+
+### Added
+- **Security Autofix**: Warnung wenn `dev` mehr als 5 Commits vor `main` liegt — Autofix könnte ältere Dateiversion einspielen; `confirm()`-Dialog erlaubt trotzdem fortzufahren
+
 ## [0.3.17] - 2026-06-11
 
 ### Fixed

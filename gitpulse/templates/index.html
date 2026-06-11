@@ -1344,7 +1344,9 @@
     sec_af_generating:   '{{ t.sec_af_generating }}',
     sec_af_no_fix:       '{{ t.sec_af_no_fix }}',
     sec_af_timeout:      '{{ t.sec_af_timeout }}',
-    sec_af_network:      '{{ t.sec_af_network }}',
+    sec_af_network:             '{{ t.sec_af_network }}',
+    sec_af_branch_ahead:        {{ t.sec_af_branch_ahead | tojson }},
+    sec_af_branch_ahead_confirm: {{ t.sec_af_branch_ahead_confirm | tojson }},
   };
 
   function relTime(iso) {
@@ -3286,7 +3288,7 @@
   }
 
   // ── Security: CodeQL Autofix ──────────────────────────────────────
-  async function secAutofix(btn, repo, alertNumber) {
+  async function secAutofix(btn, repo, alertNumber, force) {
     btn.disabled    = true;
     btn.textContent = '⏳…';
     const row       = btn.closest('.row-item');
@@ -3302,7 +3304,7 @@
     try {
       const r    = await fetch(u('/api/security/autofix'), {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({repo, alert_number: alertNumber}),
+        body: JSON.stringify({repo, alert_number: alertNumber, force: !!force}),
       });
       const data = await r.json();
       if (data.ok) {
@@ -3310,6 +3312,16 @@
         resultEl.innerHTML = `✓ <a href="https://github.com/${escHtml(repo)}/tree/${escHtml(data.branch)}"
           target="_blank" rel="noopener noreferrer" style="color:var(--accent)">${escHtml(data.branch)}</a>`;
         resultEl.style.color = 'var(--green)';
+      } else if (data.error_code === 'branch_ahead') {
+        btn.disabled    = false;
+        btn.textContent = '🤖 Fix';
+        const msg = T.sec_af_branch_ahead.replace('{n}', data.ahead_by);
+        resultEl.textContent = '⚠ ' + msg;
+        resultEl.style.color = 'var(--yellow)';
+        if (confirm(msg + '\n\n' + T.sec_af_branch_ahead_confirm)) {
+          resultEl.textContent = '';
+          secAutofix(btn, repo, alertNumber, true);
+        }
       } else {
         btn.disabled    = false;
         btn.textContent = '🤖 Fix';
