@@ -326,6 +326,10 @@
       {{ t.tab_activity }}
       <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
     </div>
+    <div class="tab" data-tab="cherry" onclick="switchTab('cherry')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 5.17A3.001 3.001 0 0 0 14 2a3 3 0 0 0-1 5.83V9H9a3 3 0 0 0-3 3v.17A3.001 3.001 0 0 0 7 18a3 3 0 0 0 1-5.83V12a1 1 0 0 1 1-1h4v1.17A3.001 3.001 0 0 0 14 18a3 3 0 0 0 1-5.83V11h.17A3.001 3.001 0 0 0 17 5.17zM7 16a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm7 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0-10a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+      {{ t.tab_cherry }}
+    </div>
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
       {{ t.tab_console }}
@@ -558,6 +562,26 @@
     </div>
 
     <!-- ── Tab: Console ─────────────────────────────────────── -->
+    <div id="tab-cherry" style="display:none">
+      <div style="padding:12px 14px 0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <select id="cp-repo" onchange="cpOnRepoChange()" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:180px">
+            <option value="">{{ t.cp_select_repo }}</option>
+          </select>
+          <select id="cp-source" onchange="" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:160px">
+            <option value="">{{ t.cp_source_branch }}</option>
+          </select>
+          <span style="color:var(--muted);font-size:1rem">→</span>
+          <select id="cp-target" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:120px">
+            <option value="">{{ t.cp_target_branch }}</option>
+          </select>
+          <button class="hdr-btn" onclick="cpLoad()" style="margin-left:4px">{{ t.cp_load }}</button>
+        </div>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:10px;line-height:1.5">{{ t.cp_hint }}</div>
+      </div>
+      <div id="cp-list" style="padding:0 14px 14px"></div>
+    </div>
+
     <div id="tab-console" style="display:none">
       <div class="console-wrap">
         <div class="console-toolbar">
@@ -649,7 +673,7 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'activity','console'];
+  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'activity','cherry','console'];
   let activeTab = 'repos';
   const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security', activity: 'chip-activity' };
   const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security', 'chip-activity': 'chip-new-activity' };
@@ -667,6 +691,7 @@
       if (chip) chip.classList.remove(_chipClsMap[chipId]);
     }
     if (name === 'console') startConsole();
+    if (name === 'cherry') cpInit();
   }
 
   // ── State ─────────────────────────────────────────────────────────
@@ -1282,6 +1307,18 @@
     pr_body_show:        '{{ t.pr_body_show }}',
     pr_body_hide:        '{{ t.pr_body_hide }}',
     no_activity:         '{{ t.no_activity }}',
+    cp_loading:          '{{ t.cp_loading }}',
+    cp_ahead_by:         '{{ t.cp_ahead_by }}',
+    cp_no_commits:       '{{ t.cp_no_commits }}',
+    cp_select_all:       '{{ t.cp_select_all }}',
+    cp_deselect_all:     '{{ t.cp_deselect_all }}',
+    cp_btn:              '{{ t.cp_btn }}',
+    cp_running:          '{{ t.cp_running }}',
+    cp_success:          '{{ t.cp_success }}',
+    cp_error:            '{{ t.cp_error }}',
+    cp_no_selection:     '{{ t.cp_no_selection }}',
+    cp_select_branches:  '{{ t.cp_select_branches }}',
+    cp_same_branch:      '{{ t.cp_same_branch }}',
   };
 
   function relTime(iso) {
@@ -2164,7 +2201,7 @@
                 <b>${escHtml(a.package)}</b>${a.ecosystem?' <span style="color:var(--muted)">('+escHtml(a.ecosystem)+')</span>':''} — ${escHtml(a.summary)}
               </span>
               ${a.fixed_in ? `<span style="font-size:.72rem;color:var(--green);white-space:nowrap">→ ${escHtml(a.fixed_in)}</span>` : ''}
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
         </div>` : (depNoScope ? `
         <div style="margin-bottom:8px;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:8px">
@@ -2185,7 +2222,7 @@
                 <b>${escHtml(a.tool)}</b> — ${escHtml(a.description)}
               </span>
               ${a.path ? `<span style="font-size:.72rem;color:var(--muted);white-space:nowrap">${escHtml(a.path)}${a.line?':'+a.line:''}</span>` : ''}
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
         </div>` : '';
 
@@ -2199,7 +2236,7 @@
               <span>🚨</span>
               <span style="font-size:.7rem;font-weight:600;color:${_secSevColor.critical};min-width:54px">CRITICAL</span>
               <span style="flex:1">${escHtml(a.type)}</span>
-              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
+              ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`).join('')}
         </div>` : '';
 
@@ -2933,6 +2970,159 @@
     } catch(e) {}
   })();
   {% endif %}
+
+  // ── Cherry-Pick ────────────────────────────────────────────────────
+  function cpInit() {
+    const sel = document.getElementById('cp-repo');
+    if (!ghData) return;
+    const repos = (ghData.my_repos || []).map(r => r.repo).filter(Boolean);
+    const cur   = sel.value;
+    sel.innerHTML = '<option value="">{{ t.cp_select_repo }}</option>' +
+      repos.map(r => `<option value="${escHtml(r)}"${r === cur ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
+    if (!cur && repos.length === 1) {
+      sel.value = repos[0];
+      cpOnRepoChange();
+    }
+  }
+
+  function cpOnRepoChange() {
+    const repo = document.getElementById('cp-repo').value;
+    const src  = document.getElementById('cp-source');
+    const tgt  = document.getElementById('cp-target');
+    src.innerHTML = `<option value="">{{ t.cp_source_branch }}</option>`;
+    tgt.innerHTML = `<option value="">{{ t.cp_target_branch }}</option>`;
+    document.getElementById('cp-list').innerHTML = '';
+    if (!repo) return;
+    src.innerHTML = `<option value="">{{ t.cp_loading }}</option>`;
+    fetch(u('/api/branches?repo=' + encodeURIComponent(repo)))
+      .then(r => r.json())
+      .then(names => {
+        const branches = Array.isArray(names) ? names : [];
+        src.innerHTML = `<option value="">{{ t.cp_source_branch }}</option>` +
+          branches.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+        tgt.innerHTML = `<option value="">{{ t.cp_target_branch }}</option>` +
+          branches.map(n => `<option value="${escHtml(n)}"${n === 'dev' || n === 'develop' ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+      })
+      .catch(() => {
+        src.innerHTML = `<option value="">—</option>`;
+        tgt.innerHTML = `<option value="">—</option>`;
+      });
+  }
+
+  function cpLoad() {
+    const repo = document.getElementById('cp-repo').value;
+    const src  = document.getElementById('cp-source').value;
+    const tgt  = document.getElementById('cp-target').value;
+    const list = document.getElementById('cp-list');
+    if (!repo || !src || !tgt) {
+      list.innerHTML = `<div style="color:var(--red);font-size:.85rem;padding:8px 0">${T.cp_select_branches}</div>`;
+      return;
+    }
+    if (src === tgt) {
+      list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_same_branch}</div>`;
+      return;
+    }
+    list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_loading}</div>`;
+    fetch(u('/api/compare?repo=' + encodeURIComponent(repo) +
+            '&base=' + encodeURIComponent(tgt) +
+            '&head=' + encodeURIComponent(src)))
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          list.innerHTML = `<div style="color:var(--red);font-size:.85rem;padding:8px 0">${T.cp_error} ${escHtml(data.error)}</div>`;
+          return;
+        }
+        const commits = data.commits || [];
+        if (!commits.length) {
+          list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_no_commits}</div>`;
+          return;
+        }
+        const rows = commits.map(c => {
+          const isMerge = !!c.is_merge;
+          return `
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);${isMerge ? 'opacity:.55' : ''}" class="cp-row">
+            <input type="checkbox" class="cp-cb" value="${escHtml(c.sha)}" ${isMerge ? '' : 'checked'} style="margin-top:2px;flex-shrink:0;accent-color:var(--accent)">
+            <div style="min-width:0;flex:1">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <code style="font-size:.72rem;color:var(--accent);flex-shrink:0;background:rgba(88,166,255,.1);padding:1px 5px;border-radius:3px">${escHtml(c.short)}</code>
+                <span style="font-size:.82rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px">${escHtml(c.message)}</span>
+                ${isMerge ? '<span style="font-size:.68rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px;flex-shrink:0">merge</span>' : ''}
+              </div>
+              <div style="font-size:.72rem;color:var(--muted);margin-top:3px">${escHtml(c.author)} · ${relTime(c.date)}</div>
+            </div>
+            <a href="${escHtml(c.url)}" target="_blank" rel="noopener noreferrer"
+               style="font-size:.72rem;color:var(--muted);flex-shrink:0;padding-top:2px" onclick="event.stopPropagation()">↗</a>
+          </label>`;
+        }).join('');
+        list.innerHTML = `
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">${commits.length} ${T.cp_ahead_by}</div>
+          <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">${rows}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="hdr-btn" onclick="cpSelectAll(true)">${T.cp_select_all}</button>
+            <button class="hdr-btn" onclick="cpSelectAll(false)">${T.cp_deselect_all}</button>
+            <button class="act-btn act-btn-dispatch" style="margin-left:auto" id="cp-exec-btn"
+                    onclick="cpExecute(${safeJsArg(repo)},${safeJsArg(tgt)})">🍒 ${T.cp_btn}</button>
+          </div>
+          <div id="cp-result" style="margin-top:10px"></div>`;
+      })
+      .catch(() => {
+        list.innerHTML = `<div style="color:var(--red);font-size:.85rem;padding:8px 0">Netzwerkfehler</div>`;
+      });
+  }
+
+  function cpSelectAll(checked) {
+    document.querySelectorAll('.cp-cb').forEach(cb => { cb.checked = checked; });
+  }
+
+  function cpExecute(repo, target) {
+    const shas = Array.from(document.querySelectorAll('.cp-cb:checked')).map(cb => cb.value);
+    const btn  = document.getElementById('cp-exec-btn');
+    const res  = document.getElementById('cp-result');
+    if (!shas.length) {
+      res.innerHTML = `<div style="color:var(--red);font-size:.85rem">${T.cp_no_selection}</div>`;
+      return;
+    }
+    btn.disabled    = true;
+    btn.textContent = T.cp_running;
+    res.innerHTML   = '';
+    const ctrl = new AbortController();
+    const cpTimeout = setTimeout(() => ctrl.abort(), 120000);
+    fetch(u('/api/cherry-pick'), {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({repo, commits: shas, target}),
+      signal:  ctrl.signal,
+    })
+      .then(r => { clearTimeout(cpTimeout); return r.json(); })
+      .then(data => {
+        btn.disabled  = false;
+        btn.innerHTML = `🍒 ${T.cp_btn}`;
+        if (data.pr_url) {
+          res.innerHTML = `
+            <div style="color:var(--green);font-size:.85rem;margin-bottom:6px">✓ ${T.cp_success}</div>
+            <a href="${escHtml(data.pr_url)}" target="_blank" rel="noopener noreferrer"
+               style="font-size:.85rem;color:var(--accent)">PR #${data.pr_number} auf GitHub öffnen ↗</a>
+            ${data.errors && data.errors.length
+              ? `<div style="color:var(--yellow);font-size:.78rem;margin-top:8px">⚠️ ${data.errors.map(escHtml).join('<br>')}</div>`
+              : ''}`;
+        } else {
+          res.innerHTML = `
+            <div style="color:var(--red);font-size:.85rem">${T.cp_error} ${escHtml(data.error || '?')}</div>
+            ${data.errors && data.errors.length
+              ? `<div style="font-size:.78rem;color:var(--muted);margin-top:4px">${data.errors.map(escHtml).join('<br>')}</div>`
+              : ''}`;
+        }
+      })
+      .catch(err => {
+        clearTimeout(cpTimeout);
+        btn.disabled  = false;
+        btn.innerHTML = `🍒 ${T.cp_btn}`;
+        const msg = err.name === 'AbortError'
+          ? 'Timeout — Branch wurde möglicherweise bereits erstellt, bitte GitHub prüfen'
+          : 'Netzwerkfehler';
+        res.innerHTML = `<div style="color:var(--yellow);font-size:.85rem">⚠️ ${msg}</div>`;
+      });
+  }
   </script>
 </body>
 </html>

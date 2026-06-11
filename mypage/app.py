@@ -664,7 +664,14 @@ def userfiles_root() -> Path:
 
 
 def user_dir(user: dict) -> Path:
-    d = userfiles_root() / user['id']
+    root = userfiles_root().resolve()
+    uid_raw = str(user.get('id') or '')
+    uid = secure_filename(uid_raw)
+    if not uid or uid != uid_raw:
+        raise ValueError('invalid user id')
+    d = (root / uid).resolve()
+    if d.parent != root:
+        raise ValueError('invalid user directory path')
     d.mkdir(parents=True, exist_ok=True)
     return d
 
