@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.15] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: 422-Fehler wird jetzt klar erklärt ("Kein Autofix verfügbar für diesen Alert-Typ"); API-Aufruf wieder aktiv — Token braucht Schreibrechte auf "Code scanning alerts" + "Code quality"
+
 ## [0.3.14] - 2026-06-11
 
 ### Changed

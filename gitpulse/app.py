@@ -1854,9 +1854,15 @@ def api_security_autofix():
         )
         _update_rate_limit(r.headers)
         if r.status_code == 403:
-            return jsonify({'error': 'Zugriff verweigert (403) — GitHub Copilot Autofix ist für dieses Repository nicht verfügbar. Voraussetzungen: GitHub Copilot Enterprise oder GitHub Advanced Security + Copilot für Code Scanning aktiviert.'}), 403
+            return jsonify({'error': 'Zugriff verweigert — Token benötigt Schreibrechte auf "Code scanning alerts" und "Code quality". GitHub Copilot muss für das Repo aktiviert sein.'}), 403
         if r.status_code == 404:
-            return jsonify({'error': 'Alert #' + str(alert_number) + ' nicht gefunden oder Code Scanning nicht aktiviert.'}), 404
+            return jsonify({'error': f'Alert #{alert_number} nicht gefunden oder Code Scanning nicht aktiviert.'}), 404
+        if r.status_code == 422:
+            try:
+                detail = r.json().get('message', r.text[:300])
+            except Exception:
+                detail = r.text[:300]
+            return jsonify({'error': f'Kein Autofix verfügbar für diesen Alert — GitHub Copilot konnte keinen Fix generieren (möglicherweise nicht unterstützter Alert-Typ oder Alert bereits geschlossen). Details: {detail}'}), 422
         if r.status_code not in (200, 202):
             try:
                 detail = r.json().get('message', r.text[:200])
