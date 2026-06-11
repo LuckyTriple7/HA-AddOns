@@ -321,14 +321,14 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
       {{ t.tab_addon_manager }}
     </div>{% endif %}
+    <div class="tab" data-tab="cherry" onclick="switchTab('cherry')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 5.17A3.001 3.001 0 0 0 14 2a3 3 0 0 0-1 5.83V9H9a3 3 0 0 0-3 3v.17A3.001 3.001 0 0 0 7 18a3 3 0 0 0 1-5.83V12a1 1 0 0 1 1-1h4v1.17A3.001 3.001 0 0 0 14 18a3 3 0 0 0 1-5.83V11h.17A3.001 3.001 0 0 0 17 5.17zM7 16a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm7 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0-10a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+      {{ t.tab_cherry }}
+    </div>
     <div class="tab" data-tab="activity" onclick="switchTab('activity')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
       {{ t.tab_activity }}
       <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
-    </div>
-    <div class="tab" data-tab="cherry" onclick="switchTab('cherry')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 5.17A3.001 3.001 0 0 0 14 2a3 3 0 0 0-1 5.83V9H9a3 3 0 0 0-3 3v.17A3.001 3.001 0 0 0 7 18a3 3 0 0 0 1-5.83V12a1 1 0 0 1 1-1h4v1.17A3.001 3.001 0 0 0 14 18a3 3 0 0 0 1-5.83V11h.17A3.001 3.001 0 0 0 17 5.17zM7 16a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm7 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0-10a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
-      {{ t.tab_cherry }}
     </div>
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
@@ -580,6 +580,16 @@
         <div style="font-size:.75rem;color:var(--muted);margin-bottom:10px;line-height:1.5">{{ t.cp_hint }}</div>
       </div>
       <div id="cp-list" style="padding:0 14px 14px"></div>
+      <div style="margin:0 14px;border-top:1px solid var(--border);padding-top:14px;padding-bottom:14px">
+        <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">{{ t.bm_title }}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <select id="bm-repo" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:180px">
+            <option value="">{{ t.cp_select_repo }}</option>
+          </select>
+          <button class="hdr-btn" onclick="bmLoad()">{{ t.bm_load }}</button>
+        </div>
+        <div id="bm-list"></div>
+      </div>
     </div>
 
     <div id="tab-console" style="display:none">
@@ -673,7 +683,7 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'activity','cherry','console'];
+  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'cherry','activity','console'];
   let activeTab = 'repos';
   const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security', activity: 'chip-activity' };
   const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security', 'chip-activity': 'chip-new-activity' };
@@ -691,7 +701,7 @@
       if (chip) chip.classList.remove(_chipClsMap[chipId]);
     }
     if (name === 'console') startConsole();
-    if (name === 'cherry') cpInit();
+    if (name === 'cherry') { cpInit(); bmInit(); }
   }
 
   // ── State ─────────────────────────────────────────────────────────
@@ -1319,6 +1329,13 @@
     cp_no_selection:     '{{ t.cp_no_selection }}',
     cp_select_branches:  '{{ t.cp_select_branches }}',
     cp_same_branch:      '{{ t.cp_same_branch }}',
+    bm_protected:        '{{ t.bm_protected }}',
+    bm_delete:           '{{ t.bm_delete }}',
+    bm_confirm:          '{{ t.bm_confirm }}',
+    bm_confirm_bulk:     '{{ t.bm_confirm_bulk }}',
+    bm_bulk_delete:      '{{ t.bm_bulk_delete }}',
+    bm_no_branches:      '{{ t.bm_no_branches }}',
+    bm_select_repo:      '{{ t.bm_select_repo }}',
   };
 
   function relTime(iso) {
@@ -3122,6 +3139,129 @@
           : 'Netzwerkfehler';
         res.innerHTML = `<div style="color:var(--yellow);font-size:.85rem">⚠️ ${msg}</div>`;
       });
+  }
+
+  // ── Branch Manager ────────────────────────────────────────────────
+  const _BM_PROTECTED = ['main', 'master', 'dev', 'develop'];
+
+  function bmInit() {
+    const sel = document.getElementById('bm-repo');
+    if (!ghData) return;
+    const repos = (ghData.my_repos || []).map(r => r.repo).filter(Boolean);
+    const cur   = sel.value;
+    sel.innerHTML = '<option value="">{{ t.cp_select_repo }}</option>' +
+      repos.map(r => `<option value="${escHtml(r)}"${r === cur ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
+  }
+
+  function bmLoad() {
+    const repo = document.getElementById('bm-repo').value;
+    const list = document.getElementById('bm-list');
+    if (!repo) {
+      list.innerHTML = `<div style="color:var(--red);font-size:.85rem">${T.bm_select_repo}</div>`;
+      return;
+    }
+    list.innerHTML = `<div style="color:var(--muted);font-size:.85rem">${T.cp_loading}</div>`;
+    fetch(u('/api/branches?repo=' + encodeURIComponent(repo)))
+      .then(r => r.json())
+      .then(names => {
+        if (!Array.isArray(names) || !names.length) {
+          list.innerHTML = `<div style="color:var(--muted);font-size:.85rem">${T.bm_no_branches}</div>`;
+          return;
+        }
+        const rows = names.map(n => {
+          const prot = _BM_PROTECTED.includes(n.toLowerCase());
+          return `
+            <div class="row-item" style="gap:8px;padding:7px 10px;font-size:.82rem" data-bm-branch="${escHtml(n)}">
+              <input type="checkbox" ${prot ? 'disabled' : 'class="bm-cb"'} value="${escHtml(n)}"
+                     style="flex-shrink:0;accent-color:var(--accent)">
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap${prot ? ';color:var(--muted)' : ''}">${escHtml(n)}</span>
+              ${prot
+                ? `<span style="font-size:.72rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 5px">🔒 ${T.bm_protected}</span>`
+                : `<button class="act-btn" style="font-size:.75rem;color:var(--red);flex-shrink:0"
+                           onclick="bmDeleteOne(${safeJsArg(repo)},${safeJsArg(n)})">🗑 ${T.bm_delete}</button>`}
+              <span class="bm-status" style="font-size:.75rem;min-width:40px;text-align:right"></span>
+            </div>`;
+        }).join('');
+        list.innerHTML = `
+          <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">${rows}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="hdr-btn" onclick="bmSelectAll(true)">${T.cp_select_all}</button>
+            <button class="hdr-btn" onclick="bmSelectAll(false)">${T.cp_deselect_all}</button>
+            <button class="act-btn" id="bm-bulk-btn" style="margin-left:auto;color:var(--red)"
+                    onclick="bmDeleteSelected(${safeJsArg(repo)})">${T.bm_bulk_delete.replace('{n}', 0)}</button>
+          </div>`;
+        bmUpdateBulkBtn();
+        document.querySelectorAll('.bm-cb').forEach(cb => cb.addEventListener('change', bmUpdateBulkBtn));
+      })
+      .catch(() => {
+        list.innerHTML = `<div style="color:var(--red);font-size:.85rem">Netzwerkfehler</div>`;
+      });
+  }
+
+  function bmSelectAll(checked) {
+    document.querySelectorAll('.bm-cb').forEach(cb => { cb.checked = checked; });
+    bmUpdateBulkBtn();
+  }
+
+  function bmUpdateBulkBtn() {
+    const btn = document.getElementById('bm-bulk-btn');
+    if (!btn) return;
+    const n = document.querySelectorAll('.bm-cb:checked').length;
+    btn.textContent = T.bm_bulk_delete.replace('{n}', n);
+    btn.disabled = n === 0;
+  }
+
+  function _bmRowOf(branch) {
+    return document.querySelector(`[data-bm-branch="${CSS.escape(branch)}"]`);
+  }
+
+  async function bmDeleteOne(repo, branch) {
+    if (!confirm(T.bm_confirm.replace('{branch}', branch))) return;
+    const row    = _bmRowOf(branch);
+    const status = row && row.querySelector('.bm-status');
+    if (status) status.textContent = '…';
+    try {
+      const r    = await fetch(u('/api/branch'), {
+        method: 'DELETE', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({repo, branch}),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        if (row) { row.style.opacity = '.35'; row.style.pointerEvents = 'none'; }
+        if (status) { status.textContent = '✓'; status.style.color = 'var(--green)'; }
+      } else {
+        if (status) { status.textContent = '✗ ' + escHtml(data.error || '?'); status.style.color = 'var(--red)'; }
+      }
+    } catch {
+      if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
+    }
+  }
+
+  async function bmDeleteSelected(repo) {
+    const branches = Array.from(document.querySelectorAll('.bm-cb:checked')).map(cb => cb.value);
+    if (!branches.length) return;
+    if (!confirm(T.bm_confirm_bulk.replace('{n}', branches.length))) return;
+    for (const branch of branches) {
+      const row    = _bmRowOf(branch);
+      const status = row && row.querySelector('.bm-status');
+      if (status) status.textContent = '…';
+      try {
+        const r    = await fetch(u('/api/branch'), {
+          method: 'DELETE', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({repo, branch}),
+        });
+        const data = await r.json();
+        if (data.ok) {
+          if (row) { row.style.opacity = '.35'; row.style.pointerEvents = 'none'; }
+          if (status) { status.textContent = '✓'; status.style.color = 'var(--green)'; }
+        } else {
+          if (status) { status.textContent = '✗ ' + escHtml(data.error || '?'); status.style.color = 'var(--red)'; }
+        }
+      } catch {
+        if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
+      }
+    }
+    bmUpdateBulkBtn();
   }
   </script>
 </body>

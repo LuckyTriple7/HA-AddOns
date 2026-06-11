@@ -236,6 +236,16 @@
   "cp_select_branches":      "Please select repo, source branch and target branch",
   "cp_same_branch":          "Source and target branch must be different",
 
+  "bm_title":                "Branch Manager",
+  "bm_load":                 "Load branches",
+  "bm_protected":            "Protected",
+  "bm_delete":               "Delete",
+  "bm_confirm":              "Really delete branch '{branch}'? This cannot be undone.",
+  "bm_confirm_bulk":         "Really delete {n} branches? This cannot be undone.",
+  "bm_bulk_delete":          "Delete selected ({n})",
+  "bm_no_branches":          "No branches found",
+  "bm_select_repo":          "Please select a repo first",
+
   "tab_addon_manager": "Add-on Releases",
   "am_repo_label": "Repository",
   "am_branch_label": "Branch",

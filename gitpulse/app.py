@@ -1781,6 +1781,35 @@ def api_cherry_pick():
         return jsonify({'error': 'Interner Fehler'}), 500
 
 
+@app.route('/api/branch', methods=['DELETE'])
+def api_delete_branch():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    data   = request.get_json(silent=True) or {}
+    repo   = data.get('repo', '').strip()
+    branch = data.get('branch', '').strip()
+    token  = load_config().get('github_token', '').strip()
+    if not all([token, repo, branch]):
+        return jsonify({'error': 'Parameter fehlen'}), 400
+    if branch.lower() in ('main', 'master', 'dev', 'develop'):
+        return jsonify({'error': f'Branch "{branch}" ist geschützt'}), 403
+    hdrs = _gh_headers(token)
+    try:
+        r = http.delete(f'{GITHUB_API}/repos/{repo}/git/refs/heads/{branch}',
+                        headers=hdrs, timeout=10)
+        _update_rate_limit(r.headers)
+        if r.status_code == 204:
+            log.info("Branch gelöscht: %s/%s", repo, branch)
+            return jsonify({'ok': True})
+        if r.status_code in (404, 422):
+            return jsonify({'error': 'Branch nicht gefunden'}), 404
+        return jsonify({'error': f'GitHub Fehler {r.status_code}'}), 500
+    except Exception:
+        log.exception("Branch-Delete Fehler (%s %s)", repo, branch)
+        return jsonify({'error': 'Interner Fehler'}), 500
+
+
 @app.route('/api/comments')
 def api_comments():
     redir = _auth_required(request)

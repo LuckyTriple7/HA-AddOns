@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.9] - 2026-06-11
+
+### Added
+- **Branch-Manager** im Cherry-Pick-Tab: alle Branches eines Repos auflisten, einzeln oder per Mehrfachauswahl löschen; `main`, `master`, `dev`, `develop` sind geschützt (🔒) und können nicht gelöscht werden
+- **Cherry-Pick-Tab** in der Navigationsleiste nach "Add-on Releases" verschoben (war zuvor nach "Activity")
+
 ## [0.3.8] - 2026-06-11
 
 ### Fixed
