@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.3.18] - 2026-06-11
+
+### Added
+- **Security Autofix**: Warnung wenn `dev` mehr als 5 Commits vor `main` liegt — Autofix könnte ältere Dateiversion einspielen; `confirm()`-Dialog erlaubt trotzdem fortzufahren
+
+## [0.3.17] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: Branch wird jetzt vor dem Commit-Schritt explizit angelegt (`POST /git/refs`) — GitHub-API setzt existierende Branch voraus und erstellt sie nicht selbst
+
+## [0.3.16] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: Ladeanzeige und Fehlermeldungen jetzt vollständig übersetzt (DE/EN) statt hardcodiertem Deutsch; Backend gibt error_code zurück, Frontend übersetzt
+
+## [0.3.15] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: 422-Fehler wird jetzt klar erklärt ("Kein Autofix verfügbar für diesen Alert-Typ"); API-Aufruf wieder aktiv — Token braucht Schreibrechte auf "Code scanning alerts" + "Code quality"
+
+## [0.3.14] - 2026-06-11
+
+### Changed
+- **Security-Tab**: 🤖 Fix-Button öffnet jetzt direkt die GitHub-Alert-Seite (Copilot Autofix per UI auslösbar) statt API-Aufruf — die API erfordert Copilot Enterprise, die UI funktioniert mit jedem Copilot-Plan; der resultierende Branch erscheint danach automatisch im Branch-Manager
+
+## [0.3.13] - 2026-06-11
+
+### Fixed
+- **Webhook**: Security-Events (`code_scanning_alert`, `dependabot_alert`, `secret_scanning_alert`) lösen jetzt sofort einen Repo-Poll aus — die UI aktualisiert sich direkt nach dem Webhook, ohne auf den nächsten geplanten Poll zu warten
+
+## [0.3.12] - 2026-06-11
+
+### Added
+- **Security-Tab**: 🤖 Fix-Button bei jedem Code-Scanning-Alert (CodeQL) — generiert via GitHub Copilot Autofix API einen Fix und committet ihn in einen neuen Branch (`codeql/autofix-{n}-{ts}`); Branch erscheint dann im Branch-Manager mit Merge-Status
+- Erfordert GitHub Advanced Security oder Copilot; bei fehlendem Zugriff erscheint eine verständliche Fehlermeldung
+
+## [0.3.11] - 2026-06-11
+
+### Fixed
+- **Branch-Manager**: SyntaxError durch einfache Anführungszeichen in Bestätigungstexten behoben (`| tojson` im Template)
+
+## [0.3.10] - 2026-06-11
+
+### Added
+- **Branch-Manager**: Merge-Status und PR-Info pro Branch
+  - ✅ "in main" — Branch ist vollständig in main/dev gemergt → sicher zu löschen
+  - ⚠ "PR #N" — Branch hat einen offenen PR → Löschen zeigt explizite Warnung, dass der PR nicht mehr mergebar wird
+  - ↑ "N nicht gemergt" — Branch hat Commits die noch nicht in main/dev sind
+  - Status wird parallel via GitHub Compare-API abgefragt (schnell auch bei vielen Branches)
+  - Bulk-Löschen warnt zusätzlich wenn Branches mit offenen PRs ausgewählt sind
+
+## [0.3.9] - 2026-06-11
+
+### Added
+- **Branch-Manager** im Cherry-Pick-Tab: alle Branches eines Repos auflisten, einzeln oder per Mehrfachauswahl löschen; `main`, `master`, `dev`, `develop` sind geschützt (🔒) und können nicht gelöscht werden
+- **Cherry-Pick-Tab** in der Navigationsleiste nach "Add-on Releases" verschoben (war zuvor nach "Activity")
+
 ## [0.3.8] - 2026-06-11
 
 ### Fixed

@@ -12,6 +12,7 @@ import smtplib
 import time
 import threading
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from email.mime.multipart import MIMEMultipart
@@ -1603,17 +1604,69 @@ def api_branches():
     redir = _auth_required(request)
     if redir:
         return jsonify({'error': 'unauthorized'}), 401
-    repo  = request.args.get('repo', '').strip()
+    repo    = request.args.get('repo', '').strip()
+    do_info = request.args.get('info', '0') == '1'
     if not repo:
         return jsonify({'error': 'repo fehlt'}), 400
     cfg   = load_config()
     token = cfg.get('github_token', '').strip()
     if not token:
         return jsonify({'error': 'kein Token'}), 400
+    hdrs = _gh_headers(token)
     try:
-        branches = _gh_get_paginated(f'/repos/{repo}/branches', token)
-        names = [b['name'] for b in (branches or []) if isinstance(b, dict) and 'name' in b]
-        return jsonify(names)
+        raw = _gh_get_paginated(f'/repos/{repo}/branches', token)
+        branch_objs = [b for b in (raw or []) if isinstance(b, dict) and 'name' in b]
+
+        if not do_info:
+            return jsonify([b['name'] for b in branch_objs])
+
+        _PROTECTED = {'main', 'master', 'dev', 'develop'}
+
+        # Open PRs: head branch name → PR number
+        raw_prs = _gh_get_paginated(f'/repos/{repo}/pulls', token, params={'state': 'open'})
+        open_pr_map: dict[str, int] = {}
+        for pr in (raw_prs or []):
+            if isinstance(pr, dict):
+                ref = (pr.get('head') or {}).get('ref')
+                if ref:
+                    open_pr_map[ref] = pr.get('number')
+
+        # Compare base: first protected branch that actually exists
+        existing = {b['name'] for b in branch_objs}
+        compare_base = next(
+            (c for c in ('main', 'master', 'dev', 'develop') if c in existing),
+            None
+        )
+
+        # Parallel ahead_by checks (how many commits branch has that base doesn't)
+        def _ahead(name: str):
+            if not compare_base or name == compare_base:
+                return None
+            try:
+                r = http.get(
+                    f'{GITHUB_API}/repos/{repo}/compare/{compare_base}...{name}',
+                    headers=hdrs, params={'per_page': 1}, timeout=10
+                )
+                return r.json().get('ahead_by') if r.status_code == 200 else None
+            except Exception:
+                return None
+
+        non_prot = [b['name'] for b in branch_objs if b['name'].lower() not in _PROTECTED]
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            ahead_map = dict(zip(non_prot, ex.map(_ahead, non_prot)))
+
+        result = []
+        for b in branch_objs:
+            name = b['name']
+            prot = name.lower() in _PROTECTED
+            result.append({
+                'name':         name,
+                'protected':    prot,
+                'open_pr':      open_pr_map.get(name),
+                'ahead_by':     None if prot else ahead_map.get(name),
+                'compare_base': compare_base,
+            })
+        return jsonify(result)
     except Exception:
         log.exception("Branches-Abfrage Fehler (%s)", repo)
         return jsonify({'error': 'internal error'}), 500
@@ -1778,6 +1831,162 @@ def api_cherry_pick():
                         'error': f'PR nicht erstellt: {pr_r.json().get("message", pr_r.status_code)}'})
     except Exception:
         log.exception("Cherry-pick Fehler (%s)", repo)
+        return jsonify({'error': 'Interner Fehler'}), 500
+
+
+@app.route('/api/security/autofix', methods=['POST'])
+def api_security_autofix():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    data         = request.get_json(silent=True) or {}
+    repo         = data.get('repo', '').strip()
+    alert_number = data.get('alert_number')
+    token        = load_config().get('github_token', '').strip()
+    if not all([token, repo, alert_number]):
+        return jsonify({'error': 'Parameter fehlen'}), 400
+    force = data.get('force', False)
+    hdrs  = _gh_headers(token)
+    try:
+        # 0. Warnung wenn dev deutlich vor main liegt (Autofix könnte Datei mit alter Version überschreiben)
+        if not force:
+            cmp = http.get(f'{GITHUB_API}/repos/{repo}/compare/main...dev', headers=hdrs, timeout=10)
+            _update_rate_limit(cmp.headers)
+            if cmp.status_code == 200:
+                ahead_by = cmp.json().get('ahead_by', 0)
+                if ahead_by > 5:
+                    return jsonify({'error_code': 'branch_ahead', 'ahead_by': ahead_by}), 409
+
+        # 1. Autofix-Generierung starten
+        r = http.post(
+            f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',
+            headers=hdrs, timeout=30
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 403:
+            return jsonify({'error': 'Zugriff verweigert — Token benötigt Schreibrechte auf "Code scanning alerts" und "Code quality". GitHub Copilot muss für das Repo aktiviert sein.'}), 403
+        if r.status_code == 404:
+            return jsonify({'error': f'Alert #{alert_number} nicht gefunden oder Code Scanning nicht aktiviert.'}), 404
+        if r.status_code == 422:
+            try:
+                detail = r.json().get('message', r.text[:300])
+            except Exception:
+                detail = r.text[:300]
+            return jsonify({'error_code': 'no_autofix', 'detail': detail}), 422
+        if r.status_code not in (200, 202):
+            try:
+                detail = r.json().get('message', r.text[:200])
+            except Exception:
+                detail = r.text[:200]
+            return jsonify({'error': f'Autofix konnte nicht gestartet werden (HTTP {r.status_code}): {detail}'}), 500
+
+        # 2. Status aus POST-Response lesen (200 = bereits vorhanden, 202 = neu gestartet)
+        try:
+            status = r.json().get('status', 'pending')
+        except Exception:
+            status = 'pending'
+
+        # Pollen bis "success" — überspringen wenn bereits fertig (max. 60 s)
+        if status != 'success':
+            for _ in range(20):
+                time.sleep(3)
+                poll = http.get(
+                    f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix',
+                    headers=hdrs, timeout=10
+                )
+                _update_rate_limit(poll.headers)
+                if poll.status_code != 200:
+                    return jsonify({'error': f'Status-Abfrage fehlgeschlagen (HTTP {poll.status_code})'}), 500
+                status = poll.json().get('status')
+                log.info("Autofix Status %s #%s: %s", repo, alert_number, status)
+                if status == 'success':
+                    break
+                if status == 'error':
+                    return jsonify({'error_code': 'no_autofix', 'detail': 'generation failed'}), 400
+            else:
+                return jsonify({'error_code': 'timeout'}), 504
+
+        # 3. Branch anlegen (commits-Endpoint setzt existierende Branch voraus)
+        ts          = int(time.time()) % 100000
+        short_name  = f'codeql/autofix-{alert_number}-{ts}'
+        branch_ref  = f'refs/heads/{short_name}'
+
+        # Basis-SHA des Default-Branch ermitteln
+        repo_r = http.get(f'{GITHUB_API}/repos/{repo}', headers=hdrs, timeout=10)
+        _update_rate_limit(repo_r.headers)
+        default_branch = repo_r.json().get('default_branch', 'main') if repo_r.status_code == 200 else 'main'
+
+        ref_r = http.get(f'{GITHUB_API}/repos/{repo}/git/ref/heads/{default_branch}', headers=hdrs, timeout=10)
+        _update_rate_limit(ref_r.headers)
+        if ref_r.status_code != 200:
+            return jsonify({'error': f'Basis-Branch "{default_branch}" nicht gefunden'}), 500
+        base_sha = ref_r.json()['object']['sha']
+
+        create_r = http.post(
+            f'{GITHUB_API}/repos/{repo}/git/refs',
+            headers=hdrs,
+            json={'ref': branch_ref, 'sha': base_sha},
+            timeout=10
+        )
+        _update_rate_limit(create_r.headers)
+        if create_r.status_code not in (200, 201):
+            try:
+                detail = create_r.json().get('message', create_r.text[:200])
+            except Exception:
+                detail = create_r.text[:200]
+            return jsonify({'error': f'Branch konnte nicht angelegt werden: {detail}'}), 500
+
+        # 4. Autofix in die neue Branch committen
+        commit_r = http.post(
+            f'{GITHUB_API}/repos/{repo}/code-scanning/alerts/{alert_number}/autofix/commits',
+            headers=hdrs,
+            json={'target_ref': branch_ref,
+                  'message':    f'fix: CodeQL autofix for alert #{alert_number}'},
+            timeout=15
+        )
+        _update_rate_limit(commit_r.headers)
+        if commit_r.status_code == 201:
+            result = commit_r.json()
+            branch = result.get('target_ref', branch_ref).removeprefix('refs/heads/')
+            log.info("CodeQL Autofix Branch erstellt: %s / %s", repo, branch)
+            return jsonify({'ok': True, 'branch': branch, 'sha': result.get('sha', '')})
+        try:
+            detail = commit_r.json().get('message', commit_r.text[:300])
+        except Exception:
+            detail = commit_r.text[:300]
+        log.error("Autofix Commit fehlgeschlagen (%s #%s): HTTP %s — %s", repo, alert_number, commit_r.status_code, detail)
+        return jsonify({'error': f'Autofix-Commit fehlgeschlagen (HTTP {commit_r.status_code}): {detail}'}), 500
+    except Exception:
+        log.exception("Security-Autofix Fehler (%s #%s)", repo, alert_number)
+        return jsonify({'error': 'Interner Fehler'}), 500
+
+
+@app.route('/api/branch', methods=['DELETE'])
+def api_delete_branch():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    data   = request.get_json(silent=True) or {}
+    repo   = data.get('repo', '').strip()
+    branch = data.get('branch', '').strip()
+    token  = load_config().get('github_token', '').strip()
+    if not all([token, repo, branch]):
+        return jsonify({'error': 'Parameter fehlen'}), 400
+    if branch.lower() in ('main', 'master', 'dev', 'develop'):
+        return jsonify({'error': f'Branch "{branch}" ist geschützt'}), 403
+    hdrs = _gh_headers(token)
+    try:
+        r = http.delete(f'{GITHUB_API}/repos/{repo}/git/refs/heads/{branch}',
+                        headers=hdrs, timeout=10)
+        _update_rate_limit(r.headers)
+        if r.status_code == 204:
+            log.info("Branch gelöscht: %s/%s", repo, branch)
+            return jsonify({'ok': True})
+        if r.status_code in (404, 422):
+            return jsonify({'error': 'Branch nicht gefunden'}), 404
+        return jsonify({'error': f'GitHub Fehler {r.status_code}'}), 500
+    except Exception:
+        log.exception("Branch-Delete Fehler (%s %s)", repo, branch)
         return jsonify({'error': 'Interner Fehler'}), 500
 
 
@@ -2412,6 +2621,7 @@ def github_webhook():
             f"{icon} <b>Secret Scanning Alert:</b> {repo_full}\n#{alert_num} · {label}\nTyp: {secret_type}\n" + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''),
             f"Secret Scanning Alert: {repo_full}",
             [f"#{alert_num} · {label}", f"Typ: {secret_type}"] + ([f"<a href=\"{alert_url}\">Alert anzeigen</a>"] if alert_url else []))
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event == 'code_scanning_alert':
         alert     = payload.get('alert', {})
@@ -2445,6 +2655,7 @@ def github_webhook():
                       + (f"📄 {loc_str}\n" if loc_str else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Code Scanning Alert: {repo_full} [{severity.upper()}]", em_lines)
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     elif event == 'dependabot_alert':
         alert    = payload.get('alert', {})
@@ -2479,6 +2690,7 @@ def github_webhook():
                       + (f"Fix verfügbar: {fixed_in}\n" if fixed_in else '') + (f"<a href=\"{alert_url}\">Alert anzeigen</a>" if alert_url else ''))
             _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'security',
                 tg_msg, f"Dependabot Alert: {repo_full} [{severity.upper()}]", em_lines)
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
 
     return jsonify({'status': 'ok'}), 200
 
