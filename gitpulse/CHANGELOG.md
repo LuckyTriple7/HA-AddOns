@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.1.89] - 2026-06-09
+
+### Fixed
+- CI/Actions: Webhook-Repo-Poll (`_trigger_repo_poll`) ersetzte den Run-Cache mit frischen 500 Runs — jetzt wird auch dort gemergt, nicht ersetzt
+
+## [0.1.88] - 2026-06-09
+
+### Fixed
+- CI/Actions: Workflow-Liste wächst nach dem initialen Load nicht mehr auf 500 zurück — beim initialen Start werden bis zu 500 Runs geladen, bei jedem weiteren Poll werden neue Runs vorne eingefügt und bestehende Einträge aktualisiert statt ersetzt
+
+## [0.1.87] - 2026-06-09
+
+### Fixed
+- Add-on Manager: PR-Picker schließt nach Auswahl wieder korrekt
+
+## [0.1.86] - 2026-06-09
+
+### Fixed
+- Add-on Manager: +Dep rechnet jetzt korrekt von der aktuellen Version (1.0.8.1 → 1.0.8.2 statt 1.0.9.1)
+- Add-on Manager: mehrere PR-Titel übernehmen überschreibt nicht mehr — jeder Eintrag wird in einer neuen Zeile angehängt
+
+## [0.1.85] - 2026-06-09
+
+### Fixed
+- Add-on Manager: Overlays und Karten nicht mehr transparent — `var(--card)` → `var(--surf)`, `var(--fg)` → `var(--text)`, `var(--hover)` → `var(--surf2)` (alle drei waren undefiniert)
+
+## [0.1.84] - 2026-06-09
+
+### Fixed
+- PR-Picker: "Titel übernehmen" Button funktioniert jetzt — PR-Daten werden per Index-Array referenziert statt als String im onclick-Attribut (JSON.stringify erzeugte doppelte Anführungszeichen die das HTML brachen)
+
+## [0.1.83] - 2026-06-09
+
+### Security
+- Image-Check: URL-Validierung via `urlparse` + hostname-Check statt `startswith`-Substring (CodeQL: Incomplete URL substring sanitization)
+
+## [0.1.82] - 2026-06-09
+
+### Fixed
+- Add-on Manager PR-Picker: Einträge haben jetzt festen Hintergrund (war transparent); separate Buttons "Titel übernehmen" / "Body übernehmen" statt Body-Klick auf die ganze Karte
+
+## [0.1.81] - 2026-06-09
+
+### Security
+- Browser-Bestätigung vor: Issue schließen, Workflow-Run abbrechen, Workflow-Run löschen, Workflow deaktivieren
+
 ## [0.1.80] - 2026-06-09
 
 ### Added
