@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.14.2] - 2026-06-11
+
+Fix: Clear-text storage of sensitive information #139
+
+
 ## [0.1.14.1] - 2026-06-11
 
 Fix: Creating biased random numbers from a cryptographically secure source #150
