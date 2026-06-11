@@ -879,7 +879,16 @@
       // 8 Zeichen: Groß, Klein, Zahlen — keine Sonderzeichen, keine verwechselbaren (O/0, l/1)
       const U = 'ABCDEFGHJKLMNPQRSTUVWXYZ', L = 'abcdefghjkmnpqrstuvwxyz', D = '23456789';
       const all = U + L + D;
-      const rnd = max => crypto.getRandomValues(new Uint32Array(1))[0] % max;
+      const rnd = max => {
+        if (!Number.isInteger(max) || max <= 0) throw new Error('max must be a positive integer');
+        const range = 0x100000000; // 2^32
+        const limit = Math.floor(range / max) * max;
+        let x;
+        do {
+          x = crypto.getRandomValues(new Uint32Array(1))[0];
+        } while (x >= limit);
+        return x % max;
+      };
       const pick = s => s[rnd(s.length)];
       const pw = [pick(U), pick(L), pick(D)];
       while (pw.length < 8) pw.push(pick(all));
