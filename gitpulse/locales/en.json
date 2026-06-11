@@ -250,6 +250,11 @@
   "bm_no_branches":          "No branches found",
   "bm_select_repo":          "Please select a repo first",
 
+  "sec_af_generating":       "Generating autofix…",
+  "sec_af_no_fix":           "No autofix available for this alert type",
+  "sec_af_timeout":          "Timeout — autofix generation took too long",
+  "sec_af_network":          "Network error",
+
   "tab_addon_manager": "Add-on Releases",
   "am_repo_label": "Repository",
   "am_branch_label": "Branch",

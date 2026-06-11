@@ -1862,7 +1862,7 @@ def api_security_autofix():
                 detail = r.json().get('message', r.text[:300])
             except Exception:
                 detail = r.text[:300]
-            return jsonify({'error': f'Kein Autofix verfügbar für diesen Alert — GitHub Copilot konnte keinen Fix generieren (möglicherweise nicht unterstützter Alert-Typ oder Alert bereits geschlossen). Details: {detail}'}), 422
+            return jsonify({'error_code': 'no_autofix', 'detail': detail}), 422
         if r.status_code not in (200, 202):
             try:
                 detail = r.json().get('message', r.text[:200])
@@ -1892,9 +1892,9 @@ def api_security_autofix():
                 if status == 'success':
                     break
                 if status == 'error':
-                    return jsonify({'error': 'Autofix-Generierung fehlgeschlagen (kein Fix verfügbar)'}), 400
+                    return jsonify({'error_code': 'no_autofix', 'detail': 'generation failed'}), 400
             else:
-                return jsonify({'error': 'Timeout: Autofix-Generierung dauert zu lang (>60 s)'}), 504
+                return jsonify({'error_code': 'timeout'}), 504
 
         # 3. Autofix in neuen Branch committen
         ts          = int(time.time()) % 100000

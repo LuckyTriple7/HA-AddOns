@@ -1341,6 +1341,10 @@
     bm_bulk_delete:      '{{ t.bm_bulk_delete }}',
     bm_no_branches:      '{{ t.bm_no_branches }}',
     bm_select_repo:      '{{ t.bm_select_repo }}',
+    sec_af_generating:   '{{ t.sec_af_generating }}',
+    sec_af_no_fix:       '{{ t.sec_af_no_fix }}',
+    sec_af_timeout:      '{{ t.sec_af_timeout }}',
+    sec_af_network:      '{{ t.sec_af_network }}',
   };
 
   function relTime(iso) {
@@ -3293,7 +3297,7 @@
       resultEl.style.cssText = 'font-size:.72rem;flex-shrink:0';
       btn.after(resultEl);
     }
-    resultEl.textContent = 'Generiere…';
+    resultEl.textContent = T.sec_af_generating;
     resultEl.style.color = 'var(--muted)';
     try {
       const r    = await fetch(u('/api/security/autofix'), {
@@ -3309,13 +3313,16 @@
       } else {
         btn.disabled    = false;
         btn.textContent = '🤖 Fix';
-        resultEl.textContent = '✗ ' + (data.error || '?');
+        const msg = data.error_code === 'no_autofix' ? T.sec_af_no_fix
+                  : data.error_code === 'timeout'    ? T.sec_af_timeout
+                  : (data.error || '?');
+        resultEl.textContent = '✗ ' + msg;
         resultEl.style.color = 'var(--red)';
       }
     } catch {
       btn.disabled    = false;
       btn.textContent = '🤖 Fix';
-      resultEl.textContent = '✗ Netzwerkfehler';
+      resultEl.textContent = '✗ ' + T.sec_af_network;
       resultEl.style.color = 'var(--red)';
     }
   }

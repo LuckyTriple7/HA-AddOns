@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.16] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: Ladeanzeige und Fehlermeldungen jetzt vollständig übersetzt (DE/EN) statt hardcodiertem Deutsch; Backend gibt error_code zurück, Frontend übersetzt
+
 ## [0.3.15] - 2026-06-11
 
 ### Fixed
