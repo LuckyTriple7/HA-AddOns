@@ -1619,6 +1619,167 @@ def api_branches():
         return jsonify({'error': 'internal error'}), 500
 
 
+@app.route('/api/compare')
+def api_compare():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    repo = request.args.get('repo', '').strip()
+    base = request.args.get('base', '').strip()
+    head = request.args.get('head', '').strip()
+    if not repo or not base or not head:
+        return jsonify({'error': 'repo, base und head erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'kein Token'}), 400
+    try:
+        r = http.get(
+            f'{GITHUB_API}/repos/{repo}/compare/{base}...{head}',
+            headers=_gh_headers(token),
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code != 200:
+            msg = r.json().get('message', f'HTTP {r.status_code}') if r.content else f'HTTP {r.status_code}'
+            return jsonify({'error': msg}), r.status_code
+        data = r.json()
+        commits = [
+            {
+                'sha':     c['sha'],
+                'short':   c['sha'][:7],
+                'message': c['commit']['message'].split('\n')[0][:120],
+                'author':  c['commit']['author']['name'],
+                'date':    c['commit']['author']['date'],
+                'url':     c.get('html_url', ''),
+            }
+            for c in data.get('commits', [])
+        ]
+        return jsonify({'commits': commits, 'ahead_by': data.get('ahead_by', 0)})
+    except Exception:
+        log.exception("Compare-Fehler (%s %s...%s)", repo, base, head)
+        return jsonify({'error': 'internal error'}), 500
+
+
+@app.route('/api/cherry-pick', methods=['POST'])
+def api_cherry_pick():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    data   = request.get_json(silent=True) or {}
+    repo   = data.get('repo', '').strip()
+    shas   = data.get('commits', [])
+    target = data.get('target', '').strip()
+    token  = load_config().get('github_token', '').strip()
+    if not all([token, repo, shas, target]):
+        return jsonify({'error': 'Parameter fehlen'}), 400
+    hdrs = _gh_headers(token)
+    try:
+        # 1. Ziel-Branch HEAD SHA ermitteln
+        r = http.get(f'{GITHUB_API}/repos/{repo}/git/ref/heads/{target}',
+                     headers=hdrs, timeout=10)
+        _update_rate_limit(r.headers)
+        if r.status_code != 200:
+            return jsonify({'error': f'Branch "{target}" nicht gefunden'}), 404
+        base_sha = r.json()['object']['sha']
+
+        # 2. Neuen Branch erstellen
+        short    = shas[0][:7]
+        ts       = int(time.time()) % 100000
+        new_name = f'cherry-pick/{short}-to-{target}-{ts}'
+        r2 = http.post(f'{GITHUB_API}/repos/{repo}/git/refs',
+                       headers=hdrs,
+                       json={'ref': f'refs/heads/{new_name}', 'sha': base_sha},
+                       timeout=10)
+        _update_rate_limit(r2.headers)
+        if r2.status_code not in (201, 422):
+            return jsonify({'error': f'Branch konnte nicht erstellt werden: {r2.text[:200]}'}), 500
+
+        # 3. Commits einzeln anwenden
+        errors: list[str] = []
+        for sha in shas:
+            commit_r = http.get(f'{GITHUB_API}/repos/{repo}/commits/{sha}',
+                                headers=hdrs, timeout=15)
+            _update_rate_limit(commit_r.headers)
+            if commit_r.status_code != 200:
+                errors.append(f'Commit {sha[:7]}: nicht ladbar')
+                continue
+            for f in commit_r.json().get('files', []):
+                path   = f['filename']
+                status = f['status']
+                try:
+                    if status == 'removed':
+                        ex = http.get(f'{GITHUB_API}/repos/{repo}/contents/{path}',
+                                      headers=hdrs, params={'ref': new_name}, timeout=10)
+                        if ex.status_code == 200:
+                            http.delete(f'{GITHUB_API}/repos/{repo}/contents/{path}',
+                                        headers=hdrs,
+                                        json={'message': f'cherry-pick {sha[:7]}: remove {path}',
+                                              'sha': ex.json()['sha'], 'branch': new_name},
+                                        timeout=10)
+                    else:
+                        if status == 'renamed':
+                            old_path = f.get('previous_filename', '')
+                            if old_path:
+                                ex_old = http.get(f'{GITHUB_API}/repos/{repo}/contents/{old_path}',
+                                                  headers=hdrs, params={'ref': new_name}, timeout=10)
+                                if ex_old.status_code == 200:
+                                    http.delete(f'{GITHUB_API}/repos/{repo}/contents/{old_path}',
+                                                headers=hdrs,
+                                                json={'message': f'cherry-pick {sha[:7]}: rename {old_path}',
+                                                      'sha': ex_old.json()['sha'], 'branch': new_name},
+                                                timeout=10)
+                        cr = http.get(f'{GITHUB_API}/repos/{repo}/contents/{path}',
+                                      headers=hdrs, params={'ref': sha}, timeout=10)
+                        _update_rate_limit(cr.headers)
+                        if cr.status_code != 200:
+                            errors.append(f'{path}: Inhalt nicht ladbar')
+                            continue
+                        cdata = cr.json()
+                        if cdata.get('encoding') != 'base64':
+                            errors.append(f'{path}: unbekanntes Encoding (zu groß?)')
+                            continue
+                        b64 = cdata['content'].replace('\n', '')
+                        ex  = http.get(f'{GITHUB_API}/repos/{repo}/contents/{path}',
+                                       headers=hdrs, params={'ref': new_name}, timeout=10)
+                        body: dict = {'message': f'cherry-pick {sha[:7]}: {path}',
+                                      'content': b64, 'branch': new_name}
+                        if ex.status_code == 200:
+                            body['sha'] = ex.json()['sha']
+                        put_r = http.put(f'{GITHUB_API}/repos/{repo}/contents/{path}',
+                                         headers=hdrs, json=body, timeout=10)
+                        _update_rate_limit(put_r.headers)
+                        if put_r.status_code not in (200, 201):
+                            errors.append(f'{path}: Schreiben fehlgeschlagen ({put_r.status_code})')
+                except Exception as fe:
+                    errors.append(f'{path}: {fe}')
+
+        # 4. PR erstellen
+        msg_list = []
+        for sha in shas:
+            cr  = http.get(f'{GITHUB_API}/repos/{repo}/commits/{sha}', headers=hdrs, timeout=10)
+            msg = cr.json().get('commit', {}).get('message', sha[:7]).split('\n')[0] if cr.status_code == 200 else sha[:7]
+            msg_list.append(f'- `{sha[:7]}` {msg}')
+        n        = len(shas)
+        pr_title = f'Cherry-pick: {n} commit{"s" if n != 1 else ""} → {target}'
+        pr_body  = '🍒 Cherry-picked commits:\n\n' + '\n'.join(msg_list) + '\n\n*Created by GitPulse*'
+        pr_r = http.post(f'{GITHUB_API}/repos/{repo}/pulls',
+                         headers=hdrs,
+                         json={'title': pr_title, 'head': new_name,
+                               'base': target, 'body': pr_body},
+                         timeout=15)
+        _update_rate_limit(pr_r.headers)
+        if pr_r.status_code == 201:
+            pr = pr_r.json()
+            log.info("Cherry-pick PR #%s erstellt (%s → %s)", pr['number'], new_name, target)
+            return jsonify({'pr_url': pr['html_url'], 'pr_number': pr['number'],
+                            'branch': new_name, 'errors': errors})
+        return jsonify({'branch': new_name, 'errors': errors,
+                        'error': f'PR nicht erstellt: {pr_r.json().get("message", pr_r.status_code)}'})
+    except Exception:
+        log.exception("Cherry-pick Fehler (%s)", repo)
+        return jsonify({'error': 'Interner Fehler'}), 500
+
+
 @app.route('/api/comments')
 def api_comments():
     redir = _auth_required(request)

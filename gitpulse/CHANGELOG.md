@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.6] - 2026-06-11
+
+### Added
+- **Cherry-Pick-Tab**: neuer Tab zum Übernehmen einzelner Commits von einem Branch in einen anderen — Quell-Branch wählen, Commits auswählen, PR direkt nach dev/main erstellen; ideal für CodeQL-Fix-Branches die auf `main` zielen, aber zuerst nach `dev` sollen
+
 ## [0.3.5] - 2026-06-10
 
 ### Fixed
