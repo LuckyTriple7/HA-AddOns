@@ -9,7 +9,6 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
   <meta name="theme-color" content="#0d1117">
   <meta name="app-base" content="{{ script_root }}" id="app-base">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <style>
@@ -119,8 +118,6 @@
     .run-step-row { display:flex; align-items:center; gap:6px; padding:2px 14px 2px 54px; font-size:.71rem; color:var(--muted); }
     .act-btn-detail { color:var(--muted); border-color:var(--border); padding:2px 7px; font-size:.75rem; }
     .act-btn-detail:hover { border-color:var(--accent); color:var(--accent); }
-    .act-btn-detail .jobs-arrow { display:inline-block; transition:transform .15s; }
-    .act-btn-detail.open .jobs-arrow { transform:rotate(180deg); }
 
     /* ── Releases ───────────────────────────────────────────── */
     .release-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
@@ -180,7 +177,7 @@
     @keyframes spin { to{transform:rotate(360deg)} }
 
     /* ── Action buttons (Merge / Rerun / Dispatch) ──────────── */
-    .act-btn { font-size:0.72rem; padding:3px 9px; border-radius:4px; border:1px solid var(--border); cursor:pointer; font-weight:600; white-space:nowrap; background:none; color:var(--muted,#8b949e); transition:opacity .15s; }
+    .act-btn { font-size:0.72rem; padding:3px 9px; border-radius:4px; border:1px solid; cursor:pointer; font-weight:600; white-space:nowrap; background:none; transition:opacity .15s; }
     .act-btn:hover { opacity:.8; }
     .act-btn-merge   { color:var(--purple); border-color:rgba(163,113,247,.4); }
     .act-btn-merge:hover { background:rgba(163,113,247,.1); }
@@ -321,15 +318,6 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
       {{ t.tab_addon_manager }}
     </div>{% endif %}
-    <div class="tab" data-tab="activity" onclick="switchTab('activity')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      {{ t.tab_activity }}
-      <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
-    </div>
-    <div class="tab" data-tab="cherry" onclick="switchTab('cherry')">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 5.17A3.001 3.001 0 0 0 14 2a3 3 0 0 0-1 5.83V9H9a3 3 0 0 0-3 3v.17A3.001 3.001 0 0 0 7 18a3 3 0 0 0 1-5.83V12a1 1 0 0 1 1-1h4v1.17A3.001 3.001 0 0 0 14 18a3 3 0 0 0 1-5.83V11h.17A3.001 3.001 0 0 0 17 5.17zM7 16a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm7 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0-10a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
-      {{ t.tab_cherry }}
-    </div>
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
       {{ t.tab_console }}
@@ -499,7 +487,6 @@
 
     <!-- ── Tab: Issues ──────────────────────────────────────── -->
     <div id="tab-issues" style="display:none">
-      <div id="issue-repo-selector" class="repo-tabs"></div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
         <button id="iss-btn-open"   class="ci-filter-btn active" onclick="setIssState('open')">{{ t.filter_open }}</button>
         <button id="iss-btn-closed" class="ci-filter-btn"        onclick="setIssState('closed')">{{ t.filter_closed }}</button>
@@ -518,7 +505,6 @@
 
     <!-- ── Tab: CI ──────────────────────────────────────────── -->
     <div id="tab-ci" style="display:none">
-      <div id="ci-repo-selector" class="repo-tabs"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div style="position:relative;flex:1">
           <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -542,7 +528,6 @@
 
     <!-- ── Tab: Security ──────────────────────────────────── -->
     <div id="tab-security" style="display:none">
-      <div id="security-repo-selector" class="repo-tabs"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <div style="position:relative;flex:1">
           <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);fill:var(--muted);pointer-events:none" width="13" height="13" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -556,32 +541,7 @@
       <div id="security-list"></div>
     </div>
 
-    <!-- ── Tab: Meine Aktivität ───────────────────────────── -->
-    <div id="tab-activity" style="display:none">
-      <div id="activity-list"></div>
-    </div>
-
     <!-- ── Tab: Console ─────────────────────────────────────── -->
-    <div id="tab-cherry" style="display:none">
-      <div style="padding:12px 14px 0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-          <select id="cp-repo" onchange="cpOnRepoChange()" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:180px">
-            <option value="">{{ t.cp_select_repo }}</option>
-          </select>
-          <select id="cp-source" onchange="" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:160px">
-            <option value="">{{ t.cp_source_branch }}</option>
-          </select>
-          <span style="color:var(--muted);font-size:1rem">→</span>
-          <select id="cp-target" style="background:var(--surf2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.82rem;min-width:120px">
-            <option value="">{{ t.cp_target_branch }}</option>
-          </select>
-          <button class="hdr-btn" onclick="cpLoad()" style="margin-left:4px">{{ t.cp_load }}</button>
-        </div>
-        <div style="font-size:.75rem;color:var(--muted);margin-bottom:10px;line-height:1.5">{{ t.cp_hint }}</div>
-      </div>
-      <div id="cp-list" style="padding:0 14px 14px"></div>
-    </div>
-
     <div id="tab-console" style="display:none">
       <div class="console-wrap">
         <div class="console-toolbar">
@@ -597,8 +557,8 @@
     <!-- ── Tab: Add-on Manager ────────────────────────────── -->
     <div id="tab-addonmgr" style="display:none">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-        <select id="am-repo" style="flex:1;min-width:180px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surf);color:var(--text);font-size:0.85rem"></select>
-        <select id="am-branch" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surf);color:var(--text);font-size:0.85rem">
+        <select id="am-repo" style="flex:1;min-width:180px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:0.85rem"></select>
+        <select id="am-branch" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:0.85rem">
           <option value="dev">dev</option>
           <option value="main">main</option>
         </select>
@@ -612,11 +572,11 @@
 
     <!-- Confirm-Dialog Add-on Manager -->
     <div id="am-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
-      <div style="background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4)">
         <div id="am-confirm-title" style="font-weight:600;font-size:1rem;margin-bottom:8px">{{ t.am_confirm_title }}</div>
         <div id="am-confirm-msg" style="font-size:0.88rem;color:var(--muted);margin-bottom:20px;line-height:1.5"></div>
         <div style="display:flex;gap:10px;justify-content:flex-end">
-          <button class="hdr-btn" style="background:var(--surf)" onclick="amConfirmCancel()">{{ t.am_confirm_no }}</button>
+          <button class="hdr-btn" style="background:var(--card)" onclick="amConfirmCancel()">{{ t.am_confirm_no }}</button>
           <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043" onclick="amConfirmYes()">{{ t.am_confirm_yes }}</button>
         </div>
       </div>
@@ -624,7 +584,7 @@
 
     <!-- PR-Picker-Overlay Add-on Manager -->
     <div id="am-pr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9002;align-items:center;justify-content:center">
-      <div style="background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:680px;width:95%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:680px;width:95%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
           <div id="am-pr-title" style="font-weight:600;font-size:1rem;flex:1"></div>
           <button class="hdr-btn" onclick="amClosePrPicker()">{{ t.am_revert_close }}</button>
@@ -635,7 +595,7 @@
 
     <!-- History/Revert-Overlay Add-on Manager -->
     <div id="am-history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9001;align-items:center;justify-content:center">
-      <div style="background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:620px;width:95%;max-height:78vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:620px;width:95%;max-height:78vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
           <div id="am-history-title" style="font-weight:600;font-size:1rem;flex:1"></div>
           <button class="hdr-btn" onclick="amCloseHistory()">{{ t.am_revert_close }}</button>
@@ -673,10 +633,10 @@
   }
 
   // ── Tab switching ─────────────────────────────────────────────────
-  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'activity','cherry','console'];
+  const TABS = ['repos','prs','issues','ci','releases','security',{% if addon_manager %}'addonmgr',{% endif %}'console'];
   let activeTab = 'repos';
-  const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security', activity: 'chip-activity' };
-  const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security', 'chip-activity': 'chip-new-activity' };
+  const _tabChipMap = { prs: 'chip-prs', issues: 'chip-issues', releases: 'chip-releases', security: 'chip-security' };
+  const _chipClsMap = { 'chip-prs': 'chip-new-prs', 'chip-issues': 'chip-new-issues', 'chip-releases': 'chip-new-releases', 'chip-security': 'chip-new-security' };
 
   function switchTab(name) {
     TABS.forEach(t => {
@@ -691,7 +651,6 @@
       if (chip) chip.classList.remove(_chipClsMap[chipId]);
     }
     if (name === 'console') startConsole();
-    if (name === 'cherry') cpInit();
   }
 
   // ── State ─────────────────────────────────────────────────────────
@@ -700,27 +659,24 @@
   let activeRepo = null;
   let notifEnabled = false;
   // Browser-Notification-Tracking (client-seitig, reset bei Reload)
-  let _bn_first    = true;
-  let _bn_prs      = {};   // {repo: Set<number>}
-  let _bn_issues   = {};   // {repo: Set<number>}
-  let _bn_runs     = {};   // {run_id: conclusion|null}
-  let _bn_stars    = {};   // {repo: number}
-  let _bn_forks    = {};   // {repo: number}
-  let _bn_sec      = {};   // {repo: number} alert count
-  let _bn_act_prs  = new Set();   // "repo#number" gesehene eigene PRs
-  let _bn_act_iss  = new Set();   // "repo#number" gesehene eigene Issues
+  let _bn_first  = true;
+  let _bn_prs    = {};   // {repo: Set<number>}
+  let _bn_issues = {};   // {repo: Set<number>}
+  let _bn_runs   = {};   // {run_id: conclusion|null}
+  let _bn_stars  = {};   // {repo: number}
+  let _bn_forks  = {};   // {repo: number}
+  let _bn_sec    = {};   // {repo: number} alert count
   function _bnNotif() {
     try { return JSON.parse(localStorage.getItem('gp_bn_notif') || '{}'); } catch { return {}; }
   }
-  let _prFilter    = _loadFilter('gp_pr_filter', '');
-  let _issueFilter = _loadFilter('gp_iss_filter', '');
+  let _prFilter = '';
+  let _issueFilter = '';
   let _prStateFilter  = 'open';
   let _issStateFilter = 'open';
   let _ciTimeFilter = 'all';
   let _ciStatusFilter = 'all';
   let _ciFilter = '';
   let _ciWfExpanded = false;
-  const _expandedRunIds = new Map(); // runId → repo
   let _secFilter = '';
   let _ciPage = 1;
   const CI_PAGE_SIZE = 50;
@@ -849,9 +805,6 @@
     { key:'repo_stats',          label:'{{ t.tg_repo_stats }}' },
     { key:'star_fork',           label:'{{ t.tg_star_fork }}' },
     { key:'security',            label:'{{ t.tg_security }}' },
-    { key:'my_activity',         label:'{{ t.tg_my_activity }}' },
-    { key:'review_request',      label:'{{ t.tg_review_request }}' },
-    { key:'digest',              label:'{{ t.tg_digest }}' },
   ];
 
   function openSettings() {
@@ -1000,7 +953,6 @@
   function _btnRestore(btn) { if (btn) { btn.disabled = false; btn.innerHTML = btn._orig || btn.innerHTML; } }
 
   function closeIssue(btn, repo, number) {
-    if (!confirm('Issue #' + number + ' schließen?')) return;
     _btnWait(btn);
     fetch(u('/api/issue/close'), {
       method: 'POST',
@@ -1060,7 +1012,6 @@
 
   // ── Cancel Workflow ───────────────────────────────────────────────
   function cancelWorkflow(btn, repo, runId) {
-    if (!confirm('Workflow-Run #' + runId + ' abbrechen?')) return;
     _btnWait(btn);
     fetch(u('/api/workflow/cancel'), {
       method: 'POST',
@@ -1116,12 +1067,10 @@
   }
   function applyPRFilter() {
     _prFilter = (document.getElementById('pr-filter')?.value || '').toLowerCase();
-    _saveFilter('gp_pr_filter', _prFilter);
     if (ghData) renderPRs(ghData);
   }
   function applyIssueFilter() {
     _issueFilter = (document.getElementById('issue-filter')?.value || '').toLowerCase();
-    _saveFilter('gp_iss_filter', _issueFilter);
     if (ghData) renderIssues(ghData);
   }
   function setCIFilter(f) {
@@ -1201,7 +1150,6 @@
   }
 
   function deleteWorkflowRun(repo, runId) {
-    if (!confirm('Workflow-Run #' + runId + ' löschen?')) return;
     fetch(u('/api/workflow/delete'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -1216,7 +1164,6 @@
   }
 
   async function toggleWorkflowState(repo, workflowId, enable, btnId) {
-    if (!enable && !confirm('Workflow deaktivieren?')) return;
     const btn = document.getElementById(btnId);
     if (btn) { btn.disabled = true; btn.textContent = '{{ t.ci_wf_toggling }}'; }
     try {
@@ -1304,21 +1251,6 @@
     ci_wf_disable:       '{{ t.ci_wf_disable }}',
     ci_wf_toggling:      '{{ t.ci_wf_toggling }}',
     ci_wf_toggle_err:    '{{ t.ci_wf_toggle_err }}',
-    pr_body_show:        '{{ t.pr_body_show }}',
-    pr_body_hide:        '{{ t.pr_body_hide }}',
-    no_activity:         '{{ t.no_activity }}',
-    cp_loading:          '{{ t.cp_loading }}',
-    cp_ahead_by:         '{{ t.cp_ahead_by }}',
-    cp_no_commits:       '{{ t.cp_no_commits }}',
-    cp_select_all:       '{{ t.cp_select_all }}',
-    cp_deselect_all:     '{{ t.cp_deselect_all }}',
-    cp_btn:              '{{ t.cp_btn }}',
-    cp_running:          '{{ t.cp_running }}',
-    cp_success:          '{{ t.cp_success }}',
-    cp_error:            '{{ t.cp_error }}',
-    cp_no_selection:     '{{ t.cp_no_selection }}',
-    cp_select_branches:  '{{ t.cp_select_branches }}',
-    cp_same_branch:      '{{ t.cp_same_branch }}',
   };
 
   function relTime(iso) {
@@ -1332,7 +1264,6 @@
   }
 
   function labelColor(name) {
-    if (name == null) return '#8b949e';
     const colors = { bug:'#f85149', enhancement:'#58a6ff', documentation:'#a371f7',
                      question:'#d29922', 'good first issue':'#3fb950', help:'#e3b341',
                      wontfix:'#8b949e', duplicate:'#8b949e', invalid:'#f0883e' };
@@ -1382,8 +1313,6 @@
   function renderSummary(data) {
     let totalPRs = 0, totalIssues = 0, totalRuns = 0, hasActive = false, hasFailed = false;
     let totalSec = 0, hasSecCritical = false, hasSecHigh = false;
-    const act = data.my_activity || {};
-    const totalActivity = (act.prs || []).length + (act.issues || []).length;
     (data.my_repos || []).forEach(r => {
       totalPRs    += r.open_prs    || 0;
       totalIssues += r.open_issues || 0;
@@ -1408,7 +1337,6 @@
       <div class="stat-chip" onclick="switchTab('repos')"><div class="num" style="color:var(--accent)">${(data.my_repos||[]).length}</div><div class="lbl">{{ t.stat_repos }}</div></div>
       <div class="stat-chip" id="chip-prs"      onclick="switchTab('prs')"><div class="num" style="color:var(--green)">${totalPRs}</div><div class="lbl">{{ t.stat_prs }}</div></div>
       <div class="stat-chip" id="chip-issues"   onclick="switchTab('issues')"><div class="num" style="color:var(--yellow)">${totalIssues}</div><div class="lbl">{{ t.stat_issues }}</div></div>
-      <div class="stat-chip" id="chip-activity" onclick="switchTab('activity')"><div class="num" style="color:var(--accent)">${totalActivity}</div><div class="lbl">{{ t.stat_activity }}</div></div>
       <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
@@ -1419,20 +1347,17 @@
       _applyChipBlink('chip-issues',   'chip-new-issues',   totalIssues   > _chipCounts.issues);
       _applyChipBlink('chip-releases', 'chip-new-releases', totalReleases > _chipCounts.releases);
       _applyChipBlink('chip-security', 'chip-new-security', totalSec      > _chipCounts.security);
-      _applyChipBlink('chip-activity', 'chip-new-activity', totalActivity > _chipCounts.activity);
     }
-    _chipCounts = { prs: totalPRs, issues: totalIssues, releases: totalReleases, security: totalSec, activity: totalActivity };
+    _chipCounts = { prs: totalPRs, issues: totalIssues, releases: totalReleases, security: totalSec };
 
     const newRel   = (data.new_releases || []).length;
     const badgePR  = document.getElementById('badge-prs');
     const badgeIss = document.getElementById('badge-issues');
     const badgeRel = document.getElementById('badge-releases');
     const badgeSec = document.getElementById('badge-security');
-    const badgeAct = document.getElementById('badge-activity');
-    if (totalPRs)     { badgePR.textContent  = totalPRs;      badgePR.style.display  = ''; } else badgePR.style.display  = 'none';
-    if (totalIssues)  { badgeIss.textContent = totalIssues;   badgeIss.style.display = ''; } else badgeIss.style.display = 'none';
-    if (newRel)       { badgeRel.textContent = newRel;        badgeRel.style.display = ''; } else badgeRel.style.display = 'none';
-    if (totalActivity){ badgeAct.textContent = totalActivity; badgeAct.style.display = ''; } else badgeAct.style.display = 'none';
+    if (totalPRs)   { badgePR.textContent  = totalPRs;   badgePR.style.display  = ''; } else badgePR.style.display  = 'none';
+    if (totalIssues){ badgeIss.textContent = totalIssues; badgeIss.style.display = ''; } else badgeIss.style.display = 'none';
+    if (newRel)     { badgeRel.textContent = newRel;      badgeRel.style.display = ''; } else badgeRel.style.display = 'none';
     if (totalSec)   { badgeSec.textContent = totalSec;    badgeSec.style.display = ''; } else badgeSec.style.display = 'none';
   }
 
@@ -1488,21 +1413,6 @@
             <span style="font-size:.67rem;color:var(--muted)">{{ t.stat_watchers }}</span>
           </div>
         </div>
-        ${(() => {
-          const ins = repo.insights || {};
-          const chips = [];
-          if (ins.has_license)
-            chips.push(`<span title="{{ t.insights_license }}: ${escHtml(ins.license_name||'?')}" style="display:flex;align-items:center;gap:3px;font-size:.7rem;color:var(--green)">⚖️ ${escHtml(ins.license_name||'?')}</span>`);
-          else
-            chips.push(`<span title="{{ t.insights_no_license }}" style="display:flex;align-items:center;gap:3px;font-size:.7rem;color:var(--muted)">⚖️ <span style="color:var(--muted)">{{ t.insights_no_license }}</span></span>`);
-          if (ins.has_ci)
-            chips.push(`<span title="{{ t.insights_has_ci }}" style="font-size:.7rem;color:var(--green)">⚙️ CI</span>`);
-          else
-            chips.push(`<span title="{{ t.insights_no_ci }}" style="font-size:.7rem;color:var(--muted)">⚙️ <span style="color:var(--muted)">{{ t.insights_no_ci }}</span></span>`);
-          if (ins.security_count > 0)
-            chips.push(`<span title="{{ t.insights_security_alerts }}" style="font-size:.7rem;color:var(--red)" onclick="selectRepo('${escHtml(repo.repo)}');switchTab('security')" style="cursor:pointer">🔒 ${ins.security_count}</span>`);
-          return `<div style="display:flex;gap:10px;align-items:center;padding:5px 12px;border-top:1px solid var(--border);background:var(--surf2);flex-wrap:wrap">${chips.join('')}</div>`;
-        })()}
       </div>`;
     }).join('');
   }
@@ -1542,14 +1452,12 @@
 
   // ── Render: Repo selector ─────────────────────────────────────────
   function renderRepoSelector(repos) {
-    const chips = (!repos || repos.length <= 1) ? '' : repos.map((r,i) =>
+    const el = document.getElementById('repo-selector');
+    if (!repos || repos.length <= 1) { el.innerHTML = ''; return; }
+    el.innerHTML = repos.map((r,i) =>
       `<button class="repo-tab${(!activeRepo && i===0)||activeRepo===r.repo?' active':''}" onclick="selectRepo('${r.repo}')">${r.name}</button>`
     ).join('');
-    ['repo-selector','issue-repo-selector','ci-repo-selector','security-repo-selector'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = chips;
-    });
-    if (!activeRepo && repos && repos.length) activeRepo = repos[0].repo;
+    if (!activeRepo) activeRepo = repos[0].repo;
   }
 
   function selectRepo(repo) {
@@ -1557,15 +1465,10 @@
     _ciPage = 1; _ciTimeFilter = 'all'; _ciStatusFilter = 'all'; _ciFilter = '';
     const ciInput = document.getElementById('ci-filter'); if (ciInput) ciInput.value = '';
     document.querySelectorAll('.repo-tab').forEach(b => b.classList.toggle('active', b.textContent.trim() === repo.split('/')[1]));
-    try { localStorage.setItem('gp_active_repo', repo); } catch {}
     renderPRs(ghData);
     renderIssues(ghData);
     renderCI(ghData);
-    renderSecurity(ghData);
   }
-
-  function _saveFilter(key, val) { try { localStorage.setItem(key, val); } catch {} }
-  function _loadFilter(key, def) { try { return localStorage.getItem(key) ?? def; } catch { return def; } }
 
   // ── Render: PRs ───────────────────────────────────────────────────
   function renderPRs(data) {
@@ -1605,32 +1508,23 @@
             ? `<span style="color:#a371f7">⎇ ${T.pr_merged}</span>`
             : `<span style="color:var(--red)">✕ ${T.pr_closed}</span>`)
         : `<span class="${pr.draft?'pr-draft':'pr-state-open'}">● ${pr.draft?T.pr_draft:T.pr_open}</span>`;
-      const bkey   = repo.repo + '#' + pr.number;
-      const bdomId = mkId(bkey);
-      const hasBody = (pr.body || '').trim().length > 0;
       return `
-      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
-          <div class="item-main">
-            <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
-            <div class="item-meta">
-              ${stateSpan}
-              <span>@${escHtml(pr.user)}</span>
-              <span>${relTime(pr.updated)}</span>
-              ${!closed ? reviewBadge(pr.review_state) : ''}
-              ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${T.pr_body_show}</button>` : ''}
-              ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
-              ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
-            </div>
+      <div class="item-row">
+        <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
+        <div class="item-main">
+          <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
+          <div class="item-meta">
+            ${stateSpan}
+            <span>@${escHtml(pr.user)}</span>
+            <span>${relTime(pr.updated)}</span>
+            ${!closed ? reviewBadge(pr.review_state) : ''}
+            ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
+            ${pr.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
-          ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
-          ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
-          ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((pr.body||'').trim())}</div>` : ''}
-        <div id="cmts-${bdomId}" style="padding:0 12px"></div>
+        ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
+        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
+        ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
       </div>`;
     }).join('') + '</div></div>';
   }
@@ -1666,35 +1560,23 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
       Issues — ${repo.name} (${filtered.length}${f && filtered.length !== allIssues.length ? ' / ' + allIssues.length : ''})
     </div><div class="card-body">` +
-    filtered.map(iss => {
-      const bkey   = repo.repo + '#' + iss.number;
-      const bdomId = mkId(bkey);
-      const hasBody = (iss.body || '').trim().length > 0;
-      return `
-      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
-          <div class="item-main">
-            <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
-            <div class="item-meta">
-              ${closed
-                ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
-                : `<span class="pr-state-open">● ${T.iss_open}</span>`}
-              <span>@${escHtml(iss.user)}</span>
-              <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
-              ${iss.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${iss.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${T.pr_body_show}</button>` : ''}
-              ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
-              ${(iss.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
-            </div>
+    filtered.map(iss => `
+      <div class="item-row">
+        <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
+        <div class="item-main">
+          <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
+          <div class="item-meta">
+            ${closed
+              ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
+              : `<span class="pr-state-open">● ${T.iss_open}</span>`}
+            <span>@${escHtml(iss.user)}</span>
+            <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
+            ${iss.labels.map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
           </div>
-          ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
-          ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((iss.body||'').trim())}</div>` : ''}
-        <div id="cmts-${bdomId}" style="padding:0 12px"></div>
-      </div>`;
-    }).join('') + '</div></div>';
+        ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
+        ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
+      </div>`).join('') + '</div></div>';
   }
 
   // ── CI helpers ────────────────────────────────────────────────────
@@ -1709,22 +1591,12 @@
     return m + 'm' + (s ? ' ' + s + 's' : '');
   }
 
-  // Laufzeit aktiver Runs sekündlich aktualisieren
-  setInterval(() => {
-    document.querySelectorAll('.run-dur-live').forEach(el => {
-      el.textContent = ciDuration(el.dataset.started, null);
-    });
-  }, 1000);
-
   // ── Jobs expandieren ──────────────────────────────────────────────
   function toggleJobs(repo, runId) {
     const el = document.getElementById('jobs-' + runId);
     if (!el) return;
-    const btn = document.getElementById('jobsbtn-' + runId);
     if (el.style.display === 'none') {
-      _expandedRunIds.set(String(runId), repo);
       el.style.display = '';
-      if (btn) btn.classList.add('open');
       if (!el.dataset.loaded) {
         el.innerHTML = '<div style="padding:8px 30px;font-size:.75rem;color:var(--muted)">Lade…</div>';
         fetch(u('/api/ci/jobs?repo=' + encodeURIComponent(repo) + '&run_id=' + runId))
@@ -1759,8 +1631,6 @@
           });
       }
     } else {
-      _expandedRunIds.delete(String(runId));
-      if (btn) btn.classList.remove('open');
       el.style.display = 'none';
     }
   }
@@ -1879,9 +1749,8 @@
       const canRerun  = ['failure','cancelled','timed_out'].includes(run.conclusion);
       const canCancel = ['in_progress','queued','waiting'].includes(run.status);
       const canDelete = run.status === 'completed';
-      const liveRun   = ['in_progress','queued','waiting'].includes(run.status);
-      const dur       = ciDuration(run.created, liveRun ? null : run.updated);
-      const timeDisp  = formatRunTime(run.created) + (dur ? ` · <span${liveRun ? ` class="run-dur-live" data-started="${escHtml(run.created)}"` : ''}>${dur}</span>` : '');
+      const dur       = ciDuration(run.created, run.updated || (run.status !== 'completed' ? null : run.updated));
+      const timeDisp  = formatRunTime(run.created) + (dur ? ' · ' + dur : '');
       return `
         <div class="run-row">
           <div class="run-dot ${ciStatusClass(status)}"></div>
@@ -1899,7 +1768,7 @@
           ${canCancel ? `<button class="act-btn act-btn-cancel" onclick="cancelWorkflow(this,'${escHtml(repo.repo)}',${run.id})">■ ${T.btn_cancel_run}</button>` : ''}
           ${canRerun  ? `<button class="act-btn act-btn-rerun"  onclick="rerunWorkflow(this,'${escHtml(repo.repo)}',${run.id})">↺ ${T.btn_rerun}</button>`  : ''}
           ${canDelete ? `<button class="act-btn act-btn-cancel" style="opacity:.6" onclick="deleteWorkflowRun('${escHtml(repo.repo)}',${run.id})">🗑 ${T.btn_delete_run}</button>` : ''}
-          <button class="act-btn act-btn-detail" id="jobsbtn-${run.id}" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs"><span class="jobs-arrow">▾</span></button>
+          <button class="act-btn act-btn-detail" onclick="toggleJobs('${escHtml(repo.repo)}',${run.id})" title="Jobs">▾</button>
         </div>
         <div id="jobs-${run.id}" class="run-jobs-wrap" style="display:none"></div>`;
     }).join('');
@@ -1908,169 +1777,26 @@
       CI / Actions — ${repo.name}
       ${dispatchBtn}
     </div><div class="card-body">${rows}</div></div>` + paginationBar;
-    // Restore previously expanded job panels after re-render
-    if (_expandedRunIds.size > 0) {
-      setTimeout(() => {
-        _expandedRunIds.forEach((repoName, id) => {
-          const jobEl = document.getElementById('jobs-' + id);
-          if (jobEl && jobEl.style.display === 'none') toggleJobs(repoName, id);
-        });
-      }, 0);
-    }
   }
 
   // ── Render: Releases ──────────────────────────────────────────────
   function renderReleases(data) {
-    const watchReleases = data.releases || [];
-    const myReleases = (data.my_repos || [])
-      .filter(r => r.latest_release)
-      .map(r => ({ ...r.latest_release, repo: r.repo }));
+    const releases = data.releases || [];
     const el = document.getElementById('release-list');
-    if (!watchReleases.length && !myReleases.length) {
+    if (!releases.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><div>${T.no_releases}</div></div>`;
       return;
     }
     const newKeys = new Set((data.new_releases||[]).map(r => r.repo+'@'+r.tag));
-    const relRow = rel => `
+    el.innerHTML = `<div class="card"><div class="card-body">` +
+    releases.map(rel => `
       <div class="release-row">
         ${newKeys.has(rel.repo+'@'+rel.tag)?'<div class="new-dot" title="{{ t.badge_new }}"></div>':'<div style="width:8px"></div>'}
         <span class="release-tag ${rel.prerelease?'release-pre':''}">${escHtml(rel.tag)}</span>
         <span class="release-repo">${escHtml(rel.repo)}</span>
         <a href="${rel.url}" target="_blank" rel="noopener noreferrer" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
         <span class="release-date">${relTime(rel.date)}</span>
-      </div>`;
-    let html = '';
-    if (myReleases.length) {
-      html += `<div class="card" style="margin-bottom:10px"><div class="card-header" style="font-size:.78rem;color:var(--muted)">{{ t.releases_my_repos }}</div><div class="card-body">` +
-        myReleases.map(relRow).join('') + '</div></div>';
-    }
-    if (watchReleases.length) {
-      html += `<div class="card"><div class="card-header" style="font-size:.78rem;color:var(--muted)">{{ t.releases_watch_repos }}</div><div class="card-body">` +
-        watchReleases.map(relRow).join('') + '</div></div>';
-    }
-    el.innerHTML = html;
-  }
-
-  // ── Render: My Activity ──────────────────────────────────────────
-  let _actBodyVisible = new Set();  // "repo#number" — aufgeklappte Bodies in Activity
-  let _commentsCache  = {};          // "repo#number" → {total, comments}
-
-  function toggleBody(key, btnEl) {
-    const div = document.getElementById('body-' + mkId(key));
-    if (!div) return;
-    const show = div.style.display === 'none';
-    div.style.display = show ? '' : 'none';
-    btnEl.textContent = show ? T.pr_body_hide : T.pr_body_show;
-    if (show) _actBodyVisible.add(key); else _actBodyVisible.delete(key);
-  }
-
-  function loadComments(repo, number, containerId) {
-    const ckey = repo + '#' + number;
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    if (el.dataset.open === '1') { el.innerHTML = ''; el.dataset.open = '0'; return; }
-    if (_commentsCache[ckey]) { _renderComments(el, _commentsCache[ckey]); return; }
-    el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_loading }}</div>`;
-    fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number))
-      .then(r => r.json())
-      .then(d => {
-        _commentsCache[ckey] = d;
-        _renderComments(el, d);
-      })
-      .catch(() => {
-        el.innerHTML = `<div style="font-size:.78rem;color:var(--red);padding:6px 0">Fehler</div>`;
-        el.dataset.open = '0';
-      });
-  }
-
-  function _renderComments(el, data) {
-    const cs = data.comments || [];
-    if (!cs.length) {
-      el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_none }}</div>`;
-      el.dataset.open = '1';
-      return;
-    }
-    const total = data.total || cs.length;
-    const hdr = total > cs.length
-      ? `<div style="font-size:.72rem;color:var(--muted);margin-bottom:6px">{{ t.comments_total }} ${total} — {{ t.comments_showing }} ${cs.length}</div>`
-      : '';
-    el.innerHTML = hdr + cs.map(c => `
-      <div style="display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--border)">
-        <img src="${escHtml(c.avatar)}" alt="${escHtml(c.user)}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.72rem;font-weight:600;color:var(--accent)">@${escHtml(c.user)} <span style="font-weight:400;color:var(--muted)">${relTime(c.created)}</span></div>
-          <div style="font-size:.78rem;color:var(--text);line-height:1.5;margin-top:2px">${renderMd((c.body||'').trim())}</div>
-        </div>
-      </div>`).join('');
-    el.dataset.open = '1';
-  }
-
-  function renderActivity(data) {
-    const el  = document.getElementById('activity-list');
-    const act = data.my_activity || {};
-    const prs        = act.prs        || [];
-    const issues     = act.issues     || [];
-    const reviewPRs  = act.review_prs || [];
-    if (!prs.length && !issues.length && !reviewPRs.length) {
-      el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><div>${T.no_activity}</div></div>`;
-      return;
-    }
-    const myRepoSet = new Set((data.my_repos || []).map(r => r.repo));
-
-    const itemRow = (item, type, showClose = true) => {
-      const bdomId = mkId(item.repo + '#' + item.number);
-      const hasBody = (item.body || '').trim().length > 0;
-      return `
-      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
-        <div style="display:flex;align-items:flex-start;gap:10px">
-          <div class="item-main">
-            <div class="item-title">
-              <span style="font-size:.72rem;color:var(--muted);margin-right:4px">${escHtml(item.repo)}</span>
-              <a href="${item.url}" target="_blank" rel="noopener noreferrer">#${item.number} ${escHtml(item.title)}</a>
-              ${item.draft ? `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">Draft</span>` : ''}
-            </div>
-            <div class="item-meta">
-              ${type === 'review'
-                ? `<span style="color:#a371f7">👁 Review</span>`
-                : type === 'pr'
-                  ? `<span class="pr-state-open">⇄ PR</span>`
-                  : `<span style="color:var(--yellow)">● Issue</span>`}
-              <span>${relTime(item.updated)}</span>
-              ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(item.repo+'#'+item.number)},this)">${T.pr_body_show}</button>` : ''}
-              ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}</button>` : ''}
-              ${(item.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
-            </div>
-          </div>
-          ${showClose && myRepoSet.has(item.repo) ? (type !== 'issue'
-            ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
-            : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`) : ''}
-        </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((item.body||'').trim())}</div>` : ''}
-        <div id="cmts-${bdomId}" style="padding:0 12px"></div>
-      </div>`;
-    };
-
-    let html = '';
-    if (prs.length) {
-      html += `<div class="card" style="margin-bottom:10px"><div class="card-header">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--green)"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zM3 18l4-4h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v16l4-4z"/></svg>
-        {{ t.activity_my_prs }} (${prs.length})
-      </div><div class="card-body">${prs.map(p => itemRow(p, 'pr')).join('')}</div></div>`;
-    }
-    if (issues.length) {
-      html += `<div class="card" style="margin-bottom:10px"><div class="card-header">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--yellow)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-        {{ t.activity_my_issues }} (${issues.length})
-      </div><div class="card-body">${issues.map(i => itemRow(i, 'issue')).join('')}</div></div>`;
-    }
-    if (reviewPRs.length) {
-      html += `<div class="card"><div class="card-header">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="#a371f7"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-        {{ t.activity_review_prs }} (${reviewPRs.length})
-      </div><div class="card-body">${reviewPRs.map(p => itemRow(p, 'review', false)).join('')}</div></div>`;
-    }
-    el.innerHTML = html;
+      </div>`).join('') + '</div></div>';
   }
 
   // ── Main render ───────────────────────────────────────────────────
@@ -2106,7 +1832,6 @@
     const _sevLabel = { critical:'CRITICAL', high:'HIGH', medium:'MEDIUM', low:'LOW', unknown:'?' };
 
     const allRepos = (data.my_repos || []).filter(r => {
-      if (r.repo !== activeRepo) return false;
       const sec = r.security || {};
       return (sec.dependabot||[]).length || (sec.code_scanning||[]).length || (sec.secret_scanning||[]).length
           || sec.dependabot_access === false;
@@ -2186,8 +1911,7 @@
       const cs  = sec.code_scanning   || [];
       const ss  = sec.secret_scanning || [];
 
-      const depAccessOk  = sec.dependabot_access !== false;
-      const depNoScope   = sec.dependabot_access === false;
+      const depAccessOk = sec.dependabot_access !== false;
       const depHtml = dep.length ? `
         <div style="margin-bottom:8px">
           <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
@@ -2203,7 +1927,7 @@
               ${a.fixed_in ? `<span style="font-size:.72rem;color:var(--green);white-space:nowrap">→ ${escHtml(a.fixed_in)}</span>` : ''}
               ${a.url ? `<a class="act-btn act-btn-open" href="${escHtml(a.url)}" target="_blank" onclick="ghLink(event,${safeJsArg(a.url)})" style="padding:2px 8px;font-size:.72rem">#${a.number}</a>` : ''}
             </div>`; }).join('')}
-        </div>` : (depNoScope ? `
+        </div>` : (!depAccessOk ? `
         <div style="margin-bottom:8px;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:8px">
           <span style="font-size:1rem">🔒</span>
           <span>{{ t.security_dep_no_access }}</span>
@@ -2254,18 +1978,8 @@
 
   function render(data) {
     ghData = data;
-    if (!activeRepo && data.my_repos && data.my_repos.length) {
-      const saved = _loadFilter('gp_active_repo', '');
-      const repos = data.my_repos.map(r => r.repo);
-      activeRepo = (saved && repos.includes(saved)) ? saved : repos[0];
-    }
-    // Filter-Felder aus localStorage vorbelegen (einmalig beim ersten Render)
-    if (!ghData || ghData === data) {
-      const prEl  = document.getElementById('pr-filter');
-      const issEl = document.getElementById('issue-filter');
-      if (prEl  && !prEl.value  && _prFilter)    prEl.value  = _prFilter;
-      if (issEl && !issEl.value && _issueFilter) issEl.value = _issueFilter;
-    }
+    if (!activeRepo && data.my_repos && data.my_repos.length)
+      activeRepo = data.my_repos[0].repo;
     renderSummary(data);
     renderTokenAlert(data);
     renderRateLimit(data);
@@ -2273,7 +1987,6 @@
     renderRepoSelector(data.my_repos || []);
     renderPRs(data);
     renderIssues(data);
-    renderActivity(data);
     renderCI(data);
     renderReleases(data);
     renderSecurity(data);
@@ -2567,29 +2280,6 @@
       }
     }
 
-    // Eigene Aktivität
-    if (bn.my_activity !== false) {
-      const act = data.my_activity || {};
-      for (const pr of (act.prs || [])) {
-        const k = `${pr.repo}#${pr.number}`;
-        if (!_bn_first && !_bn_act_prs.has(k))
-          _fireBN(`🔀 Eigener PR offen: ${pr.repo.split('/')[1]}`, `#${pr.number} ${pr.title}`, pr.url, `act-pr-${k}`);
-        _bn_act_prs.add(k);
-      }
-      for (const iss of (act.issues || [])) {
-        const k = `${iss.repo}#${iss.number}`;
-        if (!_bn_first && !_bn_act_iss.has(k))
-          _fireBN(`🐛 Eigenes Issue offen: ${iss.repo.split('/')[1]}`, `#${iss.number} ${iss.title}`, iss.url, `act-iss-${k}`);
-        _bn_act_iss.add(k);
-      }
-      for (const c of (data.new_activity_comments || [])) {
-        const label = c.kind === 'pr' ? 'PR' : 'Issue';
-        _fireBN(`💬 Neuer Kommentar auf deinem ${label}: ${c.item.repo.split('/')[1]}`,
-          `#${c.item.number} ${c.item.title} · ${c.new_cnt} neuer Kommentar${c.new_cnt > 1 ? 'e' : ''}`,
-          c.item.url, `act-comment-${c.item.repo}-${c.item.number}`);
-      }
-    }
-
     _bn_first = false;
   }
 
@@ -2604,62 +2294,9 @@
   }
 
   // ── Utils ─────────────────────────────────────────────────────────
-  function renderMd(raw) {
-    if (!raw) return '';
-    const lines = raw.split('\n');
-    let html = '';
-    for (const line of lines) {
-      let l = line;
-      // Headings
-      if (/^#{1,3}\s/.test(l)) {
-        const lvl = l.match(/^#+/)[0].length;
-        const txt = inlineMd(l.replace(/^#+\s*/, ''));
-        const sz = lvl === 1 ? '.9rem' : lvl === 2 ? '.85rem' : '.8rem';
-        html += `<div style="font-weight:700;font-size:${sz};margin:6px 0 2px;color:var(--text)">${txt}</div>`;
-        continue;
-      }
-      // Horizontal rule
-      if (/^(-{3,}|\*{3,})$/.test(l.trim())) {
-        html += `<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">`;
-        continue;
-      }
-      // Checkbox list
-      if (/^\s*-\s*\[[ xX]\]/.test(l)) {
-        const checked = /\[[ xX]\]/.test(l) && !/\[ \]/.test(l);
-        const txt = inlineMd(l.replace(/^\s*-\s*\[[ xX]\]\s*/, ''));
-        html += `<div style="display:flex;gap:5px;align-items:baseline;margin:1px 0">
-          <span style="color:${checked ? 'var(--green)' : 'var(--muted)'};flex-shrink:0">${checked ? '☑' : '☐'}</span>
-          <span style="color:var(--text)">${txt}</span></div>`;
-        continue;
-      }
-      // Bullet list
-      if (/^\s*[-*]\s/.test(l)) {
-        const txt = inlineMd(l.replace(/^\s*[-*]\s*/, ''));
-        html += `<div style="display:flex;gap:5px;margin:1px 0"><span style="color:var(--muted);flex-shrink:0">•</span><span>${txt}</span></div>`;
-        continue;
-      }
-      // Empty line
-      if (l.trim() === '') { html += '<div style="height:4px"></div>'; continue; }
-      // Normal paragraph
-      html += `<div>${inlineMd(l)}</div>`;
-    }
-    return html;
-  }
-
-  function inlineMd(s) {
-    return s
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code style="background:var(--surf2);padding:1px 4px;border-radius:3px;font-size:.9em">$1</code>')
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">$1</a>');
-  }
-
   function escHtml(s) {
-    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
-  const mkId = s => String(s).replace(/[^a-zA-Z0-9_-]/g, '_');
   function safeJsArg(v) {
     return JSON.stringify(String(v)).replace(/"/g, '&quot;');
   }
@@ -2730,7 +2367,7 @@
 
   function amCard(a, repo, branch) {
     const id = `am-${a.dir}`;
-    return `<div style="background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px">
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <span style="font-weight:600;font-size:0.95rem">${escHtml(a.name)}</span>
         <span style="font-size:0.8rem;color:var(--muted)">${escHtml(a.dir)}</span>
@@ -2739,13 +2376,13 @@
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
-        <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem">
+        <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.85rem">
         <button class="hdr-btn" title="{{ t.am_btn_patch_title }}" onclick="amBumpPatch('${id}-ver')" style="font-size:0.78rem;padding:3px 8px">{{ t.am_btn_patch }}</button>
-        <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver', ${safeJsArg(a.version)})" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
+        <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver')" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.am_changelog_label }}:</label>
-        <textarea id="${id}-cl" rows="4" placeholder="{{ t.am_changelog_placeholder }}" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.83rem;font-family:monospace;resize:vertical"></textarea>
+        <textarea id="${id}-cl" rows="4" placeholder="{{ t.am_changelog_placeholder }}" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.83rem;font-family:monospace;resize:vertical"></textarea>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043"
@@ -2776,17 +2413,15 @@
     }
   }
 
-  function amBumpDep(inputId, currentVersion) {
+  function amBumpDep(inputId) {
     const inp = document.getElementById(inputId);
     if (!inp) return;
-    const base = (currentVersion || inp.value).trim();
-    const parts = base.split('.');
-    if (parts.length >= 4) {
-      const p = parts.slice(0, 4);
-      p[3] = String(parseInt(p[3], 10) + 1);
-      inp.value = p.join('.');
-    } else if (parts.length === 3) {
-      inp.value = base + '.1';
+    const parts = inp.value.trim().split('.');
+    if (parts.length === 3) {
+      inp.value = inp.value.trim() + '.1';
+    } else if (parts.length === 4) {
+      parts[3] = String(parseInt(parts[3], 10) + 1);
+      inp.value = parts.join('.');
     }
   }
 
@@ -2846,7 +2481,7 @@
       list.innerHTML = d.history.map((h, i) => {
         const isCurrent = i === 0;
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
-          <span style="background:${isCurrent ? '#2ea043' : 'var(--bg)'};color:${isCurrent ? '#fff' : 'var(--text)'};border:1px solid ${isCurrent ? '#2ea043' : 'var(--border)'};border-radius:4px;padding:2px 8px;font-size:0.8rem;font-weight:600;white-space:nowrap;min-width:70px;text-align:center">v${escHtml(h.version)}</span>
+          <span style="background:${isCurrent ? '#2ea043' : 'var(--bg)'};color:${isCurrent ? '#fff' : 'var(--fg)'};border:1px solid ${isCurrent ? '#2ea043' : 'var(--border)'};border-radius:4px;padding:2px 8px;font-size:0.8rem;font-weight:600;white-space:nowrap;min-width:70px;text-align:center">v${escHtml(h.version)}</span>
           <span style="font-size:0.78rem;color:var(--muted);white-space:nowrap">${escHtml(h.date)}</span>
           <span style="flex:1;font-size:0.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(h.message)}">${escHtml(h.message)}</span>
           <a href="https://github.com/${escHtml(repo)}/commit/${escHtml(h.sha)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--muted);font-family:monospace;text-decoration:none">${escHtml(h.short_sha)}</a>
@@ -2867,11 +2502,9 @@
 
   // ── PR-Picker ─────────────────────────────────────────────────────
   let _amPrTargetId = null;
-  let _amPrItems = [];
 
   async function amOpenPrPicker(addonDir, addonName, repo, clInputId) {
     _amPrTargetId = clInputId;
-    _amPrItems = [];
     const ov   = document.getElementById('am-pr-overlay');
     const list = document.getElementById('am-pr-list');
     document.getElementById('am-pr-title').textContent = `{{ t.am_pick_pr_title }} — ${addonName}`;
@@ -2889,23 +2522,20 @@
         list.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_pick_pr_none }}</div>`;
         return;
       }
-      // Store PR data by index — avoids putting strings directly in onclick attributes
-      _amPrItems = show.map(pr => ({title: pr.title || '', body: pr.body || ''}));
       list.innerHTML = (filtered ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">{{ t.am_pick_pr_filtered }}</div>` : '')
-        + show.map((pr, i) => {
+        + show.map(pr => {
           const date = pr.merged_at || pr.closed_at || '';
           const dateStr = date ? new Date(date).toLocaleDateString() : '';
-          const hasBody = (pr.body || '').trim().length > 0;
-          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;background:var(--bg)">
-            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:6px;flex-wrap:wrap">
+          const preview = (pr.body || '').slice(0, 200).replace(/</g,'&lt;');
+          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:background .15s"
+            onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''"
+            onclick="amUsePrBody(${JSON.stringify(pr.body || '')})">
+            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:4px;flex-wrap:wrap">
               <span style="font-weight:600;font-size:0.88rem">#${pr.number} ${escHtml(pr.title)}</span>
               <span style="font-size:0.75rem;color:var(--muted)">${escHtml(pr.branch)}</span>
               <span style="font-size:0.75rem;color:var(--muted);margin-left:auto">${dateStr}</span>
             </div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px" onclick="amPickByIdx(${i},'title')">{{ t.am_pick_use_title }}</button>
-              ${hasBody ? `<button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px;color:var(--muted)" onclick="amPickByIdx(${i},'body')">{{ t.am_pick_use_body }}</button>` : ''}
-            </div>
+            ${preview ? `<div style="font-size:0.78rem;color:var(--muted);white-space:pre-wrap;max-height:60px;overflow:hidden">${preview}${pr.body.length > 200 ? '…' : ''}</div>` : ''}
           </div>`;
         }).join('');
     } catch(e) {
@@ -2913,16 +2543,10 @@
     }
   }
 
-  function amPickByIdx(i, field) {
-    const item = _amPrItems[i];
-    if (!item) return;
-    const text = field === 'title' ? item.title : item.body;
+  function amUsePrBody(body) {
     if (_amPrTargetId) {
       const el = document.getElementById(_amPrTargetId);
-      if (el) {
-        const existing = el.value.trim();
-        el.value = existing ? existing + '\n' + text : text;
-      }
+      if (el) el.value = body;
     }
     amClosePrPicker();
   }
@@ -2970,148 +2594,6 @@
     } catch(e) {}
   })();
   {% endif %}
-
-  // ── Cherry-Pick ────────────────────────────────────────────────────
-  function cpInit() {
-    const sel = document.getElementById('cp-repo');
-    if (!ghData) return;
-    const repos = (ghData.my_repos || []).map(r => r.repo).filter(Boolean);
-    const cur   = sel.value;
-    sel.innerHTML = '<option value="">{{ t.cp_select_repo }}</option>' +
-      repos.map(r => `<option value="${escHtml(r)}"${r === cur ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
-    if (!cur && repos.length === 1) {
-      sel.value = repos[0];
-      cpOnRepoChange();
-    }
-  }
-
-  function cpOnRepoChange() {
-    const repo = document.getElementById('cp-repo').value;
-    const src  = document.getElementById('cp-source');
-    const tgt  = document.getElementById('cp-target');
-    src.innerHTML = `<option value="">{{ t.cp_source_branch }}</option>`;
-    tgt.innerHTML = `<option value="">{{ t.cp_target_branch }}</option>`;
-    document.getElementById('cp-list').innerHTML = '';
-    if (!repo) return;
-    src.innerHTML = `<option value="">{{ t.cp_loading }}</option>`;
-    fetch(u('/api/branches?repo=' + encodeURIComponent(repo)))
-      .then(r => r.json())
-      .then(names => {
-        const branches = Array.isArray(names) ? names : [];
-        src.innerHTML = `<option value="">{{ t.cp_source_branch }}</option>` +
-          branches.map(n => `<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
-        tgt.innerHTML = `<option value="">{{ t.cp_target_branch }}</option>` +
-          branches.map(n => `<option value="${escHtml(n)}"${n === 'dev' || n === 'develop' ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
-      })
-      .catch(() => {
-        src.innerHTML = `<option value="">—</option>`;
-        tgt.innerHTML = `<option value="">—</option>`;
-      });
-  }
-
-  function cpLoad() {
-    const repo = document.getElementById('cp-repo').value;
-    const src  = document.getElementById('cp-source').value;
-    const tgt  = document.getElementById('cp-target').value;
-    const list = document.getElementById('cp-list');
-    if (!repo || !src || !tgt) {
-      list.innerHTML = `<div style="color:var(--red);font-size:.85rem;padding:8px 0">${T.cp_select_branches}</div>`;
-      return;
-    }
-    if (src === tgt) {
-      list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_same_branch}</div>`;
-      return;
-    }
-    list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_loading}</div>`;
-    fetch(u('/api/compare?repo=' + encodeURIComponent(repo) +
-            '&base=' + encodeURIComponent(tgt) +
-            '&head=' + encodeURIComponent(src)))
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) {
-          list.innerHTML = `<div style="color:var(--red);font-size:.85rem;padding:8px 0">${T.cp_error} ${escHtml(data.error)}</div>`;
-          return;
-        }
-        const commits = data.commits || [];
-        if (!commits.length) {
-          list.innerHTML = `<div style="color:var(--muted);font-size:.85rem;padding:8px 0">${T.cp_no_commits}</div>`;
-          return;
-        }
-        const rows = commits.map(c => `
-          <label style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border)" class="cp-row">
-            <input type="checkbox" class="cp-cb" value="${escHtml(c.sha)}" checked style="margin-top:2px;flex-shrink:0;accent-color:var(--accent)">
-            <div style="min-width:0;flex:1">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <code style="font-size:.72rem;color:var(--accent);flex-shrink:0;background:rgba(88,166,255,.1);padding:1px 5px;border-radius:3px">${escHtml(c.short)}</code>
-                <span style="font-size:.82rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px">${escHtml(c.message)}</span>
-              </div>
-              <div style="font-size:.72rem;color:var(--muted);margin-top:3px">${escHtml(c.author)} · ${relTime(c.date)}</div>
-            </div>
-            <a href="${escHtml(c.url)}" target="_blank" rel="noopener noreferrer"
-               style="font-size:.72rem;color:var(--muted);flex-shrink:0;padding-top:2px" onclick="event.stopPropagation()">↗</a>
-          </label>`).join('');
-        list.innerHTML = `
-          <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">${commits.length} ${T.cp_ahead_by}</div>
-          <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px">${rows}</div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button class="hdr-btn" onclick="cpSelectAll(true)">${T.cp_select_all}</button>
-            <button class="hdr-btn" onclick="cpSelectAll(false)">${T.cp_deselect_all}</button>
-            <button class="act-btn act-btn-dispatch" style="margin-left:auto" id="cp-exec-btn"
-                    onclick="cpExecute(${safeJsArg(repo)},${safeJsArg(tgt)})">🍒 ${T.cp_btn}</button>
-          </div>
-          <div id="cp-result" style="margin-top:10px"></div>`;
-      })
-      .catch(() => {
-        list.innerHTML = `<div style="color:var(--red);font-size:.85rem;padding:8px 0">Netzwerkfehler</div>`;
-      });
-  }
-
-  function cpSelectAll(checked) {
-    document.querySelectorAll('.cp-cb').forEach(cb => { cb.checked = checked; });
-  }
-
-  function cpExecute(repo, target) {
-    const shas = Array.from(document.querySelectorAll('.cp-cb:checked')).map(cb => cb.value);
-    const btn  = document.getElementById('cp-exec-btn');
-    const res  = document.getElementById('cp-result');
-    if (!shas.length) {
-      res.innerHTML = `<div style="color:var(--red);font-size:.85rem">${T.cp_no_selection}</div>`;
-      return;
-    }
-    btn.disabled    = true;
-    btn.textContent = T.cp_running;
-    res.innerHTML   = '';
-    fetch(u('/api/cherry-pick'), {
-      method:  'POST',
-      headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({repo, commits: shas, target})
-    })
-      .then(r => r.json())
-      .then(data => {
-        btn.disabled  = false;
-        btn.innerHTML = `🍒 ${T.cp_btn}`;
-        if (data.pr_url) {
-          res.innerHTML = `
-            <div style="color:var(--green);font-size:.85rem;margin-bottom:6px">✓ ${T.cp_success}</div>
-            <a href="${escHtml(data.pr_url)}" target="_blank" rel="noopener noreferrer"
-               style="font-size:.85rem;color:var(--accent)">PR #${data.pr_number} auf GitHub öffnen ↗</a>
-            ${data.errors && data.errors.length
-              ? `<div style="color:var(--yellow);font-size:.78rem;margin-top:8px">⚠️ ${data.errors.map(escHtml).join('<br>')}</div>`
-              : ''}`;
-        } else {
-          res.innerHTML = `
-            <div style="color:var(--red);font-size:.85rem">${T.cp_error} ${escHtml(data.error || '?')}</div>
-            ${data.errors && data.errors.length
-              ? `<div style="font-size:.78rem;color:var(--muted);margin-top:4px">${data.errors.map(escHtml).join('<br>')}</div>`
-              : ''}`;
-        }
-      })
-      .catch(() => {
-        btn.disabled  = false;
-        btn.innerHTML = `🍒 ${T.cp_btn}`;
-        res.innerHTML = `<div style="color:var(--red);font-size:.85rem">Netzwerkfehler</div>`;
-      });
-  }
   </script>
 </body>
 </html>
