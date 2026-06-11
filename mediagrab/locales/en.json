@@ -64,8 +64,6 @@
   "btn_refresh": "Refresh",
   "btn_delete": "Delete",
   "btn_download_file": "Download",
-  "btn_share": "Share",
-  "share_not_available": "Sharing not available",
   "confirm_delete": "Really delete \"{name}\"?",
   "lbl_search": "Search...",
   "sort_date": "Date",
