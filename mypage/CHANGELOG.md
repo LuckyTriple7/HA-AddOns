@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.14.1] - 2026-06-11
+
+Fix: Creating biased random numbers from a cryptographically secure source #150
+
+
 ## 0.1.14
 
 - ⚙️ **Limits konfigurierbar**: neue Optionen `visit_log_max` (Besucher-Log, 50–10000, Standard 500) und `user_journal_max` (Journal pro Benutzer, 20–1000, Standard 100)
