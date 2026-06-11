@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.14] - 2026-06-11
+
+### Changed
+- **Security-Tab**: 🤖 Fix-Button öffnet jetzt direkt die GitHub-Alert-Seite (Copilot Autofix per UI auslösbar) statt API-Aufruf — die API erfordert Copilot Enterprise, die UI funktioniert mit jedem Copilot-Plan; der resultierende Branch erscheint danach automatisch im Branch-Manager
+
 ## [0.3.13] - 2026-06-11
 
 ### Fixed
