@@ -557,8 +557,8 @@
     <!-- ── Tab: Add-on Manager ────────────────────────────── -->
     <div id="tab-addonmgr" style="display:none">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-        <select id="am-repo" style="flex:1;min-width:180px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:0.85rem"></select>
-        <select id="am-branch" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:0.85rem">
+        <select id="am-repo" style="flex:1;min-width:180px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surf);color:var(--text);font-size:0.85rem"></select>
+        <select id="am-branch" style="width:90px;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surf);color:var(--text);font-size:0.85rem">
           <option value="dev">dev</option>
           <option value="main">main</option>
         </select>
@@ -572,11 +572,11 @@
 
     <!-- Confirm-Dialog Add-on Manager -->
     <div id="am-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;align-items:center;justify-content:center">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+      <div style="background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4)">
         <div id="am-confirm-title" style="font-weight:600;font-size:1rem;margin-bottom:8px">{{ t.am_confirm_title }}</div>
         <div id="am-confirm-msg" style="font-size:0.88rem;color:var(--muted);margin-bottom:20px;line-height:1.5"></div>
         <div style="display:flex;gap:10px;justify-content:flex-end">
-          <button class="hdr-btn" style="background:var(--card)" onclick="amConfirmCancel()">{{ t.am_confirm_no }}</button>
+          <button class="hdr-btn" style="background:var(--surf)" onclick="amConfirmCancel()">{{ t.am_confirm_no }}</button>
           <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043" onclick="amConfirmYes()">{{ t.am_confirm_yes }}</button>
         </div>
       </div>
@@ -584,7 +584,7 @@
 
     <!-- PR-Picker-Overlay Add-on Manager -->
     <div id="am-pr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9002;align-items:center;justify-content:center">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:680px;width:95%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+      <div style="background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:680px;width:95%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
           <div id="am-pr-title" style="font-weight:600;font-size:1rem;flex:1"></div>
           <button class="hdr-btn" onclick="amClosePrPicker()">{{ t.am_revert_close }}</button>
@@ -595,7 +595,7 @@
 
     <!-- History/Revert-Overlay Add-on Manager -->
     <div id="am-history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9001;align-items:center;justify-content:center">
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:620px;width:95%;max-height:78vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
+      <div style="background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:620px;width:95%;max-height:78vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.4)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px">
           <div id="am-history-title" style="font-weight:600;font-size:1rem;flex:1"></div>
           <button class="hdr-btn" onclick="amCloseHistory()">{{ t.am_revert_close }}</button>
@@ -953,6 +953,7 @@
   function _btnRestore(btn) { if (btn) { btn.disabled = false; btn.innerHTML = btn._orig || btn.innerHTML; } }
 
   function closeIssue(btn, repo, number) {
+    if (!confirm('Issue #' + number + ' schließen?')) return;
     _btnWait(btn);
     fetch(u('/api/issue/close'), {
       method: 'POST',
@@ -1012,6 +1013,7 @@
 
   // ── Cancel Workflow ───────────────────────────────────────────────
   function cancelWorkflow(btn, repo, runId) {
+    if (!confirm('Workflow-Run #' + runId + ' abbrechen?')) return;
     _btnWait(btn);
     fetch(u('/api/workflow/cancel'), {
       method: 'POST',
@@ -1150,6 +1152,7 @@
   }
 
   function deleteWorkflowRun(repo, runId) {
+    if (!confirm('Workflow-Run #' + runId + ' löschen?')) return;
     fetch(u('/api/workflow/delete'), {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -1164,6 +1167,7 @@
   }
 
   async function toggleWorkflowState(repo, workflowId, enable, btnId) {
+    if (!enable && !confirm('Workflow deaktivieren?')) return;
     const btn = document.getElementById(btnId);
     if (btn) { btn.disabled = true; btn.textContent = '{{ t.ci_wf_toggling }}'; }
     try {
@@ -2367,7 +2371,7 @@
 
   function amCard(a, repo, branch) {
     const id = `am-${a.dir}`;
-    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px">
+    return `<div style="background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
         <span style="font-weight:600;font-size:0.95rem">${escHtml(a.name)}</span>
         <span style="font-size:0.8rem;color:var(--muted)">${escHtml(a.dir)}</span>
@@ -2376,13 +2380,13 @@
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
-        <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.85rem">
+        <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem">
         <button class="hdr-btn" title="{{ t.am_btn_patch_title }}" onclick="amBumpPatch('${id}-ver')" style="font-size:0.78rem;padding:3px 8px">{{ t.am_btn_patch }}</button>
-        <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver')" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
+        <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver', ${safeJsArg(a.version)})" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:4px">{{ t.am_changelog_label }}:</label>
-        <textarea id="${id}-cl" rows="4" placeholder="{{ t.am_changelog_placeholder }}" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:0.83rem;font-family:monospace;resize:vertical"></textarea>
+        <textarea id="${id}-cl" rows="4" placeholder="{{ t.am_changelog_placeholder }}" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.83rem;font-family:monospace;resize:vertical"></textarea>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <button class="hdr-btn" style="background:#2ea043;color:#fff;border-color:#2ea043"
@@ -2413,15 +2417,17 @@
     }
   }
 
-  function amBumpDep(inputId) {
+  function amBumpDep(inputId, currentVersion) {
     const inp = document.getElementById(inputId);
     if (!inp) return;
-    const parts = inp.value.trim().split('.');
-    if (parts.length === 3) {
-      inp.value = inp.value.trim() + '.1';
-    } else if (parts.length === 4) {
-      parts[3] = String(parseInt(parts[3], 10) + 1);
-      inp.value = parts.join('.');
+    const base = (currentVersion || inp.value).trim();
+    const parts = base.split('.');
+    if (parts.length >= 4) {
+      const p = parts.slice(0, 4);
+      p[3] = String(parseInt(p[3], 10) + 1);
+      inp.value = p.join('.');
+    } else if (parts.length === 3) {
+      inp.value = base + '.1';
     }
   }
 
@@ -2481,7 +2487,7 @@
       list.innerHTML = d.history.map((h, i) => {
         const isCurrent = i === 0;
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
-          <span style="background:${isCurrent ? '#2ea043' : 'var(--bg)'};color:${isCurrent ? '#fff' : 'var(--fg)'};border:1px solid ${isCurrent ? '#2ea043' : 'var(--border)'};border-radius:4px;padding:2px 8px;font-size:0.8rem;font-weight:600;white-space:nowrap;min-width:70px;text-align:center">v${escHtml(h.version)}</span>
+          <span style="background:${isCurrent ? '#2ea043' : 'var(--bg)'};color:${isCurrent ? '#fff' : 'var(--text)'};border:1px solid ${isCurrent ? '#2ea043' : 'var(--border)'};border-radius:4px;padding:2px 8px;font-size:0.8rem;font-weight:600;white-space:nowrap;min-width:70px;text-align:center">v${escHtml(h.version)}</span>
           <span style="font-size:0.78rem;color:var(--muted);white-space:nowrap">${escHtml(h.date)}</span>
           <span style="flex:1;font-size:0.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(h.message)}">${escHtml(h.message)}</span>
           <a href="https://github.com/${escHtml(repo)}/commit/${escHtml(h.sha)}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--muted);font-family:monospace;text-decoration:none">${escHtml(h.short_sha)}</a>
@@ -2502,9 +2508,11 @@
 
   // ── PR-Picker ─────────────────────────────────────────────────────
   let _amPrTargetId = null;
+  let _amPrItems = [];
 
   async function amOpenPrPicker(addonDir, addonName, repo, clInputId) {
     _amPrTargetId = clInputId;
+    _amPrItems = [];
     const ov   = document.getElementById('am-pr-overlay');
     const list = document.getElementById('am-pr-list');
     document.getElementById('am-pr-title').textContent = `{{ t.am_pick_pr_title }} — ${addonName}`;
@@ -2522,20 +2530,23 @@
         list.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;padding:16px 0">{{ t.am_pick_pr_none }}</div>`;
         return;
       }
+      // Store PR data by index — avoids putting strings directly in onclick attributes
+      _amPrItems = show.map(pr => ({title: pr.title || '', body: pr.body || ''}));
       list.innerHTML = (filtered ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">{{ t.am_pick_pr_filtered }}</div>` : '')
-        + show.map(pr => {
+        + show.map((pr, i) => {
           const date = pr.merged_at || pr.closed_at || '';
           const dateStr = date ? new Date(date).toLocaleDateString() : '';
-          const preview = (pr.body || '').slice(0, 200).replace(/</g,'&lt;');
-          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:background .15s"
-            onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''"
-            onclick="amUsePrBody(${JSON.stringify(pr.body || '')})">
-            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:4px;flex-wrap:wrap">
+          const hasBody = (pr.body || '').trim().length > 0;
+          return `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;background:var(--bg)">
+            <div style="display:flex;gap:8px;align-items:baseline;margin-bottom:6px;flex-wrap:wrap">
               <span style="font-weight:600;font-size:0.88rem">#${pr.number} ${escHtml(pr.title)}</span>
               <span style="font-size:0.75rem;color:var(--muted)">${escHtml(pr.branch)}</span>
               <span style="font-size:0.75rem;color:var(--muted);margin-left:auto">${dateStr}</span>
             </div>
-            ${preview ? `<div style="font-size:0.78rem;color:var(--muted);white-space:pre-wrap;max-height:60px;overflow:hidden">${preview}${pr.body.length > 200 ? '…' : ''}</div>` : ''}
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px" onclick="amPickByIdx(${i},'title')">{{ t.am_pick_use_title }}</button>
+              ${hasBody ? `<button class="hdr-btn" style="font-size:0.78rem;padding:2px 10px;color:var(--muted)" onclick="amPickByIdx(${i},'body')">{{ t.am_pick_use_body }}</button>` : ''}
+            </div>
           </div>`;
         }).join('');
     } catch(e) {
@@ -2543,10 +2554,16 @@
     }
   }
 
-  function amUsePrBody(body) {
+  function amPickByIdx(i, field) {
+    const item = _amPrItems[i];
+    if (!item) return;
+    const text = field === 'title' ? item.title : item.body;
     if (_amPrTargetId) {
       const el = document.getElementById(_amPrTargetId);
-      if (el) el.value = body;
+      if (el) {
+        const existing = el.value.trim();
+        el.value = existing ? existing + '\n' + text : text;
+      }
     }
     amClosePrPicker();
   }
