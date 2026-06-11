@@ -407,7 +407,7 @@
 <body>
 
   <header>
-    <a class="header-logo" href="{{ url_for('index') }}">
+    <a class="header-logo" href="/">
       <div class="header-logo-icon">
         <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
       </div>
@@ -432,12 +432,10 @@
         <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58L4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03l-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44l-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
       </button>
 
-      {% if not ingress_mode %}
       <a href="{{ url_for('logout') }}" class="icon-btn" aria-label="{{ t.logout }}">
         <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
         <span class="btn-label">{{ t.logout }}</span>
       </a>
-      {% endif %}
     </div>
   </header>
 
@@ -529,7 +527,6 @@
     const T_NOTIF_TITLE  = {{ t.notif_new_msg_title | tojson }};
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
-    const LOGS_URL       = {{ url_for('api_logs') | tojson }};
 
     const PAGE_LOAD_TIME  = Date.now();
     let prevLastReceived  = null; // null = erster Poll, danach Map icon→timestamp
@@ -845,7 +842,7 @@
       function _cls(l){return l==='WARNING'||l==='WARN'?'mpc-warn':l==='ERROR'||l==='CRITICAL'?'mpc-error':l==='DEBUG'?'mpc-debug':'mpc-info';}
       async function _poll(){
         try{
-          var entries=await fetch(LOGS_URL+'?since='+_lastTs).then(function(r){return r.json();});
+          var entries=await fetch('/api/logs?since='+_lastTs).then(function(r){return r.json();});
           if(!entries.length)return;
           var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
           entries.forEach(function(e){
