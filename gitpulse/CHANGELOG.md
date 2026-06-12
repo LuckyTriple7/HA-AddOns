@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.22] - 2026-06-12
+
+### Fixed
+- **Kritisch**: `make_server` fehlte `threaded=True` — SSE-Verbindung blockierte alle weiteren Requests, UI war nicht erreichbar
+
+## [0.3.21] - 2026-06-12
+
+### Fixed
+- **Graceful Shutdown**: SIGTERM-Handler eingebaut — Add-on beendet sich jetzt sauber statt mit Exit-Code 137 (SIGKILL) abgewürgt zu werden; `make_server` + `serve_forever()` statt `app.run()`
+
 ## [0.3.20] - 2026-06-12
 
 ### Added

@@ -1,5 +1,9 @@
 # Changelog — Nextcloud
 
+## 1.0.15
+- Rollback auf Nextcloud 33 (33.0.5-ls436) — NC34 inkompatibel mit bestehenden Apps
+- Check-Update-Workflow auf 33.x beschränkt (kein automatisches Upgrade auf NC34+)
+
 ## 1.0.14
 - Nextcloud Dockerfile auf gepinnten Tag 34.0.0-ls437 umgestellt (war :latest)
 

@@ -22,7 +22,7 @@ jobs:
         run: |
           FULL_TAG=$(curl -s "https://hub.docker.com/v2/repositories/linuxserver/nextcloud/tags/?page_size=100&ordering=last_updated" \
             | jq -r '.results[].name' \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-ls' \
+            | grep -E '^33\.[0-9]+\.[0-9]+-ls' \
             | sort -V | tail -1 || true)
           if [ -z "$FULL_TAG" ]; then
             echo "Konnte aktuelle Version nicht ermitteln — API-Fehler?"
