@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.29] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: Kein Flackern mehr — letzter HTML-Stand wird sofort eingesetzt, DOM nur bei tatsächlicher Änderung aktualisiert
+
 ## [0.3.28] - 2026-06-12
 
 ### Changed
