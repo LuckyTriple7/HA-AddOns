@@ -619,11 +619,13 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'head_message': head_msg.split('\n')[0][:80] if head_msg else '',
         })
 
-    # Alle Workflows (inkl. deaktivierte) für Verwaltung + Dispatch
+    # Alle Workflows außer gelöschten für Verwaltung + Dispatch
     wf_raw = _gh_get(f'/repos/{repo}/actions/workflows', token) or {}
     workflows = []
     for wf in (wf_raw.get('workflows') or []):
         state = wf.get('state', 'active')
+        if state == 'deleted':
+            continue
         workflows.append({
             'id':          wf['id'],
             'name':        wf['name'],

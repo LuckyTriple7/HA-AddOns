@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.30] - 2026-06-12
+
+### Fixed
+- **CI-Tab**: Gelöschte Workflows (`state: deleted`) werden aus der Liste gefiltert — erscheinen nach Löschen nicht mehr in GitPulse
+
 ## [0.3.29] - 2026-06-12
 
 ### Fixed
