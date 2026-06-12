@@ -1501,7 +1501,9 @@
       <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
+      <div id="chip-branch-sync"></div>
     `;
+    refreshBranchSync();
     // Blinken bei Anstieg (nicht beim ersten Render)
     if (_chipCounts !== null) {
       _applyChipBlink('chip-prs',      'chip-new-prs',      totalPRs      > _chipCounts.prs);
@@ -3346,6 +3348,42 @@
     } catch {
       if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
     }
+  }
+
+  // ── Branch-Sync Kachel ───────────────────────────────────────────
+  async function refreshBranchSync() {
+    const chip = document.getElementById('chip-branch-sync');
+    if (!chip) return;
+    try {
+      const r    = await fetch(u('/api/stat/branch-sync'));
+      const data = await r.json();
+      if (!data.configured) { chip.innerHTML = ''; return; }
+
+      const ahead  = data.ahead_by  || 0;
+      const behind = data.behind_by || 0;
+      const label  = `${escHtml(data.dev)} → ${escHtml(data.main)}`;
+
+      const aColor = ahead  === 0 ? 'var(--green)'
+                   : ahead  <= 9  ? 'var(--yellow)'
+                   : ahead  <= 29 ? 'var(--orange)'
+                   : 'var(--red)';
+      const bColor = behind === 0 ? 'var(--green)' : 'var(--red)';
+
+      chip.innerHTML = data.repos.map(rp => {
+        const a  = rp.ahead_by  || 0;
+        const b  = rp.behind_by || 0;
+        const ac = a === 0 ? 'var(--green)' : a <= 9 ? 'var(--yellow)' : a <= 29 ? 'var(--orange)' : 'var(--red)';
+        const bc = b === 0 ? 'var(--green)' : 'var(--red)';
+        const shortRepo = escHtml(rp.repo.split('/')[1] || rp.repo);
+        return `<div class="stat-chip" style="min-width:90px" title="${escHtml(rp.repo)}">
+          <div class="num" style="display:flex;flex-direction:row;align-items:center;gap:6px">
+            <span style="color:${ac}">↑${a}</span>
+            <span style="color:${bc}">↓${b}</span>
+          </div>
+          <div class="lbl">${shortRepo}: ${escHtml(data.dev)}→${escHtml(data.main)}</div>
+        </div>`;
+      }).join('');
+    } catch { /* ignorieren */ }
   }
 
   // ── Security: CodeQL Autofix ──────────────────────────────────────

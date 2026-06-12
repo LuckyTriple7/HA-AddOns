@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.28] - 2026-06-12
+
+### Changed
+- **Branch-Sync Kachel**: Bot-Merge-Filter entfernt — Sync-WF hält dev aktuell, echte `↓`-Commits sollen sichtbar bleiben
+
+## [0.3.27] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: ↑ und ↓ nebeneinander statt untereinander
+
+## [0.3.26] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: Bot-Merge-Commits (`chore: merge dev→main` von `github-actions[bot]`) werden aus `↓behind` herausgefiltert — Kachel zeigt echte Divergenz; Tooltip zeigt Gesamtzahl und Anzahl gefilterter Commits
+
+## [0.3.25] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: Ein Chip pro Repo statt summiert — zeigt `↑N ↓N` je Repo mit Repo-Name als Label; breiter (`min-width:90px`); Tooltip zeigt vollen Repo-Namen
+
+## [0.3.24] - 2026-06-12
+
+### Added
+- **Branch-Sync Kachel**: Neue Stat-Kachel neben Watch-Releases zeigt `↑N` (dev vor main) und `↓N` (main vor dev) mit Farbkodierung; nur sichtbar wenn Main/Dev-Branch in Einstellungen → Erweitert konfiguriert; 60s-Cache
+
 ## [0.3.23] - 2026-06-12
 
 ### Fixed

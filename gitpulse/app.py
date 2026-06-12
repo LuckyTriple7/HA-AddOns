@@ -2041,6 +2041,56 @@ def api_gp_settings_post():
     return jsonify({'ok': True})
 
 
+_branch_sync_cache: dict = {}   # {cache_key: (timestamp, result)}
+
+@app.route('/api/stat/branch-sync')
+def api_stat_branch_sync():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    cfg   = load_config()
+    token = cfg.get('github_token', '').strip()
+    if not token:
+        return jsonify({'configured': False})
+    gps      = load_gitpulse_settings()
+    main_b   = gps.get('main_branch', 'main') or 'main'
+    dev_b    = gps.get('dev_branch',  'dev')  or 'dev'
+
+    user_repos  = load_user_repos()
+    repos_raw   = (user_repos or {}).get('my_repos', cfg.get('my_repos', []))
+    my_repos    = [r.strip() for r in repos_raw if r.strip()]
+    if not my_repos:
+        return jsonify({'configured': False})
+
+    cache_key = f"{main_b}:{dev_b}:{','.join(sorted(my_repos))}"
+    now       = time.time()
+    if cache_key in _branch_sync_cache:
+        ts, result = _branch_sync_cache[cache_key]
+        if now - ts < 60:
+            return jsonify(result)
+
+    hdrs = _gh_headers(token)
+    def _compare(repo):
+        try:
+            r = http.get(f'{GITHUB_API}/repos/{repo}/compare/{main_b}...{dev_b}',
+                         headers=hdrs, timeout=10)
+            _update_rate_limit(r.headers)
+            if r.status_code != 200:
+                return None
+            d = r.json()
+            return {'repo': repo, 'ahead_by': d.get('ahead_by', 0), 'behind_by': d.get('behind_by', 0)}
+        except Exception:
+            pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        results = [r for r in ex.map(_compare, my_repos) if r]
+
+    out = {'configured': True, 'main': main_b, 'dev': dev_b, 'repos': results}
+    _branch_sync_cache[cache_key] = (now, out)
+    return jsonify(out)
+
+
 @app.route('/api/comments')
 def api_comments():
     redir = _auth_required(request)

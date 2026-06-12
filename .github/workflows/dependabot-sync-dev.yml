@@ -3,10 +3,11 @@ name: Dependabot → Sync main nach dev
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   sync:
-    if: github.actor == 'dependabot[bot]'
+    if: github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
