@@ -100,9 +100,9 @@
     .ci-success  { background:var(--green); }
     .ci-failure  { background:var(--red); }
     .ci-running  { background:var(--yellow); animation:pulse 1s infinite; }
-    .ci-skipped  { background:var(--muted); }
+    .ci-skipped  { background:var(--accent); }
     .ci-pending  { background:var(--muted); }
-    .ci-cancelled{ background:var(--muted); }
+    .ci-cancelled{ background:var(--orange); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
     .run-name { flex:1; min-width:0; }
     .run-name-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -1789,7 +1789,17 @@
   }
 
   // ── CI helpers ────────────────────────────────────────────────────
-  const ciStatusClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
+  const ciStatusClass = c => ({
+    success:     'ci-success',
+    failure:     'ci-failure',
+    timed_out:   'ci-failure',
+    in_progress: 'ci-running',
+    queued:      'ci-pending',
+    waiting:     'ci-pending',
+    cancelled:   'ci-cancelled',
+    skipped:     'ci-skipped',
+    neutral:     'ci-skipped',
+  }[c] || 'ci-pending');
   const ciEventLabel  = e => ({ push:'Push', pull_request:'PR', workflow_dispatch:'Manuell', schedule:'Zeitplan', release:'Release', create:'Branch', delete:'Delete' })[e] || e;
 
   function ciDuration(started, completed) {
@@ -1885,7 +1895,7 @@
       failed:    r => ['failure','timed_out'].includes(r.conclusion),
       cancelled: r => r.conclusion === 'cancelled',
     };
-    const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-skipped' };
+    const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-cancelled' };
     const timeFiltered   = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
     const statusFiltered = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
     const filteredRuns   = _ciFilter

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.31] - 2026-06-12
+
+### Changed
+- **CI-Status Punkte**: `skipped` = blau, `cancelled` = orange, `pending/queued` = grau — waren vorher alle grau
+
 ## [0.3.30] - 2026-06-12
 
 ### Fixed
