@@ -109,4 +109,9 @@ if [ ! -f "$FLAG" ]; then
     touch "$FLAG"
 fi
 
+DATA_DIR=$(s6-setuidgid abc php "$OCC" config:system:get datadirectory 2>/dev/null)
+if [ -n "$DATA_DIR" ]; then
+    chown -R abc:abc "${DATA_DIR}/appdata_"* 2>/dev/null || true
+fi
+
 echo "[ha-config] [$(date '+%Y-%m-%d %H:%M:%S')] Fertig"
