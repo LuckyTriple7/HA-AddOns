@@ -82,6 +82,7 @@ CONFIG_PATH    = _DATA + '/options.json'
 SESSIONS_PATH  = _DATA + '/sessions.json'
 REPOS_PATH     = _DATA + '/gitpulse_repos.json'
 FAVORITES_PATH = _DATA + '/workflow_favorites.json'
+GP_SETTINGS_PATH = _DATA + '/gitpulse_settings.json'
 LOCALES_PATH   = _BASE + '/locales'
 
 GITHUB_API    = 'https://api.github.com'
@@ -178,6 +179,27 @@ def save_user_repos(data: dict) -> None:
             json.dump(data, f, indent=2)
     except Exception as e:
         log.warning("gitpulse_repos.json konnte nicht gespeichert werden: %s", e)
+
+
+_GP_SETTINGS_DEFAULTS = {'main_branch': 'main', 'dev_branch': 'dev', 'autofix_branch_check': True}
+
+def load_gitpulse_settings() -> dict:
+    try:
+        with open(GP_SETTINGS_PATH) as f:
+            data = json.load(f)
+            return {**_GP_SETTINGS_DEFAULTS, **data}
+    except FileNotFoundError:
+        return dict(_GP_SETTINGS_DEFAULTS)
+    except Exception as e:
+        log.warning("gitpulse_settings.json konnte nicht geladen werden: %s", e)
+        return dict(_GP_SETTINGS_DEFAULTS)
+
+def save_gitpulse_settings(data: dict) -> None:
+    try:
+        with open(GP_SETTINGS_PATH, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        log.warning("gitpulse_settings.json konnte nicht gespeichert werden: %s", e)
 
 
 def load_config() -> dict:
@@ -1848,9 +1870,12 @@ def api_security_autofix():
     force = data.get('force', False)
     hdrs  = _gh_headers(token)
     try:
-        # 0. Warnung wenn dev deutlich vor main liegt (Autofix könnte Datei mit alter Version überschreiben)
-        if not force:
-            cmp = http.get(f'{GITHUB_API}/repos/{repo}/compare/main...dev', headers=hdrs, timeout=10)
+        # 0. Warnung wenn dev vor main liegt (Autofix könnte Datei mit alter Version überschreiben)
+        gps = load_gitpulse_settings()
+        if gps.get('autofix_branch_check', True) and not force:
+            main_b = gps.get('main_branch', 'main') or 'main'
+            dev_b  = gps.get('dev_branch',  'dev')  or 'dev'
+            cmp = http.get(f'{GITHUB_API}/repos/{repo}/compare/{main_b}...{dev_b}', headers=hdrs, timeout=10)
             _update_rate_limit(cmp.headers)
             if cmp.status_code == 200:
                 ahead_by = cmp.json().get('ahead_by', 0)
@@ -1988,6 +2013,31 @@ def api_delete_branch():
     except Exception:
         log.exception("Branch-Delete Fehler (%s %s)", repo, branch)
         return jsonify({'error': 'Interner Fehler'}), 500
+
+
+@app.route('/api/gitpulse-settings', methods=['GET'])
+def api_gp_settings_get():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    return jsonify(load_gitpulse_settings())
+
+
+@app.route('/api/gitpulse-settings', methods=['POST'])
+def api_gp_settings_post():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    s = load_gitpulse_settings()
+    if 'main_branch' in data:
+        s['main_branch'] = str(data['main_branch']).strip() or 'main'
+    if 'dev_branch' in data:
+        s['dev_branch'] = str(data['dev_branch']).strip() or 'dev'
+    if 'autofix_branch_check' in data:
+        s['autofix_branch_check'] = bool(data['autofix_branch_check'])
+    save_gitpulse_settings(s)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/comments')

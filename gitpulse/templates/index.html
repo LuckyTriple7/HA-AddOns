@@ -402,6 +402,8 @@
           style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_email }}</button>
         <button id="stab-browser" onclick="_sTab('browser')"
           style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_browser }}</button>
+        <button id="stab-advanced" onclick="_sTab('advanced')"
+          style="background:none;border:none;border-bottom:2px solid transparent;padding:6px 16px;font-size:.83rem;font-weight:600;color:var(--muted);cursor:pointer">{{ t.settings_tab_advanced }}</button>
       </div>
       <!-- Tab: Repos -->
       <div id="stab-panel-repos">
@@ -433,6 +435,33 @@
       <div id="stab-panel-browser" style="display:none">
         <div id="settings-br-hint" style="font-size:.78rem;color:var(--muted);margin-bottom:10px">{{ t.settings_br_hint }}</div>
         <div id="settings-br-toggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px"></div>
+      </div>
+      <!-- Tab: Erweitert -->
+      <div id="stab-panel-advanced" style="display:none">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">{{ t.settings_adv_hint }}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+          <div>
+            <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px">{{ t.settings_adv_main_branch }}</label>
+            <input id="adv-main-branch" type="text" placeholder="main"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;font-size:.82rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px">
+          </div>
+          <div>
+            <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px">{{ t.settings_adv_dev_branch }}</label>
+            <input id="adv-dev-branch" type="text" placeholder="dev"
+              style="width:100%;box-sizing:border-box;padding:5px 8px;font-size:.82rem;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px">
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;margin-bottom:14px">
+          <input id="adv-branch-check" type="checkbox" style="width:15px;height:15px;cursor:pointer">
+          {{ t.settings_adv_branch_check }}
+        </label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button onclick="saveAdvSettings(this)"
+            style="font-size:.8rem;padding:5px 14px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer">
+            {{ t.settings_save }}
+          </button>
+          <span id="adv-save-result" style="font-size:.78rem"></span>
+        </div>
       </div>
       <!-- Tab: E-Mail -->
       <div id="stab-panel-email" style="display:none">
@@ -836,7 +865,7 @@
   let _sMyRepos = [], _sWatchRepos = [];
 
   function _sTab(name) {
-    ['repos','tg','email','browser'].forEach(t => {
+    ['repos','tg','email','browser','advanced'].forEach(t => {
       const panel = document.getElementById('stab-panel-'+t);
       const btn   = document.getElementById('stab-'+t);
       const active = t === name;
@@ -936,10 +965,42 @@
         const brTabBtn = document.getElementById('stab-browser');
         if (brTabBtn) brTabBtn.style.opacity = brOk ? '1' : '0.45';
 
+        // Advanced-Tab laden
+        fetch(u('/api/gitpulse-settings'))
+          .then(r => r.json())
+          .then(s => {
+            document.getElementById('adv-main-branch').value   = s.main_branch  || 'main';
+            document.getElementById('adv-dev-branch').value    = s.dev_branch   || 'dev';
+            document.getElementById('adv-branch-check').checked = s.autofix_branch_check !== false;
+          }).catch(() => {});
+
         _sTab('repos');
         document.getElementById('settings-modal').classList.add('show');
       })
       .catch(e => alert(String(e)));
+  }
+
+  async function saveAdvSettings(btn) {
+    const result = document.getElementById('adv-save-result');
+    btn.disabled = true;
+    result.textContent = '…';
+    try {
+      const r = await fetch(u('/api/gitpulse-settings'), {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          main_branch:          document.getElementById('adv-main-branch').value.trim() || 'main',
+          dev_branch:           document.getElementById('adv-dev-branch').value.trim()  || 'dev',
+          autofix_branch_check: document.getElementById('adv-branch-check').checked,
+        }),
+      });
+      const data = await r.json();
+      result.textContent = data.ok ? '✓' : ('✗ ' + (data.error || '?'));
+      result.style.color = data.ok ? 'var(--green)' : 'var(--red)';
+    } catch {
+      result.textContent = '✗';
+      result.style.color = 'var(--red)';
+    }
+    btn.disabled = false;
   }
 
   function _renderSettingsList(type, repos, elId) {

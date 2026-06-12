@@ -204,6 +204,11 @@
   "notif_unsnooze": "Stummschaltung aufheben",
 
   "settings_tab_browser": "Browser",
+  "settings_tab_advanced": "Erweitert",
+  "settings_adv_hint": "GitPulse-interne Einstellungen, die für alle Benutzer dieses Add-ons gelten.",
+  "settings_adv_main_branch": "Main-Branch",
+  "settings_adv_dev_branch": "Dev-Branch",
+  "settings_adv_branch_check": "Autofix-Warnung aktiv (wenn Dev-Branch vor Main liegt)",
   "settings_br_hint": "Browser-Benachrichtigungen werden direkt im Browser angezeigt.",
   "settings_br_not_granted": "Berechtigung für Browser-Benachrichtigungen nicht erteilt — bitte im Browser erlauben.",
 
