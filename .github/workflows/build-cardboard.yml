@@ -2,7 +2,7 @@ name: Build CardBoard Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'cardboard/config.yaml'
   workflow_dispatch:

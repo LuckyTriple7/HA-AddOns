@@ -2,7 +2,7 @@ name: Build Signal Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'signal/config.yaml'
   workflow_dispatch:

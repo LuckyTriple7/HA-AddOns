@@ -2,7 +2,7 @@ name: Build Firefox Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'firefox/config.yaml'
   workflow_dispatch:

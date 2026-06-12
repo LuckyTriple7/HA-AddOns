@@ -2,7 +2,7 @@ name: Build WhatsApp Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'whatsapp/config.yaml'
   workflow_dispatch:

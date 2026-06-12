@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.18
+- fix: chown appdata nach jedem Start — linuxserver Init erstellt Dateien als root
+
 ## 1.0.17
 - maintenance:repair nur noch nach Versionsupgrade (nicht bei jedem Start)
 - timeout: 90 aus config.yaml entfernt (war Start-Timeout, nicht Shutdown)

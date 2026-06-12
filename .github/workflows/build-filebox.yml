@@ -2,7 +2,7 @@ name: Build FileBox Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'filebox/config.yaml'
   workflow_dispatch:

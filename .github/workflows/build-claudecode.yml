@@ -2,7 +2,7 @@ name: Build Claude Code Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'claudecode/config.yaml'
   workflow_dispatch:

@@ -2,7 +2,7 @@ name: Build Playwright Browser Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'playwright-browser/config.yaml'
   workflow_dispatch:

@@ -2,7 +2,7 @@ name: Build MediaGrab Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'mediagrab/config.yaml'
   workflow_dispatch:
