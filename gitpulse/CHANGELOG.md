@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.25] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: Ein Chip pro Repo statt summiert — zeigt `↑N ↓N` je Repo mit Repo-Name als Label; breiter (`min-width:90px`); Tooltip zeigt vollen Repo-Namen
+
 ## [0.3.24] - 2026-06-12
 
 ### Added

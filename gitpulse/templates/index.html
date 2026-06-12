@@ -3369,13 +3369,20 @@
                    : 'var(--red)';
       const bColor = behind === 0 ? 'var(--green)' : 'var(--red)';
 
-      chip.className = 'stat-chip';
-      chip.innerHTML = `
-        <div class="num" style="display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15">
-          <span style="color:${aColor};font-size:.95rem;font-weight:700">↑${ahead}</span>
-          <span style="color:${bColor};font-size:.95rem;font-weight:700">↓${behind}</span>
-        </div>
-        <div class="lbl">${label}</div>`;
+      chip.innerHTML = data.repos.map(rp => {
+        const a  = rp.ahead_by  || 0;
+        const b  = rp.behind_by || 0;
+        const ac = a === 0 ? 'var(--green)' : a <= 9 ? 'var(--yellow)' : a <= 29 ? 'var(--orange)' : 'var(--red)';
+        const bc = b === 0 ? 'var(--green)' : 'var(--red)';
+        const shortRepo = escHtml(rp.repo.split('/')[1] || rp.repo);
+        return `<div class="stat-chip" style="min-width:90px" title="${escHtml(rp.repo)}">
+          <div class="num" style="display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.2">
+            <span style="color:${ac};font-size:1rem;font-weight:700">↑${a}</span>
+            <span style="color:${bc};font-size:1rem;font-weight:700">↓${b}</span>
+          </div>
+          <div class="lbl">${shortRepo}: ${escHtml(data.dev)}→${escHtml(data.main)}</div>
+        </div>`;
+      }).join('');
     } catch { /* ignorieren */ }
   }
 
