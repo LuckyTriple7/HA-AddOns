@@ -1,5 +1,11 @@
 # Changelog — Nextcloud
 
+## 1.0.20
+- fix: alle root-owned User-Verzeichnisse in data/ werden beim Start auf abc:abc gesetzt (nicht nur appdata_*)
+
+## 1.0.19
+- fix: overwrite.cli.url/overwritehost/overwriteprotocol werden bei jedem Start automatisch aus trusted_domains gesetzt
+
 ## 1.0.18
 - fix: chown appdata nach jedem Start — linuxserver Init erstellt Dateien als root
 

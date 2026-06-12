@@ -1,6 +1,6 @@
 name: Nextcloud
 description: Nextcloud – Private Cloud direkt in Home Assistant, mit SMB-Netzwerkspeicher-Unterstützung
-version: "1.0.18"
+version: "1.0.20"
 slug: nextcloud
 url: https://github.com/LuckyTriple7/HA-AddOns
 
