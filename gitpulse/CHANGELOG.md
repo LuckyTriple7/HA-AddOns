@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.27] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: ↑ und ↓ nebeneinander statt untereinander
+
 ## [0.3.26] - 2026-06-12
 
 ### Fixed
