@@ -38,6 +38,15 @@ if [ -n "$TRUSTED_DOMAINS" ]; then
     done
 fi
 
+# overwrite.cli.url — erste Nicht-IP-Domain aus trusted_domains, sonst erste Domain
+OVERWRITE_DOMAIN=$(echo "$TRUSTED_DOMAINS" | tr ',' '\n' | tr -d ' \r' | grep -v '^[0-9]' | head -1)
+[ -z "$OVERWRITE_DOMAIN" ] && OVERWRITE_DOMAIN=$(echo "$TRUSTED_DOMAINS" | tr ',' '\n' | tr -d ' \r' | head -1)
+if [ -n "$OVERWRITE_DOMAIN" ]; then
+    occ config:system:set overwrite.cli.url --value="https://${OVERWRITE_DOMAIN}"
+    occ config:system:set overwritehost --value="$OVERWRITE_DOMAIN"
+    occ config:system:set overwriteprotocol --value="https"
+fi
+
 # Trusted proxies (Reverse Proxy / NGINX)
 occ config:system:delete trusted_proxies || true
 PIDX=0
