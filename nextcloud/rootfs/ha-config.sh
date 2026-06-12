@@ -120,7 +120,8 @@ fi
 
 DATA_DIR=$(s6-setuidgid abc php "$OCC" config:system:get datadirectory 2>/dev/null)
 if [ -n "$DATA_DIR" ]; then
-    chown -R abc:abc "${DATA_DIR}/appdata_"* 2>/dev/null || true
+    find "${DATA_DIR}" -maxdepth 1 -mindepth 1 -type d -user root \
+        -exec chown -R abc:abc {} \; 2>/dev/null || true
 fi
 
 echo "[ha-config] [$(date '+%Y-%m-%d %H:%M:%S')] Fertig"
