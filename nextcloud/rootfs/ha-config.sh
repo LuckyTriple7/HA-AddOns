@@ -60,7 +60,12 @@ occ config:system:set trashbin_retention_obligation --value="$TRASHBIN"
 occ config:system:set versions_retention_obligation --value="$VERSIONS"
 MAINTENANCE_WINDOW=$(jq -r '.maintenance_window_start // 1' "$OPTIONS" 2>/dev/null || echo 1)
 occ config:system:set maintenance_window_start --type=integer --value="$MAINTENANCE_WINDOW"
-occ maintenance:repair --include-expensive
+
+REPAIR_FLAG=/config/data/.repair_$(occ config:system:get version 2>/dev/null | tr -d '.')
+if [ ! -f "$REPAIR_FLAG" ]; then
+    occ maintenance:repair --include-expensive
+    touch "$REPAIR_FLAG"
+fi
 
 if [ "$ENABLE_THUMBNAILS" = "true" ]; then
     occ config:system:set enable_previews --value=true --type=boolean
