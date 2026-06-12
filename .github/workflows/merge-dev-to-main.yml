@@ -52,4 +52,4 @@ jobs:
             --head dev \
             --title "chore: merge dev → main ($(date '+%Y-%m-%d'))" \
             --body "Automatisch erstellter PR – ${{ steps.check.outputs.ahead }} Commit(s) von \`dev\` nach \`main\`.\n\nBitte vor dem Merge prüfen." \
-            --label "auto-merge"
+            --label "auto-update"
