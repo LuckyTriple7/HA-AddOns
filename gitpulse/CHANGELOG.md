@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.24] - 2026-06-12
+
+### Added
+- **Branch-Sync Kachel**: Neue Stat-Kachel neben Watch-Releases zeigt `↑N` (dev vor main) und `↓N` (main vor dev) mit Farbkodierung; nur sichtbar wenn Main/Dev-Branch in Einstellungen → Erweitert konfiguriert; 60s-Cache
+
 ## [0.3.23] - 2026-06-12
 
 ### Fixed

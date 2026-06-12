@@ -1501,7 +1501,9 @@
       <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
+      <div id="chip-branch-sync"></div>
     `;
+    refreshBranchSync();
     // Blinken bei Anstieg (nicht beim ersten Render)
     if (_chipCounts !== null) {
       _applyChipBlink('chip-prs',      'chip-new-prs',      totalPRs      > _chipCounts.prs);
@@ -3346,6 +3348,35 @@
     } catch {
       if (status) { status.textContent = '✗ Netzwerkfehler'; status.style.color = 'var(--red)'; }
     }
+  }
+
+  // ── Branch-Sync Kachel ───────────────────────────────────────────
+  async function refreshBranchSync() {
+    const chip = document.getElementById('chip-branch-sync');
+    if (!chip) return;
+    try {
+      const r    = await fetch(u('/api/stat/branch-sync'));
+      const data = await r.json();
+      if (!data.configured) { chip.innerHTML = ''; return; }
+
+      const ahead  = data.ahead_by  || 0;
+      const behind = data.behind_by || 0;
+      const label  = `${escHtml(data.dev)} → ${escHtml(data.main)}`;
+
+      const aColor = ahead  === 0 ? 'var(--green)'
+                   : ahead  <= 9  ? 'var(--yellow)'
+                   : ahead  <= 29 ? 'var(--orange)'
+                   : 'var(--red)';
+      const bColor = behind === 0 ? 'var(--green)' : 'var(--red)';
+
+      chip.className = 'stat-chip';
+      chip.innerHTML = `
+        <div class="num" style="display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15">
+          <span style="color:${aColor};font-size:.95rem;font-weight:700">↑${ahead}</span>
+          <span style="color:${bColor};font-size:.95rem;font-weight:700">↓${behind}</span>
+        </div>
+        <div class="lbl">${label}</div>`;
+    } catch { /* ignorieren */ }
   }
 
   // ── Security: CodeQL Autofix ──────────────────────────────────────
