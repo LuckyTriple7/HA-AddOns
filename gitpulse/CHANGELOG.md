@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.23] - 2026-06-12
+
+### Fixed
+- **Revert**: Zurück zu `app.run(threaded=True)`; SIGTERM nur über `SystemExit(0)` — kein `make_server` mehr, der die UI blockiert hatte
+
 ## [0.3.22] - 2026-06-12
 
 ### Fixed

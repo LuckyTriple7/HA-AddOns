@@ -3252,15 +3252,12 @@ if __name__ == '__main__':
     else:
         log.info("Kein Webhook-Secret konfiguriert — Webhook deaktiviert, nur Polling aktiv")
 
-    srv = make_server('0.0.0.0', 17792, app, threaded=True)
-    srv.timeout = 1  # damit serve_forever() regelmäßig prüfen kann
-
     def _shutdown(signum, frame):
         log.info("Signal %s empfangen — GitPulse wird beendet", signum)
-        threading.Thread(target=srv.shutdown, daemon=True).start()
+        raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT,  _shutdown)
 
     log.info("GitPulse bereit auf Port 17792")
-    srv.serve_forever()
+    app.run(host='0.0.0.0', port=17792, debug=False, threaded=True)
