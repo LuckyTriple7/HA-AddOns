@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.16
+- fix: occ läuft jetzt als abc statt root — maintenance:repair erstellt appdata-Dateien mit korrekten Rechten
+
 ## 1.0.15
 - Rollback auf Nextcloud 33 (33.0.5-ls436) — NC34 inkompatibel mit bestehenden Apps
 - Check-Update-Workflow auf 33.x beschränkt (kein automatisches Upgrade auf NC34+)

@@ -22,7 +22,7 @@ SKELETONDIR=$(jq -r '.skeletondirectory // ""' "$OPTIONS" 2>/dev/null || echo ""
 TRASHBIN=$(jq -r '.trashbin_retention_obligation // "auto, 30"' "$OPTIONS" 2>/dev/null || echo "auto, 30")
 VERSIONS=$(jq -r '.versions_retention_obligation // "auto, 30"' "$OPTIONS" 2>/dev/null || echo "auto, 30")
 
-occ() { ALLOW_ROOT=1 php "$OCC" "$@" || true; }
+occ() { s6-setuidgid abc php "$OCC" "$@" || true; }
 
 # Trusted domains — wie alexbelgium
 occ config:system:set trusted_domains 0 --value="localhost"
@@ -33,7 +33,7 @@ if [ -n "$TRUSTED_DOMAINS" ]; then
         D=$(echo "$D" | tr -d ' \r')
         [ -z "$D" ] && continue
         echo "[ha-config] [$(date '+%Y-%m-%d %H:%M:%S')] trusted_domain ${IDX}: ${D}"
-        ALLOW_ROOT=1 php "$OCC" config:system:set trusted_domains $IDX --value="$D" || true
+        s6-setuidgid abc php "$OCC" config:system:set trusted_domains $IDX --value="$D" || true
         IDX=$((IDX + 1))
     done
 fi
