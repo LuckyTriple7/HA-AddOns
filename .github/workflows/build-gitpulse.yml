@@ -2,7 +2,7 @@ name: Build GitPulse Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'gitpulse/config.yaml'
   workflow_dispatch:

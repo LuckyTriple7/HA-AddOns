@@ -2,7 +2,7 @@ name: Build MyPage Image
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - 'mypage/config.yaml'
   workflow_dispatch:
