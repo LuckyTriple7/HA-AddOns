@@ -15,11 +15,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prüfen ob Commits vorhanden
         id: check
         run: |
+          git fetch origin main dev
           AHEAD=$(git log origin/main..origin/dev --oneline --no-merges | wc -l | tr -d ' ')
           echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
           if [ "$AHEAD" -eq "0" ]; then
@@ -28,17 +28,28 @@ jobs:
             echo "$AHEAD Commit(s) von dev bereit für main."
           fi
 
-      - name: PR erstellen
+      - name: Prüfen ob PR bereits offen
+        id: existing
         if: steps.check.outputs.ahead != '0'
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: main
-          branch: dev
-          title: "chore: merge dev → main (${{ github.run_id }})"
-          body: |
-            Automatisch erstellter PR – ${{ steps.check.outputs.ahead }} Commit(s) von `dev` nach `main`.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(gh pr list --base main --head dev --state open --json url --jq '.[0].url' 2>/dev/null || true)
+          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          if [ -n "$PR_URL" ]; then
+            echo "PR bereits offen: ${PR_URL}"
+          else
+            echo "Kein offener PR gefunden – wird erstellt."
+          fi
 
-            Bitte vor dem Merge prüfen.
-          labels: auto-merge
-          draft: false
+      - name: PR erstellen
+        if: steps.check.outputs.ahead != '0' && steps.existing.outputs.url == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "chore: merge dev → main ($(date '+%Y-%m-%d'))" \
+            --body "Automatisch erstellter PR – ${{ steps.check.outputs.ahead }} Commit(s) von \`dev\` nach \`main\`.\n\nBitte vor dem Merge prüfen." \
+            --label "auto-merge"
