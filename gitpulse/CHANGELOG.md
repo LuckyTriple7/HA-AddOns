@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.28] - 2026-06-12
+
+### Changed
+- **Branch-Sync Kachel**: Bot-Merge-Filter entfernt — Sync-WF hält dev aktuell, echte `↓`-Commits sollen sichtbar bleiben
+
 ## [0.3.27] - 2026-06-12
 
 ### Fixed

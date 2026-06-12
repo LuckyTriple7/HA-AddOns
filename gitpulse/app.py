@@ -2077,25 +2077,8 @@ def api_stat_branch_sync():
             _update_rate_limit(r.headers)
             if r.status_code != 200:
                 return None
-            d        = r.json()
-            ahead_by = d.get('ahead_by', 0)
-            behind_by = d.get('behind_by', 0)
-            # Bot-Merge-Commits aus behind_by herausfiltern
-            real_behind = behind_by
-            if behind_by > 0:
-                r2 = http.get(f'{GITHUB_API}/repos/{repo}/compare/{dev_b}...{main_b}',
-                              headers=hdrs, timeout=10)
-                _update_rate_limit(r2.headers)
-                if r2.status_code == 200:
-                    behind_commits = r2.json().get('commits', [])
-                    real_behind = sum(
-                        1 for c in behind_commits
-                        if not (
-                            (c.get('author') or {}).get('login', '') == 'github-actions[bot]'
-                            and re.match(r'^chore: merge', c.get('commit', {}).get('message', ''), re.I)
-                        )
-                    )
-            return {'repo': repo, 'ahead_by': ahead_by, 'behind_by': behind_by, 'real_behind_by': real_behind}
+            d = r.json()
+            return {'repo': repo, 'ahead_by': d.get('ahead_by', 0), 'behind_by': d.get('behind_by', 0)}
         except Exception:
             pass
         return None

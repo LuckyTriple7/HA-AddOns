@@ -3370,15 +3370,12 @@
       const bColor = behind === 0 ? 'var(--green)' : 'var(--red)';
 
       chip.innerHTML = data.repos.map(rp => {
-        const a  = rp.ahead_by       || 0;
-        const b  = rp.real_behind_by ?? rp.behind_by ?? 0;
-        const bRaw = rp.behind_by    || 0;
+        const a  = rp.ahead_by  || 0;
+        const b  = rp.behind_by || 0;
         const ac = a === 0 ? 'var(--green)' : a <= 9 ? 'var(--yellow)' : a <= 29 ? 'var(--orange)' : 'var(--red)';
         const bc = b === 0 ? 'var(--green)' : 'var(--red)';
-        const shortRepo  = escHtml(rp.repo.split('/')[1] || rp.repo);
-        const botFiltered = bRaw - b;
-        const tooltip    = escHtml(rp.repo) + (botFiltered > 0 ? ` (↓${bRaw} gesamt, ${botFiltered} Bot-Merge-Commits herausgefiltert)` : '');
-        return `<div class="stat-chip" style="min-width:90px" title="${tooltip}">
+        const shortRepo = escHtml(rp.repo.split('/')[1] || rp.repo);
+        return `<div class="stat-chip" style="min-width:90px" title="${escHtml(rp.repo)}">
           <div class="num" style="display:flex;flex-direction:row;align-items:center;gap:6px">
             <span style="color:${ac}">↑${a}</span>
             <span style="color:${bc}">↓${b}</span>
