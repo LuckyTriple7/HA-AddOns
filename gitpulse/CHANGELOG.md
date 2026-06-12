@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.32] - 2026-06-12
+
+### Changed
+- **Workflows-Kachel**: Fehlerfarbe (rot) nur noch anhand der letzten 10 Runs je Repo — alte Fehler verfälschen die Kachel nicht mehr
+
 ## [0.3.31] - 2026-06-12
 
 ### Changed

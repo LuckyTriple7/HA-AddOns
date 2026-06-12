@@ -1476,10 +1476,10 @@
     (data.my_repos || []).forEach(r => {
       totalPRs    += r.open_prs    || 0;
       totalIssues += r.open_issues || 0;
-      (r.runs || []).forEach(run => {
+      (r.runs || []).forEach((run, i) => {
         totalRuns++;
         if (['in_progress','queued','waiting'].includes(run.status)) hasActive = true;
-        if (run.conclusion === 'failure') hasFailed = true;
+        if (i < 10 && run.conclusion === 'failure') hasFailed = true;
       });
       const sec = r.security || {};
       totalSec += (sec.dependabot || []).length + (sec.code_scanning || []).length + (sec.secret_scanning || []).length;
