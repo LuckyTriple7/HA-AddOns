@@ -20,17 +20,18 @@ jobs:
       - name: Hole aktuelle Nextcloud-Version (linuxserver.io)
         id: remote
         run: |
-          TAGS=$(curl -s "https://hub.docker.com/v2/repositories/linuxserver/nextcloud/tags/?page_size=100&ordering=last_updated" \
+          FULL_TAG=$(curl -s "https://hub.docker.com/v2/repositories/linuxserver/nextcloud/tags/?page_size=100&ordering=last_updated" \
             | jq -r '.results[].name' \
             | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-ls' \
             | sort -V | tail -1 || true)
-          if [ -z "$TAGS" ]; then
+          if [ -z "$FULL_TAG" ]; then
             echo "Konnte aktuelle Version nicht ermitteln — API-Fehler?"
             exit 1
           fi
-          VERSION=$(echo "$TAGS" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
+          VERSION=$(echo "$FULL_TAG" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')
           echo "remote=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Aktuelle linuxserver Nextcloud-Version: ${VERSION} (Tag: ${TAGS})"
+          echo "full_tag=${FULL_TAG}" >> $GITHUB_OUTPUT
+          echo "Aktuelle linuxserver Nextcloud-Version: ${VERSION} (Tag: ${FULL_TAG})"
 
       - name: Hole gebaute Version aus Versionsdatei
         id: local
@@ -69,17 +70,19 @@ jobs:
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "Add-on Version: ${CURRENT} → ${NEW_VERSION}"
 
-      - name: Versionsdatei, config.yaml und CHANGELOG aktualisieren
+      - name: Versionsdatei, config.yaml, Dockerfile und CHANGELOG aktualisieren
         if: steps.compare.outputs.rebuild == 'true'
         run: |
           NC_VERSION="${{ steps.remote.outputs.remote }}"
+          FULL_TAG="${{ steps.remote.outputs.full_tag }}"
           NEW_VERSION="${{ steps.newversion.outputs.new_version }}"
           CURRENT=$(grep '^version:' nextcloud/config.yaml | sed 's/version: *"\(.*\)"/\1/')
 
           echo "${NC_VERSION}" > .nextcloud-version
           sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" nextcloud/config.yaml
+          sed -i "s|FROM lscr.io/linuxserver/nextcloud:.*|FROM lscr.io/linuxserver/nextcloud:${FULL_TAG}|" nextcloud/Dockerfile
 
-          CHANGELOG_ENTRY="## ${NEW_VERSION}\n- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud ${NC_VERSION}"
+          CHANGELOG_ENTRY="## ${NEW_VERSION}\n- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud ${NC_VERSION} (${FULL_TAG})"
           sed -i "s|# Changelog — Nextcloud|# Changelog — Nextcloud\n\n${CHANGELOG_ENTRY}|" nextcloud/CHANGELOG.md
 
       - name: Pull Request erstellen
@@ -98,6 +101,7 @@ jobs:
             | | Version |
             |---|---|
             | Nextcloud (linuxserver) | `${{ steps.remote.outputs.remote }}` |
+            | Docker-Tag | `${{ steps.remote.outputs.full_tag }}` |
             | Add-on Version | `${{ steps.newversion.outputs.new_version }}` |
 
             Nach dem Merge wird das Image automatisch via `build-nextcloud.yml` gebaut.
