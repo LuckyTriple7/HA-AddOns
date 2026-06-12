@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.26] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: Bot-Merge-Commits (`chore: merge dev→main` von `github-actions[bot]`) werden aus `↓behind` herausgefiltert — Kachel zeigt echte Divergenz; Tooltip zeigt Gesamtzahl und Anzahl gefilterter Commits
+
 ## [0.3.25] - 2026-06-12
 
 ### Fixed
