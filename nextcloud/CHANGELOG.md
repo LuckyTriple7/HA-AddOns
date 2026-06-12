@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.14
+- Nextcloud Dockerfile auf gepinnten Tag 34.0.0-ls437 umgestellt (war :latest)
+
 ## [1.0.13] - 2026-06-09
 - fix: timeout auf 90s erhöht — 30s reichten nicht für sauberes s6-overlay Shutdown (nginx + php-fpm + cron), führte zu SIGKILL (Exit 137)
 

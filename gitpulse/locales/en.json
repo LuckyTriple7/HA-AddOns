@@ -204,6 +204,11 @@
   "notif_unsnooze": "Unsnooze notifications",
 
   "settings_tab_browser": "Browser",
+  "settings_tab_advanced": "Advanced",
+  "settings_adv_hint": "GitPulse internal settings that apply to all users of this add-on.",
+  "settings_adv_main_branch": "Main Branch",
+  "settings_adv_dev_branch": "Dev Branch",
+  "settings_adv_branch_check": "Autofix warning active (when dev branch is ahead of main)",
   "settings_br_hint": "Browser notifications are shown directly in the browser.",
   "settings_br_not_granted": "Browser notification permission not granted — please allow in your browser.",
 

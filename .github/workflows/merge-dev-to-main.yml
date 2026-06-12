@@ -1,38 +1,55 @@
-name: Dev → Main mergen
+name: Dev → Main PR erstellen
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pull-requests: write
 
 jobs:
-  merge:
+  create-pr:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Git Konfiguration
+      - name: Prüfen ob Commits vorhanden
+        id: check
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: dev in main mergen
-        run: |
-          git checkout main
-          git pull origin main
-
-          AHEAD=$(git log main..origin/dev --oneline --no-merges | wc -l | tr -d ' ')
+          git fetch origin main dev
+          AHEAD=$(git log origin/main..origin/dev --oneline --no-merges | wc -l | tr -d ' ')
+          echo "ahead=$AHEAD" >> "$GITHUB_OUTPUT"
           if [ "$AHEAD" -eq "0" ]; then
-            echo "main ist bereits aktuell – nichts zu tun."
-            exit 0
+            echo "main ist bereits aktuell – kein PR nötig."
+          else
+            echo "$AHEAD Commit(s) von dev bereit für main."
           fi
 
-          echo "Merging $AHEAD Commit(s) von dev nach main..."
-          git merge origin/dev --no-ff -m "chore: merge dev → main ($(date '+%Y-%m-%d'))"
-          git push origin main
-          echo "✓ main erfolgreich aktualisiert ($AHEAD Commit(s) übernommen)"
+      - name: Prüfen ob PR bereits offen
+        id: existing
+        if: steps.check.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(gh pr list --base main --head dev --state open --json url --jq '.[0].url' 2>/dev/null || true)
+          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          if [ -n "$PR_URL" ]; then
+            echo "PR bereits offen: ${PR_URL}"
+          else
+            echo "Kein offener PR gefunden – wird erstellt."
+          fi
+
+      - name: PR erstellen
+        if: steps.check.outputs.ahead != '0' && steps.existing.outputs.url == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head dev \
+            --title "chore: merge dev → main ($(date '+%Y-%m-%d'))" \
+            --body "Automatisch erstellter PR – ${{ steps.check.outputs.ahead }} Commit(s) von \`dev\` nach \`main\`.\n\nBitte vor dem Merge prüfen." \
+            --label "auto-update"

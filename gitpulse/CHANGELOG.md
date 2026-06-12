@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.20] - 2026-06-12
+
+### Added
+- **Einstellungen → Erweitert**: Main-Branch und Dev-Branch konfigurierbar (statt hardcodiert `main`/`dev`); Autofix-Warnprüfung kann deaktiviert werden — gespeichert in `gitpulse_settings.json`
+
+## [0.3.19] - 2026-06-11
+
+### Fixed
+- **Security Autofix**: Warnschwelle auf `ahead_by > 0` gesenkt — bereits 1 Commit auf dev kann die falsche Dateiversion einspielen
+
 ## [0.3.18] - 2026-06-11
 
 ### Added
