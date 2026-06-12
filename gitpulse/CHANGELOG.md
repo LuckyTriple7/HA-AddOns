@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.22] - 2026-06-12
+
+### Fixed
+- **Kritisch**: `make_server` fehlte `threaded=True` — SSE-Verbindung blockierte alle weiteren Requests, UI war nicht erreichbar
+
 ## [0.3.21] - 2026-06-12
 
 ### Fixed
