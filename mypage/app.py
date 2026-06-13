@@ -217,7 +217,7 @@ DEFAULT_SITE = {
     'projects': [],
     'design': {
         'accent': '#58a6ff', 'mode': 'dark', 'layout': 'cards',
-        'show_counter': True, 'public_url': '',
+        'show_counter': True, 'show_nav': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'storage_subdir': '',
         'welcome_from': '',
@@ -1564,7 +1564,7 @@ def api_design():
         d['support_url'] = su if su.startswith(('http://', 'https://')) or not su else ''
     if 'support_label' in raw:
         d['support_label'] = _clean_str(raw['support_label'], 40)
-    for flag in ('show_counter', 'contact_enabled', 'maintenance'):
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
@@ -2524,17 +2524,40 @@ def public_index():
     projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
     static_export = bool(request.args.get('static'))
     font_family, font_faces = font_css(site['design'])
+    sections = site.get('sections', {})
+    albums = _albums_for_public(site)
+    latest_posts = sorted_posts(site, public_only=True)[:3]
+    contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
+
+    # Navigations-Leiste: nur Sektionen mit Inhalt, in Seitenreihenfolge
+    nav_items = []
+    if site['design'].get('show_nav', True):
+        for present, anchor, label_key in (
+            (sections.get('news'),     'news',      'news_heading'),
+            (latest_posts,             'blog',      'blog_heading'),
+            (projects,                 'projects',  'projects'),
+            (sections.get('skills'),   'skills',    'skills_heading'),
+            (albums,                   'photos',    'albums_heading'),
+            (sections.get('timeline'), 'timeline',  'timeline_heading'),
+            (sections.get('links'),    'links',     'links_heading'),
+            (sections.get('faq'),      'faq',       'faq_heading'),
+            (contact_enabled,          'kontakt',   'contact_heading'),
+        ):
+            if present:
+                nav_items.append({'anchor': anchor, 'label': t.get(label_key, label_key)})
+
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
                            font_family=font_family, font_faces=font_faces,
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
-                           sections=site.get('sections', {}),
-                           albums=_albums_for_public(site),
+                           sections=sections,
+                           albums=albums,
                            album_protect=bool(site.get('album_protect')),
-                           latest_posts=sorted_posts(site, public_only=True)[:3],
+                           latest_posts=latest_posts,
+                           nav_items=nav_items,
                            static_export=static_export,
-                           contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,
+                           contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),

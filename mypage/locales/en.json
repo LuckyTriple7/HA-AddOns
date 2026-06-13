@@ -299,6 +299,8 @@
   "mode_dark": "Dark",
   "mode_light": "Light",
   "field_counter": "Show visitor counter",
+  "field_nav": "Show navigation bar",
+  "field_nav_hint": "Header jump links to the sections that exist (Projects, Photos …).",
   "field_footer": "Footer text (optional)",
   "yes": "Yes",
   "no": "No",

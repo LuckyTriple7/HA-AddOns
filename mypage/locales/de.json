@@ -299,6 +299,8 @@
   "mode_dark": "Dunkel",
   "mode_light": "Hell",
   "field_counter": "Besucherzähler anzeigen",
+  "field_nav": "Navigationsleiste anzeigen",
+  "field_nav_hint": "Sprungmarken im Kopf zu den vorhandenen Bereichen (Projekte, Fotos …).",
   "field_footer": "Footer-Text (optional)",
   "yes": "Ja",
   "no": "Nein",

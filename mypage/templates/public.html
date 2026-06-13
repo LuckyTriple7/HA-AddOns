@@ -61,6 +61,11 @@
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
     .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px; border-radius: 5px; cursor: pointer; display: inline-flex; }
     .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .site-nav { border-top: 1px solid var(--border); }
+    .site-nav-inner { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 2px 20px; }
+    .site-nav-inner::-webkit-scrollbar { display: none; }
+    .site-nav a { color: var(--muted); font-size: 0.85rem; padding: 9px 11px; white-space: nowrap; border-bottom: 2px solid transparent; }
+    .site-nav a:hover { color: var(--text); text-decoration: none; border-bottom-color: var(--accent); }
     .icon-moon { display: block; } .icon-sun { display: none; }
     [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
 
@@ -83,7 +88,7 @@
     .social svg { width: 15px; height: 15px; fill: currentColor; }
 
     /* Projekte */
-    .section-title { font-size: 1.4rem; margin: 24px 0 20px; display: flex; align-items: center; gap: 10px; }
+    .section-title { font-size: 1.4rem; margin: 24px 0 20px; display: flex; align-items: center; gap: 10px; scroll-margin-top: 120px; }
     .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; padding-bottom: 48px; }
     .card {
@@ -306,6 +311,13 @@
         </button>
       </div>
     </div>
+    {% if nav_items %}
+    <nav class="site-nav" aria-label="Sektionen">
+      <div class="wrap site-nav-inner">
+        {% for it in nav_items %}<a href="#{{ it.anchor }}">{{ it.label }}</a>{% endfor %}
+      </div>
+    </nav>
+    {% endif %}
   </header>
 
   <main class="wrap">
@@ -372,7 +384,7 @@
     </section>
 
     {% if sections.news %}
-    <h2 class="section-title">{{ t.news_heading }}</h2>
+    <h2 class="section-title" id="news">{{ t.news_heading }}</h2>
     <div class="news-list">
       {% for n in sections.news %}
       <div class="news-item">
@@ -387,7 +399,7 @@
     {% endif %}
 
     {% if latest_posts %}
-    <h2 class="section-title">{{ t.blog_heading }}</h2>
+    <h2 class="section-title" id="blog">{{ t.blog_heading }}</h2>
     <div class="news-list" style="padding-bottom:36px">
       {% for po in latest_posts %}
       <div class="news-item">
@@ -400,7 +412,7 @@
     {% endif %}
 
     {% if projects %}
-    <h2 class="section-title">{{ t.projects }}</h2>
+    <h2 class="section-title" id="projects">{{ t.projects }}</h2>
     {% if site.design.layout == 'minimal' %}
     <div class="min-list">
       {% for p in projects %}
@@ -483,14 +495,14 @@
     {% endif %}
 
     {% if sections.skills %}
-    <h2 class="section-title">{{ t.skills_heading }}</h2>
+    <h2 class="section-title" id="skills">{{ t.skills_heading }}</h2>
     <div class="skills">
       {% for s in sections.skills %}<span class="skill">{{ s }}</span>{% endfor %}
     </div>
     {% endif %}
 
     {% if albums %}
-    <h2 class="section-title">{{ t.albums_heading }}</h2>
+    <h2 class="section-title" id="photos">{{ t.albums_heading }}</h2>
     <div class="album-rail-wrap">
       <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="Zurück">‹</button>
       <div class="album-rail" id="album-rail">
@@ -512,7 +524,7 @@
     {% endif %}
 
     {% if sections.timeline %}
-    <h2 class="section-title">{{ t.timeline_heading }}</h2>
+    <h2 class="section-title" id="timeline">{{ t.timeline_heading }}</h2>
     <div class="timeline">
       {% for e in sections.timeline %}
       <div class="tl-item">
@@ -528,7 +540,7 @@
     {% endif %}
 
     {% if sections.links %}
-    <h2 class="section-title">{{ t.links_heading }}</h2>
+    <h2 class="section-title" id="links">{{ t.links_heading }}</h2>
     <div class="links-cta">
       <p>{{ t.links_subtitle }}</p>
       <button class="links-btn" onclick="openLinks()">🔗 {{ t.links_open }}</button>
@@ -536,7 +548,7 @@
     {% endif %}
 
     {% if sections.faq %}
-    <h2 class="section-title">{{ t.faq_heading }}</h2>
+    <h2 class="section-title" id="faq">{{ t.faq_heading }}</h2>
     <div class="faq">
       {% for f in sections.faq %}
       {% set q = loc(f, 'q') %}
