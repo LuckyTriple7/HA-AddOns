@@ -242,6 +242,22 @@ yt-dlp Web-GUI — Videos und Audio von YouTube, TikTok, Instagram, Vimeo, Sound
 
 → [Dokumentation & Changelog](mediagrab/README.md)
 
+### [GitPulse](gitpulse/)
+
+GitHub Control Panel direkt in Home Assistant — PRs, Issues, CI-Status, Security-Alerts und Release-Tracker auf einen Blick.
+
+- Pull Requests und Issues aller eigenen Repos übersichten, kommentieren und mergen
+- CI / GitHub Actions: Status-Übersicht, Workflow starten/stoppen, Favoriten
+- Security-Alerts: Dependabot, CodeQL, Secret Scanning mit Autofix-Integration
+- Release-Tracker: neue Versionen von eigenen und beobachteten Repos mit Badge
+- Add-on Manager: Versions-Bump (+Major/+Minor/+Patch/+Dep) und Changelog direkt in der UI
+- Branch-Sync Kachel: zeigt ↑/↓ Commits zwischen Dev- und Main-Branch je Repo
+- Cherry-Pick: Commits zwischen Branches auswählen und PR erstellen
+- Telegram & E-Mail Benachrichtigungen für PRs, Issues, Workflows, Releases
+- Passwortschutz, PWA, Dark/Light Mode, DE/EN
+
+→ [Dokumentation & Changelog](gitpulse/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -284,6 +300,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | HA SysWatch | ✅ | ✅ | Alpine |
 | phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
 | MediaGrab | ✅ | ✅ | Alpine |
+| GitPulse | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -487,3 +504,19 @@ yt-dlp web GUI — download videos and audio from YouTube, TikTok, Instagram, Vi
 - REST API for HA sensors (`/api/status`)
 
 → [Documentation & Changelog](mediagrab/README.md)
+
+### [GitPulse](gitpulse/)
+
+GitHub Control Panel directly in Home Assistant — PRs, Issues, CI status, security alerts and release tracker at a glance.
+
+- Overview of pull requests and issues across all your repos — comment and merge directly in the UI
+- CI / GitHub Actions: status overview, trigger/stop workflows, favorites
+- Security alerts: Dependabot, CodeQL, Secret Scanning with autofix integration
+- Release tracker: new versions of your own and watched repos with badge indicator
+- Add-on Manager: version bump (+Major/+Minor/+Patch/+Dep) and changelog entry directly in the UI
+- Branch-Sync tile: shows ↑/↓ commits between dev and main branch per repo
+- Cherry-Pick: select commits between branches and create a PR
+- Telegram & e-mail notifications for PRs, issues, workflows and releases
+- Password protection, PWA, Dark/Light mode, DE/EN
+
+→ [Documentation & Changelog](gitpulse/README.md)

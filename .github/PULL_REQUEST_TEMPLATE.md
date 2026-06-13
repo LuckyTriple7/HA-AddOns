@@ -22,6 +22,7 @@
 - [ ] HA SysWatch
 - [ ] phpMyAdmin MariaDB 2
 - [ ] MediaGrab
+- [ ] GitPulse
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change

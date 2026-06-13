@@ -23,6 +23,7 @@ body:
         - HA SysWatch
         - phpMyAdmin MariaDB 2
         - MediaGrab
+        - GitPulse
         - Sonstiges
     validations:
       required: true
