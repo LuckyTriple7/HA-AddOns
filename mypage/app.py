@@ -150,7 +150,26 @@ _seen_today:  set[str] = set()
 _seen_day:    str = ''
 
 ALLOWED_UPLOAD_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+ALLOWED_FONT_EXT = {'.woff2', '.woff', '.ttf', '.otf'}
+FONTS_DIR = Path(_BASE) / 'fonts'
 STATS_KEEP_DAYS = 365
+
+# Mitgelieferte Web-Fonts (selbst gehostet, kein externer Request):
+# Wert → (CSS-Familienname, Fallback-Stack, [(weight, dateiname), …])
+WEB_FONTS = {
+    'inter':        ("Inter",        "sans-serif",  [(400, 'Inter-400.woff2'), (700, 'Inter-700.woff2')]),
+    'poppins':      ("Poppins",      "sans-serif",  [(400, 'Poppins-400.woff2'), (700, 'Poppins-600.woff2')]),
+    'montserrat':   ("Montserrat",   "sans-serif",  [(400, 'Montserrat-400.woff2'), (700, 'Montserrat-700.woff2')]),
+    'lato':         ("Lato",         "sans-serif",  [(400, 'Lato-400.woff2'), (700, 'Lato-700.woff2')]),
+    'merriweather': ("Merriweather", "serif",       [(400, 'Merriweather-400.woff2'), (700, 'Merriweather-700.woff2')]),
+}
+SYSTEM_FONTS = {
+    'system':  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    'classic': "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    'rounded': "'Trebuchet MS', 'Segoe UI', Verdana, sans-serif",
+    'serif':   "Georgia, 'Times New Roman', serif",
+    'mono':    "ui-monospace, 'Cascadia Code', Consolas, monospace",
+}
 
 DEFAULT_SITE = {
     'profile': {
@@ -169,6 +188,7 @@ DEFAULT_SITE = {
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'font': 'system', 'custom_css': '',
+        'custom_font': '', 'custom_font_name': '',
     },
     'posts': [],
     'legal': {
@@ -190,6 +210,27 @@ DEFAULT_SITE = {
 def render_md(text: str) -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
+
+
+def font_css(design: dict) -> tuple[str, str]:
+    """Liefert (font-family-Stack, @font-face-CSS) für die gewählte Schrift."""
+    f = design.get('font') or 'system'
+    if f in SYSTEM_FONTS:
+        return SYSTEM_FONTS[f], ''
+    if f in WEB_FONTS:
+        family, fallback, files = WEB_FONTS[f]
+        faces = ''
+        for weight, fn in files:
+            faces += (f"@font-face{{font-family:'{family}';font-style:normal;"
+                      f"font-weight:{weight};font-display:swap;"
+                      f"src:url('/fonts/{fn}') format('woff2');}}\n")
+        return f"'{family}', {fallback}", faces
+    if f == 'custom' and design.get('custom_font'):
+        url = design['custom_font']
+        face = (f"@font-face{{font-family:'CustomFont';font-display:swap;"
+                f"src:url('{url}');}}\n")
+        return "'CustomFont', sans-serif", face
+    return SYSTEM_FONTS['system'], ''
 
 
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
@@ -1281,7 +1322,7 @@ def api_design():
         d['mode'] = raw['mode']
     if raw.get('layout') in ('cards', 'list', 'minimal'):
         d['layout'] = raw['layout']
-    if raw.get('font') in ('system', 'serif', 'mono', 'rounded', 'classic'):
+    if raw.get('font') in (set(SYSTEM_FONTS) | set(WEB_FONTS) | {'custom'}):
         d['font'] = raw['font']
     if 'custom_css' in raw:
         # '<' komplett entfernen — in CSS nie nötig, macht jeden Tag-Ausbruch
@@ -1840,6 +1881,33 @@ def api_export():
                      download_name=f'mypage-export-{date.today().isoformat()}.zip')
 
 
+@admin_app.route('/api/upload-font', methods=['POST'])
+def api_upload_font():
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in ALLOWED_FONT_EXT:
+        return jsonify({'error': 'font type not allowed'}), 400
+    name = uuid.uuid4().hex + ext
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None:
+        abort(400)
+    f.save(target)
+    # Anzeigename aus dem Originaldateinamen (ohne Endung)
+    display = secure_filename(Path(f.filename).stem)[:40] or 'Eigene Schrift'
+    site = load_site()
+    site['design']['custom_font'] = '/uploads/' + name
+    site['design']['custom_font_name'] = display
+    site['design']['font'] = 'custom'
+    save_site(site)
+    log.info("Eigene Schrift hochgeladen: %s", display)
+    return jsonify({'ok': True, 'name': display})
+
+
 @admin_app.route('/api/upload', methods=['POST'])
 def api_upload():
     err = _api_auth()
@@ -1975,6 +2043,15 @@ def public_set_lang(lang: str):
 @public_app.route('/uploads/<path:filename>')
 def public_uploads(filename: str):
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
+
+
+@public_app.route('/fonts/<path:filename>')
+def public_fonts(filename: str):
+    safe = secure_filename(filename)
+    target = safe_under(FONTS_DIR, safe)
+    if target is None or not target.is_file():
+        abort(404)
+    return send_from_directory(FONTS_DIR, safe, max_age=2592000)  # 30 Tage
 
 
 def effective_watermark() -> str:
@@ -2205,8 +2282,10 @@ def public_index():
     email_parts = email.split('@', 1) if '@' in email else None
     projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
     static_export = bool(request.args.get('static'))
+    font_family, font_faces = font_css(site['design'])
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
+                           font_family=font_family, font_faces=font_faces,
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
                            sections=site.get('sections', {}),

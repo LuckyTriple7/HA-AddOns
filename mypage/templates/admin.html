@@ -113,8 +113,9 @@
     .msg-text { font-size: 0.87rem; white-space: pre-wrap; }
 
     .gallery-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .gallery-thumb { position: relative; }
-    .gallery-thumb img { width: 76px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+    .gallery-thumb { position: relative; cursor: grab; }
+    .gallery-thumb.dragging { opacity: .4; }
+    .gallery-thumb img { width: 76px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); pointer-events: none; }
     .gallery-thumb button { position: absolute; top: -6px; right: -6px; background: var(--red); border: none; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 0.65rem; cursor: pointer; line-height: 1; }
 
     .preview-frame { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
@@ -367,14 +368,33 @@
           <div>
             <label>{{ t.field_font }}</label>
             <select id="d-font">
-              <option value="system">{{ t.font_system }}</option>
-              <option value="classic">{{ t.font_classic }}</option>
-              <option value="rounded">{{ t.font_rounded }}</option>
-              <option value="serif">{{ t.font_serif }}</option>
-              <option value="mono">{{ t.font_mono }}</option>
+              <optgroup label="{{ t.font_group_system }}">
+                <option value="system">{{ t.font_system }}</option>
+                <option value="classic">{{ t.font_classic }}</option>
+                <option value="rounded">{{ t.font_rounded }}</option>
+                <option value="serif">{{ t.font_serif }}</option>
+                <option value="mono">{{ t.font_mono }}</option>
+              </optgroup>
+              <optgroup label="{{ t.font_group_web }}">
+                <option value="inter">Inter</option>
+                <option value="poppins">Poppins</option>
+                <option value="montserrat">Montserrat</option>
+                <option value="lato">Lato</option>
+                <option value="merriweather">Merriweather</option>
+              </optgroup>
+              <optgroup label="{{ t.font_group_custom }}">
+                <option value="custom" id="d-font-custom-opt" disabled>{{ t.font_custom_none }}</option>
+              </optgroup>
             </select>
           </div>
-          <div></div>
+          <div>
+            <label>{{ t.font_upload_label }}</label>
+            <div class="upload-row">
+              <button class="btn secondary small" onclick="el('font-input').click()">⬆ {{ t.font_upload }}</button>
+              <span class="hint" id="d-font-current" style="margin:0"></span>
+            </div>
+            <input type="file" id="font-input" accept=".woff2,.woff,.ttf,.otf" style="display:none">
+          </div>
         </div>
         <label>{{ t.field_footer }}</label>
         <input type="text" id="d-footer_text">
@@ -1047,17 +1067,32 @@
         list.appendChild(div);
       });
     }
+    let dragFrom = null;
     function renderAlbumImages() {
       const box = el('am-images');
       box.innerHTML = '';
       albumImages.forEach((u, i) => {
         const div = document.createElement('div');
         div.className = 'gallery-thumb';
+        div.draggable = true;
+        div.title = T.album_drag_hint;
         const img = document.createElement('img');
         img.src = assetUrl(u);
+        img.draggable = false;
         const btn = document.createElement('button');
         btn.textContent = '✕';
         btn.onclick = () => { albumImages.splice(i, 1); renderAlbumImages(); };
+        // Drag & Drop zum Umsortieren
+        div.addEventListener('dragstart', () => { dragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { dragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', ev => {
+          ev.preventDefault();
+          if (dragFrom === null || dragFrom === i) return;
+          const [moved] = albumImages.splice(dragFrom, 1);
+          albumImages.splice(i, 0, moved);
+          renderAlbumImages();
+        });
         div.append(img, btn);
         box.appendChild(div);
       });
@@ -1529,6 +1564,17 @@
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
       el('d-footer_text').value = d.footer_text || '';
+      // Eigene Schrift: Option aktivieren wenn hochgeladen
+      const opt = el('d-font-custom-opt');
+      if (d.custom_font) {
+        opt.disabled = false;
+        opt.textContent = (d.custom_font_name || T.font_custom_generic);
+        el('d-font-current').textContent = T.font_current + ': ' + (d.custom_font_name || '—');
+      } else {
+        opt.disabled = true;
+        opt.textContent = T.font_custom_none;
+        el('d-font-current').textContent = '';
+      }
       el('d-font').value = d.font || 'system';
       el('d-custom_css').value = d.custom_css || '';
     }
@@ -1712,6 +1758,22 @@
         if (uploadCb) uploadCb(data.url);
         toast(T.uploaded);
       } else { toast(T.error_upload, true); }
+      e.target.value = '';
+    });
+
+    el('font-input').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/upload-font', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        toast(T.font_uploaded);
+        loadSite();            // setzt font='custom' und füllt die Auswahl
+        reloadPreview();
+      } else {
+        toast(T.font_upload_err, true);
+      }
       e.target.value = '';
     });
 

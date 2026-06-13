@@ -27,15 +27,9 @@
     :root {
       --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
       --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
-      {% set f = site.design.font or 'system' %}
-      --font:
-      {%- if f == 'serif' %} Georgia, 'Times New Roman', serif
-      {%- elif f == 'mono' %} ui-monospace, 'Cascadia Code', Consolas, monospace
-      {%- elif f == 'rounded' %} 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif
-      {%- elif f == 'classic' %} 'Helvetica Neue', Helvetica, Arial, sans-serif
-      {%- else %} -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif
-      {%- endif %};
+      --font: {{ font_family }};
     }
+    {{ font_faces|safe }}
     [data-theme="light"] {
       --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de;
       --text:#1f2328; --muted:#636c76;
