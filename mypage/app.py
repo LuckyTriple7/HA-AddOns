@@ -255,6 +255,8 @@ DEFAULT_SITE = {
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
+    'tips_rotation': 'daily',
+    'tips_random': False,
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -1733,6 +1735,10 @@ def api_sections():
         site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
     if isinstance(raw.get('hidden_sections'), list):
         site['hidden_sections'] = [k for k in raw['hidden_sections'] if isinstance(k, str) and k in SECTION_KEYS]
+    if raw.get('tips_rotation') in ('daily', 'weekly'):
+        site['tips_rotation'] = raw['tips_rotation']
+    if 'tips_random' in raw:
+        site['tips_random'] = bool(raw['tips_random'])
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
@@ -2697,14 +2703,24 @@ def public_index():
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
 
-    # Tipp des Tages: deterministisch übers Datum (rotiert täglich, für alle Besucher gleich)
+    # Tipp des Tages/der Woche: deterministisch übers Datum (für alle Besucher gleich)
     tips = sections.get('tips') or []
-    tip_of_day = tips[date.today().toordinal() % len(tips)] if tips else None
+    tips_weekly = site.get('tips_rotation') == 'weekly'
+    tip_of_day = None
+    if tips:
+        period = date.today().toordinal()
+        if tips_weekly:
+            period //= 7
+        if site.get('tips_random'):
+            idx = (period * 2654435761) % 2147483647 % len(tips)
+        else:
+            idx = period % len(tips)
+        tip_of_day = tips[idx]
 
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
-        'tips':         ('tips',         'tips_heading',         bool(tips)),
+        'tips':         ('tips',         'tips_heading_week' if tips_weekly else 'tips_heading', bool(tips)),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
@@ -2746,7 +2762,7 @@ def public_index():
                            latest_posts=latest_posts,
                            nav_items=nav_items,
                            section_order=section_order,
-                           tip_of_day=tip_of_day,
+                           tip_of_day=tip_of_day, tips_weekly=tips_weekly,
                            static_export=static_export,
                            contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),

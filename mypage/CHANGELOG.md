@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.11
+
+- 💡 **Tipps: Rotations-Einstellungen** im Kopf des Tipp-Bereichs: **Täglich** (Überschrift „Tipp des Tages") oder **Wöchentlich** (Überschrift „Tipp der Woche"), plus **Zufalls-Schalter** (zufällige, aber für alle Besucher gleiche Auswahl pro Tag/Woche statt der Reihe nach).
+- 🕖 Pro Tipp ein **„zuletzt gezeigt"-Hinweis** im Admin (aus der Rotation berechnet).
+- 🌐 **DE→EN-Übersetzer-Button** auch im Tipp-Bereich.
+
 ## 0.6.10
 
 - 🐞 **Fix (wirklich diesmal): Sortieren im Inhalt-Tab speichert.** Beim Ziehen hing die Pointer-Capture am Griff *innerhalb* des verschobenen Elements — beim Verschieben im DOM ging die Capture verloren, `pointerup` feuerte nicht mehr und die Reihenfolge wurde nicht gespeichert. `pointermove`/`pointerup` laufen jetzt über `document` und bleiben dadurch stabil (Maus + Touch).

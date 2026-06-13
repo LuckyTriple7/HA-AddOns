@@ -246,10 +246,28 @@
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </div>
       <div class="panel acc" data-key="tips">
-        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_heading }}</div>
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_section }}</div>
         <p class="hint">{{ t.tips_hint }}</p>
+        <div class="row">
+          <div>
+            <label for="tips-rotation">{{ t.tips_rotation_label }}</label>
+            <select id="tips-rotation" onchange="updateTipHints()">
+              <option value="daily">{{ t.tips_daily }}</option>
+              <option value="weekly">{{ t.tips_weekly }}</option>
+            </select>
+          </div>
+          <div>
+            <label for="tips-random">{{ t.tips_random_label }}</label>
+            <select id="tips-random" onchange="updateTipHints()">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">{{ t.tips_rotation_hint }}</p>
         <div id="tips-list"></div>
         <button class="btn secondary small" onclick="addTipRow()">+ {{ t.add_entry }}</button>
+        <button class="btn secondary small" onclick="translateRows(this, 'tips-list', 'tip-text_de', 'tip-text_en')">🌐 {{ t.tr_btn }}</button>
       </div>
       <div class="panel acc" data-key="blog">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></div>
@@ -980,6 +998,60 @@
       btn.disabled = false; btn.textContent = old;
       toast(failed ? T.tr_error : T.tr_done, failed);
     }
+    // DE→EN für alle Zeilen einer dynamischen Liste (z. B. Tipps)
+    async function translateRows(btn, listId, deClass, enClass) {
+      const rows = [...el(listId).children].filter(r => {
+        const de = r.querySelector('.' + deClass); return de && de.value.trim();
+      });
+      if (!rows.length) { toast(T.tr_nothing, true); return; }
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = T.tr_running;
+      let failed = false;
+      for (const r of rows) {
+        const de = r.querySelector('.' + deClass), en = r.querySelector('.' + enClass);
+        try {
+          const res = await apiJson('api/translate', 'POST', { text: de.value, from: 'de', to: 'en' });
+          if (res.ok) en.value = (await res.json()).text; else failed = true;
+        } catch { failed = true; }
+      }
+      btn.disabled = false; btn.textContent = old;
+      toast(failed ? T.tr_error : T.tr_done, failed);
+    }
+
+    // ── Tipps: Rotations-Hinweis „zuletzt gezeigt" (identische Logik wie im Backend) ──
+    function tipIndexForPeriod(period, n, random) {
+      if (!random) return ((period % n) + n) % n;
+      return (period * 2654435761) % 2147483647 % n;
+    }
+    function tipTodayOrdinal() {
+      const d = new Date();
+      return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) + 719163;
+    }
+    function tipOrdinalToISO(ord) {
+      return new Date((ord - 719163) * 86400000).toISOString().slice(0, 10);
+    }
+    function updateTipHints() {
+      const list = el('tips-list');
+      if (!list) return;
+      const rows = [...list.children];
+      const n = rows.length;
+      const weekly = el('tips-rotation').value === 'weekly';
+      const random = el('tips-random').value === '1';
+      const curOrd = tipTodayOrdinal();
+      const curPeriod = weekly ? Math.floor(curOrd / 7) : curOrd;
+      rows.forEach((row, i) => {
+        const span = row.querySelector('.tip-last');
+        if (!span) return;
+        let found = null;
+        const maxBack = random ? n * 60 : n;
+        for (let back = 0; back <= maxBack; back++) {
+          if (tipIndexForPeriod(curPeriod - back, n, random) === i) { found = back; break; }
+        }
+        if (found === null) span.textContent = T.tip_never;
+        else if (found === 0) span.textContent = T.tip_shown + ': ' + T.tip_today;
+        else span.textContent = T.tip_shown + ': ' + tipOrdinalToISO(weekly ? (curPeriod - found) * 7 : curPeriod - found);
+      });
+    }
 
     // ── Theme ──
     (function(){
@@ -1159,8 +1231,11 @@
       (s.links || []).forEach(l => addLinkEntryRow(l));
       el('faq-list').innerHTML = '';
       (s.faq || []).forEach(f => addFaqRow(f));
+      el('tips-rotation').value = SITE.tips_rotation === 'weekly' ? 'weekly' : 'daily';
+      el('tips-random').value = SITE.tips_random ? '1' : '0';
       el('tips-list').innerHTML = '';
       (s.tips || []).forEach(x => addTipRow(x));
+      updateTipHints();
       el('services-list').innerHTML = '';
       (s.services || []).forEach(x => addServiceRow(x));
       el('testimonials-list').innerHTML = '';
@@ -1511,11 +1586,11 @@
       const div = document.createElement('div');
       div.className = 'entry-row';
       div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr auto">
-        <span style="font-size:.8rem;color:var(--muted);align-self:center">💡 ${T.tips_heading}</span>
+        <span style="font-size:.8rem;color:var(--muted);align-self:center">💡 <span class="tip-last"></span></span>
         <span style="display:flex;gap:4px">
-          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
-          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
-          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1); updateTipHints()">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1); updateTipHints()">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove(); updateTipHints()">✕</button>
         </span>
       </div>
       <div class="row" style="margin-top:8px">
@@ -1525,6 +1600,7 @@
       div.querySelector('.tip-text_de').value = e.text_de || '';
       div.querySelector('.tip-text_en').value = e.text_en || '';
       el('tips-list').appendChild(div);
+      updateTipHints();
     }
     async function saveSections() {
       const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
@@ -1600,7 +1676,8 @@
         show_map: el('loc-show_map').value === '1',
       };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location });
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location,
+          tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }

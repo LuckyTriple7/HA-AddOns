@@ -467,7 +467,7 @@
 
     {% elif _sec == 'tips' %}
     {% if tip_of_day %}
-    <h2 class="section-title" id="tips">{{ t.tips_heading }}</h2>
+    <h2 class="section-title" id="tips">{{ t.tips_heading_week if tips_weekly else t.tips_heading }}</h2>
     <div class="tip-box">
       <span class="tip-icon">💡</span>
       <div class="tip-text">{{ render_md(loc(tip_of_day, 'text'))|safe }}</div>
