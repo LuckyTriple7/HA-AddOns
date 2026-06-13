@@ -514,6 +514,9 @@
       </div>
       <label for="c-message">{{ t.contact_message }} *</label>
       <textarea id="c-message" name="message" required maxlength="3000" rows="5"></textarea>
+      <label for="c-captcha">{{ t.contact_captcha }} <span id="c-captcha-q">…</span> = ? *</label>
+      <input type="text" id="c-captcha" name="captcha_answer" inputmode="numeric" autocomplete="off" required style="max-width:120px">
+      <input type="hidden" name="captcha_token" id="c-captcha-token">
       <!-- Honeypot: für Menschen unsichtbar -->
       <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
       <button type="submit">{{ t.contact_send }}</button>
@@ -618,6 +621,19 @@
     // Kontaktformular
     const form = document.getElementById('contact-form');
     if (form) {
+      // Captcha-Frage vom Server holen (immer frisch, unabhängig vom Seiten-Cache)
+      async function loadCaptcha() {
+        try {
+          const r = await fetch('/contact/captcha');
+          if (r.ok) {
+            const c = await r.json();
+            document.getElementById('c-captcha-q').textContent = c.question;
+            document.getElementById('c-captcha-token').value = c.token;
+            document.getElementById('c-captcha').value = '';
+          }
+        } catch {}
+      }
+      loadCaptcha();
       form.addEventListener('submit', async e => {
         e.preventDefault();
         const btn = form.querySelector('button');
@@ -631,12 +647,14 @@
             status.className = 'contact-status ok';
             status.textContent = {{ t.contact_success|tojson }};
             form.reset();
-          } else if (r.status === 429) {
-            status.className = 'contact-status err';
-            status.textContent = {{ t.contact_rate_limited|tojson }};
+            loadCaptcha();   // neue Aufgabe für eine etwaige weitere Nachricht
           } else {
+            const data = await r.json().catch(() => ({}));
             status.className = 'contact-status err';
-            status.textContent = {{ t.contact_error|tojson }};
+            status.textContent = r.status === 429 ? {{ t.contact_rate_limited|tojson }}
+              : data.error === 'captcha' ? {{ t.contact_captcha_wrong|tojson }}
+              : {{ t.contact_error|tojson }};
+            loadCaptcha();   // Captcha bei Fehler erneuern
           }
         } catch {
           status.className = 'contact-status err';

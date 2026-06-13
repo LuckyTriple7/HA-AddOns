@@ -205,6 +205,8 @@
   "contact_success": "Danke! Deine Nachricht wurde gesendet.",
   "contact_error": "Senden fehlgeschlagen. Bitte später erneut versuchen.",
   "contact_rate_limited": "Zu viele Nachrichten — bitte später erneut versuchen.",
+  "contact_captcha": "Sicherheitsfrage:",
+  "contact_captcha_wrong": "Sicherheitsfrage falsch beantwortet — bitte erneut versuchen.",
 
   "messages_heading": "Eingegangene Nachrichten",
   "messages_hint": "Nachrichten aus dem Kontaktformular der öffentlichen Seite (maximal 200 werden aufbewahrt).",

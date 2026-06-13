@@ -205,6 +205,8 @@
   "contact_success": "Thanks! Your message has been sent.",
   "contact_error": "Sending failed. Please try again later.",
   "contact_rate_limited": "Too many messages — please try again later.",
+  "contact_captcha": "Security question:",
+  "contact_captcha_wrong": "Security question answered incorrectly — please try again.",
 
   "messages_heading": "Received messages",
   "messages_hint": "Messages from the public page's contact form (up to 200 are kept).",

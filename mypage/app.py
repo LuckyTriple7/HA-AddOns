@@ -7,6 +7,7 @@ Zwei Server in einem Prozess:
 """
 import errno
 import hashlib
+import hmac
 import html as html_mod
 import io
 import ipaddress
@@ -151,6 +152,34 @@ def failed_logins_24h() -> int:
     cutoff = time.time() - 86400
     _failed_login_times[:] = [t for t in _failed_login_times if t >= cutoff]
     return len(_failed_login_times)
+
+# Kontakt-Captcha: stateless signiertes Rechen-Captcha (Secret pro Laufzeit)
+_captcha_secret: bytes = secrets.token_bytes(32)
+
+
+def make_captcha() -> dict:
+    """Erzeugt eine einfache Rechenaufgabe + signiertes Token (kein State nötig)."""
+    a, b = secrets.randbelow(9) + 1, secrets.randbelow(9) + 1
+    ts = int(time.time())
+    payload = f'{a}.{b}.{ts}'
+    sig = hmac.new(_captcha_secret, payload.encode(), hashlib.sha256).hexdigest()[:16]
+    return {'question': f'{a} + {b}', 'token': f'{payload}.{sig}'}
+
+
+def check_captcha(token: str, answer: str) -> bool:
+    """Prüft Token-Signatur, Alter (≤10 min) und ob die Antwort stimmt."""
+    try:
+        a, b, ts, sig = (token or '').split('.')
+        payload = f'{a}.{b}.{ts}'
+        expected = hmac.new(_captcha_secret, payload.encode(), hashlib.sha256).hexdigest()[:16]
+        if not hmac.compare_digest(sig, expected):
+            return False
+        if time.time() - int(ts) > 600:
+            return False
+        return int(answer) == int(a) + int(b)
+    except (ValueError, AttributeError, TypeError):
+        return False
+
 
 # Besucherzähler — Tages-Dedup in-memory (Privacy: nur gesalzene Hashes)
 _visit_salt:  str = secrets.token_hex(16)
@@ -2667,6 +2696,11 @@ def member_delete():
     return redirect('/bereich')
 
 
+@public_app.route('/contact/captcha')
+def contact_captcha():
+    return jsonify(make_captcha())
+
+
 @public_app.route('/contact', methods=['POST'])
 def contact():
     site = load_site()
@@ -2675,6 +2709,9 @@ def contact():
     # Honeypot: Bots füllen das versteckte Feld aus → still verwerfen
     if (request.form.get('website') or '').strip():
         return jsonify({'ok': True})
+    # Rechen-Captcha gegen automatisierten Spam
+    if not check_captcha(request.form.get('captcha_token'), request.form.get('captcha_answer')):
+        return jsonify({'error': 'captcha'}), 400
     ip = get_client_ip(request)
     now = time.time()
     _contact_times[ip] = [x for x in _contact_times[ip] if now - x < 3600]
