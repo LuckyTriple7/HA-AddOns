@@ -330,7 +330,7 @@ def parse_video(url: str) -> tuple[str, str]:
     if host == 'youtu.be':
         vid = p.path.lstrip('/').split('/')[0]
         return ('youtube', f'https://www.youtube-nocookie.com/embed/{vid}') if vid else ('', '')
-    if host.endswith('youtube.com'):
+    if host == 'youtube.com' or host.endswith('.youtube.com'):
         if p.path == '/watch':
             from urllib.parse import parse_qs
             vid = (parse_qs(p.query).get('v') or [''])[0]
@@ -2586,6 +2586,50 @@ def not_found(_e):
     t = load_translations(lang)
     site = load_site()
     return render_template('404.html', t=t, lang=lang, site=site), 404
+
+
+def _render_error(code: int, title_key: str, text_key: str, *, admin: bool = False):
+    """Gestaltete Fehlerseite (DE/EN) für 403/413/500 — auf öffentlicher und Admin-App."""
+    lang = detect_language(request)
+    t = load_translations(lang)
+    try:
+        site = load_site()
+    except Exception:
+        site = json.loads(json.dumps(DEFAULT_SITE))
+    return render_template('error.html', t=t, lang=lang, site=site, code=code,
+                           err_title=t.get(title_key, ''), err_text=t.get(text_key, ''),
+                           home_url='' if admin else '/',
+                           home_label=t.get('err_back', 'Zurück') if admin else t.get('nf_home', '')), code
+
+
+@public_app.errorhandler(403)
+def _pub_403(_e):
+    return _render_error(403, 'err_403_title', 'err_403_text')
+
+
+@public_app.errorhandler(413)
+def _pub_413(_e):
+    return _render_error(413, 'err_413_title', 'err_413_text')
+
+
+@public_app.errorhandler(500)
+def _pub_500(_e):
+    return _render_error(500, 'err_500_title', 'err_500_text')
+
+
+@admin_app.errorhandler(403)
+def _adm_403(_e):
+    return _render_error(403, 'err_403_title', 'err_403_text', admin=True)
+
+
+@admin_app.errorhandler(413)
+def _adm_413(_e):
+    return _render_error(413, 'err_413_title', 'err_413_text', admin=True)
+
+
+@admin_app.errorhandler(500)
+def _adm_500(_e):
+    return _render_error(500, 'err_500_title', 'err_500_text', admin=True)
 
 
 def _loc_factory(lang: str):

@@ -2843,6 +2843,8 @@
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
         <label style="font-size:0.82rem;color:var(--muted)">{{ t.am_next_ver }}:</label>
         <input id="${id}-ver" type="text" value="${escHtml(a.next_version)}" style="width:120px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem">
+        <button class="hdr-btn" title="{{ t.am_btn_major_title }}" onclick="amBumpMajor('${id}-ver')" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_major }}</button>
+        <button class="hdr-btn" title="{{ t.am_btn_minor_title }}" onclick="amBumpMinor('${id}-ver')" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_minor }}</button>
         <button class="hdr-btn" title="{{ t.am_btn_patch_title }}" onclick="amBumpPatch('${id}-ver')" style="font-size:0.78rem;padding:3px 8px">{{ t.am_btn_patch }}</button>
         <button class="hdr-btn" title="{{ t.am_btn_dep_title }}" onclick="amBumpDep('${id}-ver', ${safeJsArg(a.version)})" style="font-size:0.78rem;padding:3px 8px;color:var(--muted)">{{ t.am_btn_dep }}</button>
       </div>
@@ -2891,6 +2893,22 @@
     } else if (parts.length === 3) {
       inp.value = base + '.1';
     }
+  }
+
+  function amBumpMinor(inputId) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const parts = inp.value.trim().split('.');
+    const major = parseInt(parts[0], 10) || 0;
+    const minor = parseInt(parts[1], 10) || 0;
+    inp.value = `${major}.${minor + 1}.0`;
+  }
+
+  function amBumpMajor(inputId) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const major = parseInt(inp.value.trim().split('.')[0], 10) || 0;
+    inp.value = `${major + 1}.0.0`;
   }
 
   function amAskConfirm(dir, name, repo, branch) {

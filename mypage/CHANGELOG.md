@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.5
+
+- 🧱 **Gestaltete Fehlerseiten** für **403** (kein Zugriff), **413** (Datei zu groß) und **500** (Serverfehler) — passend zum bestehenden 404-Design, zweisprachig (DE/EN), auf der öffentlichen Seite und im Admin-Panel. Statt der nackten Standard-Fehlerseite gibt es jetzt eine klare Meldung mit Zurück-/Startseite-Link.
+
+## 0.6.4
+
+- 🔒 Sicherheit (CodeQL HIGH): YouTube-Hostprüfung beim Video-Embed gehärtet — exakter Domain-Abgleich (`youtube.com`/`*.youtube.com`) statt Substring, damit z. B. `evilyoutube.com` nicht mehr akzeptiert wird.
+
 ## 0.6.3
 
 - 🔎 **Vorschau im Admin-Panel**: Klick auf eine Mini-Kachel (Bilder bei Blog, Alben und Projekten) zeigt das Bild größer in einer Vorschau (begrenzte Größe, nicht volle Auflösung). Drag & Drop zum Sortieren bleibt unverändert.

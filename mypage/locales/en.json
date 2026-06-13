@@ -171,6 +171,13 @@
   "nf_title": "Page not found",
   "nf_text": "The requested page does not exist (anymore).",
   "nf_home": "Back to home",
+  "err_back": "Go back",
+  "err_403_title": "No access",
+  "err_403_text": "You don't have permission for this area. Please sign in or go back.",
+  "err_413_title": "File too large",
+  "err_413_text": "The uploaded file exceeds the allowed limit. Please reduce its size and try again.",
+  "err_500_title": "Something went wrong",
+  "err_500_text": "An unexpected error occurred on the server. Please try again later.",
 
   "skills_heading": "Skills",
   "field_skills": "Skills (comma-separated)",
