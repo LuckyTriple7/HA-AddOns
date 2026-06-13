@@ -341,6 +341,11 @@
     .loc-map:hover { border-color: var(--accent); }
     .loc-map iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; }
     .map-hint { color: var(--muted); font-size: 0.9rem; }
+    /* Tipp des Tages */
+    .tip-box { display: flex; gap: 14px; align-items: flex-start; background: color-mix(in srgb, var(--accent) 10%, var(--surf)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: 12px; padding: 18px 20px; }
+    .tip-icon { font-size: 1.6rem; line-height: 1.2; flex: 0 0 auto; }
+    .tip-text { font-size: 0.96rem; }
+    .tip-text p:last-child { margin-bottom: 0; }
     .empty { color: var(--muted); text-align: center; padding: 60px 0; }
     @media (max-width: 600px) {
       .hero { padding: 40px 0 28px; gap: 20px; }
@@ -457,6 +462,15 @@
         </span>
       </div>
       {% endfor %}
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'tips' %}
+    {% if tip_of_day %}
+    <h2 class="section-title" id="tips">{{ t.tips_heading }}</h2>
+    <div class="tip-box">
+      <span class="tip-icon">💡</span>
+      <div class="tip-text">{{ render_md(loc(tip_of_day, 'text'))|safe }}</div>
     </div>
     {% endif %}
 

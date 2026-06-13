@@ -245,6 +245,12 @@
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </details>
+      <details class="panel acc" data-key="tips">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_heading }}</summary>
+        <p class="hint">{{ t.tips_hint }}</p>
+        <div id="tips-list"></div>
+        <button class="btn secondary small" onclick="addTipRow()">+ {{ t.add_entry }}</button>
+      </details>
       <details class="panel acc" data-key="blog">
         <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
@@ -1153,6 +1159,8 @@
       (s.links || []).forEach(l => addLinkEntryRow(l));
       el('faq-list').innerHTML = '';
       (s.faq || []).forEach(f => addFaqRow(f));
+      el('tips-list').innerHTML = '';
+      (s.tips || []).forEach(x => addTipRow(x));
       el('services-list').innerHTML = '';
       (s.services || []).forEach(x => addServiceRow(x));
       el('testimonials-list').innerHTML = '';
@@ -1490,6 +1498,26 @@
       div.querySelector('.ev-url').value = e.url || '';
       el('events-list').appendChild(div);
     }
+    function addTipRow(e) {
+      e = e || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr auto">
+        <span style="font-size:.8rem;color:var(--muted);align-self:center">💡 ${T.tips_heading}</span>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.tip-text_de').value = e.text_de || '';
+      div.querySelector('.tip-text_en').value = e.text_en || '';
+      el('tips-list').appendChild(div);
+    }
     async function saveSections() {
       const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
       const news = [...el('news-list').children].map(row => ({
@@ -1518,6 +1546,10 @@
         a_de: row.querySelector('.f-a_de').value,
         a_en: row.querySelector('.f-a_en').value,
       })).filter(f => f.q_de || f.q_en);
+      const tips = [...el('tips-list').children].map(row => ({
+        text_de: row.querySelector('.tip-text_de').value,
+        text_en: row.querySelector('.tip-text_en').value,
+      })).filter(x => x.text_de || x.text_en);
       const services = [...el('services-list').children].map(row => ({
         icon:     row.querySelector('.sv-icon').value,
         title_de: row.querySelector('.sv-title_de').value,
@@ -1560,7 +1592,7 @@
         show_map: el('loc-show_map').value === '1',
       };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, services, testimonials, team, events, location });
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }

@@ -295,6 +295,8 @@
   "field_tags": "Tags (kommagetrennt)",
   "field_language": "Programmiersprache",
   "edit": "Bearbeiten",
+  "tips_heading": "Tipp des Tages",
+  "tips_hint": "Sammle mehrere Tipps — auf der Startseite wird täglich automatisch einer angezeigt (rotiert übers Datum). Markdown erlaubt.",
   "preview": "Vorschau",
   "preview_banner": "Vorschau — so sieht der Beitrag veröffentlicht aus (für Besucher noch nicht sichtbar).",
   "confirm_delete": "Projekt wirklich löschen?",

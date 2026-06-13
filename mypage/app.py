@@ -245,12 +245,13 @@ DEFAULT_SITE = {
         'team': [],
         'events': [],
         'location': {},
+        'tips': [],
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
     'section_order': [
-        'news', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'news', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
@@ -1666,6 +1667,12 @@ def api_sections():
             'a_en': _clean_str(e.get('a_en'), 3000),
         } for e in raw['faq'][:50]
             if isinstance(e, dict) and (_clean_str(e.get('q_de'), 300) or _clean_str(e.get('q_en'), 300))]
+    if isinstance(raw.get('tips'), list):
+        sec['tips'] = [{
+            'text_de': _clean_str(e.get('text_de'), 600),
+            'text_en': _clean_str(e.get('text_en'), 600),
+        } for e in raw['tips'][:100]
+            if isinstance(e, dict) and (_clean_str(e.get('text_de'), 600) or _clean_str(e.get('text_en'), 600))]
     if isinstance(raw.get('services'), list):
         sec['services'] = [{
             'icon':     _clean_str(e.get('icon'), 8),
@@ -2690,9 +2697,14 @@ def public_index():
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
 
+    # Tipp des Tages: deterministisch übers Datum (rotiert täglich, für alle Besucher gleich)
+    tips = sections.get('tips') or []
+    tip_of_day = tips[date.today().toordinal() % len(tips)] if tips else None
+
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
+        'tips':         ('tips',         'tips_heading',         bool(tips)),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
@@ -2734,6 +2746,7 @@ def public_index():
                            latest_posts=latest_posts,
                            nav_items=nav_items,
                            section_order=section_order,
+                           tip_of_day=tip_of_day,
                            static_export=static_export,
                            contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),

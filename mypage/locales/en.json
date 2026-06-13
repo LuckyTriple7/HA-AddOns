@@ -295,6 +295,8 @@
   "field_tags": "Tags (comma-separated)",
   "field_language": "Programming language",
   "edit": "Edit",
+  "tips_heading": "Tip of the day",
+  "tips_hint": "Collect several tips — one is shown automatically on the homepage each day (rotates by date). Markdown allowed.",
   "preview": "Preview",
   "preview_banner": "Preview — this is how the post will look once published (not yet visible to visitors).",
   "confirm_delete": "Really delete this project?",
