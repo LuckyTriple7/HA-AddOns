@@ -38,6 +38,7 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
 - **Aktuelles**: kurze News-Einträge mit Datum und optionalem Link
 - **Werdegang**: Timeline mit Zeitraum, Titel und Text (jeweils DE/EN)
+- **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN). Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet; ein Klick öffnet die Zielseite in einem neuen Tab.
 - **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Erscheinen auf der Startseite zwischen Skills und Werdegang; ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay. Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert.
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
 

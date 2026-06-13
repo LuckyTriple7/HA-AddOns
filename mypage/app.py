@@ -170,6 +170,7 @@ DEFAULT_SITE = {
         'skills': [],
         'timeline': [],
         'news': [],
+        'links': [],
     },
     'albums': [],
     'album_protect': False,
@@ -1278,6 +1279,15 @@ def api_sections():
             'text_en': _clean_str(e.get('text_en'), 500),
             'url':     _clean_str(e.get('url'), 500),
         } for e in raw['news'][:30] if isinstance(e, dict)]
+    if isinstance(raw.get('links'), list):
+        sec['links'] = [{
+            'title_de': _clean_str(e.get('title_de'), 120),
+            'title_en': _clean_str(e.get('title_en'), 120),
+            'desc_de':  _clean_str(e.get('desc_de'), 300),
+            'desc_en':  _clean_str(e.get('desc_en'), 300),
+            'url':      _clean_str(e.get('url'), 500),
+        } for e in raw['links'][:100]
+            if isinstance(e, dict) and _clean_str(e.get('url'), 500).startswith(('http://', 'https://'))]
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:

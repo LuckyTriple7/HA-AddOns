@@ -223,6 +223,12 @@
         <h3>{{ t.timeline_heading }}</h3>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.links_heading }}</h3>
+        <p class="hint">{{ t.links_hint }}</p>
+        <div id="links-list"></div>
+        <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
         <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
       </div>
       <div class="panel">
@@ -869,9 +875,32 @@
       (s.news || []).forEach(n => addNewsRow(n));
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
+      el('links-list').innerHTML = '';
+      (s.links || []).forEach(l => addLinkEntryRow(l));
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
+    }
+    function addLinkEntryRow(l) {
+      l = l || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="l-url" placeholder="https://…">
+        <input type="text" class="l-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="l-title_en" placeholder="${T.field_title} (EN)">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="l-desc_de" placeholder="${T.field_desc} (DE)">
+        <input type="text" class="l-desc_en" placeholder="${T.field_desc} (EN)">
+      </div>`;
+      div.querySelector('.l-url').value = l.url || '';
+      div.querySelector('.l-title_de').value = l.title_de || '';
+      div.querySelector('.l-title_en').value = l.title_en || '';
+      div.querySelector('.l-desc_de').value = l.desc_de || '';
+      div.querySelector('.l-desc_en').value = l.desc_en || '';
+      el('links-list').appendChild(div);
     }
     async function saveAlbumSettings() {
       const r = await apiJson('api/sections', 'POST', {
@@ -935,7 +964,14 @@
         text_de:  row.querySelector('.t-text_de').value,
         text_en:  row.querySelector('.t-text_en').value,
       })).filter(e => e.title_de || e.title_en);
-      const r = await apiJson('api/sections', 'POST', { skills, news, timeline });
+      const links = [...el('links-list').children].map(row => ({
+        url:      row.querySelector('.l-url').value.trim(),
+        title_de: row.querySelector('.l-title_de').value,
+        title_en: row.querySelector('.l-title_en').value,
+        desc_de:  row.querySelector('.l-desc_de').value,
+        desc_en:  row.querySelector('.l-desc_en').value,
+      })).filter(l => /^https?:\/\//.test(l.url));
+      const r = await apiJson('api/sections', 'POST', { skills, news, timeline, links });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }
