@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.14
+
+- 🔎 **Sitemap mit `<lastmod>`**: Startseite, `/blog` und Blog-Beiträge tragen jetzt ein Änderungsdatum — hilft Suchmaschinen beim Crawlen. (Hinweis: Die Sitemap ist bewusst kompakt, weil die meisten Inhalte auf der Startseite liegen; eigene URLs gibt es nur für Projekte **mit Detailseite** und Blog-Beiträge.)
+
 ## 0.6.13
 
 - 🐞 **Fix: Tipp-Statistik zeigt echte Werte.** „zuletzt gezeigt" und „wie oft" waren zuvor nur **rechnerische Projektionen** (so, als hätte es die Tipps schon immer gegeben) — daher Datumsangaben in der Vergangenheit und unmögliche Zahlen bei frisch angelegten Tipps. Jetzt bekommt jeder Tipp eine ID, und die **tatsächliche** Anzeige wird festgehalten (einmal pro Tag). Neue Tipps zeigen ehrlich „noch nicht gezeigt"; angezeigt wird „zuletzt gezeigt: \<Datum\> · an N Tag(en) gezeigt".

@@ -2530,16 +2530,27 @@ def robots():
 def sitemap():
     site = load_site()
     base = _base_url()
-    urls = [base + '/']
-    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
     posts = sorted_posts(site, public_only=True)
+
+    def _valid_date(d):
+        return bool(re.match(r'^\d{4}-\d{2}-\d{2}$', str(d or '')))
+
+    newest = max((p['date'] for p in posts if _valid_date(p.get('date'))), default='')
+    # (URL, lastmod) — lastmod optional
+    entries = [(base + '/', newest)]
+    entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
+                if _has_detail(p) and project_visible(p)]
     if posts:
-        urls.append(base + '/blog')
-        urls += [f"{base}/blog/{p['id']}" for p in posts]
+        entries.append((base + '/blog', newest))
+        entries += [(f"{base}/blog/{p['id']}", p['date'] if _valid_date(p.get('date')) else '')
+                    for p in posts]
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    for u in urls:
-        xml += f'  <url><loc>{u}</loc></url>\n'
+    for loc, lastmod in entries:
+        xml += f'  <url><loc>{loc}</loc>'
+        if lastmod:
+            xml += f'<lastmod>{lastmod}</lastmod>'
+        xml += '</url>\n'
     xml += '</urlset>\n'
     return xml, 200, {'Content-Type': 'application/xml'}
 
