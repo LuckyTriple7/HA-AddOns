@@ -416,6 +416,14 @@
         <div class="proj-list" id="user-list"></div>
       </div>
       <div class="panel">
+        <h3>{{ t.welcome_from_heading }}</h3>
+        <p class="hint">{{ t.welcome_from_hint }}</p>
+        <div class="upload-row">
+          <input type="email" id="u-welcome-from" placeholder="noreply@deine-domain.de">
+          <button class="btn small" onclick="saveWelcomeFrom()">{{ t.save }}</button>
+        </div>
+      </div>
+      <div class="panel">
         <h3>{{ t.storage_heading }}</h3>
         <p class="hint">{{ t.storage_hint }}</p>
         <div class="hint" id="st-active" style="margin-bottom:4px;font-weight:600"></div>
@@ -590,6 +598,19 @@
       </div>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('ufiles-modal').classList.remove('open')">{{ t.cancel }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login-Nachricht-Modal -->
+  <div class="modal-bg" id="loginmsg-modal">
+    <div class="modal">
+      <h3 id="lm-title"></h3>
+      <p class="hint">{{ t.login_msg_hint }}</p>
+      <textarea id="lm-text" rows="6"></textarea>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('loginmsg-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveLoginMsg()">{{ t.save }}</button>
       </div>
     </div>
   </div>
@@ -921,6 +942,7 @@
       el('u-storage').textContent = data.storage_ok
         ? T.user_storage + ': ' + data.storage + (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off)
         : '';
+      el('u-welcome-from').value = data.welcome_from || '';
       const list = el('user-list');
       list.innerHTML = '';
       if (!data.users.length) {
@@ -933,6 +955,7 @@
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
             <button class="btn secondary small">📁 ${T.user_files_btn}</button>
+            <button class="btn secondary small">💬 ${T.user_msg_btn}${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small">📜 ${T.user_journal_btn}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
@@ -945,8 +968,9 @@
           : `${T.user_last_login}: ${T.user_never}`;
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [filesBtn, journalBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [filesBtn, msgBtn, journalBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         filesBtn.onclick = () => openUserFiles(u);
+        msgBtn.onclick = () => openLoginMsg(u);
         journalBtn.onclick = () => openJournal(u);
         resendBtn.onclick = async () => {
           if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
@@ -1007,6 +1031,28 @@
       } else {
         toast(T.error_save, true);
       }
+    }
+
+    // ── Willkommens-Absender ──
+    async function saveWelcomeFrom() {
+      const r = await apiJson('api/member-settings', 'POST', { welcome_from: el('u-welcome-from').value.trim() });
+      if (r.ok) toast(T.saved);
+      else if (r.status === 400) toast(T.welcome_from_invalid, true);
+      else toast(T.error_save, true);
+    }
+
+    // ── Login-Nachricht pro Benutzer ──
+    let lmUser = null;
+    function openLoginMsg(u) {
+      lmUser = u;
+      el('lm-title').textContent = T.login_msg_title.replace('{email}', u.email);
+      el('lm-text').value = u.login_message || '';
+      el('loginmsg-modal').classList.add('open');
+    }
+    async function saveLoginMsg() {
+      const r = await apiJson('api/users/' + lmUser.id, 'PUT', { login_message: el('lm-text').value });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('loginmsg-modal').classList.remove('open'); loadUsers(); }
     }
 
     // ── Benutzer-Journal ──

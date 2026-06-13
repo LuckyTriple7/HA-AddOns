@@ -154,6 +154,7 @@ DEFAULT_SITE = {
         'show_counter': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'storage_subdir': '',
+        'welcome_from': '',
         'contact_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
@@ -279,7 +280,8 @@ def smtp_configured() -> bool:
     return bool((load_config().get('smtp_host') or '').strip())
 
 
-def send_email(subject: str, html_body: str, to: str | None = None) -> None:
+def send_email(subject: str, html_body: str, to: str | None = None,
+               from_addr: str | None = None) -> None:
     cfg      = load_config()
     host     = (cfg.get('smtp_host') or '').strip()
     port     = int(cfg.get('smtp_port') or 587)
@@ -287,14 +289,17 @@ def send_email(subject: str, html_body: str, to: str | None = None) -> None:
     password = (cfg.get('smtp_password') or '').strip()
     to       = (to or cfg.get('smtp_to') or '').strip()
     use_tls  = bool(cfg.get('smtp_tls', True))
+    # Absender: expliziter from_addr (z. B. noreply-Alias) > globaler smtp_from > Login-User
+    sender   = (from_addr or cfg.get('smtp_from') or user or f'mypage@{host}').strip()
     if not host or not to:
         return
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From']    = user or f'mypage@{host}'
+        msg['From']    = sender
         msg['To']      = to
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        # Envelope-Sender = sichtbarer Absender (Alias muss am Postfach erlaubt sein)
         if use_tls:
             with smtplib.SMTP(host, port, timeout=15) as s:
                 s.ehlo()
@@ -302,13 +307,13 @@ def send_email(subject: str, html_body: str, to: str | None = None) -> None:
                 s.ehlo()
                 if user and password:
                     s.login(user, password)
-                s.sendmail(msg['From'], [to], msg.as_string())
+                s.sendmail(sender, [to], msg.as_string())
         else:
             with smtplib.SMTP_SSL(host, port, timeout=15) as s:
                 if user and password:
                     s.login(user, password)
-                s.sendmail(msg['From'], [to], msg.as_string())
-        log.info("E-Mail-Benachrichtigung an '%s' gesendet", to)
+                s.sendmail(sender, [to], msg.as_string())
+        log.info("E-Mail an '%s' gesendet (Absender: %s)", to, sender)
     except Exception as e:
         log.error("E-Mail senden fehlgeschlagen: %s", e)
 
@@ -864,7 +869,8 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
              'Wenn du dieses Konto nicht erwartet hast, kannst du diese E-Mail ignorieren.']
     send_email(subject or f'Dein Zugang zu {title}',
                _email_html(f'🔑 Dein Zugang zu {esc(title)}', [l for l in lines if l]),
-               to=user['email'])
+               to=user['email'],
+               from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
 
 def _smb_watchdog() -> None:
@@ -1418,10 +1424,29 @@ def api_users():
                     'used_mb': round(used / 1048576, 1),
                     'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()) if storage_ok else 0,
                     'created': u.get('created', ''),
-                    'last_login': u.get('last_login')})
+                    'last_login': u.get('last_login'),
+                    'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
-                    'smb': SMB_MOUNTED, 'storage_ok': storage_ok})
+                    'smb': SMB_MOUNTED, 'storage_ok': storage_ok,
+                    'welcome_from': load_site()['design'].get('welcome_from', '')})
+
+
+@admin_app.route('/api/member-settings', methods=['POST'])
+def api_member_settings():
+    """Globale Mitglieder-Einstellungen (Absender-Alias für Zugangs-Mails)."""
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    wf = _clean_str(raw.get('welcome_from'), 150)
+    if wf and not _EMAIL_RE.match(wf):
+        return jsonify({'error': 'invalid email'}), 400
+    site = load_site()
+    site['design']['welcome_from'] = wf
+    save_site(site)
+    log.info("Willkommens-Absender gesetzt: %s", wf or '(Standard)')
+    return jsonify({'ok': True})
 
 
 @admin_app.route('/api/users', methods=['POST'])
@@ -1477,6 +1502,8 @@ def api_user_edit(uid: str):
     mail_sent = False
     if 'quota_mb' in raw:
         user['quota_mb'] = max(1, min(100000, int(raw.get('quota_mb') or 500)))
+    if 'login_message' in raw:
+        user['login_message'] = _clean_str(raw.get('login_message'), 2000)
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
@@ -1959,9 +1986,10 @@ def _member_page(member: dict | None, msg: str = ''):
             log.warning("Dateiliste für '%s' fehlgeschlagen: %s", member['email'], e)
             storage_down = True
             files = []
+    login_msg_html = render_md(member.get('login_message', '')) if member else ''
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
-                           storage_down=storage_down,
+                           storage_down=storage_down, login_msg_html=login_msg_html,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -1976,13 +2004,16 @@ def member_area():
 @public_app.route('/bereich/login', methods=['POST'])
 def member_login():
     ip = get_client_ip(request)
-    if is_rate_limited(ip):
-        return redirect('/bereich?msg=locked')
     email = (request.form.get('email') or '').strip().lower()
+    if is_rate_limited(ip):
+        log.warning("Mitglieder-Login GESPERRT: '%s' von %s (zu viele Fehlversuche)",
+                    email or '?', ip)
+        return redirect('/bereich?msg=locked')
     password = request.form.get('password') or ''
     user = next((u for u in load_users() if u['email'] == email), None)
     if user is None or not check_password_hash(user['pw_hash'], password):
         record_failed_attempt(ip)
+        log.warning("Mitglieder-Login FEHLGESCHLAGEN: '%s' von %s", email or '?', ip)
         return redirect('/bereich?msg=credentials')
     clear_failed_attempts(ip)
     token = secrets.token_hex(32)
@@ -1992,7 +2023,7 @@ def member_login():
     resp = make_response(redirect('/bereich'))
     resp.set_cookie('usession', token, httponly=True, samesite='Lax',
                     max_age=USER_SESSION_HOURS * 3600)
-    log.info("Mitglied '%s' angemeldet", email)
+    log.info("Mitglieder-Login ERFOLGREICH: '%s' von %s", email, ip)
     return resp
 
 

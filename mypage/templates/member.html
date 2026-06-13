@@ -50,6 +50,9 @@
     .msg.err { background: rgba(207,34,46,.12); border: 1px solid var(--red); color: var(--red); }
     .msg.ok { background: rgba(46,160,67,.12); border: 1px solid var(--green-h); color: var(--green-h); }
     .login-card { max-width: 380px; margin: 0 auto; }
+    .notice-card { margin-bottom: 16px; border-left: 4px solid var(--accent); padding: 18px 22px; }
+    .notice-card p { margin: 0 0 8px; } .notice-card p:last-child { margin-bottom: 0; }
+    .notice-card ul, .notice-card ol { margin: 4px 0 8px 20px; }
     .meta-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
     .quota-bar { flex: 1; min-width: 180px; background: var(--surf2); border-radius: 6px; height: 10px; overflow: hidden; }
     .quota-fill { height: 100%; background: var(--accent); }
@@ -89,6 +92,7 @@
       </form>
     </div>
     {% else %}
+    {% if login_msg_html %}<div class="card notice-card">{{ login_msg_html|safe }}</div>{% endif %}
     <div class="card">
       <h1>{{ t.member_files }}</h1>
       {% if storage_down %}
