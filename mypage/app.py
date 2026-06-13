@@ -253,6 +253,7 @@ DEFAULT_SITE = {
         'news', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
+    'hidden_sections': [],
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -1693,6 +1694,8 @@ def api_sections():
     if isinstance(raw.get('section_order'), list):
         order = [k for k in raw['section_order'] if isinstance(k, str) and k in SECTION_KEYS]
         site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
+    if isinstance(raw.get('hidden_sections'), list):
+        site['hidden_sections'] = [k for k in raw['hidden_sections'] if isinstance(k, str) and k in SECTION_KEYS]
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
@@ -2459,6 +2462,11 @@ def favicon():
     return '', 204
 
 
+@admin_app.route('/favicon.ico')
+def admin_favicon():
+    return send_from_directory(_BASE, 'icon.png', max_age=86400)
+
+
 @public_app.route('/robots.txt')
 def robots():
     return (f'User-agent: *\nAllow: /\nSitemap: {_base_url()}/sitemap.xml\n',
@@ -2627,6 +2635,9 @@ def public_index():
     # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
     stored = [k for k in (site.get('section_order') or []) if k in section_defs]
     section_order = stored + [k for k in SECTION_KEYS if k not in stored]
+    # Ausgeblendete Abschnitte entfernen (Inhalt bleibt erhalten, nur nicht sichtbar)
+    hidden = set(site.get('hidden_sections') or [])
+    section_order = [k for k in section_order if k not in hidden]
 
     # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
     nav_items = []

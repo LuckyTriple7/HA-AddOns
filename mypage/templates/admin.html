@@ -40,11 +40,13 @@
     details.acc[open] > summary::before { transform: rotate(90deg); }
     details.acc[open] > summary { margin-bottom: 14px; }
     details.acc > summary:hover { color: var(--accent); }
-    .drag-handle { cursor: grab; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 2px; user-select: none; }
+    .drag-handle { cursor: grab; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 2px; user-select: none; touch-action: none; }
     .drag-handle:hover { color: var(--accent); }
     details.acc.dragging { opacity: .45; border-color: var(--accent); }
-    details.acc.drag-over { border-color: var(--accent); border-style: dashed; }
-    .acc-ext { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
+    details.acc.acc-hidden { opacity: .5; }
+    .acc-ext { color: var(--muted); font-size: 0.8rem; }
+    .sec-eye { order: 99; margin-left: auto; background: none; border: none; cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0 4px; opacity: .85; }
+    .sec-eye:hover { opacity: 1; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -233,40 +235,40 @@
       <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }} {{ t.content_dnd_hint }}</p>
       <div id="section-acc">
       <details class="panel acc" data-key="news">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.news_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.news_heading }}</summary>
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="blog">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=blog]').click()">{{ t.tab_blog }} →</button>
       </details>
       <details class="panel acc" data-key="services">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.services_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.services_heading }}</summary>
         <p class="hint">{{ t.services_hint }}</p>
         <div id="services-list"></div>
         <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="projects">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.projects }} <span class="acc-ext">↗</span></summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.projects }} <span class="acc-ext">↗</span></summary>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=projects]').click()">{{ t.tab_projects }} →</button>
       </details>
       <details class="panel acc" data-key="skills">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.skills_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.skills_heading }}</summary>
         <label>{{ t.field_skills }}</label>
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
       </details>
       <details class="panel acc" data-key="testimonials">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.testimonials_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.testimonials_heading }}</summary>
         <p class="hint">{{ t.testimonials_hint }}</p>
         <div id="testimonials-list"></div>
         <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="photos">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.albums_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.albums_heading }}</summary>
         <p class="hint">{{ t.albums_hint }}</p>
         <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
@@ -289,36 +291,36 @@
         <p class="hint">{{ t.album_protect_hint }}</p>
       </details>
       <details class="panel acc" data-key="team">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.team_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.team_heading }}</summary>
         <p class="hint">{{ t.team_hint }}</p>
         <div id="team-list"></div>
         <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="timeline">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.timeline_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.timeline_heading }}</summary>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="events">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.events_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.events_heading }}</summary>
         <p class="hint">{{ t.events_hint }}</p>
         <div id="events-list"></div>
         <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="links">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.links_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.links_heading }}</summary>
         <p class="hint">{{ t.links_hint }}</p>
         <div id="links-list"></div>
         <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="faq">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.faq_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.faq_heading }}</summary>
         <p class="hint">{{ t.faq_hint }}</p>
         <div id="faq-list"></div>
         <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="location">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.location_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.location_heading }}</summary>
         <p class="hint">{{ t.location_hint }}</p>
         <div class="row">
           <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
@@ -1149,8 +1151,9 @@
       el('a-watermark').value = SITE.watermark_text || '';
       applySectionOrder();
       initSectionDnD();
+      applySectionVisibility();
     }
-    // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop) ──
+    // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop, Maus + Touch) ──
     function applySectionOrder() {
       const cont = el('section-acc');
       if (!cont) return;
@@ -1176,29 +1179,31 @@
       if (!cont) return;
       sectionDnDReady = true;
       let dragEl = null;
-      cont.querySelectorAll('.acc').forEach(d => {
-        const h = d.querySelector('.drag-handle');
-        if (h) {
-          // Griff aktiviert das Ziehen; Klick auf den Griff klappt das Panel nicht auf
-          h.addEventListener('mousedown', () => { d.draggable = true; });
-          h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
-        }
-        d.addEventListener('dragstart', e => {
-          dragEl = d; d.classList.add('dragging');
-          e.dataTransfer.effectAllowed = 'move';
+      // Pointer Events funktionieren für Maus UND Touch einheitlich
+      cont.querySelectorAll('.drag-handle').forEach(h => {
+        h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+        h.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          dragEl = h.closest('.acc');
+          dragEl.classList.add('dragging');
+          try { h.setPointerCapture(e.pointerId); } catch (_) {}
         });
-        d.addEventListener('dragend', () => {
-          d.classList.remove('dragging'); d.draggable = false; dragEl = null;
-          cont.querySelectorAll('.acc').forEach(x => x.classList.remove('drag-over'));
+        h.addEventListener('pointermove', e => {
+          if (!dragEl) return;
+          e.preventDefault();
+          const after = sectionDragAfter(cont, e.clientY);
+          if (after == null) cont.appendChild(dragEl);
+          else if (after !== dragEl) cont.insertBefore(dragEl, after);
+        });
+        const end = e => {
+          if (!dragEl) return;
+          dragEl.classList.remove('dragging');
+          dragEl = null;
+          try { h.releasePointerCapture(e.pointerId); } catch (_) {}
           saveSectionOrder();
-        });
-      });
-      cont.addEventListener('dragover', e => {
-        if (!dragEl) return;
-        e.preventDefault();
-        const after = sectionDragAfter(cont, e.clientY);
-        if (after == null) cont.appendChild(dragEl);
-        else cont.insertBefore(dragEl, after);
+        };
+        h.addEventListener('pointerup', end);
+        h.addEventListener('pointercancel', end);
       });
     }
     async function saveSectionOrder() {
@@ -1206,6 +1211,31 @@
       const r = await apiJson('api/sections', 'POST', { section_order: order });
       if (r.ok) { SITE.section_order = order; toast(T.saved); }
       else toast(T.error_save, true);
+    }
+    // ── Sichtbarkeit eines Abschnitts auf der Startseite ──
+    function applySectionVisibility() {
+      const hidden = new Set(SITE.hidden_sections || []);
+      document.querySelectorAll('#section-acc .acc').forEach(d => {
+        const isHidden = hidden.has(d.dataset.key);
+        d.classList.toggle('acc-hidden', isHidden);
+        const eye = d.querySelector('.sec-eye');
+        if (eye) {
+          eye.textContent = isHidden ? '🚫' : '👁';
+          eye.title = isHidden ? T.section_show : T.section_hide;
+        }
+      });
+    }
+    async function toggleSectionVisible(btn, ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      const d = btn.closest('.acc');
+      const nowHidden = !d.classList.contains('acc-hidden');
+      d.classList.toggle('acc-hidden', nowHidden);
+      btn.textContent = nowHidden ? '🚫' : '👁';
+      btn.title = nowHidden ? T.section_show : T.section_hide;
+      const hidden = [...document.querySelectorAll('#section-acc .acc.acc-hidden')].map(x => x.dataset.key);
+      const r = await apiJson('api/sections', 'POST', { hidden_sections: hidden });
+      if (r.ok) { SITE.hidden_sections = hidden; toast(T.saved); }
+      else { toast(T.error_save, true); d.classList.toggle('acc-hidden'); }
     }
     // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
     function moveEntryRow(btn, dir) {
