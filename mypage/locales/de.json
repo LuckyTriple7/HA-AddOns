@@ -136,6 +136,8 @@
   "font_uploaded": "Schrift hochgeladen und aktiviert",
   "font_upload_err": "Upload fehlgeschlagen (nur WOFF2/WOFF/TTF/OTF).",
   "album_drag_hint": "Zum Umsortieren ziehen",
+  "move_up": "Nach oben",
+  "move_down": "Nach unten",
   "tr_btn": "DE→EN übersetzen",
   "tr_running": "Übersetze…",
   "tr_done": "Ins Englische übersetzt — bitte kurz prüfen",

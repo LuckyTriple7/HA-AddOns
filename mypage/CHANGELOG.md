@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4
+
+- ↕️ **Linksammlung sortierbar**: ↑/↓-Pfeile pro Eintrag zum Verschieben (wie bei Projekten und Alben)
+
 ## 0.3.3
 
 - 🔗 **Automatische Social-Media-Icons** bei „Weitere Links": Das passende Symbol wird anhand der URL erkannt — unterstützt GitHub, GitLab, Instagram, TikTok, Facebook, LinkedIn, YouTube, X/Twitter, Mastodon, Telegram, Discord, WhatsApp, Bluesky, Xing, Twitch und Reddit. Unbekannte Links bekommen ein neutrales Link-Symbol.

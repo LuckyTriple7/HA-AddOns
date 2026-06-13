@@ -136,6 +136,8 @@
   "font_uploaded": "Font uploaded and activated",
   "font_upload_err": "Upload failed (WOFF2/WOFF/TTF/OTF only).",
   "album_drag_hint": "Drag to reorder",
+  "move_up": "Move up",
+  "move_down": "Move down",
   "tr_btn": "Translate DE→EN",
   "tr_running": "Translating…",
   "tr_done": "Translated to English — please review",

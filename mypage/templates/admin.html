@@ -972,6 +972,15 @@
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
     }
+    // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
+    function moveEntryRow(btn, dir) {
+      const row = btn.closest('.entry-row');
+      if (dir < 0 && row.previousElementSibling) {
+        row.parentElement.insertBefore(row, row.previousElementSibling);
+      } else if (dir > 0 && row.nextElementSibling) {
+        row.parentElement.insertBefore(row.nextElementSibling, row);
+      }
+    }
     function addLinkEntryRow(l) {
       l = l || {};
       const div = document.createElement('div');
@@ -980,7 +989,11 @@
         <input type="text" class="l-url" placeholder="https://…">
         <input type="text" class="l-title_de" placeholder="${T.field_title} (DE)">
         <input type="text" class="l-title_en" placeholder="${T.field_title} (EN)">
-        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
       </div>
       <div class="row" style="margin-top:8px">
         <input type="text" class="l-desc_de" placeholder="${T.field_desc} (DE)">
