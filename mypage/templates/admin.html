@@ -34,6 +34,12 @@
     h2 { font-size: 1.15rem; margin-bottom: 16px; }
     .panel { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
     .panel h3 { font-size: 0.95rem; margin-bottom: 14px; color: var(--text); }
+    details.acc > summary { cursor: pointer; font-size: 0.95rem; font-weight: 600; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; }
+    details.acc > summary::-webkit-details-marker { display: none; }
+    details.acc > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; display: inline-block; }
+    details.acc[open] > summary::before { transform: rotate(90deg); }
+    details.acc[open] > summary { margin-bottom: 14px; }
+    details.acc > summary:hover { color: var(--accent); }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -219,41 +225,89 @@
 
     <!-- Inhalte -->
     <section class="tab" id="tab-content">
-      <div class="panel">
-        <h3>{{ t.skills_heading }}</h3>
+      <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }}</p>
+      <details class="panel acc">
+        <summary>{{ t.skills_heading }}</summary>
         <label>{{ t.field_skills }}</label>
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
-      </div>
-      <div class="panel">
-        <h3>{{ t.news_heading }}</h3>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.services_heading }}</summary>
+        <p class="hint">{{ t.services_hint }}</p>
+        <div id="services-list"></div>
+        <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.testimonials_heading }}</summary>
+        <p class="hint">{{ t.testimonials_hint }}</p>
+        <div id="testimonials-list"></div>
+        <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.team_heading }}</summary>
+        <p class="hint">{{ t.team_hint }}</p>
+        <div id="team-list"></div>
+        <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.news_heading }}</summary>
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
-      </div>
-      <div class="panel">
-        <h3>{{ t.timeline_heading }}</h3>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.timeline_heading }}</summary>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
-      </div>
-      <div class="panel">
-        <h3>{{ t.links_heading }}</h3>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.events_heading }}</summary>
+        <p class="hint">{{ t.events_hint }}</p>
+        <div id="events-list"></div>
+        <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.location_heading }}</summary>
+        <p class="hint">{{ t.location_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
+          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="Musterstr. 1, 12345 Stadt"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
+          <div><label>{{ t.location_hours }} (EN)</label><textarea id="loc-hours_en" placeholder="Mon–Fri 9–17"></textarea></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.location_show_map }}</label>
+            <select id="loc-show_map"><option value="0">{{ t.no }}</option><option value="1">{{ t.yes }}</option></select>
+          </div>
+          <div>
+            <label>{{ t.location_coords }}</label>
+            <input type="text" id="loc-coords" placeholder="48.137, 11.575">
+            <p class="hint">{{ t.location_coords_hint }}</p>
+          </div>
+        </div>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.links_heading }}</summary>
         <p class="hint">{{ t.links_hint }}</p>
         <div id="links-list"></div>
         <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
-      </div>
-      <div class="panel">
-        <h3>{{ t.faq_heading }}</h3>
+      </details>
+      <details class="panel acc">
+        <summary>{{ t.faq_heading }}</summary>
         <p class="hint">{{ t.faq_hint }}</p>
         <div id="faq-list"></div>
         <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
-        <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
+      </details>
+      <div class="panel" style="display:flex;justify-content:flex-end">
+        <button class="btn" onclick="saveSections()">{{ t.save }}</button>
       </div>
-      <div class="panel">
-        <h3 style="display:flex;justify-content:space-between;align-items:center">
-          {{ t.albums_heading }}
-          <button class="btn small" onclick="openAlbumModal()">+ {{ t.new_album }}</button>
-        </h3>
+      <details class="panel acc">
+        <summary>{{ t.albums_heading }}</summary>
         <p class="hint">{{ t.albums_hint }}</p>
+        <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
         <div class="row" style="margin-top:16px">
           <div>
@@ -272,7 +326,7 @@
           </div>
         </div>
         <p class="hint">{{ t.album_protect_hint }}</p>
-      </div>
+      </details>
     </section>
 
     <!-- Projekte -->
@@ -426,6 +480,17 @@
           </div>
         </div>
         <p class="hint">{{ t.support_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.field_booking_url }}</label>
+            <input type="text" id="d-booking_url" placeholder="https://calendly.com/…">
+          </div>
+          <div>
+            <label>{{ t.field_booking_label }}</label>
+            <input type="text" id="d-booking_label" placeholder="{{ t.booking_default }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.booking_hint }}</p>
         <label>{{ t.field_footer }}</label>
         <input type="text" id="d-footer_text">
         <label>{{ t.field_custom_css }}</label>
@@ -1047,6 +1112,21 @@
       (s.links || []).forEach(l => addLinkEntryRow(l));
       el('faq-list').innerHTML = '';
       (s.faq || []).forEach(f => addFaqRow(f));
+      el('services-list').innerHTML = '';
+      (s.services || []).forEach(x => addServiceRow(x));
+      el('testimonials-list').innerHTML = '';
+      (s.testimonials || []).forEach(x => addTestimonialRow(x));
+      el('team-list').innerHTML = '';
+      (s.team || []).forEach(x => addTeamRow(x));
+      el('events-list').innerHTML = '';
+      (s.events || []).forEach(x => addEventRow(x));
+      const L = s.location || {};
+      el('loc-name').value = L.name || '';
+      el('loc-address').value = L.address || '';
+      el('loc-hours_de').value = L.hours_de || '';
+      el('loc-hours_en').value = L.hours_en || '';
+      el('loc-show_map').value = L.show_map ? '1' : '0';
+      el('loc-coords').value = (L.lat && L.lng) ? (L.lat + ', ' + L.lng) : '';
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
@@ -1163,6 +1243,123 @@
       div.querySelector('.t-text_en').value = e.text_en || '';
       el('timeline-list').appendChild(div);
     }
+    function addServiceRow(s) {
+      s = s || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:60px 1fr 1fr 120px auto">
+        <input type="text" class="sv-icon" placeholder="🛠" maxlength="4">
+        <input type="text" class="sv-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="sv-title_en" placeholder="${T.field_title} (EN)">
+        <input type="text" class="sv-price" placeholder="${T.field_price}">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="sv-desc_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="sv-desc_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.sv-icon').value = s.icon || '';
+      div.querySelector('.sv-title_de').value = s.title_de || '';
+      div.querySelector('.sv-title_en').value = s.title_en || '';
+      div.querySelector('.sv-price').value = s.price || '';
+      div.querySelector('.sv-desc_de').value = s.desc_de || '';
+      div.querySelector('.sv-desc_en').value = s.desc_en || '';
+      el('services-list').appendChild(div);
+    }
+    function addTestimonialRow(tm) {
+      tm = tm || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr auto">
+        <input type="text" class="tm-name" placeholder="${T.field_name}">
+        <input type="text" class="tm-role_de" placeholder="${T.testimonials_role} (DE)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="tm-role_en" placeholder="${T.testimonials_role} (EN)">
+        <div class="upload-row">
+          <input type="text" class="tm-avatar" placeholder="${T.testimonials_avatar}">
+          <button class="btn secondary small" onclick="pickUpload(u => { this.closest('.entry-row').querySelector('.tm-avatar').value = u; })">${T.upload}</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="tm-quote_de" placeholder="${T.testimonials_quote} (DE)"></textarea>
+        <textarea class="tm-quote_en" placeholder="${T.testimonials_quote} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.tm-name').value = tm.name || '';
+      div.querySelector('.tm-role_de').value = tm.role_de || '';
+      div.querySelector('.tm-role_en').value = tm.role_en || '';
+      div.querySelector('.tm-avatar').value = tm.avatar || '';
+      div.querySelector('.tm-quote_de').value = tm.quote_de || '';
+      div.querySelector('.tm-quote_en').value = tm.quote_en || '';
+      el('testimonials-list').appendChild(div);
+    }
+    function addTeamRow(m) {
+      m = m || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr 1fr auto">
+        <input type="text" class="tg-name" placeholder="${T.field_name}">
+        <input type="text" class="tg-role_de" placeholder="${T.team_role} (DE)">
+        <input type="text" class="tg-role_en" placeholder="${T.team_role} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="upload-row">
+          <input type="text" class="tg-photo" placeholder="${T.team_photo}">
+          <button class="btn secondary small" onclick="pickUpload(u => { this.closest('.entry-row').querySelector('.tg-photo').value = u; })">${T.upload}</button>
+        </div>
+        <span></span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="tg-bio_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="tg-bio_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.tg-name').value = m.name || '';
+      div.querySelector('.tg-role_de').value = m.role_de || '';
+      div.querySelector('.tg-role_en').value = m.role_en || '';
+      div.querySelector('.tg-photo').value = m.photo || '';
+      div.querySelector('.tg-bio_de').value = m.bio_de || '';
+      div.querySelector('.tg-bio_en').value = m.bio_en || '';
+      el('team-list').appendChild(div);
+    }
+    function addEventRow(e) {
+      e = e || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="ev-date" placeholder="2026-07-15">
+        <input type="text" class="ev-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="ev-title_en" placeholder="${T.field_title} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="ev-location" placeholder="${T.events_location}">
+        <input type="text" class="ev-url" placeholder="https://…">
+      </div>`;
+      div.querySelector('.ev-date').value = e.date || '';
+      div.querySelector('.ev-title_de').value = e.title_de || '';
+      div.querySelector('.ev-title_en').value = e.title_en || '';
+      div.querySelector('.ev-location').value = e.location || '';
+      div.querySelector('.ev-url').value = e.url || '';
+      el('events-list').appendChild(div);
+    }
     async function saveSections() {
       const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
       const news = [...el('news-list').children].map(row => ({
@@ -1191,7 +1388,49 @@
         a_de: row.querySelector('.f-a_de').value,
         a_en: row.querySelector('.f-a_en').value,
       })).filter(f => f.q_de || f.q_en);
-      const r = await apiJson('api/sections', 'POST', { skills, news, timeline, links, faq });
+      const services = [...el('services-list').children].map(row => ({
+        icon:     row.querySelector('.sv-icon').value,
+        title_de: row.querySelector('.sv-title_de').value,
+        title_en: row.querySelector('.sv-title_en').value,
+        price:    row.querySelector('.sv-price').value,
+        desc_de:  row.querySelector('.sv-desc_de').value,
+        desc_en:  row.querySelector('.sv-desc_en').value,
+      })).filter(s => s.title_de || s.title_en);
+      const testimonials = [...el('testimonials-list').children].map(row => ({
+        name:     row.querySelector('.tm-name').value,
+        role_de:  row.querySelector('.tm-role_de').value,
+        role_en:  row.querySelector('.tm-role_en').value,
+        avatar:   row.querySelector('.tm-avatar').value,
+        quote_de: row.querySelector('.tm-quote_de').value,
+        quote_en: row.querySelector('.tm-quote_en').value,
+      })).filter(x => x.quote_de || x.quote_en);
+      const team = [...el('team-list').children].map(row => ({
+        name:    row.querySelector('.tg-name').value,
+        role_de: row.querySelector('.tg-role_de').value,
+        role_en: row.querySelector('.tg-role_en').value,
+        photo:   row.querySelector('.tg-photo').value,
+        bio_de:  row.querySelector('.tg-bio_de').value,
+        bio_en:  row.querySelector('.tg-bio_en').value,
+      })).filter(x => x.name);
+      const events = [...el('events-list').children].map(row => ({
+        date:     row.querySelector('.ev-date').value,
+        title_de: row.querySelector('.ev-title_de').value,
+        title_en: row.querySelector('.ev-title_en').value,
+        location: row.querySelector('.ev-location').value,
+        url:      row.querySelector('.ev-url').value.trim(),
+      })).filter(x => x.title_de || x.title_en);
+      const coords = el('loc-coords').value.split(',').map(x => x.trim());
+      const location = {
+        name:     el('loc-name').value,
+        address:  el('loc-address').value,
+        hours_de: el('loc-hours_de').value,
+        hours_en: el('loc-hours_en').value,
+        lat:      coords[0] || '',
+        lng:      coords[1] || '',
+        show_map: el('loc-show_map').value === '1',
+      };
+      const r = await apiJson('api/sections', 'POST',
+        { skills, news, timeline, links, faq, services, testimonials, team, events, location });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }
@@ -1720,6 +1959,8 @@
       el('d-public_url').value = d.public_url || '';
       el('d-support_url').value = d.support_url || '';
       el('d-support_label').value = d.support_label || '';
+      el('d-booking_url').value = d.booking_url || '';
+      el('d-booking_label').value = d.booking_label || '';
       el('d-footer_text').value = d.footer_text || '';
       // Eigene Schrift: Option aktivieren wenn hochgeladen
       const opt = el('d-font-custom-opt');
@@ -1746,6 +1987,8 @@
         public_url:      el('d-public_url').value,
         support_url:     el('d-support_url').value,
         support_label:   el('d-support_label').value,
+        booking_url:     el('d-booking_url').value,
+        booking_label:   el('d-booking_label').value,
         show_counter:    el('d-show_counter').value === '1',
         show_nav:        el('d-show_nav').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',

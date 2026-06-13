@@ -207,6 +207,13 @@
     }
     .support-btn:hover { filter: brightness(1.12); text-decoration: none; }
     .support-btn svg { width: 17px; height: 17px; fill: currentColor; }
+    .booking-btn {
+      display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; margin-left: 8px;
+      background: transparent; color: var(--accent); border: 1px solid var(--accent);
+      padding: 8px 17px; border-radius: 8px; font-size: 0.9rem; font-weight: 600;
+    }
+    .booking-btn:hover { background: var(--accent); color: #fff; text-decoration: none; }
+    .booking-btn svg { width: 17px; height: 17px; fill: currentColor; }
 
     /* FAQ */
     .faq { padding-bottom: 44px; }
@@ -287,6 +294,46 @@
     .legal-links a:hover { color: var(--accent); }
     .counter { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; }
     .counter svg { width: 13px; height: 13px; fill: currentColor; }
+    /* Leistungen */
+    .svc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .svc-card { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .svc-icon { font-size: 1.8rem; line-height: 1; margin-bottom: 8px; }
+    .svc-title { font-weight: 700; margin-bottom: 6px; }
+    .svc-desc { color: var(--muted); font-size: 0.9rem; }
+    .svc-price { margin-top: 10px; font-weight: 700; color: var(--accent); }
+    /* Referenzen */
+    .tm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .tm-card { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 0; }
+    .tm-quote { font-style: italic; margin: 0 0 14px; }
+    .tm-quote::before { content: '\201C'; font-size: 2rem; color: var(--accent); line-height: 0; vertical-align: -0.45em; margin-right: 3px; }
+    .tm-author { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; }
+    .tm-author img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+    .tm-role { color: var(--muted); }
+    /* Team */
+    .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; }
+    .team-card { text-align: center; }
+    .team-photo { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border); }
+    .team-ph { background: var(--surf); display: inline-block; }
+    .team-name { font-weight: 700; margin-top: 10px; }
+    .team-role { color: var(--accent); font-size: 0.85rem; }
+    .team-bio { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+    /* Veranstaltungen */
+    .ev-list { display: flex; flex-direction: column; gap: 10px; }
+    .ev-item { display: flex; gap: 14px; background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+    .ev-date { color: var(--accent); font-weight: 700; font-size: 0.85rem; white-space: nowrap; min-width: 92px; padding-top: 1px; }
+    .ev-title { font-weight: 600; }
+    .ev-loc { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+    /* Standort */
+    .loc-box { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 640px) { .loc-box { grid-template-columns: 1fr; } }
+    .loc-name { font-weight: 700; }
+    .loc-addr { color: var(--muted); margin: 4px 0 10px; white-space: pre-line; }
+    .loc-hours { font-size: 0.9rem; }
+    .loc-route { display: inline-block; margin-top: 12px; }
+    .loc-map { aspect-ratio: 16/10; background: var(--surf); border: 1px solid var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .loc-map:hover { border-color: var(--accent); }
+    .loc-map iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; }
+    .map-hint { color: var(--muted); font-size: 0.9rem; }
     .empty { color: var(--muted); text-align: center; padding: 60px 0; }
     @media (max-width: 600px) {
       .hero { padding: 40px 0 28px; gap: 20px; }
@@ -380,6 +427,12 @@
           {{ site.design.support_label or t.support_default }}
         </a>
         {% endif %}
+        {% if site.design.booking_url %}
+        <a class="booking-btn" href="{{ site.design.booking_url }}" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zM7 12h5v5H7v-5z"/></svg>
+          {{ site.design.booking_label or t.booking_default }}
+        </a>
+        {% endif %}
       </div>
     </section>
 
@@ -408,6 +461,20 @@
       </div>
       {% endfor %}
       <div class="news-item"><span class="news-date"></span><span class="news-text"><a href="/blog">{{ t.blog_all }} →</a></span></div>
+    </div>
+    {% endif %}
+
+    {% if sections.services %}
+    <h2 class="section-title" id="services">{{ t.services_heading }}</h2>
+    <div class="svc-grid">
+      {% for s in sections.services %}
+      <div class="svc-card">
+        {% if s.icon %}<div class="svc-icon">{{ s.icon }}</div>{% endif %}
+        <div class="svc-title">{{ loc(s, 'title') }}</div>
+        {% if loc(s, 'desc') %}<p class="svc-desc">{{ loc(s, 'desc') }}</p>{% endif %}
+        {% if s.price %}<div class="svc-price">{{ s.price }}</div>{% endif %}
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
 
@@ -501,6 +568,21 @@
     </div>
     {% endif %}
 
+    {% if sections.testimonials %}
+    <h2 class="section-title" id="testimonials">{{ t.testimonials_heading }}</h2>
+    <div class="tm-grid">
+      {% for tm in sections.testimonials %}
+      <figure class="tm-card">
+        <blockquote class="tm-quote">{{ loc(tm, 'quote') }}</blockquote>
+        <figcaption class="tm-author">
+          {% if tm.avatar %}<img src="{{ tm.avatar }}" alt="" loading="lazy">{% endif %}
+          <span><strong>{{ tm.name }}</strong>{% if loc(tm, 'role') %}<br><span class="tm-role">{{ loc(tm, 'role') }}</span>{% endif %}</span>
+        </figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if albums %}
     <h2 class="section-title" id="photos">{{ t.albums_heading }}</h2>
     <div class="album-rail-wrap">
@@ -523,6 +605,20 @@
     </div>
     {% endif %}
 
+    {% if sections.team %}
+    <h2 class="section-title" id="team">{{ t.team_heading }}</h2>
+    <div class="team-grid">
+      {% for m in sections.team %}
+      <div class="team-card">
+        {% if m.photo %}<img class="team-photo" src="{{ m.photo }}" alt="{{ m.name }}" loading="lazy">{% else %}<div class="team-photo team-ph"></div>{% endif %}
+        <div class="team-name">{{ m.name }}</div>
+        {% if loc(m, 'role') %}<div class="team-role">{{ loc(m, 'role') }}</div>{% endif %}
+        {% if loc(m, 'bio') %}<p class="team-bio">{{ loc(m, 'bio') }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if sections.timeline %}
     <h2 class="section-title" id="timeline">{{ t.timeline_heading }}</h2>
     <div class="timeline">
@@ -533,6 +629,21 @@
         <div class="tl-content">
           <div class="tl-title">{{ loc(e, 'title') }}</div>
           {% if loc(e, 'text') %}<div class="tl-text">{{ loc(e, 'text') }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sections.events %}
+    <h2 class="section-title" id="events">{{ t.events_heading }}</h2>
+    <div class="ev-list">
+      {% for e in sections.events %}
+      <div class="ev-item">
+        {% if e.date %}<div class="ev-date">{{ e.date }}</div>{% endif %}
+        <div class="ev-body">
+          <div class="ev-title">{% if e.url %}<a href="{{ e.url }}" target="_blank" rel="noopener">{{ loc(e, 'title') }}</a>{% else %}{{ loc(e, 'title') }}{% endif %}</div>
+          {% if e.location %}<div class="ev-loc">📍 {{ e.location }}</div>{% endif %}
         </div>
       </div>
       {% endfor %}
@@ -559,6 +670,24 @@
       </details>
       {% endif %}
       {% endfor %}
+    </div>
+    {% endif %}
+
+    {% set L = sections.location or {} %}
+    {% if L.address or L.hours_de or L.hours_en %}
+    <h2 class="section-title" id="standort">{{ t.location_heading }}</h2>
+    <div class="loc-box">
+      <div class="loc-info">
+        {% if L.name %}<div class="loc-name">{{ L.name }}</div>{% endif %}
+        {% if L.address %}<div class="loc-addr">{{ L.address }}</div>{% endif %}
+        {% if loc(L, 'hours') %}<div class="loc-hours">{{ render_md(loc(L, 'hours'))|safe }}</div>{% endif %}
+        {% if L.address %}<a class="loc-route" href="https://www.openstreetmap.org/search?query={{ L.address|urlencode }}" target="_blank" rel="noopener">🗺 {{ t.location_route }}</a>{% endif %}
+      </div>
+      {% if L.show_map and L.lat and L.lng %}
+      <div class="loc-map" data-lat="{{ L.lat }}" data-lng="{{ L.lng }}" onclick="loadMap(this)">
+        <div class="map-hint">🗺 {{ t.location_map_load }}</div>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -757,6 +886,22 @@
       window.addEventListener('resize', updateRailArrows);
       window.addEventListener('load', updateRailArrows);
       updateRailArrows();
+    }
+
+    // Karte erst auf Klick laden (datenschutzfreundlich, OpenStreetMap)
+    function loadMap(box) {
+      const lat = parseFloat(box.dataset.lat), lng = parseFloat(box.dataset.lng);
+      if (isNaN(lat) || isNaN(lng)) return;
+      const d = 0.008;
+      const bbox = [lng - d, lat - d, lng + d, lat + d].join(',');
+      const f = document.createElement('iframe');
+      f.src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + bbox + '&layer=mapnik&marker=' + lat + ',' + lng;
+      f.loading = 'lazy';
+      f.title = 'OpenStreetMap';
+      box.removeAttribute('onclick');
+      box.style.cursor = 'default';
+      box.innerHTML = '';
+      box.appendChild(f);
     }
 
     // ── Foto-Diashow ──

@@ -227,6 +227,7 @@ DEFAULT_SITE = {
         'font': 'system', 'custom_css': '',
         'custom_font': '', 'custom_font_name': '',
         'support_url': '', 'support_label': '',
+        'booking_url': '', 'booking_label': '',
     },
     'posts': [],
     'legal': {
@@ -239,6 +240,11 @@ DEFAULT_SITE = {
         'news': [],
         'links': [],
         'faq': [],
+        'services': [],
+        'testimonials': [],
+        'team': [],
+        'events': [],
+        'location': {},
     },
     'albums': [],
     'album_protect': False,
@@ -1564,6 +1570,11 @@ def api_design():
         d['support_url'] = su if su.startswith(('http://', 'https://')) or not su else ''
     if 'support_label' in raw:
         d['support_label'] = _clean_str(raw['support_label'], 40)
+    if 'booking_url' in raw:
+        bu = _clean_str(raw['booking_url'], 500)
+        d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
+    if 'booking_label' in raw:
+        d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -1617,6 +1628,61 @@ def api_sections():
             'a_en': _clean_str(e.get('a_en'), 3000),
         } for e in raw['faq'][:50]
             if isinstance(e, dict) and (_clean_str(e.get('q_de'), 300) or _clean_str(e.get('q_en'), 300))]
+    if isinstance(raw.get('services'), list):
+        sec['services'] = [{
+            'icon':     _clean_str(e.get('icon'), 8),
+            'title_de': _clean_str(e.get('title_de'), 120),
+            'title_en': _clean_str(e.get('title_en'), 120),
+            'desc_de':  _clean_str(e.get('desc_de'), 600),
+            'desc_en':  _clean_str(e.get('desc_en'), 600),
+            'price':    _clean_str(e.get('price'), 60),
+        } for e in raw['services'][:40]
+            if isinstance(e, dict) and (_clean_str(e.get('title_de'), 120) or _clean_str(e.get('title_en'), 120))]
+    if isinstance(raw.get('testimonials'), list):
+        sec['testimonials'] = [{
+            'quote_de': _clean_str(e.get('quote_de'), 800),
+            'quote_en': _clean_str(e.get('quote_en'), 800),
+            'name':     _clean_str(e.get('name'), 120),
+            'role_de':  _clean_str(e.get('role_de'), 120),
+            'role_en':  _clean_str(e.get('role_en'), 120),
+            'avatar':   _clean_str(e.get('avatar'), 500),
+        } for e in raw['testimonials'][:40]
+            if isinstance(e, dict) and (_clean_str(e.get('quote_de'), 800) or _clean_str(e.get('quote_en'), 800))]
+    if isinstance(raw.get('team'), list):
+        sec['team'] = [{
+            'name':    _clean_str(e.get('name'), 120),
+            'role_de': _clean_str(e.get('role_de'), 120),
+            'role_en': _clean_str(e.get('role_en'), 120),
+            'photo':   _clean_str(e.get('photo'), 500),
+            'bio_de':  _clean_str(e.get('bio_de'), 600),
+            'bio_en':  _clean_str(e.get('bio_en'), 600),
+        } for e in raw['team'][:40]
+            if isinstance(e, dict) and _clean_str(e.get('name'), 120)]
+    if isinstance(raw.get('events'), list):
+        sec['events'] = [{
+            'date':     _clean_str(e.get('date'), 30),
+            'title_de': _clean_str(e.get('title_de'), 160),
+            'title_en': _clean_str(e.get('title_en'), 160),
+            'location': _clean_str(e.get('location'), 160),
+            'url':      _clean_str(e.get('url'), 500) if _clean_str(e.get('url'), 500).startswith(('http://', 'https://')) else '',
+        } for e in raw['events'][:60]
+            if isinstance(e, dict) and (_clean_str(e.get('title_de'), 160) or _clean_str(e.get('title_en'), 160))]
+    if isinstance(raw.get('location'), dict):
+        L = raw['location']
+        def _coord(v):
+            try:
+                return f"{float(str(v).strip()):.6f}"
+            except (ValueError, TypeError):
+                return ''
+        sec['location'] = {
+            'name':     _clean_str(L.get('name'), 120),
+            'address':  _clean_str(L.get('address'), 200),
+            'hours_de': _clean_str(L.get('hours_de'), 500),
+            'hours_en': _clean_str(L.get('hours_en'), 500),
+            'lat':      _coord(L.get('lat')),
+            'lng':      _coord(L.get('lng')),
+            'show_map': bool(L.get('show_map')),
+        }
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
@@ -2529,19 +2595,27 @@ def public_index():
     latest_posts = sorted_posts(site, public_only=True)[:3]
     contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
 
+    loc_block = sections.get('location') or {}
+    loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
+
     # Navigations-Leiste: nur Sektionen mit Inhalt, in Seitenreihenfolge
     nav_items = []
     if site['design'].get('show_nav', True):
         for present, anchor, label_key in (
-            (sections.get('news'),     'news',      'news_heading'),
-            (latest_posts,             'blog',      'blog_heading'),
-            (projects,                 'projects',  'projects'),
-            (sections.get('skills'),   'skills',    'skills_heading'),
-            (albums,                   'photos',    'albums_heading'),
-            (sections.get('timeline'), 'timeline',  'timeline_heading'),
-            (sections.get('links'),    'links',     'links_heading'),
-            (sections.get('faq'),      'faq',       'faq_heading'),
-            (contact_enabled,          'kontakt',   'contact_heading'),
+            (sections.get('news'),         'news',         'news_heading'),
+            (latest_posts,                 'blog',         'blog_heading'),
+            (sections.get('services'),     'services',     'services_heading'),
+            (projects,                     'projects',     'projects'),
+            (sections.get('skills'),       'skills',       'skills_heading'),
+            (sections.get('testimonials'), 'testimonials', 'testimonials_heading'),
+            (albums,                       'photos',       'albums_heading'),
+            (sections.get('team'),         'team',         'team_heading'),
+            (sections.get('timeline'),     'timeline',     'timeline_heading'),
+            (sections.get('events'),       'events',       'events_heading'),
+            (sections.get('links'),        'links',        'links_heading'),
+            (sections.get('faq'),          'faq',          'faq_heading'),
+            (loc_present,                  'standort',     'location_heading'),
+            (contact_enabled,              'kontakt',      'contact_heading'),
         ):
             if present:
                 nav_items.append({'anchor': anchor, 'label': t.get(label_key, label_key)})

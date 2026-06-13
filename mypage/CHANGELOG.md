@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+- ✨ **Neue Inhalts-Bereiche für mehr Zielgruppen** (alle DE/EN, sortierbar):
+  - **Leistungen / Angebote** — Karten mit Symbol, Beschreibung und optionalem Preis.
+  - **Referenzen / Kundenstimmen** — Zitat, Name, Funktion und optionalem Foto.
+  - **Team** — Personen mit Foto, Funktion und Kurzbeschreibung.
+  - **Veranstaltungen** — kommende Termine mit Datum, Ort und Link.
+  - **Standort & Öffnungszeiten** — Adresse, Zeiten und optionale Karte (datenschutzfreundlich via OpenStreetMap, lädt erst auf Klick) + „Auf Karte öffnen"-Link.
+- 📅 **Buchungs-/Termin-Button** im Hero (frei konfigurierbarer Link, z. B. Calendly) — unter Design.
+- 🗂 **Inhalt-Tab als Akkordeon**: alle Bereiche sind jetzt einklappbar — kein endloses Scrollen mehr.
+- Die neuen Bereiche erscheinen automatisch in der Navigationsleiste, sobald sie Inhalt haben.
+
 ## 0.4.2
 
 - 🧭 **Navigationsleiste im Kopf**: Sprungmarken zu den vorhandenen Bereichen (News, Blog, Projekte, Skills, Fotos, Werdegang, Links, FAQ, Kontakt) — es erscheinen nur Bereiche, die auch Inhalt haben. Sanftes Scrollen, sticky am oberen Rand. Im Admin-Panel unter Design ein-/ausschaltbar.
