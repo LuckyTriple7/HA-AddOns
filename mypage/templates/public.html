@@ -27,7 +27,7 @@
     :root {
       --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
       --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
-      --font: {{ font_family }};
+      --font: {{ font_family|safe }};
     }
     {{ font_faces|safe }}
     [data-theme="light"] {
