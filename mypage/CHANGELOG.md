@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- 🐞 Fix: Der „Speichern"-Button im Inhalt-Tab erschien als großer leerer Kasten — jetzt eine schlichte rechtsbündige Leiste.
+
 ## 0.5.0
 
 - ✨ **Neue Inhalts-Bereiche für mehr Zielgruppen** (alle DE/EN, sortierbar):
