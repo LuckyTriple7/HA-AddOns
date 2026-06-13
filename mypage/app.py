@@ -228,6 +228,7 @@ DEFAULT_SITE = {
         'custom_font': '', 'custom_font_name': '',
         'support_url': '', 'support_label': '',
         'booking_url': '', 'booking_label': '',
+        'indexnow': False,
     },
     'posts': [],
     'legal': {
@@ -258,6 +259,7 @@ DEFAULT_SITE = {
     'tips_rotation': 'daily',
     'tips_random': False,
     'tips_stats': {},
+    'indexnow_key': '',
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -1617,15 +1619,33 @@ def api_design():
         d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
-    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance'):
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
                       ('maintenance_text_de', 1000), ('maintenance_text_en', 1000)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
+    if d.get('indexnow'):
+        _indexnow_key(site)   # Schlüssel beim Aktivieren bereitstellen (speichert ggf.)
     save_site(site)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/indexnow/ping', methods=['POST'])
+def api_indexnow_ping():
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    if not site['design'].get('indexnow'):
+        return jsonify({'error': 'disabled'}), 400
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base.startswith(('http://', 'https://')):
+        return jsonify({'error': 'no_url'}), 400
+    urls = _public_url_list(site, base)
+    indexnow_submit(urls)
+    return jsonify({'ok': True, 'count': len(urls)})
 
 
 @admin_app.route('/api/sections', methods=['POST'])
@@ -1908,8 +1928,10 @@ def api_project_create():
     if not _clean_str(raw.get('title'), 120):
         return jsonify({'error': 'title required'}), 400
     site = load_site()
-    site['projects'].append(_normalize_project(raw))
+    proj = _normalize_project(raw)
+    site['projects'].append(proj)
     save_site(site)
+    _indexnow_ping_project(site, proj)
     return jsonify({'ok': True})
 
 
@@ -1928,6 +1950,8 @@ def api_project_edit(pid: str):
         raw = request.get_json(silent=True) or {}
         site['projects'][idx] = _normalize_project(raw, site['projects'][idx])
     save_site(site)
+    if request.method == 'PUT':
+        _indexnow_ping_project(site, site['projects'][idx])
     return jsonify({'ok': True})
 
 
@@ -1958,8 +1982,10 @@ def api_post_create():
     if not (_clean_str(raw.get('title_de'), 150) or _clean_str(raw.get('title_en'), 150)):
         return jsonify({'error': 'title required'}), 400
     site = load_site()
-    site.setdefault('posts', []).append(_normalize_post(raw))
+    post = _normalize_post(raw)
+    site.setdefault('posts', []).append(post)
     save_site(site)
+    _indexnow_ping_post(site, post)
     return jsonify({'ok': True})
 
 
@@ -1978,6 +2004,8 @@ def api_post_edit(pid: str):
     else:
         posts[idx] = _normalize_post(request.get_json(silent=True) or {}, posts[idx])
     save_site(site)
+    if request.method == 'PUT':
+        _indexnow_ping_post(site, posts[idx])
     return jsonify({'ok': True})
 
 
@@ -2504,6 +2532,68 @@ def _base_url() -> str:
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
 
 
+def _public_url_list(site: dict, base: str) -> list:
+    """Alle öffentlich indexierbaren URLs (Startseite, Projekt-Detailseiten, Blog)."""
+    urls = [base + '/']
+    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
+    posts = sorted_posts(site, public_only=True)
+    if posts:
+        urls.append(base + '/blog')
+        urls += [f"{base}/blog/{p['id']}" for p in posts]
+    return urls
+
+
+def _indexnow_key(site: dict) -> str:
+    """Liefert den IndexNow-Schlüssel (erzeugt ihn bei Bedarf und speichert)."""
+    key = site.get('indexnow_key') or ''
+    if not re.fullmatch(r'[a-f0-9]{32}', key):
+        key = uuid.uuid4().hex
+        site['indexnow_key'] = key
+        save_site(site)
+    return key
+
+
+def indexnow_submit(urls: list) -> None:
+    """Geänderte URLs an Bing (IndexNow) melden — nicht blockierend."""
+    site = load_site()
+    if not site['design'].get('indexnow'):
+        return
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base.startswith(('http://', 'https://')):
+        return  # ohne öffentliche URL nicht möglich
+    key = _indexnow_key(site)
+    url_list = [u for u in dict.fromkeys(urls) if u][:1000]
+    if not url_list:
+        return
+    payload = {
+        'host': urlparse(base).netloc,
+        'key': key,
+        'keyLocation': f'{base}/{key}.txt',
+        'urlList': url_list,
+    }
+
+    def _worker():
+        try:
+            r = http.post('https://www.bing.com/indexnow', json=payload, timeout=10)
+            log.info("IndexNow → Bing: %d URL(s), HTTP %s", len(url_list), r.status_code)
+        except Exception as e:
+            log.warning("IndexNow-Submit fehlgeschlagen: %s", e)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _indexnow_ping_post(site: dict, post: dict) -> None:
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if base.startswith(('http://', 'https://')) and post_visible(post):
+        indexnow_submit([base + '/', base + '/blog', f"{base}/blog/{post['id']}"])
+
+
+def _indexnow_ping_project(site: dict, proj: dict) -> None:
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if base.startswith(('http://', 'https://')) and _has_detail(proj) and project_visible(proj):
+        indexnow_submit([base + '/', f"{base}/p/{proj['id']}"])
+
+
 @public_app.route('/favicon.ico')
 def favicon():
     site = load_site()
@@ -2524,6 +2614,15 @@ def admin_favicon():
 def robots():
     return (f'User-agent: *\nAllow: /\nSitemap: {_base_url()}/sitemap.xml\n',
             200, {'Content-Type': 'text/plain'})
+
+
+@public_app.route('/<key>.txt')
+def indexnow_keyfile(key: str):
+    """IndexNow-Verifizierungsdatei: liefert den Schlüssel als Klartext."""
+    site = load_site()
+    if re.fullmatch(r'[a-f0-9]{32}', key or '') and key == site.get('indexnow_key'):
+        return key, 200, {'Content-Type': 'text/plain'}
+    abort(404)
 
 
 @public_app.route('/sitemap.xml')
