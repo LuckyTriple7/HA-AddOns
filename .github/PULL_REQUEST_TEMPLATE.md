@@ -23,6 +23,7 @@
 - [ ] phpMyAdmin MariaDB 2
 - [ ] MediaGrab
 - [ ] GitPulse
+- [ ] MyPage
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change

@@ -39,6 +39,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
 | MediaGrab | ✅ | ✅ | Alpine |
 | GitPulse | ✅ | ✅ | Alpine |
+| MyPage | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -259,6 +260,18 @@ GitHub Control Panel direkt in Home Assistant — PRs, Issues, CI-Status, Securi
 
 → [Dokumentation & Changelog](gitpulse/README.md)
 
+### [MyPage](mypage/)
+
+Homepage-Baukasten direkt in Home Assistant — eigene Webseite ohne Design-Kenntnisse, vom Portfolio bis zur Vereins- oder Dienstleisterseite.
+
+- Inhaltsbereiche: Projekte (GitHub-Import), Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, FAQ, Veranstaltungen, Standort — per Drag & Drop sortier- und ausblendbar
+- Zweisprachig (DE/EN) mit optionaler Auto-Übersetzung, Hell/Dunkel, eigene Schriftarten & CSS
+- Besucherstatistik (Länder, Browser, Referrer), Kontaktformular mit Spam-Schutz, RSS, PWA, SEO
+- Mitglieder-Bereich mit Datei-Sharing (optional SMB), Termin-/Buchungs-Button, Unterstützen-Button
+- Backup & statischer Export, Home-Assistant-Sensoren
+
+→ [Dokumentation & Changelog](mypage/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -302,6 +315,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
 | MediaGrab | ✅ | ✅ | Alpine |
 | GitPulse | ✅ | ✅ | Alpine |
+| MyPage | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -521,3 +535,15 @@ GitHub Control Panel directly in Home Assistant — PRs, Issues, CI status, secu
 - Password protection, PWA, Dark/Light mode, DE/EN
 
 → [Documentation & Changelog](gitpulse/README.md)
+
+### [MyPage](mypage/)
+
+Homepage builder directly in Home Assistant — your own website without design skills, from a portfolio to a club or service-provider page.
+
+- Content sections: projects (GitHub import), blog, services, testimonials, team, photo albums, skills, timeline, FAQ, events, location — reorder and hide via drag & drop
+- Bilingual (DE/EN) with optional auto-translation, light/dark, custom fonts & CSS
+- Visitor stats (countries, browsers, referrers), contact form with spam protection, RSS, PWA, SEO
+- Members area with file sharing (optional SMB), appointment/booking button, support button
+- Backup & static export, Home Assistant sensors
+
+→ [Documentation & Changelog](mypage/README.md)

@@ -24,6 +24,7 @@ body:
         - phpMyAdmin MariaDB 2
         - MediaGrab
         - GitPulse
+        - MyPage
         - Sonstiges
     validations:
       required: true
