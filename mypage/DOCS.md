@@ -8,6 +8,7 @@
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
+| `translate_email` | Optional: E-Mail für die DE↔EN-Auto-Übersetzung (MyMemory) — erhöht das kostenlose Tageslimit |
 | `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder werden daraus berechnet |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_lookup` | Exakte Länder-Erkennung über ipapi.is (Standard: aus — Besucher-IPs werden an den Dienst übertragen) |
@@ -17,8 +18,13 @@
 | `smtp_host` | Optional: SMTP-Server — neue Kontaktnachrichten werden per E-Mail gemeldet |
 | `smtp_port` | SMTP-Port, meist 587 (STARTTLS) oder 465 (SSL) |
 | `smtp_user` / `smtp_password` | Zugangsdaten für den Mailversand (App-Passwort empfohlen) |
+| `smtp_from` | Optional: Absender-/Alias-Adresse (z. B. `noreply@deine-domain.de`). Leer = es wird `smtp_user` als Absender genutzt |
 | `smtp_to` | Empfängeradresse der Benachrichtigungen |
 | `smtp_tls` | `true` für Port 587 (STARTTLS), `false` für Port 465 (SSL) |
+| `user_upload_max_mb` | Maximale Größe pro hochgeladener Datei im Mitglieder-Bereich in MB (1–4096, Standard 200) |
+| `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
+| `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
+| `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
 
 ## Ports
 
@@ -35,11 +41,24 @@
 Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutzername, E-Mail und beliebige weitere Links. Tagline und Bio gibt es jeweils in **DE und EN** — fehlt eine Sprache, wird automatisch die andere angezeigt.
 
 ### Inhalte
+Der Tab **Inhalt** zeigt alle Startseiten-Bereiche als einklappbare Karten (Akkordeon). Jede Karte hat links einen **Griff (⠿)** und ein **Auge-Symbol**:
+
+- **Reihenfolge:** Am Griff per **Drag & Drop** sortieren (Maus + Touch) — die Startseite übernimmt die Reihenfolge sofort. Der Kopfbereich bleibt immer oben, das Kontaktformular immer unten. Auch **Projekte** und **Blog** lassen sich hier positionieren (bearbeitet werden sie in ihren eigenen Tabs).
+- **Sichtbarkeit:** Mit dem Auge blendest du einen Bereich von der Startseite (und der Navigation) aus, ohne seinen Inhalt zu löschen.
+
+Verfügbare Bereiche:
+
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
+- **Leistungen**: Angebote/Dienstleistungen als Karten mit Symbol (Emoji), Beschreibung (DE/EN) und optionalem Preis
+- **Referenzen**: Kundenstimmen mit Zitat (DE/EN), Name, Funktion und optionalem Foto
+- **Team**: Personen mit Foto, Funktion (DE/EN) und Kurzbeschreibung
 - **Aktuelles**: kurze News-Einträge mit Datum und optionalem Link
 - **Werdegang**: Timeline mit Zeitraum, Titel und Text (jeweils DE/EN)
+- **Veranstaltungen**: kommende Termine mit Datum, Titel (DE/EN), Ort und optionalem Link
+- **Standort & Öffnungszeiten**: Adresse, Öffnungszeiten (DE/EN) und optional eine Karte. Die Karte nutzt **OpenStreetMap** und lädt **erst auf Klick** (datenschutzfreundlich); zusätzlich gibt es einen „Auf Karte öffnen"-Link. Für die eingebettete Karte optional Koordinaten (Breite, Länge) angeben.
 - **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN). Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet; ein Klick öffnet die Zielseite in einem neuen Tab.
-- **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Erscheinen auf der Startseite zwischen Skills und Werdegang; ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay. Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert.
+- **FAQ**: Fragen und Antworten (DE/EN, Antwort als Markdown), auf der Startseite als aufklappbare Liste
+- **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay; ein **Klick auf das Bild** zeigt es groß, ein weiterer Klick in voller Auflösung (scroll-/schwenkbar). Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert. Die Bild-Reihenfolge lässt sich per **Drag & Drop** ändern; ein Klick auf eine Mini-Kachel im Admin zeigt eine Vorschau.
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
 
 ### Projekte
@@ -49,10 +68,10 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 - Reihenfolge per ↑/↓-Buttons ändern.
 
 ### Nachrichten
-Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz über ein unsichtbares Honeypot-Feld plus Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID) und/oder **E-Mail** (SMTP-Optionen) — beides in den Add-on-Optionen, wie bei GitPulse.
+Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz dreifach: unsichtbares Honeypot-Feld, ein einfaches Rechen-Captcha („7 + 3 = ?", selbst gehostet, kein externer Dienst) und Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID) und/oder **E-Mail** (SMTP-Optionen) — beides in den Add-on-Optionen, wie bei GitPulse.
 
 ### Blog
-Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einzelne Beiträge unter `/blog/<id>`, die neuesten drei erscheinen auf der Startseite.
+Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einzelne Beiträge unter `/blog/<id>`, die neuesten drei erscheinen auf der Startseite. Optional je Beitrag ein Titelbild, ein Video-Embed (YouTube/Vimeo, datenschutzfreundlich erst auf Klick) und eine **Bild-Galerie** (horizontal scrollbar mit Pfeilen). Ein Klick auf ein Bild öffnet es groß, ein weiterer in voller Auflösung.
 
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
@@ -89,6 +108,13 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `sensor.mypage_visitors_total` | Eindeutige Besucher gesamt |
 | `sensor.mypage_views_today` | Aufrufe heute |
 | `sensor.mypage_visitors_today` | Eindeutige Besucher heute |
+| `sensor.mypage_user_storage` | Belegter Speicher aller Mitglieder-Dateien (MB) |
+| `sensor.mypage_failed_logins` | Fehlgeschlagene Logins der letzten 24 h (Admin + Mitglieder) |
+| `sensor.mypage_messages` | Anzahl gespeicherter Kontaktnachrichten |
+| `sensor.mypage_members` | Anzahl angelegter Benutzer |
+| `sensor.mypage_projects` / `_posts` / `_albums` | Anzahl Projekte / Blog-Beiträge / Fotoalben |
+| `binary_sensor.mypage_storage_online` | SMB-/Dateispeicher erreichbar (on/off) |
+| `binary_sensor.mypage_maintenance` | Wartungsmodus aktiv (on/off) |
 
 Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei Besucherrekord).
 
@@ -103,7 +129,11 @@ Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitema
 Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben).
 
 ### Design
-Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel), Besucherzähler ein/aus, Footer-Text.
+Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Footer-Text, eigenes CSS.
+
+- **Unterstützen-Button**: Frei konfigurierbarer Link (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …). Das passende Icon wird automatisch anhand der URL gewählt; eine eigene Beschriftung ist möglich.
+- **Termin-/Buchungs-Button**: Link zu einem externen Buchungsdienst (z. B. Calendly, Cal.com). Erscheint mit Kalender-Symbol im Kopfbereich neben dem Unterstützen-Button und öffnet beim Klick einen neuen Tab. Ist kein Link gesetzt, erscheint kein Button. Details siehe [README](README.md#-buchungskalender--termin-button).
+- **Navigationsleiste**: Sprungmarken im Kopf zu den vorhandenen Bereichen; folgt der im Inhalt-Tab gewählten Reihenfolge und blendet ausgeblendete/leere Bereiche aus.
 
 ### Rechtliches
 Impressum und Datenschutzerklärung als Freitext (DE/EN). Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Admin-Session) und keinerlei Tracking.

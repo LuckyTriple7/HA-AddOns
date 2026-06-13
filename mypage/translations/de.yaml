@@ -23,6 +23,9 @@ configuration:
   geoip_api_key:
     name: ipapi.is API-Key
     description: Optional — ohne Key ca. 1.000 Lookups/Tag frei. Bei mehr Traffic kostenlosen Key auf ipapi.is holen.
+  translate_email:
+    name: Übersetzungs-E-Mail (MyMemory)
+    description: Optional — eigene E-Mail erhöht das kostenlose Tageslimit der DE↔EN-Übersetzung (5.000 → 50.000 Wörter). Bei ungültiger Adresse wird automatisch das anonyme Limit genutzt.
   telegram_bot_token:
     name: Telegram-Bot-Token
     description: Optional — neue Kontaktnachrichten werden per Telegram gemeldet.

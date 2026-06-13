@@ -1,5 +1,108 @@
 # Changelog
 
+## 0.6.3
+
+- 🔎 **Vorschau im Admin-Panel**: Klick auf eine Mini-Kachel (Bilder bei Blog, Alben und Projekten) zeigt das Bild größer in einer Vorschau (begrenzte Größe, nicht volle Auflösung). Drag & Drop zum Sortieren bleibt unverändert.
+
+## 0.6.2
+
+- 🔍 **Fotos zoomen**: Klick auf ein Bild in Fotoalben (Diashow) und in Blog-Beiträgen öffnet es groß; ein weiterer Klick schaltet auf volle Auflösung um (scroll-/schwenkbar), um Details zu sehen.
+- 🌓 **Auge-Symbol** (Bereich ein-/ausblenden) jetzt als SVG-Icon — im Dark Mode klar erkennbar.
+- 📊 **Referrer-Statistik** filtert lokale/private Adressen (192.168.x.x, 10.x, `*.local`, `localhost` …) aus — interne Aufrufe verfälschen die Liste nicht mehr.
+
+## 0.6.1
+
+- 👁 **Bereiche ein-/ausblenden**: Über das Auge-Symbol am Akkordeon-Bereich lässt sich ein Bereich von der Startseite ausblenden — der Inhalt bleibt erhalten und kann jederzeit wieder eingeblendet werden. Ausgeblendete Bereiche verschwinden auch aus der Navigationsleiste.
+- 📱 **Sortieren jetzt auch auf Touch-/Mobilgeräten** (Umstellung auf Pointer-Events).
+- 🐞 Fix: 404 für `/favicon.ico` im Admin-Panel.
+
+## 0.6.0
+
+- 🔀 **Flexible Reihenfolge der Startseite**: Die Abschnitte lassen sich im Admin-Panel (Tab „Inhalt“) per Drag & Drop am Griff (⠿) sortieren – die Startseite übernimmt die Reihenfolge sofort. Der Kopf mit Bild bleibt immer oben, das Kontaktformular immer unten.
+- Auch **Projekte** und **Blog** lassen sich positionieren (bearbeitet werden sie weiterhin in ihren eigenen Tabs).
+- Die Navigationsleiste folgt automatisch der gewählten Reihenfolge.
+
+## 0.5.1
+
+- 🐞 Fix: Der „Speichern"-Button im Inhalt-Tab erschien als großer leerer Kasten — jetzt eine schlichte rechtsbündige Leiste.
+
+## 0.5.0
+
+- ✨ **Neue Inhalts-Bereiche für mehr Zielgruppen** (alle DE/EN, sortierbar):
+  - **Leistungen / Angebote** — Karten mit Symbol, Beschreibung und optionalem Preis.
+  - **Referenzen / Kundenstimmen** — Zitat, Name, Funktion und optionalem Foto.
+  - **Team** — Personen mit Foto, Funktion und Kurzbeschreibung.
+  - **Veranstaltungen** — kommende Termine mit Datum, Ort und Link.
+  - **Standort & Öffnungszeiten** — Adresse, Zeiten und optionale Karte (datenschutzfreundlich via OpenStreetMap, lädt erst auf Klick) + „Auf Karte öffnen"-Link.
+- 📅 **Buchungs-/Termin-Button** im Hero (frei konfigurierbarer Link, z. B. Calendly) — unter Design.
+- 🗂 **Inhalt-Tab als Akkordeon**: alle Bereiche sind jetzt einklappbar — kein endloses Scrollen mehr.
+- Die neuen Bereiche erscheinen automatisch in der Navigationsleiste, sobald sie Inhalt haben.
+
+## 0.4.2
+
+- 🧭 **Navigationsleiste im Kopf**: Sprungmarken zu den vorhandenen Bereichen (News, Blog, Projekte, Skills, Fotos, Werdegang, Links, FAQ, Kontakt) — es erscheinen nur Bereiche, die auch Inhalt haben. Sanftes Scrollen, sticky am oberen Rand. Im Admin-Panel unter Design ein-/ausschaltbar.
+
+## 0.4.1
+
+- 🖼 **Bild-Galerie für Blog-Beiträge**: mehrere Bilder pro Beitrag (Mehrfach-Upload, per Drag & Drop sortierbar). Auf der Beitragsseite horizontal scrollbar mit Pfeil-Buttons (wie das Album-Karussell), Klick öffnet das Bild groß (Lightbox).
+
+## 0.4.0
+
+- ❓ **FAQ-Bereich**: aufklappbare Fragen & Antworten (Markdown) auf der Startseite, im Inhalte-Tab pflegbar und sortierbar
+- ☕ **Support-/Spenden-Button**: frei konfigurierbarer Link (z. B. Buy Me a Coffee, Ko-fi, PayPal, GitHub Sponsors, Patreon) als Button im Profilkopf — Icon wird automatisch aus der URL erkannt
+- 🎬 **Video-Einbettung** (YouTube/Vimeo) in Projekt-Detailseiten und Blog-Beiträgen — **datenschutzfreundlich**: das Video wird erst auf Klick geladen (kein YouTube-Request vorab), Einbettung über youtube-nocookie.com
+
+## 0.3.7
+
+- ↕️ **Werdegang und Aktuelles sortierbar**: ↑/↓-Pfeile pro Eintrag (wie bei Linksammlung, Projekten und Alben) — damit sind jetzt alle Inhaltslisten umsortierbar
+
+## 0.3.6
+
+- 🤖 **Captcha im Kontaktformular**: einfache Rechenaufgabe („7 + 3 = ?") gegen automatisierten Spam — zusätzlich zu Honeypot und Rate-Limit. Stateless per signiertem Token (kein externer Dienst, DSGVO-freundlich), Aufgabe ist 10 Minuten gültig und wird nach jedem Versuch erneuert.
+
+## 0.3.5
+
+- 🔧 Robustere Übersetzung: Eine ungültige `translate_email` (MyMemory antwortet „INVALID EMAIL") lässt die Übersetzung nicht mehr scheitern — es wird automatisch auf das anonyme Limit zurückgefallen und eine Warnung geloggt.
+
+## 0.3.4
+
+- ↕️ **Linksammlung sortierbar**: ↑/↓-Pfeile pro Eintrag zum Verschieben (wie bei Projekten und Alben)
+
+## 0.3.3
+
+- 🔗 **Automatische Social-Media-Icons** bei „Weitere Links": Das passende Symbol wird anhand der URL erkannt — unterstützt GitHub, GitLab, Instagram, TikTok, Facebook, LinkedIn, YouTube, X/Twitter, Mastodon, Telegram, Discord, WhatsApp, Bluesky, Xing, Twitch und Reddit. Unbekannte Links bekommen ein neutrales Link-Symbol.
+
+## 0.3.2
+
+- 🏠 **Mehr HA-Sensoren**: `binary_sensor.mypage_storage_online` (SMB-Speicher erreichbar — ideal für Ausfall-Alarm), `binary_sensor.mypage_maintenance` (Wartungsmodus an/aus) sowie Content-Zähler `sensor.mypage_projects`, `_posts`, `_albums`
+
+## 0.3.1
+
+- 🏠 **Vier neue HA-Sensoren**: `sensor.mypage_user_storage` (belegter Speicher aller Mitglieder-Dateien in MB), `sensor.mypage_failed_logins` (fehlgeschlagene Logins der letzten 24 h), `sensor.mypage_messages` (Kontaktnachrichten), `sensor.mypage_members` (Benutzeranzahl)
+
+## 0.3.0
+
+- 🌐 **Auto-Übersetzung DE→EN** per Klick (MyMemory, kostenlos, kein API-Key): Button „🌐 DE→EN übersetzen" in Profil, Projekt-, Blog- und Album-Dialog füllt die englischen Felder automatisch aus den deutschen. Lange Texte werden automatisch aufgeteilt; Ergebnis bleibt editierbar zum Nachbessern. Optionale Add-on-Option `translate_email` erhöht das kostenlose Tageslimit.
+
+## 0.2.2
+
+- 🔧 Fix Schriftauswahl: Die Anführungszeichen im Font-Namen wurden HTML-escaped (`&#39;`) und damit ungültig — die gewählte Schrift griff nicht. Jetzt korrekt eingebunden.
+
+## 0.2.1
+
+- 🔤 **5 zusätzliche Web-Schriften** (Inter, Poppins, Montserrat, Lato, Merriweather) — selbst gehostet, kein externer Request. Die bisherigen System-Schriften bleiben erhalten
+- ⬆️ **Eigene Schrift hochladen** (WOFF2/WOFF/TTF/OTF) im Design-Tab — wird selbst ausgeliefert und als Schriftart wählbar
+- 🖱 **Drag & Drop** zum Umsortieren der Bilder im Fotoalbum (im Album-Dialog)
+
+## 0.2.0
+
+- 📝 **Entwurf/Veröffentlicht-Status** für Blog-Beiträge und Projekte: Entwürfe sind öffentlich unsichtbar, im Admin mit Badge markiert
+- 🕒 **Geplante Beiträge**: Ein veröffentlichter Blog-Beitrag mit Datum in der Zukunft erscheint automatisch erst ab diesem Tag (Badge „Geplant")
+- 📡 **RSS-Feed** unter `/feed.xml` (nur sichtbare Beiträge) — mit Auto-Discovery-Link im `<head>`
+- 📱 **PWA**: Die Seite ist installierbar (Manifest + Service Worker, eigenes Icon, Offline-Grundfunktion)
+- 🔤 **Schriftart-Auswahl** im Design-Tab (System, Klassisch, Weich, Serife, Monospace) — alles System-Fonts, kein externer Request
+- 🎨 **Eigenes CSS-Feld** im Design-Tab für individuelle Anpassungen (`</`-Ausbruch wird neutralisiert)
+
 ## 0.1.24
 
 - 🔒 **Sicherheitshärtung (CodeQL #136, #142–149, #153)**:

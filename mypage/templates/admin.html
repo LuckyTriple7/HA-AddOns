@@ -34,6 +34,21 @@
     h2 { font-size: 1.15rem; margin-bottom: 16px; }
     .panel { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
     .panel h3 { font-size: 0.95rem; margin-bottom: 14px; color: var(--text); }
+    details.acc > summary { cursor: pointer; font-size: 0.95rem; font-weight: 600; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; }
+    details.acc > summary::-webkit-details-marker { display: none; }
+    details.acc > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; display: inline-block; }
+    details.acc[open] > summary::before { transform: rotate(90deg); }
+    details.acc[open] > summary { margin-bottom: 14px; }
+    details.acc > summary:hover { color: var(--accent); }
+    .drag-handle { cursor: grab; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 2px; user-select: none; touch-action: none; }
+    .drag-handle:hover { color: var(--accent); }
+    details.acc.dragging { opacity: .45; border-color: var(--accent); }
+    details.acc.acc-hidden { opacity: .5; }
+    .acc-ext { color: var(--muted); font-size: 0.8rem; }
+    .sec-eye { order: 99; margin-left: auto; background: none; border: none; cursor: pointer; line-height: 0; padding: 2px 4px; color: var(--muted); }
+    .sec-eye svg { width: 18px; height: 18px; fill: currentColor; display: block; }
+    .sec-eye:hover { color: var(--text); }
+    details.acc.acc-hidden .sec-eye { color: var(--accent); }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -59,6 +74,8 @@
     .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
     .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+    .badge-draft { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
+    .badge-scheduled { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
 
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 30px 14px; }
     .modal-bg.open { display: flex; }
@@ -111,9 +128,14 @@
     .msg-text { font-size: 0.87rem; white-space: pre-wrap; }
 
     .gallery-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .gallery-thumb { position: relative; }
-    .gallery-thumb img { width: 76px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+    .gallery-thumb { position: relative; cursor: grab; }
+    .gallery-thumb.dragging { opacity: .4; }
+    .gallery-thumb img { width: 76px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); pointer-events: none; }
     .gallery-thumb button { position: absolute; top: -6px; right: -6px; background: var(--red); border: none; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 0.65rem; cursor: pointer; line-height: 1; }
+    /* Vergrößerte Vorschau einer Mini-Kachel (begrenzte Größe, nicht volle Auflösung) */
+    .thumb-preview { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.82); z-index: 120; align-items: center; justify-content: center; cursor: zoom-out; padding: 30px; }
+    .thumb-preview.open { display: flex; }
+    .thumb-preview img { max-width: 70vw; max-height: 75vh; border-radius: 10px; box-shadow: 0 10px 50px rgba(0,0,0,.6); }
 
     .preview-frame { width: 100%; height: 540px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
     .preview-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
@@ -207,41 +229,54 @@
         <label>{{ t.field_links }}</label>
         <div id="p-links"></div>
         <button class="btn secondary small" onclick="addLinkRow()">+ {{ t.add_link }}</button>
-        <div><button class="btn" onclick="saveProfile()">{{ t.save }}</button></div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="saveProfile()">{{ t.save }}</button>
+          <button class="btn secondary" onclick="translateFields(this, [['p-tagline_de','p-tagline_en'],['p-bio_de','p-bio_en']])">🌐 {{ t.tr_btn }}</button>
+        </div>
       </div>
     </section>
 
     <!-- Inhalte -->
     <section class="tab" id="tab-content">
-      <div class="panel">
-        <h3>{{ t.skills_heading }}</h3>
+      <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }} {{ t.content_dnd_hint }}</p>
+      <div id="section-acc">
+      <details class="panel acc" data-key="news">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.news_heading }}</summary>
+        <div id="news-list"></div>
+        <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="blog">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=blog]').click()">{{ t.tab_blog }} →</button>
+      </details>
+      <details class="panel acc" data-key="services">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.services_heading }}</summary>
+        <p class="hint">{{ t.services_hint }}</p>
+        <div id="services-list"></div>
+        <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="projects">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.projects }} <span class="acc-ext">↗</span></summary>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=projects]').click()">{{ t.tab_projects }} →</button>
+      </details>
+      <details class="panel acc" data-key="skills">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.skills_heading }}</summary>
         <label>{{ t.field_skills }}</label>
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
-      </div>
-      <div class="panel">
-        <h3>{{ t.news_heading }}</h3>
-        <div id="news-list"></div>
-        <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
-      </div>
-      <div class="panel">
-        <h3>{{ t.timeline_heading }}</h3>
-        <div id="timeline-list"></div>
-        <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
-      </div>
-      <div class="panel">
-        <h3>{{ t.links_heading }}</h3>
-        <p class="hint">{{ t.links_hint }}</p>
-        <div id="links-list"></div>
-        <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
-        <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
-      </div>
-      <div class="panel">
-        <h3 style="display:flex;justify-content:space-between;align-items:center">
-          {{ t.albums_heading }}
-          <button class="btn small" onclick="openAlbumModal()">+ {{ t.new_album }}</button>
-        </h3>
+      </details>
+      <details class="panel acc" data-key="testimonials">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.testimonials_heading }}</summary>
+        <p class="hint">{{ t.testimonials_hint }}</p>
+        <div id="testimonials-list"></div>
+        <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="photos">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.albums_heading }}</summary>
         <p class="hint">{{ t.albums_hint }}</p>
+        <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
         <div class="row" style="margin-top:16px">
           <div>
@@ -260,6 +295,62 @@
           </div>
         </div>
         <p class="hint">{{ t.album_protect_hint }}</p>
+      </details>
+      <details class="panel acc" data-key="team">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</summary>
+        <p class="hint">{{ t.team_hint }}</p>
+        <div id="team-list"></div>
+        <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="timeline">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</summary>
+        <div id="timeline-list"></div>
+        <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="events">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.events_heading }}</summary>
+        <p class="hint">{{ t.events_hint }}</p>
+        <div id="events-list"></div>
+        <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="links">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.links_heading }}</summary>
+        <p class="hint">{{ t.links_hint }}</p>
+        <div id="links-list"></div>
+        <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="faq">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.faq_heading }}</summary>
+        <p class="hint">{{ t.faq_hint }}</p>
+        <div id="faq-list"></div>
+        <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="location">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.location_heading }}</summary>
+        <p class="hint">{{ t.location_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
+          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="Musterstr. 1, 12345 Stadt"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
+          <div><label>{{ t.location_hours }} (EN)</label><textarea id="loc-hours_en" placeholder="Mon–Fri 9–17"></textarea></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.location_show_map }}</label>
+            <select id="loc-show_map"><option value="0">{{ t.no }}</option><option value="1">{{ t.yes }}</option></select>
+          </div>
+          <div>
+            <label>{{ t.location_coords }}</label>
+            <input type="text" id="loc-coords" placeholder="48.137, 11.575">
+            <p class="hint">{{ t.location_coords_hint }}</p>
+          </div>
+        </div>
+      </details>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin:4px 0 18px">
+        <button class="btn" onclick="saveSections()">{{ t.save }}</button>
       </div>
     </section>
 
@@ -333,6 +424,16 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_nav }}</label>
+            <select id="d-show_nav">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
+            <p class="hint">{{ t.field_nav_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_layout }}</label>
             <select id="d-layout">
               <option value="cards">{{ t.layout_cards }}</option>
@@ -361,8 +462,65 @@
             </select>
           </div>
         </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_font }}</label>
+            <select id="d-font">
+              <optgroup label="{{ t.font_group_system }}">
+                <option value="system">{{ t.font_system }}</option>
+                <option value="classic">{{ t.font_classic }}</option>
+                <option value="rounded">{{ t.font_rounded }}</option>
+                <option value="serif">{{ t.font_serif }}</option>
+                <option value="mono">{{ t.font_mono }}</option>
+              </optgroup>
+              <optgroup label="{{ t.font_group_web }}">
+                <option value="inter">Inter</option>
+                <option value="poppins">Poppins</option>
+                <option value="montserrat">Montserrat</option>
+                <option value="lato">Lato</option>
+                <option value="merriweather">Merriweather</option>
+              </optgroup>
+              <optgroup label="{{ t.font_group_custom }}">
+                <option value="custom" id="d-font-custom-opt" disabled>{{ t.font_custom_none }}</option>
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.font_upload_label }}</label>
+            <div class="upload-row">
+              <button class="btn secondary small" onclick="el('font-input').click()">⬆ {{ t.font_upload }}</button>
+              <span class="hint" id="d-font-current" style="margin:0"></span>
+            </div>
+            <input type="file" id="font-input" accept=".woff2,.woff,.ttf,.otf" style="display:none">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_support_url }}</label>
+            <input type="text" id="d-support_url" placeholder="https://buymeacoffee.com/…">
+          </div>
+          <div>
+            <label>{{ t.field_support_label }}</label>
+            <input type="text" id="d-support_label" placeholder="{{ t.support_default }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.support_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.field_booking_url }}</label>
+            <input type="text" id="d-booking_url" placeholder="https://calendly.com/…">
+          </div>
+          <div>
+            <label>{{ t.field_booking_label }}</label>
+            <input type="text" id="d-booking_label" placeholder="{{ t.booking_default }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.booking_hint }}</p>
         <label>{{ t.field_footer }}</label>
         <input type="text" id="d-footer_text">
+        <label>{{ t.field_custom_css }}</label>
+        <textarea id="d-custom_css" rows="5" style="font-family:ui-monospace,Consolas,monospace" placeholder=".hero h1 {{ '{' }} letter-spacing: 1px; {{ '}' }}"></textarea>
+        <p class="hint">{{ t.custom_css_hint }}</p>
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
         <p class="hint">{{ t.contact_telegram_hint }}</p>
       </div>
@@ -580,6 +738,8 @@
           <input type="url" id="pm-repo_url">
         </div>
       </div>
+      <label>{{ t.field_video }}</label>
+      <input type="url" id="pm-video" placeholder="https://youtube.com/watch?v=… {{ t.video_hint }}">
       <div class="row">
         <div>
           <label>{{ t.field_tags }}</label>
@@ -590,6 +750,11 @@
           <input type="text" id="pm-language" placeholder="Python">
         </div>
       </div>
+      <label>{{ t.field_status }}</label>
+      <select id="pm-published">
+        <option value="1">{{ t.status_published }}</option>
+        <option value="0">{{ t.status_draft }}</option>
+      </select>
       <div class="row">
         <div>
           <label>{{ t.field_long }} (DE)</label>
@@ -606,6 +771,7 @@
       <button class="btn secondary small" onclick="pickUpload(u => { modalGallery.push(u); renderModalGallery(); })">+ {{ t.add_image }}</button>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
+        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['pm-desc_de','pm-desc_en'],['pm-long_de','pm-long_en']])">🌐 {{ t.tr_btn }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
       </div>
     </div>
@@ -673,6 +839,7 @@
       <p class="hint" id="am-progress" style="margin-top:6px"></p>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('album-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['am-title_de','am-title_en'],['am-desc_de','am-desc_en']])">🌐 {{ t.tr_btn }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveAlbum()">{{ t.save }}</button>
       </div>
     </div>
@@ -701,13 +868,21 @@
           <input type="date" id="bm-date">
         </div>
         <div>
-          <label>{{ t.field_image }}</label>
-          <div class="upload-row">
-            <input type="text" id="bm-image" placeholder="https://… {{ t.or_upload }}">
-            <button class="btn secondary small" onclick="pickUpload(u => { el('bm-image').value = u; })">{{ t.upload }}</button>
-          </div>
+          <label>{{ t.field_status }}</label>
+          <select id="bm-published">
+            <option value="1">{{ t.status_published }}</option>
+            <option value="0">{{ t.status_draft }}</option>
+          </select>
         </div>
       </div>
+      <p class="hint">{{ t.post_schedule_hint }}</p>
+      <label>{{ t.field_image }}</label>
+      <div class="upload-row">
+        <input type="text" id="bm-image" placeholder="https://… {{ t.or_upload }}">
+        <button class="btn secondary small" onclick="pickUpload(u => { el('bm-image').value = u; })">{{ t.upload }}</button>
+      </div>
+      <label>{{ t.field_video }}</label>
+      <input type="url" id="bm-video" placeholder="https://youtube.com/watch?v=… {{ t.video_hint }}">
       <div class="row">
         <div>
           <label>{{ t.field_title }} (DE) *</label>
@@ -728,14 +903,21 @@
           <textarea id="bm-text_en" rows="10"></textarea>
         </div>
       </div>
+      <label>{{ t.field_gallery }}</label>
+      <div class="gallery-list" id="bm-gallery"></div>
+      <button class="btn secondary small" onclick="el('bm-gallery-file').click()">+ {{ t.add_images }}</button>
+      <input type="file" id="bm-gallery-file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple style="display:none">
+      <p class="hint" id="bm-gallery-progress" style="margin-top:6px"></p>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['bm-title_de','bm-title_en'],['bm-text_de','bm-text_en']])">🌐 {{ t.tr_btn }}</button>
         <button class="btn" style="margin-top:16px" onclick="savePost()">{{ t.save }}</button>
       </div>
     </div>
   </div>
 
   <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
+  <div class="thumb-preview" id="thumb-preview" onclick="closeThumbPreview()"><img id="thumb-preview-img" src="" alt=""></div>
   <div class="toast" id="toast"></div>
 
   <script>
@@ -759,6 +941,38 @@
       t.textContent = msg;
       t.className = 'toast show' + (isErr ? ' err' : '');
       setTimeout(() => t.className = 'toast', 2200);
+    }
+    // Mini-Kachel größer anzeigen (Vorschau, nicht volle Auflösung)
+    function openThumbPreview(src) {
+      if (!src) return;
+      el('thumb-preview-img').src = src;
+      el('thumb-preview').classList.add('open');
+    }
+    function closeThumbPreview() {
+      el('thumb-preview').classList.remove('open');
+      el('thumb-preview-img').src = '';
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && el('thumb-preview').classList.contains('open')) closeThumbPreview();
+    });
+
+    // ── Auto-Übersetzung DE→EN (MyMemory) ──
+    // pairs: [[deFeldId, enFeldId], …] — füllt leere/alle EN-Felder aus den DE-Texten
+    async function translateFields(btn, pairs) {
+      const todo = pairs.filter(([de]) => el(de) && el(de).value.trim());
+      if (!todo.length) { toast(T.tr_nothing, true); return; }
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = T.tr_running;
+      let failed = false;
+      for (const [de, en] of todo) {
+        try {
+          const r = await apiJson('api/translate', 'POST', { text: el(de).value, from: 'de', to: 'en' });
+          if (r.ok) el(en).value = (await r.json()).text;
+          else failed = true;
+        } catch { failed = true; }
+      }
+      btn.disabled = false; btn.textContent = old;
+      toast(failed ? T.tr_error : T.tr_done, failed);
     }
 
     // ── Theme ──
@@ -824,6 +1038,12 @@
             <button class="btn danger small">✕</button>
           </div>`;
         div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
+        // Status: Entwurf, geplant (Datum in Zukunft) oder veröffentlicht
+        const today = new Date().toISOString().slice(0, 10);
+        let badge = '';
+        if (p.published === false) badge = `<span class="badge-draft">${T.status_draft}</span>`;
+        else if ((p.date || '') > today) badge = `<span class="badge-scheduled">${T.status_scheduled}</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
         div.querySelector('.proj-meta').textContent = p.date || '';
         const [editBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         editBtn.onclick = () => openPostModal(p.id);
@@ -835,26 +1055,70 @@
         list.appendChild(div);
       });
     }
+    let postGallery = [];
+    let pgDragFrom = null;
+    function renderPostGallery() {
+      const box = el('bm-gallery');
+      box.innerHTML = '';
+      postGallery.forEach((u, i) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        div.draggable = true;
+        div.title = T.album_drag_hint;
+        const img = document.createElement('img'); img.src = assetUrl(u); img.draggable = false;
+        const btn = document.createElement('button'); btn.textContent = '✕';
+        btn.onclick = () => { postGallery.splice(i, 1); renderPostGallery(); };
+        div.addEventListener('dragstart', () => { pgDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { pgDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', ev => {
+          ev.preventDefault();
+          if (pgDragFrom === null || pgDragFrom === i) return;
+          const [m] = postGallery.splice(pgDragFrom, 1); postGallery.splice(i, 0, m); renderPostGallery();
+        });
+        div.addEventListener('click', e => { if (!e.target.closest('button')) openThumbPreview(img.src); });
+        div.append(img, btn);
+        box.appendChild(div);
+      });
+    }
+    el('bm-gallery-file').addEventListener('change', async e => {
+      const files = [...e.target.files]; e.target.value = '';
+      let done = 0;
+      for (const f of files) {
+        el('bm-gallery-progress').textContent = T.album_uploading.replace('{n}', ++done).replace('{total}', files.length);
+        const fd = new FormData(); fd.append('file', f);
+        const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+        if (r.ok) { postGallery.push((await r.json()).url); renderPostGallery(); }
+      }
+      el('bm-gallery-progress').textContent = '';
+    });
     function openPostModal(id) {
       editingPostId = id || null;
       const p = id ? SITE.posts.find(x => x.id === id) : {};
       el('bm-title').textContent = id ? T.edit_post : T.new_post;
       el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
       el('bm-image').value = p.image || '';
+      el('bm-video').value = p.video || '';
       el('bm-title_de').value = p.title_de || '';
       el('bm-title_en').value = p.title_en || '';
       el('bm-text_de').value = p.text_de || '';
       el('bm-text_en').value = p.text_en || '';
+      el('bm-published').value = (id && p.published === false) ? '0' : '1';
+      postGallery = [...(p.gallery || [])];
+      renderPostGallery();
       el('post-modal').classList.add('open');
     }
     async function savePost() {
       const body = {
         date:     el('bm-date').value,
         image:    el('bm-image').value,
+        video:    el('bm-video').value,
         title_de: el('bm-title_de').value,
         title_en: el('bm-title_en').value,
         text_de:  el('bm-text_de').value,
         text_en:  el('bm-text_en').value,
+        gallery:  postGallery,
+        published: el('bm-published').value === '1',
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
       const r = editingPostId
@@ -886,9 +1150,124 @@
       (s.timeline || []).forEach(e => addTimelineRow(e));
       el('links-list').innerHTML = '';
       (s.links || []).forEach(l => addLinkEntryRow(l));
+      el('faq-list').innerHTML = '';
+      (s.faq || []).forEach(f => addFaqRow(f));
+      el('services-list').innerHTML = '';
+      (s.services || []).forEach(x => addServiceRow(x));
+      el('testimonials-list').innerHTML = '';
+      (s.testimonials || []).forEach(x => addTestimonialRow(x));
+      el('team-list').innerHTML = '';
+      (s.team || []).forEach(x => addTeamRow(x));
+      el('events-list').innerHTML = '';
+      (s.events || []).forEach(x => addEventRow(x));
+      const L = s.location || {};
+      el('loc-name').value = L.name || '';
+      el('loc-address').value = L.address || '';
+      el('loc-hours_de').value = L.hours_de || '';
+      el('loc-hours_en').value = L.hours_en || '';
+      el('loc-show_map').value = L.show_map ? '1' : '0';
+      el('loc-coords').value = (L.lat && L.lng) ? (L.lat + ', ' + L.lng) : '';
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
+      applySectionOrder();
+      initSectionDnD();
+      applySectionVisibility();
+    }
+    // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop, Maus + Touch) ──
+    function applySectionOrder() {
+      const cont = el('section-acc');
+      if (!cont) return;
+      (SITE.section_order || []).forEach(key => {
+        const d = cont.querySelector('.acc[data-key="' + key + '"]');
+        if (d) cont.appendChild(d);   // in gespeicherter Reihenfolge ans Ende hängen
+      });
+    }
+    function sectionDragAfter(cont, y) {
+      const els = [...cont.querySelectorAll('.acc:not(.dragging)')];
+      let best = null, bestOff = -Infinity;
+      els.forEach(child => {
+        const box = child.getBoundingClientRect();
+        const off = y - box.top - box.height / 2;
+        if (off < 0 && off > bestOff) { bestOff = off; best = child; }
+      });
+      return best;
+    }
+    let sectionDnDReady = false;
+    function initSectionDnD() {
+      if (sectionDnDReady) return;
+      const cont = el('section-acc');
+      if (!cont) return;
+      sectionDnDReady = true;
+      let dragEl = null;
+      // Pointer Events funktionieren für Maus UND Touch einheitlich
+      cont.querySelectorAll('.drag-handle').forEach(h => {
+        h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+        h.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          dragEl = h.closest('.acc');
+          dragEl.classList.add('dragging');
+          try { h.setPointerCapture(e.pointerId); } catch (_) {}
+        });
+        h.addEventListener('pointermove', e => {
+          if (!dragEl) return;
+          e.preventDefault();
+          const after = sectionDragAfter(cont, e.clientY);
+          if (after == null) cont.appendChild(dragEl);
+          else if (after !== dragEl) cont.insertBefore(dragEl, after);
+        });
+        const end = e => {
+          if (!dragEl) return;
+          dragEl.classList.remove('dragging');
+          dragEl = null;
+          try { h.releasePointerCapture(e.pointerId); } catch (_) {}
+          saveSectionOrder();
+        };
+        h.addEventListener('pointerup', end);
+        h.addEventListener('pointercancel', end);
+      });
+    }
+    async function saveSectionOrder() {
+      const order = [...el('section-acc').querySelectorAll('.acc')].map(d => d.dataset.key);
+      const r = await apiJson('api/sections', 'POST', { section_order: order });
+      if (r.ok) { SITE.section_order = order; toast(T.saved); }
+      else toast(T.error_save, true);
+    }
+    // ── Sichtbarkeit eines Abschnitts auf der Startseite ──
+    const EYE_ON  = '<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg>';
+    const EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65a3 3 0 003 3c.22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53a5 5 0 01-5-5c0-.79.2-1.53.53-2.2zm4.31-.78 3.15 3.15.02-.16a3 3 0 00-3-3l-.17.01z"/></svg>';
+    function applySectionVisibility() {
+      const hidden = new Set(SITE.hidden_sections || []);
+      document.querySelectorAll('#section-acc .acc').forEach(d => {
+        const isHidden = hidden.has(d.dataset.key);
+        d.classList.toggle('acc-hidden', isHidden);
+        const eye = d.querySelector('.sec-eye');
+        if (eye) {
+          eye.innerHTML = isHidden ? EYE_OFF : EYE_ON;
+          eye.title = isHidden ? T.section_show : T.section_hide;
+        }
+      });
+    }
+    async function toggleSectionVisible(btn, ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      const d = btn.closest('.acc');
+      const nowHidden = !d.classList.contains('acc-hidden');
+      d.classList.toggle('acc-hidden', nowHidden);
+      btn.innerHTML = nowHidden ? EYE_OFF : EYE_ON;
+      btn.title = nowHidden ? T.section_show : T.section_hide;
+      const hidden = [...document.querySelectorAll('#section-acc .acc.acc-hidden')].map(x => x.dataset.key);
+      const r = await apiJson('api/sections', 'POST', { hidden_sections: hidden });
+      if (r.ok) { SITE.hidden_sections = hidden; toast(T.saved); }
+      else { toast(T.error_save, true); d.classList.toggle('acc-hidden'); btn.innerHTML = nowHidden ? EYE_ON : EYE_OFF; }
+    }
+    // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
+    function moveEntryRow(btn, dir) {
+      const row = btn.closest('.entry-row');
+      if (dir < 0 && row.previousElementSibling) {
+        row.parentElement.insertBefore(row, row.previousElementSibling);
+      } else if (dir > 0 && row.nextElementSibling) {
+        row.parentElement.insertBefore(row.nextElementSibling, row);
+      }
     }
     function addLinkEntryRow(l) {
       l = l || {};
@@ -898,7 +1277,11 @@
         <input type="text" class="l-url" placeholder="https://…">
         <input type="text" class="l-title_de" placeholder="${T.field_title} (DE)">
         <input type="text" class="l-title_en" placeholder="${T.field_title} (EN)">
-        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
       </div>
       <div class="row" style="margin-top:8px">
         <input type="text" class="l-desc_de" placeholder="${T.field_desc} (DE)">
@@ -910,6 +1293,29 @@
       div.querySelector('.l-desc_de').value = l.desc_de || '';
       div.querySelector('.l-desc_en').value = l.desc_en || '';
       el('links-list').appendChild(div);
+    }
+    function addFaqRow(f) {
+      f = f || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr auto">
+        <input type="text" class="f-q_de" placeholder="${T.faq_q} (DE)">
+        <input type="text" class="f-q_en" placeholder="${T.faq_q} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="f-a_de" placeholder="${T.faq_a} (DE)"></textarea>
+        <textarea class="f-a_en" placeholder="${T.faq_a} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.f-q_de').value = f.q_de || '';
+      div.querySelector('.f-q_en').value = f.q_en || '';
+      div.querySelector('.f-a_de').value = f.a_de || '';
+      div.querySelector('.f-a_en').value = f.a_en || '';
+      el('faq-list').appendChild(div);
     }
     async function saveAlbumSettings() {
       const r = await apiJson('api/sections', 'POST', {
@@ -927,7 +1333,11 @@
         <input type="text" class="n-date" placeholder="2026-06">
         <input type="text" class="n-text_de" placeholder="${T.field_desc} (DE)">
         <input type="text" class="n-text_en" placeholder="${T.field_desc} (EN)">
-        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
       </div>
       <label style="margin-top:8px">{{ t.field_link }}</label>
       <input type="text" class="n-url" placeholder="https://…">`;
@@ -945,7 +1355,11 @@
         <input type="text" class="t-year" placeholder="2024–2026">
         <input type="text" class="t-title_de" placeholder="${T.field_title} (DE)">
         <input type="text" class="t-title_en" placeholder="${T.field_title} (EN)">
-        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
       </div>
       <div class="row" style="margin-top:8px">
         <textarea class="t-text_de" placeholder="${T.field_desc} (DE)"></textarea>
@@ -957,6 +1371,123 @@
       div.querySelector('.t-text_de').value = e.text_de || '';
       div.querySelector('.t-text_en').value = e.text_en || '';
       el('timeline-list').appendChild(div);
+    }
+    function addServiceRow(s) {
+      s = s || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:60px 1fr 1fr 120px auto">
+        <input type="text" class="sv-icon" placeholder="🛠" maxlength="4">
+        <input type="text" class="sv-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="sv-title_en" placeholder="${T.field_title} (EN)">
+        <input type="text" class="sv-price" placeholder="${T.field_price}">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="sv-desc_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="sv-desc_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.sv-icon').value = s.icon || '';
+      div.querySelector('.sv-title_de').value = s.title_de || '';
+      div.querySelector('.sv-title_en').value = s.title_en || '';
+      div.querySelector('.sv-price').value = s.price || '';
+      div.querySelector('.sv-desc_de').value = s.desc_de || '';
+      div.querySelector('.sv-desc_en').value = s.desc_en || '';
+      el('services-list').appendChild(div);
+    }
+    function addTestimonialRow(tm) {
+      tm = tm || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr auto">
+        <input type="text" class="tm-name" placeholder="${T.field_name}">
+        <input type="text" class="tm-role_de" placeholder="${T.testimonials_role} (DE)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="tm-role_en" placeholder="${T.testimonials_role} (EN)">
+        <div class="upload-row">
+          <input type="text" class="tm-avatar" placeholder="${T.testimonials_avatar}">
+          <button class="btn secondary small" onclick="pickUpload(u => { this.closest('.entry-row').querySelector('.tm-avatar').value = u; })">${T.upload}</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="tm-quote_de" placeholder="${T.testimonials_quote} (DE)"></textarea>
+        <textarea class="tm-quote_en" placeholder="${T.testimonials_quote} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.tm-name').value = tm.name || '';
+      div.querySelector('.tm-role_de').value = tm.role_de || '';
+      div.querySelector('.tm-role_en').value = tm.role_en || '';
+      div.querySelector('.tm-avatar').value = tm.avatar || '';
+      div.querySelector('.tm-quote_de').value = tm.quote_de || '';
+      div.querySelector('.tm-quote_en').value = tm.quote_en || '';
+      el('testimonials-list').appendChild(div);
+    }
+    function addTeamRow(m) {
+      m = m || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr 1fr auto">
+        <input type="text" class="tg-name" placeholder="${T.field_name}">
+        <input type="text" class="tg-role_de" placeholder="${T.team_role} (DE)">
+        <input type="text" class="tg-role_en" placeholder="${T.team_role} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div class="upload-row">
+          <input type="text" class="tg-photo" placeholder="${T.team_photo}">
+          <button class="btn secondary small" onclick="pickUpload(u => { this.closest('.entry-row').querySelector('.tg-photo').value = u; })">${T.upload}</button>
+        </div>
+        <span></span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="tg-bio_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="tg-bio_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.querySelector('.tg-name').value = m.name || '';
+      div.querySelector('.tg-role_de').value = m.role_de || '';
+      div.querySelector('.tg-role_en').value = m.role_en || '';
+      div.querySelector('.tg-photo').value = m.photo || '';
+      div.querySelector('.tg-bio_de').value = m.bio_de || '';
+      div.querySelector('.tg-bio_en').value = m.bio_en || '';
+      el('team-list').appendChild(div);
+    }
+    function addEventRow(e) {
+      e = e || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="ev-date" placeholder="2026-07-15">
+        <input type="text" class="ev-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="ev-title_en" placeholder="${T.field_title} (EN)">
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="ev-location" placeholder="${T.events_location}">
+        <input type="text" class="ev-url" placeholder="https://…">
+      </div>`;
+      div.querySelector('.ev-date').value = e.date || '';
+      div.querySelector('.ev-title_de').value = e.title_de || '';
+      div.querySelector('.ev-title_en').value = e.title_en || '';
+      div.querySelector('.ev-location').value = e.location || '';
+      div.querySelector('.ev-url').value = e.url || '';
+      el('events-list').appendChild(div);
     }
     async function saveSections() {
       const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
@@ -980,7 +1511,55 @@
         desc_de:  row.querySelector('.l-desc_de').value,
         desc_en:  row.querySelector('.l-desc_en').value,
       })).filter(l => /^https?:\/\//.test(l.url));
-      const r = await apiJson('api/sections', 'POST', { skills, news, timeline, links });
+      const faq = [...el('faq-list').children].map(row => ({
+        q_de: row.querySelector('.f-q_de').value,
+        q_en: row.querySelector('.f-q_en').value,
+        a_de: row.querySelector('.f-a_de').value,
+        a_en: row.querySelector('.f-a_en').value,
+      })).filter(f => f.q_de || f.q_en);
+      const services = [...el('services-list').children].map(row => ({
+        icon:     row.querySelector('.sv-icon').value,
+        title_de: row.querySelector('.sv-title_de').value,
+        title_en: row.querySelector('.sv-title_en').value,
+        price:    row.querySelector('.sv-price').value,
+        desc_de:  row.querySelector('.sv-desc_de').value,
+        desc_en:  row.querySelector('.sv-desc_en').value,
+      })).filter(s => s.title_de || s.title_en);
+      const testimonials = [...el('testimonials-list').children].map(row => ({
+        name:     row.querySelector('.tm-name').value,
+        role_de:  row.querySelector('.tm-role_de').value,
+        role_en:  row.querySelector('.tm-role_en').value,
+        avatar:   row.querySelector('.tm-avatar').value,
+        quote_de: row.querySelector('.tm-quote_de').value,
+        quote_en: row.querySelector('.tm-quote_en').value,
+      })).filter(x => x.quote_de || x.quote_en);
+      const team = [...el('team-list').children].map(row => ({
+        name:    row.querySelector('.tg-name').value,
+        role_de: row.querySelector('.tg-role_de').value,
+        role_en: row.querySelector('.tg-role_en').value,
+        photo:   row.querySelector('.tg-photo').value,
+        bio_de:  row.querySelector('.tg-bio_de').value,
+        bio_en:  row.querySelector('.tg-bio_en').value,
+      })).filter(x => x.name);
+      const events = [...el('events-list').children].map(row => ({
+        date:     row.querySelector('.ev-date').value,
+        title_de: row.querySelector('.ev-title_de').value,
+        title_en: row.querySelector('.ev-title_en').value,
+        location: row.querySelector('.ev-location').value,
+        url:      row.querySelector('.ev-url').value.trim(),
+      })).filter(x => x.title_de || x.title_en);
+      const coords = el('loc-coords').value.split(',').map(x => x.trim());
+      const location = {
+        name:     el('loc-name').value,
+        address:  el('loc-address').value,
+        hours_de: el('loc-hours_de').value,
+        hours_en: el('loc-hours_en').value,
+        lat:      coords[0] || '',
+        lng:      coords[1] || '',
+        show_map: el('loc-show_map').value === '1',
+      };
+      const r = await apiJson('api/sections', 'POST',
+        { skills, news, timeline, links, faq, services, testimonials, team, events, location });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }
@@ -1010,17 +1589,33 @@
         list.appendChild(div);
       });
     }
+    let dragFrom = null;
     function renderAlbumImages() {
       const box = el('am-images');
       box.innerHTML = '';
       albumImages.forEach((u, i) => {
         const div = document.createElement('div');
         div.className = 'gallery-thumb';
+        div.draggable = true;
+        div.title = T.album_drag_hint;
         const img = document.createElement('img');
         img.src = assetUrl(u);
+        img.draggable = false;
         const btn = document.createElement('button');
         btn.textContent = '✕';
         btn.onclick = () => { albumImages.splice(i, 1); renderAlbumImages(); };
+        // Drag & Drop zum Umsortieren
+        div.addEventListener('dragstart', () => { dragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { dragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', ev => {
+          ev.preventDefault();
+          if (dragFrom === null || dragFrom === i) return;
+          const [moved] = albumImages.splice(dragFrom, 1);
+          albumImages.splice(i, 0, moved);
+          renderAlbumImages();
+        });
+        div.addEventListener('click', e => { if (!e.target.closest('button')) openThumbPreview(img.src); });
         div.append(img, btn);
         box.appendChild(div);
       });
@@ -1487,11 +2082,29 @@
       el('d-accent').value = d.accent || '#58a6ff';
       el('d-mode').value = d.mode || 'dark';
       el('d-show_counter').value = d.show_counter ? '1' : '0';
+      el('d-show_nav').value = (d.show_nav === false) ? '0' : '1';
       el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
+      el('d-support_url').value = d.support_url || '';
+      el('d-support_label').value = d.support_label || '';
+      el('d-booking_url').value = d.booking_url || '';
+      el('d-booking_label').value = d.booking_label || '';
       el('d-footer_text').value = d.footer_text || '';
+      // Eigene Schrift: Option aktivieren wenn hochgeladen
+      const opt = el('d-font-custom-opt');
+      if (d.custom_font) {
+        opt.disabled = false;
+        opt.textContent = (d.custom_font_name || T.font_custom_generic);
+        el('d-font-current').textContent = T.font_current + ': ' + (d.custom_font_name || '—');
+      } else {
+        opt.disabled = true;
+        opt.textContent = T.font_custom_none;
+        el('d-font-current').textContent = '';
+      }
+      el('d-font').value = d.font || 'system';
+      el('d-custom_css').value = d.custom_css || '';
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
@@ -1499,8 +2112,15 @@
         accent:          el('d-accent').value,
         mode:            el('d-mode').value,
         layout:          el('d-layout').value,
+        font:            el('d-font').value,
+        custom_css:      el('d-custom_css').value,
         public_url:      el('d-public_url').value,
+        support_url:     el('d-support_url').value,
+        support_label:   el('d-support_label').value,
+        booking_url:     el('d-booking_url').value,
+        booking_label:   el('d-booking_label').value,
         show_counter:    el('d-show_counter').value === '1',
+        show_nav:        el('d-show_nav').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
@@ -1522,6 +2142,7 @@
         div.className = 'proj-item';
         const img = p.image ? `<img class="proj-thumb" src="${assetUrl(p.image)}" alt="">` : `<div class="proj-thumb"></div>`;
         const badge = p.repo_full_name ? `<span class="badge">GitHub</span>` : '';
+        const draft = (p.published === false) ? `<span class="badge-draft">${T.status_draft}</span>` : '';
         const meta = [p.language, p.stars ? '★ ' + p.stars : '', (p.tags || []).join(', ')].filter(Boolean).join(' · ');
         div.innerHTML = img +
           `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>` +
@@ -1532,7 +2153,7 @@
              <button class="btn danger small" onclick="deleteProject('${p.id}')">✕</button>
            </div>`;
         div.querySelector('.proj-name').textContent = p.title;
-        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
+        if (badge || draft) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge + ' ' + draft);
         div.querySelector('.proj-meta').textContent = meta;
         list.appendChild(div);
       });
@@ -1549,6 +2170,7 @@
         const btn = document.createElement('button');
         btn.textContent = '✕';
         btn.onclick = () => { modalGallery.splice(i, 1); renderModalGallery(); };
+        div.addEventListener('click', e => { if (!e.target.closest('button')) openThumbPreview(img.src); });
         div.append(img, btn);
         box.appendChild(div);
       });
@@ -1563,10 +2185,12 @@
       el('pm-image').value = p.image || '';
       el('pm-url').value = p.url || '';
       el('pm-repo_url').value = p.repo_url || '';
+      el('pm-video').value = p.video || '';
       el('pm-tags').value = (p.tags || []).join(', ');
       el('pm-language').value = p.language || '';
       el('pm-long_de').value = p.long_de || '';
       el('pm-long_en').value = p.long_en || '';
+      el('pm-published').value = (id && p.published === false) ? '0' : '1';
       modalGallery = [...(p.gallery || [])];
       renderModalGallery();
       el('proj-modal').classList.add('open');
@@ -1580,11 +2204,13 @@
         image:    el('pm-image').value,
         url:      el('pm-url').value,
         repo_url: el('pm-repo_url').value,
+        video:    el('pm-video').value,
         tags:     el('pm-tags').value,
         language: el('pm-language').value,
         long_de:  el('pm-long_de').value,
         long_en:  el('pm-long_en').value,
         gallery:  modalGallery,
+        published: el('pm-published').value === '1',
       };
       if (editingId) {
         const old = SITE.projects.find(x => x.id === editingId);
@@ -1668,6 +2294,22 @@
         if (uploadCb) uploadCb(data.url);
         toast(T.uploaded);
       } else { toast(T.error_upload, true); }
+      e.target.value = '';
+    });
+
+    el('font-input').addEventListener('change', async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const fd = new FormData();
+      fd.append('file', f);
+      const r = await fetch('api/upload-font', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        toast(T.font_uploaded);
+        loadSite();            // setzt font='custom' und füllt die Auswahl
+        reloadPreview();
+      } else {
+        toast(T.font_upload_err, true);
+      }
       e.target.value = '';
     });
 

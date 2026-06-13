@@ -7,6 +7,7 @@ Zwei Server in einem Prozess:
 """
 import errno
 import hashlib
+import hmac
 import html as html_mod
 import io
 import ipaddress
@@ -140,9 +141,45 @@ MESSAGES_MAX = 200
 # Brute-Force-Schutz
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
+_failed_login_times: list[float]         = []   # alle Fehlversuche (rollierend, für 24h-Sensor)
 RATE_LIMIT_MAX    = 5
 RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
+
+
+def failed_logins_24h() -> int:
+    """Fehlgeschlagene Logins der letzten 24 Stunden (Admin + Mitglieder)."""
+    cutoff = time.time() - 86400
+    _failed_login_times[:] = [t for t in _failed_login_times if t >= cutoff]
+    return len(_failed_login_times)
+
+# Kontakt-Captcha: stateless signiertes Rechen-Captcha (Secret pro Laufzeit)
+_captcha_secret: bytes = secrets.token_bytes(32)
+
+
+def make_captcha() -> dict:
+    """Erzeugt eine einfache Rechenaufgabe + signiertes Token (kein State nötig)."""
+    a, b = secrets.randbelow(9) + 1, secrets.randbelow(9) + 1
+    ts = int(time.time())
+    payload = f'{a}.{b}.{ts}'
+    sig = hmac.new(_captcha_secret, payload.encode(), hashlib.sha256).hexdigest()[:16]
+    return {'question': f'{a} + {b}', 'token': f'{payload}.{sig}'}
+
+
+def check_captcha(token: str, answer: str) -> bool:
+    """Prüft Token-Signatur, Alter (≤10 min) und ob die Antwort stimmt."""
+    try:
+        a, b, ts, sig = (token or '').split('.')
+        payload = f'{a}.{b}.{ts}'
+        expected = hmac.new(_captcha_secret, payload.encode(), hashlib.sha256).hexdigest()[:16]
+        if not hmac.compare_digest(sig, expected):
+            return False
+        if time.time() - int(ts) > 600:
+            return False
+        return int(answer) == int(a) + int(b)
+    except (ValueError, AttributeError, TypeError):
+        return False
+
 
 # Besucherzähler — Tages-Dedup in-memory (Privacy: nur gesalzene Hashes)
 _visit_salt:  str = secrets.token_hex(16)
@@ -150,7 +187,26 @@ _seen_today:  set[str] = set()
 _seen_day:    str = ''
 
 ALLOWED_UPLOAD_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+ALLOWED_FONT_EXT = {'.woff2', '.woff', '.ttf', '.otf'}
+FONTS_DIR = Path(_BASE) / 'fonts'
 STATS_KEEP_DAYS = 365
+
+# Mitgelieferte Web-Fonts (selbst gehostet, kein externer Request):
+# Wert → (CSS-Familienname, Fallback-Stack, [(weight, dateiname), …])
+WEB_FONTS = {
+    'inter':        ("Inter",        "sans-serif",  [(400, 'Inter-400.woff2'), (700, 'Inter-700.woff2')]),
+    'poppins':      ("Poppins",      "sans-serif",  [(400, 'Poppins-400.woff2'), (700, 'Poppins-600.woff2')]),
+    'montserrat':   ("Montserrat",   "sans-serif",  [(400, 'Montserrat-400.woff2'), (700, 'Montserrat-700.woff2')]),
+    'lato':         ("Lato",         "sans-serif",  [(400, 'Lato-400.woff2'), (700, 'Lato-700.woff2')]),
+    'merriweather': ("Merriweather", "serif",       [(400, 'Merriweather-400.woff2'), (700, 'Merriweather-700.woff2')]),
+}
+SYSTEM_FONTS = {
+    'system':  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    'classic': "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    'rounded': "'Trebuchet MS', 'Segoe UI', Verdana, sans-serif",
+    'serif':   "Georgia, 'Times New Roman', serif",
+    'mono':    "ui-monospace, 'Cascadia Code', Consolas, monospace",
+}
 
 DEFAULT_SITE = {
     'profile': {
@@ -161,13 +217,17 @@ DEFAULT_SITE = {
     'projects': [],
     'design': {
         'accent': '#58a6ff', 'mode': 'dark', 'layout': 'cards',
-        'show_counter': True, 'public_url': '',
+        'show_counter': True, 'show_nav': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'storage_subdir': '',
         'welcome_from': '',
         'contact_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
+        'font': 'system', 'custom_css': '',
+        'custom_font': '', 'custom_font_name': '',
+        'support_url': '', 'support_label': '',
+        'booking_url': '', 'booking_label': '',
     },
     'posts': [],
     'legal': {
@@ -179,16 +239,135 @@ DEFAULT_SITE = {
         'timeline': [],
         'news': [],
         'links': [],
+        'faq': [],
+        'services': [],
+        'testimonials': [],
+        'team': [],
+        'events': [],
+        'location': {},
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
+    'section_order': [
+        'news', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+    ],
+    'hidden_sections': [],
 }
+
+# Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
+SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
 
 def render_md(text: str) -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
+
+
+# Social-Plattform-Erkennung anhand des Hostnamens (für Auto-Icons bei Links)
+_SOCIAL_HOSTS = {
+    'github.com': 'github', 'gitlab.com': 'gitlab',
+    'instagram.com': 'instagram', 'tiktok.com': 'tiktok',
+    'facebook.com': 'facebook', 'fb.com': 'facebook',
+    'linkedin.com': 'linkedin', 'youtube.com': 'youtube', 'youtu.be': 'youtube',
+    'twitter.com': 'x', 'x.com': 'x',
+    't.me': 'telegram', 'telegram.org': 'telegram',
+    'discord.com': 'discord', 'discord.gg': 'discord', 'discordapp.com': 'discord',
+    'wa.me': 'whatsapp', 'whatsapp.com': 'whatsapp',
+    'bsky.app': 'bluesky', 'xing.com': 'xing',
+    'twitch.tv': 'twitch', 'reddit.com': 'reddit',
+    'mastodon.social': 'mastodon',
+}
+
+
+def link_platform(url: str) -> str:
+    """Liefert den Plattform-Schlüssel für eine URL (exakter Host-/Subdomain-Vergleich)."""
+    host = (urlparse(url or '').hostname or '').lower().removeprefix('www.')
+    if not host:
+        return ''
+    for h, key in _SOCIAL_HOSTS.items():
+        if host == h or host.endswith('.' + h):
+            return key
+    if 'mastodon' in host:  # verteilte Mastodon-Instanzen grob erkennen
+        return 'mastodon'
+    return ''
+
+
+public_app.jinja_env.globals['link_platform'] = link_platform
+
+
+# Support-Plattform-Erkennung (für den Spenden-/Support-Button)
+_SUPPORT_HOSTS = {
+    'buymeacoffee.com': 'buymeacoffee', 'ko-fi.com': 'kofi',
+    'paypal.com': 'paypal', 'paypal.me': 'paypal',
+    'patreon.com': 'patreon', 'liberapay.com': 'liberapay',
+}
+
+
+def support_platform(url: str) -> str:
+    """Plattform-Schlüssel für den Support-Button (Default: 'heart')."""
+    host = (urlparse(url or '').hostname or '').lower().removeprefix('www.')
+    if host == 'github.com' and '/sponsors/' in (urlparse(url).path or ''):
+        return 'githubsponsors'
+    for h, key in _SUPPORT_HOSTS.items():
+        if host == h or host.endswith('.' + h):
+            return key
+    return 'heart'
+
+
+public_app.jinja_env.globals['support_platform'] = support_platform
+
+
+def parse_video(url: str) -> tuple[str, str]:
+    """Erkennt YouTube/Vimeo und liefert (Anbieter, datenschutzfreundliche Embed-URL)."""
+    u = (url or '').strip()
+    if not u:
+        return '', ''
+    p = urlparse(u)
+    host = (p.hostname or '').lower().removeprefix('www.')
+    vid = ''
+    if host == 'youtu.be':
+        vid = p.path.lstrip('/').split('/')[0]
+        return ('youtube', f'https://www.youtube-nocookie.com/embed/{vid}') if vid else ('', '')
+    if host.endswith('youtube.com'):
+        if p.path == '/watch':
+            from urllib.parse import parse_qs
+            vid = (parse_qs(p.query).get('v') or [''])[0]
+        elif p.path.startswith(('/embed/', '/shorts/')):
+            vid = p.path.split('/')[2]
+        if re.fullmatch(r'[A-Za-z0-9_-]{6,20}', vid):
+            return 'youtube', f'https://www.youtube-nocookie.com/embed/{vid}'
+        return '', ''
+    if host == 'vimeo.com' or host.endswith('.vimeo.com'):
+        vid = next((seg for seg in p.path.split('/') if seg.isdigit()), '')
+        return ('vimeo', f'https://player.vimeo.com/video/{vid}') if vid else ('', '')
+    return '', ''
+
+
+public_app.jinja_env.globals['parse_video'] = parse_video
+public_app.jinja_env.globals['render_md'] = render_md
+
+
+def font_css(design: dict) -> tuple[str, str]:
+    """Liefert (font-family-Stack, @font-face-CSS) für die gewählte Schrift."""
+    f = design.get('font') or 'system'
+    if f in SYSTEM_FONTS:
+        return SYSTEM_FONTS[f], ''
+    if f in WEB_FONTS:
+        family, fallback, files = WEB_FONTS[f]
+        faces = ''
+        for weight, fn in files:
+            faces += (f"@font-face{{font-family:'{family}';font-style:normal;"
+                      f"font-weight:{weight};font-display:swap;"
+                      f"src:url('/fonts/{fn}') format('woff2');}}\n")
+        return f"'{family}', {fallback}", faces
+    if f == 'custom' and design.get('custom_font'):
+        url = design['custom_font']
+        face = (f"@font-face{{font-family:'CustomFont';font-display:swap;"
+                f"src:url('{url}');}}\n")
+        return "'CustomFont', sans-serif", face
+    return SYSTEM_FONTS['system'], ''
 
 
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
@@ -403,6 +582,7 @@ def is_rate_limited(ip: str) -> bool:
 
 def record_failed_attempt(ip: str) -> None:
     now = time.time()
+    _failed_login_times.append(now)
     _failed_attempts[ip].append(now)
     recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
     _failed_attempts[ip] = recent
@@ -631,6 +811,20 @@ def _is_own_host(host: str, own: str) -> bool:
     return host == own or host.endswith('.' + own)
 
 
+def _is_local_host(host: str) -> bool:
+    """True für private/lokale Hosts (interne Aufrufe), die als Referrer keinen Sinn ergeben."""
+    h = host.split(':')[0].strip().lower()
+    if not h:
+        return True
+    if h == 'localhost' or h.endswith(('.local', '.lan', '.internal', '.home', '.home.arpa')):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+    except ValueError:
+        return '.' not in h   # bloßer Hostname ohne Punkt (z. B. "homeassistant") = lokal
+
+
 def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     """Top-Referrer, Browser- und Länder-Verteilung aus dem Besucher-Log."""
     referrers: dict[str, int] = {}
@@ -641,7 +835,7 @@ def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
         if v.get('bot'):
             continue
         host = urlparse(v.get('ref') or '').netloc.lower()
-        if host and not _is_own_host(host, own):
+        if host and not _is_own_host(host, own) and not _is_local_host(host):
             referrers[host] = referrers.get(host, 0) + 1
         b = _browser_name(v.get('ua') or '')
         browsers[b] = browsers.get(b, 0) + 1
@@ -933,24 +1127,51 @@ def push_ha_sensors() -> None:
     if not SUPERVISOR_TOKEN:
         return
     stats = load_stats()
+    site = load_site()
     today = stats['days'].get(date.today().isoformat(), {'views': 0, 'uniques': 0})
+    storage_ok = storage_available()
+    # Belegter Speicher aller Mitglieder-Dateien (MB) — bei SMB-Ausfall 0
+    user_mb = 0.0
+    if storage_ok:
+        try:
+            user_mb = round(sum(user_usage_bytes(u) for u in load_users()) / 1048576, 1)
+        except OSError:
+            user_mb = 0.0
     sensors = [
         ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
         ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
         ('mypage_views_today',    today['views'],        'MyPage Aufrufe heute',   'mdi:eye',           'Aufrufe'),
         ('mypage_visitors_today', today['uniques'],      'MyPage Besucher heute',  'mdi:account',       'Besucher'),
+        ('mypage_user_storage',   user_mb,               'MyPage Speicher Benutzerdateien', 'mdi:harddisk', 'MB'),
+        ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
+        ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
+        ('mypage_members',        len(load_users()),     'MyPage Benutzer',         'mdi:account-multiple', 'Benutzer'),
+        ('mypage_projects',       len(site.get('projects', [])), 'MyPage Projekte',  'mdi:folder-multiple', 'Projekte'),
+        ('mypage_posts',          len(site.get('posts', [])),    'MyPage Blog-Beiträge', 'mdi:post',     'Beiträge'),
+        ('mypage_albums',         len(site.get('albums', [])),   'MyPage Fotoalben', 'mdi:image-multiple', 'Alben'),
+    ]
+    # Binary-Sensoren (state on/off)
+    binary = [
+        ('mypage_storage_online', storage_ok,  'MyPage Speicher erreichbar', 'mdi:nas',      'connectivity'),
+        ('mypage_maintenance',    bool(site['design'].get('maintenance')), 'MyPage Wartungsmodus', 'mdi:wrench', None),
     ]
     headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
-    for sid, state, name, icon, unit in sensors:
-        try:
+    try:
+        for sid, state, name, icon, unit in sensors:
             http.post(f'http://supervisor/core/api/states/sensor.{sid}',
                       headers=headers, timeout=10,
                       json={'state': state,
                             'attributes': {'friendly_name': name, 'icon': icon,
                                            'unit_of_measurement': unit}})
-        except Exception as e:
-            log.warning("HA-Sensor '%s' konnte nicht aktualisiert werden: %s", sid, e)
-            return
+        for bid, on, name, icon, dclass in binary:
+            attrs = {'friendly_name': name, 'icon': icon}
+            if dclass:
+                attrs['device_class'] = dclass
+            http.post(f'http://supervisor/core/api/states/binary_sensor.{bid}',
+                      headers=headers, timeout=10,
+                      json={'state': 'on' if on else 'off', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Sensoren konnten nicht aktualisiert werden: %s", e)
 
 
 def _sensor_worker() -> None:
@@ -966,17 +1187,43 @@ def _sensor_worker() -> None:
 
 def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
     p = existing or {'id': uuid.uuid4().hex[:12]}
-    p['date']     = _clean_str(raw.get('date'), 10)
-    p['title_de'] = _clean_str(raw.get('title_de'), 150)
-    p['title_en'] = _clean_str(raw.get('title_en'), 150)
-    p['text_de']  = _clean_str(raw.get('text_de'), 30000)
-    p['text_en']  = _clean_str(raw.get('text_en'), 30000)
-    p['image']    = _clean_str(raw.get('image'), 500)
+    p['date']      = _clean_str(raw.get('date'), 10)
+    p['title_de']  = _clean_str(raw.get('title_de'), 150)
+    p['title_en']  = _clean_str(raw.get('title_en'), 150)
+    p['text_de']   = _clean_str(raw.get('text_de'), 30000)
+    p['text_en']   = _clean_str(raw.get('text_en'), 30000)
+    p['image']     = _clean_str(raw.get('image'), 500)
+    p['video']     = _clean_str(raw.get('video'), 500)
+    gallery = raw.get('gallery') or []
+    if isinstance(gallery, list):
+        p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:30]
+    else:
+        p.setdefault('gallery', [])
+    p['published'] = bool(raw.get('published', True))
     return p
 
 
-def sorted_posts(site: dict) -> list:
-    return sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
+def post_status(p: dict) -> str:
+    """'draft' (Entwurf), 'scheduled' (Datum in Zukunft) oder 'published'."""
+    if not p.get('published', True):
+        return 'draft'
+    if (p.get('date') or '') > date.today().isoformat():
+        return 'scheduled'
+    return 'published'
+
+
+def post_visible(p: dict) -> bool:
+    """Öffentlich sichtbar: veröffentlicht und Datum nicht in der Zukunft."""
+    return post_status(p) == 'published'
+
+
+def project_visible(p: dict) -> bool:
+    return bool(p.get('published', True))
+
+
+def sorted_posts(site: dict, public_only: bool = False) -> list:
+    posts = sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
+    return [p for p in posts if post_visible(p)] if public_only else posts
 
 
 def _albums_for_public(site: dict) -> list:
@@ -1117,11 +1364,14 @@ def _normalize_project(raw: dict, existing: dict | None = None) -> dict:
     if isinstance(tags, str):
         tags = [t.strip() for t in tags.split(',')]
     p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
+    p['video'] = _clean_str(raw.get('video'), 500)
+    p['published'] = bool(raw.get('published', True))
     return p
 
 
 def _has_detail(p: dict) -> bool:
-    return bool((p.get('long_de') or p.get('long_en') or '').strip() or p.get('gallery'))
+    return bool((p.get('long_de') or p.get('long_en') or '').strip()
+                or p.get('gallery') or p.get('video'))
 
 
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
@@ -1222,6 +1472,75 @@ def api_site():
     return jsonify(load_site())
 
 
+def _mymemory_translate(text: str, src: str, dst: str) -> str:
+    """Übersetzt einen kurzen Textabschnitt über MyMemory (kostenlos, kein Key)."""
+    email = (load_config().get('translate_email') or '').strip()
+
+    def _call(with_email: bool) -> dict:
+        params = {'q': text, 'langpair': f'{src}|{dst}'}
+        if with_email and email:
+            params['de'] = email
+        r = http.get('https://api.mymemory.translated.net/get', params=params, timeout=15)
+        r.raise_for_status()
+        return r.json()
+
+    data = _call(bool(email))
+    # Ungültige translate_email → MyMemory antwortet 403 INVALID EMAIL.
+    # Dann ohne E-Mail (anonymes Limit) erneut versuchen, statt komplett zu scheitern.
+    if (data.get('responseStatus') != 200 and email
+            and 'EMAIL' in str(data.get('responseDetails', '')).upper()):
+        log.warning("translate_email ungültig ('%s') — nutze anonymes Übersetzungs-Limit", email)
+        data = _call(False)
+    if data.get('responseStatus') == 200:
+        return (data.get('responseData') or {}).get('translatedText', '')
+    raise ValueError(data.get('responseDetails') or 'translation failed')
+
+
+def _split_for_translation(text: str, limit: int = 450) -> list[str]:
+    """Text an Zeilen-/Satzgrenzen in Stücke ≤ limit teilen (MyMemory-Limit)."""
+    chunks, buf = [], ''
+    # zuerst nach Zeilen, dann zu lange Zeilen nach Sätzen
+    for line in text.split('\n'):
+        if len(line) > limit:
+            for part in re.split(r'(?<=[.!?]) ', line):
+                while len(part) > limit:  # Notfall: hart schneiden
+                    chunks.append(part[:limit]); part = part[limit:]
+                if len(buf) + len(part) + 1 > limit:
+                    chunks.append(buf); buf = part
+                else:
+                    buf = f'{buf} {part}'.strip()
+        else:
+            if len(buf) + len(line) + 1 > limit:
+                chunks.append(buf); buf = line
+            else:
+                buf = f'{buf}\n{line}' if buf else line
+    if buf:
+        chunks.append(buf)
+    return chunks or ['']
+
+
+@admin_app.route('/api/translate', methods=['POST'])
+def api_translate():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    text = _clean_str(raw.get('text'), 20000)
+    src = raw.get('from') if raw.get('from') in ('de', 'en') else 'de'
+    dst = raw.get('to') if raw.get('to') in ('de', 'en') else 'en'
+    if not text.strip() or src == dst:
+        return jsonify({'text': text})
+    try:
+        out = []
+        for chunk in _split_for_translation(text):
+            out.append(_mymemory_translate(chunk, src, dst) if chunk.strip() else chunk)
+            time.sleep(0.3)  # höflich zur kostenlosen API
+        return jsonify({'text': '\n'.join(out) if '\n' in text else ' '.join(out).strip()})
+    except Exception as e:
+        log.warning("Übersetzung fehlgeschlagen: %s", e)
+        return jsonify({'error': 'translation failed'}), 502
+
+
 @admin_app.route('/api/profile', methods=['POST'])
 def api_profile():
     err = _api_auth()
@@ -1259,10 +1578,26 @@ def api_design():
         d['mode'] = raw['mode']
     if raw.get('layout') in ('cards', 'list', 'minimal'):
         d['layout'] = raw['layout']
+    if raw.get('font') in (set(SYSTEM_FONTS) | set(WEB_FONTS) | {'custom'}):
+        d['font'] = raw['font']
+    if 'custom_css' in raw:
+        # '<' komplett entfernen — in CSS nie nötig, macht jeden Tag-Ausbruch
+        # aus dem <style>-Block unmöglich (auch </style><script>)
+        d['custom_css'] = _clean_str(raw['custom_css'], 10000).replace('<', '')
     if 'public_url' in raw:
         url = _clean_str(raw['public_url'], 200).rstrip('/')
         d['public_url'] = url if url.startswith(('http://', 'https://')) or not url else ''
-    for flag in ('show_counter', 'contact_enabled', 'maintenance'):
+    if 'support_url' in raw:
+        su = _clean_str(raw['support_url'], 500)
+        d['support_url'] = su if su.startswith(('http://', 'https://')) or not su else ''
+    if 'support_label' in raw:
+        d['support_label'] = _clean_str(raw['support_label'], 40)
+    if 'booking_url' in raw:
+        bu = _clean_str(raw['booking_url'], 500)
+        d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
+    if 'booking_label' in raw:
+        d['booking_label'] = _clean_str(raw['booking_label'], 40)
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
@@ -1307,6 +1642,74 @@ def api_sections():
             'url':      _clean_str(e.get('url'), 500),
         } for e in raw['links'][:100]
             if isinstance(e, dict) and _clean_str(e.get('url'), 500).startswith(('http://', 'https://'))]
+    if isinstance(raw.get('faq'), list):
+        sec['faq'] = [{
+            'q_de': _clean_str(e.get('q_de'), 300),
+            'q_en': _clean_str(e.get('q_en'), 300),
+            'a_de': _clean_str(e.get('a_de'), 3000),
+            'a_en': _clean_str(e.get('a_en'), 3000),
+        } for e in raw['faq'][:50]
+            if isinstance(e, dict) and (_clean_str(e.get('q_de'), 300) or _clean_str(e.get('q_en'), 300))]
+    if isinstance(raw.get('services'), list):
+        sec['services'] = [{
+            'icon':     _clean_str(e.get('icon'), 8),
+            'title_de': _clean_str(e.get('title_de'), 120),
+            'title_en': _clean_str(e.get('title_en'), 120),
+            'desc_de':  _clean_str(e.get('desc_de'), 600),
+            'desc_en':  _clean_str(e.get('desc_en'), 600),
+            'price':    _clean_str(e.get('price'), 60),
+        } for e in raw['services'][:40]
+            if isinstance(e, dict) and (_clean_str(e.get('title_de'), 120) or _clean_str(e.get('title_en'), 120))]
+    if isinstance(raw.get('testimonials'), list):
+        sec['testimonials'] = [{
+            'quote_de': _clean_str(e.get('quote_de'), 800),
+            'quote_en': _clean_str(e.get('quote_en'), 800),
+            'name':     _clean_str(e.get('name'), 120),
+            'role_de':  _clean_str(e.get('role_de'), 120),
+            'role_en':  _clean_str(e.get('role_en'), 120),
+            'avatar':   _clean_str(e.get('avatar'), 500),
+        } for e in raw['testimonials'][:40]
+            if isinstance(e, dict) and (_clean_str(e.get('quote_de'), 800) or _clean_str(e.get('quote_en'), 800))]
+    if isinstance(raw.get('team'), list):
+        sec['team'] = [{
+            'name':    _clean_str(e.get('name'), 120),
+            'role_de': _clean_str(e.get('role_de'), 120),
+            'role_en': _clean_str(e.get('role_en'), 120),
+            'photo':   _clean_str(e.get('photo'), 500),
+            'bio_de':  _clean_str(e.get('bio_de'), 600),
+            'bio_en':  _clean_str(e.get('bio_en'), 600),
+        } for e in raw['team'][:40]
+            if isinstance(e, dict) and _clean_str(e.get('name'), 120)]
+    if isinstance(raw.get('events'), list):
+        sec['events'] = [{
+            'date':     _clean_str(e.get('date'), 30),
+            'title_de': _clean_str(e.get('title_de'), 160),
+            'title_en': _clean_str(e.get('title_en'), 160),
+            'location': _clean_str(e.get('location'), 160),
+            'url':      _clean_str(e.get('url'), 500) if _clean_str(e.get('url'), 500).startswith(('http://', 'https://')) else '',
+        } for e in raw['events'][:60]
+            if isinstance(e, dict) and (_clean_str(e.get('title_de'), 160) or _clean_str(e.get('title_en'), 160))]
+    if isinstance(raw.get('location'), dict):
+        L = raw['location']
+        def _coord(v):
+            try:
+                return f"{float(str(v).strip()):.6f}"
+            except (ValueError, TypeError):
+                return ''
+        sec['location'] = {
+            'name':     _clean_str(L.get('name'), 120),
+            'address':  _clean_str(L.get('address'), 200),
+            'hours_de': _clean_str(L.get('hours_de'), 500),
+            'hours_en': _clean_str(L.get('hours_en'), 500),
+            'lat':      _coord(L.get('lat')),
+            'lng':      _coord(L.get('lng')),
+            'show_map': bool(L.get('show_map')),
+        }
+    if isinstance(raw.get('section_order'), list):
+        order = [k for k in raw['section_order'] if isinstance(k, str) and k in SECTION_KEYS]
+        site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
+    if isinstance(raw.get('hidden_sections'), list):
+        site['hidden_sections'] = [k for k in raw['hidden_sections'] if isinstance(k, str) and k in SECTION_KEYS]
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
@@ -1784,9 +2187,9 @@ def api_export():
     legal = site.get('legal', {})
     pages = {'index.html': '/?static=1'}
     for p in site['projects']:
-        if _has_detail(p):
+        if _has_detail(p) and project_visible(p):
             pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
-    posts = sorted_posts(site)
+    posts = sorted_posts(site, public_only=True)
     if posts:
         pages['blog/index.html'] = '/blog'
         for po in posts:
@@ -1810,6 +2213,33 @@ def api_export():
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-export-{date.today().isoformat()}.zip')
+
+
+@admin_app.route('/api/upload-font', methods=['POST'])
+def api_upload_font():
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in ALLOWED_FONT_EXT:
+        return jsonify({'error': 'font type not allowed'}), 400
+    name = uuid.uuid4().hex + ext
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None:
+        abort(400)
+    f.save(target)
+    # Anzeigename aus dem Originaldateinamen (ohne Endung)
+    display = secure_filename(Path(f.filename).stem)[:40] or 'Eigene Schrift'
+    site = load_site()
+    site['design']['custom_font'] = '/uploads/' + name
+    site['design']['custom_font_name'] = display
+    site['design']['font'] = 'custom'
+    save_site(site)
+    log.info("Eigene Schrift hochgeladen: %s", display)
+    return jsonify({'ok': True, 'name': display})
 
 
 @admin_app.route('/api/upload', methods=['POST'])
@@ -1949,6 +2379,15 @@ def public_uploads(filename: str):
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
 
 
+@public_app.route('/fonts/<path:filename>')
+def public_fonts(filename: str):
+    safe = secure_filename(filename)
+    target = safe_under(FONTS_DIR, safe)
+    if target is None or not target.is_file():
+        abort(404)
+    return send_from_directory(FONTS_DIR, safe, max_age=2592000)  # 30 Tage
+
+
 def effective_watermark() -> str:
     """Wasserzeichen-Text: eigener Text > © + Domain > © MyPage."""
     site = load_site()
@@ -2037,6 +2476,11 @@ def favicon():
     return '', 204
 
 
+@admin_app.route('/favicon.ico')
+def admin_favicon():
+    return send_from_directory(_BASE, 'icon.png', max_age=86400)
+
+
 @public_app.route('/robots.txt')
 def robots():
     return (f'User-agent: *\nAllow: /\nSitemap: {_base_url()}/sitemap.xml\n',
@@ -2048,8 +2492,8 @@ def sitemap():
     site = load_site()
     base = _base_url()
     urls = [base + '/']
-    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p)]
-    posts = sorted_posts(site)
+    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
+    posts = sorted_posts(site, public_only=True)
     if posts:
         urls.append(base + '/blog')
         urls += [f"{base}/blog/{p['id']}" for p in posts]
@@ -2059,6 +2503,81 @@ def sitemap():
         xml += f'  <url><loc>{u}</loc></url>\n'
     xml += '</urlset>\n'
     return xml, 200, {'Content-Type': 'application/xml'}
+
+
+@public_app.route('/icon.png')
+def pwa_icon():
+    site = load_site()
+    icon = site['design'].get('favicon') or site['profile'].get('avatar') or ''
+    if icon.startswith('/uploads/'):
+        return send_from_directory(UPLOADS_DIR, secure_filename(icon.removeprefix('/uploads/')), max_age=86400)
+    return send_from_directory(_BASE, 'icon.png', max_age=86400)
+
+
+@public_app.route('/manifest.json')
+def manifest():
+    site = load_site()
+    name = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    theme = '#f6f8fa' if site['design'].get('mode') == 'light' else '#0d1117'
+    data = {
+        'name': name, 'short_name': name[:18], 'start_url': '/', 'scope': '/',
+        'display': 'standalone', 'background_color': theme, 'theme_color': theme,
+        'icons': [
+            {'src': '/icon.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': '/icon.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'},
+        ],
+    }
+    return jsonify(data), 200, {'Cache-Control': 'no-cache'}
+
+
+@public_app.route('/sw.js')
+def service_worker():
+    # Minimaler Service Worker: macht die Seite installierbar, Network-first
+    js = (
+        "self.addEventListener('install', e => self.skipWaiting());\n"
+        "self.addEventListener('activate', e => self.clients.claim());\n"
+        "self.addEventListener('fetch', e => {\n"
+        "  if (e.request.method !== 'GET') return;\n"
+        "  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));\n"
+        "});\n"
+    )
+    return js, 200, {'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache'}
+
+
+@public_app.route('/feed.xml')
+def rss_feed():
+    site = load_site()
+    posts = sorted_posts(site, public_only=True)
+    if not posts:
+        abort(404)
+    base = _base_url()
+    lang = detect_language(request)
+    loc = _loc_factory(lang)
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    items = ''
+    for p in posts[:30]:
+        link = f"{base}/blog/{p['id']}"
+        # YYYY-MM-DD → RFC-822 (für RSS-Reader)
+        try:
+            pub = datetime.strptime(p.get('date', ''), '%Y-%m-%d').strftime('%a, %d %b %Y 00:00:00 +0000')
+        except ValueError:
+            pub = ''
+        teaser = re.sub('<[^>]+>', '', render_md(loc(p, 'text')))[:300]
+        items += (f'    <item>\n'
+                  f'      <title>{esc(loc(p, "title"))}</title>\n'
+                  f'      <link>{esc(link)}</link>\n'
+                  f'      <guid isPermaLink="true">{esc(link)}</guid>\n'
+                  + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
+                  + f'      <description>{esc(teaser)}</description>\n'
+                  f'    </item>\n')
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<rss version="2.0"><channel>\n'
+           f'    <title>{esc(title)}</title>\n'
+           f'    <link>{esc(base)}/blog</link>\n'
+           f'    <description>{esc(loc(site["profile"], "tagline"))}</description>\n'
+           f'{items}</channel></rss>\n')
+    return xml, 200, {'Content-Type': 'application/rss+xml; charset=utf-8'}
 
 
 @public_app.errorhandler(404)
@@ -2100,18 +2619,63 @@ def public_index():
     loc = _loc_factory(lang)
     email = site['profile'].get('email', '')
     email_parts = email.split('@', 1) if '@' in email else None
-    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects']]
+    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
     static_export = bool(request.args.get('static'))
+    font_family, font_faces = font_css(site['design'])
+    sections = site.get('sections', {})
+    albums = _albums_for_public(site)
+    latest_posts = sorted_posts(site, public_only=True)[:3]
+    contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
+
+    loc_block = sections.get('location') or {}
+    loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
+
+    # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
+    section_defs = {
+        'news':         ('news',         'news_heading',         bool(sections.get('news'))),
+        'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
+        'services':     ('services',     'services_heading',     bool(sections.get('services'))),
+        'projects':     ('projects',     'projects',             bool(projects)),
+        'skills':       ('skills',       'skills_heading',       bool(sections.get('skills'))),
+        'testimonials': ('testimonials', 'testimonials_heading', bool(sections.get('testimonials'))),
+        'photos':       ('photos',       'albums_heading',       bool(albums)),
+        'team':         ('team',         'team_heading',         bool(sections.get('team'))),
+        'timeline':     ('timeline',     'timeline_heading',     bool(sections.get('timeline'))),
+        'events':       ('events',       'events_heading',       bool(sections.get('events'))),
+        'links':        ('links',        'links_heading',        bool(sections.get('links'))),
+        'faq':          ('faq',          'faq_heading',          bool(sections.get('faq'))),
+        'location':     ('standort',     'location_heading',     loc_present),
+    }
+    # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
+    stored = [k for k in (site.get('section_order') or []) if k in section_defs]
+    section_order = stored + [k for k in SECTION_KEYS if k not in stored]
+    # Ausgeblendete Abschnitte entfernen (Inhalt bleibt erhalten, nur nicht sichtbar)
+    hidden = set(site.get('hidden_sections') or [])
+    section_order = [k for k in section_order if k not in hidden]
+
+    # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
+    nav_items = []
+    if site['design'].get('show_nav', True):
+        for key in section_order:
+            anchor, label_key, present = section_defs[key]
+            if present:
+                nav_items.append({'anchor': anchor, 'label': t.get(label_key, label_key)})
+        if contact_enabled:
+            nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
+
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
+                           font_family=font_family, font_faces=font_faces,
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
-                           sections=site.get('sections', {}),
-                           albums=_albums_for_public(site),
+                           sections=sections,
+                           albums=albums,
                            album_protect=bool(site.get('album_protect')),
-                           latest_posts=sorted_posts(site)[:3],
+                           latest_posts=latest_posts,
+                           nav_items=nav_items,
+                           section_order=section_order,
                            static_export=static_export,
-                           contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,
+                           contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),
@@ -2125,7 +2689,7 @@ def blog_index():
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    posts = sorted_posts(site)
+    posts = sorted_posts(site, public_only=True)
     if not posts:
         abort(404)
     count_visit(request)
@@ -2142,7 +2706,7 @@ def blog_post(pid: str):
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
     post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
-    if post is None:
+    if post is None or not post_visible(post):
         abort(404)
     count_visit(request)
     t = load_translations(lang)
@@ -2159,7 +2723,7 @@ def project_detail(pid: str):
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
     proj = next((p for p in site['projects'] if p.get('id') == pid), None)
-    if proj is None or not _has_detail(proj):
+    if proj is None or not _has_detail(proj) or not project_visible(proj):
         abort(404)
     count_visit(request)
     t = load_translations(lang)
@@ -2348,6 +2912,11 @@ def member_delete():
     return redirect('/bereich')
 
 
+@public_app.route('/contact/captcha')
+def contact_captcha():
+    return jsonify(make_captcha())
+
+
 @public_app.route('/contact', methods=['POST'])
 def contact():
     site = load_site()
@@ -2356,6 +2925,9 @@ def contact():
     # Honeypot: Bots füllen das versteckte Feld aus → still verwerfen
     if (request.form.get('website') or '').strip():
         return jsonify({'ok': True})
+    # Rechen-Captcha gegen automatisierten Spam
+    if not check_captcha(request.form.get('captcha_token'), request.form.get('captcha_answer')):
+        return jsonify({'error': 'captcha'}), 400
     ip = get_client_ip(request)
     now = time.time()
     _contact_times[ip] = [x for x in _contact_times[ip] if now - x < 3600]
