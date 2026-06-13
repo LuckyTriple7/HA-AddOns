@@ -18,8 +18,13 @@
 | `smtp_host` | Optional: SMTP-Server — neue Kontaktnachrichten werden per E-Mail gemeldet |
 | `smtp_port` | SMTP-Port, meist 587 (STARTTLS) oder 465 (SSL) |
 | `smtp_user` / `smtp_password` | Zugangsdaten für den Mailversand (App-Passwort empfohlen) |
+| `smtp_from` | Optional: Absender-/Alias-Adresse (z. B. `noreply@deine-domain.de`). Leer = es wird `smtp_user` als Absender genutzt |
 | `smtp_to` | Empfängeradresse der Benachrichtigungen |
 | `smtp_tls` | `true` für Port 587 (STARTTLS), `false` für Port 465 (SSL) |
+| `user_upload_max_mb` | Maximale Größe pro hochgeladener Datei im Mitglieder-Bereich in MB (1–4096, Standard 200) |
+| `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
+| `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
+| `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
 
 ## Ports
 
