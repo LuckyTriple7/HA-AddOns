@@ -803,6 +803,11 @@
           <textarea id="bm-text_en" rows="10"></textarea>
         </div>
       </div>
+      <label>{{ t.field_gallery }}</label>
+      <div class="gallery-list" id="bm-gallery"></div>
+      <button class="btn secondary small" onclick="el('bm-gallery-file').click()">+ {{ t.add_images }}</button>
+      <input type="file" id="bm-gallery-file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple style="display:none">
+      <p class="hint" id="bm-gallery-progress" style="margin-top:6px"></p>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
         <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['bm-title_de','bm-title_en'],['bm-text_de','bm-text_en']])">🌐 {{ t.tr_btn }}</button>
@@ -936,6 +941,42 @@
         list.appendChild(div);
       });
     }
+    let postGallery = [];
+    let pgDragFrom = null;
+    function renderPostGallery() {
+      const box = el('bm-gallery');
+      box.innerHTML = '';
+      postGallery.forEach((u, i) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        div.draggable = true;
+        div.title = T.album_drag_hint;
+        const img = document.createElement('img'); img.src = assetUrl(u); img.draggable = false;
+        const btn = document.createElement('button'); btn.textContent = '✕';
+        btn.onclick = () => { postGallery.splice(i, 1); renderPostGallery(); };
+        div.addEventListener('dragstart', () => { pgDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { pgDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', ev => {
+          ev.preventDefault();
+          if (pgDragFrom === null || pgDragFrom === i) return;
+          const [m] = postGallery.splice(pgDragFrom, 1); postGallery.splice(i, 0, m); renderPostGallery();
+        });
+        div.append(img, btn);
+        box.appendChild(div);
+      });
+    }
+    el('bm-gallery-file').addEventListener('change', async e => {
+      const files = [...e.target.files]; e.target.value = '';
+      let done = 0;
+      for (const f of files) {
+        el('bm-gallery-progress').textContent = T.album_uploading.replace('{n}', ++done).replace('{total}', files.length);
+        const fd = new FormData(); fd.append('file', f);
+        const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+        if (r.ok) { postGallery.push((await r.json()).url); renderPostGallery(); }
+      }
+      el('bm-gallery-progress').textContent = '';
+    });
     function openPostModal(id) {
       editingPostId = id || null;
       const p = id ? SITE.posts.find(x => x.id === id) : {};
@@ -948,6 +989,8 @@
       el('bm-text_de').value = p.text_de || '';
       el('bm-text_en').value = p.text_en || '';
       el('bm-published').value = (id && p.published === false) ? '0' : '1';
+      postGallery = [...(p.gallery || [])];
+      renderPostGallery();
       el('post-modal').classList.add('open');
     }
     async function savePost() {
@@ -959,6 +1002,7 @@
         title_en: el('bm-title_en').value,
         text_de:  el('bm-text_de').value,
         text_en:  el('bm-text_en').value,
+        gallery:  postGallery,
         published: el('bm-published').value === '1',
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }

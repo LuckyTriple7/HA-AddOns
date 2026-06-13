@@ -1166,6 +1166,11 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
     p['text_en']   = _clean_str(raw.get('text_en'), 30000)
     p['image']     = _clean_str(raw.get('image'), 500)
     p['video']     = _clean_str(raw.get('video'), 500)
+    gallery = raw.get('gallery') or []
+    if isinstance(gallery, list):
+        p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:30]
+    else:
+        p.setdefault('gallery', [])
     p['published'] = bool(raw.get('published', True))
     return p
 
