@@ -138,6 +138,77 @@
     }
     .skill:hover { border-color: var(--accent); color: var(--accent); }
 
+    /* Fotoalben — horizontales Karussell */
+    .album-rail-wrap { position: relative; padding-bottom: 40px; }
+    .album-rail {
+      display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
+      scroll-behavior: smooth; padding-bottom: 4px;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .album-rail::-webkit-scrollbar { height: 8px; }
+    .album-rail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .album-card {
+      flex: 0 0 260px; scroll-snap-align: start;
+      background: var(--surf); border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s;
+    }
+    .album-arrow {
+      position: absolute; top: calc(50% - 40px); transform: translateY(-50%); z-index: 3;
+      width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--surf); color: var(--text); cursor: pointer; font-size: 1.3rem; line-height: 1;
+      display: none; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,.25);
+    }
+    .album-arrow:hover { border-color: var(--accent); color: var(--accent); }
+    .album-arrow.show { display: flex; }
+    .album-arrow.ar-prev { left: -6px; } .album-arrow.ar-next { right: -6px; }
+    @media (hover: none) { .album-arrow { display: none !important; } }
+    .album-card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+    .album-cover { position: relative; aspect-ratio: 4/3; background: var(--surf2); }
+    .album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .album-count { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; }
+    .album-body { padding: 12px 14px; }
+    .album-title { font-weight: 600; font-size: 0.98rem; }
+    .album-desc { color: var(--muted); font-size: 0.83rem; margin-top: 3px; }
+
+    /* Diashow */
+    .slideshow { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.94); flex-direction: column; }
+    .slideshow.open { display: flex; }
+    .ss-stage { flex: 1; position: relative; overflow: hidden; }
+    .ss-img { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; opacity: 0; transition: opacity .8s ease; }
+    .ss-img.show { opacity: 1; }
+    .ss-close { position: absolute; top: 14px; right: 18px; z-index: 2; background: rgba(255,255,255,.12); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; }
+    .ss-close:hover { background: rgba(255,255,255,.25); }
+    .ss-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; background: rgba(255,255,255,.1); color: #fff; border: none; width: 52px; height: 72px; font-size: 2rem; cursor: pointer; border-radius: 8px; }
+    .ss-nav:hover { background: rgba(255,255,255,.22); }
+    .ss-prev { left: 14px; } .ss-next { right: 14px; }
+    .ss-bar { display: flex; align-items: center; gap: 16px; padding: 14px 22px; color: #eee; background: rgba(0,0,0,.4); }
+    .ss-play { background: none; border: 1px solid rgba(255,255,255,.4); color: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 0.85rem; flex-shrink: 0; }
+    .ss-caption { flex: 1; font-size: 0.9rem; }
+    .ss-count { font-size: 0.82rem; color: #bbb; }
+    @media (max-width: 600px) { .ss-nav { width: 40px; height: 56px; font-size: 1.5rem; } }
+
+    /* Linksammlung */
+    .links-cta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 40px; }
+    .links-cta p { color: var(--muted); font-size: 0.9rem; margin: 0; }
+    .links-btn {
+      background: var(--surf); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    }
+    .links-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .links-overlay { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.6); align-items: flex-start; justify-content: center; overflow-y: auto; padding: 60px 16px; }
+    .links-overlay.open { display: flex; }
+    .links-box { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 540px; overflow: hidden; }
+    .links-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .links-head h3 { font-size: 1.1rem; }
+    .links-close { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; }
+    .links-close:hover { color: var(--text); }
+    .links-list { padding: 10px; }
+    .link-item { display: block; position: relative; padding: 13px 36px 13px 14px; border-radius: 8px; color: var(--text); }
+    .link-item:hover { background: var(--surf2); text-decoration: none; }
+    .link-title { display: block; font-weight: 600; font-size: 0.95rem; color: var(--accent); }
+    .link-desc { display: block; font-size: 0.84rem; color: var(--muted); margin-top: 2px; }
+    .link-ext { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.9rem; }
+
     /* Werdegang */
     .timeline { padding-bottom: 40px; }
     .tl-item { display: grid; grid-template-columns: 90px 20px 1fr; gap: 0 10px; padding-bottom: 22px; position: relative; }
@@ -355,6 +426,28 @@
     </div>
     {% endif %}
 
+    {% if albums %}
+    <h2 class="section-title">{{ t.albums_heading }}</h2>
+    <div class="album-rail-wrap">
+      <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="Zurück">‹</button>
+      <div class="album-rail" id="album-rail">
+        {% for a in albums %}
+        <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
+          <div class="album-cover">
+            <img src="{{ a.images[0] }}" alt="{{ loc(a, 'title') }}" loading="lazy">
+            <span class="album-count">{{ a.images|length }} 📷</span>
+          </div>
+          <div class="album-body">
+            <div class="album-title">{{ loc(a, 'title') }}</div>
+            {% if loc(a, 'desc') %}<p class="album-desc">{{ loc(a, 'desc') }}</p>{% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      <button class="album-arrow ar-next" onclick="railScroll(1)" aria-label="Weiter">›</button>
+    </div>
+    {% endif %}
+
     {% if sections.timeline %}
     <h2 class="section-title">{{ t.timeline_heading }}</h2>
     <div class="timeline">
@@ -368,6 +461,14 @@
         </div>
       </div>
       {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sections.links %}
+    <h2 class="section-title">{{ t.links_heading }}</h2>
+    <div class="links-cta">
+      <p>{{ t.links_subtitle }}</p>
+      <button class="links-btn" onclick="openLinks()">🔗 {{ t.links_open }}</button>
     </div>
     {% endif %}
 
@@ -393,6 +494,40 @@
     </form>
     {% endif %}
   </main>
+
+  {% if albums %}
+  <div class="slideshow" id="slideshow" aria-hidden="true">
+    <button class="ss-close" onclick="closeAlbum()" aria-label="Schließen">✕</button>
+    <button class="ss-nav ss-prev" onclick="ssStep(-1)" aria-label="Zurück">‹</button>
+    <div class="ss-stage" id="ss-stage"></div>
+    <button class="ss-nav ss-next" onclick="ssStep(1)" aria-label="Weiter">›</button>
+    <div class="ss-bar">
+      <button class="ss-play" id="ss-play" onclick="ssToggle()" aria-label="Play/Pause">⏸</button>
+      <span class="ss-caption" id="ss-caption"></span>
+      <span class="ss-count" id="ss-count"></span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if sections.links %}
+  <div class="links-overlay" id="links-overlay" aria-hidden="true" onclick="if(event.target===this)closeLinks()">
+    <div class="links-box">
+      <div class="links-head">
+        <h3>{{ t.links_heading }}</h3>
+        <button class="links-close" onclick="closeLinks()" aria-label="Schließen">✕</button>
+      </div>
+      <div class="links-list">
+        {% for l in sections.links %}
+        <a class="link-item" href="{{ l.url }}" target="_blank" rel="noopener noreferrer">
+          <span class="link-title">{{ loc(l, 'title') or l.url }}</span>
+          {% if loc(l, 'desc') %}<span class="link-desc">{{ loc(l, 'desc') }}</span>{% endif %}
+          <span class="link-ext">↗</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <footer class="site">
     <div class="wrap">
@@ -478,6 +613,115 @@
         btn.disabled = false;
       });
     }
+
+    // ── Linksammlung-Overlay ──
+    function openLinks() {
+      const o = document.getElementById('links-overlay');
+      if (o) { o.classList.add('open'); o.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
+    }
+    function closeLinks() {
+      const o = document.getElementById('links-overlay');
+      if (o) { o.classList.remove('open'); o.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeLinks();
+    });
+
+    // ── Album-Karussell (horizontales Scrollen) ──
+    const albumRail = document.getElementById('album-rail');
+    function railScroll(dir) {
+      if (albumRail) albumRail.scrollBy({ left: dir * 278, behavior: 'smooth' });
+    }
+    function updateRailArrows() {
+      if (!albumRail) return;
+      const prev = document.querySelector('.ar-prev'), next = document.querySelector('.ar-next');
+      const overflow = albumRail.scrollWidth > albumRail.clientWidth + 4;
+      prev.classList.toggle('show', overflow && albumRail.scrollLeft > 4);
+      next.classList.toggle('show', overflow && albumRail.scrollLeft < albumRail.scrollWidth - albumRail.clientWidth - 4);
+    }
+    if (albumRail) {
+      albumRail.addEventListener('scroll', updateRailArrows, { passive: true });
+      window.addEventListener('resize', updateRailArrows);
+      window.addEventListener('load', updateRailArrows);
+      updateRailArrows();
+    }
+
+    // ── Foto-Diashow ──
+    const ALBUMS = {% if albums %}{{ albums|tojson }}{% else %}[]{% endif %};
+    const ALBUM_PROTECT = {% if album_protect %}true{% else %}false{% endif %};
+    if (ALBUM_PROTECT) {
+      // Rechtsklick + Drag auf Album-/Diashow-Bildern unterbinden (Hürde, kein Vollschutz)
+      document.addEventListener('contextmenu', e => {
+        if (e.target.closest('.album-cover, .slideshow')) e.preventDefault();
+      });
+      document.addEventListener('dragstart', e => {
+        if (e.target.closest('.album-cover, .slideshow')) e.preventDefault();
+      });
+    }
+    let ssAlbum = null, ssIdx = 0, ssTimer = null, ssPlaying = true;
+    const SS_INTERVAL = 4500;
+
+    function openAlbum(i) {
+      ssAlbum = ALBUMS[i];
+      if (!ssAlbum || !ssAlbum.images.length) return;
+      ssIdx = 0; ssPlaying = true;
+      const stage = document.getElementById('ss-stage');
+      // Zwei übereinanderliegende Layer für weiche Fade-Übergänge
+      stage.innerHTML = '<img class="ss-img" id="ss-a"><img class="ss-img" id="ss-b">';
+      ssActive = 'ss-a';
+      document.getElementById('ss-a').src = ssAlbum.images[0];
+      document.getElementById('ss-a').classList.add('show');
+      updateCaption();
+      const box = document.getElementById('slideshow');
+      box.classList.add('open');
+      box.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      ssRestart();
+    }
+    let ssActive = 'ss-a';
+    function showSlide() {
+      const next = ssActive === 'ss-a' ? 'ss-b' : 'ss-a';
+      const cur = document.getElementById(ssActive), nxt = document.getElementById(next);
+      nxt.src = ssAlbum.images[ssIdx];
+      nxt.classList.add('show');
+      cur.classList.remove('show');
+      ssActive = next;
+      updateCaption();
+    }
+    function updateCaption() {
+      const lang = document.documentElement.lang;
+      const title = (lang === 'en' && ssAlbum.title_en) ? ssAlbum.title_en : (ssAlbum.title_de || ssAlbum.title_en);
+      document.getElementById('ss-caption').textContent = title || '';
+      document.getElementById('ss-count').textContent = (ssIdx + 1) + ' / ' + ssAlbum.images.length;
+    }
+    function ssStep(d) {
+      ssIdx = (ssIdx + d + ssAlbum.images.length) % ssAlbum.images.length;
+      showSlide();
+      if (ssPlaying) ssRestart();
+    }
+    function ssRestart() {
+      clearInterval(ssTimer);
+      if (ssPlaying) ssTimer = setInterval(() => ssStep(1), SS_INTERVAL);
+    }
+    function ssToggle() {
+      ssPlaying = !ssPlaying;
+      document.getElementById('ss-play').textContent = ssPlaying ? '⏸' : '▶';
+      ssRestart();
+    }
+    function closeAlbum() {
+      clearInterval(ssTimer);
+      const box = document.getElementById('slideshow');
+      box.classList.remove('open');
+      box.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', e => {
+      if (!document.getElementById('slideshow') || !document.getElementById('slideshow').classList.contains('open')) return;
+      if (e.key === 'Escape') closeAlbum();
+      else if (e.key === 'ArrowRight') ssStep(1);
+      else if (e.key === 'ArrowLeft') ssStep(-1);
+      else if (e.key === ' ') { e.preventDefault(); ssToggle(); }
+    });
   </script>
 </body>
 </html>

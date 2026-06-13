@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 
 import markdown as md_lib
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -75,6 +75,8 @@ GITHUB_API = 'https://api.github.com'
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 USERFILES_BASE.mkdir(parents=True, exist_ok=True)
+WM_CACHE_DIR = Path(_DATA) / 'wm_cache'
+WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
@@ -154,6 +156,7 @@ DEFAULT_SITE = {
         'show_counter': True, 'public_url': '',
         'site_title': '', 'footer_text': '', 'favicon': '',
         'storage_subdir': '',
+        'welcome_from': '',
         'contact_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
@@ -167,7 +170,11 @@ DEFAULT_SITE = {
         'skills': [],
         'timeline': [],
         'news': [],
+        'links': [],
     },
+    'albums': [],
+    'album_protect': False,
+    'watermark_text': '',
 }
 
 
@@ -279,7 +286,8 @@ def smtp_configured() -> bool:
     return bool((load_config().get('smtp_host') or '').strip())
 
 
-def send_email(subject: str, html_body: str, to: str | None = None) -> None:
+def send_email(subject: str, html_body: str, to: str | None = None,
+               from_addr: str | None = None) -> None:
     cfg      = load_config()
     host     = (cfg.get('smtp_host') or '').strip()
     port     = int(cfg.get('smtp_port') or 587)
@@ -287,14 +295,17 @@ def send_email(subject: str, html_body: str, to: str | None = None) -> None:
     password = (cfg.get('smtp_password') or '').strip()
     to       = (to or cfg.get('smtp_to') or '').strip()
     use_tls  = bool(cfg.get('smtp_tls', True))
+    # Absender: expliziter from_addr (z. B. noreply-Alias) > globaler smtp_from > Login-User
+    sender   = (from_addr or cfg.get('smtp_from') or user or f'mypage@{host}').strip()
     if not host or not to:
         return
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From']    = user or f'mypage@{host}'
+        msg['From']    = sender
         msg['To']      = to
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        # Envelope-Sender = sichtbarer Absender (Alias muss am Postfach erlaubt sein)
         if use_tls:
             with smtplib.SMTP(host, port, timeout=15) as s:
                 s.ehlo()
@@ -302,13 +313,13 @@ def send_email(subject: str, html_body: str, to: str | None = None) -> None:
                 s.ehlo()
                 if user and password:
                     s.login(user, password)
-                s.sendmail(msg['From'], [to], msg.as_string())
+                s.sendmail(sender, [to], msg.as_string())
         else:
             with smtplib.SMTP_SSL(host, port, timeout=15) as s:
                 if user and password:
                     s.login(user, password)
-                s.sendmail(msg['From'], [to], msg.as_string())
-        log.info("E-Mail-Benachrichtigung an '%s' gesendet", to)
+                s.sendmail(sender, [to], msg.as_string())
+        log.info("E-Mail an '%s' gesendet (Absender: %s)", to, sender)
     except Exception as e:
         log.error("E-Mail senden fehlgeschlagen: %s", e)
 
@@ -784,6 +795,16 @@ def user_usage_bytes(user: dict) -> int:
     return sum(f.stat().st_size for f in user_dir(user).iterdir() if f.is_file())
 
 
+def invalidate_user_sessions(uid: str) -> int:
+    """Beendet alle aktiven Sitzungen eines Benutzers (z. B. nach Passwortwechsel)."""
+    tokens = [t for t, v in user_sessions.items() if v[0] == uid]
+    for t in tokens:
+        del user_sessions[t]
+    if tokens:
+        save_user_sessions()
+    return len(tokens)
+
+
 def save_user_sessions() -> None:
     try:
         now = time.time()
@@ -864,7 +885,8 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
              'Wenn du dieses Konto nicht erwartet hast, kannst du diese E-Mail ignorieren.']
     send_email(subject or f'Dein Zugang zu {title}',
                _email_html(f'🔑 Dein Zugang zu {esc(title)}', [l for l in lines if l]),
-               to=user['email'])
+               to=user['email'],
+               from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
 
 def _smb_watchdog() -> None:
@@ -936,6 +958,34 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
 
 def sorted_posts(site: dict) -> list:
     return sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
+
+
+def _albums_for_public(site: dict) -> list:
+    """Alben mit Bildern; Bild-URLs auf die /album-img/-Route umgeschrieben
+    (liefert je nach Einstellung Original oder Wasserzeichen-Version)."""
+    out = []
+    for a in site.get('albums', []):
+        imgs = a.get('images') or []
+        if not imgs:
+            continue
+        mapped = [('/album-img/' + u.removeprefix('/uploads/')) if u.startswith('/uploads/') else u
+                  for u in imgs]
+        out.append({**a, 'images': mapped})
+    return out
+
+
+def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
+    a = existing or {'id': uuid.uuid4().hex[:12]}
+    a['title_de'] = _clean_str(raw.get('title_de'), 120)
+    a['title_en'] = _clean_str(raw.get('title_en'), 120)
+    a['desc_de']  = _clean_str(raw.get('desc_de'), 1000)
+    a['desc_en']  = _clean_str(raw.get('desc_en'), 1000)
+    images = raw.get('images') or []
+    if isinstance(images, list):
+        a['images'] = [_clean_str(g, 500) for g in images if _clean_str(g, 500)][:200]
+    else:
+        a.setdefault('images', [])
+    return a
 
 
 # ── GitHub-Import ─────────────────────────────────────────────────────────────
@@ -1229,7 +1279,70 @@ def api_sections():
             'text_en': _clean_str(e.get('text_en'), 500),
             'url':     _clean_str(e.get('url'), 500),
         } for e in raw['news'][:30] if isinstance(e, dict)]
+    if isinstance(raw.get('links'), list):
+        sec['links'] = [{
+            'title_de': _clean_str(e.get('title_de'), 120),
+            'title_en': _clean_str(e.get('title_en'), 120),
+            'desc_de':  _clean_str(e.get('desc_de'), 300),
+            'desc_en':  _clean_str(e.get('desc_en'), 300),
+            'url':      _clean_str(e.get('url'), 500),
+        } for e in raw['links'][:100]
+            if isinstance(e, dict) and _clean_str(e.get('url'), 500).startswith(('http://', 'https://'))]
+    if 'album_protect' in raw:
+        site['album_protect'] = bool(raw['album_protect'])
+    if 'watermark_text' in raw:
+        site['watermark_text'] = _clean_str(raw['watermark_text'], 80)
     save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/albums', methods=['POST'])
+def api_album_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    site.setdefault('albums', []).append(_normalize_album(raw))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/albums/<aid>', methods=['PUT', 'DELETE'])
+def api_album_edit(aid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    albums = site.setdefault('albums', [])
+    idx = next((i for i, a in enumerate(albums) if a.get('id') == aid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        albums.pop(idx)
+    else:
+        albums[idx] = _normalize_album(request.get_json(silent=True) or {}, albums[idx])
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/albums/<aid>/move', methods=['POST'])
+def api_album_move(aid: str):
+    err = _api_auth()
+    if err:
+        return err
+    direction = (request.get_json(silent=True) or {}).get('dir', '')
+    site = load_site()
+    albums = site.setdefault('albums', [])
+    idx = next((i for i, a in enumerate(albums) if a.get('id') == aid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    new_idx = idx - 1 if direction == 'up' else idx + 1
+    if 0 <= new_idx < len(albums):
+        albums[idx], albums[new_idx] = albums[new_idx], albums[idx]
+        save_site(site)
     return jsonify({'ok': True})
 
 
@@ -1418,10 +1531,29 @@ def api_users():
                     'used_mb': round(used / 1048576, 1),
                     'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()) if storage_ok else 0,
                     'created': u.get('created', ''),
-                    'last_login': u.get('last_login')})
+                    'last_login': u.get('last_login'),
+                    'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
-                    'smb': SMB_MOUNTED, 'storage_ok': storage_ok})
+                    'smb': SMB_MOUNTED, 'storage_ok': storage_ok,
+                    'welcome_from': load_site()['design'].get('welcome_from', '')})
+
+
+@admin_app.route('/api/member-settings', methods=['POST'])
+def api_member_settings():
+    """Globale Mitglieder-Einstellungen (Absender-Alias für Zugangs-Mails)."""
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    wf = _clean_str(raw.get('welcome_from'), 150)
+    if wf and not _EMAIL_RE.match(wf):
+        return jsonify({'error': 'invalid email'}), 400
+    site = load_site()
+    site['design']['welcome_from'] = wf
+    save_site(site)
+    log.info("Willkommens-Absender gesetzt: %s", wf or '(Standard)')
+    return jsonify({'ok': True})
 
 
 @admin_app.route('/api/users', methods=['POST'])
@@ -1466,10 +1598,7 @@ def api_user_edit(uid: str):
     if request.method == 'DELETE':
         users.remove(user)
         save_users(users)
-        # Sessions des Benutzers beenden und Dateien entfernen
-        for tok in [t for t, v in user_sessions.items() if v[0] == uid]:
-            del user_sessions[tok]
-        save_user_sessions()
+        invalidate_user_sessions(uid)
         shutil.rmtree(user_dir(user), ignore_errors=True)
         log.info("Benutzer '%s' gelöscht", user['email'])
         return jsonify({'ok': True})
@@ -1477,11 +1606,17 @@ def api_user_edit(uid: str):
     mail_sent = False
     if 'quota_mb' in raw:
         user['quota_mb'] = max(1, min(100000, int(raw.get('quota_mb') or 500)))
+    if 'login_message' in raw:
+        user['login_message'] = _clean_str(raw.get('login_message'), 2000)
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
             return jsonify({'error': 'password too short'}), 400
         user['pw_hash'] = generate_password_hash(password)
+        # Passwortwechsel beendet alle bestehenden Sitzungen → Neuanmeldung nötig
+        ended = invalidate_user_sessions(uid)
+        if ended:
+            log.info("Passwortwechsel: %d Sitzung(en) von '%s' beendet", ended, user['email'])
         mail_sent = smtp_configured()
         if mail_sent:
             threading.Thread(target=send_welcome_email,
@@ -1511,6 +1646,7 @@ def api_user_resend(uid: str):
     password = generate_member_password()
     user['pw_hash'] = generate_password_hash(password)
     save_users(users)
+    invalidate_user_sessions(uid)  # altes Passwort → bestehende Sitzungen kappen
     log_user_event(uid, 'pw_reset')
     threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
@@ -1791,6 +1927,78 @@ def public_uploads(filename: str):
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
 
 
+def effective_watermark() -> str:
+    """Wasserzeichen-Text: eigener Text > © + Domain > © MyPage."""
+    site = load_site()
+    txt = (site.get('watermark_text') or '').strip()
+    if txt:
+        return txt[:80]
+    host = urlparse(site['design'].get('public_url') or '').netloc.removeprefix('www.')
+    return f'© {host}' if host else '© MyPage'
+
+
+def _render_watermark(src: Path, text: str) -> bytes | None:
+    """Brennt das Wasserzeichen unten rechts ins Bild (mit Schatten für Lesbarkeit)."""
+    if not _HAS_PIL:
+        return None
+    try:
+        img = Image.open(src).convert('RGBA')
+        w, h = img.size
+        layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        size = max(14, int(w * 0.028))
+        font = None
+        for path in ('/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',
+                     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                     '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'):
+            try:
+                font = ImageFont.truetype(path, size)
+                break
+            except OSError:
+                continue
+        if font is None:
+            try:
+                font = ImageFont.load_default(size)  # Pillow ≥10: skalierbar
+            except TypeError:
+                font = ImageFont.load_default()
+        box = draw.textbbox((0, 0), text, font=font)
+        tw, th = box[2] - box[0], box[3] - box[1]
+        margin = max(8, int(w * 0.015))
+        x, y = w - tw - margin, h - th - margin - box[1]
+        # Schatten + Text, halbtransparent
+        draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 140))
+        draw.text((x, y), text, font=font, fill=(255, 255, 255, 190))
+        out = Image.alpha_composite(img, layer).convert('RGB')
+        buf = io.BytesIO()
+        out.save(buf, 'WEBP', quality=82)
+        return buf.getvalue()
+    except Exception as e:
+        log.warning("Wasserzeichen für '%s' fehlgeschlagen: %s", src.name, e)
+        return None
+
+
+@public_app.route('/album-img/<path:filename>')
+def album_image(filename: str):
+    """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert."""
+    safe = secure_filename(filename)
+    src = (UPLOADS_DIR / safe).resolve()
+    if not safe or src.parent != UPLOADS_DIR.resolve() or not src.is_file():
+        abort(404)
+    site = load_site()
+    if not site.get('album_protect'):
+        return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
+    text = effective_watermark()
+    # Cache-Schlüssel aus Text + Dateiname → Textänderung erzeugt neue Datei
+    key = hashlib.sha256((text + '|' + safe).encode()).hexdigest()[:24]
+    cached = WM_CACHE_DIR / f'{key}.webp'
+    if not cached.is_file():
+        data = _render_watermark(src, text)
+        if data is None:
+            return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
+        cached.write_bytes(data)
+    return send_file(cached, mimetype='image/webp', max_age=86400)
+
+
 def _base_url() -> str:
     site = load_site()
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
@@ -1877,6 +2085,8 @@ def public_index():
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
                            sections=site.get('sections', {}),
+                           albums=_albums_for_public(site),
+                           album_protect=bool(site.get('album_protect')),
                            latest_posts=sorted_posts(site)[:3],
                            static_export=static_export,
                            contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,
@@ -1959,9 +2169,10 @@ def _member_page(member: dict | None, msg: str = ''):
             log.warning("Dateiliste für '%s' fehlgeschlagen: %s", member['email'], e)
             storage_down = True
             files = []
+    login_msg_html = render_md(member.get('login_message', '')) if member else ''
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
-                           storage_down=storage_down,
+                           storage_down=storage_down, login_msg_html=login_msg_html,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -1976,13 +2187,16 @@ def member_area():
 @public_app.route('/bereich/login', methods=['POST'])
 def member_login():
     ip = get_client_ip(request)
-    if is_rate_limited(ip):
-        return redirect('/bereich?msg=locked')
     email = (request.form.get('email') or '').strip().lower()
+    if is_rate_limited(ip):
+        log.warning("Mitglieder-Login GESPERRT: '%s' von %s (zu viele Fehlversuche)",
+                    email or '?', ip)
+        return redirect('/bereich?msg=locked')
     password = request.form.get('password') or ''
     user = next((u for u in load_users() if u['email'] == email), None)
     if user is None or not check_password_hash(user['pw_hash'], password):
         record_failed_attempt(ip)
+        log.warning("Mitglieder-Login FEHLGESCHLAGEN: '%s' von %s", email or '?', ip)
         return redirect('/bereich?msg=credentials')
     clear_failed_attempts(ip)
     token = secrets.token_hex(32)
@@ -1992,7 +2206,7 @@ def member_login():
     resp = make_response(redirect('/bereich'))
     resp.set_cookie('usession', token, httponly=True, samesite='Lax',
                     max_age=USER_SESSION_HOURS * 3600)
-    log.info("Mitglied '%s' angemeldet", email)
+    log.info("Mitglieder-Login ERFOLGREICH: '%s' von %s", email, ip)
     return resp
 
 

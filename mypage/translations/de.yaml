@@ -41,9 +41,12 @@ configuration:
   smtp_password:
     name: SMTP-Passwort
     description: Passwort bzw. App-Passwort für den Mailversand.
+  smtp_from:
+    name: Standard-Absender (optional)
+    description: Absenderadresse für ausgehende Mails. Leer = SMTP-Benutzer wird verwendet. Ein abweichender Absender für Zugangs-Mails lässt sich im Admin-Panel (Benutzer) einstellen.
   smtp_to:
     name: Empfängeradresse
-    description: An diese Adresse werden die Benachrichtigungen geschickt.
+    description: An diese Adresse werden Kontaktnachrichten geschickt.
   smtp_tls:
     name: STARTTLS verwenden
     description: An für Port 587 (STARTTLS), aus für Port 465 (SSL).

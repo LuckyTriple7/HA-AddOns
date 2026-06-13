@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.23
+
+- 📊 Statistik: Die Kacheln „Länder" und „Letzte Besucher" werden bei vielen Einträgen auf eine sinnvolle Höhe begrenzt und per „Mehr/Weniger anzeigen"-Button auf- und zugeklappt (Button erscheint nur bei Überlauf, mit sanftem Ausblend-Verlauf am unteren Rand).
+
+## 0.1.22
+
+- 🔗 **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN), Verwaltung im Inhalte-Tab. Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet — ein Klick öffnet die Zielseite in einem neuen Tab (`rel="noopener"`). Hält die Startseite schlank.
+
+## 0.1.21
+
+- 🎠 **Fotoalben als horizontales Karussell**: Alben liegen jetzt in einer Reihe zum seitlichen Durchscrollen statt in mehreren Zeilen untereinander — kompakter und übersichtlicher. Mit Pfeil-Buttons (Desktop), Scroll-Snap, angeschnittener nächster Karte als Hinweis und natürlichem Wischen auf Touch. Pfeile erscheinen nur, wenn es mehr Alben gibt als in die Reihe passen.
+
+## 0.1.20
+
+- 🛡 **Bildschutz für Fotoalben**: Schalter „Bilder schützen" im Alben-Bereich. Aktiv brennt MyPage ein **Wasserzeichen** (frei einstellbarer Text, Vorgabe `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird dynamisch beim Ausliefern erzeugt (mit Cache) — eine Textänderung wirkt sofort auf alle Bilder. Hinweis: vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der eigentliche Schutz.
+
+## 0.1.19
+
+- 📸 **Fotoalben**: neuer Bereich auf der Startseite (zwischen Skills und Werdegang). Alben mit Titel und Beschreibung (DE/EN), Bilder per Mehrfach-Upload. Ein Klick öffnet eine **Diashow** mit weichem Ausblend-Effekt, Autoplay, Vor/Zurück, Play/Pause und Tastatursteuerung (Pfeile, Leertaste, Esc). Verwaltung im Inhalte-Tab. Bilder werden wie alle Uploads automatisch verkleinert und als WebP gespeichert (Pillow).
+
+## 0.1.18
+
+- 🔒 **Sicherheitsfix**: Bei einem Passwortwechsel (Admin-Reset, „Zugangsdaten erneut senden" oder neues Passwort setzen) werden jetzt alle bestehenden Sitzungen des Benutzers beendet. Vorher blieb ein bereits eingeloggter Browser trotz geändertem Passwort weiter angemeldet.
+
+## 0.1.17
+
+- 📋 **Login-Ereignisse im Add-on-Log**: erfolgreiche, fehlgeschlagene und gesperrte Mitglieder-Anmeldungen werden mit E-Mail und IP protokolliert (Brute-Force-Schutz war bereits aktiv: 5 Fehlversuche → 15 Min. IP-Sperre, auch das Sperren wird geloggt)
+- ✉ **Abweichender Absender für Zugangs-Mails**: Im Benutzer-Tab lässt sich ein Alias (z. B. `noreply@…`) für Willkommens-/Passwort-Mails hinterlegen, während Kontaktnachrichten weiter über die Standard-Adresse laufen. Zusätzlich neue Option `smtp_from` als globaler Standard-Absender
+- 💬 **Begrüßungsnachricht pro Benutzer**: Der Admin kann jedem Benutzer eine Nachricht (Markdown) hinterlegen, die nach der Anmeldung im persönlichen Bereich angezeigt wird
+
 ## 0.1.16
 
 - 🔧 Hotfix: fehlender `import tempfile` ließ den SMB-Mount fehlschlagen („name 'tempfile' is not defined")

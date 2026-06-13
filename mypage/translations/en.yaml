@@ -41,9 +41,12 @@ configuration:
   smtp_password:
     name: SMTP password
     description: Password or app password for sending mail.
+  smtp_from:
+    name: Default sender (optional)
+    description: Sender address for outgoing mail. Empty = the SMTP user is used. A different sender for access emails can be set in the admin panel (Users).
   smtp_to:
     name: Recipient address
-    description: Notifications are sent to this address.
+    description: Contact messages are sent to this address.
   smtp_tls:
     name: Use STARTTLS
     description: On for port 587 (STARTTLS), off for port 465 (SSL).

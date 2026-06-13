@@ -100,9 +100,9 @@
     .ci-success  { background:var(--green); }
     .ci-failure  { background:var(--red); }
     .ci-running  { background:var(--yellow); animation:pulse 1s infinite; }
-    .ci-skipped  { background:var(--muted); }
+    .ci-skipped  { background:var(--accent); }
     .ci-pending  { background:var(--muted); }
-    .ci-cancelled{ background:var(--muted); }
+    .ci-cancelled{ background:var(--orange); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
     .run-name { flex:1; min-width:0; }
     .run-name-top { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -1476,10 +1476,10 @@
     (data.my_repos || []).forEach(r => {
       totalPRs    += r.open_prs    || 0;
       totalIssues += r.open_issues || 0;
-      (r.runs || []).forEach(run => {
+      (r.runs || []).forEach((run, i) => {
         totalRuns++;
         if (['in_progress','queued','waiting'].includes(run.status)) hasActive = true;
-        if (run.conclusion === 'failure') hasFailed = true;
+        if (i < 10 && run.conclusion === 'failure') hasFailed = true;
       });
       const sec = r.security || {};
       totalSec += (sec.dependabot || []).length + (sec.code_scanning || []).length + (sec.secret_scanning || []).length;
@@ -1501,7 +1501,7 @@
       <div class="stat-chip" id="chip-security" onclick="switchTab('security')"><div class="num" style="color:${secColor}">${totalSec}</div><div class="lbl">{{ t.stat_security }}</div></div>
       <div class="stat-chip" onclick="switchTab('ci')"><div class="num" style="color:${runsColor}">${totalRuns}</div><div class="lbl">{{ t.stat_workflows }}</div></div>
       <div class="stat-chip" id="chip-releases" onclick="switchTab('releases')"><div class="num" style="color:var(--purple)">${totalReleases}</div><div class="lbl">{{ t.stat_releases }}</div></div>
-      <div id="chip-branch-sync"></div>
+      <div id="chip-branch-sync">${_branchSyncHtml}</div>
     `;
     refreshBranchSync();
     // Blinken bei Anstieg (nicht beim ersten Render)
@@ -1789,7 +1789,17 @@
   }
 
   // ── CI helpers ────────────────────────────────────────────────────
-  const ciStatusClass = c => ({ success:'ci-success', failure:'ci-failure', in_progress:'ci-running' }[c] || 'ci-skipped');
+  const ciStatusClass = c => ({
+    success:     'ci-success',
+    failure:     'ci-failure',
+    timed_out:   'ci-failure',
+    in_progress: 'ci-running',
+    queued:      'ci-pending',
+    waiting:     'ci-pending',
+    cancelled:   'ci-cancelled',
+    skipped:     'ci-skipped',
+    neutral:     'ci-skipped',
+  }[c] || 'ci-pending');
   const ciEventLabel  = e => ({ push:'Push', pull_request:'PR', workflow_dispatch:'Manuell', schedule:'Zeitplan', release:'Release', create:'Branch', delete:'Delete' })[e] || e;
 
   function ciDuration(started, completed) {
@@ -1885,7 +1895,7 @@
       failed:    r => ['failure','timed_out'].includes(r.conclusion),
       cancelled: r => r.conclusion === 'cancelled',
     };
-    const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-skipped' };
+    const _ciStatusDots = { running:'ci-running', success:'ci-success', failed:'ci-failure', cancelled:'ci-cancelled' };
     const timeFiltered   = repo.runs.filter(ciFilterFns[_ciTimeFilter] || (() => true));
     const statusFiltered = timeFiltered.filter(ciStatusFns[_ciStatusFilter] || (() => true));
     const filteredRuns   = _ciFilter
@@ -3351,38 +3361,36 @@
   }
 
   // ── Branch-Sync Kachel ───────────────────────────────────────────
+  let _branchSyncHtml = '';
+
+  function _buildBranchSyncHtml(data) {
+    if (!data.configured) return '';
+    return data.repos.map(rp => {
+      const a  = rp.ahead_by  || 0;
+      const b  = rp.behind_by || 0;
+      const ac = a === 0 ? 'var(--green)' : a <= 9 ? 'var(--yellow)' : a <= 29 ? 'var(--orange)' : 'var(--red)';
+      const bc = b === 0 ? 'var(--green)' : 'var(--red)';
+      const shortRepo = escHtml(rp.repo.split('/')[1] || rp.repo);
+      return `<div class="stat-chip" style="min-width:90px" title="${escHtml(rp.repo)}">
+        <div class="num" style="display:flex;flex-direction:row;align-items:center;gap:6px">
+          <span style="color:${ac}">↑${a}</span>
+          <span style="color:${bc}">↓${b}</span>
+        </div>
+        <div class="lbl">${shortRepo}: ${escHtml(data.dev)}→${escHtml(data.main)}</div>
+      </div>`;
+    }).join('');
+  }
+
   async function refreshBranchSync() {
-    const chip = document.getElementById('chip-branch-sync');
-    if (!chip) return;
     try {
       const r    = await fetch(u('/api/stat/branch-sync'));
       const data = await r.json();
-      if (!data.configured) { chip.innerHTML = ''; return; }
-
-      const ahead  = data.ahead_by  || 0;
-      const behind = data.behind_by || 0;
-      const label  = `${escHtml(data.dev)} → ${escHtml(data.main)}`;
-
-      const aColor = ahead  === 0 ? 'var(--green)'
-                   : ahead  <= 9  ? 'var(--yellow)'
-                   : ahead  <= 29 ? 'var(--orange)'
-                   : 'var(--red)';
-      const bColor = behind === 0 ? 'var(--green)' : 'var(--red)';
-
-      chip.innerHTML = data.repos.map(rp => {
-        const a  = rp.ahead_by  || 0;
-        const b  = rp.behind_by || 0;
-        const ac = a === 0 ? 'var(--green)' : a <= 9 ? 'var(--yellow)' : a <= 29 ? 'var(--orange)' : 'var(--red)';
-        const bc = b === 0 ? 'var(--green)' : 'var(--red)';
-        const shortRepo = escHtml(rp.repo.split('/')[1] || rp.repo);
-        return `<div class="stat-chip" style="min-width:90px" title="${escHtml(rp.repo)}">
-          <div class="num" style="display:flex;flex-direction:row;align-items:center;gap:6px">
-            <span style="color:${ac}">↑${a}</span>
-            <span style="color:${bc}">↓${b}</span>
-          </div>
-          <div class="lbl">${shortRepo}: ${escHtml(data.dev)}→${escHtml(data.main)}</div>
-        </div>`;
-      }).join('');
+      const html = _buildBranchSyncHtml(data);
+      if (html !== _branchSyncHtml) {
+        _branchSyncHtml = html;
+        const chip = document.getElementById('chip-branch-sync');
+        if (chip) chip.innerHTML = _branchSyncHtml;
+      }
     } catch { /* ignorieren */ }
   }
 

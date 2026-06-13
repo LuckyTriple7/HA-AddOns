@@ -38,6 +38,9 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
 - **Aktuelles**: kurze News-Einträge mit Datum und optionalem Link
 - **Werdegang**: Timeline mit Zeitraum, Titel und Text (jeweils DE/EN)
+- **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN). Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet; ein Klick öffnet die Zielseite in einem neuen Tab.
+- **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Erscheinen auf der Startseite zwischen Skills und Werdegang; ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay. Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert.
+  - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
 
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
@@ -92,6 +95,8 @@ Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei 
 ## SEO
 
 `sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain). Strukturierte Daten (JSON-LD) für Person und Blog-Beiträge sind eingebaut.
+
+Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
 
 ## Bilder
 

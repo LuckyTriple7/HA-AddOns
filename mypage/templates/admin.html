@@ -84,6 +84,11 @@
     .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
     .bar-num { width: 90px; text-align: right; color: var(--muted); flex-shrink: 0; }
 
+    .collapsible { max-height: 340px; overflow: hidden; position: relative; transition: max-height .3s ease; }
+    .collapsible.open { max-height: 4000px; }
+    .collapsible:not(.open).has-more::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(transparent, var(--surf)); pointer-events: none; }
+    .collapse-btn { display: none; margin-top: 10px; }
+    .collapse-btn.show { display: inline-block; }
     .vtable { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
     .vtable th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
     .vtable td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
@@ -223,7 +228,38 @@
         <h3>{{ t.timeline_heading }}</h3>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.links_heading }}</h3>
+        <p class="hint">{{ t.links_hint }}</p>
+        <div id="links-list"></div>
+        <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
         <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
+      </div>
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.albums_heading }}
+          <button class="btn small" onclick="openAlbumModal()">+ {{ t.new_album }}</button>
+        </h3>
+        <p class="hint">{{ t.albums_hint }}</p>
+        <div class="proj-list" id="album-list"></div>
+        <div class="row" style="margin-top:16px">
+          <div>
+            <label>{{ t.album_protect }}</label>
+            <select id="a-protect" onchange="saveAlbumSettings()">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.watermark_text }}</label>
+            <div class="upload-row">
+              <input type="text" id="a-watermark" placeholder="© deine-domain.de">
+              <button class="btn secondary small" onclick="saveAlbumSettings()">{{ t.save }}</button>
+            </div>
+          </div>
+        </div>
+        <p class="hint">{{ t.album_protect_hint }}</p>
       </div>
     </section>
 
@@ -416,6 +452,14 @@
         <div class="proj-list" id="user-list"></div>
       </div>
       <div class="panel">
+        <h3>{{ t.welcome_from_heading }}</h3>
+        <p class="hint">{{ t.welcome_from_hint }}</p>
+        <div class="upload-row">
+          <input type="email" id="u-welcome-from" placeholder="noreply@deine-domain.de">
+          <button class="btn small" onclick="saveWelcomeFrom()">{{ t.save }}</button>
+        </div>
+      </div>
+      <div class="panel">
         <h3>{{ t.storage_heading }}</h3>
         <p class="hint">{{ t.storage_hint }}</p>
         <div class="hint" id="st-active" style="margin-bottom:4px;font-weight:600"></div>
@@ -484,19 +528,23 @@
         </div>
         <div class="panel">
           <h3>{{ t.stat_countries }}</h3>
-          <div id="s-countries"></div>
+          <div id="s-countries" class="collapsible"></div>
+          <button class="btn secondary small collapse-btn" id="s-countries-btn" onclick="toggleCollapse('s-countries')"></button>
         </div>
       </div>
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
-        <div style="overflow-x:auto">
-          <table class="vtable">
-            <thead>
-              <tr><th>{{ t.col_time }}</th><th>IP</th><th>{{ t.col_browser }}</th><th>{{ t.col_lang }}</th><th>{{ t.col_ref }}</th><th></th></tr>
-            </thead>
-            <tbody id="s-log"></tbody>
-          </table>
+        <div id="s-log-wrap" class="collapsible">
+          <div style="overflow-x:auto">
+            <table class="vtable">
+              <thead>
+                <tr><th>{{ t.col_time }}</th><th>IP</th><th>{{ t.col_browser }}</th><th>{{ t.col_lang }}</th><th>{{ t.col_ref }}</th><th></th></tr>
+              </thead>
+              <tbody id="s-log"></tbody>
+            </table>
+          </div>
         </div>
+        <button class="btn secondary small collapse-btn" id="s-log-wrap-btn" onclick="toggleCollapse('s-log-wrap')"></button>
       </div>
     </section>
   </main>
@@ -590,6 +638,55 @@
       </div>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('ufiles-modal').classList.remove('open')">{{ t.cancel }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Album-Modal -->
+  <div class="modal-bg" id="album-modal">
+    <div class="modal">
+      <h3 id="am-title">{{ t.new_album }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="am-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="am-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_desc }} (DE)</label>
+          <textarea id="am-desc_de" rows="2"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_desc }} (EN)</label>
+          <textarea id="am-desc_en" rows="2"></textarea>
+        </div>
+      </div>
+      <label>{{ t.album_images }}</label>
+      <div class="gallery-list" id="am-images"></div>
+      <button class="btn secondary small" onclick="el('am-file').click()">+ {{ t.add_images }}</button>
+      <input type="file" id="am-file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple style="display:none">
+      <p class="hint" id="am-progress" style="margin-top:6px"></p>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('album-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveAlbum()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login-Nachricht-Modal -->
+  <div class="modal-bg" id="loginmsg-modal">
+    <div class="modal">
+      <h3 id="lm-title"></h3>
+      <p class="hint">{{ t.login_msg_hint }}</p>
+      <textarea id="lm-text" rows="6"></textarea>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('loginmsg-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveLoginMsg()">{{ t.save }}</button>
       </div>
     </div>
   </div>
@@ -787,6 +884,40 @@
       (s.news || []).forEach(n => addNewsRow(n));
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
+      el('links-list').innerHTML = '';
+      (s.links || []).forEach(l => addLinkEntryRow(l));
+      renderAlbums();
+      el('a-protect').value = SITE.album_protect ? '1' : '0';
+      el('a-watermark').value = SITE.watermark_text || '';
+    }
+    function addLinkEntryRow(l) {
+      l = l || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid">
+        <input type="text" class="l-url" placeholder="https://…">
+        <input type="text" class="l-title_de" placeholder="${T.field_title} (DE)">
+        <input type="text" class="l-title_en" placeholder="${T.field_title} (EN)">
+        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input type="text" class="l-desc_de" placeholder="${T.field_desc} (DE)">
+        <input type="text" class="l-desc_en" placeholder="${T.field_desc} (EN)">
+      </div>`;
+      div.querySelector('.l-url').value = l.url || '';
+      div.querySelector('.l-title_de').value = l.title_de || '';
+      div.querySelector('.l-title_en').value = l.title_en || '';
+      div.querySelector('.l-desc_de').value = l.desc_de || '';
+      div.querySelector('.l-desc_en').value = l.desc_en || '';
+      el('links-list').appendChild(div);
+    }
+    async function saveAlbumSettings() {
+      const r = await apiJson('api/sections', 'POST', {
+        album_protect: el('a-protect').value === '1',
+        watermark_text: el('a-watermark').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
     }
     function addNewsRow(n) {
       n = n || {};
@@ -842,9 +973,106 @@
         text_de:  row.querySelector('.t-text_de').value,
         text_en:  row.querySelector('.t-text_en').value,
       })).filter(e => e.title_de || e.title_en);
-      const r = await apiJson('api/sections', 'POST', { skills, news, timeline });
+      const links = [...el('links-list').children].map(row => ({
+        url:      row.querySelector('.l-url').value.trim(),
+        title_de: row.querySelector('.l-title_de').value,
+        title_en: row.querySelector('.l-title_en').value,
+        desc_de:  row.querySelector('.l-desc_de').value,
+        desc_en:  row.querySelector('.l-desc_en').value,
+      })).filter(l => /^https?:\/\//.test(l.url));
+      const r = await apiJson('api/sections', 'POST', { skills, news, timeline, links });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
+    }
+
+    // ── Fotoalben ──
+    let editingAlbumId = null;
+    let albumImages = [];
+    function renderAlbums() {
+      const list = el('album-list');
+      list.innerHTML = '';
+      const albums = SITE.albums || [];
+      if (!albums.length) { list.innerHTML = `<div class="empty-note">${T.no_albums}</div>`; return; }
+      albums.forEach((a, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const cover = (a.images && a.images[0]) ? `<img class="proj-thumb" src="${assetUrl(a.images[0])}" alt="">` : `<div class="proj-thumb"></div>`;
+        div.innerHTML = cover +
+          `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+           <div class="proj-actions">
+             <button class="btn secondary small" onclick="moveAlbum('${a.id}','up')" ${i===0?'disabled':''}>↑</button>
+             <button class="btn secondary small" onclick="moveAlbum('${a.id}','down')" ${i===albums.length-1?'disabled':''}>↓</button>
+             <button class="btn secondary small" onclick="openAlbumModal('${a.id}')">${T.edit}</button>
+             <button class="btn danger small" onclick="deleteAlbum('${a.id}')">✕</button>
+           </div>`;
+        div.querySelector('.proj-name').textContent = a.title_de || a.title_en;
+        div.querySelector('.proj-meta').textContent = `${(a.images || []).length} ${T.album_image_count}`;
+        list.appendChild(div);
+      });
+    }
+    function renderAlbumImages() {
+      const box = el('am-images');
+      box.innerHTML = '';
+      albumImages.forEach((u, i) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        const img = document.createElement('img');
+        img.src = assetUrl(u);
+        const btn = document.createElement('button');
+        btn.textContent = '✕';
+        btn.onclick = () => { albumImages.splice(i, 1); renderAlbumImages(); };
+        div.append(img, btn);
+        box.appendChild(div);
+      });
+    }
+    function openAlbumModal(id) {
+      editingAlbumId = id || null;
+      const a = id ? SITE.albums.find(x => x.id === id) : {};
+      el('am-title').textContent = id ? T.edit_album : T.new_album;
+      el('am-title_de').value = a.title_de || '';
+      el('am-title_en').value = a.title_en || '';
+      el('am-desc_de').value = a.desc_de || '';
+      el('am-desc_en').value = a.desc_en || '';
+      albumImages = [...(a.images || [])];
+      el('am-progress').textContent = '';
+      renderAlbumImages();
+      el('album-modal').classList.add('open');
+    }
+    el('am-file').addEventListener('change', async e => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      if (!files.length) return;
+      let done = 0;
+      for (const f of files) {
+        el('am-progress').textContent = T.album_uploading.replace('{n}', ++done).replace('{total}', files.length);
+        const fd = new FormData();
+        fd.append('file', f);
+        const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+        if (r.ok) { albumImages.push((await r.json()).url); renderAlbumImages(); }
+      }
+      el('am-progress').textContent = '';
+    });
+    async function saveAlbum() {
+      const body = {
+        title_de: el('am-title_de').value, title_en: el('am-title_en').value,
+        desc_de: el('am-desc_de').value, desc_en: el('am-desc_en').value,
+        images: albumImages,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingAlbumId
+        ? await apiJson('api/albums/' + editingAlbumId, 'PUT', body)
+        : await apiJson('api/albums', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('album-modal').classList.remove('open'); loadSite(); }
+    }
+    async function deleteAlbum(id) {
+      if (!confirm(T.confirm_delete)) return;
+      const r = await fetch('api/albums/' + id, { method: 'DELETE', credentials: 'same-origin' });
+      if (r.ok) loadSite();
+    }
+    async function moveAlbum(id, dir) {
+      await apiJson('api/albums/' + id + '/move', 'POST', { dir });
+      loadSite();
     }
 
     // ── Nachrichten ──
@@ -921,6 +1149,7 @@
       el('u-storage').textContent = data.storage_ok
         ? T.user_storage + ': ' + data.storage + (data.smtp ? ' · ' + T.user_smtp_on : ' · ' + T.user_smtp_off)
         : '';
+      el('u-welcome-from').value = data.welcome_from || '';
       const list = el('user-list');
       list.innerHTML = '';
       if (!data.users.length) {
@@ -933,6 +1162,7 @@
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
             <button class="btn secondary small">📁 ${T.user_files_btn}</button>
+            <button class="btn secondary small">💬 ${T.user_msg_btn}${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small">📜 ${T.user_journal_btn}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
@@ -945,8 +1175,9 @@
           : `${T.user_last_login}: ${T.user_never}`;
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [filesBtn, journalBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [filesBtn, msgBtn, journalBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         filesBtn.onclick = () => openUserFiles(u);
+        msgBtn.onclick = () => openLoginMsg(u);
         journalBtn.onclick = () => openJournal(u);
         resendBtn.onclick = async () => {
           if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
@@ -1007,6 +1238,28 @@
       } else {
         toast(T.error_save, true);
       }
+    }
+
+    // ── Willkommens-Absender ──
+    async function saveWelcomeFrom() {
+      const r = await apiJson('api/member-settings', 'POST', { welcome_from: el('u-welcome-from').value.trim() });
+      if (r.ok) toast(T.saved);
+      else if (r.status === 400) toast(T.welcome_from_invalid, true);
+      else toast(T.error_save, true);
+    }
+
+    // ── Login-Nachricht pro Benutzer ──
+    let lmUser = null;
+    function openLoginMsg(u) {
+      lmUser = u;
+      el('lm-title').textContent = T.login_msg_title.replace('{email}', u.email);
+      el('lm-text').value = u.login_message || '';
+      el('loginmsg-modal').classList.add('open');
+    }
+    async function saveLoginMsg() {
+      const r = await apiJson('api/users/' + lmUser.id, 'PUT', { login_message: el('lm-text').value });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('loginmsg-modal').classList.remove('open'); loadUsers(); }
     }
 
     // ── Benutzer-Journal ──
@@ -1438,6 +1691,24 @@
       renderDistribution('s-browsers', s.browsers || []);
       renderDistribution('s-countries', s.countries || [], countryLabel);
       renderVisitorLog(s.log || []);
+      refreshCollapse('s-countries');
+      refreshCollapse('s-log-wrap');
+    }
+    // Höhenbegrenzung mit „Mehr/Weniger"-Button — Button nur bei Überlauf
+    function refreshCollapse(id) {
+      const box = el(id), btn = el(id + '-btn');
+      if (!box || !btn) return;
+      box.classList.remove('open');
+      const overflows = box.scrollHeight > box.clientHeight + 4;
+      box.classList.toggle('has-more', overflows);
+      btn.classList.toggle('show', overflows);
+      btn.textContent = T.show_more;
+    }
+    function toggleCollapse(id) {
+      const box = el(id), btn = el(id + '-btn');
+      const open = box.classList.toggle('open');
+      box.classList.toggle('has-more', !open);
+      btn.textContent = open ? T.show_less : T.show_more;
     }
     function countryFlag(code) {
       if (!code || code.length !== 2) return '';

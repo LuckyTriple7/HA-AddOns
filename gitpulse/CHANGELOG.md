@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.32] - 2026-06-12
+
+### Changed
+- **Workflows-Kachel**: Fehlerfarbe (rot) nur noch anhand der letzten 10 Runs je Repo — alte Fehler verfälschen die Kachel nicht mehr
+
+## [0.3.31] - 2026-06-12
+
+### Changed
+- **CI-Status Punkte**: `skipped` = blau, `cancelled` = orange, `pending/queued` = grau — waren vorher alle grau
+
+## [0.3.30] - 2026-06-12
+
+### Fixed
+- **CI-Tab**: Gelöschte Workflows (`state: deleted`) werden aus der Liste gefiltert — erscheinen nach Löschen nicht mehr in GitPulse
+
+## [0.3.29] - 2026-06-12
+
+### Fixed
+- **Branch-Sync Kachel**: Kein Flackern mehr — letzter HTML-Stand wird sofort eingesetzt, DOM nur bei tatsächlicher Änderung aktualisiert
+
 ## [0.3.28] - 2026-06-12
 
 ### Changed
