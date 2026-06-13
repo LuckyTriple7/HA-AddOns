@@ -94,6 +94,9 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `sensor.mypage_failed_logins` | Fehlgeschlagene Logins der letzten 24 h (Admin + Mitglieder) |
 | `sensor.mypage_messages` | Anzahl gespeicherter Kontaktnachrichten |
 | `sensor.mypage_members` | Anzahl angelegter Benutzer |
+| `sensor.mypage_projects` / `_posts` / `_albums` | Anzahl Projekte / Blog-Beiträge / Fotoalben |
+| `binary_sensor.mypage_storage_online` | SMB-/Dateispeicher erreichbar (on/off) |
+| `binary_sensor.mypage_maintenance` | Wartungsmodus aktiv (on/off) |
 
 Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei Besucherrekord).
 

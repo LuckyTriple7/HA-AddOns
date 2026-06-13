@@ -984,10 +984,12 @@ def push_ha_sensors() -> None:
     if not SUPERVISOR_TOKEN:
         return
     stats = load_stats()
+    site = load_site()
     today = stats['days'].get(date.today().isoformat(), {'views': 0, 'uniques': 0})
+    storage_ok = storage_available()
     # Belegter Speicher aller Mitglieder-Dateien (MB) — bei SMB-Ausfall 0
     user_mb = 0.0
-    if storage_available():
+    if storage_ok:
         try:
             user_mb = round(sum(user_usage_bytes(u) for u in load_users()) / 1048576, 1)
         except OSError:
@@ -1001,18 +1003,32 @@ def push_ha_sensors() -> None:
         ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
         ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
         ('mypage_members',        len(load_users()),     'MyPage Benutzer',         'mdi:account-multiple', 'Benutzer'),
+        ('mypage_projects',       len(site.get('projects', [])), 'MyPage Projekte',  'mdi:folder-multiple', 'Projekte'),
+        ('mypage_posts',          len(site.get('posts', [])),    'MyPage Blog-Beiträge', 'mdi:post',     'Beiträge'),
+        ('mypage_albums',         len(site.get('albums', [])),   'MyPage Fotoalben', 'mdi:image-multiple', 'Alben'),
+    ]
+    # Binary-Sensoren (state on/off)
+    binary = [
+        ('mypage_storage_online', storage_ok,  'MyPage Speicher erreichbar', 'mdi:nas',      'connectivity'),
+        ('mypage_maintenance',    bool(site['design'].get('maintenance')), 'MyPage Wartungsmodus', 'mdi:wrench', None),
     ]
     headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
-    for sid, state, name, icon, unit in sensors:
-        try:
+    try:
+        for sid, state, name, icon, unit in sensors:
             http.post(f'http://supervisor/core/api/states/sensor.{sid}',
                       headers=headers, timeout=10,
                       json={'state': state,
                             'attributes': {'friendly_name': name, 'icon': icon,
                                            'unit_of_measurement': unit}})
-        except Exception as e:
-            log.warning("HA-Sensor '%s' konnte nicht aktualisiert werden: %s", sid, e)
-            return
+        for bid, on, name, icon, dclass in binary:
+            attrs = {'friendly_name': name, 'icon': icon}
+            if dclass:
+                attrs['device_class'] = dclass
+            http.post(f'http://supervisor/core/api/states/binary_sensor.{bid}',
+                      headers=headers, timeout=10,
+                      json={'state': 'on' if on else 'off', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Sensoren konnten nicht aktualisiert werden: %s", e)
 
 
 def _sensor_worker() -> None:
