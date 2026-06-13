@@ -436,6 +436,8 @@
       </div>
     </section>
 
+    {% for _sec in section_order %}
+    {% if _sec == 'news' %}
     {% if sections.news %}
     <h2 class="section-title" id="news">{{ t.news_heading }}</h2>
     <div class="news-list">
@@ -451,6 +453,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'blog' %}
     {% if latest_posts %}
     <h2 class="section-title" id="blog">{{ t.blog_heading }}</h2>
     <div class="news-list" style="padding-bottom:36px">
@@ -464,6 +467,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'services' %}
     {% if sections.services %}
     <h2 class="section-title" id="services">{{ t.services_heading }}</h2>
     <div class="svc-grid">
@@ -478,6 +482,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'projects' %}
     {% if projects %}
     <h2 class="section-title" id="projects">{{ t.projects }}</h2>
     {% if site.design.layout == 'minimal' %}
@@ -561,6 +566,7 @@
     <p class="empty">{{ t.no_projects }}</p>
     {% endif %}
 
+    {% elif _sec == 'skills' %}
     {% if sections.skills %}
     <h2 class="section-title" id="skills">{{ t.skills_heading }}</h2>
     <div class="skills">
@@ -568,6 +574,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'testimonials' %}
     {% if sections.testimonials %}
     <h2 class="section-title" id="testimonials">{{ t.testimonials_heading }}</h2>
     <div class="tm-grid">
@@ -583,6 +590,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'photos' %}
     {% if albums %}
     <h2 class="section-title" id="photos">{{ t.albums_heading }}</h2>
     <div class="album-rail-wrap">
@@ -605,6 +613,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'team' %}
     {% if sections.team %}
     <h2 class="section-title" id="team">{{ t.team_heading }}</h2>
     <div class="team-grid">
@@ -619,6 +628,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'timeline' %}
     {% if sections.timeline %}
     <h2 class="section-title" id="timeline">{{ t.timeline_heading }}</h2>
     <div class="timeline">
@@ -635,6 +645,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'events' %}
     {% if sections.events %}
     <h2 class="section-title" id="events">{{ t.events_heading }}</h2>
     <div class="ev-list">
@@ -650,6 +661,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'links' %}
     {% if sections.links %}
     <h2 class="section-title" id="links">{{ t.links_heading }}</h2>
     <div class="links-cta">
@@ -658,6 +670,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'faq' %}
     {% if sections.faq %}
     <h2 class="section-title" id="faq">{{ t.faq_heading }}</h2>
     <div class="faq">
@@ -673,6 +686,7 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'location' %}
     {% set L = sections.location or {} %}
     {% if L.address or L.hours_de or L.hours_en %}
     <h2 class="section-title" id="standort">{{ t.location_heading }}</h2>
@@ -690,6 +704,8 @@
       {% endif %}
     </div>
     {% endif %}
+    {% endif %}
+    {% endfor %}
 
     {% if contact_enabled %}
     <h2 class="section-title" id="kontakt">{{ t.contact_heading }}</h2>

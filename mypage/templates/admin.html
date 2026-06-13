@@ -40,6 +40,11 @@
     details.acc[open] > summary::before { transform: rotate(90deg); }
     details.acc[open] > summary { margin-bottom: 14px; }
     details.acc > summary:hover { color: var(--accent); }
+    .drag-handle { cursor: grab; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 2px; user-select: none; }
+    .drag-handle:hover { color: var(--accent); }
+    details.acc.dragging { opacity: .45; border-color: var(--accent); }
+    details.acc.drag-over { border-color: var(--accent); border-style: dashed; }
+    .acc-ext { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -225,87 +230,43 @@
 
     <!-- Inhalte -->
     <section class="tab" id="tab-content">
-      <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }}</p>
-      <details class="panel acc">
-        <summary>{{ t.skills_heading }}</summary>
-        <label>{{ t.field_skills }}</label>
-        <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
-        <p class="hint">{{ t.skills_hint }}</p>
+      <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }} {{ t.content_dnd_hint }}</p>
+      <div id="section-acc">
+      <details class="panel acc" data-key="news">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.news_heading }}</summary>
+        <div id="news-list"></div>
+        <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </details>
-      <details class="panel acc">
-        <summary>{{ t.services_heading }}</summary>
+      <details class="panel acc" data-key="blog">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=blog]').click()">{{ t.tab_blog }} →</button>
+      </details>
+      <details class="panel acc" data-key="services">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.services_heading }}</summary>
         <p class="hint">{{ t.services_hint }}</p>
         <div id="services-list"></div>
         <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
       </details>
-      <details class="panel acc">
-        <summary>{{ t.testimonials_heading }}</summary>
+      <details class="panel acc" data-key="projects">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.projects }} <span class="acc-ext">↗</span></summary>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=projects]').click()">{{ t.tab_projects }} →</button>
+      </details>
+      <details class="panel acc" data-key="skills">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.skills_heading }}</summary>
+        <label>{{ t.field_skills }}</label>
+        <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
+        <p class="hint">{{ t.skills_hint }}</p>
+      </details>
+      <details class="panel acc" data-key="testimonials">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.testimonials_heading }}</summary>
         <p class="hint">{{ t.testimonials_hint }}</p>
         <div id="testimonials-list"></div>
         <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
       </details>
-      <details class="panel acc">
-        <summary>{{ t.team_heading }}</summary>
-        <p class="hint">{{ t.team_hint }}</p>
-        <div id="team-list"></div>
-        <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc">
-        <summary>{{ t.news_heading }}</summary>
-        <div id="news-list"></div>
-        <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc">
-        <summary>{{ t.timeline_heading }}</summary>
-        <div id="timeline-list"></div>
-        <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc">
-        <summary>{{ t.events_heading }}</summary>
-        <p class="hint">{{ t.events_hint }}</p>
-        <div id="events-list"></div>
-        <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc">
-        <summary>{{ t.location_heading }}</summary>
-        <p class="hint">{{ t.location_hint }}</p>
-        <div class="row">
-          <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
-          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="Musterstr. 1, 12345 Stadt"></div>
-        </div>
-        <div class="row">
-          <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
-          <div><label>{{ t.location_hours }} (EN)</label><textarea id="loc-hours_en" placeholder="Mon–Fri 9–17"></textarea></div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.location_show_map }}</label>
-            <select id="loc-show_map"><option value="0">{{ t.no }}</option><option value="1">{{ t.yes }}</option></select>
-          </div>
-          <div>
-            <label>{{ t.location_coords }}</label>
-            <input type="text" id="loc-coords" placeholder="48.137, 11.575">
-            <p class="hint">{{ t.location_coords_hint }}</p>
-          </div>
-        </div>
-      </details>
-      <details class="panel acc">
-        <summary>{{ t.links_heading }}</summary>
-        <p class="hint">{{ t.links_hint }}</p>
-        <div id="links-list"></div>
-        <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc">
-        <summary>{{ t.faq_heading }}</summary>
-        <p class="hint">{{ t.faq_hint }}</p>
-        <div id="faq-list"></div>
-        <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <div style="display:flex;justify-content:flex-end;margin:4px 0 18px">
-        <button class="btn" onclick="saveSections()">{{ t.save }}</button>
-      </div>
-      <details class="panel acc">
-        <summary>{{ t.albums_heading }}</summary>
+      <details class="panel acc" data-key="photos">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.albums_heading }}</summary>
         <p class="hint">{{ t.albums_hint }}</p>
         <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
@@ -327,6 +288,62 @@
         </div>
         <p class="hint">{{ t.album_protect_hint }}</p>
       </details>
+      <details class="panel acc" data-key="team">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.team_heading }}</summary>
+        <p class="hint">{{ t.team_hint }}</p>
+        <div id="team-list"></div>
+        <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="timeline">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.timeline_heading }}</summary>
+        <div id="timeline-list"></div>
+        <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="events">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.events_heading }}</summary>
+        <p class="hint">{{ t.events_hint }}</p>
+        <div id="events-list"></div>
+        <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="links">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.links_heading }}</summary>
+        <p class="hint">{{ t.links_hint }}</p>
+        <div id="links-list"></div>
+        <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="faq">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.faq_heading }}</summary>
+        <p class="hint">{{ t.faq_hint }}</p>
+        <div id="faq-list"></div>
+        <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
+      </details>
+      <details class="panel acc" data-key="location">
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span>{{ t.location_heading }}</summary>
+        <p class="hint">{{ t.location_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
+          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="Musterstr. 1, 12345 Stadt"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
+          <div><label>{{ t.location_hours }} (EN)</label><textarea id="loc-hours_en" placeholder="Mon–Fri 9–17"></textarea></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.location_show_map }}</label>
+            <select id="loc-show_map"><option value="0">{{ t.no }}</option><option value="1">{{ t.yes }}</option></select>
+          </div>
+          <div>
+            <label>{{ t.location_coords }}</label>
+            <input type="text" id="loc-coords" placeholder="48.137, 11.575">
+            <p class="hint">{{ t.location_coords_hint }}</p>
+          </div>
+        </div>
+      </details>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin:4px 0 18px">
+        <button class="btn" onclick="saveSections()">{{ t.save }}</button>
+      </div>
     </section>
 
     <!-- Projekte -->
@@ -1130,6 +1147,65 @@
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
+      applySectionOrder();
+      initSectionDnD();
+    }
+    // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop) ──
+    function applySectionOrder() {
+      const cont = el('section-acc');
+      if (!cont) return;
+      (SITE.section_order || []).forEach(key => {
+        const d = cont.querySelector('.acc[data-key="' + key + '"]');
+        if (d) cont.appendChild(d);   // in gespeicherter Reihenfolge ans Ende hängen
+      });
+    }
+    function sectionDragAfter(cont, y) {
+      const els = [...cont.querySelectorAll('.acc:not(.dragging)')];
+      let best = null, bestOff = -Infinity;
+      els.forEach(child => {
+        const box = child.getBoundingClientRect();
+        const off = y - box.top - box.height / 2;
+        if (off < 0 && off > bestOff) { bestOff = off; best = child; }
+      });
+      return best;
+    }
+    let sectionDnDReady = false;
+    function initSectionDnD() {
+      if (sectionDnDReady) return;
+      const cont = el('section-acc');
+      if (!cont) return;
+      sectionDnDReady = true;
+      let dragEl = null;
+      cont.querySelectorAll('.acc').forEach(d => {
+        const h = d.querySelector('.drag-handle');
+        if (h) {
+          // Griff aktiviert das Ziehen; Klick auf den Griff klappt das Panel nicht auf
+          h.addEventListener('mousedown', () => { d.draggable = true; });
+          h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+        }
+        d.addEventListener('dragstart', e => {
+          dragEl = d; d.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        d.addEventListener('dragend', () => {
+          d.classList.remove('dragging'); d.draggable = false; dragEl = null;
+          cont.querySelectorAll('.acc').forEach(x => x.classList.remove('drag-over'));
+          saveSectionOrder();
+        });
+      });
+      cont.addEventListener('dragover', e => {
+        if (!dragEl) return;
+        e.preventDefault();
+        const after = sectionDragAfter(cont, e.clientY);
+        if (after == null) cont.appendChild(dragEl);
+        else cont.insertBefore(dragEl, after);
+      });
+    }
+    async function saveSectionOrder() {
+      const order = [...el('section-acc').querySelectorAll('.acc')].map(d => d.dataset.key);
+      const r = await apiJson('api/sections', 'POST', { section_order: order });
+      if (r.ok) { SITE.section_order = order; toast(T.saved); }
+      else toast(T.error_save, true);
     }
     // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
     function moveEntryRow(btn, dir) {

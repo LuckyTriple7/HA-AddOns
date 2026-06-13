@@ -249,7 +249,14 @@ DEFAULT_SITE = {
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
+    'section_order': [
+        'news', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+    ],
 }
+
+# Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
+SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
 
 def render_md(text: str) -> str:
@@ -1683,6 +1690,9 @@ def api_sections():
             'lng':      _coord(L.get('lng')),
             'show_map': bool(L.get('show_map')),
         }
+    if isinstance(raw.get('section_order'), list):
+        order = [k for k in raw['section_order'] if isinstance(k, str) and k in SECTION_KEYS]
+        site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
@@ -2598,27 +2608,35 @@ def public_index():
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
 
-    # Navigations-Leiste: nur Sektionen mit Inhalt, in Seitenreihenfolge
+    # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
+    section_defs = {
+        'news':         ('news',         'news_heading',         bool(sections.get('news'))),
+        'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
+        'services':     ('services',     'services_heading',     bool(sections.get('services'))),
+        'projects':     ('projects',     'projects',             bool(projects)),
+        'skills':       ('skills',       'skills_heading',       bool(sections.get('skills'))),
+        'testimonials': ('testimonials', 'testimonials_heading', bool(sections.get('testimonials'))),
+        'photos':       ('photos',       'albums_heading',       bool(albums)),
+        'team':         ('team',         'team_heading',         bool(sections.get('team'))),
+        'timeline':     ('timeline',     'timeline_heading',     bool(sections.get('timeline'))),
+        'events':       ('events',       'events_heading',       bool(sections.get('events'))),
+        'links':        ('links',        'links_heading',        bool(sections.get('links'))),
+        'faq':          ('faq',          'faq_heading',          bool(sections.get('faq'))),
+        'location':     ('standort',     'location_heading',     loc_present),
+    }
+    # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
+    stored = [k for k in (site.get('section_order') or []) if k in section_defs]
+    section_order = stored + [k for k in SECTION_KEYS if k not in stored]
+
+    # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
     nav_items = []
     if site['design'].get('show_nav', True):
-        for present, anchor, label_key in (
-            (sections.get('news'),         'news',         'news_heading'),
-            (latest_posts,                 'blog',         'blog_heading'),
-            (sections.get('services'),     'services',     'services_heading'),
-            (projects,                     'projects',     'projects'),
-            (sections.get('skills'),       'skills',       'skills_heading'),
-            (sections.get('testimonials'), 'testimonials', 'testimonials_heading'),
-            (albums,                       'photos',       'albums_heading'),
-            (sections.get('team'),         'team',         'team_heading'),
-            (sections.get('timeline'),     'timeline',     'timeline_heading'),
-            (sections.get('events'),       'events',       'events_heading'),
-            (sections.get('links'),        'links',        'links_heading'),
-            (sections.get('faq'),          'faq',          'faq_heading'),
-            (loc_present,                  'standort',     'location_heading'),
-            (contact_enabled,              'kontakt',      'contact_heading'),
-        ):
+        for key in section_order:
+            anchor, label_key, present = section_defs[key]
             if present:
                 nav_items.append({'anchor': anchor, 'label': t.get(label_key, label_key)})
+        if contact_enabled:
+            nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -2630,6 +2648,7 @@ def public_index():
                            album_protect=bool(site.get('album_protect')),
                            latest_posts=latest_posts,
                            nav_items=nav_items,
+                           section_order=section_order,
                            static_export=static_export,
                            contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),
