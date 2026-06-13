@@ -168,6 +168,7 @@ DEFAULT_SITE = {
         'contact_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
+        'font': 'system', 'custom_css': '',
     },
     'posts': [],
     'legal': {
@@ -966,17 +967,37 @@ def _sensor_worker() -> None:
 
 def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
     p = existing or {'id': uuid.uuid4().hex[:12]}
-    p['date']     = _clean_str(raw.get('date'), 10)
-    p['title_de'] = _clean_str(raw.get('title_de'), 150)
-    p['title_en'] = _clean_str(raw.get('title_en'), 150)
-    p['text_de']  = _clean_str(raw.get('text_de'), 30000)
-    p['text_en']  = _clean_str(raw.get('text_en'), 30000)
-    p['image']    = _clean_str(raw.get('image'), 500)
+    p['date']      = _clean_str(raw.get('date'), 10)
+    p['title_de']  = _clean_str(raw.get('title_de'), 150)
+    p['title_en']  = _clean_str(raw.get('title_en'), 150)
+    p['text_de']   = _clean_str(raw.get('text_de'), 30000)
+    p['text_en']   = _clean_str(raw.get('text_en'), 30000)
+    p['image']     = _clean_str(raw.get('image'), 500)
+    p['published'] = bool(raw.get('published', True))
     return p
 
 
-def sorted_posts(site: dict) -> list:
-    return sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
+def post_status(p: dict) -> str:
+    """'draft' (Entwurf), 'scheduled' (Datum in Zukunft) oder 'published'."""
+    if not p.get('published', True):
+        return 'draft'
+    if (p.get('date') or '') > date.today().isoformat():
+        return 'scheduled'
+    return 'published'
+
+
+def post_visible(p: dict) -> bool:
+    """Öffentlich sichtbar: veröffentlicht und Datum nicht in der Zukunft."""
+    return post_status(p) == 'published'
+
+
+def project_visible(p: dict) -> bool:
+    return bool(p.get('published', True))
+
+
+def sorted_posts(site: dict, public_only: bool = False) -> list:
+    posts = sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
+    return [p for p in posts if post_visible(p)] if public_only else posts
 
 
 def _albums_for_public(site: dict) -> list:
@@ -1117,6 +1138,7 @@ def _normalize_project(raw: dict, existing: dict | None = None) -> dict:
     if isinstance(tags, str):
         tags = [t.strip() for t in tags.split(',')]
     p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
+    p['published'] = bool(raw.get('published', True))
     return p
 
 
@@ -1259,6 +1281,12 @@ def api_design():
         d['mode'] = raw['mode']
     if raw.get('layout') in ('cards', 'list', 'minimal'):
         d['layout'] = raw['layout']
+    if raw.get('font') in ('system', 'serif', 'mono', 'rounded', 'classic'):
+        d['font'] = raw['font']
+    if 'custom_css' in raw:
+        # '<' komplett entfernen — in CSS nie nötig, macht jeden Tag-Ausbruch
+        # aus dem <style>-Block unmöglich (auch </style><script>)
+        d['custom_css'] = _clean_str(raw['custom_css'], 10000).replace('<', '')
     if 'public_url' in raw:
         url = _clean_str(raw['public_url'], 200).rstrip('/')
         d['public_url'] = url if url.startswith(('http://', 'https://')) or not url else ''
@@ -1784,9 +1812,9 @@ def api_export():
     legal = site.get('legal', {})
     pages = {'index.html': '/?static=1'}
     for p in site['projects']:
-        if _has_detail(p):
+        if _has_detail(p) and project_visible(p):
             pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
-    posts = sorted_posts(site)
+    posts = sorted_posts(site, public_only=True)
     if posts:
         pages['blog/index.html'] = '/blog'
         for po in posts:
@@ -2048,8 +2076,8 @@ def sitemap():
     site = load_site()
     base = _base_url()
     urls = [base + '/']
-    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p)]
-    posts = sorted_posts(site)
+    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
+    posts = sorted_posts(site, public_only=True)
     if posts:
         urls.append(base + '/blog')
         urls += [f"{base}/blog/{p['id']}" for p in posts]
@@ -2059,6 +2087,81 @@ def sitemap():
         xml += f'  <url><loc>{u}</loc></url>\n'
     xml += '</urlset>\n'
     return xml, 200, {'Content-Type': 'application/xml'}
+
+
+@public_app.route('/icon.png')
+def pwa_icon():
+    site = load_site()
+    icon = site['design'].get('favicon') or site['profile'].get('avatar') or ''
+    if icon.startswith('/uploads/'):
+        return send_from_directory(UPLOADS_DIR, secure_filename(icon.removeprefix('/uploads/')), max_age=86400)
+    return send_from_directory(_BASE, 'icon.png', max_age=86400)
+
+
+@public_app.route('/manifest.json')
+def manifest():
+    site = load_site()
+    name = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    theme = '#f6f8fa' if site['design'].get('mode') == 'light' else '#0d1117'
+    data = {
+        'name': name, 'short_name': name[:18], 'start_url': '/', 'scope': '/',
+        'display': 'standalone', 'background_color': theme, 'theme_color': theme,
+        'icons': [
+            {'src': '/icon.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': '/icon.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'},
+        ],
+    }
+    return jsonify(data), 200, {'Cache-Control': 'no-cache'}
+
+
+@public_app.route('/sw.js')
+def service_worker():
+    # Minimaler Service Worker: macht die Seite installierbar, Network-first
+    js = (
+        "self.addEventListener('install', e => self.skipWaiting());\n"
+        "self.addEventListener('activate', e => self.clients.claim());\n"
+        "self.addEventListener('fetch', e => {\n"
+        "  if (e.request.method !== 'GET') return;\n"
+        "  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));\n"
+        "});\n"
+    )
+    return js, 200, {'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache'}
+
+
+@public_app.route('/feed.xml')
+def rss_feed():
+    site = load_site()
+    posts = sorted_posts(site, public_only=True)
+    if not posts:
+        abort(404)
+    base = _base_url()
+    lang = detect_language(request)
+    loc = _loc_factory(lang)
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    items = ''
+    for p in posts[:30]:
+        link = f"{base}/blog/{p['id']}"
+        # YYYY-MM-DD → RFC-822 (für RSS-Reader)
+        try:
+            pub = datetime.strptime(p.get('date', ''), '%Y-%m-%d').strftime('%a, %d %b %Y 00:00:00 +0000')
+        except ValueError:
+            pub = ''
+        teaser = re.sub('<[^>]+>', '', render_md(loc(p, 'text')))[:300]
+        items += (f'    <item>\n'
+                  f'      <title>{esc(loc(p, "title"))}</title>\n'
+                  f'      <link>{esc(link)}</link>\n'
+                  f'      <guid isPermaLink="true">{esc(link)}</guid>\n'
+                  + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
+                  + f'      <description>{esc(teaser)}</description>\n'
+                  f'    </item>\n')
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<rss version="2.0"><channel>\n'
+           f'    <title>{esc(title)}</title>\n'
+           f'    <link>{esc(base)}/blog</link>\n'
+           f'    <description>{esc(loc(site["profile"], "tagline"))}</description>\n'
+           f'{items}</channel></rss>\n')
+    return xml, 200, {'Content-Type': 'application/rss+xml; charset=utf-8'}
 
 
 @public_app.errorhandler(404)
@@ -2100,7 +2203,7 @@ def public_index():
     loc = _loc_factory(lang)
     email = site['profile'].get('email', '')
     email_parts = email.split('@', 1) if '@' in email else None
-    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects']]
+    projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
     static_export = bool(request.args.get('static'))
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -2109,7 +2212,7 @@ def public_index():
                            sections=site.get('sections', {}),
                            albums=_albums_for_public(site),
                            album_protect=bool(site.get('album_protect')),
-                           latest_posts=sorted_posts(site)[:3],
+                           latest_posts=sorted_posts(site, public_only=True)[:3],
                            static_export=static_export,
                            contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,
                            total_visitors=total_uniques(stats),
@@ -2125,7 +2228,7 @@ def blog_index():
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    posts = sorted_posts(site)
+    posts = sorted_posts(site, public_only=True)
     if not posts:
         abort(404)
     count_visit(request)
@@ -2142,7 +2245,7 @@ def blog_post(pid: str):
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
     post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
-    if post is None:
+    if post is None or not post_visible(post):
         abort(404)
     count_visit(request)
     t = load_translations(lang)
@@ -2159,7 +2262,7 @@ def project_detail(pid: str):
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
     proj = next((p for p in site['projects'] if p.get('id') == pid), None)
-    if proj is None or not _has_detail(proj):
+    if proj is None or not _has_detail(proj) or not project_visible(proj):
         abort(404)
     count_visit(request)
     t = load_translations(lang)

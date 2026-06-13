@@ -59,6 +59,8 @@
     .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
     .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+    .badge-draft { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
+    .badge-scheduled { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
 
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 30px 14px; }
     .modal-bg.open { display: flex; }
@@ -361,8 +363,24 @@
             </select>
           </div>
         </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_font }}</label>
+            <select id="d-font">
+              <option value="system">{{ t.font_system }}</option>
+              <option value="classic">{{ t.font_classic }}</option>
+              <option value="rounded">{{ t.font_rounded }}</option>
+              <option value="serif">{{ t.font_serif }}</option>
+              <option value="mono">{{ t.font_mono }}</option>
+            </select>
+          </div>
+          <div></div>
+        </div>
         <label>{{ t.field_footer }}</label>
         <input type="text" id="d-footer_text">
+        <label>{{ t.field_custom_css }}</label>
+        <textarea id="d-custom_css" rows="5" style="font-family:ui-monospace,Consolas,monospace" placeholder=".hero h1 {{ '{' }} letter-spacing: 1px; {{ '}' }}"></textarea>
+        <p class="hint">{{ t.custom_css_hint }}</p>
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
         <p class="hint">{{ t.contact_telegram_hint }}</p>
       </div>
@@ -590,6 +608,11 @@
           <input type="text" id="pm-language" placeholder="Python">
         </div>
       </div>
+      <label>{{ t.field_status }}</label>
+      <select id="pm-published">
+        <option value="1">{{ t.status_published }}</option>
+        <option value="0">{{ t.status_draft }}</option>
+      </select>
       <div class="row">
         <div>
           <label>{{ t.field_long }} (DE)</label>
@@ -701,12 +724,18 @@
           <input type="date" id="bm-date">
         </div>
         <div>
-          <label>{{ t.field_image }}</label>
-          <div class="upload-row">
-            <input type="text" id="bm-image" placeholder="https://… {{ t.or_upload }}">
-            <button class="btn secondary small" onclick="pickUpload(u => { el('bm-image').value = u; })">{{ t.upload }}</button>
-          </div>
+          <label>{{ t.field_status }}</label>
+          <select id="bm-published">
+            <option value="1">{{ t.status_published }}</option>
+            <option value="0">{{ t.status_draft }}</option>
+          </select>
         </div>
+      </div>
+      <p class="hint">{{ t.post_schedule_hint }}</p>
+      <label>{{ t.field_image }}</label>
+      <div class="upload-row">
+        <input type="text" id="bm-image" placeholder="https://… {{ t.or_upload }}">
+        <button class="btn secondary small" onclick="pickUpload(u => { el('bm-image').value = u; })">{{ t.upload }}</button>
       </div>
       <div class="row">
         <div>
@@ -824,6 +853,12 @@
             <button class="btn danger small">✕</button>
           </div>`;
         div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
+        // Status: Entwurf, geplant (Datum in Zukunft) oder veröffentlicht
+        const today = new Date().toISOString().slice(0, 10);
+        let badge = '';
+        if (p.published === false) badge = `<span class="badge-draft">${T.status_draft}</span>`;
+        else if ((p.date || '') > today) badge = `<span class="badge-scheduled">${T.status_scheduled}</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
         div.querySelector('.proj-meta').textContent = p.date || '';
         const [editBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         editBtn.onclick = () => openPostModal(p.id);
@@ -845,6 +880,7 @@
       el('bm-title_en').value = p.title_en || '';
       el('bm-text_de').value = p.text_de || '';
       el('bm-text_en').value = p.text_en || '';
+      el('bm-published').value = (id && p.published === false) ? '0' : '1';
       el('post-modal').classList.add('open');
     }
     async function savePost() {
@@ -855,6 +891,7 @@
         title_en: el('bm-title_en').value,
         text_de:  el('bm-text_de').value,
         text_en:  el('bm-text_en').value,
+        published: el('bm-published').value === '1',
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
       const r = editingPostId
@@ -1492,6 +1529,8 @@
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
       el('d-footer_text').value = d.footer_text || '';
+      el('d-font').value = d.font || 'system';
+      el('d-custom_css').value = d.custom_css || '';
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
@@ -1499,6 +1538,8 @@
         accent:          el('d-accent').value,
         mode:            el('d-mode').value,
         layout:          el('d-layout').value,
+        font:            el('d-font').value,
+        custom_css:      el('d-custom_css').value,
         public_url:      el('d-public_url').value,
         show_counter:    el('d-show_counter').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',
@@ -1522,6 +1563,7 @@
         div.className = 'proj-item';
         const img = p.image ? `<img class="proj-thumb" src="${assetUrl(p.image)}" alt="">` : `<div class="proj-thumb"></div>`;
         const badge = p.repo_full_name ? `<span class="badge">GitHub</span>` : '';
+        const draft = (p.published === false) ? `<span class="badge-draft">${T.status_draft}</span>` : '';
         const meta = [p.language, p.stars ? '★ ' + p.stars : '', (p.tags || []).join(', ')].filter(Boolean).join(' · ');
         div.innerHTML = img +
           `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>` +
@@ -1532,7 +1574,7 @@
              <button class="btn danger small" onclick="deleteProject('${p.id}')">✕</button>
            </div>`;
         div.querySelector('.proj-name').textContent = p.title;
-        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
+        if (badge || draft) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge + ' ' + draft);
         div.querySelector('.proj-meta').textContent = meta;
         list.appendChild(div);
       });
@@ -1567,6 +1609,7 @@
       el('pm-language').value = p.language || '';
       el('pm-long_de').value = p.long_de || '';
       el('pm-long_en').value = p.long_en || '';
+      el('pm-published').value = (id && p.published === false) ? '0' : '1';
       modalGallery = [...(p.gallery || [])];
       renderModalGallery();
       el('proj-modal').classList.add('open');
@@ -1585,6 +1628,7 @@
         long_de:  el('pm-long_de').value,
         long_en:  el('pm-long_en').value,
         gallery:  modalGallery,
+        published: el('pm-published').value === '1',
       };
       if (editingId) {
         const old = SITE.projects.find(x => x.id === editingId);

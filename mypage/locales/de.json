@@ -107,6 +107,11 @@
   "no_posts": "Noch keine Beiträge.",
   "field_date": "Datum",
   "field_text_md": "Text (Markdown)",
+  "field_status": "Status",
+  "status_published": "Veröffentlicht",
+  "status_draft": "Entwurf",
+  "status_scheduled": "Geplant",
+  "post_schedule_hint": "Bei „Veröffentlicht\" mit einem Datum in der Zukunft erscheint der Beitrag automatisch erst ab diesem Tag.",
 
   "field_layout": "Projekt-Layout",
   "layout_cards": "Karten",
@@ -114,6 +119,14 @@
   "layout_minimal": "Minimal",
   "mode_auto": "Automatisch (Systemeinstellung)",
   "field_public_url": "Öffentliche URL (für SEO/Sitemap)",
+  "field_font": "Schriftart",
+  "font_system": "System (Standard)",
+  "font_classic": "Klassisch (Helvetica)",
+  "font_rounded": "Weich (Trebuchet)",
+  "font_serif": "Serife (Georgia)",
+  "font_mono": "Monospace",
+  "field_custom_css": "Eigenes CSS (optional)",
+  "custom_css_hint": "Eigene CSS-Regeln für die öffentliche Seite. Für Fortgeschrittene — wird unverändert eingebunden.",
 
   "import_readme": "README der Repos als Detailtext übernehmen",
 
