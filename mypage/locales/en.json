@@ -146,6 +146,9 @@
   "add_images": "Add images",
   "album_image_count": "images",
   "album_uploading": "Uploading … {n}/{total}",
+  "album_protect": "Protect images",
+  "watermark_text": "Watermark text",
+  "album_protect_hint": "Burns the watermark into all album images and disables right-click/drag. Note: full download protection is technically impossible on the web (screenshots always remain). Empty field = \"© your-domain.com\".",
 
   "field_long": "Detail text (Markdown)",
   "long_hint": "With a detail text or gallery the project gets its own subpage, linked from the card.",

@@ -146,6 +146,9 @@
   "add_images": "Bilder hinzufügen",
   "album_image_count": "Bilder",
   "album_uploading": "Lade hoch … {n}/{total}",
+  "album_protect": "Bilder schützen",
+  "watermark_text": "Wasserzeichen-Text",
+  "album_protect_hint": "Brennt das Wasserzeichen in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Hinweis: ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots bleiben immer). Leeres Textfeld = „© deine-domain.de\".",
 
   "field_long": "Detailtext (Markdown)",
   "long_hint": "Mit Detailtext oder Galerie bekommt das Projekt eine eigene Unterseite, die von der Karte aus verlinkt wird.",

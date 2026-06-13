@@ -541,6 +541,16 @@
 
     // ── Foto-Diashow ──
     const ALBUMS = {% if albums %}{{ albums|tojson }}{% else %}[]{% endif %};
+    const ALBUM_PROTECT = {% if album_protect %}true{% else %}false{% endif %};
+    if (ALBUM_PROTECT) {
+      // Rechtsklick + Drag auf Album-/Diashow-Bildern unterbinden (Hürde, kein Vollschutz)
+      document.addEventListener('contextmenu', e => {
+        if (e.target.closest('.album-cover, .slideshow')) e.preventDefault();
+      });
+      document.addEventListener('dragstart', e => {
+        if (e.target.closest('.album-cover, .slideshow')) e.preventDefault();
+      });
+    }
     let ssAlbum = null, ssIdx = 0, ssTimer = null, ssPlaying = true;
     const SS_INTERVAL = 4500;
 

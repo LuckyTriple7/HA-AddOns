@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 
 import markdown as md_lib
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -75,6 +75,8 @@ GITHUB_API = 'https://api.github.com'
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 USERFILES_BASE.mkdir(parents=True, exist_ok=True)
+WM_CACHE_DIR = Path(_DATA) / 'wm_cache'
+WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
@@ -170,6 +172,8 @@ DEFAULT_SITE = {
         'news': [],
     },
     'albums': [],
+    'album_protect': False,
+    'watermark_text': '',
 }
 
 
@@ -955,6 +959,20 @@ def sorted_posts(site: dict) -> list:
     return sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
 
 
+def _albums_for_public(site: dict) -> list:
+    """Alben mit Bildern; Bild-URLs auf die /album-img/-Route umgeschrieben
+    (liefert je nach Einstellung Original oder Wasserzeichen-Version)."""
+    out = []
+    for a in site.get('albums', []):
+        imgs = a.get('images') or []
+        if not imgs:
+            continue
+        mapped = [('/album-img/' + u.removeprefix('/uploads/')) if u.startswith('/uploads/') else u
+                  for u in imgs]
+        out.append({**a, 'images': mapped})
+    return out
+
+
 def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
     a = existing or {'id': uuid.uuid4().hex[:12]}
     a['title_de'] = _clean_str(raw.get('title_de'), 120)
@@ -1260,6 +1278,10 @@ def api_sections():
             'text_en': _clean_str(e.get('text_en'), 500),
             'url':     _clean_str(e.get('url'), 500),
         } for e in raw['news'][:30] if isinstance(e, dict)]
+    if 'album_protect' in raw:
+        site['album_protect'] = bool(raw['album_protect'])
+    if 'watermark_text' in raw:
+        site['watermark_text'] = _clean_str(raw['watermark_text'], 80)
     save_site(site)
     return jsonify({'ok': True})
 
@@ -1895,6 +1917,78 @@ def public_uploads(filename: str):
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
 
 
+def effective_watermark() -> str:
+    """Wasserzeichen-Text: eigener Text > © + Domain > © MyPage."""
+    site = load_site()
+    txt = (site.get('watermark_text') or '').strip()
+    if txt:
+        return txt[:80]
+    host = urlparse(site['design'].get('public_url') or '').netloc.removeprefix('www.')
+    return f'© {host}' if host else '© MyPage'
+
+
+def _render_watermark(src: Path, text: str) -> bytes | None:
+    """Brennt das Wasserzeichen unten rechts ins Bild (mit Schatten für Lesbarkeit)."""
+    if not _HAS_PIL:
+        return None
+    try:
+        img = Image.open(src).convert('RGBA')
+        w, h = img.size
+        layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        size = max(14, int(w * 0.028))
+        font = None
+        for path in ('/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',
+                     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                     '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'):
+            try:
+                font = ImageFont.truetype(path, size)
+                break
+            except OSError:
+                continue
+        if font is None:
+            try:
+                font = ImageFont.load_default(size)  # Pillow ≥10: skalierbar
+            except TypeError:
+                font = ImageFont.load_default()
+        box = draw.textbbox((0, 0), text, font=font)
+        tw, th = box[2] - box[0], box[3] - box[1]
+        margin = max(8, int(w * 0.015))
+        x, y = w - tw - margin, h - th - margin - box[1]
+        # Schatten + Text, halbtransparent
+        draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 140))
+        draw.text((x, y), text, font=font, fill=(255, 255, 255, 190))
+        out = Image.alpha_composite(img, layer).convert('RGB')
+        buf = io.BytesIO()
+        out.save(buf, 'WEBP', quality=82)
+        return buf.getvalue()
+    except Exception as e:
+        log.warning("Wasserzeichen für '%s' fehlgeschlagen: %s", src.name, e)
+        return None
+
+
+@public_app.route('/album-img/<path:filename>')
+def album_image(filename: str):
+    """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert."""
+    safe = secure_filename(filename)
+    src = (UPLOADS_DIR / safe).resolve()
+    if not safe or src.parent != UPLOADS_DIR.resolve() or not src.is_file():
+        abort(404)
+    site = load_site()
+    if not site.get('album_protect'):
+        return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
+    text = effective_watermark()
+    # Cache-Schlüssel aus Text + Dateiname → Textänderung erzeugt neue Datei
+    key = hashlib.sha256((text + '|' + safe).encode()).hexdigest()[:24]
+    cached = WM_CACHE_DIR / f'{key}.webp'
+    if not cached.is_file():
+        data = _render_watermark(src, text)
+        if data is None:
+            return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
+        cached.write_bytes(data)
+    return send_file(cached, mimetype='image/webp', max_age=86400)
+
+
 def _base_url() -> str:
     site = load_site()
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
@@ -1981,7 +2075,8 @@ def public_index():
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
                            sections=site.get('sections', {}),
-                           albums=[a for a in site.get('albums', []) if a.get('images')],
+                           albums=_albums_for_public(site),
+                           album_protect=bool(site.get('album_protect')),
                            latest_posts=sorted_posts(site)[:3],
                            static_export=static_export,
                            contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,

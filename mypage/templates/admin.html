@@ -232,6 +232,23 @@
         </h3>
         <p class="hint">{{ t.albums_hint }}</p>
         <div class="proj-list" id="album-list"></div>
+        <div class="row" style="margin-top:16px">
+          <div>
+            <label>{{ t.album_protect }}</label>
+            <select id="a-protect" onchange="saveAlbumSettings()">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.watermark_text }}</label>
+            <div class="upload-row">
+              <input type="text" id="a-watermark" placeholder="© deine-domain.de">
+              <button class="btn secondary small" onclick="saveAlbumSettings()">{{ t.save }}</button>
+            </div>
+          </div>
+        </div>
+        <p class="hint">{{ t.album_protect_hint }}</p>
       </div>
     </section>
 
@@ -853,6 +870,16 @@
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
       renderAlbums();
+      el('a-protect').value = SITE.album_protect ? '1' : '0';
+      el('a-watermark').value = SITE.watermark_text || '';
+    }
+    async function saveAlbumSettings() {
+      const r = await apiJson('api/sections', 'POST', {
+        album_protect: el('a-protect').value === '1',
+        watermark_text: el('a-watermark').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
     }
     function addNewsRow(n) {
       n = n || {};
