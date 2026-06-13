@@ -41,7 +41,7 @@ from flask import (Flask, render_template, request, redirect, url_for,
                    send_file)
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
+from werkzeug.utils import secure_filename, safe_join
 import requests as http
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -122,7 +122,15 @@ _users_lock = threading.Lock()
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
 USER_SESSION_HOURS = 24 * 7
-_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+# ReDoS-sicher: Domain-Komponenten ohne Punkt, kein katastrophales Backtracking
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s.]+(?:\.[^@\s.]+)+$')
+
+
+def safe_under(base: Path, *parts: str) -> Path | None:
+    """Pfad sicher innerhalb von base zusammensetzen — None bei Traversal-Versuch.
+    Nutzt werkzeug.safe_join (von CodeQL als Sanitizer anerkannt)."""
+    joined = safe_join(str(base), *[p for p in parts if p])
+    return Path(joined) if joined is not None else None
 
 # Kontaktformular-Rate-Limit (IP → Zeitstempel)
 _contact_times: dict[str, list[float]] = defaultdict(list)
@@ -767,8 +775,16 @@ def userfiles_root() -> Path:
     return base
 
 
+_UID_RE = re.compile(r'^[a-f0-9]{6,32}$')
+
+
 def user_dir(user: dict) -> Path:
-    d = userfiles_root() / user['id']
+    uid = user['id']
+    if not _UID_RE.match(uid):
+        abort(400)
+    d = safe_under(userfiles_root(), uid)
+    if d is None:
+        abort(400)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -778,14 +794,17 @@ def store_user_file(d: Path, f) -> Path | None:
     name = secure_filename(f.filename or '')
     if not name:
         return None
-    target = (d / name).resolve()
-    if target.parent != d.resolve():
+    target = safe_under(d, name)
+    if target is None:
         return None
     base, ext = os.path.splitext(name)
     n = 1
     while target.exists():
         # Unterstrich statt Klammern: übersteht secure_filename beim Download/Löschen
-        target = d / f'{base}_{n}{ext}'
+        nxt = safe_under(d, f'{base}_{n}{ext}')
+        if nxt is None:
+            return None
+        target = nxt
         n += 1
     f.save(target)
     return target
@@ -1401,16 +1420,18 @@ def api_restore():
                 json.loads(z.read('site.json'))  # muss valides JSON sein
             restored = 0
             for member in names:
-                # Nur bekannte Dateien zulassen — Zip-Slip ausgeschlossen, da
-                # Zielpfade aus Whitelist bzw. Basename + Extension-Check entstehen
+                # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
+                # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json'):
-                    target = Path(_DATA) / member
+                    target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
-                    name = Path(member).name
+                    name = secure_filename(Path(member).name)
                     if not name or Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
                         continue
-                    target = UPLOADS_DIR / name
+                    target = safe_under(UPLOADS_DIR, name)
                 else:
+                    continue
+                if target is None:
                     continue
                 with open(target, 'wb') as dst:
                     dst.write(z.read(member))
@@ -1711,8 +1732,8 @@ def api_user_file(uid: str, name: str):
     d = user_dir(user)
     if request.method == 'DELETE':
         safe = secure_filename(name)
-        target = (d / safe).resolve()
-        if safe and target.parent == d.resolve() and target.is_file():
+        target = safe_under(d, safe)
+        if safe and target is not None and target.is_file():
             target.unlink()
             log_user_event(uid, 'admin_delete', safe)
             return jsonify({'ok': True})
@@ -1728,12 +1749,12 @@ def api_storage():
         return err
     if not storage_available():
         return jsonify({'error': 'storage'}), 503
-    base = USERFILES_BASE.resolve()
+    base = USERFILES_BASE
     if request.method == 'POST':
         sub = _clean_str((request.get_json(silent=True) or {}).get('subdir'), 300).strip('/')
         if sub:
-            p = (base / sub).resolve()
-            if not (p == base or base in p.parents) or not p.is_dir():
+            p = safe_under(base, sub)
+            if p is None or not p.is_dir():
                 return jsonify({'error': 'invalid dir'}), 400
         site = load_site()
         site['design']['storage_subdir'] = sub
@@ -1741,8 +1762,8 @@ def api_storage():
         log.info("Mitglieder-Speicherort: %s", userfiles_root())
         return jsonify({'ok': True})
     rel = _clean_str(request.args.get('path') or '', 300).strip('/')
-    cur = (base / rel).resolve() if rel else base
-    if not (cur == base or base in cur.parents) or not cur.is_dir():
+    cur = safe_under(base, rel) if rel else base
+    if cur is None or not cur.is_dir():
         return jsonify({'error': 'invalid dir'}), 400
     try:
         dirs = sorted(d.name for d in cur.iterdir() if d.is_dir())
@@ -1810,17 +1831,18 @@ def api_upload():
             if img.mode not in ('RGB', 'RGBA'):
                 img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
             name = uuid.uuid4().hex + '.webp'
-            target = (UPLOADS_DIR / name).resolve()
-            if target.parent != UPLOADS_DIR.resolve():
+            target = safe_under(UPLOADS_DIR, name)
+            if target is None:
                 abort(400)
             img.save(target, 'WEBP', quality=82)
             return jsonify({'ok': True, 'url': '/uploads/' + name})
         except Exception as e:
             log.warning("Bild-Optimierung fehlgeschlagen, speichere Original: %s", e)
             f.stream.seek(0)
+    # ext stammt aus dem Dateinamen, ist aber gegen ALLOWED_UPLOAD_EXT geprüft
     name = uuid.uuid4().hex + ext
-    target = (UPLOADS_DIR / name).resolve()
-    if target.parent != UPLOADS_DIR.resolve():
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None:
         abort(400)
     f.save(target)
     return jsonify({'ok': True, 'url': '/uploads/' + name})
@@ -1981,8 +2003,8 @@ def _render_watermark(src: Path, text: str) -> bytes | None:
 def album_image(filename: str):
     """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert."""
     safe = secure_filename(filename)
-    src = (UPLOADS_DIR / safe).resolve()
-    if not safe or src.parent != UPLOADS_DIR.resolve() or not src.is_file():
+    src = safe_under(UPLOADS_DIR, safe)
+    if not safe or src is None or not src.is_file():
         abort(404)
     site = load_site()
     if not site.get('album_protect'):
@@ -2009,7 +2031,7 @@ def favicon():
     site = load_site()
     icon = site['design'].get('favicon') or site['profile'].get('avatar') or ''
     if icon.startswith('/uploads/'):
-        return send_from_directory(UPLOADS_DIR, icon.removeprefix('/uploads/'), max_age=86400)
+        return send_from_directory(UPLOADS_DIR, secure_filename(icon.removeprefix('/uploads/')), max_age=86400)
     if icon.startswith(('http://', 'https://')):
         return redirect(icon)
     return '', 204
@@ -2246,8 +2268,8 @@ def member_upload():
 def _serve_user_file(d: Path, name: str):
     """Datei-Download mit explizitem Pfad-Check und Fehler-Logging (SMB kann zicken)."""
     safe = secure_filename(name)
-    target = (d / safe).resolve()
-    if not safe or target.parent != d.resolve() or not target.is_file():
+    target = safe_under(d, safe)
+    if not safe or target is None or not target.is_file():
         abort(404)
     try:
         # as_attachment: hochgeladene Dateien werden nie im Browser ausgeführt;
@@ -2318,8 +2340,8 @@ def member_delete():
         return redirect('/bereich?msg=storage')
     name = secure_filename(request.form.get('name') or '')
     d = user_dir(member)
-    target = (d / name).resolve()
-    if name and target.parent == d.resolve() and target.is_file():
+    target = safe_under(d, name)
+    if name and target is not None and target.is_file():
         target.unlink()
         log_user_event(member['id'], 'delete', name, get_client_ip(request))
         log.info("Mitglied '%s': Datei '%s' gelöscht", member['email'], name)
