@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- 🌐 **Auto-Übersetzung DE→EN** per Klick (MyMemory, kostenlos, kein API-Key): Button „🌐 DE→EN übersetzen" in Profil, Projekt-, Blog- und Album-Dialog füllt die englischen Felder automatisch aus den deutschen. Lange Texte werden automatisch aufgeteilt; Ergebnis bleibt editierbar zum Nachbessern. Optionale Add-on-Option `translate_email` erhöht das kostenlose Tageslimit.
+
 ## 0.2.2
 
 - 🔧 Fix Schriftauswahl: Die Anführungszeichen im Font-Namen wurden HTML-escaped (`&#39;`) und damit ungültig — die gewählte Schrift griff nicht. Jetzt korrekt eingebunden.

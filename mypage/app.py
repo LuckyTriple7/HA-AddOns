@@ -1285,6 +1285,65 @@ def api_site():
     return jsonify(load_site())
 
 
+def _mymemory_translate(text: str, src: str, dst: str) -> str:
+    """Übersetzt einen kurzen Textabschnitt über MyMemory (kostenlos, kein Key)."""
+    params = {'q': text, 'langpair': f'{src}|{dst}'}
+    email = (load_config().get('translate_email') or '').strip()
+    if email:
+        params['de'] = email
+    r = http.get('https://api.mymemory.translated.net/get', params=params, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    if data.get('responseStatus') == 200:
+        return (data.get('responseData') or {}).get('translatedText', '')
+    raise ValueError(data.get('responseDetails') or 'translation failed')
+
+
+def _split_for_translation(text: str, limit: int = 450) -> list[str]:
+    """Text an Zeilen-/Satzgrenzen in Stücke ≤ limit teilen (MyMemory-Limit)."""
+    chunks, buf = [], ''
+    # zuerst nach Zeilen, dann zu lange Zeilen nach Sätzen
+    for line in text.split('\n'):
+        if len(line) > limit:
+            for part in re.split(r'(?<=[.!?]) ', line):
+                while len(part) > limit:  # Notfall: hart schneiden
+                    chunks.append(part[:limit]); part = part[limit:]
+                if len(buf) + len(part) + 1 > limit:
+                    chunks.append(buf); buf = part
+                else:
+                    buf = f'{buf} {part}'.strip()
+        else:
+            if len(buf) + len(line) + 1 > limit:
+                chunks.append(buf); buf = line
+            else:
+                buf = f'{buf}\n{line}' if buf else line
+    if buf:
+        chunks.append(buf)
+    return chunks or ['']
+
+
+@admin_app.route('/api/translate', methods=['POST'])
+def api_translate():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    text = _clean_str(raw.get('text'), 20000)
+    src = raw.get('from') if raw.get('from') in ('de', 'en') else 'de'
+    dst = raw.get('to') if raw.get('to') in ('de', 'en') else 'en'
+    if not text.strip() or src == dst:
+        return jsonify({'text': text})
+    try:
+        out = []
+        for chunk in _split_for_translation(text):
+            out.append(_mymemory_translate(chunk, src, dst) if chunk.strip() else chunk)
+            time.sleep(0.3)  # höflich zur kostenlosen API
+        return jsonify({'text': '\n'.join(out) if '\n' in text else ' '.join(out).strip()})
+    except Exception as e:
+        log.warning("Übersetzung fehlgeschlagen: %s", e)
+        return jsonify({'error': 'translation failed'}), 502
+
+
 @admin_app.route('/api/profile', methods=['POST'])
 def api_profile():
     err = _api_auth()

@@ -136,6 +136,11 @@
   "font_uploaded": "Font uploaded and activated",
   "font_upload_err": "Upload failed (WOFF2/WOFF/TTF/OTF only).",
   "album_drag_hint": "Drag to reorder",
+  "tr_btn": "Translate DE→EN",
+  "tr_running": "Translating…",
+  "tr_done": "Translated to English — please review",
+  "tr_error": "Translation partially failed",
+  "tr_nothing": "No German text to translate.",
   "field_custom_css": "Custom CSS (optional)",
   "custom_css_hint": "Your own CSS rules for the public page. For advanced users — included as-is.",
 

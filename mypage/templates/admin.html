@@ -210,7 +210,10 @@
         <label>{{ t.field_links }}</label>
         <div id="p-links"></div>
         <button class="btn secondary small" onclick="addLinkRow()">+ {{ t.add_link }}</button>
-        <div><button class="btn" onclick="saveProfile()">{{ t.save }}</button></div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="saveProfile()">{{ t.save }}</button>
+          <button class="btn secondary" onclick="translateFields(this, [['p-tagline_de','p-tagline_en'],['p-bio_de','p-bio_en']])">🌐 {{ t.tr_btn }}</button>
+        </div>
       </div>
     </section>
 
@@ -649,6 +652,7 @@
       <button class="btn secondary small" onclick="pickUpload(u => { modalGallery.push(u); renderModalGallery(); })">+ {{ t.add_image }}</button>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
+        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['pm-desc_de','pm-desc_en'],['pm-long_de','pm-long_en']])">🌐 {{ t.tr_btn }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
       </div>
     </div>
@@ -716,6 +720,7 @@
       <p class="hint" id="am-progress" style="margin-top:6px"></p>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('album-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['am-title_de','am-title_en'],['am-desc_de','am-desc_en']])">🌐 {{ t.tr_btn }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveAlbum()">{{ t.save }}</button>
       </div>
     </div>
@@ -779,6 +784,7 @@
       </div>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['bm-title_de','bm-title_en'],['bm-text_de','bm-text_en']])">🌐 {{ t.tr_btn }}</button>
         <button class="btn" style="margin-top:16px" onclick="savePost()">{{ t.save }}</button>
       </div>
     </div>
@@ -808,6 +814,25 @@
       t.textContent = msg;
       t.className = 'toast show' + (isErr ? ' err' : '');
       setTimeout(() => t.className = 'toast', 2200);
+    }
+
+    // ── Auto-Übersetzung DE→EN (MyMemory) ──
+    // pairs: [[deFeldId, enFeldId], …] — füllt leere/alle EN-Felder aus den DE-Texten
+    async function translateFields(btn, pairs) {
+      const todo = pairs.filter(([de]) => el(de) && el(de).value.trim());
+      if (!todo.length) { toast(T.tr_nothing, true); return; }
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = T.tr_running;
+      let failed = false;
+      for (const [de, en] of todo) {
+        try {
+          const r = await apiJson('api/translate', 'POST', { text: el(de).value, from: 'de', to: 'en' });
+          if (r.ok) el(en).value = (await r.json()).text;
+          else failed = true;
+        } catch { failed = true; }
+      }
+      btn.disabled = false; btn.textContent = old;
+      toast(failed ? T.tr_error : T.tr_done, failed);
     }
 
     // ── Theme ──
