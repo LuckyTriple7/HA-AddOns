@@ -138,9 +138,30 @@
     }
     .skill:hover { border-color: var(--accent); color: var(--accent); }
 
-    /* Fotoalben */
-    .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; padding-bottom: 40px; }
-    .album-card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
+    /* Fotoalben — horizontales Karussell */
+    .album-rail-wrap { position: relative; padding-bottom: 40px; }
+    .album-rail {
+      display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
+      scroll-behavior: smooth; padding-bottom: 4px;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .album-rail::-webkit-scrollbar { height: 8px; }
+    .album-rail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .album-card {
+      flex: 0 0 260px; scroll-snap-align: start;
+      background: var(--surf); border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s;
+    }
+    .album-arrow {
+      position: absolute; top: calc(50% - 40px); transform: translateY(-50%); z-index: 3;
+      width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--surf); color: var(--text); cursor: pointer; font-size: 1.3rem; line-height: 1;
+      display: none; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,.25);
+    }
+    .album-arrow:hover { border-color: var(--accent); color: var(--accent); }
+    .album-arrow.show { display: flex; }
+    .album-arrow.ar-prev { left: -6px; } .album-arrow.ar-next { right: -6px; }
+    @media (hover: none) { .album-arrow { display: none !important; } }
     .album-card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,.25); }
     .album-cover { position: relative; aspect-ratio: 4/3; background: var(--surf2); }
     .album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -385,19 +406,23 @@
 
     {% if albums %}
     <h2 class="section-title">{{ t.albums_heading }}</h2>
-    <div class="album-grid">
-      {% for a in albums %}
-      <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
-        <div class="album-cover">
-          <img src="{{ a.images[0] }}" alt="{{ loc(a, 'title') }}" loading="lazy">
-          <span class="album-count">{{ a.images|length }} 📷</span>
-        </div>
-        <div class="album-body">
-          <div class="album-title">{{ loc(a, 'title') }}</div>
-          {% if loc(a, 'desc') %}<p class="album-desc">{{ loc(a, 'desc') }}</p>{% endif %}
-        </div>
-      </article>
-      {% endfor %}
+    <div class="album-rail-wrap">
+      <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="Zurück">‹</button>
+      <div class="album-rail" id="album-rail">
+        {% for a in albums %}
+        <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
+          <div class="album-cover">
+            <img src="{{ a.images[0] }}" alt="{{ loc(a, 'title') }}" loading="lazy">
+            <span class="album-count">{{ a.images|length }} 📷</span>
+          </div>
+          <div class="album-body">
+            <div class="album-title">{{ loc(a, 'title') }}</div>
+            {% if loc(a, 'desc') %}<p class="album-desc">{{ loc(a, 'desc') }}</p>{% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      <button class="album-arrow ar-next" onclick="railScroll(1)" aria-label="Weiter">›</button>
     </div>
     {% endif %}
 
@@ -537,6 +562,25 @@
         }
         btn.disabled = false;
       });
+    }
+
+    // ── Album-Karussell (horizontales Scrollen) ──
+    const albumRail = document.getElementById('album-rail');
+    function railScroll(dir) {
+      if (albumRail) albumRail.scrollBy({ left: dir * 278, behavior: 'smooth' });
+    }
+    function updateRailArrows() {
+      if (!albumRail) return;
+      const prev = document.querySelector('.ar-prev'), next = document.querySelector('.ar-next');
+      const overflow = albumRail.scrollWidth > albumRail.clientWidth + 4;
+      prev.classList.toggle('show', overflow && albumRail.scrollLeft > 4);
+      next.classList.toggle('show', overflow && albumRail.scrollLeft < albumRail.scrollWidth - albumRail.clientWidth - 4);
+    }
+    if (albumRail) {
+      albumRail.addEventListener('scroll', updateRailArrows, { passive: true });
+      window.addEventListener('resize', updateRailArrows);
+      window.addEventListener('load', updateRailArrows);
+      updateRailArrows();
     }
 
     // ── Foto-Diashow ──
