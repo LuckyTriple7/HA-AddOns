@@ -2572,10 +2572,22 @@ def indexnow_submit(urls: list) -> None:
         'urlList': url_list,
     }
 
+    # Bedeutung der IndexNow-Statuscodes (ASCII, fuer ueberall sauberes Log)
+    _IN_MSG = {
+        200: 'OK - akzeptiert', 202: 'angenommen (Key wird noch geprueft)',
+        400: 'ungueltige Anfrage', 403: 'Key nicht gueltig (Key-Datei erreichbar?)',
+        422: 'URLs passen nicht zur Domain/Key', 429: 'zu viele Anfragen',
+    }
+    log.info("IndexNow -> Bing: sende %d URL(s) (%s ...)", len(url_list), url_list[0])
+
     def _worker():
         try:
             r = http.post('https://www.bing.com/indexnow', json=payload, timeout=10)
-            log.info("IndexNow → Bing: %d URL(s), HTTP %s", len(url_list), r.status_code)
+            note = _IN_MSG.get(r.status_code, '')
+            if r.status_code in (200, 202):
+                log.info("IndexNow -> Bing: %d URL(s) gemeldet (HTTP %s - %s)", len(url_list), r.status_code, note)
+            else:
+                log.warning("IndexNow -> Bing: HTTP %s - %s %s", r.status_code, note, (r.text or '')[:160].strip())
         except Exception as e:
             log.warning("IndexNow-Submit fehlgeschlagen: %s", e)
 

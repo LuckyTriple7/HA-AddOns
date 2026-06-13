@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.17
+
+- 📝 **IndexNow-Status im Add-on-Log**: Jede Meldung an Bing wird jetzt protokolliert — beim Senden („sende N URL(s)") und mit dem Ergebnis inkl. verständlicher Deutung der Bing-Antwort (HTTP 200/202 = ok, 403/422 = Key-/Domain-Problem usw.). Log-Texte in ASCII, damit sie überall sauber erscheinen.
+
 ## 0.6.16
 
 - 🚀 **IndexNow (Bing)**: Neue Option im Design-Tab. Wenn aktiv, benachrichtigt MyPage **Bing** (und Partner wie DuckDuckGo/Ecosia) automatisch, sobald du einen Beitrag oder ein Projekt veröffentlichst — für schnellere Indexierung. Der nötige Schlüssel wird automatisch erzeugt und unter `https://deine-domain.de/<key>.txt` ausgeliefert. Zusätzlich ein Button „Jetzt an Bing melden", der alle öffentlichen URLs (Startseite, Projekt-Detailseiten, Blog) auf einmal übermittelt. Voraussetzung: öffentliche URL gesetzt. (Google nutzt IndexNow nicht — dort weiterhin Sitemap/Search Console.)
