@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.18
+
+- 🔒 **Sicherheitsfix**: Bei einem Passwortwechsel (Admin-Reset, „Zugangsdaten erneut senden" oder neues Passwort setzen) werden jetzt alle bestehenden Sitzungen des Benutzers beendet. Vorher blieb ein bereits eingeloggter Browser trotz geändertem Passwort weiter angemeldet.
+
 ## 0.1.17
 
 - 📋 **Login-Ereignisse im Add-on-Log**: erfolgreiche, fehlgeschlagene und gesperrte Mitglieder-Anmeldungen werden mit E-Mail und IP protokolliert (Brute-Force-Schutz war bereits aktiv: 5 Fehlversuche → 15 Min. IP-Sperre, auch das Sperren wird geloggt)

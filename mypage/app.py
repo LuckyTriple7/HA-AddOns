@@ -789,6 +789,16 @@ def user_usage_bytes(user: dict) -> int:
     return sum(f.stat().st_size for f in user_dir(user).iterdir() if f.is_file())
 
 
+def invalidate_user_sessions(uid: str) -> int:
+    """Beendet alle aktiven Sitzungen eines Benutzers (z. B. nach Passwortwechsel)."""
+    tokens = [t for t, v in user_sessions.items() if v[0] == uid]
+    for t in tokens:
+        del user_sessions[t]
+    if tokens:
+        save_user_sessions()
+    return len(tokens)
+
+
 def save_user_sessions() -> None:
     try:
         now = time.time()
@@ -1491,10 +1501,7 @@ def api_user_edit(uid: str):
     if request.method == 'DELETE':
         users.remove(user)
         save_users(users)
-        # Sessions des Benutzers beenden und Dateien entfernen
-        for tok in [t for t, v in user_sessions.items() if v[0] == uid]:
-            del user_sessions[tok]
-        save_user_sessions()
+        invalidate_user_sessions(uid)
         shutil.rmtree(user_dir(user), ignore_errors=True)
         log.info("Benutzer '%s' gelöscht", user['email'])
         return jsonify({'ok': True})
@@ -1509,6 +1516,10 @@ def api_user_edit(uid: str):
         if len(password) < 8:
             return jsonify({'error': 'password too short'}), 400
         user['pw_hash'] = generate_password_hash(password)
+        # Passwortwechsel beendet alle bestehenden Sitzungen → Neuanmeldung nötig
+        ended = invalidate_user_sessions(uid)
+        if ended:
+            log.info("Passwortwechsel: %d Sitzung(en) von '%s' beendet", ended, user['email'])
         mail_sent = smtp_configured()
         if mail_sent:
             threading.Thread(target=send_welcome_email,
@@ -1538,6 +1549,7 @@ def api_user_resend(uid: str):
     password = generate_member_password()
     user['pw_hash'] = generate_password_hash(password)
     save_users(users)
+    invalidate_user_sessions(uid)  # altes Passwort → bestehende Sitzungen kappen
     log_user_event(uid, 'pw_reset')
     threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
