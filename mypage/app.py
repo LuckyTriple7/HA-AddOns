@@ -220,6 +220,38 @@ def render_md(text: str) -> str:
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
 
 
+# Social-Plattform-Erkennung anhand des Hostnamens (für Auto-Icons bei Links)
+_SOCIAL_HOSTS = {
+    'github.com': 'github', 'gitlab.com': 'gitlab',
+    'instagram.com': 'instagram', 'tiktok.com': 'tiktok',
+    'facebook.com': 'facebook', 'fb.com': 'facebook',
+    'linkedin.com': 'linkedin', 'youtube.com': 'youtube', 'youtu.be': 'youtube',
+    'twitter.com': 'x', 'x.com': 'x',
+    't.me': 'telegram', 'telegram.org': 'telegram',
+    'discord.com': 'discord', 'discord.gg': 'discord', 'discordapp.com': 'discord',
+    'wa.me': 'whatsapp', 'whatsapp.com': 'whatsapp',
+    'bsky.app': 'bluesky', 'xing.com': 'xing',
+    'twitch.tv': 'twitch', 'reddit.com': 'reddit',
+    'mastodon.social': 'mastodon',
+}
+
+
+def link_platform(url: str) -> str:
+    """Liefert den Plattform-Schlüssel für eine URL (exakter Host-/Subdomain-Vergleich)."""
+    host = (urlparse(url or '').hostname or '').lower().removeprefix('www.')
+    if not host:
+        return ''
+    for h, key in _SOCIAL_HOSTS.items():
+        if host == h or host.endswith('.' + h):
+            return key
+    if 'mastodon' in host:  # verteilte Mastodon-Instanzen grob erkennen
+        return 'mastodon'
+    return ''
+
+
+public_app.jinja_env.globals['link_platform'] = link_platform
+
+
 def font_css(design: dict) -> tuple[str, str]:
     """Liefert (font-family-Stack, @font-face-CSS) für die gewählte Schrift."""
     f = design.get('font') or 'system'

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- 🔗 **Automatische Social-Media-Icons** bei „Weitere Links": Das passende Symbol wird anhand der URL erkannt — unterstützt GitHub, GitLab, Instagram, TikTok, Facebook, LinkedIn, YouTube, X/Twitter, Mastodon, Telegram, Discord, WhatsApp, Bluesky, Xing, Twitch und Reddit. Unbekannte Links bekommen ein neutrales Link-Symbol.
+
 ## 0.3.2
 
 - 🏠 **Mehr HA-Sensoren**: `binary_sensor.mypage_storage_online` (SMB-Speicher erreichbar — ideal für Ausfall-Alarm), `binary_sensor.mypage_maintenance` (Wartungsmodus an/aus) sowie Content-Zähler `sensor.mypage_projects`, `_posts`, `_albums`
