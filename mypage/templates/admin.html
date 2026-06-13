@@ -1022,7 +1022,11 @@
         <input type="text" class="n-date" placeholder="2026-06">
         <input type="text" class="n-text_de" placeholder="${T.field_desc} (DE)">
         <input type="text" class="n-text_en" placeholder="${T.field_desc} (EN)">
-        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
       </div>
       <label style="margin-top:8px">{{ t.field_link }}</label>
       <input type="text" class="n-url" placeholder="https://…">`;
@@ -1040,7 +1044,11 @@
         <input type="text" class="t-year" placeholder="2024–2026">
         <input type="text" class="t-title_de" placeholder="${T.field_title} (DE)">
         <input type="text" class="t-title_en" placeholder="${T.field_title} (EN)">
-        <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
       </div>
       <div class="row" style="margin-top:8px">
         <textarea class="t-text_de" placeholder="${T.field_desc} (DE)"></textarea>
