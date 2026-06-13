@@ -1830,7 +1830,8 @@ def api_cherry_pick():
                         if put_r.status_code not in (200, 201):
                             errors.append(f'{path}: Schreiben fehlgeschlagen ({put_r.status_code})')
                 except Exception as fe:
-                    errors.append(f'{path}: {fe}')
+                    log.warning("Cherry-pick Datei-Fehler (%s %s): %s", repo, path, fe)
+                    errors.append(f'{path}: Verarbeitung fehlgeschlagen')
 
         # 4. PR erstellen
         msg_list = []
