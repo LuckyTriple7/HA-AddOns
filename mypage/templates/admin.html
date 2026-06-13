@@ -45,8 +45,10 @@
     details.acc.dragging { opacity: .45; border-color: var(--accent); }
     details.acc.acc-hidden { opacity: .5; }
     .acc-ext { color: var(--muted); font-size: 0.8rem; }
-    .sec-eye { order: 99; margin-left: auto; background: none; border: none; cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0 4px; opacity: .85; }
-    .sec-eye:hover { opacity: 1; }
+    .sec-eye { order: 99; margin-left: auto; background: none; border: none; cursor: pointer; line-height: 0; padding: 2px 4px; color: var(--muted); }
+    .sec-eye svg { width: 18px; height: 18px; fill: currentColor; display: block; }
+    .sec-eye:hover { color: var(--text); }
+    details.acc.acc-hidden .sec-eye { color: var(--accent); }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -235,40 +237,40 @@
       <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }} {{ t.content_dnd_hint }}</p>
       <div id="section-acc">
       <details class="panel acc" data-key="news">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.news_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.news_heading }}</summary>
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="blog">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=blog]').click()">{{ t.tab_blog }} →</button>
       </details>
       <details class="panel acc" data-key="services">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.services_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.services_heading }}</summary>
         <p class="hint">{{ t.services_hint }}</p>
         <div id="services-list"></div>
         <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="projects">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.projects }} <span class="acc-ext">↗</span></summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.projects }} <span class="acc-ext">↗</span></summary>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=projects]').click()">{{ t.tab_projects }} →</button>
       </details>
       <details class="panel acc" data-key="skills">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.skills_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.skills_heading }}</summary>
         <label>{{ t.field_skills }}</label>
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
       </details>
       <details class="panel acc" data-key="testimonials">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.testimonials_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.testimonials_heading }}</summary>
         <p class="hint">{{ t.testimonials_hint }}</p>
         <div id="testimonials-list"></div>
         <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="photos">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.albums_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.albums_heading }}</summary>
         <p class="hint">{{ t.albums_hint }}</p>
         <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
@@ -291,36 +293,36 @@
         <p class="hint">{{ t.album_protect_hint }}</p>
       </details>
       <details class="panel acc" data-key="team">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.team_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</summary>
         <p class="hint">{{ t.team_hint }}</p>
         <div id="team-list"></div>
         <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="timeline">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.timeline_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</summary>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="events">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.events_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.events_heading }}</summary>
         <p class="hint">{{ t.events_hint }}</p>
         <div id="events-list"></div>
         <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="links">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.links_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.links_heading }}</summary>
         <p class="hint">{{ t.links_hint }}</p>
         <div id="links-list"></div>
         <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="faq">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.faq_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.faq_heading }}</summary>
         <p class="hint">{{ t.faq_hint }}</p>
         <div id="faq-list"></div>
         <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
       </details>
       <details class="panel acc" data-key="location">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)">👁</button>{{ t.location_heading }}</summary>
+        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.location_heading }}</summary>
         <p class="hint">{{ t.location_hint }}</p>
         <div class="row">
           <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
@@ -1213,6 +1215,8 @@
       else toast(T.error_save, true);
     }
     // ── Sichtbarkeit eines Abschnitts auf der Startseite ──
+    const EYE_ON  = '<svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg>';
+    const EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65a3 3 0 003 3c.22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53a5 5 0 01-5-5c0-.79.2-1.53.53-2.2zm4.31-.78 3.15 3.15.02-.16a3 3 0 00-3-3l-.17.01z"/></svg>';
     function applySectionVisibility() {
       const hidden = new Set(SITE.hidden_sections || []);
       document.querySelectorAll('#section-acc .acc').forEach(d => {
@@ -1220,7 +1224,7 @@
         d.classList.toggle('acc-hidden', isHidden);
         const eye = d.querySelector('.sec-eye');
         if (eye) {
-          eye.textContent = isHidden ? '🚫' : '👁';
+          eye.innerHTML = isHidden ? EYE_OFF : EYE_ON;
           eye.title = isHidden ? T.section_show : T.section_hide;
         }
       });
@@ -1230,12 +1234,12 @@
       const d = btn.closest('.acc');
       const nowHidden = !d.classList.contains('acc-hidden');
       d.classList.toggle('acc-hidden', nowHidden);
-      btn.textContent = nowHidden ? '🚫' : '👁';
+      btn.innerHTML = nowHidden ? EYE_OFF : EYE_ON;
       btn.title = nowHidden ? T.section_show : T.section_hide;
       const hidden = [...document.querySelectorAll('#section-acc .acc.acc-hidden')].map(x => x.dataset.key);
       const r = await apiJson('api/sections', 'POST', { hidden_sections: hidden });
       if (r.ok) { SITE.hidden_sections = hidden; toast(T.saved); }
-      else { toast(T.error_save, true); d.classList.toggle('acc-hidden'); }
+      else { toast(T.error_save, true); d.classList.toggle('acc-hidden'); btn.innerHTML = nowHidden ? EYE_ON : EYE_OFF; }
     }
     // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
     function moveEntryRow(btn, dir) {

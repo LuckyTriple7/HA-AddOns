@@ -811,6 +811,20 @@ def _is_own_host(host: str, own: str) -> bool:
     return host == own or host.endswith('.' + own)
 
 
+def _is_local_host(host: str) -> bool:
+    """True für private/lokale Hosts (interne Aufrufe), die als Referrer keinen Sinn ergeben."""
+    h = host.split(':')[0].strip().lower()
+    if not h:
+        return True
+    if h == 'localhost' or h.endswith(('.local', '.lan', '.internal', '.home', '.home.arpa')):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+    except ValueError:
+        return '.' not in h   # bloßer Hostname ohne Punkt (z. B. "homeassistant") = lokal
+
+
 def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     """Top-Referrer, Browser- und Länder-Verteilung aus dem Besucher-Log."""
     referrers: dict[str, int] = {}
@@ -821,7 +835,7 @@ def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
         if v.get('bot'):
             continue
         host = urlparse(v.get('ref') or '').netloc.lower()
-        if host and not _is_own_host(host, own):
+        if host and not _is_own_host(host, own) and not _is_local_host(host):
             referrers[host] = referrers.get(host, 0) + 1
         b = _browser_name(v.get('ua') or '')
         browsers[b] = browsers.get(b, 0) + 1

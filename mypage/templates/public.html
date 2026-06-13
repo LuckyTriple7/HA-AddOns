@@ -186,8 +186,15 @@
     .slideshow { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.94); flex-direction: column; }
     .slideshow.open { display: flex; }
     .ss-stage { flex: 1; position: relative; overflow: hidden; }
-    .ss-img { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; opacity: 0; transition: opacity .8s ease; }
+    .ss-img { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; opacity: 0; transition: opacity .8s ease; cursor: zoom-in; }
     .ss-img.show { opacity: 1; }
+    /* Zoom-Ansicht: Bild in voller Auflösung, scroll-/schwenkbar */
+    .zoombox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.96); z-index: 80; cursor: zoom-out; }
+    .zoombox.open { display: flex; align-items: center; justify-content: center; }
+    .zoombox.open.actual { display: block; overflow: auto; }
+    .zoombox:not(.actual) img { max-width: 96vw; max-height: 92vh; border-radius: 6px; cursor: zoom-in; }
+    .zoombox.actual img { max-width: none; display: block; margin: 0 auto; cursor: zoom-out; }
+    .zoom-close { position: fixed; top: 16px; right: 18px; z-index: 81; background: rgba(0,0,0,.5); border: 1px solid var(--border); color: #fff; width: 40px; height: 40px; border-radius: 8px; font-size: 1.3rem; cursor: pointer; }
     .ss-close { position: absolute; top: 14px; right: 18px; z-index: 2; background: rgba(255,255,255,.12); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; }
     .ss-close:hover { background: rgba(255,255,255,.25); }
     .ss-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; background: rgba(255,255,255,.1); color: #fff; border: none; width: 52px; height: 72px; font-size: 2rem; cursor: pointer; border-radius: 8px; }
@@ -737,13 +744,17 @@
   <div class="slideshow" id="slideshow" aria-hidden="true">
     <button class="ss-close" onclick="closeAlbum()" aria-label="Schließen">✕</button>
     <button class="ss-nav ss-prev" onclick="ssStep(-1)" aria-label="Zurück">‹</button>
-    <div class="ss-stage" id="ss-stage"></div>
+    <div class="ss-stage" id="ss-stage" onclick="zoomCurrentSlide()"></div>
     <button class="ss-nav ss-next" onclick="ssStep(1)" aria-label="Weiter">›</button>
     <div class="ss-bar">
       <button class="ss-play" id="ss-play" onclick="ssToggle()" aria-label="Play/Pause">⏸</button>
       <span class="ss-caption" id="ss-caption"></span>
       <span class="ss-count" id="ss-count"></span>
     </div>
+  </div>
+  <div class="zoombox" id="zoombox" onclick="closeZoom()">
+    <button class="zoom-close" onclick="closeZoom()" aria-label="Schließen">✕</button>
+    <img id="zoom-img" src="" alt="" onclick="toggleZoomActual(event)">
   </div>
   {% endif %}
 
@@ -989,7 +1000,34 @@
       box.setAttribute('aria-hidden', 'true');
       document.body.style.overflow = '';
     }
+    // Aktuelles Diashow-Bild in der Zoom-Ansicht öffnen (Diashow pausieren)
+    function zoomCurrentSlide() {
+      const img = document.getElementById(ssActive);
+      if (!img || !img.src) return;
+      if (ssPlaying) ssToggle();
+      openZoom(img.src);
+    }
+    function openZoom(src) {
+      const z = document.getElementById('zoombox');
+      document.getElementById('zoom-img').src = src;
+      z.classList.add('open');
+      z.classList.remove('actual');
+      document.body.style.overflow = 'hidden';
+    }
+    function toggleZoomActual(e) {
+      e.stopPropagation();   // Klick aufs Bild schließt nicht, sondern schaltet die Größe um
+      document.getElementById('zoombox').classList.toggle('actual');
+    }
+    function closeZoom() {
+      const z = document.getElementById('zoombox');
+      z.classList.remove('open', 'actual');
+      document.getElementById('zoom-img').src = '';
+      const ss = document.getElementById('slideshow');
+      document.body.style.overflow = (ss && ss.classList.contains('open')) ? 'hidden' : '';
+    }
     document.addEventListener('keydown', e => {
+      const zb = document.getElementById('zoombox');
+      if (zb && zb.classList.contains('open')) { if (e.key === 'Escape') closeZoom(); return; }
       if (!document.getElementById('slideshow') || !document.getElementById('slideshow').classList.contains('open')) return;
       if (e.key === 'Escape') closeAlbum();
       else if (e.key === 'ArrowRight') ssStep(1);

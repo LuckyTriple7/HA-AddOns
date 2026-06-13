@@ -55,9 +55,12 @@
     .gal-arrow:hover { border-color: var(--accent); color: var(--accent); }
     .gal-prev { left: -8px; } .gal-next { right: -8px; }
     @media (hover: none) { .gal-arrow { display: none !important; } }
-    .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 60; align-items: center; justify-content: center; cursor: pointer; }
-    .lightbox.open { display: flex; }
-    .lightbox img { max-width: 94vw; max-height: 92vh; border-radius: 8px; }
+    .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.95); z-index: 60; cursor: zoom-out; }
+    .lightbox.open { display: flex; align-items: center; justify-content: center; }
+    .lightbox.open.actual { display: block; overflow: auto; }
+    .lightbox:not(.actual) img { max-width: 94vw; max-height: 92vh; border-radius: 8px; cursor: zoom-in; }
+    .lightbox.actual img { max-width: none; display: block; margin: 0 auto; cursor: zoom-out; }
+    .hero-img, .gal-rail img { cursor: zoom-in; }
     .content { font-size: 0.96rem; }
     .content h1, .content h2, .content h3 { margin: 22px 0 8px; font-size: 1.2rem; }
     .content p { margin-bottom: 12px; }
@@ -80,7 +83,7 @@
   <main class="wrap">
     {% if p.date %}<div class="post-date">{{ p.date }}</div>{% endif %}
     <h1>{{ loc(p, 'title') }}</h1>
-    {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ loc(p, 'title') }}">{% endif %}
+    {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ loc(p, 'title') }}" onclick="openLightbox(this.src)">{% endif %}
     {% set vp = parse_video(p.video) %}
     {% if vp[1] %}
     <div class="video-embed" data-src="{{ vp[1] }}" onclick="loadVideo(this)">
@@ -102,7 +105,7 @@
     {% endif %}
     <a class="back" href="/blog">&larr; {{ t.blog_all }}</a>
   </main>
-  <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" src="" alt=""></div>
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt="" onclick="toggleLightboxActual(event)"></div>
   <footer>
     <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
   </footer>
@@ -123,9 +126,23 @@
       el.appendChild(f);
     }
     function openLightbox(src) {
+      const lb = document.getElementById('lightbox');
       document.getElementById('lightbox-img').src = src;
-      document.getElementById('lightbox').classList.add('open');
+      lb.classList.add('open');
+      lb.classList.remove('actual');
+      document.body.style.overflow = 'hidden';
     }
+    function toggleLightboxActual(e) {
+      e.stopPropagation();   // Klick aufs Bild schaltet zwischen eingepasst und voller Größe um
+      document.getElementById('lightbox').classList.toggle('actual');
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('open', 'actual');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeLightbox();
+    });
     const galRail = document.getElementById('gal-rail');
     function galScroll(dir) { if (galRail) galRail.scrollBy({ left: dir * 260, behavior: 'smooth' }); }
     function updateGalArrows() {
