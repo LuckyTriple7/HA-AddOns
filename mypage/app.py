@@ -226,6 +226,7 @@ DEFAULT_SITE = {
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'font': 'system', 'custom_css': '',
         'custom_font': '', 'custom_font_name': '',
+        'support_url': '', 'support_label': '',
     },
     'posts': [],
     'legal': {
@@ -237,6 +238,7 @@ DEFAULT_SITE = {
         'timeline': [],
         'news': [],
         'links': [],
+        'faq': [],
     },
     'albums': [],
     'album_protect': False,
@@ -279,6 +281,58 @@ def link_platform(url: str) -> str:
 
 
 public_app.jinja_env.globals['link_platform'] = link_platform
+
+
+# Support-Plattform-Erkennung (für den Spenden-/Support-Button)
+_SUPPORT_HOSTS = {
+    'buymeacoffee.com': 'buymeacoffee', 'ko-fi.com': 'kofi',
+    'paypal.com': 'paypal', 'paypal.me': 'paypal',
+    'patreon.com': 'patreon', 'liberapay.com': 'liberapay',
+}
+
+
+def support_platform(url: str) -> str:
+    """Plattform-Schlüssel für den Support-Button (Default: 'heart')."""
+    host = (urlparse(url or '').hostname or '').lower().removeprefix('www.')
+    if host == 'github.com' and '/sponsors/' in (urlparse(url).path or ''):
+        return 'githubsponsors'
+    for h, key in _SUPPORT_HOSTS.items():
+        if host == h or host.endswith('.' + h):
+            return key
+    return 'heart'
+
+
+public_app.jinja_env.globals['support_platform'] = support_platform
+
+
+def parse_video(url: str) -> tuple[str, str]:
+    """Erkennt YouTube/Vimeo und liefert (Anbieter, datenschutzfreundliche Embed-URL)."""
+    u = (url or '').strip()
+    if not u:
+        return '', ''
+    p = urlparse(u)
+    host = (p.hostname or '').lower().removeprefix('www.')
+    vid = ''
+    if host == 'youtu.be':
+        vid = p.path.lstrip('/').split('/')[0]
+        return ('youtube', f'https://www.youtube-nocookie.com/embed/{vid}') if vid else ('', '')
+    if host.endswith('youtube.com'):
+        if p.path == '/watch':
+            from urllib.parse import parse_qs
+            vid = (parse_qs(p.query).get('v') or [''])[0]
+        elif p.path.startswith(('/embed/', '/shorts/')):
+            vid = p.path.split('/')[2]
+        if re.fullmatch(r'[A-Za-z0-9_-]{6,20}', vid):
+            return 'youtube', f'https://www.youtube-nocookie.com/embed/{vid}'
+        return '', ''
+    if host == 'vimeo.com' or host.endswith('.vimeo.com'):
+        vid = next((seg for seg in p.path.split('/') if seg.isdigit()), '')
+        return ('vimeo', f'https://player.vimeo.com/video/{vid}') if vid else ('', '')
+    return '', ''
+
+
+public_app.jinja_env.globals['parse_video'] = parse_video
+public_app.jinja_env.globals['render_md'] = render_md
 
 
 def font_css(design: dict) -> tuple[str, str]:
@@ -1111,6 +1165,7 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
     p['text_de']   = _clean_str(raw.get('text_de'), 30000)
     p['text_en']   = _clean_str(raw.get('text_en'), 30000)
     p['image']     = _clean_str(raw.get('image'), 500)
+    p['video']     = _clean_str(raw.get('video'), 500)
     p['published'] = bool(raw.get('published', True))
     return p
 
@@ -1276,12 +1331,14 @@ def _normalize_project(raw: dict, existing: dict | None = None) -> dict:
     if isinstance(tags, str):
         tags = [t.strip() for t in tags.split(',')]
     p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
+    p['video'] = _clean_str(raw.get('video'), 500)
     p['published'] = bool(raw.get('published', True))
     return p
 
 
 def _has_detail(p: dict) -> bool:
-    return bool((p.get('long_de') or p.get('long_en') or '').strip() or p.get('gallery'))
+    return bool((p.get('long_de') or p.get('long_en') or '').strip()
+                or p.get('gallery') or p.get('video'))
 
 
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
@@ -1497,6 +1554,11 @@ def api_design():
     if 'public_url' in raw:
         url = _clean_str(raw['public_url'], 200).rstrip('/')
         d['public_url'] = url if url.startswith(('http://', 'https://')) or not url else ''
+    if 'support_url' in raw:
+        su = _clean_str(raw['support_url'], 500)
+        d['support_url'] = su if su.startswith(('http://', 'https://')) or not su else ''
+    if 'support_label' in raw:
+        d['support_label'] = _clean_str(raw['support_label'], 40)
     for flag in ('show_counter', 'contact_enabled', 'maintenance'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -1542,6 +1604,14 @@ def api_sections():
             'url':      _clean_str(e.get('url'), 500),
         } for e in raw['links'][:100]
             if isinstance(e, dict) and _clean_str(e.get('url'), 500).startswith(('http://', 'https://'))]
+    if isinstance(raw.get('faq'), list):
+        sec['faq'] = [{
+            'q_de': _clean_str(e.get('q_de'), 300),
+            'q_en': _clean_str(e.get('q_en'), 300),
+            'a_de': _clean_str(e.get('a_de'), 3000),
+            'a_en': _clean_str(e.get('a_en'), 3000),
+        } for e in raw['faq'][:50]
+            if isinstance(e, dict) and (_clean_str(e.get('q_de'), 300) or _clean_str(e.get('q_en'), 300))]
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
