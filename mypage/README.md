@@ -21,3 +21,43 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 5. Öffentliche Seite läuft auf `http://<host>:17760` — z. B. über einen Cloudflare Tunnel veröffentlichen
 
 > **Tipp:** Nur Port 17760 nach außen freigeben. Das Admin-Panel (17761) bleibt am besten im lokalen Netz bzw. hinter HA.
+
+## Eigenes CSS — Beispiele
+
+Im Design-Tab gibt es das Feld **„Eigenes CSS"**. Dort eingetragene Regeln werden
+**nach** dem Standard-Design eingebunden und überschreiben es gezielt — so passt du
+das Aussehen an, ohne das Grunddesign zu zerstören. Aufbau: `Auswahl { Eigenschaft: Wert; }`.
+
+> **Klassennamen finden:** Auf der öffentlichen Seite **F12** drücken → Rechtsklick auf
+> ein Element → „Untersuchen". Dort steht der Name, den du im CSS ansprichst.
+> Ungültiges CSS wird vom Browser ignoriert — die Seite geht also nicht kaputt.
+
+```css
+/* Hero-Überschrift größer und mit Buchstabenabstand */
+.hero h1 { font-size: 2.6rem; letter-spacing: 1px; }
+
+/* Projekt- und Album-Karten stärker abrunden, mit Schatten */
+.card, .album-card { border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+
+/* Mehr Abstand über jeder Abschnitts-Überschrift */
+.section-title { margin-top: 48px; }
+
+/* Skills-Chips in der Akzentfarbe füllen */
+.skill { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Avatar eckig statt rund */
+.avatar { border-radius: 12px; }
+
+/* Tagline kursiv */
+.tagline { font-style: italic; }
+
+/* Projektkarten beim Überfahren stärker anheben */
+.card:hover { transform: translateY(-6px); }
+```
+
+**Design-Variablen** (passen sich automatisch an Hell/Dunkel an) kannst du verwenden:
+`var(--accent)` (Akzentfarbe), `var(--text)`, `var(--muted)`, `var(--surf)` (Kartenhintergrund),
+`var(--bg)` (Seitenhintergrund), `var(--border)`.
+
+Aus Sicherheitsgründen werden `<`-Zeichen aus dem Feld entfernt — es ist also
+ausschließlich CSS möglich, kein HTML/Script.
