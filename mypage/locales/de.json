@@ -171,6 +171,13 @@
   "nf_title": "Seite nicht gefunden",
   "nf_text": "Die angeforderte Seite existiert nicht (mehr).",
   "nf_home": "Zur Startseite",
+  "err_back": "Zurück",
+  "err_403_title": "Kein Zugriff",
+  "err_403_text": "Du hast keine Berechtigung für diesen Bereich. Bitte melde dich an oder kehre zurück.",
+  "err_413_title": "Datei zu groß",
+  "err_413_text": "Die hochgeladene Datei überschreitet das erlaubte Limit. Bitte verkleinern und erneut versuchen.",
+  "err_500_title": "Etwas ist schiefgelaufen",
+  "err_500_text": "Auf dem Server ist ein unerwarteter Fehler aufgetreten. Bitte versuche es später erneut.",
 
   "skills_heading": "Skills",
   "field_skills": "Skills (kommagetrennt)",
