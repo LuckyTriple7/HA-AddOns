@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.19
+
+- 🥚 **Easter Eggs** (Design-Tab, Standard: aus) — versteckte Spielereien für Besucher:
+  - **Konami-Code** (↑↑↓↓←→←→ B A) → Konfetti + frei einstellbare Nachricht
+  - **Avatar 5× klicken** → kleine Drehung + geheime Zweit-Tagline (einstellbar)
+  - Wort **„matrix"** tippen → kurzer grüner Code-Regen
+  - freundlicher **Gruß in der Browser-Konsole** (F12)
+
 ## 0.6.18
 
 - 🙈 **Schalter „Von Suchmaschinen indexieren lassen"** (Design-Tab, Standard: **an**). Auf *Nein* gestellt, bittet die Seite alle Suchmaschinen, sie nicht aufzunehmen: `noindex, nofollow`-Meta auf allen öffentlichen Seiten, `robots.txt` mit `Disallow: /`, und IndexNow pausiert automatisch. Praktisch für private Seiten, die nicht öffentlich gefunden werden sollen.

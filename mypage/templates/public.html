@@ -347,6 +347,16 @@
     .tip-icon { font-size: 1.6rem; line-height: 1.2; flex: 0 0 auto; }
     .tip-text { font-size: 0.96rem; }
     .tip-text p:last-child { margin-bottom: 0; }
+    /* Easter Eggs */
+    .egg-piece { position: fixed; top: -32px; pointer-events: none; z-index: 90; will-change: transform; }
+    @keyframes egg-fall { to { transform: translateY(106vh) rotate(560deg); } }
+    .egg-pop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 91; pointer-events: none; padding: 20px; }
+    .egg-pop > div { background: var(--surf); border: 1px solid var(--accent); border-radius: 14px; padding: 22px 28px; font-weight: 600; text-align: center; max-width: 90vw; box-shadow: 0 12px 44px rgba(0,0,0,.45); animation: egg-bounce .35s ease; }
+    @keyframes egg-bounce { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .avatar.egg-spin { animation: egg-spin 1s ease; }
+    @keyframes egg-spin { to { transform: rotate(360deg); } }
+    .egg-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--accent); color: #fff; padding: 10px 18px; border-radius: 10px; z-index: 92; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.35); max-width: 92vw; text-align: center; }
+    #egg-matrix { position: fixed; inset: 0; z-index: 89; pointer-events: none; transition: opacity 1s; }
     .empty { color: var(--muted); text-align: center; padding: 60px 0; }
     @media (max-width: 600px) {
       .hero { padding: 40px 0 28px; gap: 20px; }
@@ -1050,5 +1060,84 @@
       else if (e.key === ' ') { e.preventDefault(); ssToggle(); }
     });
   </script>
+  {% if site.design.easter_eggs %}
+  <script>
+    (function () {
+      const EGG_MSG = {{ (site.design.egg_message or '🥚 Du hast ein Easter Egg gefunden!')|tojson }};
+      const EGG_TAGLINE = {{ (site.design.egg_tagline or '🤫 Psst … du hast ein Geheimnis entdeckt!')|tojson }};
+      const NAME = {{ (site.profile.name or 'MyPage')|tojson }};
+
+      // 2) Konsolen-Gruß (nur für Neugierige in den DevTools)
+      try {
+        console.log('%c👋 Hi! Neugierig, wie die Seite gebaut ist?', 'font-size:14px;font-weight:bold;color:#58a6ff');
+        console.log('%cDiese Seite (' + NAME + ') läuft mit MyPage in Home Assistant. Tipp: Probier mal den Konami-Code 😉', 'color:#8b949e');
+      } catch (e) {}
+
+      function confetti() {
+        const em = ['🎉', '✨', '🎊', '🥚', '⭐', '💫', '🌟'];
+        for (let i = 0; i < 90; i++) {
+          const s = document.createElement('span');
+          s.className = 'egg-piece';
+          s.textContent = em[i % em.length];
+          s.style.left = Math.random() * 100 + 'vw';
+          s.style.fontSize = (14 + Math.random() * 18) + 'px';
+          s.style.animation = 'egg-fall ' + (2 + Math.random() * 2.2).toFixed(2) + 's linear';
+          document.body.appendChild(s);
+          s.addEventListener('animationend', () => s.remove());
+        }
+      }
+      function popup(msg) {
+        const w = document.createElement('div'); w.className = 'egg-pop';
+        const d = document.createElement('div'); d.textContent = msg; w.appendChild(d);
+        document.body.appendChild(w);
+        setTimeout(() => w.remove(), 2600);
+      }
+
+      // 1) Konami-Code  +  4) geheimes Wort „matrix"
+      const KC = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+      const MW = 'matrix';
+      let kbuf = [], sbuf = '';
+      document.addEventListener('keydown', e => {
+        const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        kbuf.push(key); if (kbuf.length > KC.length) kbuf.shift();
+        if (kbuf.length === KC.length && KC.every((v, i) => v === kbuf[i])) { kbuf = []; confetti(); popup(EGG_MSG); }
+        if (e.key.length === 1) { sbuf = (sbuf + e.key.toLowerCase()).slice(-MW.length); if (sbuf === MW) { sbuf = ''; matrixRain(); } }
+      });
+
+      // 3) Avatar 5× klicken → Drehung + Geheim-Tagline
+      const av = document.querySelector('.avatar');
+      if (av) {
+        let c = 0, t = 0;
+        av.addEventListener('click', () => {
+          const n = Date.now(); if (n - t > 1500) c = 0; t = n; c++;
+          if (c >= 5) {
+            c = 0;
+            av.classList.add('egg-spin'); setTimeout(() => av.classList.remove('egg-spin'), 1000);
+            const tt = document.createElement('div'); tt.className = 'egg-toast'; tt.textContent = EGG_TAGLINE;
+            document.body.appendChild(tt); setTimeout(() => tt.remove(), 3000);
+          }
+        });
+      }
+
+      // 4) Matrix-Regen (klingt nach ein paar Sekunden ab)
+      function matrixRain() {
+        if (document.getElementById('egg-matrix')) return;
+        const cv = document.createElement('canvas'); cv.id = 'egg-matrix';
+        cv.width = innerWidth; cv.height = innerHeight; document.body.appendChild(cv);
+        const ctx = cv.getContext('2d'); const cols = Math.floor(cv.width / 14); const y = Array(cols).fill(0);
+        const iv = setInterval(() => {
+          ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.fillStyle = '#0f0'; ctx.font = '14px monospace';
+          for (let i = 0; i < cols; i++) {
+            ctx.fillText(String.fromCharCode(0x30A0 + Math.random() * 96), i * 14, y[i] * 14);
+            if (y[i] * 14 > cv.height && Math.random() > 0.975) y[i] = 0;
+            y[i]++;
+          }
+        }, 55);
+        setTimeout(() => { cv.style.opacity = '0'; setTimeout(() => { clearInterval(iv); cv.remove(); }, 1000); }, 5000);
+      }
+    })();
+  </script>
+  {% endif %}
 </body>
 </html>

@@ -578,6 +578,26 @@
         <label>{{ t.field_custom_css }}</label>
         <textarea id="d-custom_css" rows="5" style="font-family:ui-monospace,Consolas,monospace" placeholder=".hero h1 {{ '{' }} letter-spacing: 1px; {{ '}' }}"></textarea>
         <p class="hint">{{ t.custom_css_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.field_easter_eggs }}</label>
+            <select id="d-easter_eggs">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.easter_eggs_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_egg_message }}</label>
+            <input type="text" id="d-egg_message" maxlength="200" placeholder="🥚 Du hast ein Easter Egg gefunden!">
+          </div>
+          <div>
+            <label>{{ t.field_egg_tagline }}</label>
+            <input type="text" id="d-egg_tagline" maxlength="200" placeholder="🤫 Psst … ein Geheimnis!">
+          </div>
+        </div>
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
         <p class="hint">{{ t.contact_telegram_hint }}</p>
       </div>
@@ -2266,6 +2286,9 @@
       }
       el('d-font').value = d.font || 'system';
       el('d-custom_css').value = d.custom_css || '';
+      el('d-easter_eggs').value = d.easter_eggs ? '1' : '0';
+      el('d-egg_message').value = d.egg_message || '';
+      el('d-egg_tagline').value = d.egg_tagline || '';
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
@@ -2275,6 +2298,9 @@
         layout:          el('d-layout').value,
         font:            el('d-font').value,
         custom_css:      el('d-custom_css').value,
+        easter_eggs:     el('d-easter_eggs').value === '1',
+        egg_message:     el('d-egg_message').value,
+        egg_tagline:     el('d-egg_tagline').value,
         public_url:      el('d-public_url').value,
         allow_indexing:  el('d-allow_indexing').value === '1',
         indexnow:        el('d-indexnow').value === '1',

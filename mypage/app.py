@@ -230,6 +230,7 @@ DEFAULT_SITE = {
         'booking_url': '', 'booking_label': '',
         'indexnow': False,
         'allow_indexing': True,
+        'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
     },
     'posts': [],
     'legal': {
@@ -1620,11 +1621,13 @@ def api_design():
         d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
-    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow', 'allow_indexing'):
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
+                 'allow_indexing', 'easter_eggs'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
-                      ('maintenance_text_de', 1000), ('maintenance_text_en', 1000)):
+                      ('maintenance_text_de', 1000), ('maintenance_text_en', 1000),
+                      ('egg_message', 200), ('egg_tagline', 200)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
     if d.get('indexnow'):
