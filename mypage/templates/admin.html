@@ -268,6 +268,15 @@
         <div id="tips-list"></div>
         <button class="btn secondary small" onclick="addTipRow()">+ {{ t.add_entry }}</button>
         <button class="btn secondary small" onclick="translateRows(this, 'tips-list', 'tip-text_de', 'tip-text_en')">🌐 {{ t.tr_btn }}</button>
+        <button class="btn secondary small" onclick="toggleTipImport()">⬇ {{ t.tips_import }}</button>
+        <div id="tips-import-box" style="display:none;margin-top:10px">
+          <textarea id="tips-import-json" rows="6" placeholder='[{"text_de":"…","text_en":"…"}]' style="font-family:ui-monospace,Consolas,monospace;font-size:0.82rem"></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button class="btn small" onclick="importTips()">{{ t.tips_import_apply }}</button>
+            <button class="btn secondary small" onclick="toggleTipImport()">{{ t.cancel }}</button>
+          </div>
+          <p class="hint">{{ t.tips_import_hint }}</p>
+        </div>
       </div>
       <div class="panel acc" data-key="blog">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></div>
@@ -1039,18 +1048,47 @@
       const random = el('tips-random').value === '1';
       const curOrd = tipTodayOrdinal();
       const curPeriod = weekly ? Math.floor(curOrd / 7) : curOrd;
+      const windowN = weekly ? 52 : 365;          // Fenster für „wie oft"
+      const maxBack = Math.max(windowN, random ? n * 60 : n);
       rows.forEach((row, i) => {
         const span = row.querySelector('.tip-last');
         if (!span) return;
-        let found = null;
-        const maxBack = random ? n * 60 : n;
+        let found = null, count = 0;
         for (let back = 0; back <= maxBack; back++) {
-          if (tipIndexForPeriod(curPeriod - back, n, random) === i) { found = back; break; }
+          if (tipIndexForPeriod(curPeriod - back, n, random) === i) {
+            if (found === null) found = back;
+            if (back < windowN) count++;
+          }
         }
-        if (found === null) span.textContent = T.tip_never;
-        else if (found === 0) span.textContent = T.tip_shown + ': ' + T.tip_today;
-        else span.textContent = T.tip_shown + ': ' + tipOrdinalToISO(weekly ? (curPeriod - found) * 7 : curPeriod - found);
+        const when = found === null ? T.tip_never
+                   : found === 0 ? T.tip_shown + ': ' + T.tip_today
+                   : T.tip_shown + ': ' + tipOrdinalToISO(weekly ? (curPeriod - found) * 7 : curPeriod - found);
+        const freq = (weekly ? T.tip_count_week : T.tip_count_day).replace('{n}', count);
+        span.textContent = when + ' · ' + freq;
       });
+    }
+    function toggleTipImport() {
+      const b = el('tips-import-box');
+      b.style.display = b.style.display === 'none' ? 'block' : 'none';
+      if (b.style.display === 'block') el('tips-import-json').focus();
+    }
+    function importTips() {
+      let data;
+      try { data = JSON.parse(el('tips-import-json').value); }
+      catch { toast(T.tips_import_invalid, true); return; }
+      if (data && Array.isArray(data.tips)) data = data.tips;   // {"tips":[…]} ebenfalls akzeptieren
+      if (!Array.isArray(data)) { toast(T.tips_import_invalid, true); return; }
+      let added = 0;
+      data.forEach(x => {
+        if (!x || typeof x !== 'object') return;
+        const de = (x.text_de || '').toString(), en = (x.text_en || '').toString();
+        if (de || en) { addTipRow({ text_de: de, text_en: en }); added++; }
+      });
+      if (!added) { toast(T.tips_import_invalid, true); return; }
+      el('tips-import-json').value = '';
+      toggleTipImport();
+      updateTipHints();
+      toast(T.tips_import_done.replace('{n}', added));
     }
 
     // ── Theme ──
