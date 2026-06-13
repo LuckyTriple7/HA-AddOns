@@ -225,6 +225,14 @@
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
         <div><button class="btn" onclick="saveSections()">{{ t.save }}</button></div>
       </div>
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.albums_heading }}
+          <button class="btn small" onclick="openAlbumModal()">+ {{ t.new_album }}</button>
+        </h3>
+        <p class="hint">{{ t.albums_hint }}</p>
+        <div class="proj-list" id="album-list"></div>
+      </div>
     </section>
 
     <!-- Projekte -->
@@ -602,6 +610,42 @@
     </div>
   </div>
 
+  <!-- Album-Modal -->
+  <div class="modal-bg" id="album-modal">
+    <div class="modal">
+      <h3 id="am-title">{{ t.new_album }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="am-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="am-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_desc }} (DE)</label>
+          <textarea id="am-desc_de" rows="2"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_desc }} (EN)</label>
+          <textarea id="am-desc_en" rows="2"></textarea>
+        </div>
+      </div>
+      <label>{{ t.album_images }}</label>
+      <div class="gallery-list" id="am-images"></div>
+      <button class="btn secondary small" onclick="el('am-file').click()">+ {{ t.add_images }}</button>
+      <input type="file" id="am-file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple style="display:none">
+      <p class="hint" id="am-progress" style="margin-top:6px"></p>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('album-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveAlbum()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Login-Nachricht-Modal -->
   <div class="modal-bg" id="loginmsg-modal">
     <div class="modal">
@@ -808,6 +852,7 @@
       (s.news || []).forEach(n => addNewsRow(n));
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
+      renderAlbums();
     }
     function addNewsRow(n) {
       n = n || {};
@@ -866,6 +911,96 @@
       const r = await apiJson('api/sections', 'POST', { skills, news, timeline });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
+    }
+
+    // ── Fotoalben ──
+    let editingAlbumId = null;
+    let albumImages = [];
+    function renderAlbums() {
+      const list = el('album-list');
+      list.innerHTML = '';
+      const albums = SITE.albums || [];
+      if (!albums.length) { list.innerHTML = `<div class="empty-note">${T.no_albums}</div>`; return; }
+      albums.forEach((a, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const cover = (a.images && a.images[0]) ? `<img class="proj-thumb" src="${assetUrl(a.images[0])}" alt="">` : `<div class="proj-thumb"></div>`;
+        div.innerHTML = cover +
+          `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+           <div class="proj-actions">
+             <button class="btn secondary small" onclick="moveAlbum('${a.id}','up')" ${i===0?'disabled':''}>↑</button>
+             <button class="btn secondary small" onclick="moveAlbum('${a.id}','down')" ${i===albums.length-1?'disabled':''}>↓</button>
+             <button class="btn secondary small" onclick="openAlbumModal('${a.id}')">${T.edit}</button>
+             <button class="btn danger small" onclick="deleteAlbum('${a.id}')">✕</button>
+           </div>`;
+        div.querySelector('.proj-name').textContent = a.title_de || a.title_en;
+        div.querySelector('.proj-meta').textContent = `${(a.images || []).length} ${T.album_image_count}`;
+        list.appendChild(div);
+      });
+    }
+    function renderAlbumImages() {
+      const box = el('am-images');
+      box.innerHTML = '';
+      albumImages.forEach((u, i) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-thumb';
+        const img = document.createElement('img');
+        img.src = assetUrl(u);
+        const btn = document.createElement('button');
+        btn.textContent = '✕';
+        btn.onclick = () => { albumImages.splice(i, 1); renderAlbumImages(); };
+        div.append(img, btn);
+        box.appendChild(div);
+      });
+    }
+    function openAlbumModal(id) {
+      editingAlbumId = id || null;
+      const a = id ? SITE.albums.find(x => x.id === id) : {};
+      el('am-title').textContent = id ? T.edit_album : T.new_album;
+      el('am-title_de').value = a.title_de || '';
+      el('am-title_en').value = a.title_en || '';
+      el('am-desc_de').value = a.desc_de || '';
+      el('am-desc_en').value = a.desc_en || '';
+      albumImages = [...(a.images || [])];
+      el('am-progress').textContent = '';
+      renderAlbumImages();
+      el('album-modal').classList.add('open');
+    }
+    el('am-file').addEventListener('change', async e => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      if (!files.length) return;
+      let done = 0;
+      for (const f of files) {
+        el('am-progress').textContent = T.album_uploading.replace('{n}', ++done).replace('{total}', files.length);
+        const fd = new FormData();
+        fd.append('file', f);
+        const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+        if (r.ok) { albumImages.push((await r.json()).url); renderAlbumImages(); }
+      }
+      el('am-progress').textContent = '';
+    });
+    async function saveAlbum() {
+      const body = {
+        title_de: el('am-title_de').value, title_en: el('am-title_en').value,
+        desc_de: el('am-desc_de').value, desc_en: el('am-desc_en').value,
+        images: albumImages,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingAlbumId
+        ? await apiJson('api/albums/' + editingAlbumId, 'PUT', body)
+        : await apiJson('api/albums', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('album-modal').classList.remove('open'); loadSite(); }
+    }
+    async function deleteAlbum(id) {
+      if (!confirm(T.confirm_delete)) return;
+      const r = await fetch('api/albums/' + id, { method: 'DELETE', credentials: 'same-origin' });
+      if (r.ok) loadSite();
+    }
+    async function moveAlbum(id, dir) {
+      await apiJson('api/albums/' + id + '/move', 'POST', { dir });
+      loadSite();
     }
 
     // ── Nachrichten ──

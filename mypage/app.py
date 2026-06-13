@@ -169,6 +169,7 @@ DEFAULT_SITE = {
         'timeline': [],
         'news': [],
     },
+    'albums': [],
 }
 
 
@@ -954,6 +955,20 @@ def sorted_posts(site: dict) -> list:
     return sorted(site.get('posts', []), key=lambda p: p.get('date', ''), reverse=True)
 
 
+def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
+    a = existing or {'id': uuid.uuid4().hex[:12]}
+    a['title_de'] = _clean_str(raw.get('title_de'), 120)
+    a['title_en'] = _clean_str(raw.get('title_en'), 120)
+    a['desc_de']  = _clean_str(raw.get('desc_de'), 1000)
+    a['desc_en']  = _clean_str(raw.get('desc_en'), 1000)
+    images = raw.get('images') or []
+    if isinstance(images, list):
+        a['images'] = [_clean_str(g, 500) for g in images if _clean_str(g, 500)][:200]
+    else:
+        a.setdefault('images', [])
+    return a
+
+
 # ── GitHub-Import ─────────────────────────────────────────────────────────────
 
 _GH_USER_RE = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$')
@@ -1246,6 +1261,56 @@ def api_sections():
             'url':     _clean_str(e.get('url'), 500),
         } for e in raw['news'][:30] if isinstance(e, dict)]
     save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/albums', methods=['POST'])
+def api_album_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    site.setdefault('albums', []).append(_normalize_album(raw))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/albums/<aid>', methods=['PUT', 'DELETE'])
+def api_album_edit(aid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    albums = site.setdefault('albums', [])
+    idx = next((i for i, a in enumerate(albums) if a.get('id') == aid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        albums.pop(idx)
+    else:
+        albums[idx] = _normalize_album(request.get_json(silent=True) or {}, albums[idx])
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/albums/<aid>/move', methods=['POST'])
+def api_album_move(aid: str):
+    err = _api_auth()
+    if err:
+        return err
+    direction = (request.get_json(silent=True) or {}).get('dir', '')
+    site = load_site()
+    albums = site.setdefault('albums', [])
+    idx = next((i for i, a in enumerate(albums) if a.get('id') == aid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    new_idx = idx - 1 if direction == 'up' else idx + 1
+    if 0 <= new_idx < len(albums):
+        albums[idx], albums[new_idx] = albums[new_idx], albums[idx]
+        save_site(site)
     return jsonify({'ok': True})
 
 
@@ -1916,6 +1981,7 @@ def public_index():
                            bio_html=render_md(loc(site['profile'], 'bio')),
                            email_parts=email_parts,
                            sections=site.get('sections', {}),
+                           albums=[a for a in site.get('albums', []) if a.get('images')],
                            latest_posts=sorted_posts(site)[:3],
                            static_export=static_export,
                            contact_enabled=bool(site['design'].get('contact_enabled')) and not static_export,

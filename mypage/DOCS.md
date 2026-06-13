@@ -38,6 +38,7 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
 - **Aktuelles**: kurze News-Einträge mit Datum und optionalem Link
 - **Werdegang**: Timeline mit Zeitraum, Titel und Text (jeweils DE/EN)
+- **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Erscheinen auf der Startseite zwischen Skills und Werdegang; ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay. Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert.
 
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
