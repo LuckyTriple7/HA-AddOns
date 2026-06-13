@@ -330,7 +330,7 @@ def parse_video(url: str) -> tuple[str, str]:
     if host == 'youtu.be':
         vid = p.path.lstrip('/').split('/')[0]
         return ('youtube', f'https://www.youtube-nocookie.com/embed/{vid}') if vid else ('', '')
-    if host.endswith('youtube.com'):
+    if host == 'youtube.com' or host.endswith('.youtube.com'):
         if p.path == '/watch':
             from urllib.parse import parse_qs
             vid = (parse_qs(p.query).get('v') or [''])[0]
