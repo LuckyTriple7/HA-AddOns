@@ -1355,13 +1355,23 @@ def api_site():
 
 def _mymemory_translate(text: str, src: str, dst: str) -> str:
     """Übersetzt einen kurzen Textabschnitt über MyMemory (kostenlos, kein Key)."""
-    params = {'q': text, 'langpair': f'{src}|{dst}'}
     email = (load_config().get('translate_email') or '').strip()
-    if email:
-        params['de'] = email
-    r = http.get('https://api.mymemory.translated.net/get', params=params, timeout=15)
-    r.raise_for_status()
-    data = r.json()
+
+    def _call(with_email: bool) -> dict:
+        params = {'q': text, 'langpair': f'{src}|{dst}'}
+        if with_email and email:
+            params['de'] = email
+        r = http.get('https://api.mymemory.translated.net/get', params=params, timeout=15)
+        r.raise_for_status()
+        return r.json()
+
+    data = _call(bool(email))
+    # Ungültige translate_email → MyMemory antwortet 403 INVALID EMAIL.
+    # Dann ohne E-Mail (anonymes Limit) erneut versuchen, statt komplett zu scheitern.
+    if (data.get('responseStatus') != 200 and email
+            and 'EMAIL' in str(data.get('responseDetails', '')).upper()):
+        log.warning("translate_email ungültig ('%s') — nutze anonymes Übersetzungs-Limit", email)
+        data = _call(False)
     if data.get('responseStatus') == 200:
         return (data.get('responseData') or {}).get('translatedText', '')
     raise ValueError(data.get('responseDetails') or 'translation failed')
