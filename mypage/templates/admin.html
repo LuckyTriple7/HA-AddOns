@@ -1027,44 +1027,20 @@
       toast(failed ? T.tr_error : T.tr_done, failed);
     }
 
-    // ── Tipps: Rotations-Hinweis „zuletzt gezeigt" (identische Logik wie im Backend) ──
-    function tipIndexForPeriod(period, n, random) {
-      if (!random) return ((period % n) + n) % n;
-      return (period * 2654435761) % 2147483647 % n;
-    }
-    function tipTodayOrdinal() {
-      const d = new Date();
-      return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000) + 719163;
-    }
-    function tipOrdinalToISO(ord) {
-      return new Date((ord - 719163) * 86400000).toISOString().slice(0, 10);
-    }
+    // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
     function updateTipHints() {
       const list = el('tips-list');
       if (!list) return;
-      const rows = [...list.children];
-      const n = rows.length;
-      const weekly = el('tips-rotation').value === 'weekly';
-      const random = el('tips-random').value === '1';
-      const curOrd = tipTodayOrdinal();
-      const curPeriod = weekly ? Math.floor(curOrd / 7) : curOrd;
-      const windowN = weekly ? 52 : 365;          // Fenster für „wie oft"
-      const maxBack = Math.max(windowN, random ? n * 60 : n);
-      rows.forEach((row, i) => {
+      const stats = SITE.tips_stats || {};
+      const todayISO = new Date().toLocaleDateString('en-CA');   // YYYY-MM-DD (lokal)
+      [...list.children].forEach(row => {
         const span = row.querySelector('.tip-last');
         if (!span) return;
-        let found = null, count = 0;
-        for (let back = 0; back <= maxBack; back++) {
-          if (tipIndexForPeriod(curPeriod - back, n, random) === i) {
-            if (found === null) found = back;
-            if (back < windowN) count++;
-          }
-        }
-        const when = found === null ? T.tip_never
-                   : found === 0 ? T.tip_shown + ': ' + T.tip_today
-                   : T.tip_shown + ': ' + tipOrdinalToISO(weekly ? (curPeriod - found) * 7 : curPeriod - found);
-        const freq = (weekly ? T.tip_count_week : T.tip_count_day).replace('{n}', count);
-        span.textContent = when + ' · ' + freq;
+        const id = row.dataset.tipId;
+        const st = id ? stats[id] : null;
+        if (!st || !st.last) { span.textContent = T.tip_never; return; }
+        const when = st.last === todayISO ? T.tip_today : st.last;
+        span.textContent = T.tip_shown + ': ' + when + ' · ' + T.tip_days.replace('{n}', st.days || 0);
       });
     }
     function toggleTipImport() {
@@ -1635,6 +1611,7 @@
         <textarea class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea>
         <textarea class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea>
       </div>`;
+      div.dataset.tipId = e.id || '';
       div.querySelector('.tip-text_de').value = e.text_de || '';
       div.querySelector('.tip-text_en').value = e.text_en || '';
       el('tips-list').appendChild(div);
@@ -1669,6 +1646,7 @@
         a_en: row.querySelector('.f-a_en').value,
       })).filter(f => f.q_de || f.q_en);
       const tips = [...el('tips-list').children].map(row => ({
+        id:      row.dataset.tipId || '',
         text_de: row.querySelector('.tip-text_de').value,
         text_en: row.querySelector('.tip-text_en').value,
       })).filter(x => x.text_de || x.text_en);

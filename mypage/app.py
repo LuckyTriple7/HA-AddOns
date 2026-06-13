@@ -257,6 +257,7 @@ DEFAULT_SITE = {
     'hidden_sections': [],
     'tips_rotation': 'daily',
     'tips_random': False,
+    'tips_stats': {},
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -1670,11 +1671,20 @@ def api_sections():
         } for e in raw['faq'][:50]
             if isinstance(e, dict) and (_clean_str(e.get('q_de'), 300) or _clean_str(e.get('q_en'), 300))]
     if isinstance(raw.get('tips'), list):
-        sec['tips'] = [{
-            'text_de': _clean_str(e.get('text_de'), 600),
-            'text_en': _clean_str(e.get('text_en'), 600),
-        } for e in raw['tips'][:100]
-            if isinstance(e, dict) and (_clean_str(e.get('text_de'), 600) or _clean_str(e.get('text_en'), 600))]
+        out = []
+        for e in raw['tips'][:100]:
+            if not isinstance(e, dict):
+                continue
+            de = _clean_str(e.get('text_de'), 600)
+            en = _clean_str(e.get('text_en'), 600)
+            if not (de or en):
+                continue
+            tid = _clean_str(e.get('id'), 32) or uuid.uuid4().hex[:12]
+            out.append({'id': tid, 'text_de': de, 'text_en': en})
+        sec['tips'] = out
+        # Statistik verwaister Tipps (gelöscht) aufräumen
+        valid = {t['id'] for t in out}
+        site['tips_stats'] = {k: v for k, v in (site.get('tips_stats') or {}).items() if k in valid}
     if isinstance(raw.get('services'), list):
         sec['services'] = [{
             'icon':     _clean_str(e.get('icon'), 8),
@@ -2716,6 +2726,14 @@ def public_index():
         else:
             idx = period % len(tips)
         tip_of_day = tips[idx]
+        # Tatsächliche Anzeige festhalten (einmal pro Tag, nur echte Aufrufe)
+        if not static_export and tip_of_day.get('id'):
+            today_key = date.today().isoformat()
+            tstats = site.setdefault('tips_stats', {})
+            st = tstats.get(tip_of_day['id'])
+            if not st or st.get('last') != today_key:
+                tstats[tip_of_day['id']] = {'last': today_key, 'days': (st.get('days', 0) if st else 0) + 1}
+                save_site(site)
 
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
