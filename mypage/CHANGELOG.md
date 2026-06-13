@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.24
+
+- 🔒 **Sicherheitshärtung (CodeQL #136, #142–149, #153)**:
+  - Alle Dateipfade aus Eingaben laufen jetzt über `werkzeug.safe_join` (`safe_under`-Helfer) — Path-Traversal/Zip-Slip an Upload, Download, Restore, Speicherort-Browser und Wasserzeichen-Route ausgeschlossen
+  - Benutzer-IDs werden vor der Pfadbildung gegen ein striktes Muster geprüft
+  - E-Mail-Validierung auf eine ReDoS-sichere Regex umgestellt (kein katastrophales Backtracking mehr — 40k-Zeichen-Stresstest < 2 ms)
+
 ## 0.1.23
 
 - 📊 Statistik: Die Kacheln „Länder" und „Letzte Besucher" werden bei vielen Einträgen auf eine sinnvolle Höhe begrenzt und per „Mehr/Weniger anzeigen"-Button auf- und zugeklappt (Button erscheint nur bei Überlauf, mit sanftem Ausblend-Verlauf am unteren Rand).
