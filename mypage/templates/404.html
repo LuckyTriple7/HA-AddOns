@@ -9,14 +9,15 @@
   <style>
     :root {
       --bg:#0d1117; --surf:#161b22; --border:#30363d;
-      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
     }
     [data-theme="light"] {
       --bg:#f6f8fa; --surf:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#636c76;
     }
+    {{ font_faces|safe }}
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       background: var(--bg); color: var(--text);
       min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
     }

@@ -370,6 +370,16 @@ def font_css(design: dict) -> tuple[str, str]:
     return SYSTEM_FONTS['system'], ''
 
 
+@public_app.context_processor
+def _inject_font():
+    """Stellt die gewählte Schrift allen öffentlichen Templates bereit (nicht nur der Startseite)."""
+    try:
+        fam, faces = font_css(load_site()['design'])
+    except Exception:
+        fam, faces = SYSTEM_FONTS['system'], ''
+    return {'font_family': fam, 'font_faces': faces}
+
+
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
 
 def load_config() -> dict:
