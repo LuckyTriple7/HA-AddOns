@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.33] - 2026-06-13
+
+### Security
+- **CodeQL #151/#152**: Cherry-pick Datei-Fehler nicht mehr als `str(exception)` an den Browser zurückgegeben — generische Meldung + Exception ins Log
+
 ## [0.3.32] - 2026-06-12
 
 ### Changed
