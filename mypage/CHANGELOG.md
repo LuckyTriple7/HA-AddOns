@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.21
+
+- 💅 Admin-Panel: mehr vertikaler Abstand, wenn nach einem Hinweistext direkt das nächste Feld folgt (z. B. IndexNow-Hinweis → Favicon) — sauberere Trennung der Blöcke.
+
 ## 0.6.20
 
 - 💅 Admin-Panel: größerer horizontaler Abstand zwischen den zweispaltigen Feldern (14 → 36 px) — übersichtlicher, vor allem im Design-Tab.
