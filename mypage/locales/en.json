@@ -119,6 +119,8 @@
   "layout_minimal": "Minimal",
   "mode_auto": "Automatic (system setting)",
   "field_public_url": "Public URL (for SEO/sitemap)",
+  "field_allow_indexing": "Allow search-engine indexing",
+  "allow_indexing_hint": "Off = the site asks all search engines not to index it (noindex + robots.txt Disallow) and IndexNow pauses. Default: on.",
   "field_indexnow": "IndexNow (Bing) enabled",
   "indexnow_ping": "Notify Bing now",
   "indexnow_hint": "Automatically notifies Bing (and partners like DuckDuckGo/Ecosia) whenever you publish posts/projects — for faster indexing. Requires the public URL to be set. A key is generated automatically and hosted as a file under your domain. (Google does not use IndexNow.)",

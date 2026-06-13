@@ -481,6 +481,16 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_allow_indexing }}</label>
+            <select id="d-allow_indexing">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
+            <p class="hint">{{ t.allow_indexing_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_indexnow }}</label>
             <select id="d-indexnow">
               <option value="0">{{ t.no }}</option>
@@ -2236,6 +2246,7 @@
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
+      el('d-allow_indexing').value = (d.allow_indexing === false) ? '0' : '1';
       el('d-indexnow').value = d.indexnow ? '1' : '0';
       el('d-support_url').value = d.support_url || '';
       el('d-support_label').value = d.support_label || '';
@@ -2265,6 +2276,7 @@
         font:            el('d-font').value,
         custom_css:      el('d-custom_css').value,
         public_url:      el('d-public_url').value,
+        allow_indexing:  el('d-allow_indexing').value === '1',
         indexnow:        el('d-indexnow').value === '1',
         support_url:     el('d-support_url').value,
         support_label:   el('d-support_label').value,

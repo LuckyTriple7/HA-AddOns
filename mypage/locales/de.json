@@ -119,6 +119,8 @@
   "layout_minimal": "Minimal",
   "mode_auto": "Automatisch (Systemeinstellung)",
   "field_public_url": "Öffentliche URL (für SEO/Sitemap)",
+  "field_allow_indexing": "Von Suchmaschinen indexieren lassen",
+  "allow_indexing_hint": "Aus = die Seite bittet alle Suchmaschinen, sie nicht zu indexieren (noindex + robots.txt Disallow) und IndexNow pausiert. Standard: an.",
   "field_indexnow": "IndexNow (Bing) aktiv",
   "indexnow_ping": "Jetzt an Bing melden",
   "indexnow_hint": "Benachrichtigt Bing (und Partner wie DuckDuckGo/Ecosia) automatisch, sobald du Beiträge/Projekte veröffentlichst — für schnellere Indexierung. Voraussetzung: öffentliche URL gesetzt. Ein Schlüssel wird automatisch erzeugt und als Datei unter deiner Domain hinterlegt. (Google nutzt IndexNow nicht.)",

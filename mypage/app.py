@@ -229,6 +229,7 @@ DEFAULT_SITE = {
         'support_url': '', 'support_label': '',
         'booking_url': '', 'booking_label': '',
         'indexnow': False,
+        'allow_indexing': True,
     },
     'posts': [],
     'legal': {
@@ -1619,7 +1620,7 @@ def api_design():
         d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
-    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow'):
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow', 'allow_indexing'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
@@ -2556,7 +2557,7 @@ def _indexnow_key(site: dict) -> str:
 def indexnow_submit(urls: list) -> None:
     """Geänderte URLs an Bing (IndexNow) melden — nicht blockierend."""
     site = load_site()
-    if not site['design'].get('indexnow'):
+    if not site['design'].get('indexnow') or not site['design'].get('allow_indexing', True):
         return
     base = (site['design'].get('public_url') or '').rstrip('/')
     if not base.startswith(('http://', 'https://')):
@@ -2624,6 +2625,9 @@ def admin_favicon():
 
 @public_app.route('/robots.txt')
 def robots():
+    site = load_site()
+    if not site['design'].get('allow_indexing', True):
+        return ('User-agent: *\nDisallow: /\n', 200, {'Content-Type': 'text/plain'})
     return (f'User-agent: *\nAllow: /\nSitemap: {_base_url()}/sitemap.xml\n',
             200, {'Content-Type': 'text/plain'})
 
