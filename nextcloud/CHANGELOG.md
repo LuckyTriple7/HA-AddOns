@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.21
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 33.0.5 (33.0.5-ls436)
+
 ## 1.0.20
 - fix: alle root-owned User-Verzeichnisse in data/ werden beim Start auf abc:abc gesetzt (nicht nur appdata_*)
 
