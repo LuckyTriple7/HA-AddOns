@@ -140,9 +140,17 @@ MESSAGES_MAX = 200
 # Brute-Force-Schutz
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
+_failed_login_times: list[float]         = []   # alle Fehlversuche (rollierend, für 24h-Sensor)
 RATE_LIMIT_MAX    = 5
 RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
+
+
+def failed_logins_24h() -> int:
+    """Fehlgeschlagene Logins der letzten 24 Stunden (Admin + Mitglieder)."""
+    cutoff = time.time() - 86400
+    _failed_login_times[:] = [t for t in _failed_login_times if t >= cutoff]
+    return len(_failed_login_times)
 
 # Besucherzähler — Tages-Dedup in-memory (Privacy: nur gesalzene Hashes)
 _visit_salt:  str = secrets.token_hex(16)
@@ -445,6 +453,7 @@ def is_rate_limited(ip: str) -> bool:
 
 def record_failed_attempt(ip: str) -> None:
     now = time.time()
+    _failed_login_times.append(now)
     _failed_attempts[ip].append(now)
     recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
     _failed_attempts[ip] = recent
@@ -976,11 +985,22 @@ def push_ha_sensors() -> None:
         return
     stats = load_stats()
     today = stats['days'].get(date.today().isoformat(), {'views': 0, 'uniques': 0})
+    # Belegter Speicher aller Mitglieder-Dateien (MB) — bei SMB-Ausfall 0
+    user_mb = 0.0
+    if storage_available():
+        try:
+            user_mb = round(sum(user_usage_bytes(u) for u in load_users()) / 1048576, 1)
+        except OSError:
+            user_mb = 0.0
     sensors = [
         ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
         ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
         ('mypage_views_today',    today['views'],        'MyPage Aufrufe heute',   'mdi:eye',           'Aufrufe'),
         ('mypage_visitors_today', today['uniques'],      'MyPage Besucher heute',  'mdi:account',       'Besucher'),
+        ('mypage_user_storage',   user_mb,               'MyPage Speicher Benutzerdateien', 'mdi:harddisk', 'MB'),
+        ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
+        ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
+        ('mypage_members',        len(load_users()),     'MyPage Benutzer',         'mdi:account-multiple', 'Benutzer'),
     ]
     headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
     for sid, state, name, icon, unit in sensors:

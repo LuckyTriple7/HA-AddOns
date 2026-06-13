@@ -90,6 +90,10 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `sensor.mypage_visitors_total` | Eindeutige Besucher gesamt |
 | `sensor.mypage_views_today` | Aufrufe heute |
 | `sensor.mypage_visitors_today` | Eindeutige Besucher heute |
+| `sensor.mypage_user_storage` | Belegter Speicher aller Mitglieder-Dateien (MB) |
+| `sensor.mypage_failed_logins` | Fehlgeschlagene Logins der letzten 24 h (Admin + Mitglieder) |
+| `sensor.mypage_messages` | Anzahl gespeicherter Kontaktnachrichten |
+| `sensor.mypage_members` | Anzahl angelegter Benutzer |
 
 Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei Besucherrekord).
 
