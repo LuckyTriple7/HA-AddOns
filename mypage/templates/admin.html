@@ -725,6 +725,7 @@
       </div>
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
+        <p id="s-crawler" class="hint" style="margin:2px 0 10px"></p>
         <div id="s-log-wrap" class="collapsible">
           <div style="overflow-x:auto">
             <table class="vtable">
@@ -2516,8 +2517,34 @@
         el(target).appendChild(row);
       });
     }
+    // Bekannte Crawler/Bots am User-Agent erkennen ('' = kein Crawler)
+    function crawlerName(ua) {
+      if (!ua) return '';
+      const u = ua.toLowerCase();
+      if (/googlebot|google-inspectiontool|storebot-google|googleother|google-extended/.test(u)) return 'Googlebot';
+      if (/bingbot|adidxbot|bingpreview/.test(u)) return 'Bingbot';
+      if (/duckduckbot/.test(u)) return 'DuckDuckBot';
+      if (/yandexbot/.test(u)) return 'YandexBot';
+      if (/baiduspider/.test(u)) return 'Baiduspider';
+      if (/applebot/.test(u)) return 'Applebot';
+      if (/facebookexternalhit|facebot/.test(u)) return 'Facebook';
+      if (/twitterbot/.test(u)) return 'Twitterbot';
+      if (/slackbot/.test(u)) return 'Slackbot';
+      if (/telegrambot/.test(u)) return 'TelegramBot';
+      if (/gptbot|oai-searchbot|chatgpt-user/.test(u)) return 'GPTBot';
+      if (/claudebot|anthropic-ai|claude-web/.test(u)) return 'ClaudeBot';
+      if (/ahrefsbot/.test(u)) return 'AhrefsBot';
+      if (/semrushbot/.test(u)) return 'SemrushBot';
+      if (/petalbot/.test(u)) return 'PetalBot';
+      if (/bytespider/.test(u)) return 'Bytespider';
+      if (/uptimerobot|pingdom/.test(u)) return 'Uptime-Monitor';
+      if (/bot|crawl|spider/.test(u)) return 'Bot';
+      return '';
+    }
     function browserInfo(ua) {
       if (!ua) return '–';
+      const c = crawlerName(ua);
+      if (c) return '🔍 ' + c;
       let b = 'Browser';
       if (/edg\//i.test(ua)) b = 'Edge';
       else if (/opr\/|opera/i.test(ua)) b = 'Opera';
@@ -2536,6 +2563,19 @@
     function renderVisitorLog(log) {
       const tbody = el('s-log');
       tbody.innerHTML = '';
+      // Zusammenfassung: wann waren Suchmaschinen-Crawler zuletzt da?
+      const last = {};
+      log.forEach(v => {
+        const c = crawlerName(v.ua);
+        if (c && c !== 'Bot' && c !== 'Uptime-Monitor' && (!last[c] || v.ts > last[c])) last[c] = v.ts;
+      });
+      const names = Object.keys(last).sort((a, b) => {
+        const pr = n => n === 'Googlebot' ? 0 : n === 'Bingbot' ? 1 : 2;
+        return pr(a) - pr(b) || a.localeCompare(b);
+      });
+      el('s-crawler').textContent = names.length
+        ? T.crawler_last + ': ' + names.map(n => `${n} (${new Date(last[n] * 1000).toLocaleString()})`).join(' · ')
+        : T.crawler_none;
       if (!log.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="hint">${T.no_data}</td></tr>`;
         return;

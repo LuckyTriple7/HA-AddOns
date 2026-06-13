@@ -375,6 +375,8 @@
   "stat_today_uniques": "Visitors today",
   "stat_last30": "Last 30 days (views / visitors)",
   "visitor_log": "Recent visitors",
+  "crawler_last": "Last crawled by search engines",
+  "crawler_none": "No search-engine crawler in the current log yet.",
   "col_time": "Time",
   "col_browser": "Browser",
   "col_lang": "Language",
