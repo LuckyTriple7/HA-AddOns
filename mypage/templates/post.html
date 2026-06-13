@@ -62,6 +62,7 @@
     .lightbox:not(.actual) img { max-width: 94vw; max-height: 92vh; border-radius: 8px; cursor: zoom-in; }
     .lightbox.actual img { max-width: none; display: block; margin: 0 auto; cursor: zoom-out; }
     .hero-img, .gal-rail img { cursor: zoom-in; }
+    .preview-bar { background: var(--accent); color: #fff; text-align: center; padding: 7px 14px; font-size: 0.85rem; font-weight: 600; position: sticky; top: 0; z-index: 50; }
     .content { font-size: 0.96rem; }
     .content h1, .content h2, .content h3 { margin: 22px 0 8px; font-size: 1.2rem; }
     .content p { margin-bottom: 12px; }
@@ -76,9 +77,11 @@
   </style>
 </head>
 <body>
+  {% if preview %}<div class="preview-bar">{{ t.preview_banner }}</div>{% endif %}
   <header>
     <div class="wrap header-inner">
-      <a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
+      {% if preview %}<span class="brand">{{ site.design.site_title or site.profile.name or 'MyPage' }}</span>
+      {% else %}<a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>{% endif %}
     </div>
   </header>
   <main class="wrap">
@@ -104,7 +107,7 @@
       <button class="gal-arrow gal-next" onclick="galScroll(1)" aria-label="Weiter">›</button>
     </div>
     {% endif %}
-    <a class="back" href="/blog">&larr; {{ t.blog_all }}</a>
+    {% if not preview %}<a class="back" href="/blog">&larr; {{ t.blog_all }}</a>{% endif %}
   </main>
   <div class="lightbox" id="lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt="" onclick="toggleLightboxActual(event)"></div>
   <footer>

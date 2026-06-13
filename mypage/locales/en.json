@@ -295,6 +295,8 @@
   "field_tags": "Tags (comma-separated)",
   "field_language": "Programming language",
   "edit": "Edit",
+  "preview": "Preview",
+  "preview_banner": "Preview — this is how the post will look once published (not yet visible to visitors).",
   "confirm_delete": "Really delete this project?",
   "deleted": "Deleted",
   "error_title": "Title is required.",

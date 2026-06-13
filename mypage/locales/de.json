@@ -295,6 +295,8 @@
   "field_tags": "Tags (kommagetrennt)",
   "field_language": "Programmiersprache",
   "edit": "Bearbeiten",
+  "preview": "Vorschau",
+  "preview_banner": "Vorschau — so sieht der Beitrag veröffentlicht aus (für Besucher noch nicht sichtbar).",
   "confirm_delete": "Projekt wirklich löschen?",
   "deleted": "Gelöscht",
   "error_title": "Titel ist erforderlich.",

@@ -1034,8 +1034,9 @@
         div.className = 'proj-item';
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
-            <button class="btn secondary small">${T.edit}</button>
-            <button class="btn danger small">✕</button>
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
           </div>`;
         div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
         // Status: Entwurf, geplant (Datum in Zukunft) oder veröffentlicht
@@ -1045,9 +1046,9 @@
         else if ((p.date || '') > today) badge = `<span class="badge-scheduled">${T.status_scheduled}</span>`;
         if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
         div.querySelector('.proj-meta').textContent = p.date || '';
-        const [editBtn, delBtn] = div.querySelectorAll('.proj-actions button');
-        editBtn.onclick = () => openPostModal(p.id);
-        delBtn.onclick = async () => {
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/blog/' + p.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openPostModal(p.id);
+        div.querySelector('.btn-del').onclick = async () => {
           if (!confirm(T.confirm_delete)) return;
           const r = await fetch('api/posts/' + p.id, { method: 'DELETE', credentials: 'same-origin' });
           if (r.ok) loadSite();

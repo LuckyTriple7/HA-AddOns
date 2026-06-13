@@ -348,6 +348,12 @@ def parse_video(url: str) -> tuple[str, str]:
 public_app.jinja_env.globals['parse_video'] = parse_video
 public_app.jinja_env.globals['render_md'] = render_md
 
+# Admin-App rendert öffentliche Templates (z. B. Blog-Vorschau) — dieselben Globals bereitstellen
+admin_app.jinja_env.globals['parse_video'] = parse_video
+admin_app.jinja_env.globals['render_md'] = render_md
+admin_app.jinja_env.globals['link_platform'] = link_platform
+admin_app.jinja_env.globals['support_platform'] = support_platform
+
 
 def font_css(design: dict) -> tuple[str, str]:
     """Liefert (font-family-Stack, @font-face-CSS) für die gewählte Schrift."""
@@ -2767,6 +2773,24 @@ def blog_post(pid: str):
     loc = _loc_factory(lang)
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
                            text_html=render_md(loc(post, 'text')),
+                           year=datetime.now(timezone.utc).year)
+
+
+@admin_app.route('/preview/blog/<pid>')
+def admin_blog_preview(pid: str):
+    """Beitrags-Vorschau im Admin — rendert post.html für jeden Beitrag (auch Entwurf/geplant)."""
+    err = _auth_required()
+    if err:
+        return err
+    lang = detect_language(request)
+    site = load_site()
+    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
+    if post is None:
+        abort(404)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
+                           text_html=render_md(loc(post, 'text')), preview=True,
                            year=datetime.now(timezone.utc).year)
 
 
