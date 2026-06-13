@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.35] - 2026-06-13
+
+### Fixed
+- **Add-on Manager**: Button-Reihenfolge korrigiert: +Major · +Minor · +Patch · +Dep
+
 ## [0.3.34] - 2026-06-13
 
 ### Added
