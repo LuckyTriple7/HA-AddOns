@@ -1214,31 +1214,34 @@
       if (!cont) return;
       sectionDnDReady = true;
       let dragEl = null;
-      // Pointer Events funktionieren für Maus UND Touch einheitlich
+      // pointermove/-up an document binden: bleibt auch dann aktiv, wenn das
+      // gezogene Element (mit dem Griff darin) im DOM verschoben wird.
+      function onMove(e) {
+        if (!dragEl) return;
+        e.preventDefault();
+        const after = sectionDragAfter(cont, e.clientY);
+        if (after == null) cont.appendChild(dragEl);
+        else if (after !== dragEl) cont.insertBefore(dragEl, after);
+      }
+      function onUp() {
+        if (!dragEl) return;
+        dragEl.classList.remove('dragging');
+        dragEl = null;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        saveSectionOrder();
+      }
       cont.querySelectorAll('.drag-handle').forEach(h => {
         h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
         h.addEventListener('pointerdown', e => {
           e.preventDefault();
           dragEl = h.closest('.acc');
           dragEl.classList.add('dragging');
-          try { h.setPointerCapture(e.pointerId); } catch (_) {}
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp);
+          document.addEventListener('pointercancel', onUp);
         });
-        h.addEventListener('pointermove', e => {
-          if (!dragEl) return;
-          e.preventDefault();
-          const after = sectionDragAfter(cont, e.clientY);
-          if (after == null) cont.appendChild(dragEl);
-          else if (after !== dragEl) cont.insertBefore(dragEl, after);
-        });
-        const end = e => {
-          if (!dragEl) return;
-          dragEl.classList.remove('dragging');
-          dragEl = null;
-          try { h.releasePointerCapture(e.pointerId); } catch (_) {}
-          saveSectionOrder();
-        };
-        h.addEventListener('pointerup', end);
-        h.addEventListener('pointercancel', end);
       });
     }
     async function saveSectionOrder() {
