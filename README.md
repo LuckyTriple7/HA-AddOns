@@ -38,6 +38,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | HA SysWatch | ✅ | ✅ | Alpine |
 | phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
 | MediaGrab | ✅ | ✅ | Alpine |
+| GitPulse | ✅ | ✅ | Alpine |
 
 ## Apps
 
