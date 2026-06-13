@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.20
+
+- 💅 Admin-Panel: größerer horizontaler Abstand zwischen den zweispaltigen Feldern (14 → 36 px) — übersichtlicher, vor allem im Design-Tab.
+
 ## 0.6.19
 
 - 🥚 **Easter Eggs** (Design-Tab, Standard: aus) — versteckte Spielereien für Besucher:
