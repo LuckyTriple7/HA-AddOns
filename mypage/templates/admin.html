@@ -84,6 +84,11 @@
     .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; min-width: 2px; }
     .bar-num { width: 90px; text-align: right; color: var(--muted); flex-shrink: 0; }
 
+    .collapsible { max-height: 340px; overflow: hidden; position: relative; transition: max-height .3s ease; }
+    .collapsible.open { max-height: 4000px; }
+    .collapsible:not(.open).has-more::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(transparent, var(--surf)); pointer-events: none; }
+    .collapse-btn { display: none; margin-top: 10px; }
+    .collapse-btn.show { display: inline-block; }
     .vtable { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
     .vtable th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
     .vtable td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
@@ -523,19 +528,23 @@
         </div>
         <div class="panel">
           <h3>{{ t.stat_countries }}</h3>
-          <div id="s-countries"></div>
+          <div id="s-countries" class="collapsible"></div>
+          <button class="btn secondary small collapse-btn" id="s-countries-btn" onclick="toggleCollapse('s-countries')"></button>
         </div>
       </div>
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
-        <div style="overflow-x:auto">
-          <table class="vtable">
-            <thead>
-              <tr><th>{{ t.col_time }}</th><th>IP</th><th>{{ t.col_browser }}</th><th>{{ t.col_lang }}</th><th>{{ t.col_ref }}</th><th></th></tr>
-            </thead>
-            <tbody id="s-log"></tbody>
-          </table>
+        <div id="s-log-wrap" class="collapsible">
+          <div style="overflow-x:auto">
+            <table class="vtable">
+              <thead>
+                <tr><th>{{ t.col_time }}</th><th>IP</th><th>{{ t.col_browser }}</th><th>{{ t.col_lang }}</th><th>{{ t.col_ref }}</th><th></th></tr>
+              </thead>
+              <tbody id="s-log"></tbody>
+            </table>
+          </div>
         </div>
+        <button class="btn secondary small collapse-btn" id="s-log-wrap-btn" onclick="toggleCollapse('s-log-wrap')"></button>
       </div>
     </section>
   </main>
@@ -1682,6 +1691,24 @@
       renderDistribution('s-browsers', s.browsers || []);
       renderDistribution('s-countries', s.countries || [], countryLabel);
       renderVisitorLog(s.log || []);
+      refreshCollapse('s-countries');
+      refreshCollapse('s-log-wrap');
+    }
+    // Höhenbegrenzung mit „Mehr/Weniger"-Button — Button nur bei Überlauf
+    function refreshCollapse(id) {
+      const box = el(id), btn = el(id + '-btn');
+      if (!box || !btn) return;
+      box.classList.remove('open');
+      const overflows = box.scrollHeight > box.clientHeight + 4;
+      box.classList.toggle('has-more', overflows);
+      btn.classList.toggle('show', overflows);
+      btn.textContent = T.show_more;
+    }
+    function toggleCollapse(id) {
+      const box = el(id), btn = el(id + '-btn');
+      const open = box.classList.toggle('open');
+      box.classList.toggle('has-more', !open);
+      btn.textContent = open ? T.show_less : T.show_more;
     }
     function countryFlag(code) {
       if (!code || code.length !== 2) return '';

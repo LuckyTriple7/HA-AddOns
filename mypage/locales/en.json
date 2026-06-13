@@ -200,6 +200,8 @@
   "stat_referrers": "Top referrers",
   "stat_browsers": "Browsers",
   "stat_countries": "Countries",
+  "show_more": "Show more ▾",
+  "show_less": "Show less ▴",
 
   "legal_impressum": "Imprint",
   "legal_privacy": "Privacy policy",
