@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.33
+
+- 🔒 Sicherheit (CodeQL HIGH, Reflected XSS): Die IndexNow-Keyfile-Route gibt nun den **serverseitig gespeicherten** Schlüssel zurück statt des Werts aus der URL — der Eingabe-Taint fließt nicht mehr in die Antwort. Verhalten unverändert (war durch die `[a-f0-9]{32}`-Prüfung ohnehin nicht ausnutzbar).
+
 ## 0.6.32
 
 - 🌍 Admin-Panel: letzte hartcodierten deutschen Beispiel-Platzhalter lokalisiert (Wasserzeichen, Adresse, Absender-Mail, Markdown-Hinweis) — folgen jetzt der Admin-Sprache (DE/EN). Die sprachspezifischen „(DE)/(EN)"-Beispiele bleiben bewusst.
