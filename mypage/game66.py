@@ -293,7 +293,8 @@ def _announce_marriage(state: dict, who: str, card: str) -> None:
     state['melds'][who].append(s)
     _log(state, 'marriage', f'{_name(who)} sagt {bonus} an ({s})',
          f'{_name(who, True)} announces {bonus} ({s})', who)
-    _capture(state)
+    # Kein eigenes Zwischenbild hier: Der Aufrufer legt die Karte direkt danach
+    # auf den Tisch und erfasst den Frame — sonst flackert die Karte (leerer Tisch).
     # Standard: Hochzeit kann sofort ausmelden. Oma: kein vorzeitiges Ende.
     if state.get('rules') != 'oma' and usable(state, who) >= WIN_SCORE:
         _finish_deal(state, who, 'made_66')
