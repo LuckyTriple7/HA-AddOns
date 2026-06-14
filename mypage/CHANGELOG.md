@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.56
+
+- 🔎 **66: Bessere Lesbarkeit am Stapel** — die Anzeige von **Trumpf** und **verbleibenden Talon-Karten** unter dem Stapel ist jetzt **deutlich größer**; rote Trumpffarben (♦/♥) werden farbig dargestellt.
+- 🟡 **KI-Karte hervorgehoben** — die von der **KI gespielte Karte** auf dem Tisch erhält jetzt einen **goldenen Rahmen** (auch schon während des Einfliegens), damit man auf einen Blick erkennt, was die KI gelegt hat.
+
 ## 0.6.55
 
 - 🐛 **66: KI-Kartenanimation sichtbar gemacht** — die Flugbewegung der **KI-Karte** fehlte, weil das Kartenbild beim Start des Flugs teils noch nicht geladen war (eine „unsichtbare" Karte flog, die Karte erschien erst am Ende). Jetzt startet der Flug erst, **wenn das Bild geladen ist**, und alle Karten-SVGs werden beim Öffnen **vorgeladen**, damit die Animation sofort flüssig läuft.

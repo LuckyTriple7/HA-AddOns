@@ -52,10 +52,16 @@
     .stockwrap { position: relative; text-align: center; }
     .stockwrap .trump { transform: rotate(90deg); }
     .stockwrap .stack { position: absolute; left: 46px; top: 0; }
-    .count { font-size: 0.72rem; opacity: 0.85; margin-top: 6px; }
+    .count { font-size: clamp(0.95rem, 2.7vw, 1.2rem); opacity: 1; margin-top: 8px; font-weight: 700;
+             letter-spacing: 0.3px; }
+    .count .suit { font-size: 1.2em; vertical-align: -0.06em; }
+    .count .suit.red { color: #e74c3c; }
     .table-cards { display: flex; gap: 14px; align-items: center; min-height: clamp(86px, 20vh, 146px); }
     .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
     .table-cards .follow { transform: translateY(6px) rotate(4deg); }
+    /* Vom Gegner gespielte Karte hervorheben (goldener Rahmen) */
+    .table-cards .by-ai { box-shadow: 0 0 0 3px var(--gold), 0 3px 10px rgba(0,0,0,0.5),
+                          0 0 14px rgba(241,196,15,0.65); }
     @keyframes cardFade { from { opacity: 0; } to { opacity: 1; } }
     .table-cards .pc { animation: cardFade 0.26s ease; }
     @media (prefers-reduced-motion: reduce) { .table-cards .pc { animation: none; } }
@@ -456,7 +462,8 @@
         + 'height:' + h + 'px;width:auto;transform:translate(-50%,-50%) scale(0.9);'
         + (opts.fadeIn ? 'opacity:.6;' : '')
         + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
-        + (flyMs / 1000) + 's ease;box-shadow:0 10px 22px rgba(0,0,0,.5)';
+        + (flyMs / 1000) + 's ease;box-shadow:' + (opts.ring ? '0 0 0 3px var(--gold),' : '')
+        + '0 10px 22px rgba(0,0,0,.5)';
       document.body.appendChild(clone);
       const dx = (t.left + t.width / 2) - (srcRect.left + srcRect.width / 2);
       const dy = (t.top + t.height / 2) - (srcRect.top + srcRect.height / 2);
@@ -486,7 +493,7 @@
   // KI spielt eine Karte: vom Gegner-Handbereich auf den Tisch
   function flyAiCard(card){
     const oh = $('opp-hand');
-    return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60});
+    return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60, ring: true});
   }
 
   // Nachziehen vom Talon: verdeckte Karte vom Stapel in eine Hand
@@ -529,12 +536,17 @@
       $('trump-card').style.display = 'none'; $('stock-back').style.display = 'none';
     }
     $('stock-count').textContent = v.stock_count;
-    $('trump-suit').textContent = suitSym(v.trump);
+    const ts = $('trump-suit');
+    ts.textContent = suitSym(v.trump);
+    ts.className = 'suit' + ((v.trump === 'd' || v.trump === 'h') ? ' red' : '');
     $('closed-badge').innerHTML = v.closed ? '<span class="badge">' + G.closed_badge + '</span>' : '';
 
     // Tisch
     const tc = $('table-cards'); tc.innerHTML = '';
-    v.table.forEach((p, idx) => tc.appendChild(cardImg(p.card, idx === 0 ? 'lead' : 'follow')));
+    v.table.forEach((p, idx) => {
+      const cls = (idx === 0 ? 'lead' : 'follow') + (p.who === 'a' ? ' by-ai' : '');
+      tc.appendChild(cardImg(p.card, cls));
+    });
 
     // Eigene Hand
     const mh = $('me-hand'); mh.innerHTML = '';
