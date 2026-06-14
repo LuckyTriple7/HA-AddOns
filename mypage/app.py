@@ -233,6 +233,7 @@ DEFAULT_SITE = {
         'allow_indexing': True,
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
         'mini_games': False,
+        'reveal_effect': 'off', 'reveal_stagger': True,
         'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
@@ -1623,6 +1624,8 @@ def api_design():
         d['layout'] = raw['layout']
     if raw.get('font') in (set(SYSTEM_FONTS) | set(WEB_FONTS) | {'custom'}):
         d['font'] = raw['font']
+    if raw.get('reveal_effect') in ('off', 'fade', 'slide', 'zoom', 'blur'):
+        d['reveal_effect'] = raw['reveal_effect']
     if 'custom_css' in raw:
         # '<' komplett entfernen — in CSS nie nötig, macht jeden Tag-Ausbruch
         # aus dem <style>-Block unmöglich (auch </style><script>)
@@ -1641,7 +1644,7 @@ def api_design():
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
-                 'allow_indexing', 'easter_eggs', 'mini_games'):
+                 'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),

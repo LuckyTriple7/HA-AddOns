@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.37
+
+- ✨ **Einblend-Effekte** für die öffentliche Seite (neu im Design-Bereich): Inhalte erscheinen animiert beim Öffnen und beim Scrollen. Auswählbar: **Aus** (Standard), **Sanftes Einblenden**, **Einblenden + Hochgleiten**, **Zoom** oder **Unschärfe → scharf**. Zusätzlich optionaler **Stagger** – Kacheln/Karten eines Abschnitts erscheinen leicht versetzt nacheinander. Abhängigkeitsfrei (reines CSS + `IntersectionObserver`), flackerfrei (Vorbereitung vor dem ersten Rendern) und **barrierefrei**: Wer im System „Bewegung reduzieren" aktiviert hat oder kein JavaScript nutzt, sieht alle Inhalte sofort ohne Animation.
+
 ## 0.6.36
 
 - ✨ **Markdown-Editor jetzt als Overlay-Fenster mit Live-Vorschau**: Statt der Toolbar direkt am Feld gibt es nun einen **„✏️ Bearbeiten"-Button**. Ein Klick öffnet ein Editor-Fenster **im selben Tab** (wie die Mini-Games) — **Editor links, gerenderte Vorschau rechts**. Markierst du Text und klickst z. B. **Fett**, erscheint er sofort fett in der Vorschau. „Übernehmen" schreibt das Markdown zurück ins Feld, „Abbrechen"/Esc verwirft. Eigener, abhängigkeitsfreier Markdown-Renderer (Überschriften, Fett/Kursiv, Listen, Zitate, Code, Links); HTML wird escaped und unsichere Links (z. B. `javascript:`) werden verworfen.

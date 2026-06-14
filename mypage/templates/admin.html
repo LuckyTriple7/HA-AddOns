@@ -630,6 +630,27 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_reveal_effect }}</label>
+            <select id="d-reveal_effect">
+              <option value="off">{{ t.reveal_off }}</option>
+              <option value="fade">{{ t.reveal_fade }}</option>
+              <option value="slide">{{ t.reveal_slide }}</option>
+              <option value="zoom">{{ t.reveal_zoom }}</option>
+              <option value="blur">{{ t.reveal_blur }}</option>
+            </select>
+            <p class="hint">{{ t.reveal_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_reveal_stagger }}</label>
+            <select id="d-reveal_stagger">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.reveal_stagger_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_egg_message }}</label>
             <input type="text" id="d-egg_message" maxlength="200" placeholder="{{ t.egg_default_msg }}">
           </div>
@@ -2481,6 +2502,8 @@
       el('d-custom_css').value = d.custom_css || '';
       el('d-easter_eggs').value = d.easter_eggs ? '1' : '0';
       el('d-mini_games').value = d.mini_games ? '1' : '0';
+      el('d-reveal_effect').value = d.reveal_effect || 'off';
+      el('d-reveal_stagger').value = d.reveal_stagger ? '1' : '0';
       el('d-egg_message').value = d.egg_message || '';
       el('d-egg_tagline').value = d.egg_tagline || '';
     }
@@ -2494,6 +2517,8 @@
         custom_css:      el('d-custom_css').value,
         easter_eggs:     el('d-easter_eggs').value === '1',
         mini_games:      el('d-mini_games').value === '1',
+        reveal_effect:   el('d-reveal_effect').value,
+        reveal_stagger:  el('d-reveal_stagger').value === '1',
         egg_message:     el('d-egg_message').value,
         egg_tagline:     el('d-egg_tagline').value,
         public_url:      el('d-public_url').value,

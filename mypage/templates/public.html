@@ -392,8 +392,54 @@
       .avatar { width: 96px; height: 96px; }
       .hero h1 { font-size: 1.6rem; }
     }
+
+    /* ── Einblend-Effekte (Reveal beim Laden/Scrollen) ── */
+    /* Nur aktiv, wenn JS die Seite „scharf" gestellt hat (html.rv-armed) — ohne JS bleibt alles sichtbar */
+    html.rv-armed[data-reveal] main > section {
+      opacity: 0;
+      transition: opacity .6s ease, transform .6s ease, filter .6s ease;
+      will-change: opacity, transform;
+    }
+    html.rv-armed[data-reveal="slide"] main > section { transform: translateY(26px); }
+    html.rv-armed[data-reveal="zoom"]  main > section { transform: scale(.97); transform-origin: center top; }
+    html.rv-armed[data-reveal="blur"]  main > section { filter: blur(9px); }
+    html.rv-armed[data-reveal] main > section.rv-in {
+      opacity: 1 !important; transform: none !important; filter: none !important;
+    }
+    /* Stagger: Sektion blendet nur sanft ein, die Karten tragen die Bewegung nacheinander */
+    html.rv-armed[data-reveal-stagger] main > section { transform: none !important; filter: none !important; }
+    html.rv-armed[data-reveal-stagger] .rv-card {
+      opacity: 0;
+      transition: opacity .55s ease, transform .55s ease, filter .55s ease;
+      will-change: opacity, transform;
+    }
+    html.rv-armed[data-reveal-stagger][data-reveal="slide"] .rv-card { transform: translateY(20px); }
+    html.rv-armed[data-reveal-stagger][data-reveal="zoom"]  .rv-card { transform: scale(.96); }
+    html.rv-armed[data-reveal-stagger][data-reveal="blur"]  .rv-card { filter: blur(6px); }
+    html.rv-armed[data-reveal-stagger] .rv-card.rv-in {
+      opacity: 1 !important; transform: none !important; filter: none !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html.rv-armed main > section,
+      html.rv-armed .rv-card {
+        opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important;
+      }
+    }
   </style>
   {% if site.design.custom_css %}<style>{{ site.design.custom_css|safe }}</style>{% endif %}
+  <script>
+    // Einblend-Effekte vorbereiten: läuft vor dem ersten Paint → kein Aufblitzen.
+    // Bei „off", reduzierter Bewegung oder ohne JS bleibt alles sofort sichtbar.
+    (function () {
+      var mode = {{ site.design.reveal_effect|tojson }};
+      if (!mode || mode === 'off') return;
+      try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+      var h = document.documentElement;
+      h.setAttribute('data-reveal', mode);
+      {% if site.design.reveal_stagger %}h.setAttribute('data-reveal-stagger', '1');{% endif %}
+      h.classList.add('rv-armed');
+    })();
+  </script>
 </head>
 <body>
   <header>
@@ -1495,5 +1541,42 @@
     }
   </script>
   {% endif %}
+
+  <script>
+    // Einblend-Effekte: Sektionen (und optional Karten gestaffelt) einblenden, sobald sie sichtbar werden.
+    (function () {
+      try {
+        var root = document.documentElement;
+        if (!root.classList.contains('rv-armed')) return;   // aus / reduzierte Bewegung / kein JS
+        var stagger = root.hasAttribute('data-reveal-stagger');
+        var CARD = '.svc-card,.min-item,.row-item,.card,.tm-card,.album-card,.team-card,.tl-item,.ev-item,.news-item,.faq-item,.link-item';
+        var sections = [].slice.call(document.querySelectorAll('main > section'));
+        if (stagger) {
+          sections.forEach(function (sec) {
+            [].slice.call(sec.querySelectorAll(CARD)).forEach(function (c, i) {
+              c.classList.add('rv-card');
+              c.style.transitionDelay = Math.min(i, 12) * 0.06 + 's';
+            });
+          });
+        }
+        function reveal(sec) {
+          sec.classList.add('rv-in');
+          if (stagger) { [].slice.call(sec.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); }); }
+        }
+        if (!('IntersectionObserver' in window)) { sections.forEach(reveal); return; }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) { if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); } });
+        }, { threshold: 0.08, rootMargin: '0px 0px -8% 0px' });
+        sections.forEach(function (sec) { io.observe(sec); });
+        // Sicherheitsnetz: falls etwas hakt, nach 4 s alles zeigen
+        setTimeout(function () { sections.forEach(reveal); }, 4000);
+      } catch (e) {
+        [].slice.call(document.querySelectorAll('main > section')).forEach(function (s) {
+          s.classList.add('rv-in');
+          [].slice.call(s.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); });
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
