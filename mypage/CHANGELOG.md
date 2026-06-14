@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.62
+
+- 🗂️ **66: Hand sortieren** — neuer **„⇅ Sortieren"-Button** (links neben „Zudrehen") ordnet dein Blatt nach Wertigkeit: zuerst nach **Farbe** (Kreuz, Karo, Herz, Pik), dann nach **Kartenwert** (Bube, Dame, König, 10, Ass). Die Einstellung ist ein **Umschalter** und bleibt gespeichert; der **blaue Rahmen** der zuletzt vom Talon gezogenen Karte bleibt dabei erhalten.
+
 ## 0.6.61
 
 - ✨ **66: Gewinnerkarte blinkt** — sobald ein voller Stich auf dem Tisch liegt, **blinkt die Karte auf, die den Stich gewonnen hat** (grüner Schein), bevor die Karten zum Gewinner fliegen — so erkennt man auf einen Blick, welche Karte gestochen hat. Der goldene Rahmen der KI-Karte bleibt dabei erhalten.

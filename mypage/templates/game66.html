@@ -86,6 +86,7 @@
       font-size: 0.86rem; font-weight: 700; cursor: pointer;
     }
     .btn.ghost { background: rgba(255,255,255,0.14); color: #fff; }
+    .btn.ghost.active { background: rgba(74,163,255,0.32); box-shadow: inset 0 0 0 1px rgba(74,163,255,0.85); }
     .btn:disabled { opacity: 0.4; cursor: default; }
     .hint { text-align: center; font-size: 0.82rem; min-height: 18px; opacity: 0.95; }
     .log { position: fixed; left: 10px; bottom: 10px; width: min(280px, 70vw); max-height: 34vh;
@@ -306,7 +307,8 @@
     history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }},
     settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }},
     suit_c: {{ t.g66_suit_c|tojson }}, suit_d: {{ t.g66_suit_d|tojson }},
-    suit_h: {{ t.g66_suit_h|tojson }}, suit_s: {{ t.g66_suit_s|tojson }}
+    suit_h: {{ t.g66_suit_h|tojson }}, suit_s: {{ t.g66_suit_s|tojson }},
+    sort: {{ t.g66_sort|tojson }}
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
@@ -319,6 +321,12 @@
   let V = null, busy = false, curRules = 'standard', curLevel = 'medium', cutShown = null;
   let tabActive = true;  // Mehr-Tab-Schutz: nur ein aktiver Tab spielt
   let drawnCard = null;  // zuletzt vom Talon gezogene Karte (blau umrandet)
+  let handSort = localStorage.getItem('g66_handsort') === '1';  // Hand nach Wertigkeit sortieren
+  // Sortierung: zuerst Farbe (Kreuz<Karo<Herz<Pik), dann Wert (Bube<Dame<König<10<Ass)
+  const SUIT_RANK = {c: 0, d: 1, h: 2, s: 3};
+  const RANK_VAL = {J: 2, Q: 3, K: 4, T: 10, A: 11};
+  const sortedHand = hand => hand.slice().sort((a, b) =>
+    (SUIT_RANK[a[1]] - SUIT_RANK[b[1]]) || (RANK_VAL[a[0]] - RANK_VAL[b[0]]));
   const LEVEL_DEFS = [
     ['easy', G.level_easy, G.level_easy_desc],
     ['medium', G.level_medium, G.level_medium_desc],
@@ -626,9 +634,9 @@
       tc.appendChild(cardImg(p.card, cls));
     });
 
-    // Eigene Hand
+    // Eigene Hand (optional nach Wertigkeit sortiert; blauer Talon-Rand bleibt erhalten)
     const mh = $('me-hand'); mh.innerHTML = '';
-    v.hand.forEach(card => {
+    (handSort ? sortedHand(v.hand) : v.hand).forEach(card => {
       const slot = document.createElement('div');
       slot.className = 'card-slot';
       slot.dataset.card = card;
@@ -658,6 +666,16 @@
   function renderActions(v){
     const bar = $('actionbar'); bar.innerHTML = '';
     if (v.status !== 'playing' || v.turn !== 'p') return;
+    // Sortieren-Toggle — links neben Tauschen/Zudrehen
+    const sb = document.createElement('button');
+    sb.className = 'btn ghost' + (handSort ? ' active' : '');
+    sb.textContent = '⇅ ' + G.sort;
+    sb.onclick = () => {
+      handSort = !handSort;
+      localStorage.setItem('g66_handsort', handSort ? '1' : '0');
+      if (V) render(V);
+    };
+    bar.appendChild(sb);
     if (hasLegal(a => a.type === 'exchange')){
       const b = document.createElement('button');
       b.className = 'btn ghost'; b.textContent = '🔄 ' + G.exchange;
