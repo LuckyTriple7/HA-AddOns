@@ -2659,8 +2659,11 @@ def robots():
 def indexnow_keyfile(key: str):
     """IndexNow-Verifizierungsdatei: liefert den Schlüssel als Klartext."""
     site = load_site()
-    if re.fullmatch(r'[a-f0-9]{32}', key or '') and key == site.get('indexnow_key'):
-        return key, 200, {'Content-Type': 'text/plain'}
+    stored = site.get('indexnow_key') or ''
+    # Nur den serverseitig gespeicherten Schlüssel zurückgeben (nie den Request-Wert),
+    # damit kein Benutzereingabe-Taint in die Antwort fließt.
+    if re.fullmatch(r'[a-f0-9]{32}', key or '') and key == stored:
+        return stored, 200, {'Content-Type': 'text/plain'}
     abort(404)
 
 
