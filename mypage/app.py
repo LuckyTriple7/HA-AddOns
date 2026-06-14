@@ -45,6 +45,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, safe_join
 import requests as http
 
+import game66
+
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
@@ -78,6 +80,11 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 USERFILES_BASE.mkdir(parents=True, exist_ok=True)
 WM_CACHE_DIR = Path(_DATA) / 'wm_cache'
 WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
+GAMES_DIR = Path(_DATA) / 'games'
+GAMES_DIR.mkdir(parents=True, exist_ok=True)
+# Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
+CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
@@ -120,6 +127,7 @@ _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
 _slot_lock  = threading.Lock()
+_game_lock  = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -234,6 +242,7 @@ DEFAULT_SITE = {
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
         'mini_games': False,
         'reveal_effect': 'off', 'reveal_stagger': True,
+        'card_deck': 'knoll',
         'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
@@ -1627,6 +1636,11 @@ def api_design():
         d['font'] = raw['font']
     if raw.get('reveal_effect') in ('off', 'fade', 'slide', 'zoom', 'blur'):
         d['reveal_effect'] = raw['reveal_effect']
+    if 'card_deck' in raw:
+        # nur Decks zulassen, die als Ordner mitgeliefert sind
+        slug = secure_filename(str(raw['card_deck']))
+        if slug and (CARDS_DIR / slug).is_dir():
+            d['card_deck'] = slug
     if 'custom_css' in raw:
         # '<' komplett entfernen — in CSS nie nötig, macht jeden Tag-Ausbruch
         # aus dem <style>-Block unmöglich (auch </style><script>)
@@ -2486,6 +2500,20 @@ def public_fonts(filename: str):
     return send_from_directory(FONTS_DIR, safe, max_age=2592000)  # 30 Tage
 
 
+@public_app.route('/cards/<deck>/<path:filename>')
+def public_cards(deck: str, filename: str):
+    """Kartendeck-Grafiken (mitgeliefert, gemeinfrei) — pro Deck ein Unterordner."""
+    safe_deck = secure_filename(deck)
+    safe = secure_filename(filename)
+    base = safe_under(CARDS_DIR, safe_deck)
+    if base is None or not base.is_dir():
+        abort(404)
+    target = safe_under(base, safe)
+    if target is None or not target.is_file():
+        abort(404)
+    return send_from_directory(base, safe, max_age=2592000)  # 30 Tage
+
+
 def effective_watermark() -> str:
     """Wasserzeichen-Text: eigener Text > © + Domain > © MyPage."""
     site = load_site()
@@ -2690,6 +2718,113 @@ def api_slot():
             site['slot_jackpot'] = jp
             save_site(site)
     return jsonify({'jackpot': jp})
+
+
+# ── 66 / Schnapsen (Mitglieder-Spiel, server-autoritativ) ──────────────────────
+
+def _game66_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'66_{uid}.json'
+
+
+def load_game66(uid: str) -> dict | None:
+    p = _game66_path(uid)
+    if p is None:
+        return None
+    try:
+        with open(p, encoding='utf-8') as f:
+            st = json.load(f)
+        return st if game66.is_valid_state(st) else None
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        log.warning("66-Spielstand defekt (%s): %s", uid[:8], e)
+        return None
+
+
+def save_game66(uid: str, state: dict) -> None:
+    p = _game66_path(uid)
+    if p is None:
+        return
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(state, f, ensure_ascii=False)
+    os.replace(tmp, p)  # atomar ersetzen → kein halb geschriebener Stand
+
+
+def _require_member():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    return member
+
+
+@public_app.route('/bereich/66')
+def game66_page():
+    """Vollfenster-Spielseite (wird vom Mitgliederbereich als Iframe geöffnet)."""
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    deck = site['design'].get('card_deck') or 'knoll'
+    return render_template('game66.html', t=t, lang=lang, site=site,
+                           member=member, deck=deck,
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/66/state')
+def api_game66_state():
+    member = _require_member()
+    with _game_lock:
+        st = load_game66(member['id'])
+        if st is None:
+            st = game66.new_match()
+            game66.ai_run(st)
+            save_game66(member['id'], st)
+        elif st['status'] == 'playing' and st['turn'] == 'a':
+            game66.ai_run(st)
+            save_game66(member['id'], st)
+    return jsonify(game66.public_view(st))
+
+
+@public_app.route('/api/66/move', methods=['POST'])
+def api_game66_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    raw = data.get('action')
+    if not isinstance(raw, dict):
+        abort(400)
+    # Nur whitelisted Felder übernehmen (kein ungeprüfter Client-Input ins Regelwerk)
+    act = {'type': str(raw.get('type', ''))[:12]}
+    if raw.get('card') is not None:
+        act['card'] = str(raw.get('card'))[:2]
+    if raw.get('marry'):
+        act['marry'] = True
+    with _game_lock:
+        st = load_game66(member['id'])
+        if st is None:
+            abort(409)  # kein laufendes Spiel → Client soll /state holen
+        try:
+            game66.apply_action(st, 'p', act)
+            game66.ai_run(st)
+        except game66.IllegalMove:
+            # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
+            return jsonify(game66.public_view(st))
+        save_game66(member['id'], st)
+    return jsonify(game66.public_view(st))
+
+
+@public_app.route('/api/66/new', methods=['POST'])
+def api_game66_new():
+    member = _require_member()
+    with _game_lock:
+        st = game66.new_match()
+        game66.ai_run(st)
+        save_game66(member['id'], st)
+    return jsonify(game66.public_view(st))
 
 
 @public_app.route('/sitemap.xml')

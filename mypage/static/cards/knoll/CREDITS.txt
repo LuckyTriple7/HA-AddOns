@@ -1,0 +1,4 @@
+Vector Playing Cards — Byron Knoll
+Quelle: http://code.google.com/p/vector-playing-cards/ (Spiegel: github.com/notpeter/Vector-Playing-Cards)
+Lizenz: Public Domain / WTFPL — frei verwendbar, keine Attribution erforderlich.
+back.svg: eigene Gestaltung (MyPage).

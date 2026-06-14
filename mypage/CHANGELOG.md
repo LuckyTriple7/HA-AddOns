@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.46
+
+- 🃏 **Neues Mitglieder-Spiel: 66 (Sechsundsechzig)** — das klassische Stichspiel gegen eine **KI**. Nur für angemeldete Benutzer (im persönlichen Bereich), öffnet sich als **Vollfenster-Iframe** (kein Browser-Vollbild). 20-Karten-Variante (ohne Neuner, je 5 Karten): Hochzeiten (20/40), Trumpf-Bube tauschen, Zudrehen, Ausmelden bei 66 Augen; Wertung 1/2/3 Spielpunkte, Match (Bummerl) bis 7.
+- 💾 **Server-autoritativ & geräteübergreifend**: Regelwerk und KI laufen auf dem Server, **jeder Zug wird gespeichert** (lokal im `addon_config`, **nicht** auf dem SMB-Share) — auf einem anderen Gerät weiterspielen ist möglich. Die KI-Hand bleibt serverseitig verborgen (kein Mogeln).
+- 🎴 **Kartendeck austauschbar**: mitgeliefertes, gemeinfreies Deck (*Vector Playing Cards*, Byron Knoll) als SVG unter `/cards/<deck>/…`; weitere Decks später per Ordner ergänzbar.
+- ✅ Abgesichert durch ein Test-Harness (Regel-Invarianten, Wertung, tausende Zufalls-Playouts) und End-to-End-Routentests (inkl. geräteübergreifendem Fortsetzen). Voll DE/EN lokalisiert.
+
 ## 0.6.45
 
 - 🎴 Video Poker: Nach dem Tauschen werden die **gewinnenden Karten golden hervorgehoben**, die übrigen abgedunkelt — so ist auf einen Blick klar, *warum* eine Hand gewonnen hat (z. B. welches Paar). Die Bewertung selbst war korrekt; „Buben oder besser" erfordert weiterhin ein echtes Paar ab Bube (über alle 2,6 Mio. Hände verifiziert).

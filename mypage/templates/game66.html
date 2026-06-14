@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>66 – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root { --gold:#f1c40f; --felt1:#0f5c43; --felt2:#0a3f2e; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(ellipse at center, var(--felt1), var(--felt2));
+      color: #eaf3ee; overflow: hidden; user-select: none;
+      display: flex; flex-direction: column;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; font-size: 0.85rem; }
+    .topbar .title { font-weight: 700; letter-spacing: 0.5px; }
+    .spacer { flex: 1; }
+    .bummerl { font-size: 0.8rem; opacity: 0.95; }
+    .bummerl b { color: var(--gold); }
+    .iconbtn {
+      background: rgba(255,255,255,0.12); border: none; color: #fff; width: 34px; height: 34px;
+      border-radius: 8px; font-size: 1.1rem; cursor: pointer; line-height: 1;
+    }
+    .iconbtn:hover { background: rgba(255,255,255,0.22); }
+    .felt { flex: 1; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 4px 12px 10px; min-height: 0; }
+    .seat { display: flex; align-items: center; gap: 14px; }
+    .seat.me { justify-content: center; }
+    .info { font-size: 0.8rem; line-height: 1.35; min-width: 96px; }
+    .info .who { font-weight: 700; }
+    .info .turn { color: var(--gold); font-weight: 700; }
+    .pts { font-size: 1.5rem; font-weight: 800; }
+    .badge { display: inline-block; background: var(--gold); color: #222; font-size: 0.62rem;
+             font-weight: 700; padding: 1px 6px; border-radius: 10px; vertical-align: middle; }
+    .hand { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; min-height: 0; }
+    .hand.opp { gap: 0; }
+    .pc { height: clamp(78px, 19vh, 138px); width: auto; border-radius: 6px;
+          box-shadow: 0 3px 8px rgba(0,0,0,0.45); display: block; }
+    .hand.opp .pc { margin-left: -34px; }
+    .hand.opp .pc:first-child { margin-left: 0; }
+    .card-slot { position: relative; transition: transform 0.12s; }
+    .hand.me .card-slot.playable { cursor: pointer; }
+    .hand.me .card-slot.playable:hover { transform: translateY(-12px); }
+    .hand.me .card-slot.disabled { opacity: 0.42; filter: grayscale(0.5); }
+    .center { display: flex; align-items: center; justify-content: center; gap: 26px; flex: 1; min-height: 0; }
+    .stockwrap { position: relative; text-align: center; }
+    .stockwrap .trump { transform: rotate(90deg); }
+    .stockwrap .stack { position: absolute; left: 46px; top: 0; }
+    .count { font-size: 0.72rem; opacity: 0.85; margin-top: 6px; }
+    .table-cards { display: flex; gap: 14px; align-items: center; min-height: clamp(86px, 20vh, 146px); }
+    .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
+    .table-cards .follow { transform: translateY(6px) rotate(4deg); }
+    .actionbar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 2px; min-height: 40px; }
+    .btn {
+      background: var(--gold); color: #20160a; border: none; padding: 9px 16px; border-radius: 8px;
+      font-size: 0.86rem; font-weight: 700; cursor: pointer;
+    }
+    .btn.ghost { background: rgba(255,255,255,0.14); color: #fff; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .hint { text-align: center; font-size: 0.82rem; min-height: 18px; opacity: 0.95; }
+    .log { position: fixed; left: 10px; bottom: 10px; width: min(280px, 70vw); max-height: 34vh;
+           background: rgba(0,0,0,0.55); border-radius: 10px; padding: 8px 12px; font-size: 0.74rem;
+           overflow-y: auto; display: none; }
+    .log.show { display: block; }
+    .log div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .banner { position: fixed; inset: 0; background: rgba(0,0,0,0.66); display: none;
+              align-items: center; justify-content: center; z-index: 50; }
+    .banner.show { display: flex; }
+    .banner .box { background: #14241c; border: 1px solid rgba(255,255,255,0.15); border-radius: 14px;
+                   padding: 28px 34px; text-align: center; max-width: 90vw; }
+    .banner h2 { font-size: 1.4rem; margin-bottom: 8px; }
+    .banner p { opacity: 0.9; margin-bottom: 18px; }
+    .banner .big { font-size: 2.2rem; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="title">🃏 66</span>
+    <span class="bummerl">{{ t.g66_bummerl }}: <b id="bm-p">0</b> : <b id="bm-a">0</b> &nbsp;<span style="opacity:.6">/ 7</span></span>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="btn-log" title="{{ t.g66_log }}">≡</button>
+    <button class="iconbtn" id="btn-new" title="{{ t.g66_new }}">↻</button>
+    <button class="iconbtn" id="btn-close" title="{{ t.g66_close_lbl }}">✕</button>
+  </div>
+
+  <div class="felt">
+    <div class="seat opp">
+      <div class="info">
+        <div class="who">{{ t.g66_ai }} <span id="opp-turn" class="turn" style="display:none">●</span></div>
+        <div>{{ t.g66_tricks }}: <span id="opp-tricks">0</span> <span id="opp-meld"></span></div>
+      </div>
+      <div class="pts" id="opp-pts">0</div>
+      <div class="hand opp" id="opp-hand"></div>
+    </div>
+
+    <div class="center">
+      <div class="stockwrap" id="stockwrap">
+        <img class="pc trump" id="trump-card" alt="trump">
+        <img class="pc stack" id="stock-back" src="/cards/{{ deck }}/back.svg" alt="">
+        <div class="count"><span id="stock-count">0</span> · <span id="trump-suit"></span> <span id="closed-badge"></span></div>
+      </div>
+      <div class="table-cards" id="table-cards"></div>
+    </div>
+
+    <div class="seat me">
+      <div class="info">
+        <div class="who">{{ t.g66_you }} <span id="me-turn" class="turn" style="display:none">●</span></div>
+        <div>{{ t.g66_tricks }}: <span id="me-tricks">0</span> <span id="me-meld"></span></div>
+      </div>
+      <div class="pts" id="me-pts">0</div>
+    </div>
+    <div class="hand me" id="me-hand"></div>
+    <div class="hint" id="hint"></div>
+    <div class="actionbar" id="actionbar"></div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="banner" id="banner">
+    <div class="box">
+      <div class="big" id="banner-big"></div>
+      <h2 id="banner-title"></h2>
+      <p id="banner-text"></p>
+      <button class="btn" id="banner-btn"></button>
+    </div>
+  </div>
+
+  <script>
+  const G = {
+    deck: {{ deck|tojson }},
+    lang: {{ lang|tojson }},
+    you: {{ t.g66_you|tojson }}, ai: {{ t.g66_ai|tojson }},
+    close_talon: {{ t.g66_close_talon|tojson }}, exchange: {{ t.g66_exchange|tojson }},
+    marry_ask: {{ t.g66_marry_ask|tojson }}, close_confirm: {{ t.g66_close_confirm|tojson }},
+    new_confirm: {{ t.g66_new_confirm|tojson }},
+    your_turn: {{ t.g66_your_turn|tojson }}, ai_turn: {{ t.g66_ai_turn|tojson }},
+    next: {{ t.g66_next|tojson }}, new_match: {{ t.g66_new|tojson }},
+    deal_win: {{ t.g66_deal_win|tojson }}, deal_lose: {{ t.g66_deal_lose|tojson }},
+    match_win: {{ t.g66_match_win|tojson }}, match_lose: {{ t.g66_match_lose|tojson }},
+    gp: {{ t.g66_gp|tojson }}, closed_badge: {{ t.g66_closed_badge|tojson }},
+    err: {{ t.g66_err|tojson }}
+  };
+  const $ = id => document.getElementById(id);
+  const img = code => `/cards/${G.deck}/${code}.svg`;
+  let V = null, busy = false;
+
+  function cardImg(code, cls){
+    const i = document.createElement('img');
+    i.className = 'pc' + (cls ? ' ' + cls : '');
+    i.src = img(code); i.alt = code; return i;
+  }
+
+  async function api(url, opts){
+    try {
+      const r = await fetch(url, opts);
+      if (r.status === 403){ $('hint').textContent = G.err; return null; }
+      if (r.status === 409){ return await api('/api/66/state'); }
+      return await r.json();
+    } catch(e){ $('hint').textContent = G.err; return null; }
+  }
+
+  async function loadState(){ const v = await api('/api/66/state'); if (v) render(v); }
+
+  async function send(action){
+    if (busy) return; busy = true;
+    const v = await api('/api/66/move', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action})
+    });
+    busy = false;
+    if (v) render(v);
+  }
+
+  function hasLegal(pred){ return (V.legal || []).some(pred); }
+
+  function render(v){
+    V = v;
+    $('bm-p').textContent = v.bummerl.p;
+    $('bm-a').textContent = v.bummerl.a;
+    $('me-pts').textContent = v.pts.p;
+    $('opp-pts').textContent = v.pts.a;
+    $('me-tricks').textContent = v.tricks.p;
+    $('opp-tricks').textContent = v.tricks.a;
+    $('me-meld').innerHTML = meldBadge(v.melds.p);
+    $('opp-meld').innerHTML = meldBadge(v.melds.a);
+    $('me-turn').style.display = (v.turn === 'p' && v.status === 'playing') ? '' : 'none';
+    $('opp-turn').style.display = (v.turn === 'a' && v.status === 'playing') ? '' : 'none';
+
+    // Gegnerhand (Rückseiten)
+    const oh = $('opp-hand'); oh.innerHTML = '';
+    for (let i = 0; i < v.ai_count; i++) oh.appendChild(cardImg('back'));
+
+    // Talon + Trumpf
+    if (v.trump_card){
+      $('trump-card').src = img(v.trump_card); $('trump-card').style.display = '';
+      $('stock-back').style.display = v.stock_count > 1 ? '' : 'none';
+    } else {
+      $('trump-card').style.display = 'none'; $('stock-back').style.display = 'none';
+    }
+    $('stock-count').textContent = v.stock_count;
+    $('trump-suit').textContent = suitSym(v.trump);
+    $('closed-badge').innerHTML = v.closed ? '<span class="badge">' + G.closed_badge + '</span>' : '';
+
+    // Tisch
+    const tc = $('table-cards'); tc.innerHTML = '';
+    v.table.forEach((p, idx) => tc.appendChild(cardImg(p.card, idx === 0 ? 'lead' : 'follow')));
+
+    // Eigene Hand
+    const mh = $('me-hand'); mh.innerHTML = '';
+    v.hand.forEach(card => {
+      const slot = document.createElement('div');
+      slot.className = 'card-slot';
+      const playable = (v.turn === 'p' && v.status === 'playing'
+        && hasLegal(a => a.type === 'play' && a.card === card));
+      slot.classList.add(playable ? 'playable' : 'disabled');
+      slot.appendChild(cardImg(card));
+      if (playable) slot.onclick = () => onCard(card);
+      mh.appendChild(slot);
+    });
+
+    renderActions(v);
+    renderHint(v);
+    renderLog(v);
+    renderBanner(v);
+  }
+
+  function suitSym(s){ return {c:'♣', d:'♦', h:'♥', s:'♠'}[s] || s; }
+  function meldBadge(arr){
+    return arr && arr.length
+      ? '<span class="badge">' + arr.map(suitSym).join('') + '</span>' : '';
+  }
+
+  function renderActions(v){
+    const bar = $('actionbar'); bar.innerHTML = '';
+    if (v.status !== 'playing' || v.turn !== 'p') return;
+    if (hasLegal(a => a.type === 'exchange')){
+      const b = document.createElement('button');
+      b.className = 'btn ghost'; b.textContent = '🔄 ' + G.exchange;
+      b.onclick = () => send({type: 'exchange'}); bar.appendChild(b);
+    }
+    if (hasLegal(a => a.type === 'close')){
+      const b = document.createElement('button');
+      b.className = 'btn ghost'; b.textContent = '🔒 ' + G.close_talon;
+      b.onclick = () => { if (confirm(G.close_confirm)) send({type: 'close'}); };
+      bar.appendChild(b);
+    }
+  }
+
+  function onCard(card){
+    const canMarry = hasLegal(a => a.type === 'play' && a.card === card && a.marry);
+    if (canMarry && confirm(G.marry_ask)){ send({type: 'play', card, marry: true}); return; }
+    send({type: 'play', card});
+  }
+
+  function renderHint(v){
+    let h = '';
+    if (v.status === 'playing') h = (v.turn === 'p') ? G.your_turn : G.ai_turn;
+    $('hint').textContent = h;
+  }
+
+  function renderLog(v){
+    const el = $('log'); el.innerHTML = '';
+    (v.log || []).slice(-30).forEach(e => {
+      const d = document.createElement('div');
+      d.textContent = G.lang === 'en' ? e.en : e.de;
+      el.appendChild(d);
+    });
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function renderBanner(v){
+    const b = $('banner');
+    if (v.status === 'playing' || !v.result){ b.classList.remove('show'); return; }
+    const win = v.result.winner === 'p';
+    const matchOver = (v.status === 'match_over');
+    $('banner-big').textContent = win ? '🏆' : '🙂';
+    $('banner-title').textContent = matchOver
+      ? (win ? G.match_win : G.match_lose)
+      : (win ? G.deal_win : G.deal_lose);
+    $('banner-text').textContent = '+' + v.result.gp + ' ' + G.gp
+      + '  ·  ' + v.result.pts.p + ' : ' + v.result.pts.a;
+    const btn = $('banner-btn');
+    btn.textContent = matchOver ? G.new_match : G.next;
+    btn.onclick = matchOver ? newMatch : () => send({type: 'next'});
+    b.classList.add('show');
+  }
+
+  async function newMatch(){
+    const v = await api('/api/66/new', {method: 'POST'});
+    if (v) render(v);
+  }
+
+  function closeGame(){
+    if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
+    else location.href = '/bereich';
+  }
+
+  $('btn-close').onclick = closeGame;
+  $('btn-log').onclick = () => $('log').classList.toggle('show');
+  $('btn-new').onclick = () => { if (confirm(G.new_confirm)) newMatch(); };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeGame(); });
+
+  loadState();
+  </script>
+</body>
+</html>
