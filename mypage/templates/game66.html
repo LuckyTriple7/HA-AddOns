@@ -543,10 +543,33 @@
     });
   }
 
-  // KI spielt eine Karte: vom Gegner-Handbereich auf den Tisch
+  // KI spielt eine Karte: die echte verdeckte Karte aus der KI-Hand fliegt auf den
+  // Tisch — gleicher Mechanismus wie beim Spieler (echte Karte klonen, kein Nachladen,
+  // kein Container-Rechteck). Beim Landen deckt render() die Karte auf.
   function flyAiCard(card){
-    const oh = $('opp-hand');
-    return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60, ring: true});
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const oh = $('opp-hand');
+      const back = oh && (oh.querySelector('.pc') || oh.lastElementChild);
+      const tableEl = $('table-cards');
+      const s = back && back.getBoundingClientRect();
+      if (!back || !s || !s.width || !tableEl){ resolve(); return; }
+      const t = tableEl.getBoundingClientRect();
+      const clone = back.cloneNode(true);
+      clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+        + 'left:' + s.left + 'px;top:' + s.top + 'px;height:' + s.height + 'px;width:auto;'
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1);'
+        + 'box-shadow:0 0 0 3px var(--gold),0 10px 22px rgba(0,0,0,.55)';
+      document.body.appendChild(clone);
+      back.style.visibility = 'hidden';
+      const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+      const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      clone.addEventListener('transitionend', fin, {once: true});
+      setTimeout(fin, flyMs + 60);
+    });
   }
 
   // Nachziehen vom Talon: verdeckte Karte vom Stapel in eine Hand
