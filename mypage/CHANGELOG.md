@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.53
+
+- 🐛 **66: Auslosung erscheint nicht mehr mitten im Spiel** — die „Wer beginnt?"-Anzeige wird jetzt nur noch **ganz zu Beginn** (vor dem ersten Stich) und **einmal pro Browser** gezeigt. Vorher konnte sie in einem **zweiten Tab** (oder nach einem Reload) während der laufenden ersten Partie noch einmal auftauchen.
+
 ## 0.6.52
 
 - ✨ **66: Mehr Kartenanimationen** — jetzt fliegt auch die **Karte der KI** sichtbar vom Gegnerblatt auf den Tisch, und beim **Nachziehen vom Talon** fliegen die Karten vom Stapel in die Hände (vorher nur die selbst gespielte Karte). Respektiert „Bewegung reduzieren".

@@ -318,13 +318,25 @@
     if (v){ await maybeShowCut(v); render(v); }
   }
 
-  // Auslosen anzeigen (einmal pro Auslosung) — zwei gezogene Karten, wer beginnt
+  // Nur ganz am Match-Anfang (vor dem ersten Stich) — sonst taucht das Auslosen
+  // in einem zweiten Tab / nach Reload mitten im Spiel auf
+  function cutAtStart(v){
+    return !!(v && v.deal_no === 1
+      && v.tricks && v.tricks.p === 0 && v.tricks.a === 0
+      && v.bummerl && v.bummerl.p === 0 && v.bummerl.a === 0);
+  }
+
+  // Auslosen anzeigen (einmal pro Browser) — zwei gezogene Karten, wer beginnt
   function maybeShowCut(v){
     return new Promise(resolve => {
       const cut = v && v.cut;
       const sig = cut ? JSON.stringify(cut) : null;
-      if (!cut || sig === cutShown){ resolve(); return; }
+      if (!cut || !cutAtStart(v)){ resolve(); return; }
+      let seen = null;
+      try { seen = localStorage.getItem('g66_cutseen'); } catch(e){}
+      if (sig === cutShown || sig === seen){ resolve(); return; }
       cutShown = sig;
+      try { localStorage.setItem('g66_cutseen', sig); } catch(e){}
       $('cut-p').src = img(cut.p);
       $('cut-a').src = img(cut.a);
       $('cut-result').textContent = (cut.leader === 'p') ? G.cut_you : G.cut_ai;
