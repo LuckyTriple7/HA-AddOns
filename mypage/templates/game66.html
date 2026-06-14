@@ -65,9 +65,9 @@
     .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
     .table-cards .follow { transform: translateY(6px) rotate(4deg); }
     /* Hochzeitswert über der ausgespielten Karte (reine Anzeige: 20 / 40 Trumpf) */
-    .table-cards .tcard { position: relative; display: flex; }
+    .table-cards { position: relative; }
     .meld-val {
-      position: absolute; left: 50%; top: -16px; transform: translateX(-50%);
+      position: absolute; transform: translate(-50%, -100%);
       background: var(--gold); color: #20160a; font-weight: 800;
       font-size: 0.82rem; line-height: 1; padding: 3px 8px; border-radius: 999px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.55), 0 0 8px rgba(241,196,15,0.7);
@@ -642,23 +642,22 @@
 
     // Tisch
     const tc = $('table-cards'); tc.innerHTML = '';
+    const melds = [];
     v.table.forEach((p, idx) => {
       const cls = (idx === 0 ? 'lead' : 'follow') + (p.who === 'a' ? ' by-ai' : '');
       const cimg = cardImg(p.card, cls);
-      if (p.meld){
-        // Hochzeitswert als reine Anzeige über der Karte (unabhängig davon, ob er schon zählt)
-        const wrap = document.createElement('div');
-        wrap.className = 'tcard';
-        const tag = document.createElement('span');
-        tag.className = 'meld-val' + (p.meld >= 40 ? ' t40' : '');
-        tag.textContent = p.meld;
-        tag.title = G.marriage_announce;
-        wrap.appendChild(tag);
-        wrap.appendChild(cimg);
-        tc.appendChild(wrap);
-      } else {
-        tc.appendChild(cimg);
-      }
+      tc.appendChild(cimg);  // Karte bleibt direktes Flex-Kind (Layout/Animation unverändert)
+      if (p.meld) melds.push([cimg, p.meld]);
+    });
+    // Hochzeitswert als reine Anzeige über die Karte legen (unabhängig davon, ob er schon zählt)
+    melds.forEach(([cimg, val]) => {
+      const tag = document.createElement('span');
+      tag.className = 'meld-val' + (val >= 40 ? ' t40' : '');
+      tag.textContent = val;
+      tag.title = G.marriage_announce;
+      tag.style.left = (cimg.offsetLeft + cimg.offsetWidth / 2) + 'px';
+      tag.style.top = (cimg.offsetTop - 2) + 'px';
+      tc.appendChild(tag);
     });
 
     // Eigene Hand (optional nach Wertigkeit sortiert; blauer Talon-Rand bleibt erhalten)

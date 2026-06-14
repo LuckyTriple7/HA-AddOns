@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.64
+
+- 🐛 **66: Hochzeitskarte wieder sichtbar** — Fix zu 0.6.63: Die ausgespielte Hochzeitskarte wurde durch das Wert-Abzeichen nicht mehr auf dem Tisch angezeigt. Der Wert (20/40) liegt jetzt als reines Overlay über der Karte, ohne das Tisch-Layout zu verändern.
+
 ## 0.6.63
 
 - 💍 **66: Hochzeitswert auf dem Tisch** — wird eine **Hochzeit** ausgespielt (von dir oder der KI), erscheint jetzt **über der ausgespielten Karte** der Wert **20** bzw. **40 (Trumpf)** als goldenes Abzeichen. Reine optische Anzeige — sie erscheint unabhängig davon, ob die Hochzeit schon zählt (also auch ohne ersten Stich).
