@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.54
+
+- 🔀 **66: Mehr-Tab-Schutz** — ist das Spiel bereits in einem Browser-Tab offen und du öffnest es in einem **weiteren Tab**, übernimmt der neue Tab und der **alte wird getrennt** (pausiert). Der getrennte Tab zeigt einen Hinweis mit **„Hier weiterspielen"**, um die Kontrolle zurückzuholen. So kommen sich zwei Tabs nicht mehr in die Quere (z. B. doppelte Anzeigen). Umgesetzt über `BroadcastChannel`; dein Spielstand bleibt server­seitig sicher gespeichert.
+
 ## 0.6.53
 
 - 🐛 **66: Auslosung erscheint nicht mehr mitten im Spiel** — die „Wer beginnt?"-Anzeige wird jetzt nur noch **ganz zu Beginn** (vor dem ersten Stich) und **einmal pro Browser** gezeigt. Vorher konnte sie in einem **zweiten Tab** (oder nach einem Reload) während der laufenden ersten Partie noch einmal auftauchen.

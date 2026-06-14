@@ -236,6 +236,15 @@
     </div>
   </div>
 
+  <div class="banner" id="tab-modal" style="z-index:80">
+    <div class="box">
+      <div class="big">🔀</div>
+      <h2>{{ t.g66_tab_title }}</h2>
+      <p>{{ t.g66_tab_text }}</p>
+      <button class="btn" id="tab-resume">{{ t.g66_tab_resume }}</button>
+    </div>
+  </div>
+
   <div class="banner" id="cut-modal">
     <div class="box">
       <h2>🎲 {{ t.g66_cut_title }}</h2>
@@ -279,6 +288,7 @@
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
   let V = null, busy = false, curRules = 'standard', curLevel = 'medium', cutShown = null;
+  let tabActive = true;  // Mehr-Tab-Schutz: nur ein aktiver Tab spielt
   const LEVEL_DEFS = [
     ['easy', G.level_easy, G.level_easy_desc],
     ['medium', G.level_medium, G.level_medium_desc],
@@ -391,7 +401,7 @@
   }
 
   async function send(action){    // für Buttons (ohne Fluganimation)
-    if (busy) return; busy = true;
+    if (busy || !tabActive) return; busy = true;
     await doMove(action);
     busy = false;
   }
@@ -551,7 +561,7 @@
   }
 
   async function onCard(card){
-    if (busy) return;
+    if (busy || !tabActive) return;
     const canMarry = hasLegal(a => a.type === 'play' && a.card === card && a.marry);
     const marry = canMarry && confirm(G.marry_ask);
     busy = true;
@@ -594,7 +604,7 @@
   }
 
   async function newMatch(rules, level){
-    if (busy) return; busy = true;
+    if (busy || !tabActive) return; busy = true;
     rules = rules || curRules; level = level || curLevel;
     const r = await api('/api/66/new', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -734,6 +744,7 @@
   };
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if ($('tab-modal').classList.contains('show')) return;  // getrennter Tab — erst übernehmen
     if ($('cut-modal').classList.contains('show')) return;  // erst "Los geht's"
     if ($('rules-modal').classList.contains('show')) closeRules();
     else if ($('level-modal').classList.contains('show')) closeLevel();
@@ -742,6 +753,39 @@
     else if ($('settings-modal').classList.contains('show')) closeSettings();
     else closeGame();
   });
+
+  // ── Mehr-Tab-Schutz ─────────────────────────────────────────────────────────
+  // Es ist immer nur EIN Tab aktiv. Wird das Spiel in einem weiteren Tab geöffnet,
+  // übernimmt der neue Tab; der alte wird getrennt (pausiert) und kann per Klick
+  // wieder übernehmen. Da das Spiel server-autoritativ ist, geht nichts verloren.
+  const TAB_ID = Math.random().toString(36).slice(2);
+  let bc = null, myClaimTs = 0;
+  function claim(){
+    myClaimTs = Date.now();
+    if (bc) try { bc.postMessage({type: 'claim', id: TAB_ID, ts: myClaimTs}); } catch(e){}
+  }
+  function becomePassive(){
+    if (!tabActive) return;
+    tabActive = false; busy = false;
+    $('tab-modal').classList.add('show');
+  }
+  function becomeActive(){
+    tabActive = true; busy = false;
+    $('tab-modal').classList.remove('show');
+    claim();        // anderen Tabs mitteilen, dass jetzt dieser aktiv ist
+    loadState();    // frischen Stand holen
+  }
+  try {
+    bc = new BroadcastChannel('mypage-g66');
+    bc.onmessage = e => {
+      const m = e.data;
+      if (!m || m.id === TAB_ID || m.type !== 'claim') return;
+      // Der spätere Claim gewinnt; bei Gleichstand der größere id-String
+      if (m.ts > myClaimTs || (m.ts === myClaimTs && m.id > TAB_ID)) becomePassive();
+    };
+  } catch(e){ bc = null; }
+  $('tab-resume').onclick = becomeActive;
+  claim();          // dieser Tab beansprucht beim Laden die aktive Rolle
 
   loadState();
   </script>
