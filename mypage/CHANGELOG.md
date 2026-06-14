@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.41
+
+- 🃏 17+4 (Blackjack): Gleicher Aufladen-Fix wie beim Slot. Der „🔄 Aufladen"-Button erscheint jetzt **nur bei leerem Konto** (Guthaben unter dem Einsatz von 10) und das Guthaben wird beim Öffnen **nicht mehr automatisch** auf 100 zurückgesetzt — ein vorhandener Spielstand bleibt erhalten.
+
 ## 0.6.40
 
 - 🐛 Einblend-Effekte: Die Auswahl (Einblenden / Hochgleiten / Zoom / Unschärfe) sah optisch immer gleich aus. Ursache: Bei aktivem Stagger (Standard) wurden die Inhaltsblöcke auf reines Einblenden gezwungen, sodass nur die kaum sichtbare Kartenbewegung den Unterschied trug. Jetzt wirkt der gewählte Effekt auf **allen Blöcken** (Überschriften, Hero, Inhalte) — die Effekte sind klar unterscheidbar. Bei Stagger bleiben nur die Karten-Container selbst ruhig (via `:has()`), während ihre Kacheln den Effekt nacheinander tragen.
