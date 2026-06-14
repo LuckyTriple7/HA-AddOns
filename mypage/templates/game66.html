@@ -54,8 +54,9 @@
     .stockwrap .stack { position: absolute; left: 46px; top: 0; }
     .count { font-size: clamp(0.95rem, 2.7vw, 1.2rem); opacity: 1; margin-top: 8px; font-weight: 700;
              letter-spacing: 0.3px; }
-    .count .suit { font-size: 1.2em; vertical-align: -0.06em; }
-    .count .suit.red { color: #e74c3c; }
+    .count .suit { font-size: 1.25em; vertical-align: -0.06em; color: #fff; font-weight: 400;
+                   font-variant-emoji: text; }
+    .count .suit.red { color: #ff6b5e; }
     .table-cards { display: flex; gap: 14px; align-items: center; min-height: clamp(86px, 20vh, 146px); }
     .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
     .table-cards .follow { transform: translateY(6px) rotate(4deg); }
@@ -568,7 +569,8 @@
     renderBanner(v);
   }
 
-  function suitSym(s){ return {c:'♣', d:'♦', h:'♥', s:'♠'}[s] || s; }
+  // '︎' = Text-Darstellung erzwingen (sonst rendern ♠/♣ als schwarzes Emoji)
+  function suitSym(s){ const m = {c:'♣', d:'♦', h:'♥', s:'♠'}; return m[s] ? m[s] + '︎' : s; }
   function meldBadge(arr){
     return arr && arr.length
       ? '<span class="badge">' + arr.map(suitSym).join('') + '</span>' : '';

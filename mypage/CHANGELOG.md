@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.58
+
+- 🎨 **66: Trumpf-Symbol besser erkennbar** — ♠/♣ wurden je nach System als dickes schwarzes Emoji dargestellt und waren auf dem grünen Filz kaum zu sehen. Jetzt werden alle Farbsymbole als **Text** gerendert (♠/♣ in Weiß, ♦/♥ in hellem Rot) und sind klar lesbar.
+
 ## 0.6.57
 
 - 💾 **Spielstände im Backup** — die 66-**Spielstände und der Verlauf** (`games/66_<uid>.json`, `games/66hist_<uid>.json`) werden jetzt **mit gesichert und wiederhergestellt** (Admin → Backup/Restore). So gehen laufende Partien und die Historie bei einem Wiederherstellen nicht verloren. Beim Restore werden nur gültige Spieldateinamen akzeptiert (abgesichert gegen Zip-Slip/Fremddateien).
