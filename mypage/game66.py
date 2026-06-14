@@ -19,6 +19,8 @@ import random
 SUITS = ['c', 'd', 'h', 's']          # clubs, diamonds, hearts, spades
 RANKS = ['A', 'T', 'K', 'Q', 'J']     # Ass, Zehn, König, Dame, Bube
 VALUES = {'A': 11, 'T': 10, 'K': 4, 'Q': 3, 'J': 2}
+# Farb-Rangfolge fürs Auslosen (Kreuz < Karo < Herz < Pik)
+SUIT_ORDER = {'c': 0, 'd': 1, 'h': 2, 's': 3}
 WIN_SCORE = 66                         # Augen zum Ausmelden
 MATCH_SCORE = 7                        # Spielpunkte (Bummerl) zum Matchsieg
 LOG_MAX = 40
@@ -48,19 +50,49 @@ def full_deck() -> list:
 
 # ── State-Aufbau ──────────────────────────────────────────────────────────────
 
-def new_match(first_dealer: str | None = None, rng: random.Random | None = None) -> dict:
-    """Neuen Match-State (Bummerl) erzeugen und erste Partie austeilen."""
+RULESETS = ('standard', 'oma')
+
+
+def new_match(first_dealer: str | None = None, rng: random.Random | None = None,
+              rules: str = 'standard') -> dict:
+    """Neuen Match-State (Bummerl) erzeugen und erste Partie austeilen.
+
+    rules='standard': mit vorzeitigem Ausmelden bei 66.
+    rules='oma' ("Andys Oma"): kein Ausmelden — erst zählen, wenn alle Karten
+    weg sind; Sieger hat 66+, sonst gewinnt der letzte Stich.
+    """
     rng = rng or random.Random()
     state = {
         'v': STATE_VERSION,
+        'rules': rules if rules in RULESETS else 'standard',
         'bummerl': {'p': 0, 'a': 0},
         'deal_no': 0,
         'status': 'playing',
         'log': [],
     }
-    dealer = first_dealer or rng.choice(['p', 'a'])
+    if first_dealer:
+        state['cut'] = None
+        dealer = first_dealer
+    else:
+        # Auslosen: jeder zieht eine Karte, die höhere führt aus (Geber ist der andere)
+        cut = _cut_for_lead(rng)
+        state['cut'] = cut
+        dealer = other(cut['leader'])
     _new_deal(state, dealer, rng)
     return state
+
+
+def _cut_key(card: str) -> tuple:
+    return (VALUES[rank(card)], SUIT_ORDER[suit(card)])
+
+
+def _cut_for_lead(rng: random.Random) -> dict:
+    """Jeder zieht eine Karte; höhere Karte (bei Gleichrang höhere Farbe) führt aus."""
+    deck = full_deck()
+    rng.shuffle(deck)
+    pc, ac = deck[0], deck[1]
+    leader = 'p' if _cut_key(pc) > _cut_key(ac) else 'a'
+    return {'p': pc, 'a': ac, 'leader': leader}
 
 
 def _new_deal(state: dict, dealer: str, rng: random.Random) -> None:
@@ -239,7 +271,8 @@ def _announce_marriage(state: dict, who: str, card: str) -> None:
     _log(state, 'marriage', f'{_name(who)} sagt {bonus} an ({s})',
          f'{_name(who, True)} announces {bonus} ({s})', who)
     _capture(state)
-    if usable(state, who) >= WIN_SCORE:
+    # Standard: Hochzeit kann sofort ausmelden. Oma: kein vorzeitiges Ende.
+    if state.get('rules') != 'oma' and usable(state, who) >= WIN_SCORE:
         _finish_deal(state, who, 'made_66')
 
 
@@ -275,6 +308,24 @@ def _resolve_trick(state: dict) -> None:
 
 # ── Partie-Ende & Wertung ─────────────────────────────────────────────────────
 
+def _tier(loser_augen: int) -> int:
+    """Spielpunkte nach Augen des Verlierers: 0 → 3 (schwarz), <33 → 2 (Schneider), sonst 1."""
+    if loser_augen <= 0:
+        return 3
+    if loser_augen < 33:
+        return 2
+    return 1
+
+
+def _more_augen(state: dict) -> str:
+    up, ua = usable(state, 'p'), usable(state, 'a')
+    if up > ua:
+        return 'p'
+    if ua > up:
+        return 'a'
+    return state['last_trick_winner']
+
+
 def _check_deal_end(state: dict) -> None:
     if state['status'] != 'playing':
         return
@@ -286,6 +337,20 @@ def _check_deal_end(state: dict) -> None:
         elif usable(state, opp) >= WIN_SCORE or _hands_empty(state):
             _finish_deal(state, opp, 'closed_failed')
         return
+
+    if state.get('rules') == 'oma':
+        # "Andys Oma": kein vorzeitiges Ausmelden — erst zählen, wenn alle Karten weg sind
+        if _hands_empty(state):
+            p_ok = usable(state, 'p') >= WIN_SCORE
+            a_ok = usable(state, 'a') >= WIN_SCORE
+            if p_ok or a_ok:
+                winner = _more_augen(state) if (p_ok and a_ok) else ('p' if p_ok else 'a')
+                _finish_deal(state, winner, 'oma_made')
+            else:  # niemand 66 → der letzte Stich gewinnt
+                _finish_deal(state, state['last_trick_winner'], 'oma_lasttrick')
+        return
+
+    # Standard: sofort ausmelden bei 66
     for w in ('p', 'a'):
         if usable(state, w) >= WIN_SCORE:
             _finish_deal(state, w, 'made_66')
@@ -300,26 +365,24 @@ def _hands_empty(state: dict) -> bool:
 
 def _finish_deal(state: dict, winner: str, reason: str) -> None:
     loser = other(winner)
+    rules = state.get('rules', 'standard')
     if reason == 'closed_failed':
-        # Zudreher hat 66 verfehlt → Gegner bekommt 2, bzw. 3 ohne Stich beim Zudrehen
-        gp = 2 if state['closed_opp_trick'] else 3
+        # Zudreher hat 66 verfehlt. Oma: pauschal 3. Standard: 2, bzw. 3 ohne Gegner-Stich.
+        gp = 3 if rules == 'oma' else (2 if state['closed_opp_trick'] else 3)
     elif reason == 'last_trick':
         gp = 1
     elif reason == 'closed_made':
-        # Wertung nach Gegnerstand beim Zudrehen
-        if not state['closed_opp_trick']:
-            gp = 3
-        elif state['closed_snap'] < 33:
-            gp = 2
-        else:
-            gp = 1
-    else:  # made_66
-        if not state['has_trick'][loser]:
-            gp = 3
-        elif usable(state, loser) < 33:
-            gp = 2
-        else:
-            gp = 1
+        if rules == 'oma':
+            gp = _tier(usable(state, loser))
+        else:  # Standard: Wertung nach Gegnerstand beim Zudrehen (Schnappschuss)
+            if not state['closed_opp_trick']:
+                gp = 3
+            elif state['closed_snap'] < 33:
+                gp = 2
+            else:
+                gp = 1
+    else:  # made_66, oma_made, oma_lasttrick → nach Augen des Verlierers
+        gp = _tier(usable(state, loser))
 
     state['bummerl'][winner] += gp
     state['result'] = {
@@ -341,6 +404,7 @@ def _start_next_deal(state: dict) -> dict:
     if state['status'] != 'deal_over':
         raise IllegalMove('Partie noch nicht beendet')
     loser = other(state['result']['winner'])
+    state['cut'] = None  # Auslosen war nur für die erste Partie
     _new_deal(state, dealer=loser, rng=random.Random())
     return state
 
@@ -497,6 +561,8 @@ def public_view(state: dict) -> dict:
     """Redigierte Sicht für den Browser — keine KI-Hand, kein verdeckter Talon."""
     return {
         'v': state['v'],
+        'rules': state.get('rules', 'standard'),
+        'cut': state.get('cut'),
         'hand': list(state['hands']['p']),
         'ai_count': len(state['hands']['a']),
         'stock_count': len(state['stock']),

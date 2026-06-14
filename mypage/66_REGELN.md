@@ -9,11 +9,19 @@ Technische Details siehe [66.md](66.md).
 - Augen: **Ass 11 · Zehn 10 · König 4 · Dame 3 · Bube 2** → zusammen **120 Augen**.
 - Wichtig: Die **Zehn ist die zweithöchste Karte** (über König/Dame/Bube).
 
+## Spielbeginn (Auslosen)
+
+- Vor der ersten Partie **zieht jeder eine Karte**. Wer die **höhere** Karte hat,
+  **beginnt** (spielt aus); der andere ist Geber.
+- Bei **gleichem Rang** entscheidet die **Farbe**:
+  **Kreuz < Karo < Herz < Pik** (Pik am höchsten).
+
 ## Geben & Anspiel
 
 - Jeder bekommt **5 Karten**. Die restlichen 10 bilden den **Talon**; die
   **unterste Karte wird aufgedeckt** und bestimmt die **Trumpffarbe**.
-- Der **Nichtgeber (Vorhand) spielt aus**.
+- Die erste Partie spielt der **Auslos-Sieger** aus. In den **Folgepartien**
+  spielt jeweils der **Gewinner der letzten Partie** aus (der Verlierer gibt).
 
 ## Phase 1 — Talon offen
 
@@ -70,7 +78,28 @@ Beim Nachspielen gelten jetzt Zwänge, der Reihe nach:
 ## Match (Bummerl)
 
 - Wer zuerst **7 Spielpunkte** erreicht, gewinnt das Match.
-- Danach gibt der Verlierer der Partie, der andere spielt aus.
+- Danach gibt der Verlierer der Partie, der andere (Gewinner) spielt aus.
+
+---
+
+# Variante „Andys Oma"
+
+Im Spiel über das ⚖-Menü umschaltbar. Ein Regelwechsel **startet ein neues
+Match**. Unterschiede zu den Standardregeln:
+
+- **Kein vorzeitiges Ausmelden.** Es wird **immer bis zum Ende** gespielt
+  (alle Karten weg), erst dann werden die Augen gezählt. Auch eine Hochzeit, die
+  über 66 bringt, beendet die Partie **nicht** sofort.
+- **Sieger der Partie:** Wer am Ende **66+ Augen** hat, gewinnt. Erreicht das
+  **keiner** (z. B. 65:55), gewinnt der **Sieger des letzten Stichs**.
+- **Spielpunkte** wie gehabt nach Augen des Verlierers: 0 → **3**, < 33 → **2**,
+  ≥ 33 → **1**.
+- **Zudrehen** ist weiterhin möglich; der Zudreher muss **66 erreichen**, sonst
+  bekommt der Gegner **3** Punkte. Schafft er es, zählt **1/2/3** nach den
+  aktuellen Gegner-Augen.
+
+Phasen (Farbzwang erst nach Zudrehen/leerem Talon), Werte, Hochzeiten,
+Trumpftausch und Auslosen gelten unverändert.
 
 ---
 
@@ -78,6 +107,7 @@ Beim Nachspielen gelten jetzt Zwänge, der Reihe nach:
 
 1. **Phase 1 ganz ohne Farbzwang** — Zwang erst nach Zudrehen / leerem Talon.
 2. **Je 5 Karten** (weil ohne Neuner) statt 6.
-3. **Hochzeit zählt erst mit eigenem Stich.**
-4. **Schnappschuss-Wertung beim Zudrehen.**
+3. **Hochzeit zählt erst mit eigenem Stich** (Standard).
+4. **Schnappschuss-Wertung beim Zudrehen** (Standard).
 5. Trumpf-Tausch mit dem **Buben** (statt Sieben / Neun).
+6. **„Andys Oma"** als Variante: ohne Ausmelden, immer bis zum Ende.

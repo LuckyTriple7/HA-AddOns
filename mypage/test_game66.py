@@ -26,11 +26,11 @@ def conserve(st):
 
 # ── 1. Zufalls-Playouts: zufaelliger Spieler vs. Heuristik-KI ──────────────────
 
-def random_playouts(n=3000):
-    print(f'[1] {n} Zufalls-Matches ...')
+def random_playouts(n=3000, rules='standard'):
+    print(f'[1] {n} Zufalls-Matches ({rules}) ...')
     for seed in range(n):
         rng = random.Random(seed)
-        st = g.new_match(rng=rng)
+        st = g.new_match(rng=rng, rules=rules)
         g.ai_run(st)
         steps = 0
         while st['status'] != 'match_over':
@@ -49,6 +49,10 @@ def random_playouts(n=3000):
                 res = st['result']
                 check(res['gp'] in (1, 2, 3), f'seed {seed}: ungueltige gp {res}')
                 check(res['winner'] in ('p', 'a'), f'seed {seed}: kein Sieger')
+                # Oma: ohne Zudrehen endet eine Partie nur, wenn alle Karten weg sind
+                if rules == 'oma' and not st['closed']:
+                    check(not st['hands']['p'] and not st['hands']['a'],
+                          f'seed {seed}: Oma-Partie vorzeitig beendet ({res["reason"]})')
                 g.apply_action(st, 'p', {'type': 'next'})
                 g.ai_run(st)
                 continue
@@ -192,13 +196,70 @@ def exchange():
     check(st['stock'][-1] == 'Jh', 'Trumpf-Bube liegt unten')
 
 
+def cut_for_lead():
+    print('[7] Auslosen (hoechste Karte beginnt) ...')
+    # Rang schlaegt Rang
+    check(g._cut_key('Ah') > g._cut_key('Th'), 'Ass > Zehn')
+    # gleiche Rang -> Farbe entscheidet: Kreuz < Karo < Herz < Pik
+    check(g._cut_key('Js') > g._cut_key('Jh') > g._cut_key('Jd') > g._cut_key('Jc'),
+          'Farbreihenfolge Kreuz<Karo<Herz<Pik')
+    # _cut_for_lead liefert immer eindeutigen Sieger + zwei verschiedene Karten
+    for seed in range(500):
+        cut = g._cut_for_lead(random.Random(seed))
+        check(cut['p'] != cut['a'], f'seed {seed}: gleiche Karte gezogen')
+        exp = 'p' if g._cut_key(cut['p']) > g._cut_key(cut['a']) else 'a'
+        check(cut['leader'] == exp, f'seed {seed}: falscher Auslos-Sieger')
+    # Sieger fuehrt die erste Partie aus
+    st = g.new_match(rng=random.Random(1))
+    check(st['lead'] == st['cut']['leader'], 'Auslos-Sieger spielt aus')
+    check(st['dealer'] == g.other(st['cut']['leader']), 'der andere ist Geber')
+
+
+def scoring_oma():
+    print('[8] Wertung Oma ...')
+    # oma_made: Sieger 66+, Verlierer-Augen bestimmen 1/2/3
+    st = g.new_match(first_dealer='a', rng=random.Random(1))
+    st['rules'] = 'oma'
+    st['trick_pts'] = {'p': 70, 'a': 40}; st['has_trick'] = {'p': True, 'a': True}
+    g._finish_deal(st, 'p', 'oma_made')
+    check(st['result']['gp'] == 1, 'oma_made Gegner>=33 -> 1')
+    st = g.new_match(first_dealer='a', rng=random.Random(2)); st['rules'] = 'oma'
+    st['trick_pts'] = {'p': 70, 'a': 20}; st['has_trick'] = {'p': True, 'a': True}
+    g._finish_deal(st, 'p', 'oma_made')
+    check(st['result']['gp'] == 2, 'oma_made Gegner<33 -> 2')
+    st = g.new_match(first_dealer='a', rng=random.Random(3)); st['rules'] = 'oma'
+    st['trick_pts'] = {'p': 90, 'a': 0}; st['has_trick'] = {'p': True, 'a': False}
+    g._finish_deal(st, 'p', 'oma_made')
+    check(st['result']['gp'] == 3, 'oma_made Gegner schwarz -> 3')
+    # oma_lasttrick: Sieger des letzten Stichs, Wertung nach Verlierer-Augen
+    st = g.new_match(first_dealer='a', rng=random.Random(4)); st['rules'] = 'oma'
+    st['trick_pts'] = {'p': 65, 'a': 55}; st['has_trick'] = {'p': True, 'a': True}
+    g._finish_deal(st, 'p', 'oma_lasttrick')
+    check(st['result']['gp'] == 1, 'oma_lasttrick Gegner>=33 -> 1')
+    # closed_failed (Oma): pauschal 3
+    st = g.new_match(first_dealer='a', rng=random.Random(5)); st['rules'] = 'oma'
+    st['closed'] = True; st['closed_by'] = 'p'; st['closed_opp_trick'] = True
+    g._finish_deal(st, 'a', 'closed_failed')
+    check(st['result']['gp'] == 3, 'oma closed_failed -> 3 (pauschal)')
+    # closed_made (Oma): nach aktuellen Gegner-Augen
+    st = g.new_match(first_dealer='a', rng=random.Random(6)); st['rules'] = 'oma'
+    st['closed'] = True; st['closed_by'] = 'p'
+    st['trick_pts'] = {'p': 66, 'a': 20}; st['has_trick'] = {'p': True, 'a': True}
+    g._finish_deal(st, 'p', 'closed_made')
+    check(st['result']['gp'] == 2, 'oma closed_made Gegner<33 -> 2')
+
+
 if __name__ == '__main__':
     trick_logic()
     scoring()
     marriage()
     follow_rules()
     exchange()
-    random_playouts(int(sys.argv[1]) if len(sys.argv) > 1 else 3000)
+    cut_for_lead()
+    scoring_oma()
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
+    random_playouts(n, 'standard')
+    random_playouts(n, 'oma')
     print()
     if FAILS:
         print(f'{len(FAILS)} FEHLER')

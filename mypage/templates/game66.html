@@ -18,6 +18,8 @@
     }
     .topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; font-size: 0.85rem; }
     .topbar .title { font-weight: 700; letter-spacing: 0.5px; }
+    .rulestag { font-size: 0.7rem; opacity: 0.9; background: rgba(255,255,255,0.12);
+                padding: 2px 9px; border-radius: 10px; white-space: nowrap; }
     .spacer { flex: 1; }
     .bummerl { font-size: 0.8rem; opacity: 0.95; }
     .bummerl b { color: var(--gold); }
@@ -78,13 +80,30 @@
     .banner h2 { font-size: 1.4rem; margin-bottom: 8px; }
     .banner p { opacity: 0.9; margin-bottom: 18px; }
     .banner .big { font-size: 2.2rem; margin-bottom: 10px; }
+    .rules-list { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; text-align: left; }
+    .rule-opt { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 10px; padding: 12px 14px; cursor: pointer; max-width: 340px; }
+    .rule-opt:hover { background: rgba(255,255,255,0.16); }
+    .rule-opt.active { border-color: var(--gold); }
+    .rule-opt h3 { font-size: 1rem; margin-bottom: 4px; }
+    .rule-opt p { font-size: 0.8rem; opacity: 0.85; margin: 0; line-height: 1.45; }
+    .rule-opt .act { color: var(--gold); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+    .cut-cards { display: flex; gap: 26px; justify-content: center; margin: 8px 0 14px; }
+    .cut-lbl { font-size: 0.8rem; opacity: 0.85; margin-bottom: 6px; }
+    .cut-img { height: clamp(100px, 22vh, 150px); width: auto; }
+    @keyframes cutIn { from { opacity: 0; transform: translateY(-18px) scale(0.9); } to { opacity: 1; } }
+    #cut-modal.show .cut-img { animation: cutIn 0.35s ease both; }
+    #cut-modal.show #cut-a { animation-delay: 0.25s; }
+    @media (prefers-reduced-motion: reduce) { #cut-modal.show .cut-img { animation: none; } }
   </style>
 </head>
 <body>
   <div class="topbar">
     <span class="title">🃏 66</span>
+    <span class="rulestag" id="rulestag"></span>
     <span class="bummerl">{{ t.g66_bummerl }}: <b id="bm-p">0</b> : <b id="bm-a">0</b> &nbsp;<span style="opacity:.6">/ 7</span></span>
     <span class="spacer"></span>
+    <button class="iconbtn" id="btn-rules" title="{{ t.g66_rules }}">⚖</button>
     <button class="iconbtn" id="btn-log" title="{{ t.g66_log }}">≡</button>
     <button class="iconbtn" id="btn-new" title="{{ t.g66_new }}">↻</button>
     <button class="iconbtn" id="btn-close" title="{{ t.g66_close_lbl }}">✕</button>
@@ -132,6 +151,26 @@
     </div>
   </div>
 
+  <div class="banner" id="rules-modal">
+    <div class="box">
+      <h2>⚖ {{ t.g66_rules }}</h2>
+      <div class="rules-list" id="rules-list"></div>
+      <button class="btn ghost" id="rules-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="cut-modal">
+    <div class="box">
+      <h2>🎲 {{ t.g66_cut_title }}</h2>
+      <div class="cut-cards">
+        <div><div class="cut-lbl">{{ t.g66_you }}</div><img class="pc cut-img" id="cut-p" alt=""></div>
+        <div><div class="cut-lbl">{{ t.g66_ai }}</div><img class="pc cut-img" id="cut-a" alt=""></div>
+      </div>
+      <p id="cut-result"></p>
+      <button class="btn" id="cut-go"></button>
+    </div>
+  </div>
+
   <script>
   const G = {
     deck: {{ deck|tojson }},
@@ -145,11 +184,17 @@
     deal_win: {{ t.g66_deal_win|tojson }}, deal_lose: {{ t.g66_deal_lose|tojson }},
     match_win: {{ t.g66_match_win|tojson }}, match_lose: {{ t.g66_match_lose|tojson }},
     gp: {{ t.g66_gp|tojson }}, closed_badge: {{ t.g66_closed_badge|tojson }},
-    err: {{ t.g66_err|tojson }}
+    err: {{ t.g66_err|tojson }},
+    rules: {{ t.g66_rules|tojson }},
+    rules_std: {{ t.g66_rules_std|tojson }}, rules_std_desc: {{ t.g66_rules_std_desc|tojson }},
+    rules_oma: {{ t.g66_rules_oma|tojson }}, rules_oma_desc: {{ t.g66_rules_oma_desc|tojson }},
+    rules_active: {{ t.g66_rules_active|tojson }}, rules_start: {{ t.g66_rules_start|tojson }},
+    cut_you: {{ t.g66_cut_you|tojson }}, cut_ai: {{ t.g66_cut_ai|tojson }}, cut_go: {{ t.g66_cut_go|tojson }}
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
-  let V = null, busy = false;
+  let V = null, busy = false, curRules = 'standard', cutShown = null;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function cardImg(code, cls){
     const i = document.createElement('img');
@@ -168,7 +213,26 @@
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  async function loadState(){ const v = await api('/api/66/state'); if (v) render(v); }
+  async function loadState(){
+    const v = await api('/api/66/state');
+    if (v){ await maybeShowCut(v); render(v); }
+  }
+
+  // Auslosen anzeigen (einmal pro Auslosung) — zwei gezogene Karten, wer beginnt
+  function maybeShowCut(v){
+    return new Promise(resolve => {
+      const cut = v && v.cut;
+      const sig = cut ? JSON.stringify(cut) : null;
+      if (!cut || sig === cutShown){ resolve(); return; }
+      cutShown = sig;
+      $('cut-p').src = img(cut.p);
+      $('cut-a').src = img(cut.a);
+      $('cut-result').textContent = (cut.leader === 'p') ? G.cut_you : G.cut_ai;
+      $('cut-go').textContent = G.cut_go;
+      const m = $('cut-modal'); m.classList.add('show');
+      $('cut-go').onclick = () => { m.classList.remove('show'); resolve(); };
+    });
+  }
 
   // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
   async function playFrames(frames){
@@ -182,24 +246,57 @@
   }
 
   async function applyResult(r){
-    if (r && r.frames) await playFrames(r.frames);
-    else if (r) render(r);
+    if (r && r.frames){ await maybeShowCut(r.frames[0]); await playFrames(r.frames); }
+    else if (r){ await maybeShowCut(r); render(r); }
   }
 
-  async function send(action){
-    if (busy) return; busy = true;
+  async function doMove(action){  // setzt voraus, dass busy bereits true ist
     const r = await api('/api/66/move', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action})
     });
     await applyResult(r);
+  }
+
+  async function send(action){    // für Buttons (ohne Fluganimation)
+    if (busy) return; busy = true;
+    await doMove(action);
     busy = false;
+  }
+
+  // Angeklickte Handkarte animiert auf den Tisch fliegen lassen
+  function flyCard(card){
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const slot = document.querySelector('#me-hand .card-slot[data-card="' + CSS.escape(card) + '"]');
+      const tableEl = $('table-cards');
+      const sImg = slot && slot.querySelector('img');
+      if (!sImg || !tableEl){ resolve(); return; }
+      const s = sImg.getBoundingClientRect();
+      const t = tableEl.getBoundingClientRect();
+      const clone = sImg.cloneNode(true);
+      clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+        + 'left:' + s.left + 'px;top:' + s.top + 'px;height:' + s.height + 'px;width:auto;'
+        + 'transition:transform .3s cubic-bezier(.4,.8,.3,1),opacity .3s ease;'
+        + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+      document.body.appendChild(clone);
+      slot.style.visibility = 'hidden';
+      const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+      const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      clone.addEventListener('transitionend', fin, {once: true});
+      setTimeout(fin, 380);
+    });
   }
 
   function hasLegal(pred){ return (V.legal || []).some(pred); }
 
   function render(v){
     V = v;
+    curRules = v.rules || 'standard';
+    $('rulestag').textContent = (curRules === 'oma') ? G.rules_oma : G.rules_std;
     $('bm-p').textContent = v.bummerl.p;
     $('bm-a').textContent = v.bummerl.a;
     $('me-pts').textContent = v.pts.p;
@@ -235,6 +332,7 @@
     v.hand.forEach(card => {
       const slot = document.createElement('div');
       slot.className = 'card-slot';
+      slot.dataset.card = card;
       const playable = (v.turn === 'p' && v.status === 'playing'
         && hasLegal(a => a.type === 'play' && a.card === card));
       slot.classList.add(playable ? 'playable' : 'disabled');
@@ -271,11 +369,14 @@
     }
   }
 
-  function onCard(card){
+  async function onCard(card){
     if (busy) return;
     const canMarry = hasLegal(a => a.type === 'play' && a.card === card && a.marry);
-    if (canMarry && confirm(G.marry_ask)){ send({type: 'play', card, marry: true}); return; }
-    send({type: 'play', card});
+    const marry = canMarry && confirm(G.marry_ask);
+    busy = true;
+    await flyCard(card);
+    await doMove(marry ? {type: 'play', card, marry: true} : {type: 'play', card});
+    busy = false;
   }
 
   function renderHint(v){
@@ -307,16 +408,37 @@
       + '  ·  ' + v.result.pts.p + ' : ' + v.result.pts.a;
     const btn = $('banner-btn');
     btn.textContent = matchOver ? G.new_match : G.next;
-    btn.onclick = matchOver ? newMatch : () => send({type: 'next'});
+    btn.onclick = matchOver ? () => newMatch(curRules) : () => send({type: 'next'});
     b.classList.add('show');
   }
 
-  async function newMatch(){
+  async function newMatch(rules){
     if (busy) return; busy = true;
-    const r = await api('/api/66/new', {method: 'POST'});
+    const r = await api('/api/66/new', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(rules ? {rules} : {})
+    });
     await applyResult(r);
     busy = false;
   }
+
+  function openRules(){
+    const list = $('rules-list'); list.innerHTML = '';
+    [['standard', G.rules_std, G.rules_std_desc], ['oma', G.rules_oma, G.rules_oma_desc]]
+      .forEach(([key, name, desc]) => {
+        const o = document.createElement('div');
+        o.className = 'rule-opt' + (key === curRules ? ' active' : '');
+        const tag = (key === curRules) ? ' <span class="act">' + G.rules_active + '</span>' : '';
+        const h = document.createElement('h3'); h.innerHTML = name + tag;
+        const p = document.createElement('p'); p.textContent = desc;
+        o.appendChild(h); o.appendChild(p);
+        o.onclick = () => chooseRules(key);
+        list.appendChild(o);
+      });
+    $('rules-modal').classList.add('show');
+  }
+  function closeRules(){ $('rules-modal').classList.remove('show'); }
+  async function chooseRules(key){ closeRules(); await newMatch(key); }
 
   function closeGame(){
     if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
@@ -325,8 +447,15 @@
 
   $('btn-close').onclick = closeGame;
   $('btn-log').onclick = () => $('log').classList.toggle('show');
-  $('btn-new').onclick = () => { if (confirm(G.new_confirm)) newMatch(); };
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeGame(); });
+  $('btn-new').onclick = () => { if (confirm(G.new_confirm)) newMatch(curRules); };
+  $('btn-rules').onclick = openRules;
+  $('rules-cancel').onclick = closeRules;
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('cut-modal').classList.contains('show')) return;  // erst "Los geht's"
+    if ($('rules-modal').classList.contains('show')) closeRules();
+    else closeGame();
+  });
 
   loadState();
   </script>

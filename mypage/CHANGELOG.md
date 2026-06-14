@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.48
+
+- 🃏 **66: zweite Regelvariante „Andys Oma"** — über das neue ⚖-Menü umschaltbar (ein Regelwechsel startet ein neues Match). Dabei wird **kein vorzeitiges Ausmelden** gespielt: Es geht **immer bis zum Ende**, dann wird gezählt — wer 66+ hat gewinnt, sonst der **letzte Stich**. Spielpunkte wie gewohnt (0 → 3, < 33 → 2, ≥ 33 → 1); Zudreher muss 66 schaffen, sonst 3 für den Gegner. Die bisherigen Standardregeln bleiben unverändert wählbar.
+- 🎲 **Auslosen zu Spielbeginn**: Jeder zieht eine Karte, die höhere beginnt — bei Gleichrang entscheidet die Farbe (**Kreuz < Karo < Herz < Pik**). Wird kurz angezeigt. In Folgepartien spielt weiterhin der **Gewinner der letzten Partie** aus.
+- ✨ **Karten-Fluganimation**: Eine angeklickte Handkarte **fliegt jetzt sichtbar auf den Tisch** (statt einfach zu erscheinen) — deutlich übersichtlicher. Respektiert „Bewegung reduzieren".
+- ✅ Regelwerk erweitert und durch Tests abgesichert (Standard **und** Oma je tausende Playouts, Auslos-Logik, Wertungen) sowie End-to-End-Routentests (Varianten, Auslosen).
+
 ## 0.6.47
 
 - 🎬 **66: Stiche werden jetzt animiert abgespielt.** Bisher sprang die Anzeige nach einem Stich sofort zum Endzustand — die gespielten Karten waren kaum zu sehen. Der Server liefert pro Zug nun eine Folge von **Zwischenbildern**, die der Client mit kurzen Pausen abspielt: der **volle Stich (deine Karte + die der KI) bleibt ~1,25 s sichtbar liegen**, bevor abgeräumt wird; Karten auf dem Tisch werden sanft eingeblendet. Eingaben sind während der Animation gesperrt. Respektiert „Bewegung reduzieren".
