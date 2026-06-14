@@ -629,6 +629,7 @@ def public_view(state: dict) -> dict:
         'phase2': state['phase2'],
         'turn': state['turn'],
         'lead': state['lead'],
+        'last_trick_winner': state.get('last_trick_winner'),
         'dealer': state['dealer'],
         'deal_no': state['deal_no'],
         'status': state['status'],

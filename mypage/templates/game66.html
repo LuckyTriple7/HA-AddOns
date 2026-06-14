@@ -57,9 +57,10 @@
     .stockwrap .stack { position: absolute; left: 46px; top: 0; }
     .count { font-size: clamp(0.95rem, 2.7vw, 1.2rem); opacity: 1; margin-top: 8px; font-weight: 700;
              letter-spacing: 0.3px; }
-    .count .suit { font-size: 1.25em; vertical-align: -0.06em; color: #fff; font-weight: 400;
-                   font-variant-emoji: text; }
-    .count .suit.red { color: #ff6b5e; }
+    .count .suit { font-size: 1.3em; vertical-align: -0.08em; color: #111; font-weight: 700;
+                   font-variant-emoji: text; cursor: help;
+                   text-shadow: 0 0 2px rgba(255,255,255,.95), 0 0 4px rgba(255,255,255,.8); }
+    .count .suit.red { color: #d61f1f; }
     .table-cards { display: flex; gap: 14px; align-items: center; min-height: clamp(86px, 20vh, 146px); }
     .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
     .table-cards .follow { transform: translateY(6px) rotate(4deg); }
@@ -293,7 +294,9 @@
     level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }},
     history: {{ t.g66_history|tojson }}, history_empty: {{ t.g66_history_empty|tojson }},
     history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }},
-    settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }}
+    settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }},
+    suit_c: {{ t.g66_suit_c|tojson }}, suit_d: {{ t.g66_suit_d|tojson }},
+    suit_h: {{ t.g66_suit_h|tojson }}, suit_s: {{ t.g66_suit_s|tojson }}
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
@@ -394,6 +397,13 @@
       const added = ct[ct.length - 1];
       if (added && added.who === 'a') await flyAiCard(added.card);
       return;
+    }
+    // Stich abgeräumt → die beiden Karten zum Stichgewinner fliegen lassen
+    if (ct.length < pt.length){
+      const w = cur.last_trick_winner;
+      const target = (w === 'p') ? ($('me-tricks') || $('me-hand'))
+                   : (w === 'a') ? ($('opp-tricks') || $('opp-hand')) : null;
+      if (target) await flyTrickTo(target);
     }
     // Stich aufgelöst → vom Talon nachziehen (Stapel schrumpft, Hände wachsen)
     if ((cur.stock_count || 0) < (prev.stock_count || 0)){
@@ -515,6 +525,40 @@
     return flyBetween(r, handEl, 'back', {z: 58, fadeIn: true, height: r && r.height});
   }
 
+  // Stich abräumen: die liegenden Karten schrumpfend zum Gewinner-Bereich fliegen
+  function flyTrickTo(targetEl){
+    return new Promise(resolve => {
+      if (reduceMotion || !targetEl){ resolve(); return; }
+      const cards = Array.from(document.querySelectorAll('#table-cards .pc'));
+      if (!cards.length){ resolve(); return; }
+      const t = targetEl.getBoundingClientRect();
+      let pending = cards.length;
+      const allDone = () => { if (--pending <= 0) resolve(); };
+      cards.forEach(srcImg => {
+        const s = srcImg.getBoundingClientRect();
+        if (!s.width){ allDone(); return; }
+        const clone = srcImg.cloneNode(true);
+        clone.className = '';
+        clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:62;'
+          + 'left:' + s.left + 'px;top:' + s.top + 'px;height:' + s.height + 'px;width:' + s.width + 'px;'
+          + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+          + (flyMs / 1000) + 's ease;box-shadow:0 10px 22px rgba(0,0,0,.5)';
+        document.body.appendChild(clone);
+        srcImg.style.visibility = 'hidden';
+        const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+        const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+        let done = false;
+        const fin = () => { if (done) return; done = true; clone.remove(); allDone(); };
+        requestAnimationFrame(() => {
+          clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(0.35)';
+          clone.style.opacity = '0.25';
+        });
+        clone.addEventListener('transitionend', fin, {once: true});
+        setTimeout(fin, flyMs + 80);
+      });
+    });
+  }
+
   function hasLegal(pred){ return (V.legal || []).some(pred); }
 
   function render(v){
@@ -551,6 +595,7 @@
     const ts = $('trump-suit');
     ts.textContent = suitSym(v.trump);
     ts.className = 'suit' + ((v.trump === 'd' || v.trump === 'h') ? ' red' : '');
+    ts.title = suitName(v.trump);
     $('closed-badge').innerHTML = v.closed ? '<span class="badge">' + G.closed_badge + '</span>' : '';
 
     // Tisch
@@ -583,6 +628,7 @@
 
   // '︎' = Text-Darstellung erzwingen (sonst rendern ♠/♣ als schwarzes Emoji)
   function suitSym(s){ const m = {c:'♣', d:'♦', h:'♥', s:'♠'}; return m[s] ? m[s] + '︎' : s; }
+  function suitName(s){ return {c:G.suit_c, d:G.suit_d, h:G.suit_h, s:G.suit_s}[s] || ''; }
   function meldBadge(arr){
     return arr && arr.length
       ? '<span class="badge">' + arr.map(suitSym).join('') + '</span>' : '';

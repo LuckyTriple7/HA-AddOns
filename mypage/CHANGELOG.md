@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.60
+
+- 🪽 **66: Stich fliegt zum Gewinner** — wenn ein voller Stich nach der Liegezeit abgeräumt wird, **fliegen die beiden Karten jetzt animiert** zum Spieler, der den Stich gewonnen hat (zu deiner bzw. zur KI-Stichanzeige), statt einfach zu verschwinden. Dadurch ist auf einen Blick erkennbar, wer den Stich geholt hat.
+- 🎨 **66: Trumpf-Farbsymbol in echter Farbe** — das Farbsymbol bei „verbleibende Karten · Trumpf" wird jetzt in der **passenden Spielfarbe** dargestellt (♦/♥ rot, ♠/♣ schwarz, mit weißem Halo zur besseren Lesbarkeit auf dem Filz) statt durchgehend weiß. Per **Mouseover** erscheint zudem der Farbname (Kreuz, Karo, Herz, Pik).
+
 ## 0.6.59
 
 - 🔵 **66: Gezogene Karte markiert** — die zuletzt **vom Talon nachgezogene Karte** erhält in deinem Blatt einen **blauen Rand**, damit du sie sofort erkennst. Der Rand verschwindet automatisch, sobald du die nächste Karte ausspielst.
