@@ -244,6 +244,7 @@ DEFAULT_SITE = {
     'sections': {
         'skills': [],
         'timeline': [],
+        'timeline_title_de': '', 'timeline_title_en': '',
         'news': [],
         'links': [],
         'faq': [],
@@ -1693,6 +1694,9 @@ def api_sections():
             'text_de':  _clean_str(e.get('text_de'), 1000),
             'text_en':  _clean_str(e.get('text_en'), 1000),
         } for e in raw['timeline'][:30] if isinstance(e, dict)]
+    for k in ('timeline_title_de', 'timeline_title_en'):
+        if k in raw:
+            sec[k] = _clean_str(raw[k], 60)
     if isinstance(raw.get('news'), list):
         sec['news'] = [{
             'date':    _clean_str(e.get('date'), 30),
@@ -2932,13 +2936,17 @@ def public_index():
     hidden = set(site.get('hidden_sections') or [])
     section_order = [k for k in section_order if k not in hidden]
 
+    # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
+    timeline_title = loc(sections, 'timeline_title')
+
     # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
     nav_items = []
     if site['design'].get('show_nav', True):
         for key in section_order:
             anchor, label_key, present = section_defs[key]
             if present:
-                nav_items.append({'anchor': anchor, 'label': t.get(label_key, label_key)})
+                label = timeline_title if (key == 'timeline' and timeline_title) else t.get(label_key, label_key)
+                nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
 
@@ -2954,6 +2962,7 @@ def public_index():
                            latest_posts=latest_posts,
                            nav_items=nav_items,
                            section_order=section_order,
+                           timeline_title=timeline_title,
                            tip_of_day=tip_of_day, tips_weekly=tips_weekly,
                            static_export=static_export,
                            contact_enabled=contact_enabled,

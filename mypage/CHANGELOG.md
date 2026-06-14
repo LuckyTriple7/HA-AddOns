@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.39
+
+- ✨ **Werdegang-Überschrift frei konfigurierbar**: Im Werdegang-Tab lässt sich jetzt eine eigene Überschrift (DE/EN) vergeben — z. B. „Unsere Geschichte", „Meilensteine" oder „Über den Verein". Sie erscheint dann sowohl als Abschnittsüberschrift als auch im Navigationsmenü. Bleibt das Feld leer, wird wie bisher „Werdegang" verwendet. Der Tab-Name im Admin bleibt „Werdegang".
+
 ## 0.6.38
 
 - 🐛 Einblend-Effekte: Animation griff nur beim oberen Bereich (Hero), der Rest der Seite blieb statisch. Ursache: nur der Kopfbereich ist ein `<section>`, die übrigen Blöcke (Überschriften, Projekt-/Service-/Galerie-Raster usw.) sind direkte `main`-Kinder. Reveal zielt jetzt auf **alle Inhaltsblöcke** (`main > *`) — damit blenden Überschriften und Abschnitte beim Scrollen ebenfalls ein, Stagger inklusive.

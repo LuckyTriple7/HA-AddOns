@@ -737,7 +737,7 @@
 
     {% elif _sec == 'timeline' %}
     {% if sections.timeline %}
-    <h2 class="section-title" id="timeline">{{ t.timeline_heading }}</h2>
+    <h2 class="section-title" id="timeline">{{ timeline_title|default('') or t.timeline_heading }}</h2>
     <div class="timeline">
       {% for e in sections.timeline %}
       <div class="tl-item">

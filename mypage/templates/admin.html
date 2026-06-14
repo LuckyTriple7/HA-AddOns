@@ -358,6 +358,17 @@
       </div>
       <div class="panel acc" data-key="timeline">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</div>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label>{{ t.timeline_title_label }} (DE)</label>
+            <input type="text" id="tl-title_de" maxlength="60" placeholder="{{ t.timeline_heading }}">
+          </div>
+          <div>
+            <label>{{ t.timeline_title_label }} (EN)</label>
+            <input type="text" id="tl-title_en" maxlength="60" placeholder="{{ t.timeline_heading }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.timeline_title_hint }}</p>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
       </div>
@@ -1494,6 +1505,8 @@
       el('c-skills').value = (s.skills || []).join(', ');
       el('news-list').innerHTML = '';
       (s.news || []).forEach(n => addNewsRow(n));
+      el('tl-title_de').value = s.timeline_title_de || '';
+      el('tl-title_en').value = s.timeline_title_en || '';
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
       el('links-list').innerHTML = '';
@@ -1950,6 +1963,7 @@
       };
       const r = await apiJson('api/sections', 'POST',
         { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location,
+          timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
