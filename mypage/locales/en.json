@@ -212,6 +212,7 @@
   "g_pk_trips": "Three of a Kind",
   "g_pk_twopair": "Two Pair",
   "g_pk_jacks": "Jacks or Better",
+  "g_sim": "Simulation (no payout)",
   "field_easter_eggs": "Easter eggs enabled",
   "easter_eggs_hint": "Hidden fun for visitors: Konami code (↑↑↓↓←→←→ B A) → confetti + message, click the avatar 5× → secret tagline, type the word “matrixx” → code rain, greeting in the browser console. Default: off.",
   "field_egg_message": "Konami message (optional)",

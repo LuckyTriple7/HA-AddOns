@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.44
+
+- 🔔 Slot-Jackpot: Beim Jackpot (3× 7️⃣) ertönt jetzt eine **Casino-Klingel** (metallisches „dring-dring" per Web Audio) und das **Spielfenster wackelt**. Respektiert „Bewegung reduzieren" (kein Wackeln).
+- 🧪 **Jackpot-Simulation**: Bei geöffnetem Slot einfach **`jackpot` tippen** → Klingel + Wackeln + 777-Anzeige als Vorschau, **ohne** Auszahlung (Guthaben/Jackpot bleiben unberührt). Praktisch zum Vorführen des Effekts.
+
 ## 0.6.43
 
 - 🎴 **Neues 7. Mini-Game: Video Poker (Jacks or Better)** — Geben → Karten antippen zum Halten → Tauschen → werten. Klassische Gewinntabelle (×Einsatz): Royal Flush 250, Straight Flush 50, Vierling 25, Full House 9, Flush 6, Straße 4, Drilling 3, Zwei Paare 2, Buben oder besser 1. Einsatz 10, Aufladen-Button wie bei Slot/17+4 (nur bei leerem Konto), Guthaben in `localStorage`. Voll DE/EN lokalisiert. Damit sind es **7 Mini-Games** 🍀.

@@ -212,6 +212,7 @@
   "g_pk_trips": "Drilling",
   "g_pk_twopair": "Zwei Paare",
   "g_pk_jacks": "Buben oder besser",
+  "g_sim": "Simulation (keine Auszahlung)",
   "field_easter_eggs": "Easter Eggs aktiv",
   "easter_eggs_hint": "Versteckte Spielereien für Besucher: Konami-Code (↑↑↓↓←→←→ B A) → Konfetti + Nachricht, Avatar 5× klicken → Geheim-Tagline, Wort „matrixx“ tippen → Code-Regen, Gruß in der Browser-Konsole. Standard: aus.",
   "field_egg_message": "Konami-Nachricht (optional)",

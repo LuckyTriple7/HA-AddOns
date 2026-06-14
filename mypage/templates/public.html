@@ -360,6 +360,20 @@
     /* Mini-Games */
     .game-ov { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 18px; }
     .game-box { position: relative; background: var(--surf); border: 1px solid var(--accent); border-radius: 14px; padding: 20px; max-width: 96vw; max-height: 92vh; overflow: auto; text-align: center; }
+    @keyframes mg-shake {
+      0%, 100% { transform: translate(0, 0) rotate(0); }
+      10% { transform: translate(-7px, 4px) rotate(-1deg); }
+      20% { transform: translate(8px, -3px) rotate(1deg); }
+      30% { transform: translate(-8px, -4px) rotate(-1deg); }
+      40% { transform: translate(7px, 5px) rotate(1deg); }
+      50% { transform: translate(-6px, 3px) rotate(-1deg); }
+      60% { transform: translate(7px, -4px) rotate(1deg); }
+      70% { transform: translate(-7px, 4px) rotate(-1deg); }
+      80% { transform: translate(5px, 3px) rotate(1deg); }
+      90% { transform: translate(-4px, -2px) rotate(0); }
+    }
+    .game-box.shake { animation: mg-shake 0.7s ease; }
+    @media (prefers-reduced-motion: reduce) { .game-box.shake { animation: none; } }
     .game-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--muted); font-size: 1.25rem; cursor: pointer; line-height: 1; }
     .game-close:hover { color: var(--accent); }
     .game-title { font-weight: 700; margin-bottom: 12px; }
@@ -1266,6 +1280,23 @@
         o.connect(g).connect(_ac.destination); o.start(t); o.stop(t + dur + 0.02); t += dur;
       });
     }
+    // Casino-Jackpot-Klingel: schnelles, metallisches „dring-dring" (Grundton + inharmonischer Oberton)
+    function slotBell() {
+      if (!_ac) return;
+      let t = _ac.currentTime;
+      for (let k = 0; k < 9; k++) {
+        [1568, 3740].forEach((f, idx) => {
+          const o = _ac.createOscillator(), g = _ac.createGain();
+          o.type = 'triangle'; o.frequency.value = f;
+          const amp = idx === 0 ? 0.22 : 0.09;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(amp, t + 0.004);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+          o.connect(g).connect(_ac.destination); o.start(t); o.stop(t + 0.17);
+        });
+        t += 0.125;
+      }
+    }
 
     // Lokalisierte Spieltexte (folgen der Seitensprache)
     const G = {
@@ -1285,7 +1316,8 @@
       pk_holddraw: {{ t.g_pk_holddraw|tojson }}, pk_goal: {{ t.g_pk_goal|tojson }},
       pk_royal: {{ t.g_pk_royal|tojson }}, pk_sflush: {{ t.g_pk_sflush|tojson }}, pk_quads: {{ t.g_pk_quads|tojson }},
       pk_full: {{ t.g_pk_full|tojson }}, pk_flush: {{ t.g_pk_flush|tojson }}, pk_straight: {{ t.g_pk_straight|tojson }},
-      pk_trips: {{ t.g_pk_trips|tojson }}, pk_twopair: {{ t.g_pk_twopair|tojson }}, pk_jacks: {{ t.g_pk_jacks|tojson }}
+      pk_trips: {{ t.g_pk_trips|tojson }}, pk_twopair: {{ t.g_pk_twopair|tojson }}, pk_jacks: {{ t.g_pk_jacks|tojson }},
+      sim: {{ t.g_sim|tojson }}
     };
 
     function gameSnake(mount) {
@@ -1450,13 +1482,19 @@
       // Aktuellen (serverweiten) Jackpot holen
       fetch('api/slot', { credentials: 'same-origin' }).then(r => r.json()).then(d => { jackpot = d.jackpot; updJp(); }).catch(() => updJp());
       refill.onclick = () => { credits = 100; localStorage.setItem('mg-slot-cr', credits); upd(); btn.disabled = false; msg.textContent = '🔄 ' + G.refilled; };
+      // Jackpot-Feier: Casino-Klingel + wackelndes Fenster (für echten Gewinn UND Simulation)
+      function celebrate() {
+        audioReady(); slotBell();
+        const box = mount.closest('.game-box');
+        if (box) { box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake'); setTimeout(() => box.classList.remove('shake'), 800); }
+      }
       function finish(res) {
         const SEVEN = '7️⃣';
         spinning = false; btn.disabled = false;
         // Drilling (alle drei gleich)
         if (res[0] === res[1] && res[1] === res[2]) {
           if (res[0] === SEVEN) {
-            beep([523, 659, 784, 1047, 1319], 0.12); msg.textContent = G.jackpotHit + ' …';
+            celebrate(); msg.textContent = G.jackpotHit + ' …';
             // Jackpot serverseitig auszahlen (exakter Betrag) und auf 500 zurücksetzen
             fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: true }) })
               .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = G.jackpotHit + '  +' + d.won; })
@@ -1494,7 +1532,21 @@
         });
       }
       btn.onclick = spin;
-      return () => { timers.forEach(t => { clearInterval(t); clearTimeout(t); }); };
+      // „jackpot" tippen = Simulation der Jackpot-Feier (Klingel + Wackeln), OHNE Auszahlung
+      function simulateJackpot() {
+        if (spinning) return;
+        cells.forEach(c => c.textContent = '7️⃣');
+        celebrate();
+        msg.textContent = G.jackpotHit + ' — ' + G.sim;
+      }
+      let typed = '';
+      function onKey(e) {
+        const el = e.target;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+        if (e.key && e.key.length === 1) { typed = (typed + e.key.toLowerCase()).slice(-7); if (typed === 'jackpot') { typed = ''; simulateJackpot(); } }
+      }
+      document.addEventListener('keydown', onKey);
+      return () => { timers.forEach(t => { clearInterval(t); clearTimeout(t); }); document.removeEventListener('keydown', onKey); };
     }
 
     function gameCards(mount) {
