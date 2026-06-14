@@ -376,8 +376,10 @@
     @media (max-width: 480px) { .game-card { width: 52px; height: 52px; } }
     .slot-reels { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
     .slot-cell { width: 72px; height: 72px; border: 2px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.3rem; background: #0d1117; }
-    .btn-spin { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 4px; }
+    .btn-spin { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; font-weight: 700; cursor: pointer; }
     .btn-spin:disabled { opacity: .55; cursor: default; }
+    .btn-refill { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; font-size: 0.85rem; cursor: pointer; }
+    .btn-refill:hover { color: var(--accent); border-color: var(--accent); }
     .empty { color: var(--muted); text-align: center; padding: 60px 0; }
     @media (max-width: 600px) {
       .hero { padding: 40px 0 28px; gap: 20px; }
@@ -1198,6 +1200,20 @@
     }
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('game-ov')) closeGame(); });
 
+    // Kleine Tonfolge per Web Audio (keine Dateien nötig)
+    let _ac = null;
+    function audioReady() { try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); if (_ac.state === 'suspended') _ac.resume(); } catch (e) {} }
+    function beep(freqs, dur, type) {
+      if (!_ac) return;
+      dur = dur || 0.13; let t = _ac.currentTime;
+      freqs.forEach(f => {
+        const o = _ac.createOscillator(), g = _ac.createGain();
+        o.type = type || 'square'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(_ac.destination); o.start(t); o.stop(t + dur + 0.02); t += dur;
+      });
+    }
+
     function gameSnake(mount) {
       const W = 17, H = 17, SZ = 18;
       const cv = document.createElement('canvas'); cv.width = W * SZ; cv.height = H * SZ; cv.className = 'game-canvas';
@@ -1338,28 +1354,35 @@
     function gameSlot(mount) {
       const SYM = ['7️⃣', '🍒', '🍋', '🔔', '⭐', '💎', '🍉'];
       let credits = +(localStorage.getItem('mg-slot-cr') || 100);
+      if (credits < 5) credits = 100;   // leeres Konto beim Öffnen wieder auffüllen
+      localStorage.setItem('mg-slot-cr', credits);
       const reels = document.createElement('div'); reels.className = 'slot-reels';
       const cells = [0, 1, 2].map(() => { const c = document.createElement('div'); c.className = 'slot-cell'; c.textContent = '❔'; reels.appendChild(c); return c; });
       const cr = document.createElement('div'); cr.className = 'game-info';
+      const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap';
       const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 Drehen (−5)';
+      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 Aufladen';
+      ctrl.append(btn, refill);
       const msg = document.createElement('div'); msg.className = 'game-info';
-      mount.append(reels, cr, btn, msg);
+      mount.append(reels, cr, ctrl, msg);
       let spinning = false, timers = [];
-      function upd() { cr.textContent = 'Guthaben: ' + credits + (credits < 5 ? ' — leer (✕ schließen)' : ''); }
+      function upd() { cr.textContent = 'Guthaben: ' + credits; }
       upd();
+      refill.onclick = () => { credits = 100; localStorage.setItem('mg-slot-cr', credits); upd(); btn.disabled = false; msg.textContent = '🔄 Aufgeladen: 100'; };
       function finish(res) {
         const SEVEN = '7️⃣'; let win = 0, txt = '';
         if (res[0] === res[1] && res[1] === res[2]) {
-          if (res[0] === SEVEN) { win = 200; txt = '🎉 JACKPOT 777!  +200'; }
-          else { win = 40; txt = '✨ Dreierpasch ' + res[0] + '  +40'; }
-        } else if (res[0] === res[1]) { win = 10; txt = '👍 Zwei Gleiche  +10'; }
-        else { txt = 'Kein Gewinn — nochmal?'; }
+          if (res[0] === SEVEN) { win = 200; txt = '🎉 JACKPOT 777!  +200'; beep([523, 659, 784, 1047, 1319], 0.12); }
+          else { win = 40; txt = '✨ Dreierpasch ' + res[0] + '  +40'; beep([523, 784, 1047], 0.13); }
+        } else if (res[0] === res[1]) { win = 10; txt = '👍 Zwei Gleiche  +10'; beep([659, 880], 0.12); }
+        else { txt = 'Kein Gewinn — nochmal?'; beep([220, 165], 0.1, 'sine'); }
         credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
         msg.textContent = txt; spinning = false; btn.disabled = false;
       }
       function spin() {
         if (spinning) return;
         if (credits < 5) { msg.textContent = 'Kein Guthaben mehr.'; return; }
+        audioReady();
         spinning = true; credits -= 5; upd(); msg.textContent = ''; btn.disabled = true;
         const res = [0, 1, 2].map(() => SYM[Math.random() * SYM.length | 0]);
         cells.forEach((c, i) => {

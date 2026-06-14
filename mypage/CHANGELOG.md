@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.27
+
+- 🎰 Slot Machine: Leeres Guthaben wird beim Öffnen automatisch wieder auf 100 gesetzt, plus ein **„🔄 Aufladen"-Button** für jederzeit frisches Guthaben — man bleibt also nie stecken.
+- 🔊 **Sound bei Gewinn**: kleine Tonfolge je nach Gewinn (Jackpot > Dreierpasch > Zwei Gleiche), erzeugt per Web Audio — keine externen Dateien.
+
 ## 0.6.26
 
 - 🐞 **Snake-Fix**: Trifft die Schlange den Rand oder sich selbst, kommt jetzt **Game Over** (mit Bestwert) und ein **Neustart** per Leertaste/Tippen — vorher lief das Spiel einfach weiter.
