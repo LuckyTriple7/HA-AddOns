@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.34
+
+- 🎰 Slot-Fixes: Der „🔄 Aufladen"-Button erscheint jetzt **nur bei leerem Konto** (zuvor überschrieb er auch ein vorhandenes Guthaben mit 100). Das Guthaben bleibt beim Öffnen erhalten (kein automatisches Zurücksetzen mehr). Einsatz von **5 auf 10** erhöht.
+
 ## 0.6.33
 
 - 🔒 Sicherheit (CodeQL HIGH, Reflected XSS): Die IndexNow-Keyfile-Route gibt nun den **serverseitig gespeicherten** Schlüssel zurück statt des Werts aus der URL — der Eingabe-Taint fließt nicht mehr in die Antwort. Verhalten unverändert (war durch die `[a-f0-9]{32}`-Prüfung ohnehin nicht ausnutzbar).

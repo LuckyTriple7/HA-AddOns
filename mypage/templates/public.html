@@ -1375,21 +1375,21 @@
 
     function gameSlot(mount) {
       const SYM = ['7️⃣', '🍒', '🍋', '🔔', '⭐', '💎', '🍉'];
+      const BET = 10;
       let credits = +(localStorage.getItem('mg-slot-cr') || 100);
-      if (credits < 5) credits = 100;   // leeres Konto beim Öffnen wieder auffüllen
-      localStorage.setItem('mg-slot-cr', credits);
       const jp = document.createElement('div'); jp.className = 'slot-jackpot'; jp.textContent = '💰 Jackpot: …';
       const reels = document.createElement('div'); reels.className = 'slot-reels';
       const cells = [0, 1, 2].map(() => { const c = document.createElement('div'); c.className = 'slot-cell'; c.textContent = '❔'; reels.appendChild(c); return c; });
       const cr = document.createElement('div'); cr.className = 'game-info';
       const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap';
-      const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 ' + G.spin;
+      const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 ' + G.spin + ' (−' + BET + ')';
       const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 ' + G.refill;
       ctrl.append(btn, refill);
       const msg = document.createElement('div'); msg.className = 'game-info';
       mount.append(jp, reels, cr, ctrl, msg);
       let spinning = false, timers = [], jackpot = 500;
-      function upd() { cr.textContent = G.credits + ': ' + credits; }
+      // Aufladen-Button nur bei leerem (nicht mehr bespielbarem) Konto zeigen
+      function upd() { cr.textContent = G.credits + ': ' + credits; refill.style.display = credits < BET ? '' : 'none'; }
       function updJp() { jp.textContent = '💰 ' + G.jackpot + ': ' + jackpot; }
       upd();
       // Aktuellen (serverweiten) Jackpot holen
@@ -1415,9 +1415,9 @@
       }
       function spin() {
         if (spinning) return;
-        if (credits < 5) { msg.textContent = G.nocredit; return; }
+        if (credits < BET) { msg.textContent = G.nocredit; upd(); return; }
         audioReady();
-        spinning = true; credits -= 5; upd(); msg.textContent = ''; btn.disabled = true;
+        spinning = true; credits -= BET; upd(); msg.textContent = ''; btn.disabled = true;
         // Jeder Lauf erhöht den serverweiten Jackpot um 1
         fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: false }) })
           .then(r => r.json()).then(d => { jackpot = d.jackpot; updJp(); }).catch(() => {});
