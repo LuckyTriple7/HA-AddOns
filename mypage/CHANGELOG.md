@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.31
+
+- 🌍 Weitere hartcodierte DE-Texte lokalisiert: aria-labels (Zurück/Weiter/Schließen) auf Startseite & Blog-Beitrag, die Easter-Egg-Standardtexte und der Konsolen-Gruß folgen jetzt der Seitensprache (DE/EN).
+
 ## 0.6.30
 
 - 🌍 **Mini Games zweisprachig**: Alle Spieltexte (Buttons, Punkte/Score, Gewinn-/Verlustmeldungen, 17+4 usw.) folgen jetzt der Seitensprache (DE/EN) — waren vorher fest auf Deutsch.

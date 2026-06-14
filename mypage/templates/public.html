@@ -655,7 +655,7 @@
     {% if albums %}
     <h2 class="section-title" id="photos">{{ t.albums_heading }}</h2>
     <div class="album-rail-wrap">
-      <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="Zurück">‹</button>
+      <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="album-rail" id="album-rail">
         {% for a in albums %}
         <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
@@ -670,7 +670,7 @@
         </article>
         {% endfor %}
       </div>
-      <button class="album-arrow ar-next" onclick="railScroll(1)" aria-label="Weiter">›</button>
+      <button class="album-arrow ar-next" onclick="railScroll(1)" aria-label="{{ t.aria_next }}">›</button>
     </div>
     {% endif %}
 
@@ -796,10 +796,10 @@
 
   {% if albums %}
   <div class="slideshow" id="slideshow" aria-hidden="true">
-    <button class="ss-close" onclick="closeAlbum()" aria-label="Schließen">✕</button>
-    <button class="ss-nav ss-prev" onclick="ssStep(-1)" aria-label="Zurück">‹</button>
+    <button class="ss-close" onclick="closeAlbum()" aria-label="{{ t.aria_close }}">✕</button>
+    <button class="ss-nav ss-prev" onclick="ssStep(-1)" aria-label="{{ t.aria_back }}">‹</button>
     <div class="ss-stage" id="ss-stage" onclick="zoomCurrentSlide()"></div>
-    <button class="ss-nav ss-next" onclick="ssStep(1)" aria-label="Weiter">›</button>
+    <button class="ss-nav ss-next" onclick="ssStep(1)" aria-label="{{ t.aria_next }}">›</button>
     <div class="ss-bar">
       <button class="ss-play" id="ss-play" onclick="ssToggle()" aria-label="Play/Pause">⏸</button>
       <span class="ss-caption" id="ss-caption"></span>
@@ -807,7 +807,7 @@
     </div>
   </div>
   <div class="zoombox" id="zoombox" onclick="closeZoom()">
-    <button class="zoom-close" onclick="closeZoom()" aria-label="Schließen">✕</button>
+    <button class="zoom-close" onclick="closeZoom()" aria-label="{{ t.aria_close }}">✕</button>
     <img id="zoom-img" src="" alt="" onclick="toggleZoomActual(event)">
   </div>
   {% endif %}
@@ -817,7 +817,7 @@
     <div class="links-box">
       <div class="links-head">
         <h3>{{ t.links_heading }}</h3>
-        <button class="links-close" onclick="closeLinks()" aria-label="Schließen">✕</button>
+        <button class="links-close" onclick="closeLinks()" aria-label="{{ t.aria_close }}">✕</button>
       </div>
       <div class="links-list">
         {% for l in sections.links %}
@@ -1095,14 +1095,14 @@
   {% if site.design.easter_eggs %}
   <script>
     (function () {
-      const EGG_MSG = {{ (site.design.egg_message or '🥚 Du hast ein Easter Egg gefunden!')|tojson }};
-      const EGG_TAGLINE = {{ (site.design.egg_tagline or '🤫 Psst … du hast ein Geheimnis entdeckt!')|tojson }};
+      const EGG_MSG = {{ (site.design.egg_message or t.egg_default_msg)|tojson }};
+      const EGG_TAGLINE = {{ (site.design.egg_tagline or t.egg_default_tagline)|tojson }};
       const NAME = {{ (site.profile.name or 'MyPage')|tojson }};
 
       // 2) Konsolen-Gruß (nur für Neugierige in den DevTools)
       try {
-        console.log('%c👋 Hi! Neugierig, wie die Seite gebaut ist?', 'font-size:14px;font-weight:bold;color:#58a6ff');
-        console.log('%cDiese Seite (' + NAME + ') läuft mit MyPage in Home Assistant. Tipp: Probier mal den Konami-Code 😉', 'color:#8b949e');
+        console.log('%c' + {{ t.console_greet1|tojson }}, 'font-size:14px;font-weight:bold;color:#58a6ff');
+        console.log('%c' + {{ t.console_greet2|tojson }}.replace('{name}', NAME), 'color:#8b949e');
       } catch (e) {}
 
       function confetti() {

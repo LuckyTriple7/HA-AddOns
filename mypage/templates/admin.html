@@ -611,11 +611,11 @@
         <div class="row">
           <div>
             <label>{{ t.field_egg_message }}</label>
-            <input type="text" id="d-egg_message" maxlength="200" placeholder="🥚 Du hast ein Easter Egg gefunden!">
+            <input type="text" id="d-egg_message" maxlength="200" placeholder="{{ t.egg_default_msg }}">
           </div>
           <div>
             <label>{{ t.field_egg_tagline }}</label>
-            <input type="text" id="d-egg_tagline" maxlength="200" placeholder="🤫 Psst … ein Geheimnis!">
+            <input type="text" id="d-egg_tagline" maxlength="200" placeholder="{{ t.egg_default_tagline }}">
           </div>
         </div>
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>

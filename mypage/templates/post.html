@@ -101,13 +101,13 @@
     <div class="content">{{ text_html|safe }}</div>
     {% if p.gallery %}
     <div class="gal-rail-wrap">
-      <button class="gal-arrow gal-prev" onclick="galScroll(-1)" aria-label="Zurück">‹</button>
+      <button class="gal-arrow gal-prev" onclick="galScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="gal-rail" id="gal-rail">
         {% for img in p.gallery %}
         <img src="{{ img }}" alt="" loading="lazy" onclick="openLightbox(this.src)">
         {% endfor %}
       </div>
-      <button class="gal-arrow gal-next" onclick="galScroll(1)" aria-label="Weiter">›</button>
+      <button class="gal-arrow gal-next" onclick="galScroll(1)" aria-label="{{ t.aria_next }}">›</button>
     </div>
     {% endif %}
     {% if not preview %}<a class="back" href="/blog">&larr; {{ t.blog_all }}</a>{% endif %}
