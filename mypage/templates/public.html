@@ -1420,8 +1420,11 @@
     }
 
     function gameSlot(mount) {
-      const SYM = ['7️⃣', '🍒', '🍋', '🔔', '⭐', '💎', '🍉'];
+      const SYM = ['7️⃣', '🍒', '🍋', '🔔', '⭐', '💎', '🍉', '🚫'];
       const BET = 10;
+      // Auszahlungen je Symbol (🚫 = Niete, zahlt nie). Paar = Walze 1+2 gleich (von links), Drilling = alle drei gleich.
+      const PAIR   = { '7️⃣': 100, '💎': 50, '🔔': 40, '⭐': 40, '🍉': 30, '🍒': 20, '🍋': 20 };
+      const TRIPLE = { '💎': 200, '🔔': 100, '⭐': 100, '🍉': 80, '🍒': 50, '🍋': 50 };  // 7️⃣ = Jackpot (serverseitig)
       let credits = +(localStorage.getItem('mg-slot-cr') || 100);
       const jp = document.createElement('div'); jp.className = 'slot-jackpot'; jp.textContent = '💰 Jackpot: …';
       const reels = document.createElement('div'); reels.className = 'slot-reels';
@@ -1444,20 +1447,31 @@
       function finish(res) {
         const SEVEN = '7️⃣';
         spinning = false; btn.disabled = false;
-        if (res[0] === res[1] && res[1] === res[2] && res[0] === SEVEN) {
-          beep([523, 659, 784, 1047, 1319], 0.12); msg.textContent = G.jackpotHit + ' …';
-          // Jackpot serverseitig auszahlen (exakter Betrag) und auf 500 zurücksetzen
-          fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: true }) })
-            .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = G.jackpotHit + '  +' + d.won; })
-            .catch(() => { credits += jackpot; localStorage.setItem('mg-slot-cr', credits); upd(); msg.textContent = G.jackpotHit + '  +' + jackpot; });
+        // Drilling (alle drei gleich)
+        if (res[0] === res[1] && res[1] === res[2]) {
+          if (res[0] === SEVEN) {
+            beep([523, 659, 784, 1047, 1319], 0.12); msg.textContent = G.jackpotHit + ' …';
+            // Jackpot serverseitig auszahlen (exakter Betrag) und auf 500 zurücksetzen
+            fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: true }) })
+              .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = G.jackpotHit + '  +' + d.won; })
+              .catch(() => { credits += jackpot; localStorage.setItem('mg-slot-cr', credits); upd(); msg.textContent = G.jackpotHit + '  +' + jackpot; });
+            return;
+          }
+          const win = TRIPLE[res[0]] || 0;
+          credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
+          if (win) { msg.textContent = '✨ ' + G.triple + ' ' + res[0] + '  +' + win; beep([523, 784, 1047], 0.13); }
+          else { msg.textContent = G.nowin; beep([220, 165], 0.1, 'sine'); }
           return;
         }
-        let win = 0, txt = '';
-        if (res[0] === res[1] && res[1] === res[2]) { win = 200; txt = '✨ ' + G.triple + ' ' + res[0] + '  +200'; beep([523, 784, 1047], 0.13); }
-        else if (res[0] === res[1]) { win = 50; txt = G.twoeq; beep([659, 880], 0.12); }
-        else { txt = G.nowin; beep([220, 165], 0.1, 'sine'); }
-        credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
-        msg.textContent = txt;
+        // Paar von links (Walze 1 == Walze 2)
+        if (res[0] === res[1]) {
+          const win = PAIR[res[0]] || 0;
+          credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
+          if (win) { msg.textContent = G.twoeq + ' ' + res[0] + '  +' + win; beep([659, 880], 0.12); }
+          else { msg.textContent = G.nowin; beep([220, 165], 0.1, 'sine'); }
+          return;
+        }
+        msg.textContent = G.nowin; beep([220, 165], 0.1, 'sine');
       }
       function spin() {
         if (spinning) return;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.42
+
+- 🎰 Slot: Neue, symbolabhängige Gewinntabelle und realistischere Auszahlquote (~62 % bei Basis-Jackpot, steigend mit dem progressiven Jackpot). Neues 8. Symbol **🚫 Niete** (zahlt nie) senkt die Trefferquote. Auszahlungen (Paar = Walze 1+2 gleich von links / Drilling = alle drei): 🍒🍋 20/50 · 🍉 30/80 · 🔔⭐ 40/100 · 💎 50/200 · 7️⃣ 100/Jackpot. Gewinnbetrag wird jetzt dynamisch je Symbol im Hinweis angezeigt.
+
 ## 0.6.41
 
 - 🃏 17+4 (Blackjack): Gleicher Aufladen-Fix wie beim Slot. Der „🔄 Aufladen"-Button erscheint jetzt **nur bei leerem Konto** (Guthaben unter dem Einsatz von 10) und das Guthaben wird beim Öffnen **nicht mehr automatisch** auf 100 zurückgesetzt — ein vorhandener Spielstand bleibt erhalten.
