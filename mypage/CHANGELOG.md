@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.45
+
+- 🎴 Video Poker: Nach dem Tauschen werden die **gewinnenden Karten golden hervorgehoben**, die übrigen abgedunkelt — so ist auf einen Blick klar, *warum* eine Hand gewonnen hat (z. B. welches Paar). Die Bewertung selbst war korrekt; „Buben oder besser" erfordert weiterhin ein echtes Paar ab Bube (über alle 2,6 Mio. Hände verifiziert).
+
 ## 0.6.44
 
 - 🔔 Slot-Jackpot: Beim Jackpot (3× 7️⃣) ertönt jetzt eine **Casino-Klingel** (metallisches „dring-dring" per Web Audio) und das **Spielfenster wackelt**. Respektiert „Bewegung reduzieren" (kein Wackeln).

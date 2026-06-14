@@ -395,6 +395,8 @@
     .pcard.red { color: #c0392b; }
     .pcard.back { background: linear-gradient(135deg, #30363d, #161b22); color: #58a6ff; border-color: #30363d; }
     .pcard.held { outline: 3px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 8px var(--accent); }
+    .pcard.win { outline: 3px solid #f1c40f; outline-offset: 1px; box-shadow: 0 0 12px #f1c40f; transition: box-shadow .2s; }
+    .pcard.dim { opacity: 0.4; filter: grayscale(0.6); }
     .slot-reels { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
     .slot-cell { width: 72px; height: 72px; border: 2px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.3rem; background: #0d1117; }
     .btn-spin { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; font-weight: 700; cursor: pointer; }
@@ -1636,7 +1638,7 @@
       ctrl.append(bDeal, bDraw, refill);
       const msg = document.createElement('div'); msg.className = 'game-info';
       mount.append(pay, prow, cr, ctrl, msg);
-      let deck = [], hand = [], held = [false, false, false, false, false], state = 'idle';
+      let deck = [], hand = [], held = [false, false, false, false, false], state = 'idle', winIdx = [];
       function upd() { cr.textContent = G.credits + ': ' + credits + ' · ' + G.stake; refill.style.display = credits < BET ? '' : 'none'; }
       function newDeck() {
         deck = []; SUITS.forEach(s => RANKS.forEach(r => deck.push({ r, s })));
@@ -1646,7 +1648,9 @@
         prow.innerHTML = '';
         hand.forEach((c, i) => {
           const d = document.createElement('div');
-          d.className = 'pcard' + ((c.s === '♥' || c.s === '♦') ? ' red' : '') + (held[i] ? ' held' : '');
+          const isWin = winIdx.indexOf(i) !== -1;
+          d.className = 'pcard' + ((c.s === '♥' || c.s === '♦') ? ' red' : '') + (held[i] ? ' held' : '')
+            + (isWin ? ' win' : '') + (winIdx.length && !isWin ? ' dim' : '');
           d.textContent = c.r + c.s;
           if (state === 'draw') { d.style.cursor = 'pointer'; d.title = G.pk_hold; d.onclick = () => { held[i] = !held[i]; render(); }; }
           prow.appendChild(d);
@@ -1662,21 +1666,24 @@
         const cnt = {}; vals.forEach(v => cnt[v] = (cnt[v] || 0) + 1);
         const counts = Object.values(cnt).sort((a, b) => b - a);
         const uniq = Object.keys(cnt).map(Number).sort((a, b) => a - b);
+        const ALL = [0, 1, 2, 3, 4];
+        // Indizes der Karten mit Rang-Anzahl n (z. B. das Paar, der Drilling …)
+        const idxOf = n => { const rs = Object.keys(cnt).filter(k => cnt[k] === n).map(Number); return vals.map((v, i) => rs.indexOf(v) !== -1 ? i : -1).filter(i => i !== -1); };
         let straight = false;
         if (uniq.length === 5) {
           if (uniq[4] - uniq[0] === 4) straight = true;
           if (uniq[0] === 2 && uniq[1] === 3 && uniq[2] === 4 && uniq[3] === 5 && uniq[4] === 14) straight = true; // A-2-3-4-5
         }
         const royal = straight && flush && uniq[0] === 10;
-        if (royal) return PAYS[0];
-        if (straight && flush) return PAYS[1];
-        if (counts[0] === 4) return PAYS[2];
-        if (counts[0] === 3 && counts[1] === 2) return PAYS[3];
-        if (flush) return PAYS[4];
-        if (straight) return PAYS[5];
-        if (counts[0] === 3) return PAYS[6];
-        if (counts[0] === 2 && counts[1] === 2) return PAYS[7];
-        if (counts[0] === 2) { const pr = +Object.keys(cnt).find(k => cnt[k] === 2); if (pr >= 11) return PAYS[8]; }
+        if (royal) return { pay: PAYS[0], win: ALL };
+        if (straight && flush) return { pay: PAYS[1], win: ALL };
+        if (counts[0] === 4) return { pay: PAYS[2], win: idxOf(4) };
+        if (counts[0] === 3 && counts[1] === 2) return { pay: PAYS[3], win: ALL };
+        if (flush) return { pay: PAYS[4], win: ALL };
+        if (straight) return { pay: PAYS[5], win: ALL };
+        if (counts[0] === 3) return { pay: PAYS[6], win: idxOf(3) };
+        if (counts[0] === 2 && counts[1] === 2) return { pay: PAYS[7], win: idxOf(2) };
+        if (counts[0] === 2) { const pr = +Object.keys(cnt).find(k => cnt[k] === 2); if (pr >= 11) return { pay: PAYS[8], win: idxOf(2) }; }
         return null;
       }
       function deal() {
@@ -1686,21 +1693,23 @@
         credits -= BET; localStorage.setItem('mg-poker-cr', credits);
         newDeck();
         hand = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()];
-        held = [false, false, false, false, false];
+        held = [false, false, false, false, false]; winIdx = [];
         state = 'draw'; msg.textContent = G.pk_holddraw; render();
         beep([523, 659], 0.08);
       }
       function draw() {
         if (state !== 'draw') return;
         for (let i = 0; i < 5; i++) { if (!held[i]) hand[i] = deck.pop(); }
-        state = 'idle';
+        state = 'idle'; held = [false, false, false, false, false];
         const res = evaluate(hand);
         if (res) {
-          const win = res[1] * BET;
+          const win = res.pay[1] * BET;
           credits += win; localStorage.setItem('mg-poker-cr', credits);
-          msg.textContent = '✨ ' + res[2] + '  +' + win;
+          winIdx = res.win;
+          msg.textContent = '✨ ' + res.pay[2] + '  +' + win;
           beep([523, 784, 1047, 1319], 0.12);
         } else {
+          winIdx = [];
           msg.textContent = G.nowin;
           beep([220, 165], 0.1, 'sine');
         }
