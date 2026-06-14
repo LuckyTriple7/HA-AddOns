@@ -267,7 +267,11 @@ def _do_play(state: dict, who: str, action: dict) -> None:
             raise IllegalMove('Karte nicht erlaubt (Farb-/Stichzwang)')
 
     hand.remove(card)
-    state['table'].append({'who': who, 'card': card})
+    entry = {'who': who, 'card': card}
+    if leading and action.get('marry'):
+        # Hochzeitswert als reine Anzeige über der ausgespielten Karte (20 / 40 Trumpf)
+        entry['meld'] = 40 if suit(card) == state['trump'] else 20
+    state['table'].append(entry)
     _capture(state)  # Karte(n) auf dem Tisch sichtbar machen (bei 2 = voller Stich)
     if len(state['table']) == 2:
         _resolve_trick(state)
