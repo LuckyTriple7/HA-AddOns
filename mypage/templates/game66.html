@@ -405,8 +405,34 @@
     });
   }
 
+  // Frisch ausgeteilter Stand (für die Austeil-Animation erkennbar)
+  function isFreshDeal(f){
+    return !!(f && (f.table || []).length === 0 && (f.hand || []).length === 5
+      && f.ai_count === 5 && f.stock_count === 10
+      && f.tricks && f.tricks.p === 0 && f.tricks.a === 0);
+  }
+
+  // Kartengeben: nacheinander verdeckte Karten vom Talon in beide Hände fliegen
+  function dealAnimation(){
+    return new Promise(async resolve => {
+      const me = $('me-hand'), opp = $('opp-hand'), tc = $('table-cards');
+      me.innerHTML = ''; opp.innerHTML = ''; tc.innerHTML = '';  // altes Spiel ausblenden
+      const src = $('stockwrap').getBoundingClientRect();
+      const order = [];
+      for (let k = 0; k < 5; k++){ order.push(opp); order.push(me); }  // abwechselnd austeilen
+      const step = Math.max(70, Math.round(flyMs * 0.34));
+      for (const handEl of order){
+        flyBetween(src, handEl, 'back', {z: 57, fadeIn: true, height: src.height * 0.86});
+        await sleep(step);
+      }
+      await sleep(flyMs);
+      resolve();
+    });
+  }
+
   // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
   async function playFrames(frames){
+    if (!reduceMotion && frames.length && isFreshDeal(frames[0])) await dealAnimation();
     for (let i = 0; i < frames.length; i++){
       if (i > 0) await animateTransition(frames[i - 1], frames[i]);
       render(frames[i]);
@@ -424,6 +450,13 @@
   async function animateTransition(prev, cur){
     if (reduceMotion) return;
     const pt = prev.table || [], ct = cur.table || [];
+    // KI tauscht den Trumpf-Buben: Trumpfkarte wechselt, Tisch/Talon-Anzahl unverändert
+    if (ct.length === pt.length && prev.trump_card && cur.trump_card
+        && cur.trump_card !== prev.trump_card
+        && (cur.stock_count || 0) === (prev.stock_count || 0)){
+      await exchangeAiAnim(prev.trump_card);
+      return;
+    }
     if (ct.length > pt.length){
       const added = ct[ct.length - 1];
       if (added && added.who === 'a') await flyAiCard(added.card);
@@ -547,6 +580,18 @@
   function flyAiCard(card){
     const oh = $('opp-hand');
     return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60, ring: true});
+  }
+
+  // KI tauscht den Trumpf-Buben: aufgedeckte Karte → KI-Hand, verdeckte → Trumpfplatz
+  function exchangeAiAnim(upcard){
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const trumpEl = $('trump-card'), opp = $('opp-hand');
+      if (!trumpEl){ resolve(); return; }
+      flyBetween(trumpEl.getBoundingClientRect(), opp, upcard, {z: 60});  // Upcard → KI-Hand
+      flyBetween(opp.getBoundingClientRect(), trumpEl, 'back', {z: 59});  // verdeckte → Trumpfplatz
+      setTimeout(resolve, flyMs + 60);
+    });
   }
 
   // Nachziehen vom Talon: verdeckte Karte vom Stapel in eine Hand
@@ -705,7 +750,7 @@
     if (hasLegal(a => a.type === 'exchange')){
       const b = document.createElement('button');
       b.className = 'btn ghost'; b.textContent = '🔄 ' + G.exchange;
-      b.onclick = () => send({type: 'exchange'}); bar.appendChild(b);
+      b.onclick = () => doExchange(); bar.appendChild(b);
     }
     if (hasLegal(a => a.type === 'close')){
       const b = document.createElement('button');
@@ -723,6 +768,31 @@
     await flyCard(card);
     await doMove(marry ? {type: 'play', card, marry: true} : {type: 'play', card});
     busy = false;
+  }
+
+  // Trumpf-Bube tauschen: Bube fliegt zum Trumpfplatz, aufgedeckte Karte in die Hand
+  async function doExchange(){
+    if (busy || !tabActive) return; busy = true;
+    await exchangeAnim();
+    await doMove({type: 'exchange'});
+    busy = false;
+  }
+
+  function exchangeAnim(){
+    return new Promise(resolve => {
+      if (reduceMotion || !V || !V.trump || !V.trump_card){ resolve(); return; }
+      const jack = 'J' + V.trump;
+      const slot = document.querySelector('#me-hand .card-slot[data-card="' + CSS.escape(jack) + '"]');
+      const trumpEl = $('trump-card');
+      const jImg = slot && slot.querySelector('img');
+      if (!jImg || !trumpEl){ resolve(); return; }
+      const sRect = jImg.getBoundingClientRect();
+      const tRect = trumpEl.getBoundingClientRect();
+      flyBetween(sRect, trumpEl, jack, {z: 60, ring: true});  // Bube → Trumpfplatz
+      flyBetween(tRect, slot, V.trump_card, {z: 60});         // aufgedeckte Karte → Hand
+      slot.style.visibility = 'hidden';
+      setTimeout(resolve, flyMs + 60);
+    });
   }
 
   function renderHint(v){

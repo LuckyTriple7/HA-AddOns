@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.66
+
+- 🎬 **66: Mehr Animationen** — drei flüssigere Abläufe:
+  - **Kartengeben animiert** — zu Beginn jeder Partie werden die Karten jetzt nacheinander vom Talon in beide Hände ausgeteilt.
+  - **KI-Eröffnung fliegt ein** — legt die KI als Erste eine Karte in die Mitte (Partiebeginn), ist die Karte jetzt animiert, genau wie beim Nachziehen im Stich.
+  - **Trumpf-Bube tauschen animiert** — beim Tauschen fliegt der Bube zum Trumpfplatz und die aufgedeckte Karte in die Hand (Spieler **und** KI).
+
 ## 0.6.65
 
 - 🐛 **66: Hochzeitskarte flackert nicht mehr** — Fix zu 0.6.63/0.6.64: Beim Ansagen entfiel ein überflüssiges Zwischenbild mit leerem Tisch. Die Hochzeitskarte fliegt jetzt in die Mitte und **bleibt dort liegen** (samt Wert), statt kurz zu verschwinden und wieder aufzutauchen.

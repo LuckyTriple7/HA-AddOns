@@ -435,6 +435,7 @@ def _start_next_deal(state: dict) -> dict:
     loser = other(state['result']['winner'])
     state['cut'] = None  # Auslosen war nur für die erste Partie
     _new_deal(state, dealer=loser, rng=random.Random())
+    _capture(state)  # frisch ausgeteilter Stand für die Austeil-Animation
     return state
 
 
@@ -502,10 +503,15 @@ def apply_player_frames(state: dict, action: dict) -> list:
 
 
 def deal_frames(state: dict) -> list:
-    """Nur die KI laufen lassen (z. B. KI-Eröffnung) und Frames sammeln."""
+    """Nur die KI laufen lassen (z. B. KI-Eröffnung) und Frames sammeln.
+
+    Erstes Bild = frisch ausgeteilter Stand (5/5, Trumpf offen) für die
+    Austeil-Animation; danach ggf. die KI-Eröffnung (animierbar).
+    """
     frames: list = []
     state['_cap'] = frames
     try:
+        _capture(state)
         ai_run(state)
     finally:
         state.pop('_cap', None)
