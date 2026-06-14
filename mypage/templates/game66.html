@@ -287,6 +287,12 @@
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
+  // Karten-SVGs vorab laden, damit auch die KI-Karte sofort sichtbar fliegt
+  (function preloadCards(){
+    const codes = ['back'];
+    ['A','T','K','Q','J'].forEach(r => ['c','d','h','s'].forEach(s => codes.push(r + s)));
+    codes.forEach(code => { const im = new Image(); im.src = img(code); });
+  })();
   let V = null, busy = false, curRules = 'standard', curLevel = 'medium', cutShown = null;
   let tabActive = true;  // Mehr-Tab-Schutz: nur ein aktiver Tab spielt
   const LEVEL_DEFS = [
@@ -442,7 +448,7 @@
       const t = dstEl.getBoundingClientRect();
       if (!srcRect.width || !t.width){ resolve(); return; }
       const clone = document.createElement('img');
-      clone.src = img(code); clone.alt = '';
+      clone.alt = '';
       const h = opts.height || srcRect.height || 90;
       clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:' + (opts.z || 60) + ';'
         + 'left:' + (srcRect.left + srcRect.width / 2) + 'px;'
@@ -454,14 +460,26 @@
       document.body.appendChild(clone);
       const dx = (t.left + t.width / 2) - (srcRect.left + srcRect.width / 2);
       const dy = (t.top + t.height / 2) - (srcRect.top + srcRect.height / 2);
-      requestAnimationFrame(() => {
-        clone.style.transform = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) scale(1)';
-        if (opts.fadeIn) clone.style.opacity = '1';
-      });
       let done = false;
       const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
-      clone.addEventListener('transitionend', fin, {once: true});
-      setTimeout(fin, flyMs + 60);
+      const move = () => {
+        requestAnimationFrame(() => {
+          clone.style.transform = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) scale(1)';
+          if (opts.fadeIn) clone.style.opacity = '1';
+        });
+        clone.addEventListener('transitionend', fin, {once: true});
+        setTimeout(fin, flyMs + 80);
+      };
+      // Erst losfliegen, wenn das Bild geladen ist — sonst fliegt eine unsichtbare Karte
+      clone.src = img(code);
+      if (clone.complete && clone.naturalWidth){ move(); }
+      else {
+        let started = false;
+        const go = () => { if (started) return; started = true; move(); };
+        clone.addEventListener('load', go, {once: true});
+        clone.addEventListener('error', go, {once: true});
+        setTimeout(go, 200);  // Fallback, falls load haengt
+      }
     });
   }
 

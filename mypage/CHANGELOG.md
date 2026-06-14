@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.55
+
+- 🐛 **66: KI-Kartenanimation sichtbar gemacht** — die Flugbewegung der **KI-Karte** fehlte, weil das Kartenbild beim Start des Flugs teils noch nicht geladen war (eine „unsichtbare" Karte flog, die Karte erschien erst am Ende). Jetzt startet der Flug erst, **wenn das Bild geladen ist**, und alle Karten-SVGs werden beim Öffnen **vorgeladen**, damit die Animation sofort flüssig läuft.
+
 ## 0.6.54
 
 - 🔀 **66: Mehr-Tab-Schutz** — ist das Spiel bereits in einem Browser-Tab offen und du öffnest es in einem **weiteren Tab**, übernimmt der neue Tab und der **alte wird getrennt** (pausiert). Der getrennte Tab zeigt einen Hinweis mit **„Hier weiterspielen"**, um die Kontrolle zurückzuholen. So kommen sich zwei Tabs nicht mehr in die Quere (z. B. doppelte Anzeigen). Umgesetzt über `BroadcastChannel`; dein Spielstand bleibt server­seitig sicher gespeichert.
