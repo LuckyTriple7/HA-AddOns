@@ -148,12 +148,26 @@
     .toast.show { opacity: 1; }
     .toast.err { background: var(--red); }
     .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; }
-    .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 2px; position: relative; }
-    .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 28px; height: 26px; padding: 0 6px; font-size: 0.82rem; cursor: pointer; line-height: 1; }
+    .md-edit-btn { margin-top: 6px; padding: 5px 12px; font-size: 0.82rem; }
+    .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
+    .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
     .md-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .md-emoji-pop { position: absolute; top: 30px; left: 0; z-index: 30; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+    .md-emoji-pop { position: absolute; top: 34px; left: 0; z-index: 30; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
     .md-emoji-pop button { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 3px; border-radius: 4px; }
     .md-emoji-pop button:hover { background: var(--surf2, var(--border)); }
+    .md-modal-box { max-width: 1000px; }
+    .md-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .md-editor-ta { width: 100%; min-height: 360px; resize: vertical; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88rem; line-height: 1.5; }
+    .md-preview { min-height: 360px; max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; background: var(--bg); }
+    .md-preview > :first-child { margin-top: 0; }
+    .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4, .md-preview h5, .md-preview h6 { margin: 0.6em 0 0.3em; line-height: 1.25; }
+    .md-preview p { margin: 0.5em 0; }
+    .md-preview ul, .md-preview ol { margin: 0.5em 0; padding-left: 1.5em; }
+    .md-preview blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+    .md-preview code { background: var(--surf2, var(--border)); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+    .md-preview a { color: var(--accent); }
+    .md-preview .md-empty { color: var(--muted); font-style: italic; }
+    @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .link-row input { flex: 1; }
     .empty-note { color: var(--muted); font-size: 0.85rem; padding: 18px; text-align: center; }
@@ -1031,6 +1045,21 @@
     </div>
   </div>
 
+  <div class="modal-bg" id="md-modal">
+    <div class="modal md-modal-box">
+      <h3 id="md-modal-title">{{ t.md_editor_title }}</h3>
+      <div class="md-toolbar" id="md-modal-toolbar"></div>
+      <div class="md-split">
+        <textarea id="md-modal-ta" class="md-editor-ta" spellcheck="true"></textarea>
+        <div class="md-preview" id="md-modal-preview" aria-live="polite"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeMdModal()">{{ t.cancel }}</button>
+        <button class="btn" onclick="applyMdModal()">{{ t.md_apply }}</button>
+      </div>
+    </div>
+  </div>
+
   <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
   <div class="thumb-preview" id="thumb-preview" onclick="closeThumbPreview()"><img id="thumb-preview-img" src="" alt=""></div>
   <div class="toast" id="toast"></div>
@@ -1149,9 +1178,42 @@
       btn.parentNode.appendChild(pop);
       setTimeout(() => document.addEventListener('click', function h(ev) { if (!pop.contains(ev.target) && ev.target !== btn) { pop.remove(); document.removeEventListener('click', h); } }), 0);
     }
-    function attachMd(ta) {
-      if (!ta || ta.dataset.md) return; ta.dataset.md = '1';
-      const bar = document.createElement('div'); bar.className = 'md-toolbar';
+    // Markdown → HTML für die Live-Vorschau (eigener Mini-Renderer, ohne Library)
+    function mdEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function mdInline(s) {
+      s = mdEsc(s);
+      s = s.replace(/`([^`]+)`/g, (m, c) => '<code>' + c + '</code>');
+      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, txt, url) => {
+        url = url.trim();
+        if (!/^(https?:|mailto:)/i.test(url)) return txt;
+        return '<a href="' + url.replace(/"/g, '%22') + '" target="_blank" rel="noopener">' + txt + '</a>';
+      });
+      return s;
+    }
+    function mdToHtml(md) {
+      const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
+      let html = '', listType = null, m;
+      const closeList = () => { if (listType) { html += '</' + listType + '>'; listType = null; } };
+      for (const line of lines) {
+        if (m = line.match(/^(#{1,6})\s+(.*)$/)) { closeList(); const lv = m[1].length; html += '<h' + lv + '>' + mdInline(m[2]) + '</h' + lv + '>'; continue; }
+        if (m = line.match(/^>\s?(.*)$/)) { closeList(); html += '<blockquote>' + mdInline(m[1]) + '</blockquote>'; continue; }
+        if (m = line.match(/^\s*[-*]\s+(.*)$/)) { if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; } html += '<li>' + mdInline(m[1]) + '</li>'; continue; }
+        if (m = line.match(/^\s*\d+\.\s+(.*)$/)) { if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; } html += '<li>' + mdInline(m[1]) + '</li>'; continue; }
+        if (line.trim() === '') { closeList(); continue; }
+        closeList(); html += '<p>' + mdInline(line) + '</p>';
+      }
+      closeList();
+      return html || '<p class="md-empty">' + mdEsc(T.md_preview_empty || '') + '</p>';
+    }
+
+    // Overlay-Editor: ein wiederverwendbares Fenster mit Live-Vorschau
+    let MD_SRC = null, MD_BAR_BUILT = false;
+    function mdPreview() { el('md-modal-preview').innerHTML = mdToHtml(el('md-modal-ta').value); }
+    function mdBuildToolbar() {
+      if (MD_BAR_BUILT) return; MD_BAR_BUILT = true;
+      const ta = el('md-modal-ta'), bar = el('md-modal-toolbar');
       const mk = (html, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'md-btn'; b.innerHTML = html; b.title = title; b.onmousedown = e => e.preventDefault(); b.onclick = e => fn(e); return b; };
       bar.append(
         mk('<b>B</b>', T.md_bold, () => mdWrap(ta, '**')),
@@ -1164,10 +1226,35 @@
         mk('🔗', T.md_link, () => mdLink(ta)),
         mk('😀', T.md_emoji, e => mdEmoji(e.currentTarget, ta))
       );
-      ta.parentNode.insertBefore(bar, ta);
+      ta.addEventListener('input', mdPreview);
+    }
+    function openMdModal(srcTa, label) {
+      if (!srcTa) return;
+      MD_SRC = srcTa; mdBuildToolbar();
+      el('md-modal-title').textContent = label ? (T.md_editor_title + ' — ' + label) : T.md_editor_title;
+      const ta = el('md-modal-ta');
+      ta.value = srcTa.value; mdPreview();
+      el('md-modal').classList.add('open');
+      setTimeout(() => ta.focus(), 0);
+    }
+    function applyMdModal() {
+      if (MD_SRC) { MD_SRC.value = el('md-modal-ta').value; MD_SRC.dispatchEvent(new Event('input', { bubbles: true })); }
+      closeMdModal();
+    }
+    function closeMdModal() { el('md-modal').classList.remove('open'); MD_SRC = null; }
+
+    function attachMd(ta) {
+      if (!ta || ta.dataset.md) return; ta.dataset.md = '1';
+      const lbl = (ta.closest('div') && ta.closest('div').querySelector('label') ? ta.closest('div').querySelector('label').textContent : '').trim();
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn secondary md-edit-btn';
+      btn.innerHTML = '✏️ ' + T.md_edit;
+      btn.onclick = () => openMdModal(ta, lbl);
+      ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
     function initMdEditors() {
       ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en'].forEach(id => attachMd(el(id)));
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
     // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
