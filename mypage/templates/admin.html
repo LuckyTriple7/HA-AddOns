@@ -323,7 +323,7 @@
           <div>
             <label>{{ t.watermark_text }}</label>
             <div class="upload-row">
-              <input type="text" id="a-watermark" placeholder="© deine-domain.de">
+              <input type="text" id="a-watermark" placeholder="{{ t.ph_copyright }}">
               <button class="btn secondary small" onclick="saveAlbumSettings()">{{ t.save }}</button>
             </div>
           </div>
@@ -364,7 +364,7 @@
         <p class="hint">{{ t.location_hint }}</p>
         <div class="row">
           <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
-          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="Musterstr. 1, 12345 Stadt"></div>
+          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="{{ t.ph_address }}"></div>
         </div>
         <div class="row">
           <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
@@ -710,7 +710,7 @@
         <h3>{{ t.welcome_from_heading }}</h3>
         <p class="hint">{{ t.welcome_from_hint }}</p>
         <div class="upload-row">
-          <input type="email" id="u-welcome-from" placeholder="noreply@deine-domain.de">
+          <input type="email" id="u-welcome-from" placeholder="{{ t.ph_noreply }}">
           <button class="btn small" onclick="saveWelcomeFrom()">{{ t.save }}</button>
         </div>
       </div>
@@ -856,7 +856,7 @@
       <div class="row">
         <div>
           <label>{{ t.field_long }} (DE)</label>
-          <textarea id="pm-long_de" rows="6" placeholder="# Markdown wird unterstützt"></textarea>
+          <textarea id="pm-long_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
         </div>
         <div>
           <label>{{ t.field_long }} (EN)</label>
