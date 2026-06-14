@@ -1095,9 +1095,12 @@
 
       // 1) Konami-Code  +  4) geheimes Wort „matrix"
       const KC = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
-      const MW = 'matrix';
+      const MW = 'matrixx';
       let kbuf = [], sbuf = '';
       document.addEventListener('keydown', e => {
+        // Nicht in Eingabefeldern auslösen (Kontaktformular, Captcha …)
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
         const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
         kbuf.push(key); if (kbuf.length > KC.length) kbuf.shift();
         if (kbuf.length === KC.length && KC.every((v, i) => v === kbuf[i])) { kbuf = []; confetti(); popup(EGG_MSG); }

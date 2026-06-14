@@ -127,7 +127,7 @@
   "field_allow_indexing": "Allow search-engine indexing",
   "allow_indexing_hint": "Off = the site asks all search engines not to index it (noindex + robots.txt Disallow) and IndexNow pauses. Default: on.",
   "field_easter_eggs": "Easter eggs enabled",
-  "easter_eggs_hint": "Hidden fun for visitors: Konami code (↑↑↓↓←→←→ B A) → confetti + message, click the avatar 5× → secret tagline, type the word “matrix” → code rain, greeting in the browser console. Default: off.",
+  "easter_eggs_hint": "Hidden fun for visitors: Konami code (↑↑↓↓←→←→ B A) → confetti + message, click the avatar 5× → secret tagline, type the word “matrixx” → code rain, greeting in the browser console. Default: off.",
   "field_egg_message": "Konami message (optional)",
   "field_egg_tagline": "Avatar secret tagline (optional)",
   "field_indexnow": "IndexNow (Bing) enabled",

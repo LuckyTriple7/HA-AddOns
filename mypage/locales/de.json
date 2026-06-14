@@ -127,7 +127,7 @@
   "field_allow_indexing": "Von Suchmaschinen indexieren lassen",
   "allow_indexing_hint": "Aus = die Seite bittet alle Suchmaschinen, sie nicht zu indexieren (noindex + robots.txt Disallow) und IndexNow pausiert. Standard: an.",
   "field_easter_eggs": "Easter Eggs aktiv",
-  "easter_eggs_hint": "Versteckte Spielereien für Besucher: Konami-Code (↑↑↓↓←→←→ B A) → Konfetti + Nachricht, Avatar 5× klicken → Geheim-Tagline, Wort „matrix“ tippen → Code-Regen, Gruß in der Browser-Konsole. Standard: aus.",
+  "easter_eggs_hint": "Versteckte Spielereien für Besucher: Konami-Code (↑↑↓↓←→←→ B A) → Konfetti + Nachricht, Avatar 5× klicken → Geheim-Tagline, Wort „matrixx“ tippen → Code-Regen, Gruß in der Browser-Konsole. Standard: aus.",
   "field_egg_message": "Konami-Nachricht (optional)",
   "field_egg_tagline": "Avatar-Geheim-Tagline (optional)",
   "field_indexnow": "IndexNow (Bing) aktiv",
