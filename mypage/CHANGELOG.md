@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.38
+
+- 🐛 Einblend-Effekte: Animation griff nur beim oberen Bereich (Hero), der Rest der Seite blieb statisch. Ursache: nur der Kopfbereich ist ein `<section>`, die übrigen Blöcke (Überschriften, Projekt-/Service-/Galerie-Raster usw.) sind direkte `main`-Kinder. Reveal zielt jetzt auf **alle Inhaltsblöcke** (`main > *`) — damit blenden Überschriften und Abschnitte beim Scrollen ebenfalls ein, Stagger inklusive.
+
 ## 0.6.37
 
 - ✨ **Einblend-Effekte** für die öffentliche Seite (neu im Design-Bereich): Inhalte erscheinen animiert beim Öffnen und beim Scrollen. Auswählbar: **Aus** (Standard), **Sanftes Einblenden**, **Einblenden + Hochgleiten**, **Zoom** oder **Unschärfe → scharf**. Zusätzlich optionaler **Stagger** – Kacheln/Karten eines Abschnitts erscheinen leicht versetzt nacheinander. Abhängigkeitsfrei (reines CSS + `IntersectionObserver`), flackerfrei (Vorbereitung vor dem ersten Rendern) und **barrierefrei**: Wer im System „Bewegung reduzieren" aktiviert hat oder kein JavaScript nutzt, sieht alle Inhalte sofort ohne Animation.

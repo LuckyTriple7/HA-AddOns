@@ -395,19 +395,19 @@
 
     /* ── Einblend-Effekte (Reveal beim Laden/Scrollen) ── */
     /* Nur aktiv, wenn JS die Seite „scharf" gestellt hat (html.rv-armed) — ohne JS bleibt alles sichtbar */
-    html.rv-armed[data-reveal] main > section {
+    html.rv-armed[data-reveal] main > * {
       opacity: 0;
       transition: opacity .6s ease, transform .6s ease, filter .6s ease;
       will-change: opacity, transform;
     }
-    html.rv-armed[data-reveal="slide"] main > section { transform: translateY(26px); }
-    html.rv-armed[data-reveal="zoom"]  main > section { transform: scale(.97); transform-origin: center top; }
-    html.rv-armed[data-reveal="blur"]  main > section { filter: blur(9px); }
-    html.rv-armed[data-reveal] main > section.rv-in {
+    html.rv-armed[data-reveal="slide"] main > * { transform: translateY(26px); }
+    html.rv-armed[data-reveal="zoom"]  main > * { transform: scale(.97); transform-origin: center top; }
+    html.rv-armed[data-reveal="blur"]  main > * { filter: blur(9px); }
+    html.rv-armed[data-reveal] main > .rv-in {
       opacity: 1 !important; transform: none !important; filter: none !important;
     }
-    /* Stagger: Sektion blendet nur sanft ein, die Karten tragen die Bewegung nacheinander */
-    html.rv-armed[data-reveal-stagger] main > section { transform: none !important; filter: none !important; }
+    /* Stagger: Block blendet nur sanft ein, die Karten tragen die Bewegung nacheinander */
+    html.rv-armed[data-reveal-stagger] main > * { transform: none !important; filter: none !important; }
     html.rv-armed[data-reveal-stagger] .rv-card {
       opacity: 0;
       transition: opacity .55s ease, transform .55s ease, filter .55s ease;
@@ -420,7 +420,7 @@
       opacity: 1 !important; transform: none !important; filter: none !important;
     }
     @media (prefers-reduced-motion: reduce) {
-      html.rv-armed main > section,
+      html.rv-armed main > *,
       html.rv-armed .rv-card {
         opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important;
       }
@@ -1550,28 +1550,28 @@
         if (!root.classList.contains('rv-armed')) return;   // aus / reduzierte Bewegung / kein JS
         var stagger = root.hasAttribute('data-reveal-stagger');
         var CARD = '.svc-card,.min-item,.row-item,.card,.tm-card,.album-card,.team-card,.tl-item,.ev-item,.news-item,.faq-item,.link-item';
-        var sections = [].slice.call(document.querySelectorAll('main > section'));
+        var blocks = [].slice.call(document.querySelectorAll('main > *'));
         if (stagger) {
-          sections.forEach(function (sec) {
-            [].slice.call(sec.querySelectorAll(CARD)).forEach(function (c, i) {
+          blocks.forEach(function (blk) {
+            [].slice.call(blk.querySelectorAll(CARD)).forEach(function (c, i) {
               c.classList.add('rv-card');
               c.style.transitionDelay = Math.min(i, 12) * 0.06 + 's';
             });
           });
         }
-        function reveal(sec) {
-          sec.classList.add('rv-in');
-          if (stagger) { [].slice.call(sec.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); }); }
+        function reveal(blk) {
+          blk.classList.add('rv-in');
+          if (stagger) { [].slice.call(blk.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); }); }
         }
-        if (!('IntersectionObserver' in window)) { sections.forEach(reveal); return; }
+        if (!('IntersectionObserver' in window)) { blocks.forEach(reveal); return; }
         var io = new IntersectionObserver(function (entries) {
           entries.forEach(function (e) { if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); } });
-        }, { threshold: 0.08, rootMargin: '0px 0px -8% 0px' });
-        sections.forEach(function (sec) { io.observe(sec); });
+        }, { threshold: 0.05, rootMargin: '0px 0px -6% 0px' });
+        blocks.forEach(function (blk) { io.observe(blk); });
         // Sicherheitsnetz: falls etwas hakt, nach 4 s alles zeigen
-        setTimeout(function () { sections.forEach(reveal); }, 4000);
+        setTimeout(function () { blocks.forEach(reveal); }, 4000);
       } catch (e) {
-        [].slice.call(document.querySelectorAll('main > section')).forEach(function (s) {
+        [].slice.call(document.querySelectorAll('main > *')).forEach(function (s) {
           s.classList.add('rv-in');
           [].slice.call(s.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); });
         });
