@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.67
+
+- 🐛 **66: Austeil- & KI-Eröffnungs-Animation zuverlässig** — Fix zu 0.6.66: Die Animationen hingen davon ab, dass der Server-Teil neu gestartet wurde, und die KI-Eröffnung wurde nur animiert, wenn der Spieler Vorhand war (wirkte zufällig). Eine neue Partie wird jetzt rein clientseitig erkannt: Die Karten werden immer animiert ausgeteilt, und die erste KI-Karte fliegt zuverlässig in die Mitte — egal, wer gibt.
+
 ## 0.6.66
 
 - 🎬 **66: Mehr Animationen** — drei flüssigere Abläufe:

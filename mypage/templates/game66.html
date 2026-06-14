@@ -405,11 +405,12 @@
     });
   }
 
-  // Frisch ausgeteilter Stand (für die Austeil-Animation erkennbar)
-  function isFreshDeal(f){
-    return !!(f && (f.table || []).length === 0 && (f.hand || []).length === 5
-      && f.ai_count === 5 && f.stock_count === 10
-      && f.tricks && f.tricks.p === 0 && f.tricks.a === 0);
+  // Beginn einer neuen Partie: voller Talon, noch kein Stich – und die vorige
+  // Anzeige war eine andere Partie oder bereits beendet.
+  function isNewDeal(f){
+    return !!(f && f.stock_count === 10
+      && f.tricks && f.tricks.p === 0 && f.tricks.a === 0
+      && (!V || f.deal_no !== V.deal_no || V.status !== 'playing'));
   }
 
   // Kartengeben: nacheinander verdeckte Karten vom Talon in beide Hände fliegen
@@ -422,7 +423,7 @@
       for (let k = 0; k < 5; k++){ order.push(opp); order.push(me); }  // abwechselnd austeilen
       const step = Math.max(70, Math.round(flyMs * 0.34));
       for (const handEl of order){
-        flyBetween(src, handEl, 'back', {z: 57, fadeIn: true, height: src.height * 0.86});
+        flyBetween(src, handEl, 'back', {z: 57, fadeIn: true, height: src.height * 0.78});
         await sleep(step);
       }
       await sleep(flyMs);
@@ -432,7 +433,16 @@
 
   // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
   async function playFrames(frames){
-    if (!reduceMotion && frames.length && isFreshDeal(frames[0])) await dealAnimation();
+    if (!reduceMotion && frames.length && isNewDeal(frames[0])){
+      await dealAnimation();
+      // Hat die KI schon eröffnet, fehlt aber das leere Vorbild? → künstlich voranstellen,
+      // damit die KI-Karte sichtbar einfliegt statt einfach zu erscheinen.
+      const f0 = frames[0];
+      if ((f0.table || []).length && f0.table[0].who === 'a'){
+        const pre = Object.assign({}, f0, {table: [], ai_count: f0.ai_count + 1});
+        frames = [pre].concat(frames);
+      }
+    }
     for (let i = 0; i < frames.length; i++){
       if (i > 0) await animateTransition(frames[i - 1], frames[i]);
       render(frames[i]);
