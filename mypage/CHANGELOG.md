@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.61
+
+- ✨ **66: Gewinnerkarte blinkt** — sobald ein voller Stich auf dem Tisch liegt, **blinkt die Karte auf, die den Stich gewonnen hat** (grüner Schein), bevor die Karten zum Gewinner fliegen — so erkennt man auf einen Blick, welche Karte gestochen hat. Der goldene Rahmen der KI-Karte bleibt dabei erhalten.
+
 ## 0.6.60
 
 - 🪽 **66: Stich fliegt zum Gewinner** — wenn ein voller Stich nach der Liegezeit abgeräumt wird, **fliegen die beiden Karten jetzt animiert** zum Spieler, der den Stich gewonnen hat (zu deiner bzw. zur KI-Stichanzeige), statt einfach zu verschwinden. Dadurch ist auf einen Blick erkennbar, wer den Stich geholt hat.
