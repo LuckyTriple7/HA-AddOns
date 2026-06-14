@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.57
+
+- 💾 **Spielstände im Backup** — die 66-**Spielstände und der Verlauf** (`games/66_<uid>.json`, `games/66hist_<uid>.json`) werden jetzt **mit gesichert und wiederhergestellt** (Admin → Backup/Restore). So gehen laufende Partien und die Historie bei einem Wiederherstellen nicht verloren. Beim Restore werden nur gültige Spieldateinamen akzeptiert (abgesichert gegen Zip-Slip/Fremddateien).
+
 ## 0.6.56
 
 - 🔎 **66: Bessere Lesbarkeit am Stapel** — die Anzeige von **Trumpf** und **verbleibenden Talon-Karten** unter dem Stapel ist jetzt **deutlich größer**; rote Trumpffarben (♦/♥) werden farbig dargestellt.

@@ -83,6 +83,8 @@ WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
+# Erlaubte Spieldateinamen (für Backup/Restore): 66_<uid>.json / 66hist_<uid>.json
+_GAME_FILE_RE = re.compile(r'^66(hist)?_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -1907,6 +1909,11 @@ def api_backup():
         for f in UPLOADS_DIR.iterdir():
             if f.is_file():
                 z.write(f, 'uploads/' + f.name)
+        # Kartenspiel-Spielstände + Verlauf (66_<uid>.json / 66hist_<uid>.json)
+        if GAMES_DIR.is_dir():
+            for f in sorted(GAMES_DIR.iterdir()):
+                if f.is_file() and _GAME_FILE_RE.match(f.name):
+                    z.write(f, 'games/' + f.name)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
@@ -1936,6 +1943,15 @@ def api_restore():
                     if not name or Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
                         continue
                     target = safe_under(UPLOADS_DIR, name)
+                elif member.startswith('games/'):
+                    name = Path(member).name
+                    if not _GAME_FILE_RE.match(name):
+                        continue
+                    try:
+                        json.loads(z.read(member))  # muss valides JSON sein
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+                    target = safe_under(GAMES_DIR, name)
                 else:
                     continue
                 if target is None:
