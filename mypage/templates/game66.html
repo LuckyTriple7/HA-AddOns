@@ -135,7 +135,7 @@
     <span class="rulestag" id="leveltag"></span>
     <span class="bummerl">{{ t.g66_bummerl }}: <b id="bm-p">0</b> : <b id="bm-a">0</b> &nbsp;<span style="opacity:.6">/ 7</span></span>
     <span class="spacer"></span>
-    <button class="iconbtn" id="btn-level" title="{{ t.g66_level }}">🎚</button>
+    <button class="iconbtn" id="btn-level" title="{{ t.g66_level }}">🧠</button>
     <button class="iconbtn" id="btn-rules" title="{{ t.g66_rules }}">⚖</button>
     <button class="iconbtn" id="btn-rulesdoc" title="{{ t.g66_rulesdoc }}">📖</button>
     <button class="iconbtn" id="btn-history" title="{{ t.g66_history }}">🏅</button>
@@ -197,7 +197,7 @@
 
   <div class="banner" id="level-modal">
     <div class="box">
-      <h2>🎚 {{ t.g66_level }}</h2>
+      <h2>🧠 {{ t.g66_level }}</h2>
       <div class="rules-list" id="level-list"></div>
       <button class="btn ghost" id="level-cancel">✕</button>
     </div>
@@ -224,11 +224,11 @@
       <h2>⚙ {{ t.g66_settings }}</h2>
       <div class="setting">
         <label>{{ t.g66_speed_move }}: <b id="fly-val"></b></label>
-        <input type="range" id="fly-range" min="120" max="800" step="20">
+        <input type="range" id="fly-range" min="120" max="1000" step="20">
       </div>
       <div class="setting">
         <label>{{ t.g66_speed_linger }}: <b id="linger-val"></b></label>
-        <input type="range" id="linger-range" min="300" max="3000" step="50">
+        <input type="range" id="linger-range" min="300" max="10000" step="100">
       </div>
       <p class="setting-hint">{{ t.g66_settings_hint }}</p>
       <button class="btn ghost" id="settings-reset">{{ t.g66_reset }}</button>
@@ -293,8 +293,8 @@
   const clampInt = (v, lo, hi, def) => {
     v = parseInt(v, 10); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
   };
-  let flyMs = clampInt(localStorage.getItem('g66_fly'), 120, 800, FLY_DEFAULT);
-  let lingerMs = clampInt(localStorage.getItem('g66_linger'), 300, 3000, LINGER_DEFAULT);
+  let flyMs = clampInt(localStorage.getItem('g66_fly'), 120, 1000, FLY_DEFAULT);
+  let lingerMs = clampInt(localStorage.getItem('g66_linger'), 300, 10000, LINGER_DEFAULT);
 
   function cardImg(code, cls){
     const i = document.createElement('img');
@@ -337,12 +337,31 @@
   // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
   async function playFrames(frames){
     for (let i = 0; i < frames.length; i++){
+      if (i > 0) await animateTransition(frames[i - 1], frames[i]);
       render(frames[i]);
       if (i < frames.length - 1){
         const n = (frames[i].table || []).length;
         await sleep(n >= 2 ? lingerMs
                   : (n === 1 ? Math.round(lingerMs * 0.48) : Math.round(lingerMs * 0.38)));
       }
+    }
+  }
+
+  // Übergang zweier Frames animieren: KI legt eine Karte / es wird nachgezogen
+  async function animateTransition(prev, cur){
+    if (reduceMotion) return;
+    const pt = prev.table || [], ct = cur.table || [];
+    if (ct.length > pt.length){
+      const added = ct[ct.length - 1];
+      if (added && added.who === 'a') await flyAiCard(added.card);
+      return;
+    }
+    // Stich aufgelöst → vom Talon nachziehen (Stapel schrumpft, Hände wachsen)
+    if ((cur.stock_count || 0) < (prev.stock_count || 0)){
+      const flights = [];
+      if ((cur.hand || []).length > (prev.hand || []).length) flights.push(flyDraw($('me-hand')));
+      if ((cur.ai_count || 0) > (prev.ai_count || 0)) flights.push(flyDraw($('opp-hand')));
+      if (flights.length) await Promise.all(flights);
     }
   }
 
@@ -391,6 +410,50 @@
       clone.addEventListener('transitionend', fin, {once: true});
       setTimeout(fin, flyMs + 60);
     });
+  }
+
+  // Allgemeiner Kartenflug: zentriertes Klon-Bild vom Quell-Rechteck zur Ziel-Mitte
+  function flyBetween(srcRect, dstEl, code, opts){
+    opts = opts || {};
+    return new Promise(resolve => {
+      if (reduceMotion || !srcRect || !dstEl){ resolve(); return; }
+      const t = dstEl.getBoundingClientRect();
+      if (!srcRect.width || !t.width){ resolve(); return; }
+      const clone = document.createElement('img');
+      clone.src = img(code); clone.alt = '';
+      const h = opts.height || srcRect.height || 90;
+      clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:' + (opts.z || 60) + ';'
+        + 'left:' + (srcRect.left + srcRect.width / 2) + 'px;'
+        + 'top:' + (srcRect.top + srcRect.height / 2) + 'px;'
+        + 'height:' + h + 'px;width:auto;transform:translate(-50%,-50%) scale(0.9);'
+        + (opts.fadeIn ? 'opacity:.6;' : '')
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+        + (flyMs / 1000) + 's ease;box-shadow:0 10px 22px rgba(0,0,0,.5)';
+      document.body.appendChild(clone);
+      const dx = (t.left + t.width / 2) - (srcRect.left + srcRect.width / 2);
+      const dy = (t.top + t.height / 2) - (srcRect.top + srcRect.height / 2);
+      requestAnimationFrame(() => {
+        clone.style.transform = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) scale(1)';
+        if (opts.fadeIn) clone.style.opacity = '1';
+      });
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      clone.addEventListener('transitionend', fin, {once: true});
+      setTimeout(fin, flyMs + 60);
+    });
+  }
+
+  // KI spielt eine Karte: vom Gegner-Handbereich auf den Tisch
+  function flyAiCard(card){
+    const oh = $('opp-hand');
+    return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60});
+  }
+
+  // Nachziehen vom Talon: verdeckte Karte vom Stapel in eine Hand
+  function flyDraw(handEl){
+    const src = $('stock-back') || $('trump-card') || $('stockwrap');
+    const r = src && src.getBoundingClientRect();
+    return flyBetween(r, handEl, 'back', {z: 58, fadeIn: true, height: r && r.height});
   }
 
   function hasLegal(pred){ return (V.legal || []).some(pred); }
@@ -645,11 +708,11 @@
   $('btn-settings').onclick = openSettings;
   $('settings-cancel').onclick = closeSettings;
   $('fly-range').oninput = e => {
-    flyMs = clampInt(e.target.value, 120, 800, FLY_DEFAULT);
+    flyMs = clampInt(e.target.value, 120, 1000, FLY_DEFAULT);
     $('fly-val').textContent = fmtSec(flyMs); localStorage.setItem('g66_fly', flyMs);
   };
   $('linger-range').oninput = e => {
-    lingerMs = clampInt(e.target.value, 300, 3000, LINGER_DEFAULT);
+    lingerMs = clampInt(e.target.value, 300, 10000, LINGER_DEFAULT);
     $('linger-val').textContent = fmtSec(lingerMs); localStorage.setItem('g66_linger', lingerMs);
   };
   $('settings-reset').onclick = () => {

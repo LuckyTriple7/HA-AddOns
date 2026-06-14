@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.52
+
+- ✨ **66: Mehr Kartenanimationen** — jetzt fliegt auch die **Karte der KI** sichtbar vom Gegnerblatt auf den Tisch, und beim **Nachziehen vom Talon** fliegen die Karten vom Stapel in die Hände (vorher nur die selbst gespielte Karte). Respektiert „Bewegung reduzieren".
+- 🎚 **Größere Tempo-Spannen**: Bewegungsdauer der Karte bis **1 s**, Liegezeit eines Stichs bis **10 s** einstellbar.
+- 🧠 Klareres Icon für das Schwierigkeits-Menü (das bisherige Symbol wurde auf manchen Systemen falsch dargestellt).
+
 ## 0.6.51
 
 - ⚙ **66: Animations-Tempo einstellbar** — über das neue ⚙-Menü lassen sich die **Bewegungsdauer der Karte** und die **Liegezeit eines Stichs** per Schieberegler frei einstellen (statt fest verdrahtet). Die Werte werden **im Browser gespeichert** und gelten ab dem nächsten Zug; ein Klick auf „Zurücksetzen" stellt die Standardwerte wieder her.
