@@ -357,6 +357,23 @@
     @keyframes egg-spin { to { transform: rotate(360deg); } }
     .egg-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--accent); color: #fff; padding: 10px 18px; border-radius: 10px; z-index: 92; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.35); max-width: 92vw; text-align: center; }
     #egg-matrix { position: fixed; inset: 0; z-index: 89; pointer-events: none; transition: opacity 1s; }
+    /* Mini-Games */
+    .game-ov { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 18px; }
+    .game-box { position: relative; background: var(--surf); border: 1px solid var(--accent); border-radius: 14px; padding: 20px; max-width: 96vw; max-height: 92vh; overflow: auto; text-align: center; }
+    .game-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--muted); font-size: 1.25rem; cursor: pointer; line-height: 1; }
+    .game-close:hover { color: var(--accent); }
+    .game-title { font-weight: 700; margin-bottom: 12px; }
+    .game-info { color: var(--muted); font-size: 0.82rem; margin: 8px 0 0; }
+    .game-canvas { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; max-width: 100%; touch-action: none; display: block; margin: 0 auto; }
+    .game-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 240px; }
+    .game-menu button { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 16px 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    .game-menu button:hover { border-color: var(--accent); color: var(--accent); }
+    .game-memory { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; justify-content: center; }
+    .game-card { width: 64px; height: 64px; background: var(--surf2, var(--border)); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; overflow: hidden; }
+    .game-card.open { background: var(--surf); border-color: var(--accent); }
+    .game-card.done { opacity: .4; }
+    .game-card img { width: 100%; height: 100%; object-fit: cover; }
+    @media (max-width: 480px) { .game-card { width: 52px; height: 52px; } }
     .empty { color: var(--muted); text-align: center; padding: 60px 0; }
     @media (max-width: 600px) {
       .hero { padding: 40px 0 28px; gap: 20px; }
@@ -814,6 +831,9 @@
         {% if has_members %}<a href="/bereich">{{ t.member_login_link }}</a>{% endif %}
       </div>
       {% endif %}
+      {% if site.design.mini_games %}
+      <div class="legal-links"><a href="#" onclick="openGameMenu(); return false;">🎮 {{ t.mini_games }}</a></div>
+      {% endif %}
       {% if site.design.show_counter %}
       <div class="counter">
         <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
@@ -1140,6 +1160,161 @@
         setTimeout(() => { cv.style.opacity = '0'; setTimeout(() => { clearInterval(iv); cv.remove(); }, 1000); }, 5000);
       }
     })();
+  </script>
+  {% endif %}
+  {% if site.design.mini_games %}
+  <script>
+    // ── Mini-Games (über Footer-Link) ─────────────────────────────────────────
+    let gameCleanup = null;
+    function closeGame() {
+      if (gameCleanup) { try { gameCleanup(); } catch (e) {} gameCleanup = null; }
+      const ov = document.getElementById('game-ov'); if (ov) ov.remove();
+      document.body.style.overflow = '';
+    }
+    function openGame(title, builder) {
+      closeGame();
+      const ov = document.createElement('div'); ov.className = 'game-ov'; ov.id = 'game-ov';
+      ov.addEventListener('click', e => { if (e.target === ov) closeGame(); });
+      const box = document.createElement('div'); box.className = 'game-box';
+      const cl = document.createElement('button'); cl.className = 'game-close'; cl.textContent = '✕'; cl.onclick = closeGame;
+      const h = document.createElement('div'); h.className = 'game-title'; h.textContent = title;
+      const mount = document.createElement('div');
+      box.append(cl, h, mount); ov.appendChild(box); document.body.appendChild(ov);
+      document.body.style.overflow = 'hidden';
+      gameCleanup = builder(mount) || null;
+    }
+    function openGameMenu() {
+      openGame('🎮 Mini Games', mount => {
+        const m = document.createElement('div'); m.className = 'game-menu';
+        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory]]
+          .forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => openGame(label, fn); m.appendChild(b); });
+        mount.appendChild(m);
+        return null;
+      });
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('game-ov')) closeGame(); });
+
+    function gameSnake(mount) {
+      const W = 17, H = 17, SZ = 18;
+      const cv = document.createElement('canvas'); cv.width = W * SZ; cv.height = H * SZ; cv.className = 'game-canvas';
+      const info = document.createElement('div'); info.className = 'game-info';
+      mount.append(cv, info);
+      const ctx = cv.getContext('2d');
+      let snake = [{ x: 8, y: 8 }], dir = { x: 1, y: 0 }, nd = dir, food = rf(), score = 0, dead = false;
+      let hi = +(localStorage.getItem('mg-snake-hi') || 0);
+      function rf() { let f; do { f = { x: Math.random() * W | 0, y: Math.random() * H | 0 }; } while (snake.some(s => s.x === f.x && s.y === f.y)); return f; }
+      function onKey(e) {
+        const k = e.key;
+        if (k === 'ArrowUp' || k === 'w') { if (dir.y !== 1) nd = { x: 0, y: -1 }; }
+        else if (k === 'ArrowDown' || k === 's') { if (dir.y !== -1) nd = { x: 0, y: 1 }; }
+        else if (k === 'ArrowLeft' || k === 'a') { if (dir.x !== 1) nd = { x: -1, y: 0 }; }
+        else if (k === 'ArrowRight' || k === 'd') { if (dir.x !== -1) nd = { x: 1, y: 0 }; }
+        else return;
+        e.preventDefault();
+      }
+      document.addEventListener('keydown', onKey);
+      const iv = setInterval(() => {
+        if (!dead) {
+          dir = nd;
+          const head = { x: (snake[0].x + dir.x + W) % W, y: (snake[0].y + dir.y + H) % H };
+          if (snake.some(s => s.x === head.x && s.y === head.y)) { dead = true; hi = Math.max(hi, score); localStorage.setItem('mg-snake-hi', hi); }
+          else { snake.unshift(head); if (head.x === food.x && head.y === food.y) { score++; food = rf(); } else snake.pop(); }
+        }
+        ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.fillStyle = '#e74c3c'; ctx.fillRect(food.x * SZ, food.y * SZ, SZ - 1, SZ - 1);
+        ctx.fillStyle = '#2da44e'; snake.forEach(s => ctx.fillRect(s.x * SZ, s.y * SZ, SZ - 1, SZ - 1));
+        info.textContent = dead ? ('Game Over · Punkte ' + score + ' · Bestwert ' + hi) : ('Pfeiltasten/WASD · Punkte ' + score + ' · Best ' + hi);
+      }, 120);
+      return () => { clearInterval(iv); document.removeEventListener('keydown', onKey); };
+    }
+
+    function gameDino(mount) {
+      const cv = document.createElement('canvas'); cv.width = 480; cv.height = 160; cv.className = 'game-canvas';
+      const info = document.createElement('div'); info.className = 'game-info';
+      mount.append(cv, info);
+      const ctx = cv.getContext('2d'); const G = cv.height - 16;
+      let y = 0, vy = 0, obs = [], t = 0, score = 0, dead = false, speed = 4.2;
+      let hi = +(localStorage.getItem('mg-dino-hi') || 0);
+      function jump() { if (dead) { y = 0; vy = 0; obs = []; t = 0; score = 0; dead = false; speed = 4.2; return; } if (y === 0) vy = -9.4; }
+      function onKey(e) { if (e.key === ' ' || e.key === 'ArrowUp') { e.preventDefault(); jump(); } }
+      document.addEventListener('keydown', onKey);
+      cv.addEventListener('pointerdown', jump);
+      const iv = setInterval(() => {
+        if (!dead) {
+          t++; vy += 0.6; y += vy; if (y > 0) { y = 0; vy = 0; }
+          if (t % Math.max(38, 82 - (speed - 4.2) * 9 | 0) === 0) obs.push({ x: cv.width, w: 10 + Math.random() * 14, h: 16 + Math.random() * 24 });
+          obs.forEach(o => o.x -= speed); obs = obs.filter(o => o.x + o.w > 0);
+          score++; if (score % 240 === 0) speed += 0.5;
+          for (const o of obs) { if (40 + 18 > o.x && 40 < o.x + o.w && (-y) < o.h) { dead = true; hi = Math.max(hi, score / 10 | 0); localStorage.setItem('mg-dino-hi', hi); } }
+        }
+        ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.strokeStyle = '#30363d'; ctx.beginPath(); ctx.moveTo(0, G + 2); ctx.lineTo(cv.width, G + 2); ctx.stroke();
+        ctx.font = '22px serif'; ctx.fillText('🦖', 40, G + y);
+        ctx.fillStyle = '#2da44e'; obs.forEach(o => ctx.fillRect(o.x, G + 2 - o.h, o.w, o.h));
+        info.textContent = dead ? ('Game Over · Score ' + (score / 10 | 0) + ' · Best ' + hi + ' — Leertaste/Tippen = neu') : ('Leertaste/Tippen = springen · Score ' + (score / 10 | 0) + ' · Best ' + hi);
+      }, 1000 / 60);
+      return () => { clearInterval(iv); document.removeEventListener('keydown', onKey); };
+    }
+
+    function gamePong(mount) {
+      const cv = document.createElement('canvas'); cv.width = 420; cv.height = 260; cv.className = 'game-canvas';
+      const info = document.createElement('div'); info.className = 'game-info';
+      mount.append(cv, info);
+      const ctx = cv.getContext('2d'); const PH = 54, PW = 8;
+      let py = cv.height / 2 - PH / 2, ay = py, bx = cv.width / 2, by = cv.height / 2, vx = 3.4, vy = 2.4, ps = 0, as = 0;
+      function reset(d) { bx = cv.width / 2; by = cv.height / 2; vx = 3.4 * d; vy = 2.4 * (Math.random() < .5 ? 1 : -1); }
+      function onMove(e) { const r = cv.getBoundingClientRect(); const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top; py = Math.max(0, Math.min(cv.height - PH, cy * (cv.height / r.height) - PH / 2)); }
+      cv.addEventListener('pointermove', onMove);
+      cv.addEventListener('touchmove', e => { e.preventDefault(); onMove(e); }, { passive: false });
+      const iv = setInterval(() => {
+        bx += vx; by += vy;
+        if (by < 6 || by > cv.height - 6) vy = -vy;
+        ay += Math.max(-3.4, Math.min(3.4, (by - (ay + PH / 2)) * 0.11)); ay = Math.max(0, Math.min(cv.height - PH, ay));
+        if (bx < 20 && by > py && by < py + PH && vx < 0) { vx = -vx * 1.04; vy += (by - (py + PH / 2)) * 0.05; }
+        if (bx > cv.width - 20 && by > ay && by < ay + PH && vx > 0) { vx = -vx * 1.04; vy += (by - (ay + PH / 2)) * 0.05; }
+        if (bx < 0) { as++; reset(1); } if (bx > cv.width) { ps++; reset(-1); }
+        ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.fillStyle = '#30363d'; for (let i = 0; i < cv.height; i += 18) ctx.fillRect(cv.width / 2 - 1, i, 2, 10);
+        ctx.fillStyle = '#58a6ff'; ctx.fillRect(12, py, PW, PH);
+        ctx.fillStyle = '#e74c3c'; ctx.fillRect(cv.width - 20, ay, PW, PH);
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, 5, 0, 7); ctx.fill();
+        info.textContent = 'Maus/Touch = Schläger · Du ' + ps + ' : ' + as + ' KI';
+      }, 1000 / 60);
+      return () => clearInterval(iv);
+    }
+
+    function gameMemory(mount) {
+      let imgs = [];
+      try { if (typeof ALBUMS !== 'undefined') ALBUMS.forEach(a => (a.images || []).forEach(u => imgs.push(u))); } catch (e) {}
+      imgs = [...new Set(imgs)].slice(0, 8);
+      const useEmoji = imgs.length < 6;
+      const faces = (useEmoji ? ['🏖️', '⛰️', '🌴', '🗺️', '📷', '✈️', '🌅', '🚗'] : imgs).slice(0, 8);
+      let deck = [...faces, ...faces].map(v => ({ v, open: false, done: false }));
+      for (let i = deck.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
+      const grid = document.createElement('div'); grid.className = 'game-memory';
+      const info = document.createElement('div'); info.className = 'game-info';
+      mount.append(grid, info);
+      let first = null, lock = false, moves = 0, found = 0;
+      function draw() {
+        grid.innerHTML = '';
+        deck.forEach((c, idx) => {
+          const d = document.createElement('div'); d.className = 'game-card' + (c.open || c.done ? ' open' : '') + (c.done ? ' done' : '');
+          if (c.open || c.done) { if (useEmoji) d.textContent = c.v; else { const im = document.createElement('img'); im.src = c.v; d.appendChild(im); } }
+          d.onclick = () => flip(idx); grid.appendChild(d);
+        });
+        info.textContent = found === faces.length ? ('Geschafft! Züge: ' + moves) : ('Finde die Paare · Züge: ' + moves);
+      }
+      function flip(idx) {
+        const c = deck[idx]; if (lock || c.open || c.done) return;
+        c.open = true; draw();
+        if (first === null) { first = idx; return; }
+        moves++;
+        if (deck[first].v === c.v) { deck[first].done = c.done = true; found++; first = null; draw(); }
+        else { lock = true; const f = first; first = null; setTimeout(() => { deck[f].open = false; c.open = false; lock = false; draw(); }, 750); }
+      }
+      draw();
+      return () => {};
+    }
   </script>
   {% endif %}
 </body>

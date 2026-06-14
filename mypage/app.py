@@ -231,6 +231,7 @@ DEFAULT_SITE = {
         'indexnow': False,
         'allow_indexing': True,
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
+        'mini_games': False,
         'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
@@ -1638,7 +1639,7 @@ def api_design():
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
-                 'allow_indexing', 'easter_eggs'):
+                 'allow_indexing', 'easter_eggs', 'mini_games'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
