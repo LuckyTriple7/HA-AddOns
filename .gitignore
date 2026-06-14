@@ -5,3 +5,6 @@ mypage/.venv/
 __pycache__/
 *.pyc
 .env
+
+# Lokaler Playwright-Testharness (nicht committen)
+mypage/_pwtest/

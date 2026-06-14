@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.68
+
+- 🐛 **66: Austeil- & KI-Karten-Animation wirklich behoben** (im echten Browser mit Playwright getestet): Beim Austeilen wurden **nur die 5 Karten des Spielers** animiert — die 5 KI-Karten fielen aus, weil der leere KI-Handbereich auf Breite 0 zusammenfällt und der Kartenflug dann verworfen wurde. Jetzt werden **alle 10 Karten** über stabile Zielpunkte mittig über jedem Platz ausgeteilt. Dadurch fliegt auch die **erste KI-Karte** beim Partiebeginn zuverlässig ein (vorher zufällig mal ja, mal nein).
+
 ## 0.6.67
 
 - 🐛 **66: Austeil- & KI-Eröffnungs-Animation zuverlässig** — Fix zu 0.6.66: Die Animationen hingen davon ab, dass der Server-Teil neu gestartet wurde, und die KI-Eröffnung wurde nur animiert, wenn der Spieler Vorhand war (wirkte zufällig). Eine neue Partie wird jetzt rein clientseitig erkannt: Die Karten werden immer animiert ausgeteilt, und die erste KI-Karte fliegt zuverlässig in die Mitte — egal, wer gibt.

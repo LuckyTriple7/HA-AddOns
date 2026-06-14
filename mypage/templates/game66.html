@@ -413,17 +413,25 @@
       && (!V || f.deal_no !== V.deal_no || V.status !== 'playing'));
   }
 
-  // Kartengeben: nacheinander verdeckte Karten vom Talon in beide Hände fliegen
+  // Kartengeben: nacheinander verdeckte Karten vom Talon in beide Hände fliegen.
+  // Wichtig: leere Hand-Container kollabieren (opp-hand hat dann Breite 0) – daher
+  // berechnen wir stabile Zielpunkte mittig über jedem Sitz statt die Hand zu nehmen.
   function dealAnimation(){
     return new Promise(async resolve => {
       const me = $('me-hand'), opp = $('opp-hand'), tc = $('table-cards');
+      const meR = me.getBoundingClientRect();
+      const oppSeat = (opp.closest && opp.closest('.seat')) || opp.parentElement || opp;
+      const oppR = oppSeat.getBoundingClientRect();
       me.innerHTML = ''; opp.innerHTML = ''; tc.innerHTML = '';  // altes Spiel ausblenden
       const src = $('stockwrap').getBoundingClientRect();
+      const cx = meR.width ? (meR.left + meR.width / 2) : (src.left + src.width / 2);
+      const meTarget = {left: cx - 1, top: (meR.top || src.top), width: 2, height: 1};
+      const oppTarget = {left: cx - 1, top: oppR.top + oppR.height * 0.62, width: 2, height: 1};
       const order = [];
-      for (let k = 0; k < 5; k++){ order.push(opp); order.push(me); }  // abwechselnd austeilen
+      for (let k = 0; k < 5; k++){ order.push(oppTarget); order.push(meTarget); }  // abwechselnd
       const step = Math.max(70, Math.round(flyMs * 0.34));
-      for (const handEl of order){
-        flyBetween(src, handEl, 'back', {z: 57, fadeIn: true, height: src.height * 0.78});
+      for (const tgt of order){
+        flyBetween(src, tgt, 'back', {z: 57, fadeIn: true, height: src.height * 0.78});
         await sleep(step);
       }
       await sleep(flyMs);
@@ -547,8 +555,9 @@
     opts = opts || {};
     return new Promise(resolve => {
       if (reduceMotion || !srcRect || !dstEl){ resolve(); return; }
-      const t = dstEl.getBoundingClientRect();
-      if (!srcRect.width || !t.width){ resolve(); return; }
+      // dstEl darf ein Element ODER ein fertiges Rechteck sein
+      const t = dstEl.getBoundingClientRect ? dstEl.getBoundingClientRect() : dstEl;
+      if (!srcRect.width || !t || !t.width){ resolve(); return; }
       const clone = document.createElement('img');
       clone.alt = '';
       const h = opts.height || srcRect.height || 90;
