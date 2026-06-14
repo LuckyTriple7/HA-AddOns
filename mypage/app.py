@@ -231,6 +231,7 @@ DEFAULT_SITE = {
         'indexnow': False,
         'allow_indexing': True,
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
+        'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
     'legal': {
@@ -1627,7 +1628,8 @@ def api_design():
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
                       ('maintenance_text_de', 1000), ('maintenance_text_en', 1000),
-                      ('egg_message', 200), ('egg_tagline', 200)):
+                      ('egg_message', 200), ('egg_tagline', 200),
+                      ('meta_description_de', 300), ('meta_description_en', 300)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
     if d.get('indexnow'):
@@ -2898,10 +2900,16 @@ def public_index():
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
 
+    # Meta-Description: eigene SEO-Beschreibung → Tagline → Bio-Auszug → Name (statt Nav-Labels)
+    bio_html = render_md(loc(site['profile'], 'bio'))
+    _bio_plain = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', bio_html or '')).strip()
+    meta_desc = (loc(site['design'], 'meta_description') or loc(site['profile'], 'tagline')
+                 or _bio_plain[:155] or site['design'].get('site_title') or site['profile'].get('name') or 'MyPage')
+
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
                            font_family=font_family, font_faces=font_faces,
-                           bio_html=render_md(loc(site['profile'], 'bio')),
+                           bio_html=bio_html, meta_desc=meta_desc,
                            email_parts=email_parts,
                            sections=sections,
                            albums=albums,

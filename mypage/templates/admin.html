@@ -482,6 +482,17 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_seo_desc }} (DE)</label>
+            <input type="text" id="d-meta_description_de" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
+          </div>
+          <div>
+            <label>{{ t.field_seo_desc }} (EN)</label>
+            <input type="text" id="d-meta_description_en" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.seo_desc_hint }}</p>
+        <div class="row">
+          <div>
             <label>{{ t.field_allow_indexing }}</label>
             <select id="d-allow_indexing">
               <option value="1">{{ t.yes }}</option>
@@ -2267,6 +2278,8 @@
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
+      el('d-meta_description_de').value = d.meta_description_de || '';
+      el('d-meta_description_en').value = d.meta_description_en || '';
       el('d-allow_indexing').value = (d.allow_indexing === false) ? '0' : '1';
       el('d-indexnow').value = d.indexnow ? '1' : '0';
       el('d-support_url').value = d.support_url || '';
@@ -2303,6 +2316,8 @@
         egg_message:     el('d-egg_message').value,
         egg_tagline:     el('d-egg_tagline').value,
         public_url:      el('d-public_url').value,
+        meta_description_de: el('d-meta_description_de').value,
+        meta_description_en: el('d-meta_description_en').value,
         allow_indexing:  el('d-allow_indexing').value === '1',
         indexnow:        el('d-indexnow').value === '1',
         support_url:     el('d-support_url').value,
