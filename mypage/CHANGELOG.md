@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.35
+
+- ✍️ **Markdown-Editor** für alle längeren Textfelder (Blog-Text, Projekt-Beschreibung, Bio, Tipps, FAQ-Antworten): Mini-Toolbar mit **Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, Link** und einem **Emoji-Picker** (😀) — „wie ein Mini-Office", erzeugt sauberes Markdown direkt im Textfeld.
+- 🌐 **Übersetzer-Button überschreibt nichts mehr**: „DE → EN" füllt jetzt nur noch **leere** englische Felder; vorhandene englische Texte bleiben unangetastet. Ist die Admin-Sprache bereits **EN**, wird der Button gar nicht mehr angezeigt.
+
 ## 0.6.34
 
 - 🎰 Slot-Fixes: Der „🔄 Aufladen"-Button erscheint jetzt **nur bei leerem Konto** (zuvor überschrieb er auch ein vorhandenes Guthaben mit 100). Das Guthaben bleibt beim Öffnen erhalten (kein automatisches Zurücksetzen mehr). Einsatz von **5 auf 10** erhöht.
