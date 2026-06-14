@@ -88,6 +88,32 @@
     .rule-opt h3 { font-size: 1rem; margin-bottom: 4px; }
     .rule-opt p { font-size: 0.8rem; opacity: 0.85; margin: 0; line-height: 1.45; }
     .rule-opt .act { color: var(--gold); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+    .banner .box.wide { width: min(620px, 92vw); }
+    .scrollbox { max-height: 62vh; overflow-y: auto; text-align: left; margin: 6px 0 14px;
+                 padding-right: 6px; }
+    .scrollbox.md { font-size: 0.86rem; line-height: 1.5; }
+    .scrollbox.md h1 { font-size: 1.2rem; margin: 12px 0 6px; }
+    .scrollbox.md h2 { font-size: 1.05rem; margin: 14px 0 6px; border:0; }
+    .scrollbox.md h3 { font-size: 0.95rem; margin: 10px 0 4px; }
+    .scrollbox.md p { opacity: 0.92; margin: 6px 0; }
+    .scrollbox.md ul, .scrollbox.md ol { margin: 6px 0 6px 18px; }
+    .scrollbox.md li { margin: 3px 0; }
+    .scrollbox.md hr { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 14px 0; }
+    .scrollbox.md table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.8rem; }
+    .scrollbox.md th, .scrollbox.md td { border: 1px solid rgba(255,255,255,0.18);
+                                         padding: 5px 8px; text-align: left; }
+    .scrollbox.md th { background: rgba(255,255,255,0.08); }
+    .scrollbox.md code { background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 4px; }
+    .scrollbox.md a { color: var(--gold); }
+    .hist-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px;
+                border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .hist-row .ico { font-size: 1.2rem; }
+    .hist-row .meta { flex: 1; min-width: 0; }
+    .hist-row .when { font-size: 0.82rem; }
+    .hist-row .tags { font-size: 0.72rem; opacity: 0.7; }
+    .hist-row .score { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .hist-row.win .score { color: var(--gold); }
+    .hist-empty { opacity: 0.7; padding: 16px 4px; text-align: center; }
     .cut-cards { display: flex; gap: 26px; justify-content: center; margin: 8px 0 14px; }
     .cut-lbl { font-size: 0.8rem; opacity: 0.85; margin-bottom: 6px; }
     .cut-img { height: clamp(100px, 22vh, 150px); width: auto; }
@@ -106,6 +132,8 @@
     <span class="spacer"></span>
     <button class="iconbtn" id="btn-level" title="{{ t.g66_level }}">🎚</button>
     <button class="iconbtn" id="btn-rules" title="{{ t.g66_rules }}">⚖</button>
+    <button class="iconbtn" id="btn-rulesdoc" title="{{ t.g66_rulesdoc }}">📖</button>
+    <button class="iconbtn" id="btn-history" title="{{ t.g66_history }}">🏅</button>
     <button class="iconbtn" id="btn-log" title="{{ t.g66_log }}">≡</button>
     <button class="iconbtn" id="btn-new" title="{{ t.g66_new }}">↻</button>
     <button class="iconbtn" id="btn-close" title="{{ t.g66_close_lbl }}">✕</button>
@@ -169,6 +197,22 @@
     </div>
   </div>
 
+  <div class="banner" id="history-modal">
+    <div class="box wide">
+      <h2>🏅 {{ t.g66_history }}</h2>
+      <div class="scrollbox" id="history-list"></div>
+      <button class="btn ghost" id="history-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="rulesdoc-modal">
+    <div class="box wide">
+      <h2>📖 {{ t.g66_rulesdoc }}</h2>
+      <div class="scrollbox md" id="rulesdoc-body"></div>
+      <button class="btn ghost" id="rulesdoc-cancel">✕</button>
+    </div>
+  </div>
+
   <div class="banner" id="cut-modal">
     <div class="box">
       <h2>🎲 {{ t.g66_cut_title }}</h2>
@@ -204,7 +248,9 @@
     level_easy: {{ t.g66_level_easy|tojson }}, level_easy_desc: {{ t.g66_level_easy_desc|tojson }},
     level_medium: {{ t.g66_level_medium|tojson }}, level_medium_desc: {{ t.g66_level_medium_desc|tojson }},
     level_hard: {{ t.g66_level_hard|tojson }}, level_hard_desc: {{ t.g66_level_hard_desc|tojson }},
-    level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }}
+    level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }},
+    history: {{ t.g66_history|tojson }}, history_empty: {{ t.g66_history_empty|tojson }},
+    history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }}
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
@@ -488,6 +534,56 @@
   function closeLevel(){ $('level-modal').classList.remove('show'); }
   async function chooseLevel(key){ closeLevel(); await newMatch(curRules, key); }
 
+  const fmtWhen = ts => {
+    try { return new Date(ts * 1000).toLocaleString(G.lang); }
+    catch(e){ return new Date(ts * 1000).toLocaleString(); }
+  };
+  async function openHistory(){
+    const list = $('history-list');
+    list.innerHTML = '';
+    $('history-modal').classList.add('show');
+    const r = await api('/api/66/history');
+    const games = (r && r.games) || [];
+    if (!games.length){
+      const e = document.createElement('div');
+      e.className = 'hist-empty'; e.textContent = G.history_empty;
+      list.appendChild(e); return;
+    }
+    games.forEach(gm => {
+      const win = gm.winner === 'p';
+      const row = document.createElement('div');
+      row.className = 'hist-row' + (win ? ' win' : '');
+      const ico = document.createElement('div');
+      ico.className = 'ico'; ico.textContent = win ? '🏆' : '🙂';
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const when = document.createElement('div');
+      when.className = 'when'; when.textContent = fmtWhen(gm.ts);
+      const tags = document.createElement('div');
+      tags.className = 'tags';
+      const rname = (gm.rules === 'oma') ? G.rules_oma : G.rules_std;
+      tags.textContent = rname + ' · ' + levelName(gm.level)
+        + ' · ' + (gm.deals || 0) + ' ' + G.history_deals;
+      meta.appendChild(when); meta.appendChild(tags);
+      const score = document.createElement('div');
+      score.className = 'score';
+      const bm = gm.bummerl || {};
+      score.textContent = (bm.p != null ? bm.p : '–') + ' : ' + (bm.a != null ? bm.a : '–');
+      row.appendChild(ico); row.appendChild(meta); row.appendChild(score);
+      list.appendChild(row);
+    });
+  }
+  function closeHistory(){ $('history-modal').classList.remove('show'); }
+
+  let rulesLoaded = false;
+  async function openRulesDoc(){
+    $('rulesdoc-modal').classList.add('show');
+    if (rulesLoaded) return;
+    const r = await api('/api/66/rules');
+    if (r && r.html){ $('rulesdoc-body').innerHTML = r.html; rulesLoaded = true; }
+  }
+  function closeRulesDoc(){ $('rulesdoc-modal').classList.remove('show'); }
+
   function closeGame(){
     if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
     else location.href = '/bereich';
@@ -500,11 +596,17 @@
   $('rules-cancel').onclick = closeRules;
   $('btn-level').onclick = openLevel;
   $('level-cancel').onclick = closeLevel;
+  $('btn-history').onclick = openHistory;
+  $('history-cancel').onclick = closeHistory;
+  $('btn-rulesdoc').onclick = openRulesDoc;
+  $('rulesdoc-cancel').onclick = closeRulesDoc;
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if ($('cut-modal').classList.contains('show')) return;  // erst "Los geht's"
     if ($('rules-modal').classList.contains('show')) closeRules();
     else if ($('level-modal').classList.contains('show')) closeLevel();
+    else if ($('history-modal').classList.contains('show')) closeHistory();
+    else if ($('rulesdoc-modal').classList.contains('show')) closeRulesDoc();
     else closeGame();
   });
 

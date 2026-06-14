@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.50
+
+- 🏅 **66: Spielverlauf** — über das neue 🏅-Menü siehst du deine **letzten beendeten Matches** mit **Datum & Uhrzeit**, **Endstand** (Bummerl), **Regelvariante**, **Schwierigkeitsgrad** und Anzahl der Partien. Wird pro Benutzer gespeichert (lokal, **nicht** auf dem SMB-Share, max. 50 Einträge) und ist geräteübergreifend abrufbar. Datum/Uhrzeit werden in deiner lokalen Zeitzone angezeigt.
+- 📖 **66: Spielregeln in der UI** — das 📖-Menü zeigt die kompletten Regeln (inkl. „Andys Oma" und Schwierigkeitsgrade) direkt im Spiel, gerendert aus dem mitgelieferten Regel-Dokument.
+- ✅ Neue Endpoints `GET /api/66/history` und `GET /api/66/rules`; Match-Ende wird einmalig (ohne Doppelzählung) aufgezeichnet. End-to-End getestet.
+
 ## 0.6.49
 
 - 🎚 **66: KI-Schwierigkeitsgrade** — über das neue 🎚-Menü wählbar: **Leicht**, **Mittel**, **Schwer** und **Adaptiv**. Ein Wechsel der Schwierigkeit startet (wie beim Regelwechsel) ein **neues Match**. Leicht/Mittel lassen die KI mit steigender Wahrscheinlichkeit unbedacht spielen, Schwer spielt durchgehend nach bester Strategie.

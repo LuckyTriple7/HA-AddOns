@@ -2753,6 +2753,60 @@ def save_game66(uid: str, state: dict) -> None:
     os.replace(tmp, p)  # atomar ersetzen → kein halb geschriebener Stand
 
 
+GAME66_HISTORY_MAX = 50
+
+
+def _game66_hist_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'66hist_{uid}.json'
+
+
+def load_game66_history(uid: str) -> list:
+    p = _game66_hist_path(uid)
+    if p is None:
+        return []
+    try:
+        with open(p, encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        log.warning("66-Verlauf defekt (%s): %s", uid[:8], e)
+        return []
+
+
+def append_game66_history(uid: str, entry: dict) -> None:
+    p = _game66_hist_path(uid)
+    if p is None:
+        return
+    hist = load_game66_history(uid)
+    hist.append(entry)
+    hist = hist[-GAME66_HISTORY_MAX:]
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(hist, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def _record_match_if_over(uid: str, st: dict) -> bool:
+    """Beendetes Match einmalig in den Verlauf schreiben. True, wenn aufgezeichnet."""
+    if st.get('status') != 'match_over' or st.get('recorded'):
+        return False
+    st['recorded'] = True
+    res = st.get('result') or {}
+    append_game66_history(uid, {
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': res.get('winner'),
+        'bummerl': dict(st.get('bummerl', {})),
+        'rules': st.get('rules', 'standard'),
+        'level': st.get('level', 'medium'),
+        'deals': st.get('deal_no', 0),
+    })
+    return True
+
+
 def _require_member():
     member = current_member(request)
     if member is None:
@@ -2787,6 +2841,8 @@ def api_game66_state():
         elif st['status'] == 'playing' and st['turn'] == 'a':
             game66.ai_run(st)
             save_game66(member['id'], st)
+        if _record_match_if_over(member['id'], st):
+            save_game66(member['id'], st)
     return jsonify(game66.public_view(st))
 
 
@@ -2812,6 +2868,7 @@ def api_game66_move():
         except game66.IllegalMove:
             # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
             return jsonify({'frames': [game66.public_view(st)]})
+        _record_match_if_over(member['id'], st)
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
 
@@ -2829,6 +2886,25 @@ def api_game66_new():
         frames = game66.deal_frames(st)  # KI-Eröffnung animierbar
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
+
+
+@public_app.route('/api/66/history')
+def api_game66_history():
+    member = _require_member()
+    hist = load_game66_history(member['id'])
+    return jsonify({'games': list(reversed(hist))})  # neueste zuerst
+
+
+@public_app.route('/api/66/rules')
+def api_game66_rules():
+    _require_member()
+    try:
+        text = (Path(_BASE) / '66_REGELN.md').read_text(encoding='utf-8')
+    except OSError:
+        text = ''
+    # Inhalt stammt aus dem mitgelieferten Repo-Dokument (kein Nutzer-Input)
+    html = md_lib.markdown(text, extensions=['tables', 'sane_lists'])
+    return jsonify({'html': html})
 
 
 @public_app.route('/sitemap.xml')

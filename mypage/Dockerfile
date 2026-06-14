@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY game66.py .
+COPY 66_REGELN.md .
 COPY icon.png .
 COPY fonts/ fonts/
 COPY templates/ templates/
