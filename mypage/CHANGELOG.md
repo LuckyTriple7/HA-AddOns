@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.69
+
+- 🐛 **66: KI-Karte fliegt jetzt zuverlässig** — die ausgespielte KI-Karte startet ihren Flug nun von einer **echten (verdeckten) Karte** der KI-Hand — genau wie deine Karte von ihrer Handposition fliegt. Vorher startete sie vom Hand-Container, der je nach Zustand Breite 0 hatte → kein Flug. Notfall-Start ist der Talon.
+
 ## 0.6.68
 
 - 🐛 **66: Austeil- & KI-Karten-Animation wirklich behoben** (im echten Browser mit Playwright getestet): Beim Austeilen wurden **nur die 5 Karten des Spielers** animiert — die 5 KI-Karten fielen aus, weil der leere KI-Handbereich auf Breite 0 zusammenfällt und der Kartenflug dann verworfen wurde. Jetzt werden **alle 10 Karten** über stabile Zielpunkte mittig über jedem Platz ausgeteilt. Dadurch fliegt auch die **erste KI-Karte** beim Partiebeginn zuverlässig ein (vorher zufällig mal ja, mal nein).

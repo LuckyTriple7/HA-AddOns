@@ -598,7 +598,12 @@
   // KI spielt eine Karte: vom Gegner-Handbereich auf den Tisch
   function flyAiCard(card){
     const oh = $('opp-hand');
-    return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60, ring: true});
+    // Von einer echten Rückseiten-Karte starten (wie beim Spieler); sonst Talon als Notfall
+    const back = oh && oh.querySelector('.pc');
+    let r = back && back.getBoundingClientRect();
+    if (!r || !r.width) r = oh && oh.getBoundingClientRect();
+    if (!r || !r.width) r = $('stockwrap').getBoundingClientRect();
+    return flyBetween(r, $('table-cards'), card, {z: 60, ring: true});
   }
 
   // KI tauscht den Trumpf-Buben: aufgedeckte Karte → KI-Hand, verdeckte → Trumpfplatz
