@@ -1220,6 +1220,22 @@
       });
     }
 
+    // Lokalisierte Spieltexte (folgen der Seitensprache)
+    const G = {
+      gameover: {{ t.g_gameover|tojson }}, restart: {{ t.g_restart|tojson }}, points: {{ t.g_points|tojson }},
+      best: {{ t.g_best|tojson }}, score: {{ t.g_score|tojson }}, snakeCtrl: {{ t.g_snake_ctrl|tojson }},
+      dinoJump: {{ t.g_dino_jump|tojson }}, pongCtrl: {{ t.g_pong_ctrl|tojson }}, you: {{ t.g_you|tojson }},
+      ai: {{ t.g_ai|tojson }}, memWin: {{ t.g_mem_win|tojson }}, memPlay: {{ t.g_mem_play|tojson }},
+      moves: {{ t.g_moves|tojson }}, credits: {{ t.g_credits|tojson }}, jackpot: {{ t.g_jackpot|tojson }},
+      spin: {{ t.g_spin|tojson }}, refill: {{ t.g_refill|tojson }}, refilled: {{ t.g_refilled|tojson }},
+      jackpotHit: {{ t.g_jackpot_hit|tojson }}, triple: {{ t.g_triple|tojson }}, twoeq: {{ t.g_twoeq|tojson }},
+      nowin: {{ t.g_nowin|tojson }}, nocredit: {{ t.g_nocredit|tojson }}, dealer: {{ t.g_dealer|tojson }},
+      hit: {{ t.g_hit|tojson }}, stand: {{ t.g_stand|tojson }}, newround: {{ t.g_newround|tojson }},
+      stake: {{ t.g_stake|tojson }}, nocreditRefill: {{ t.g_nocredit_refill|tojson }}, bust: {{ t.g_bust|tojson }},
+      blackjack: {{ t.g_blackjack|tojson }}, won: {{ t.g_won|tojson }}, lost: {{ t.g_lost|tojson }},
+      push: {{ t.g_push|tojson }}, cardsGoal: {{ t.g_cards_goal|tojson }}
+    };
+
     function gameSnake(mount) {
       const W = 17, H = 17, SZ = 18;
       const cv = document.createElement('canvas'); cv.width = W * SZ; cv.height = H * SZ; cv.className = 'game-canvas';
@@ -1260,11 +1276,11 @@
         if (dead) {
           ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(0, 0, cv.width, cv.height);
           ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-          ctx.font = 'bold 22px sans-serif'; ctx.fillText('Game Over', cv.width / 2, cv.height / 2 - 6);
-          ctx.font = '13px sans-serif'; ctx.fillText('Leertaste/Tippen = neu', cv.width / 2, cv.height / 2 + 18);
+          ctx.font = 'bold 22px sans-serif'; ctx.fillText(G.gameover, cv.width / 2, cv.height / 2 - 6);
+          ctx.font = '13px sans-serif'; ctx.fillText(G.restart, cv.width / 2, cv.height / 2 + 18);
           ctx.textAlign = 'left';
         }
-        info.textContent = 'Pfeiltasten/WASD · Punkte ' + score + ' · Best ' + hi;
+        info.textContent = G.snakeCtrl + ' · ' + G.points + ' ' + score + ' · ' + G.best + ' ' + hi;
       }, 120);
       return () => { clearInterval(iv); document.removeEventListener('keydown', onKey); };
     }
@@ -1292,7 +1308,7 @@
         ctx.strokeStyle = '#30363d'; ctx.beginPath(); ctx.moveTo(0, G + 2); ctx.lineTo(cv.width, G + 2); ctx.stroke();
         ctx.font = '22px serif'; ctx.fillText('🦖', 40, G + y);
         ctx.fillStyle = '#2da44e'; obs.forEach(o => ctx.fillRect(o.x, G + 2 - o.h, o.w, o.h));
-        info.textContent = dead ? ('Game Over · Score ' + (score / 10 | 0) + ' · Best ' + hi + ' — Leertaste/Tippen = neu') : ('Leertaste/Tippen = springen · Score ' + (score / 10 | 0) + ' · Best ' + hi);
+        info.textContent = dead ? (G.gameover + ' · ' + G.score + ' ' + (score / 10 | 0) + ' · ' + G.best + ' ' + hi + ' — ' + G.restart) : (G.dinoJump + ' · ' + G.score + ' ' + (score / 10 | 0) + ' · ' + G.best + ' ' + hi);
       }, 1000 / 60);
       return () => { clearInterval(iv); document.removeEventListener('keydown', onKey); };
     }
@@ -1319,7 +1335,7 @@
         ctx.fillStyle = '#58a6ff'; ctx.fillRect(12, py, PW, PH);
         ctx.fillStyle = '#e74c3c'; ctx.fillRect(cv.width - 20, ay, PW, PH);
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by, 5, 0, 7); ctx.fill();
-        info.textContent = 'Maus/Touch = Schläger · Du ' + ps + ' : ' + as + ' KI';
+        info.textContent = G.pongCtrl + ' · ' + G.you + ' ' + ps + ' : ' + as + ' ' + G.ai;
       }, 1000 / 60);
       return () => clearInterval(iv);
     }
@@ -1343,7 +1359,7 @@
           if (c.open || c.done) { if (useEmoji) d.textContent = c.v; else { const im = document.createElement('img'); im.src = c.v; d.appendChild(im); } }
           d.onclick = () => flip(idx); grid.appendChild(d);
         });
-        info.textContent = found === faces.length ? ('Geschafft! Züge: ' + moves) : ('Finde die Paare · Züge: ' + moves);
+        info.textContent = found === faces.length ? (G.memWin + ' ' + G.moves + ' ' + moves) : (G.memPlay + ' · ' + G.moves + ' ' + moves);
       }
       function flip(idx) {
         const c = deck[idx]; if (lock || c.open || c.done) return;
@@ -1367,39 +1383,39 @@
       const cells = [0, 1, 2].map(() => { const c = document.createElement('div'); c.className = 'slot-cell'; c.textContent = '❔'; reels.appendChild(c); return c; });
       const cr = document.createElement('div'); cr.className = 'game-info';
       const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap';
-      const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 Drehen (−5)';
-      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 Aufladen';
+      const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 ' + G.spin;
+      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 ' + G.refill;
       ctrl.append(btn, refill);
       const msg = document.createElement('div'); msg.className = 'game-info';
       mount.append(jp, reels, cr, ctrl, msg);
       let spinning = false, timers = [], jackpot = 500;
-      function upd() { cr.textContent = 'Guthaben: ' + credits; }
-      function updJp() { jp.textContent = '💰 Jackpot: ' + jackpot; }
+      function upd() { cr.textContent = G.credits + ': ' + credits; }
+      function updJp() { jp.textContent = '💰 ' + G.jackpot + ': ' + jackpot; }
       upd();
       // Aktuellen (serverweiten) Jackpot holen
       fetch('api/slot', { credentials: 'same-origin' }).then(r => r.json()).then(d => { jackpot = d.jackpot; updJp(); }).catch(() => updJp());
-      refill.onclick = () => { credits = 100; localStorage.setItem('mg-slot-cr', credits); upd(); btn.disabled = false; msg.textContent = '🔄 Aufgeladen: 100'; };
+      refill.onclick = () => { credits = 100; localStorage.setItem('mg-slot-cr', credits); upd(); btn.disabled = false; msg.textContent = '🔄 ' + G.refilled; };
       function finish(res) {
         const SEVEN = '7️⃣';
         spinning = false; btn.disabled = false;
         if (res[0] === res[1] && res[1] === res[2] && res[0] === SEVEN) {
-          beep([523, 659, 784, 1047, 1319], 0.12); msg.textContent = '🎉 JACKPOT 777! …';
+          beep([523, 659, 784, 1047, 1319], 0.12); msg.textContent = G.jackpotHit + ' …';
           // Jackpot serverseitig auszahlen (exakter Betrag) und auf 500 zurücksetzen
           fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: true }) })
-            .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = '🎉 JACKPOT 777!  +' + d.won; })
-            .catch(() => { credits += jackpot; localStorage.setItem('mg-slot-cr', credits); upd(); msg.textContent = '🎉 JACKPOT 777!  +' + jackpot; });
+            .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = G.jackpotHit + '  +' + d.won; })
+            .catch(() => { credits += jackpot; localStorage.setItem('mg-slot-cr', credits); upd(); msg.textContent = G.jackpotHit + '  +' + jackpot; });
           return;
         }
         let win = 0, txt = '';
-        if (res[0] === res[1] && res[1] === res[2]) { win = 200; txt = '✨ Dreierpasch ' + res[0] + '  +200'; beep([523, 784, 1047], 0.13); }
-        else if (res[0] === res[1]) { win = 50; txt = '👍 Zwei Gleiche  +50'; beep([659, 880], 0.12); }
-        else { txt = 'Kein Gewinn — nochmal?'; beep([220, 165], 0.1, 'sine'); }
+        if (res[0] === res[1] && res[1] === res[2]) { win = 200; txt = '✨ ' + G.triple + ' ' + res[0] + '  +200'; beep([523, 784, 1047], 0.13); }
+        else if (res[0] === res[1]) { win = 50; txt = G.twoeq; beep([659, 880], 0.12); }
+        else { txt = G.nowin; beep([220, 165], 0.1, 'sine'); }
         credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
         msg.textContent = txt;
       }
       function spin() {
         if (spinning) return;
-        if (credits < 5) { msg.textContent = 'Kein Guthaben mehr.'; return; }
+        if (credits < 5) { msg.textContent = G.nocredit; return; }
         audioReady();
         spinning = true; credits -= 5; upd(); msg.textContent = ''; btn.disabled = true;
         // Jeder Lauf erhöht den serverweiten Jackpot um 1
@@ -1425,10 +1441,10 @@
       const prow = document.createElement('div'); prow.className = 'cards-row';
       const cr = document.createElement('div'); cr.className = 'game-info';
       const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px';
-      const bHit = document.createElement('button'); bHit.className = 'btn-spin'; bHit.textContent = '🃏 Karte';
-      const bStand = document.createElement('button'); bStand.className = 'btn-spin'; bStand.textContent = '✋ Halten';
-      const bNew = document.createElement('button'); bNew.className = 'btn-spin'; bNew.textContent = '▶ Neue Runde';
-      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 Aufladen';
+      const bHit = document.createElement('button'); bHit.className = 'btn-spin'; bHit.textContent = '🃏 ' + G.hit;
+      const bStand = document.createElement('button'); bStand.className = 'btn-spin'; bStand.textContent = '✋ ' + G.stand;
+      const bNew = document.createElement('button'); bNew.className = 'btn-spin'; bNew.textContent = '▶ ' + G.newround;
+      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 ' + G.refill;
       ctrl.append(bNew, bHit, bStand, refill);
       const msg = document.createElement('div'); msg.className = 'game-info';
       mount.append(dl, drow, pl, prow, cr, ctrl, msg);
@@ -1439,20 +1455,20 @@
         if (hidden) { d.className = 'pcard back'; d.textContent = '?'; return d; }
         d.className = 'pcard' + (c.s === '♥' || c.s === '♦' ? ' red' : ''); d.textContent = c.r + c.s; return d;
       }
-      function upd() { cr.textContent = 'Guthaben: ' + credits + ' · Einsatz 10'; }
+      function upd() { cr.textContent = G.credits + ': ' + credits + ' · ' + G.stake; }
       function render() {
         drow.innerHTML = ''; prow.innerHTML = '';
         dealer.forEach((c, i) => drow.appendChild(card(c, state === 'playing' && i === 1)));
         player.forEach(c => prow.appendChild(card(c)));
-        dl.textContent = 'Dealer: ' + (state === 'playing' ? '?' : (dealer.length ? val(dealer) : ''));
-        pl.textContent = 'Du: ' + (player.length ? val(player) : '');
+        dl.textContent = G.dealer + ': ' + (state === 'playing' ? '?' : (dealer.length ? val(dealer) : ''));
+        pl.textContent = G.you + ': ' + (player.length ? val(player) : '');
         bHit.disabled = bStand.disabled = state !== 'playing';
         bNew.disabled = state === 'playing';
         upd();
       }
       function newRound() {
         if (state === 'playing') return;
-        if (credits < 10) { msg.textContent = 'Kein Guthaben — 🔄 Aufladen.'; return; }
+        if (credits < 10) { msg.textContent = G.nocreditRefill; return; }
         audioReady();
         deck = []; SUITS.forEach(s => RANKS.forEach(r => deck.push({ r, s })));
         for (let i = deck.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
@@ -1464,17 +1480,17 @@
       function stand() { if (state !== 'playing') return; while (val(dealer) < 17) dealer.push(deck.pop()); state = 'done'; settle(); render(); }
       function settle() {
         const pv = val(player), dv = val(dealer); let delta, txt;
-        if (pv > 21) { delta = -10; txt = '💥 Überkauft – verloren −10'; }
-        else if (dv > 21 || pv > dv) { if (pv === 21 && player.length === 2) { delta = 15; txt = '🃏 Blackjack! +15'; } else { delta = 10; txt = '🎉 Gewonnen +10'; } }
-        else if (pv < dv) { delta = -10; txt = 'Verloren −10'; }
-        else { delta = 0; txt = 'Unentschieden ±0'; }
+        if (pv > 21) { delta = -10; txt = G.bust; }
+        else if (dv > 21 || pv > dv) { if (pv === 21 && player.length === 2) { delta = 15; txt = G.blackjack; } else { delta = 10; txt = G.won; } }
+        else if (pv < dv) { delta = -10; txt = G.lost; }
+        else { delta = 0; txt = G.push; }
         credits += delta; localStorage.setItem('mg-cards-cr', credits);
         if (delta > 0) beep([523, 784, 1047], 0.12); else if (delta < 0) beep([220, 165], 0.1, 'sine');
         msg.textContent = txt;
       }
       bHit.onclick = hit; bStand.onclick = stand; bNew.onclick = newRound;
-      refill.onclick = () => { credits = 100; localStorage.setItem('mg-cards-cr', credits); upd(); msg.textContent = '🔄 Aufgeladen: 100'; };
-      render(); msg.textContent = 'Ziel: näher an 21 als der Dealer, ohne zu überkaufen.';
+      refill.onclick = () => { credits = 100; localStorage.setItem('mg-cards-cr', credits); upd(); msg.textContent = '🔄 ' + G.refilled; };
+      render(); msg.textContent = G.cardsGoal;
       return () => {};
     }
   </script>
