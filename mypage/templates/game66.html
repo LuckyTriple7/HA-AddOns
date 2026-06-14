@@ -54,6 +54,9 @@
     .table-cards { display: flex; gap: 14px; align-items: center; min-height: clamp(86px, 20vh, 146px); }
     .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
     .table-cards .follow { transform: translateY(6px) rotate(4deg); }
+    @keyframes cardFade { from { opacity: 0; } to { opacity: 1; } }
+    .table-cards .pc { animation: cardFade 0.26s ease; }
+    @media (prefers-reduced-motion: reduce) { .table-cards .pc { animation: none; } }
     .actionbar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 2px; min-height: 40px; }
     .btn {
       background: var(--gold); color: #20160a; border: none; padding: 9px 16px; border-radius: 8px;
@@ -163,16 +166,34 @@
     } catch(e){ $('hint').textContent = G.err; return null; }
   }
 
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
   async function loadState(){ const v = await api('/api/66/state'); if (v) render(v); }
+
+  // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
+  async function playFrames(frames){
+    for (let i = 0; i < frames.length; i++){
+      render(frames[i]);
+      if (i < frames.length - 1){
+        const n = (frames[i].table || []).length;
+        await sleep(n >= 2 ? 1250 : (n === 1 ? 600 : 480));
+      }
+    }
+  }
+
+  async function applyResult(r){
+    if (r && r.frames) await playFrames(r.frames);
+    else if (r) render(r);
+  }
 
   async function send(action){
     if (busy) return; busy = true;
-    const v = await api('/api/66/move', {
+    const r = await api('/api/66/move', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action})
     });
+    await applyResult(r);
     busy = false;
-    if (v) render(v);
   }
 
   function hasLegal(pred){ return (V.legal || []).some(pred); }
@@ -251,6 +272,7 @@
   }
 
   function onCard(card){
+    if (busy) return;
     const canMarry = hasLegal(a => a.type === 'play' && a.card === card && a.marry);
     if (canMarry && confirm(G.marry_ask)){ send({type: 'play', card, marry: true}); return; }
     send({type: 'play', card});
@@ -290,8 +312,10 @@
   }
 
   async function newMatch(){
-    const v = await api('/api/66/new', {method: 'POST'});
-    if (v) render(v);
+    if (busy) return; busy = true;
+    const r = await api('/api/66/new', {method: 'POST'});
+    await applyResult(r);
+    busy = false;
   }
 
   function closeGame(){

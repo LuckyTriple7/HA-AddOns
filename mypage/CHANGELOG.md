@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.47
+
+- 🎬 **66: Stiche werden jetzt animiert abgespielt.** Bisher sprang die Anzeige nach einem Stich sofort zum Endzustand — die gespielten Karten waren kaum zu sehen. Der Server liefert pro Zug nun eine Folge von **Zwischenbildern**, die der Client mit kurzen Pausen abspielt: der **volle Stich (deine Karte + die der KI) bleibt ~1,25 s sichtbar liegen**, bevor abgeräumt wird; Karten auf dem Tisch werden sanft eingeblendet. Eingaben sind während der Animation gesperrt. Respektiert „Bewegung reduzieren".
+
 ## 0.6.46
 
 - 🃏 **Neues Mitglieder-Spiel: 66 (Sechsundsechzig)** — das klassische Stichspiel gegen eine **KI**. Nur für angemeldete Benutzer (im persönlichen Bereich), öffnet sich als **Vollfenster-Iframe** (kein Browser-Vollbild). 20-Karten-Variante (ohne Neuner, je 5 Karten): Hochzeiten (20/40), Trumpf-Bube tauschen, Zudrehen, Ausmelden bei 66 Augen; Wertung 1/2/3 Spielpunkte, Match (Bummerl) bis 7.

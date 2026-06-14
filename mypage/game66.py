@@ -180,6 +180,7 @@ def _do_exchange(state: dict, who: str) -> None:
     state['stock'][-1] = jack
     _log(state, 'exchange', f'{_name(who)}: Trumpf-Bube getauscht',
          f'{_name(who, True)}: trump jack exchanged', who)
+    _capture(state)
 
 
 def _do_close(state: dict, who: str) -> None:
@@ -195,6 +196,7 @@ def _do_close(state: dict, who: str) -> None:
     state['closed_opp_trick'] = state['has_trick'][opp]
     _log(state, 'close', f'{_name(who)} dreht den Talon zu',
          f'{_name(who, True)} closes the talon', who)
+    _capture(state)
 
 
 def _do_play(state: dict, who: str, action: dict) -> None:
@@ -215,6 +217,7 @@ def _do_play(state: dict, who: str, action: dict) -> None:
 
     hand.remove(card)
     state['table'].append({'who': who, 'card': card})
+    _capture(state)  # Karte(n) auf dem Tisch sichtbar machen (bei 2 = voller Stich)
     if len(state['table']) == 2:
         _resolve_trick(state)
     else:
@@ -235,6 +238,7 @@ def _announce_marriage(state: dict, who: str, card: str) -> None:
     state['melds'][who].append(s)
     _log(state, 'marriage', f'{_name(who)} sagt {bonus} an ({s})',
          f'{_name(who, True)} announces {bonus} ({s})', who)
+    _capture(state)
     if usable(state, who) >= WIN_SCORE:
         _finish_deal(state, who, 'made_66')
 
@@ -266,6 +270,7 @@ def _resolve_trick(state: dict) -> None:
     state['lead'] = winner
     state['turn'] = winner
     _check_deal_end(state)
+    _capture(state)  # Tisch abgeräumt, Punkte/Nachzug aktualisiert
 
 
 # ── Partie-Ende & Wertung ─────────────────────────────────────────────────────
@@ -368,6 +373,51 @@ def legal_actions(state: dict, who: str) -> list:
 
 
 # ── KI ────────────────────────────────────────────────────────────────────────
+
+def _capture(state: dict) -> None:
+    """Zwischenbild für die Animation festhalten (nur wenn ein Sammler aktiv ist)."""
+    cap = state.get('_cap')
+    if cap is not None:
+        cap.append(public_view(state))
+
+
+def _dedupe(frames: list, state: dict) -> list:
+    out = []
+    for f in frames:
+        if not out or out[-1] != f:
+            out.append(f)
+    final = public_view(state)
+    if not out or out[-1] != final:
+        out.append(final)
+    return out
+
+
+def apply_player_frames(state: dict, action: dict) -> list:
+    """Spielerzug + KI anwenden und die Folge der sichtbaren Zwischenbilder liefern.
+
+    Der Client spielt die Frames mit kurzen Pausen ab, sodass ein voller Stich
+    (zwei Karten auf dem Tisch) sichtbar liegen bleibt, bevor abgeräumt wird.
+    """
+    frames: list = []
+    state['_cap'] = frames
+    try:
+        apply_action(state, 'p', action)
+        ai_run(state)
+    finally:
+        state.pop('_cap', None)
+    return _dedupe(frames, state)
+
+
+def deal_frames(state: dict) -> list:
+    """Nur die KI laufen lassen (z. B. KI-Eröffnung) und Frames sammeln."""
+    frames: list = []
+    state['_cap'] = frames
+    try:
+        ai_run(state)
+    finally:
+        state.pop('_cap', None)
+    return _dedupe(frames, state)
+
 
 def ai_run(state: dict) -> None:
     """Lässt die KI ziehen, solange sie am Zug ist (auch Folgestiche)."""

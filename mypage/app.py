@@ -2808,13 +2808,12 @@ def api_game66_move():
         if st is None:
             abort(409)  # kein laufendes Spiel → Client soll /state holen
         try:
-            game66.apply_action(st, 'p', act)
-            game66.ai_run(st)
+            frames = game66.apply_player_frames(st, act)
         except game66.IllegalMove:
             # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
-            return jsonify(game66.public_view(st))
+            return jsonify({'frames': [game66.public_view(st)]})
         save_game66(member['id'], st)
-    return jsonify(game66.public_view(st))
+    return jsonify({'frames': frames})
 
 
 @public_app.route('/api/66/new', methods=['POST'])
@@ -2822,9 +2821,9 @@ def api_game66_new():
     member = _require_member()
     with _game_lock:
         st = game66.new_match()
-        game66.ai_run(st)
+        frames = game66.deal_frames(st)  # KI-Eröffnung animierbar
         save_game66(member['id'], st)
-    return jsonify(game66.public_view(st))
+    return jsonify({'frames': frames})
 
 
 @public_app.route('/sitemap.xml')
