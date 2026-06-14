@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.51
+
+- ⚙ **66: Animations-Tempo einstellbar** — über das neue ⚙-Menü lassen sich die **Bewegungsdauer der Karte** und die **Liegezeit eines Stichs** per Schieberegler frei einstellen (statt fest verdrahtet). Die Werte werden **im Browser gespeichert** und gelten ab dem nächsten Zug; ein Klick auf „Zurücksetzen" stellt die Standardwerte wieder her.
+
 ## 0.6.50
 
 - 🏅 **66: Spielverlauf** — über das neue 🏅-Menü siehst du deine **letzten beendeten Matches** mit **Datum & Uhrzeit**, **Endstand** (Bummerl), **Regelvariante**, **Schwierigkeitsgrad** und Anzahl der Partien. Wird pro Benutzer gespeichert (lokal, **nicht** auf dem SMB-Share, max. 50 Einträge) und ist geräteübergreifend abrufbar. Datum/Uhrzeit werden in deiner lokalen Zeitzone angezeigt.

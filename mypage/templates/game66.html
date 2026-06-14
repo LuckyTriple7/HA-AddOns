@@ -114,6 +114,11 @@
     .hist-row .score { font-weight: 700; font-variant-numeric: tabular-nums; }
     .hist-row.win .score { color: var(--gold); }
     .hist-empty { opacity: 0.7; padding: 16px 4px; text-align: center; }
+    .setting { text-align: left; margin: 12px 0; width: min(340px, 80vw); }
+    .setting label { display: block; font-size: 0.86rem; margin-bottom: 7px; }
+    .setting label b { color: var(--gold); font-variant-numeric: tabular-nums; }
+    .setting input[type=range] { width: 100%; accent-color: var(--gold); }
+    .setting-hint { font-size: 0.74rem; opacity: 0.7; margin: 4px 0 16px; max-width: 340px; }
     .cut-cards { display: flex; gap: 26px; justify-content: center; margin: 8px 0 14px; }
     .cut-lbl { font-size: 0.8rem; opacity: 0.85; margin-bottom: 6px; }
     .cut-img { height: clamp(100px, 22vh, 150px); width: auto; }
@@ -134,6 +139,7 @@
     <button class="iconbtn" id="btn-rules" title="{{ t.g66_rules }}">⚖</button>
     <button class="iconbtn" id="btn-rulesdoc" title="{{ t.g66_rulesdoc }}">📖</button>
     <button class="iconbtn" id="btn-history" title="{{ t.g66_history }}">🏅</button>
+    <button class="iconbtn" id="btn-settings" title="{{ t.g66_settings }}">⚙</button>
     <button class="iconbtn" id="btn-log" title="{{ t.g66_log }}">≡</button>
     <button class="iconbtn" id="btn-new" title="{{ t.g66_new }}">↻</button>
     <button class="iconbtn" id="btn-close" title="{{ t.g66_close_lbl }}">✕</button>
@@ -213,6 +219,23 @@
     </div>
   </div>
 
+  <div class="banner" id="settings-modal">
+    <div class="box">
+      <h2>⚙ {{ t.g66_settings }}</h2>
+      <div class="setting">
+        <label>{{ t.g66_speed_move }}: <b id="fly-val"></b></label>
+        <input type="range" id="fly-range" min="120" max="800" step="20">
+      </div>
+      <div class="setting">
+        <label>{{ t.g66_speed_linger }}: <b id="linger-val"></b></label>
+        <input type="range" id="linger-range" min="300" max="3000" step="50">
+      </div>
+      <p class="setting-hint">{{ t.g66_settings_hint }}</p>
+      <button class="btn ghost" id="settings-reset">{{ t.g66_reset }}</button>
+      <button class="btn" id="settings-cancel">✕</button>
+    </div>
+  </div>
+
   <div class="banner" id="cut-modal">
     <div class="box">
       <h2>🎲 {{ t.g66_cut_title }}</h2>
@@ -250,7 +273,8 @@
     level_hard: {{ t.g66_level_hard|tojson }}, level_hard_desc: {{ t.g66_level_hard_desc|tojson }},
     level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }},
     history: {{ t.g66_history|tojson }}, history_empty: {{ t.g66_history_empty|tojson }},
-    history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }}
+    history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }},
+    settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }}
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
@@ -264,6 +288,13 @@
   const levelName = key => ({easy: G.level_easy, medium: G.level_medium,
     hard: G.level_hard, adaptive: G.level_adaptive}[key] || G.level_medium);
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Anpassbare Timings (im Browser gespeichert): Kartenflug + Liegezeit eines Stichs
+  const FLY_DEFAULT = 380, LINGER_DEFAULT = 1250;
+  const clampInt = (v, lo, hi, def) => {
+    v = parseInt(v, 10); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
+  };
+  let flyMs = clampInt(localStorage.getItem('g66_fly'), 120, 800, FLY_DEFAULT);
+  let lingerMs = clampInt(localStorage.getItem('g66_linger'), 300, 3000, LINGER_DEFAULT);
 
   function cardImg(code, cls){
     const i = document.createElement('img');
@@ -309,7 +340,8 @@
       render(frames[i]);
       if (i < frames.length - 1){
         const n = (frames[i].table || []).length;
-        await sleep(n >= 2 ? 1250 : (n === 1 ? 600 : 480));
+        await sleep(n >= 2 ? lingerMs
+                  : (n === 1 ? Math.round(lingerMs * 0.48) : Math.round(lingerMs * 0.38)));
       }
     }
   }
@@ -346,7 +378,8 @@
       const clone = sImg.cloneNode(true);
       clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
         + 'left:' + s.left + 'px;top:' + s.top + 'px;height:' + s.height + 'px;width:auto;'
-        + 'transition:transform .3s cubic-bezier(.4,.8,.3,1),opacity .3s ease;'
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+        + (flyMs / 1000) + 's ease;'
         + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
       document.body.appendChild(clone);
       slot.style.visibility = 'hidden';
@@ -356,7 +389,7 @@
       let done = false;
       const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
       clone.addEventListener('transitionend', fin, {once: true});
-      setTimeout(fin, 380);
+      setTimeout(fin, flyMs + 60);
     });
   }
 
@@ -584,6 +617,15 @@
   }
   function closeRulesDoc(){ $('rulesdoc-modal').classList.remove('show'); }
 
+  const fmtSec = ms => (ms / 1000).toFixed(2).replace('.', (G.lang || '').startsWith('de') ? ',' : '.') + ' s';
+  function refreshSettings(){
+    $('fly-range').value = flyMs; $('linger-range').value = lingerMs;
+    $('fly-val').textContent = fmtSec(flyMs);
+    $('linger-val').textContent = fmtSec(lingerMs);
+  }
+  function openSettings(){ refreshSettings(); $('settings-modal').classList.add('show'); }
+  function closeSettings(){ $('settings-modal').classList.remove('show'); }
+
   function closeGame(){
     if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
     else location.href = '/bereich';
@@ -600,6 +642,21 @@
   $('history-cancel').onclick = closeHistory;
   $('btn-rulesdoc').onclick = openRulesDoc;
   $('rulesdoc-cancel').onclick = closeRulesDoc;
+  $('btn-settings').onclick = openSettings;
+  $('settings-cancel').onclick = closeSettings;
+  $('fly-range').oninput = e => {
+    flyMs = clampInt(e.target.value, 120, 800, FLY_DEFAULT);
+    $('fly-val').textContent = fmtSec(flyMs); localStorage.setItem('g66_fly', flyMs);
+  };
+  $('linger-range').oninput = e => {
+    lingerMs = clampInt(e.target.value, 300, 3000, LINGER_DEFAULT);
+    $('linger-val').textContent = fmtSec(lingerMs); localStorage.setItem('g66_linger', lingerMs);
+  };
+  $('settings-reset').onclick = () => {
+    flyMs = FLY_DEFAULT; lingerMs = LINGER_DEFAULT;
+    localStorage.setItem('g66_fly', flyMs); localStorage.setItem('g66_linger', lingerMs);
+    refreshSettings();
+  };
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if ($('cut-modal').classList.contains('show')) return;  // erst "Los geht's"
@@ -607,6 +664,7 @@
     else if ($('level-modal').classList.contains('show')) closeLevel();
     else if ($('history-modal').classList.contains('show')) closeHistory();
     else if ($('rulesdoc-modal').classList.contains('show')) closeRulesDoc();
+    else if ($('settings-modal').classList.contains('show')) closeSettings();
     else closeGame();
   });
 
