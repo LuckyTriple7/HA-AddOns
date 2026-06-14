@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.26
+
+- 🐞 **Snake-Fix**: Trifft die Schlange den Rand oder sich selbst, kommt jetzt **Game Over** (mit Bestwert) und ein **Neustart** per Leertaste/Tippen — vorher lief das Spiel einfach weiter.
+- 🎰 **Slot Machine** als fünftes Mini-Game: Drehen kostet Guthaben, **777 = Jackpot**, drei gleiche = großer Gewinn, die zwei linken gleich = kleiner Gewinn. Guthaben wird lokal gespeichert.
+
 ## 0.6.25
 
 - 🎮 **Mini Games**: Optionaler Footer-Link „Mini Games" (Design-Tab, Standard: aus) öffnet ein kleines Menü mit vier selbst gehosteten Spielen — **Snake**, **Dino-Runner**, **Pong** (gegen KI) und **Foto-Memory** (nutzt automatisch deine Fotoalbum-Bilder, sonst Emojis). Highscores für Snake/Dino werden lokal im Browser gespeichert. Keine externen Libraries.
