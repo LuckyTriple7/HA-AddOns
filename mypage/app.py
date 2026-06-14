@@ -119,6 +119,7 @@ _site_lock  = threading.Lock()
 _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
+_slot_lock  = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -264,6 +265,7 @@ DEFAULT_SITE = {
     'tips_random': False,
     'tips_stats': {},
     'indexnow_key': '',
+    'slot_jackpot': 500,
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -2660,6 +2662,24 @@ def indexnow_keyfile(key: str):
     if re.fullmatch(r'[a-f0-9]{32}', key or '') and key == site.get('indexnow_key'):
         return key, 200, {'Content-Type': 'text/plain'}
     abort(404)
+
+
+@public_app.route('/api/slot', methods=['GET', 'POST'])
+def api_slot():
+    """Progressiver Slot-Jackpot (für alle Besucher gemeinsam): jeder Spin +1, bei 777 zurück auf 500."""
+    with _slot_lock:
+        site = load_site()
+        jp = int(site.get('slot_jackpot') or 500)
+        if request.method == 'POST':
+            data = request.get_json(silent=True) or {}
+            if data.get('win'):
+                site['slot_jackpot'] = 500
+                save_site(site)
+                return jsonify({'jackpot': 500, 'won': jp})
+            jp = min(jp + 1, 100_000_000)
+            site['slot_jackpot'] = jp
+            save_site(site)
+    return jsonify({'jackpot': jp})
 
 
 @public_app.route('/sitemap.xml')

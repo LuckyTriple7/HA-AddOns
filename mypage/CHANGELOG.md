@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.28
+
+- 🎰 Slot-Auszahlungen angehoben: Zwei Gleiche **+50**, Dreierpasch **+200**.
+- 💰 **Progressiver Jackpot** (serverseitig, für alle Besucher gemeinsam): startet bei **500**, jeder Spin erhöht ihn um **1**; wer **777** trifft, gewinnt den aktuellen Stand, danach springt er zurück auf 500. Wird in der `site.json` gespeichert.
+
 ## 0.6.27
 
 - 🎰 Slot Machine: Leeres Guthaben wird beim Öffnen automatisch wieder auf 100 gesetzt, plus ein **„🔄 Aufladen"-Button** für jederzeit frisches Guthaben — man bleibt also nie stecken.
