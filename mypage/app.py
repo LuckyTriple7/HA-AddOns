@@ -274,6 +274,19 @@ def render_md(text: str) -> str:
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
 
 
+def _plain_excerpt(s: str, limit: int = 155) -> str:
+    """HTML/Markdown-Text in einen kurzen Klartext-Auszug für Meta-Description wandeln."""
+    txt = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s or '')).strip()
+    return txt[:limit].rstrip()
+
+
+def _site_meta(site: dict, loc) -> str:
+    """Basis-Beschreibung der Seite: eigenes SEO-Feld → Tagline → Bio-Auszug → Name."""
+    d, p = site['design'], site['profile']
+    return (loc(d, 'meta_description') or loc(p, 'tagline')
+            or _plain_excerpt(render_md(loc(p, 'bio'))) or d.get('site_title') or p.get('name') or 'MyPage')
+
+
 # Social-Plattform-Erkennung anhand des Hostnamens (für Auto-Icons bei Links)
 _SOCIAL_HOSTS = {
     'github.com': 'github', 'gitlab.com': 'gitlab',
@@ -1219,6 +1232,8 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
     p['text_en']   = _clean_str(raw.get('text_en'), 30000)
     p['image']     = _clean_str(raw.get('image'), 500)
     p['video']     = _clean_str(raw.get('video'), 500)
+    p['meta_de']   = _clean_str(raw.get('meta_de'), 300)
+    p['meta_en']   = _clean_str(raw.get('meta_en'), 300)
     gallery = raw.get('gallery') or []
     if isinstance(gallery, list):
         p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:30]
@@ -2900,16 +2915,11 @@ def public_index():
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
 
-    # Meta-Description: eigene SEO-Beschreibung → Tagline → Bio-Auszug → Name (statt Nav-Labels)
-    bio_html = render_md(loc(site['profile'], 'bio'))
-    _bio_plain = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', bio_html or '')).strip()
-    meta_desc = (loc(site['design'], 'meta_description') or loc(site['profile'], 'tagline')
-                 or _bio_plain[:155] or site['design'].get('site_title') or site['profile'].get('name') or 'MyPage')
-
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
                            font_family=font_family, font_faces=font_faces,
-                           bio_html=bio_html, meta_desc=meta_desc,
+                           bio_html=render_md(loc(site['profile'], 'bio')),
+                           meta_desc=_site_meta(site, loc),
                            email_parts=email_parts,
                            sections=sections,
                            albums=albums,
@@ -2940,7 +2950,8 @@ def blog_index():
     t = load_translations(lang)
     loc = _loc_factory(lang)
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
-                           posts=posts, year=datetime.now(timezone.utc).year)
+                           posts=posts, meta_desc=_site_meta(site, loc),
+                           year=datetime.now(timezone.utc).year)
 
 
 @public_app.route('/blog/<pid>')
@@ -2955,8 +2966,10 @@ def blog_post(pid: str):
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
+    text_html = render_md(loc(post, 'text'))
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
-                           text_html=render_md(loc(post, 'text')),
+                           text_html=text_html,
+                           meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -2973,8 +2986,10 @@ def admin_blog_preview(pid: str):
         abort(404)
     t = load_translations(lang)
     loc = _loc_factory(lang)
+    text_html = render_md(loc(post, 'text'))
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
-                           text_html=render_md(loc(post, 'text')), preview=True,
+                           text_html=text_html, preview=True,
+                           meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -2990,8 +3005,10 @@ def project_detail(pid: str):
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
+    long_html = render_md(loc(proj, 'long'))
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
-                           long_html=render_md(loc(proj, 'long')),
+                           long_html=long_html,
+                           meta_desc=(loc(proj, 'desc') or _plain_excerpt(long_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
 

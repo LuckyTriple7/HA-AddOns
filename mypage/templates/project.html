@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ p.title }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
-  <meta name="description" content="{{ loc(p, 'desc') }}">
+  <meta name="description" content="{{ meta_desc }}">
   <meta property="og:title" content="{{ p.title }}">
-  <meta property="og:description" content="{{ loc(p, 'desc') }}">
+  <meta property="og:description" content="{{ meta_desc }}">
   {% if p.image %}<meta property="og:image" content="{{ p.image }}">{% endif %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}

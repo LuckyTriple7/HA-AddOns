@@ -975,6 +975,17 @@
       <input type="url" id="bm-video" placeholder="https://youtube.com/watch?v=… {{ t.video_hint }}">
       <div class="row">
         <div>
+          <label>{{ t.field_seo_desc }} (DE)</label>
+          <input type="text" id="bm-meta_de" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+        <div>
+          <label>{{ t.field_seo_desc }} (EN)</label>
+          <input type="text" id="bm-meta_en" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+      </div>
+      <p class="hint">{{ t.post_seo_hint }}</p>
+      <div class="row">
+        <div>
           <label>{{ t.field_title }} (DE) *</label>
           <input type="text" id="bm-title_de">
         </div>
@@ -1249,6 +1260,8 @@
       el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
       el('bm-image').value = p.image || '';
       el('bm-video').value = p.video || '';
+      el('bm-meta_de').value = p.meta_de || '';
+      el('bm-meta_en').value = p.meta_en || '';
       el('bm-title_de').value = p.title_de || '';
       el('bm-title_en').value = p.title_en || '';
       el('bm-text_de').value = p.text_de || '';
@@ -1263,6 +1276,8 @@
         date:     el('bm-date').value,
         image:    el('bm-image').value,
         video:    el('bm-video').value,
+        meta_de:  el('bm-meta_de').value,
+        meta_en:  el('bm-meta_en').value,
         title_de: el('bm-title_de').value,
         title_en: el('bm-title_en').value,
         text_de:  el('bm-text_de').value,

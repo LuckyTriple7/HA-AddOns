@@ -120,6 +120,8 @@
   "mode_auto": "Automatisch (Systemeinstellung)",
   "field_public_url": "Öffentliche URL (für SEO/Sitemap)",
   "field_seo_desc": "SEO-Beschreibung",
+  "post_seo_ph": "Leer = automatisch aus dem Beitragstext",
+  "post_seo_hint": "Optional: Beschreibung für Google/Social. Leer lassen → es werden automatisch die ersten ~155 Zeichen des Beitrags verwendet.",
   "seo_desc_ph": "Kurz, prägnant, 1–2 Sätze (max. ~155 Zeichen)",
   "seo_desc_hint": "Der Text, den Google im Suchergebnis unter dem Titel anzeigt. Leer = es wird Tagline bzw. „Über mich“ verwendet. Empfehlung: 1–2 Sätze, worum es auf der Seite geht.",
   "field_allow_indexing": "Von Suchmaschinen indexieren lassen",
