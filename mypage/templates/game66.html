@@ -48,6 +48,9 @@
     .hand.me .card-slot.playable { cursor: pointer; }
     .hand.me .card-slot.playable:hover { transform: translateY(-12px); }
     .hand.me .card-slot.disabled { opacity: 0.42; filter: grayscale(0.5); }
+    /* Frisch vom Talon gezogene Karte (blauer Rand, bis zum nächsten Ausspielen) */
+    .hand.me .card-slot.drawn .pc { box-shadow: 0 0 0 3px #4aa3ff, 0 3px 8px rgba(0,0,0,0.45),
+                                    0 0 12px rgba(74,163,255,0.75); }
     .center { display: flex; align-items: center; justify-content: center; gap: 26px; flex: 1; min-height: 0; }
     .stockwrap { position: relative; text-align: center; }
     .stockwrap .trump { transform: rotate(90deg); }
@@ -302,6 +305,7 @@
   })();
   let V = null, busy = false, curRules = 'standard', curLevel = 'medium', cutShown = null;
   let tabActive = true;  // Mehr-Tab-Schutz: nur ein aktiver Tab spielt
+  let drawnCard = null;  // zuletzt vom Talon gezogene Karte (blau umrandet)
   const LEVEL_DEFS = [
     ['easy', G.level_easy, G.level_easy_desc],
     ['medium', G.level_medium, G.level_medium_desc],
@@ -394,7 +398,13 @@
     // Stich aufgelöst → vom Talon nachziehen (Stapel schrumpft, Hände wachsen)
     if ((cur.stock_count || 0) < (prev.stock_count || 0)){
       const flights = [];
-      if ((cur.hand || []).length > (prev.hand || []).length) flights.push(flyDraw($('me-hand')));
+      if ((cur.hand || []).length > (prev.hand || []).length){
+        // neu hinzugekommene Karte merken (blau umranden, bis zum nächsten Zug)
+        const prevH = prev.hand || [];
+        const fresh = (cur.hand || []).filter(c => !prevH.includes(c));
+        if (fresh.length) drawnCard = fresh[fresh.length - 1];
+        flights.push(flyDraw($('me-hand')));
+      }
       if ((cur.ai_count || 0) > (prev.ai_count || 0)) flights.push(flyDraw($('opp-hand')));
       if (flights.length) await Promise.all(flights);
     }
@@ -406,6 +416,7 @@
   }
 
   async function doMove(action){  // setzt voraus, dass busy bereits true ist
+    drawnCard = null;  // beim nächsten Zug verschwindet der blaue Rand
     const r = await api('/api/66/move', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action})
@@ -558,6 +569,7 @@
       const playable = (v.turn === 'p' && v.status === 'playing'
         && hasLegal(a => a.type === 'play' && a.card === card));
       slot.classList.add(playable ? 'playable' : 'disabled');
+      if (card === drawnCard) slot.classList.add('drawn');
       slot.appendChild(cardImg(card));
       if (playable) slot.onclick = () => onCard(card);
       mh.appendChild(slot);
@@ -637,6 +649,7 @@
 
   async function newMatch(rules, level){
     if (busy || !tabActive) return; busy = true;
+    drawnCard = null;
     rules = rules || curRules; level = level || curLevel;
     const r = await api('/api/66/new', {
       method: 'POST', headers: {'Content-Type': 'application/json'},

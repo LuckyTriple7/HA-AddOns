@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.59
+
+- 🔵 **66: Gezogene Karte markiert** — die zuletzt **vom Talon nachgezogene Karte** erhält in deinem Blatt einen **blauen Rand**, damit du sie sofort erkennst. Der Rand verschwindet automatisch, sobald du die nächste Karte ausspielst.
+
 ## 0.6.58
 
 - 🎨 **66: Trumpf-Symbol besser erkennbar** — ♠/♣ wurden je nach System als dickes schwarzes Emoji dargestellt und waren auf dem grünen Filz kaum zu sehen. Jetzt werden alle Farbsymbole als **Text** gerendert (♠/♣ in Weiß, ♦/♥ in hellem Rot) und sind klar lesbar.
