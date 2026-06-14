@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.29
+
+- 🃏 **17+4** (Blackjack) als sechstes Mini-Game: gegen den Dealer, Karte ziehen / halten, Guthaben mit Einsatz (Gewinn +10, Blackjack +15), Dealer zieht bis 17. Mit „🔄 Aufladen".
+
 ## 0.6.28
 
 - 🎰 Slot-Auszahlungen angehoben: Zwei Gleiche **+50**, Dreierpasch **+200**.

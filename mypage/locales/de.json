@@ -128,7 +128,7 @@
   "allow_indexing_hint": "Aus = die Seite bittet alle Suchmaschinen, sie nicht zu indexieren (noindex + robots.txt Disallow) und IndexNow pausiert. Standard: an.",
   "mini_games": "Mini Games",
   "field_mini_games": "Mini Games (Footer-Link)",
-  "mini_games_hint": "Zeigt unten im Footer einen Link „Mini Games“: Snake, Dino, Pong, Foto-Memory (nutzt deine Albumbilder) und Slot Machine (777-Jackpot). Standard: aus.",
+  "mini_games_hint": "Zeigt unten im Footer einen Link „Mini Games“: Snake, Dino, Pong, Foto-Memory (nutzt deine Albumbilder), Slot Machine (777-Jackpot) und 17+4. Standard: aus.",
   "field_easter_eggs": "Easter Eggs aktiv",
   "easter_eggs_hint": "Versteckte Spielereien für Besucher: Konami-Code (↑↑↓↓←→←→ B A) → Konfetti + Nachricht, Avatar 5× klicken → Geheim-Tagline, Wort „matrixx“ tippen → Code-Regen, Gruß in der Browser-Konsole. Standard: aus.",
   "field_egg_message": "Konami-Nachricht (optional)",

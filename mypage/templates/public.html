@@ -375,6 +375,11 @@
     .game-card img { width: 100%; height: 100%; object-fit: cover; }
     @media (max-width: 480px) { .game-card { width: 52px; height: 52px; } }
     .slot-jackpot { font-weight: 800; color: var(--accent); font-size: 1.1rem; margin-bottom: 10px; }
+    .cards-row { display: flex; gap: 6px; justify-content: center; min-height: 66px; margin: 4px 0 8px; flex-wrap: wrap; }
+    .cards-label { color: var(--muted); font-size: 0.78rem; }
+    .pcard { width: 44px; height: 62px; background: #fff; color: #111; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.02rem; border: 1px solid #bbb; }
+    .pcard.red { color: #c0392b; }
+    .pcard.back { background: linear-gradient(135deg, #30363d, #161b22); color: #58a6ff; border-color: #30363d; }
     .slot-reels { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
     .slot-cell { width: 72px; height: 72px; border: 2px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.3rem; background: #0d1117; }
     .btn-spin { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; font-weight: 700; cursor: pointer; }
@@ -1193,7 +1198,7 @@
     function openGameMenu() {
       openGame('🎮 Mini Games', mount => {
         const m = document.createElement('div'); m.className = 'game-menu';
-        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory], ['🎰 Slot', gameSlot]]
+        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory], ['🎰 Slot', gameSlot], ['🃏 17+4', gameCards]]
           .forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => openGame(label, fn); m.appendChild(b); });
         mount.appendChild(m);
         return null;
@@ -1408,6 +1413,69 @@
       }
       btn.onclick = spin;
       return () => { timers.forEach(t => { clearInterval(t); clearTimeout(t); }); };
+    }
+
+    function gameCards(mount) {
+      const SUITS = ['♠', '♥', '♦', '♣'], RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+      let credits = +(localStorage.getItem('mg-cards-cr') || 100);
+      if (credits < 10) credits = 100; localStorage.setItem('mg-cards-cr', credits);
+      const dl = document.createElement('div'); dl.className = 'cards-label';
+      const drow = document.createElement('div'); drow.className = 'cards-row';
+      const pl = document.createElement('div'); pl.className = 'cards-label';
+      const prow = document.createElement('div'); prow.className = 'cards-row';
+      const cr = document.createElement('div'); cr.className = 'game-info';
+      const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px';
+      const bHit = document.createElement('button'); bHit.className = 'btn-spin'; bHit.textContent = '🃏 Karte';
+      const bStand = document.createElement('button'); bStand.className = 'btn-spin'; bStand.textContent = '✋ Halten';
+      const bNew = document.createElement('button'); bNew.className = 'btn-spin'; bNew.textContent = '▶ Neue Runde';
+      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 Aufladen';
+      ctrl.append(bNew, bHit, bStand, refill);
+      const msg = document.createElement('div'); msg.className = 'game-info';
+      mount.append(dl, drow, pl, prow, cr, ctrl, msg);
+      let deck, dealer = [], player = [], state = 'idle';
+      function val(h) { let v = 0, a = 0; h.forEach(c => { if (c.r === 'A') { v += 11; a++; } else if (c.r === 'J' || c.r === 'Q' || c.r === 'K' || c.r === '10') v += 10; else v += +c.r; }); while (v > 21 && a) { v -= 10; a--; } return v; }
+      function card(c, hidden) {
+        const d = document.createElement('div');
+        if (hidden) { d.className = 'pcard back'; d.textContent = '?'; return d; }
+        d.className = 'pcard' + (c.s === '♥' || c.s === '♦' ? ' red' : ''); d.textContent = c.r + c.s; return d;
+      }
+      function upd() { cr.textContent = 'Guthaben: ' + credits + ' · Einsatz 10'; }
+      function render() {
+        drow.innerHTML = ''; prow.innerHTML = '';
+        dealer.forEach((c, i) => drow.appendChild(card(c, state === 'playing' && i === 1)));
+        player.forEach(c => prow.appendChild(card(c)));
+        dl.textContent = 'Dealer: ' + (state === 'playing' ? '?' : (dealer.length ? val(dealer) : ''));
+        pl.textContent = 'Du: ' + (player.length ? val(player) : '');
+        bHit.disabled = bStand.disabled = state !== 'playing';
+        bNew.disabled = state === 'playing';
+        upd();
+      }
+      function newRound() {
+        if (state === 'playing') return;
+        if (credits < 10) { msg.textContent = 'Kein Guthaben — 🔄 Aufladen.'; return; }
+        audioReady();
+        deck = []; SUITS.forEach(s => RANKS.forEach(r => deck.push({ r, s })));
+        for (let i = deck.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
+        player = [deck.pop(), deck.pop()]; dealer = [deck.pop(), deck.pop()];
+        state = 'playing'; msg.textContent = ''; render();
+        if (val(player) === 21) stand();
+      }
+      function hit() { if (state !== 'playing') return; player.push(deck.pop()); if (val(player) > 21) { state = 'done'; settle(); } render(); }
+      function stand() { if (state !== 'playing') return; while (val(dealer) < 17) dealer.push(deck.pop()); state = 'done'; settle(); render(); }
+      function settle() {
+        const pv = val(player), dv = val(dealer); let delta, txt;
+        if (pv > 21) { delta = -10; txt = '💥 Überkauft – verloren −10'; }
+        else if (dv > 21 || pv > dv) { if (pv === 21 && player.length === 2) { delta = 15; txt = '🃏 Blackjack! +15'; } else { delta = 10; txt = '🎉 Gewonnen +10'; } }
+        else if (pv < dv) { delta = -10; txt = 'Verloren −10'; }
+        else { delta = 0; txt = 'Unentschieden ±0'; }
+        credits += delta; localStorage.setItem('mg-cards-cr', credits);
+        if (delta > 0) beep([523, 784, 1047], 0.12); else if (delta < 0) beep([220, 165], 0.1, 'sine');
+        msg.textContent = txt;
+      }
+      bHit.onclick = hit; bStand.onclick = stand; bNew.onclick = newRound;
+      refill.onclick = () => { credits = 100; localStorage.setItem('mg-cards-cr', credits); upd(); msg.textContent = '🔄 Aufgeladen: 100'; };
+      render(); msg.textContent = 'Ziel: näher an 21 als der Dealer, ohne zu überkaufen.';
+      return () => {};
     }
   </script>
   {% endif %}
