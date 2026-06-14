@@ -101,8 +101,10 @@
   <div class="topbar">
     <span class="title">🃏 66</span>
     <span class="rulestag" id="rulestag"></span>
+    <span class="rulestag" id="leveltag"></span>
     <span class="bummerl">{{ t.g66_bummerl }}: <b id="bm-p">0</b> : <b id="bm-a">0</b> &nbsp;<span style="opacity:.6">/ 7</span></span>
     <span class="spacer"></span>
+    <button class="iconbtn" id="btn-level" title="{{ t.g66_level }}">🎚</button>
     <button class="iconbtn" id="btn-rules" title="{{ t.g66_rules }}">⚖</button>
     <button class="iconbtn" id="btn-log" title="{{ t.g66_log }}">≡</button>
     <button class="iconbtn" id="btn-new" title="{{ t.g66_new }}">↻</button>
@@ -159,6 +161,14 @@
     </div>
   </div>
 
+  <div class="banner" id="level-modal">
+    <div class="box">
+      <h2>🎚 {{ t.g66_level }}</h2>
+      <div class="rules-list" id="level-list"></div>
+      <button class="btn ghost" id="level-cancel">✕</button>
+    </div>
+  </div>
+
   <div class="banner" id="cut-modal">
     <div class="box">
       <h2>🎲 {{ t.g66_cut_title }}</h2>
@@ -189,11 +199,24 @@
     rules_std: {{ t.g66_rules_std|tojson }}, rules_std_desc: {{ t.g66_rules_std_desc|tojson }},
     rules_oma: {{ t.g66_rules_oma|tojson }}, rules_oma_desc: {{ t.g66_rules_oma_desc|tojson }},
     rules_active: {{ t.g66_rules_active|tojson }}, rules_start: {{ t.g66_rules_start|tojson }},
-    cut_you: {{ t.g66_cut_you|tojson }}, cut_ai: {{ t.g66_cut_ai|tojson }}, cut_go: {{ t.g66_cut_go|tojson }}
+    cut_you: {{ t.g66_cut_you|tojson }}, cut_ai: {{ t.g66_cut_ai|tojson }}, cut_go: {{ t.g66_cut_go|tojson }},
+    level: {{ t.g66_level|tojson }}, level_start: {{ t.g66_level_start|tojson }}, strength: {{ t.g66_strength|tojson }},
+    level_easy: {{ t.g66_level_easy|tojson }}, level_easy_desc: {{ t.g66_level_easy_desc|tojson }},
+    level_medium: {{ t.g66_level_medium|tojson }}, level_medium_desc: {{ t.g66_level_medium_desc|tojson }},
+    level_hard: {{ t.g66_level_hard|tojson }}, level_hard_desc: {{ t.g66_level_hard_desc|tojson }},
+    level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }}
   };
   const $ = id => document.getElementById(id);
   const img = code => `/cards/${G.deck}/${code}.svg`;
-  let V = null, busy = false, curRules = 'standard', cutShown = null;
+  let V = null, busy = false, curRules = 'standard', curLevel = 'medium', cutShown = null;
+  const LEVEL_DEFS = [
+    ['easy', G.level_easy, G.level_easy_desc],
+    ['medium', G.level_medium, G.level_medium_desc],
+    ['hard', G.level_hard, G.level_hard_desc],
+    ['adaptive', G.level_adaptive, G.level_adaptive_desc]
+  ];
+  const levelName = key => ({easy: G.level_easy, medium: G.level_medium,
+    hard: G.level_hard, adaptive: G.level_adaptive}[key] || G.level_medium);
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function cardImg(code, cls){
@@ -297,6 +320,10 @@
     V = v;
     curRules = v.rules || 'standard';
     $('rulestag').textContent = (curRules === 'oma') ? G.rules_oma : G.rules_std;
+    curLevel = v.level || 'medium';
+    $('leveltag').textContent = (curLevel === 'adaptive')
+      ? levelName(curLevel) + ' · ' + (v.ai_strength != null ? v.ai_strength + '%' : '')
+      : levelName(curLevel);
     $('bm-p').textContent = v.bummerl.p;
     $('bm-a').textContent = v.bummerl.a;
     $('me-pts').textContent = v.pts.p;
@@ -408,15 +435,16 @@
       + '  ·  ' + v.result.pts.p + ' : ' + v.result.pts.a;
     const btn = $('banner-btn');
     btn.textContent = matchOver ? G.new_match : G.next;
-    btn.onclick = matchOver ? () => newMatch(curRules) : () => send({type: 'next'});
+    btn.onclick = matchOver ? () => newMatch() : () => send({type: 'next'});
     b.classList.add('show');
   }
 
-  async function newMatch(rules){
+  async function newMatch(rules, level){
     if (busy) return; busy = true;
+    rules = rules || curRules; level = level || curLevel;
     const r = await api('/api/66/new', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(rules ? {rules} : {})
+      body: JSON.stringify({rules, level})
     });
     await applyResult(r);
     busy = false;
@@ -438,7 +466,27 @@
     $('rules-modal').classList.add('show');
   }
   function closeRules(){ $('rules-modal').classList.remove('show'); }
-  async function chooseRules(key){ closeRules(); await newMatch(key); }
+  async function chooseRules(key){ closeRules(); await newMatch(key, curLevel); }
+
+  function openLevel(){
+    const list = $('level-list'); list.innerHTML = '';
+    LEVEL_DEFS.forEach(([key, name, desc]) => {
+      const o = document.createElement('div');
+      o.className = 'rule-opt' + (key === curLevel ? ' active' : '');
+      let label = name;
+      if (key === 'adaptive' && key === curLevel && V && V.ai_strength != null)
+        label += ' · ' + V.ai_strength + '%';
+      const tag = (key === curLevel) ? ' <span class="act">' + G.rules_active + '</span>' : '';
+      const h = document.createElement('h3'); h.innerHTML = label + tag;
+      const p = document.createElement('p'); p.textContent = desc;
+      o.appendChild(h); o.appendChild(p);
+      o.onclick = () => chooseLevel(key);
+      list.appendChild(o);
+    });
+    $('level-modal').classList.add('show');
+  }
+  function closeLevel(){ $('level-modal').classList.remove('show'); }
+  async function chooseLevel(key){ closeLevel(); await newMatch(curRules, key); }
 
   function closeGame(){
     if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
@@ -447,13 +495,16 @@
 
   $('btn-close').onclick = closeGame;
   $('btn-log').onclick = () => $('log').classList.toggle('show');
-  $('btn-new').onclick = () => { if (confirm(G.new_confirm)) newMatch(curRules); };
+  $('btn-new').onclick = () => { if (confirm(G.new_confirm)) newMatch(); };
   $('btn-rules').onclick = openRules;
   $('rules-cancel').onclick = closeRules;
+  $('btn-level').onclick = openLevel;
+  $('level-cancel').onclick = closeLevel;
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if ($('cut-modal').classList.contains('show')) return;  // erst "Los geht's"
     if ($('rules-modal').classList.contains('show')) closeRules();
+    else if ($('level-modal').classList.contains('show')) closeLevel();
     else closeGame();
   });
 

@@ -52,24 +52,43 @@ def full_deck() -> list:
 
 RULESETS = ('standard', 'oma')
 
+# KI-Schwierigkeitsgrade. "epsilon" = Wahrscheinlichkeit, statt der Heuristik eine
+# zufällige (schwächere) Karte zu spielen. 0 = perfekt heuristisch (stärkste KI).
+LEVELS = ('easy', 'medium', 'hard', 'adaptive')
+_BASE_EPS = {'easy': 0.55, 'medium': 0.22, 'hard': 0.0}
+_ADAPT_START = 0.30      # Start-Epsilon im adaptiven Modus
+_ADAPT_STEP = 0.08       # Schrittweite pro gewonnener/verlorener Partie
+_ADAPT_MIN, _ADAPT_MAX = 0.0, 0.70
+
+# Eigene Zufallsquelle der KI (entkoppelt vom Austeil-rng, damit Tests deterministisch
+# austeilen können, die KI aber dennoch ihr Epsilon würfeln kann).
+_ai_rng = random.Random()
+
 
 def new_match(first_dealer: str | None = None, rng: random.Random | None = None,
-              rules: str = 'standard') -> dict:
+              rules: str = 'standard', level: str = 'medium') -> dict:
     """Neuen Match-State (Bummerl) erzeugen und erste Partie austeilen.
 
     rules='standard': mit vorzeitigem Ausmelden bei 66.
     rules='oma' ("Andys Oma"): kein Ausmelden — erst zählen, wenn alle Karten
     weg sind; Sieger hat 66+, sonst gewinnt der letzte Stich.
+
+    level: 'easy' | 'medium' | 'hard' | 'adaptive' — Stärke der KI. 'adaptive'
+    passt sich an: gewinnt der Spieler, wird die KI stärker, sonst schwächer.
     """
     rng = rng or random.Random()
+    level = level if level in LEVELS else 'medium'
     state = {
         'v': STATE_VERSION,
         'rules': rules if rules in RULESETS else 'standard',
+        'level': level,
         'bummerl': {'p': 0, 'a': 0},
         'deal_no': 0,
         'status': 'playing',
         'log': [],
     }
+    if level == 'adaptive':
+        state['adapt_eps'] = _ADAPT_START
     if first_dealer:
         state['cut'] = None
         dealer = first_dealer
@@ -385,6 +404,11 @@ def _finish_deal(state: dict, winner: str, reason: str) -> None:
         gp = _tier(usable(state, loser))
 
     state['bummerl'][winner] += gp
+    # Adaptiv: gewinnt der Spieler, wird die KI stärker (Epsilon runter), sonst schwächer.
+    if state.get('level') == 'adaptive':
+        eps = state.get('adapt_eps', _ADAPT_START)
+        eps += -_ADAPT_STEP if winner == 'p' else _ADAPT_STEP
+        state['adapt_eps'] = max(_ADAPT_MIN, min(_ADAPT_MAX, eps))
     state['result'] = {
         'winner': winner,
         'gp': gp,
@@ -493,7 +517,33 @@ def ai_run(state: dict) -> None:
         apply_action(state, 'a', _ai_choose(state))
 
 
+def _ai_epsilon(state: dict) -> float:
+    """Aktuelle Zufalls-Wahrscheinlichkeit der KI je nach Level."""
+    lvl = state.get('level', 'medium')
+    if lvl == 'adaptive':
+        eps = state.get('adapt_eps', _ADAPT_START)
+        return max(_ADAPT_MIN, min(_ADAPT_MAX, eps))
+    return _BASE_EPS.get(lvl, _BASE_EPS['medium'])
+
+
+def _ai_strength(state: dict) -> int:
+    """Stärke der KI in Prozent (0–100) für die Anzeige."""
+    return round((1.0 - _ai_epsilon(state)) * 100)
+
+
+def _ai_random_action(state: dict) -> dict | None:
+    """Zufällige legale Kartenwahl (ohne Hochzeit/Zudrehen) — schwächeres Spiel."""
+    plays = [a for a in legal_actions(state, 'a')
+             if a['type'] == 'play' and not a.get('marry')]
+    return _ai_rng.choice(plays) if plays else None
+
+
 def _ai_choose(state: dict) -> dict:
+    eps = _ai_epsilon(state)
+    if eps > 0 and _ai_rng.random() < eps:
+        rnd = _ai_random_action(state)
+        if rnd is not None:
+            return rnd
     return _ai_lead(state) if not state['table'] else _ai_follow(state)
 
 
@@ -562,6 +612,8 @@ def public_view(state: dict) -> dict:
     return {
         'v': state['v'],
         'rules': state.get('rules', 'standard'),
+        'level': state.get('level', 'medium'),
+        'ai_strength': _ai_strength(state),
         'cut': state.get('cut'),
         'hand': list(state['hands']['p']),
         'ai_count': len(state['hands']['a']),

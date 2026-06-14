@@ -26,11 +26,11 @@ def conserve(st):
 
 # ── 1. Zufalls-Playouts: zufaelliger Spieler vs. Heuristik-KI ──────────────────
 
-def random_playouts(n=3000, rules='standard'):
-    print(f'[1] {n} Zufalls-Matches ({rules}) ...')
+def random_playouts(n=3000, rules='standard', level='medium'):
+    print(f'[1] {n} Zufalls-Matches ({rules}, KI={level}) ...')
     for seed in range(n):
         rng = random.Random(seed)
-        st = g.new_match(rng=rng, rules=rules)
+        st = g.new_match(rng=rng, rules=rules, level=level)
         g.ai_run(st)
         steps = 0
         while st['status'] != 'match_over':
@@ -249,6 +249,41 @@ def scoring_oma():
     check(st['result']['gp'] == 2, 'oma closed_made Gegner<33 -> 2')
 
 
+def levels():
+    print('[9] KI-Schwierigkeitsgrade ...')
+    # Epsilon je Level
+    st = g.new_match(first_dealer='a', rng=random.Random(1), level='easy')
+    check(g._ai_epsilon(st) == g._BASE_EPS['easy'], 'easy-Epsilon')
+    st = g.new_match(first_dealer='a', rng=random.Random(1), level='hard')
+    check(g._ai_epsilon(st) == 0.0, 'hard-Epsilon = 0')
+    check(g._ai_strength(st) == 100, 'hard = 100% Staerke')
+    # ungueltiges Level -> medium
+    st = g.new_match(first_dealer='a', rng=random.Random(1), level='bogus')
+    check(st['level'] == 'medium', 'ungueltiges Level -> medium')
+    # Adaptiv: Start + Anpassung (Spieler gewinnt -> KI staerker, sonst schwaecher)
+    st = g.new_match(first_dealer='a', rng=random.Random(1), level='adaptive')
+    check(abs(st['adapt_eps'] - g._ADAPT_START) < 1e-9, 'adaptiv Start-Epsilon')
+    before = st['adapt_eps']
+    st['trick_pts'] = {'p': 70, 'a': 10}; st['has_trick'] = {'p': True, 'a': True}
+    g._finish_deal(st, 'p', 'made_66')
+    check(st['adapt_eps'] < before, 'Spieler gewinnt -> KI staerker (Epsilon faellt)')
+    st2 = g.new_match(first_dealer='a', rng=random.Random(2), level='adaptive')
+    before2 = st2['adapt_eps']
+    st2['trick_pts'] = {'p': 10, 'a': 70}; st2['has_trick'] = {'p': True, 'a': True}
+    g._finish_deal(st2, 'a', 'made_66')
+    check(st2['adapt_eps'] > before2, 'KI gewinnt -> KI schwaecher (Epsilon steigt)')
+    # Epsilon bleibt in den Grenzen
+    st3 = g.new_match(first_dealer='a', rng=random.Random(3), level='adaptive')
+    for _ in range(50):
+        st3['adapt_eps'] = 0.0
+        st3['trick_pts'] = {'p': 70, 'a': 10}; st3['has_trick'] = {'p': True, 'a': True}
+        g._finish_deal(st3, 'p', 'made_66')
+        check(g._ADAPT_MIN <= st3['adapt_eps'] <= g._ADAPT_MAX, 'adaptiv im Grenzbereich')
+    # public_view enthaelt level + Staerke
+    pv = g.public_view(g.new_match(first_dealer='a', rng=random.Random(4), level='easy'))
+    check(pv['level'] == 'easy' and isinstance(pv['ai_strength'], int), 'public_view: level + strength')
+
+
 if __name__ == '__main__':
     trick_logic()
     scoring()
@@ -257,9 +292,13 @@ if __name__ == '__main__':
     exchange()
     cut_for_lead()
     scoring_oma()
+    levels()
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
     random_playouts(n, 'standard')
     random_playouts(n, 'oma')
+    # Alle Schwierigkeitsgrade auf Invarianten pruefen (kleinere Stichprobe)
+    for lvl in ('easy', 'hard', 'adaptive'):
+        random_playouts(max(1, n // 6), 'standard', lvl)
     print()
     if FAILS:
         print(f'{len(FAILS)} FEHLER')

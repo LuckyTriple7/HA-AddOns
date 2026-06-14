@@ -80,6 +80,16 @@ Beim Nachspielen gelten jetzt Zwänge, der Reihe nach:
 - Wer zuerst **7 Spielpunkte** erreicht, gewinnt das Match.
 - Danach gibt der Verlierer der Partie, der andere (Gewinner) spielt aus.
 
+## Schwierigkeitsgrad der KI
+
+Über das **🎚-Menü** wählbar (ein Wechsel startet ein neues Match):
+
+- **Leicht** — die KI macht öfter Fehler und spielt unbedacht.
+- **Mittel** — solides Spiel mit gelegentlichen Patzern.
+- **Schwer** — volle Stärke, durchgehend beste Strategie.
+- **Adaptiv** — passt sich an: Gewinnst du, wird die KI stärker; verlierst du,
+  schwächer. Die aktuelle Stärke steht oben in Prozent.
+
 ---
 
 # Variante „Andys Oma"

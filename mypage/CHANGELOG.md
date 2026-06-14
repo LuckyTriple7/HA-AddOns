@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.49
+
+- 🎚 **66: KI-Schwierigkeitsgrade** — über das neue 🎚-Menü wählbar: **Leicht**, **Mittel**, **Schwer** und **Adaptiv**. Ein Wechsel der Schwierigkeit startet (wie beim Regelwechsel) ein **neues Match**. Leicht/Mittel lassen die KI mit steigender Wahrscheinlichkeit unbedacht spielen, Schwer spielt durchgehend nach bester Strategie.
+- 🤖 **Adaptiver Modus**: Die KI passt sich laufend an — **gewinnst du eine Partie, wird sie stärker; verlierst du, wird sie schwächer**. Die aktuelle Stärke wird oben als Prozentwert angezeigt. So bleibt es spannend, egal wie gut man spielt.
+- ✅ Erweitert um Tests für alle Schwierigkeitsgrade (Epsilon je Level, adaptive Anpassung in beide Richtungen samt Grenzen, Invarianten-Playouts pro Level).
+
 ## 0.6.48
 
 - 🃏 **66: zweite Regelvariante „Andys Oma"** — über das neue ⚖-Menü umschaltbar (ein Regelwechsel startet ein neues Match). Dabei wird **kein vorzeitiges Ausmelden** gespielt: Es geht **immer bis zum Ende**, dann wird gezählt — wer 66+ hat gewinnt, sonst der **letzte Stich**. Spielpunkte wie gewohnt (0 → 3, < 33 → 2, ≥ 33 → 1); Zudreher muss 66 schaffen, sonst 3 für den Gegner. Die bisherigen Standardregeln bleiben unverändert wählbar.

@@ -2822,8 +2822,10 @@ def api_game66_new():
     data = request.get_json(silent=True) or {}
     rules = data.get('rules')
     rules = rules if rules in game66.RULESETS else 'standard'
+    level = data.get('level')
+    level = level if level in game66.LEVELS else 'medium'
     with _game_lock:
-        st = game66.new_match(rules=rules)
+        st = game66.new_match(rules=rules, level=level)
         frames = game66.deal_frames(st)  # KI-Eröffnung animierbar
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
