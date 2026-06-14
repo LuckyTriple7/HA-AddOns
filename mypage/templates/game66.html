@@ -405,52 +405,8 @@
     });
   }
 
-  // Beginn einer neuen Partie: voller Talon, noch kein Stich – und die vorige
-  // Anzeige war eine andere Partie oder bereits beendet.
-  function isNewDeal(f){
-    return !!(f && f.stock_count === 10
-      && f.tricks && f.tricks.p === 0 && f.tricks.a === 0
-      && (!V || f.deal_no !== V.deal_no || V.status !== 'playing'));
-  }
-
-  // Kartengeben: nacheinander verdeckte Karten vom Talon in beide Hände fliegen.
-  // Wichtig: leere Hand-Container kollabieren (opp-hand hat dann Breite 0) – daher
-  // berechnen wir stabile Zielpunkte mittig über jedem Sitz statt die Hand zu nehmen.
-  function dealAnimation(){
-    return new Promise(async resolve => {
-      const me = $('me-hand'), opp = $('opp-hand'), tc = $('table-cards');
-      const meR = me.getBoundingClientRect();
-      const oppSeat = (opp.closest && opp.closest('.seat')) || opp.parentElement || opp;
-      const oppR = oppSeat.getBoundingClientRect();
-      me.innerHTML = ''; opp.innerHTML = ''; tc.innerHTML = '';  // altes Spiel ausblenden
-      const src = $('stockwrap').getBoundingClientRect();
-      const cx = meR.width ? (meR.left + meR.width / 2) : (src.left + src.width / 2);
-      const meTarget = {left: cx - 1, top: (meR.top || src.top), width: 2, height: 1};
-      const oppTarget = {left: cx - 1, top: oppR.top + oppR.height * 0.62, width: 2, height: 1};
-      const order = [];
-      for (let k = 0; k < 5; k++){ order.push(oppTarget); order.push(meTarget); }  // abwechselnd
-      const step = Math.max(70, Math.round(flyMs * 0.34));
-      for (const tgt of order){
-        flyBetween(src, tgt, 'back', {z: 57, fadeIn: true, height: src.height * 0.78});
-        await sleep(step);
-      }
-      await sleep(flyMs);
-      resolve();
-    });
-  }
-
   // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
   async function playFrames(frames){
-    if (!reduceMotion && frames.length && isNewDeal(frames[0])){
-      await dealAnimation();
-      // Hat die KI schon eröffnet, fehlt aber das leere Vorbild? → künstlich voranstellen,
-      // damit die KI-Karte sichtbar einfliegt statt einfach zu erscheinen.
-      const f0 = frames[0];
-      if ((f0.table || []).length && f0.table[0].who === 'a'){
-        const pre = Object.assign({}, f0, {table: [], ai_count: f0.ai_count + 1});
-        frames = [pre].concat(frames);
-      }
-    }
     for (let i = 0; i < frames.length; i++){
       if (i > 0) await animateTransition(frames[i - 1], frames[i]);
       render(frames[i]);
@@ -468,13 +424,6 @@
   async function animateTransition(prev, cur){
     if (reduceMotion) return;
     const pt = prev.table || [], ct = cur.table || [];
-    // KI tauscht den Trumpf-Buben: Trumpfkarte wechselt, Tisch/Talon-Anzahl unverändert
-    if (ct.length === pt.length && prev.trump_card && cur.trump_card
-        && cur.trump_card !== prev.trump_card
-        && (cur.stock_count || 0) === (prev.stock_count || 0)){
-      await exchangeAiAnim(prev.trump_card);
-      return;
-    }
     if (ct.length > pt.length){
       const added = ct[ct.length - 1];
       if (added && added.who === 'a') await flyAiCard(added.card);
@@ -555,9 +504,8 @@
     opts = opts || {};
     return new Promise(resolve => {
       if (reduceMotion || !srcRect || !dstEl){ resolve(); return; }
-      // dstEl darf ein Element ODER ein fertiges Rechteck sein
-      const t = dstEl.getBoundingClientRect ? dstEl.getBoundingClientRect() : dstEl;
-      if (!srcRect.width || !t || !t.width){ resolve(); return; }
+      const t = dstEl.getBoundingClientRect();
+      if (!srcRect.width || !t.width){ resolve(); return; }
       const clone = document.createElement('img');
       clone.alt = '';
       const h = opts.height || srcRect.height || 90;
@@ -598,24 +546,7 @@
   // KI spielt eine Karte: vom Gegner-Handbereich auf den Tisch
   function flyAiCard(card){
     const oh = $('opp-hand');
-    // Von einer echten Rückseiten-Karte starten (wie beim Spieler); sonst Talon als Notfall
-    const back = oh && oh.querySelector('.pc');
-    let r = back && back.getBoundingClientRect();
-    if (!r || !r.width) r = oh && oh.getBoundingClientRect();
-    if (!r || !r.width) r = $('stockwrap').getBoundingClientRect();
-    return flyBetween(r, $('table-cards'), card, {z: 60, ring: true});
-  }
-
-  // KI tauscht den Trumpf-Buben: aufgedeckte Karte → KI-Hand, verdeckte → Trumpfplatz
-  function exchangeAiAnim(upcard){
-    return new Promise(resolve => {
-      if (reduceMotion){ resolve(); return; }
-      const trumpEl = $('trump-card'), opp = $('opp-hand');
-      if (!trumpEl){ resolve(); return; }
-      flyBetween(trumpEl.getBoundingClientRect(), opp, upcard, {z: 60});  // Upcard → KI-Hand
-      flyBetween(opp.getBoundingClientRect(), trumpEl, 'back', {z: 59});  // verdeckte → Trumpfplatz
-      setTimeout(resolve, flyMs + 60);
-    });
+    return flyBetween(oh && oh.getBoundingClientRect(), $('table-cards'), card, {z: 60, ring: true});
   }
 
   // Nachziehen vom Talon: verdeckte Karte vom Stapel in eine Hand
@@ -774,7 +705,7 @@
     if (hasLegal(a => a.type === 'exchange')){
       const b = document.createElement('button');
       b.className = 'btn ghost'; b.textContent = '🔄 ' + G.exchange;
-      b.onclick = () => doExchange(); bar.appendChild(b);
+      b.onclick = () => send({type: 'exchange'}); bar.appendChild(b);
     }
     if (hasLegal(a => a.type === 'close')){
       const b = document.createElement('button');
@@ -792,31 +723,6 @@
     await flyCard(card);
     await doMove(marry ? {type: 'play', card, marry: true} : {type: 'play', card});
     busy = false;
-  }
-
-  // Trumpf-Bube tauschen: Bube fliegt zum Trumpfplatz, aufgedeckte Karte in die Hand
-  async function doExchange(){
-    if (busy || !tabActive) return; busy = true;
-    await exchangeAnim();
-    await doMove({type: 'exchange'});
-    busy = false;
-  }
-
-  function exchangeAnim(){
-    return new Promise(resolve => {
-      if (reduceMotion || !V || !V.trump || !V.trump_card){ resolve(); return; }
-      const jack = 'J' + V.trump;
-      const slot = document.querySelector('#me-hand .card-slot[data-card="' + CSS.escape(jack) + '"]');
-      const trumpEl = $('trump-card');
-      const jImg = slot && slot.querySelector('img');
-      if (!jImg || !trumpEl){ resolve(); return; }
-      const sRect = jImg.getBoundingClientRect();
-      const tRect = trumpEl.getBoundingClientRect();
-      flyBetween(sRect, trumpEl, jack, {z: 60, ring: true});  // Bube → Trumpfplatz
-      flyBetween(tRect, slot, V.trump_card, {z: 60});         // aufgedeckte Karte → Hand
-      slot.style.visibility = 'hidden';
-      setTimeout(resolve, flyMs + 60);
-    });
   }
 
   function renderHint(v){

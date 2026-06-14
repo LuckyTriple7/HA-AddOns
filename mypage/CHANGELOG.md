@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.70
+
+- ⏪ **66: Revert auf Stand 0.6.65** — die Animations-Experimente aus 0.6.66–0.6.69 (Kartengeben-Animation, KI-Eröffnungs-Flug, Trumpftausch-Flug) werden vollständig zurückgenommen. Spiellogik und Oberfläche entsprechen wieder 0.6.65 (inkl. Hochzeitswert-Anzeige). Die bestehende KI-Kartenanimation im Spielverlauf bleibt erhalten.
+
 ## 0.6.69
 
 - 🐛 **66: KI-Karte fliegt jetzt zuverlässig** — die ausgespielte KI-Karte startet ihren Flug nun von einer **echten (verdeckten) Karte** der KI-Hand — genau wie deine Karte von ihrer Handposition fliegt. Vorher startete sie vom Hand-Container, der je nach Zustand Breite 0 hatte → kein Flug. Notfall-Start ist der Talon.
