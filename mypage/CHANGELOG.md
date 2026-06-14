@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.40
+
+- 🐛 Einblend-Effekte: Die Auswahl (Einblenden / Hochgleiten / Zoom / Unschärfe) sah optisch immer gleich aus. Ursache: Bei aktivem Stagger (Standard) wurden die Inhaltsblöcke auf reines Einblenden gezwungen, sodass nur die kaum sichtbare Kartenbewegung den Unterschied trug. Jetzt wirkt der gewählte Effekt auf **allen Blöcken** (Überschriften, Hero, Inhalte) — die Effekte sind klar unterscheidbar. Bei Stagger bleiben nur die Karten-Container selbst ruhig (via `:has()`), während ihre Kacheln den Effekt nacheinander tragen.
+
 ## 0.6.39
 
 - ✨ **Werdegang-Überschrift frei konfigurierbar**: Im Werdegang-Tab lässt sich jetzt eine eigene Überschrift (DE/EN) vergeben — z. B. „Unsere Geschichte", „Meilensteine" oder „Über den Verein". Sie erscheint dann sowohl als Abschnittsüberschrift als auch im Navigationsmenü. Bleibt das Feld leer, wird wie bisher „Werdegang" verwendet. Der Tab-Name im Admin bleibt „Werdegang".

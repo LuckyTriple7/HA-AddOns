@@ -395,28 +395,28 @@
 
     /* ── Einblend-Effekte (Reveal beim Laden/Scrollen) ── */
     /* Nur aktiv, wenn JS die Seite „scharf" gestellt hat (html.rv-armed) — ohne JS bleibt alles sichtbar */
-    html.rv-armed[data-reveal] main > * {
+    /* Verborgener Ausgangszustand für Blöcke und (bei Stagger) einzelne Karten */
+    html.rv-armed[data-reveal] main > *,
+    html.rv-armed[data-reveal] .rv-card {
       opacity: 0;
       transition: opacity .6s ease, transform .6s ease, filter .6s ease;
       will-change: opacity, transform;
     }
-    html.rv-armed[data-reveal="slide"] main > * { transform: translateY(26px); }
-    html.rv-armed[data-reveal="zoom"]  main > * { transform: scale(.97); transform-origin: center top; }
-    html.rv-armed[data-reveal="blur"]  main > * { filter: blur(9px); }
-    html.rv-armed[data-reveal] main > .rv-in {
+    /* Der gewählte Effekt gilt für Blöcke UND Karten gleichermaßen */
+    html.rv-armed[data-reveal="slide"] main > *,
+    html.rv-armed[data-reveal="slide"] .rv-card { transform: translateY(26px); }
+    html.rv-armed[data-reveal="zoom"] main > *,
+    html.rv-armed[data-reveal="zoom"] .rv-card { transform: scale(.95); transform-origin: center top; }
+    html.rv-armed[data-reveal="blur"] main > *,
+    html.rv-armed[data-reveal="blur"] .rv-card { filter: blur(10px); }
+    /* Stagger: Container, die Karten enthalten, bewegen sich NICHT selbst (sofort sichtbar) —
+       die Bewegung tragen die einzelnen Karten nacheinander. Überschriften/Hero behalten den Effekt. */
+    html.rv-armed[data-reveal-stagger] main > *:has(.rv-card) {
       opacity: 1 !important; transform: none !important; filter: none !important;
     }
-    /* Stagger: Block blendet nur sanft ein, die Karten tragen die Bewegung nacheinander */
-    html.rv-armed[data-reveal-stagger] main > * { transform: none !important; filter: none !important; }
-    html.rv-armed[data-reveal-stagger] .rv-card {
-      opacity: 0;
-      transition: opacity .55s ease, transform .55s ease, filter .55s ease;
-      will-change: opacity, transform;
-    }
-    html.rv-armed[data-reveal-stagger][data-reveal="slide"] .rv-card { transform: translateY(20px); }
-    html.rv-armed[data-reveal-stagger][data-reveal="zoom"]  .rv-card { transform: scale(.96); }
-    html.rv-armed[data-reveal-stagger][data-reveal="blur"]  .rv-card { filter: blur(6px); }
-    html.rv-armed[data-reveal-stagger] .rv-card.rv-in {
+    /* Sichtbarer Endzustand */
+    html.rv-armed[data-reveal] main > .rv-in,
+    html.rv-armed[data-reveal] .rv-card.rv-in {
       opacity: 1 !important; transform: none !important; filter: none !important;
     }
     @media (prefers-reduced-motion: reduce) {
