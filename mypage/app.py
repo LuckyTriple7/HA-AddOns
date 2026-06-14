@@ -119,6 +119,7 @@ _site_lock  = threading.Lock()
 _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
+_slot_lock  = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -228,6 +229,11 @@ DEFAULT_SITE = {
         'custom_font': '', 'custom_font_name': '',
         'support_url': '', 'support_label': '',
         'booking_url': '', 'booking_label': '',
+        'indexnow': False,
+        'allow_indexing': True,
+        'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
+        'mini_games': False,
+        'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
     'legal': {
@@ -245,15 +251,21 @@ DEFAULT_SITE = {
         'team': [],
         'events': [],
         'location': {},
+        'tips': [],
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
     'section_order': [
-        'news', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'news', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
+    'tips_rotation': 'daily',
+    'tips_random': False,
+    'tips_stats': {},
+    'indexnow_key': '',
+    'slot_jackpot': 500,
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -263,6 +275,19 @@ SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 def render_md(text: str) -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
+
+
+def _plain_excerpt(s: str, limit: int = 155) -> str:
+    """HTML/Markdown-Text in einen kurzen Klartext-Auszug für Meta-Description wandeln."""
+    txt = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s or '')).strip()
+    return txt[:limit].rstrip()
+
+
+def _site_meta(site: dict, loc) -> str:
+    """Basis-Beschreibung der Seite: eigenes SEO-Feld → Tagline → Bio-Auszug → Name."""
+    d, p = site['design'], site['profile']
+    return (loc(d, 'meta_description') or loc(p, 'tagline')
+            or _plain_excerpt(render_md(loc(p, 'bio'))) or d.get('site_title') or p.get('name') or 'MyPage')
 
 
 # Social-Plattform-Erkennung anhand des Hostnamens (für Auto-Icons bei Links)
@@ -348,6 +373,12 @@ def parse_video(url: str) -> tuple[str, str]:
 public_app.jinja_env.globals['parse_video'] = parse_video
 public_app.jinja_env.globals['render_md'] = render_md
 
+# Admin-App rendert öffentliche Templates (z. B. Blog-Vorschau) — dieselben Globals bereitstellen
+admin_app.jinja_env.globals['parse_video'] = parse_video
+admin_app.jinja_env.globals['render_md'] = render_md
+admin_app.jinja_env.globals['link_platform'] = link_platform
+admin_app.jinja_env.globals['support_platform'] = support_platform
+
 
 def font_css(design: dict) -> tuple[str, str]:
     """Liefert (font-family-Stack, @font-face-CSS) für die gewählte Schrift."""
@@ -368,6 +399,16 @@ def font_css(design: dict) -> tuple[str, str]:
                 f"src:url('{url}');}}\n")
         return "'CustomFont', sans-serif", face
     return SYSTEM_FONTS['system'], ''
+
+
+@public_app.context_processor
+def _inject_font():
+    """Stellt die gewählte Schrift allen öffentlichen Templates bereit (nicht nur der Startseite)."""
+    try:
+        fam, faces = font_css(load_site()['design'])
+    except Exception:
+        fam, faces = SYSTEM_FONTS['system'], ''
+    return {'font_family': fam, 'font_faces': faces}
 
 
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
@@ -1194,6 +1235,8 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
     p['text_en']   = _clean_str(raw.get('text_en'), 30000)
     p['image']     = _clean_str(raw.get('image'), 500)
     p['video']     = _clean_str(raw.get('video'), 500)
+    p['meta_de']   = _clean_str(raw.get('meta_de'), 300)
+    p['meta_en']   = _clean_str(raw.get('meta_en'), 300)
     gallery = raw.get('gallery') or []
     if isinstance(gallery, list):
         p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:30]
@@ -1597,15 +1640,36 @@ def api_design():
         d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
-    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance'):
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
+                 'allow_indexing', 'easter_eggs', 'mini_games'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
-                      ('maintenance_text_de', 1000), ('maintenance_text_en', 1000)):
+                      ('maintenance_text_de', 1000), ('maintenance_text_en', 1000),
+                      ('egg_message', 200), ('egg_tagline', 200),
+                      ('meta_description_de', 300), ('meta_description_en', 300)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
+    if d.get('indexnow'):
+        _indexnow_key(site)   # Schlüssel beim Aktivieren bereitstellen (speichert ggf.)
     save_site(site)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/indexnow/ping', methods=['POST'])
+def api_indexnow_ping():
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    if not site['design'].get('indexnow'):
+        return jsonify({'error': 'disabled'}), 400
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base.startswith(('http://', 'https://')):
+        return jsonify({'error': 'no_url'}), 400
+    urls = _public_url_list(site, base)
+    indexnow_submit(urls)
+    return jsonify({'ok': True, 'count': len(urls)})
 
 
 @admin_app.route('/api/sections', methods=['POST'])
@@ -1650,6 +1714,21 @@ def api_sections():
             'a_en': _clean_str(e.get('a_en'), 3000),
         } for e in raw['faq'][:50]
             if isinstance(e, dict) and (_clean_str(e.get('q_de'), 300) or _clean_str(e.get('q_en'), 300))]
+    if isinstance(raw.get('tips'), list):
+        out = []
+        for e in raw['tips'][:100]:
+            if not isinstance(e, dict):
+                continue
+            de = _clean_str(e.get('text_de'), 600)
+            en = _clean_str(e.get('text_en'), 600)
+            if not (de or en):
+                continue
+            tid = _clean_str(e.get('id'), 32) or uuid.uuid4().hex[:12]
+            out.append({'id': tid, 'text_de': de, 'text_en': en})
+        sec['tips'] = out
+        # Statistik verwaister Tipps (gelöscht) aufräumen
+        valid = {t['id'] for t in out}
+        site['tips_stats'] = {k: v for k, v in (site.get('tips_stats') or {}).items() if k in valid}
     if isinstance(raw.get('services'), list):
         sec['services'] = [{
             'icon':     _clean_str(e.get('icon'), 8),
@@ -1710,6 +1789,10 @@ def api_sections():
         site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
     if isinstance(raw.get('hidden_sections'), list):
         site['hidden_sections'] = [k for k in raw['hidden_sections'] if isinstance(k, str) and k in SECTION_KEYS]
+    if raw.get('tips_rotation') in ('daily', 'weekly'):
+        site['tips_rotation'] = raw['tips_rotation']
+    if 'tips_random' in raw:
+        site['tips_random'] = bool(raw['tips_random'])
     if 'album_protect' in raw:
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
@@ -1869,8 +1952,10 @@ def api_project_create():
     if not _clean_str(raw.get('title'), 120):
         return jsonify({'error': 'title required'}), 400
     site = load_site()
-    site['projects'].append(_normalize_project(raw))
+    proj = _normalize_project(raw)
+    site['projects'].append(proj)
     save_site(site)
+    _indexnow_ping_project(site, proj)
     return jsonify({'ok': True})
 
 
@@ -1889,6 +1974,8 @@ def api_project_edit(pid: str):
         raw = request.get_json(silent=True) or {}
         site['projects'][idx] = _normalize_project(raw, site['projects'][idx])
     save_site(site)
+    if request.method == 'PUT':
+        _indexnow_ping_project(site, site['projects'][idx])
     return jsonify({'ok': True})
 
 
@@ -1919,8 +2006,10 @@ def api_post_create():
     if not (_clean_str(raw.get('title_de'), 150) or _clean_str(raw.get('title_en'), 150)):
         return jsonify({'error': 'title required'}), 400
     site = load_site()
-    site.setdefault('posts', []).append(_normalize_post(raw))
+    post = _normalize_post(raw)
+    site.setdefault('posts', []).append(post)
     save_site(site)
+    _indexnow_ping_post(site, post)
     return jsonify({'ok': True})
 
 
@@ -1939,6 +2028,8 @@ def api_post_edit(pid: str):
     else:
         posts[idx] = _normalize_post(request.get_json(silent=True) or {}, posts[idx])
     save_site(site)
+    if request.method == 'PUT':
+        _indexnow_ping_post(site, posts[idx])
     return jsonify({'ok': True})
 
 
@@ -2465,6 +2556,80 @@ def _base_url() -> str:
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
 
 
+def _public_url_list(site: dict, base: str) -> list:
+    """Alle öffentlich indexierbaren URLs (Startseite, Projekt-Detailseiten, Blog)."""
+    urls = [base + '/']
+    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
+    posts = sorted_posts(site, public_only=True)
+    if posts:
+        urls.append(base + '/blog')
+        urls += [f"{base}/blog/{p['id']}" for p in posts]
+    return urls
+
+
+def _indexnow_key(site: dict) -> str:
+    """Liefert den IndexNow-Schlüssel (erzeugt ihn bei Bedarf und speichert)."""
+    key = site.get('indexnow_key') or ''
+    if not re.fullmatch(r'[a-f0-9]{32}', key):
+        key = uuid.uuid4().hex
+        site['indexnow_key'] = key
+        save_site(site)
+    return key
+
+
+def indexnow_submit(urls: list) -> None:
+    """Geänderte URLs an Bing (IndexNow) melden — nicht blockierend."""
+    site = load_site()
+    if not site['design'].get('indexnow') or not site['design'].get('allow_indexing', True):
+        return
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base.startswith(('http://', 'https://')):
+        return  # ohne öffentliche URL nicht möglich
+    key = _indexnow_key(site)
+    url_list = [u for u in dict.fromkeys(urls) if u][:1000]
+    if not url_list:
+        return
+    payload = {
+        'host': urlparse(base).netloc,
+        'key': key,
+        'keyLocation': f'{base}/{key}.txt',
+        'urlList': url_list,
+    }
+
+    # Bedeutung der IndexNow-Statuscodes (ASCII, fuer ueberall sauberes Log)
+    _IN_MSG = {
+        200: 'OK - akzeptiert', 202: 'angenommen (Key wird noch geprueft)',
+        400: 'ungueltige Anfrage', 403: 'Key nicht gueltig (Key-Datei erreichbar?)',
+        422: 'URLs passen nicht zur Domain/Key', 429: 'zu viele Anfragen',
+    }
+    log.info("IndexNow -> Bing: sende %d URL(s) (%s ...)", len(url_list), url_list[0])
+
+    def _worker():
+        try:
+            r = http.post('https://www.bing.com/indexnow', json=payload, timeout=10)
+            note = _IN_MSG.get(r.status_code, '')
+            if r.status_code in (200, 202):
+                log.info("IndexNow -> Bing: %d URL(s) gemeldet (HTTP %s - %s)", len(url_list), r.status_code, note)
+            else:
+                log.warning("IndexNow -> Bing: HTTP %s - %s %s", r.status_code, note, (r.text or '')[:160].strip())
+        except Exception as e:
+            log.warning("IndexNow-Submit fehlgeschlagen: %s", e)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def _indexnow_ping_post(site: dict, post: dict) -> None:
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if base.startswith(('http://', 'https://')) and post_visible(post):
+        indexnow_submit([base + '/', base + '/blog', f"{base}/blog/{post['id']}"])
+
+
+def _indexnow_ping_project(site: dict, proj: dict) -> None:
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if base.startswith(('http://', 'https://')) and _has_detail(proj) and project_visible(proj):
+        indexnow_submit([base + '/', f"{base}/p/{proj['id']}"])
+
+
 @public_app.route('/favicon.ico')
 def favicon():
     site = load_site()
@@ -2483,24 +2648,65 @@ def admin_favicon():
 
 @public_app.route('/robots.txt')
 def robots():
+    site = load_site()
+    if not site['design'].get('allow_indexing', True):
+        return ('User-agent: *\nDisallow: /\n', 200, {'Content-Type': 'text/plain'})
     return (f'User-agent: *\nAllow: /\nSitemap: {_base_url()}/sitemap.xml\n',
             200, {'Content-Type': 'text/plain'})
+
+
+@public_app.route('/<key>.txt')
+def indexnow_keyfile(key: str):
+    """IndexNow-Verifizierungsdatei: liefert den Schlüssel als Klartext."""
+    site = load_site()
+    if re.fullmatch(r'[a-f0-9]{32}', key or '') and key == site.get('indexnow_key'):
+        return key, 200, {'Content-Type': 'text/plain'}
+    abort(404)
+
+
+@public_app.route('/api/slot', methods=['GET', 'POST'])
+def api_slot():
+    """Progressiver Slot-Jackpot (für alle Besucher gemeinsam): jeder Spin +1, bei 777 zurück auf 500."""
+    with _slot_lock:
+        site = load_site()
+        jp = int(site.get('slot_jackpot') or 500)
+        if request.method == 'POST':
+            data = request.get_json(silent=True) or {}
+            if data.get('win'):
+                site['slot_jackpot'] = 500
+                save_site(site)
+                return jsonify({'jackpot': 500, 'won': jp})
+            jp = min(jp + 1, 100_000_000)
+            site['slot_jackpot'] = jp
+            save_site(site)
+    return jsonify({'jackpot': jp})
 
 
 @public_app.route('/sitemap.xml')
 def sitemap():
     site = load_site()
     base = _base_url()
-    urls = [base + '/']
-    urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
     posts = sorted_posts(site, public_only=True)
+
+    def _valid_date(d):
+        return bool(re.match(r'^\d{4}-\d{2}-\d{2}$', str(d or '')))
+
+    newest = max((p['date'] for p in posts if _valid_date(p.get('date'))), default='')
+    # (URL, lastmod) — lastmod optional
+    entries = [(base + '/', newest)]
+    entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
+                if _has_detail(p) and project_visible(p)]
     if posts:
-        urls.append(base + '/blog')
-        urls += [f"{base}/blog/{p['id']}" for p in posts]
+        entries.append((base + '/blog', newest))
+        entries += [(f"{base}/blog/{p['id']}", p['date'] if _valid_date(p.get('date')) else '')
+                    for p in posts]
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    for u in urls:
-        xml += f'  <url><loc>{u}</loc></url>\n'
+    for loc, lastmod in entries:
+        xml += f'  <url><loc>{loc}</loc>'
+        if lastmod:
+            xml += f'<lastmod>{lastmod}</lastmod>'
+        xml += '</url>\n'
     xml += '</urlset>\n'
     return xml, 200, {'Content-Type': 'application/xml'}
 
@@ -2674,9 +2880,32 @@ def public_index():
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
 
+    # Tipp des Tages/der Woche: deterministisch übers Datum (für alle Besucher gleich)
+    tips = sections.get('tips') or []
+    tips_weekly = site.get('tips_rotation') == 'weekly'
+    tip_of_day = None
+    if tips:
+        period = date.today().toordinal()
+        if tips_weekly:
+            period //= 7
+        if site.get('tips_random'):
+            idx = (period * 2654435761) % 2147483647 % len(tips)
+        else:
+            idx = period % len(tips)
+        tip_of_day = tips[idx]
+        # Tatsächliche Anzeige festhalten (einmal pro Tag, nur echte Aufrufe)
+        if not static_export and tip_of_day.get('id'):
+            today_key = date.today().isoformat()
+            tstats = site.setdefault('tips_stats', {})
+            st = tstats.get(tip_of_day['id'])
+            if not st or st.get('last') != today_key:
+                tstats[tip_of_day['id']] = {'last': today_key, 'days': (st.get('days', 0) if st else 0) + 1}
+                save_site(site)
+
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
+        'tips':         ('tips',         'tips_heading_week' if tips_weekly else 'tips_heading', bool(tips)),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
@@ -2711,6 +2940,7 @@ def public_index():
                            projects=projects,
                            font_family=font_family, font_faces=font_faces,
                            bio_html=render_md(loc(site['profile'], 'bio')),
+                           meta_desc=_site_meta(site, loc),
                            email_parts=email_parts,
                            sections=sections,
                            albums=albums,
@@ -2718,6 +2948,7 @@ def public_index():
                            latest_posts=latest_posts,
                            nav_items=nav_items,
                            section_order=section_order,
+                           tip_of_day=tip_of_day, tips_weekly=tips_weekly,
                            static_export=static_export,
                            contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),
@@ -2740,7 +2971,8 @@ def blog_index():
     t = load_translations(lang)
     loc = _loc_factory(lang)
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
-                           posts=posts, year=datetime.now(timezone.utc).year)
+                           posts=posts, meta_desc=_site_meta(site, loc),
+                           year=datetime.now(timezone.utc).year)
 
 
 @public_app.route('/blog/<pid>')
@@ -2755,8 +2987,30 @@ def blog_post(pid: str):
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
+    text_html = render_md(loc(post, 'text'))
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
-                           text_html=render_md(loc(post, 'text')),
+                           text_html=text_html,
+                           meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+@admin_app.route('/preview/blog/<pid>')
+def admin_blog_preview(pid: str):
+    """Beitrags-Vorschau im Admin — rendert post.html für jeden Beitrag (auch Entwurf/geplant)."""
+    err = _auth_required()
+    if err:
+        return err
+    lang = detect_language(request)
+    site = load_site()
+    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
+    if post is None:
+        abort(404)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    text_html = render_md(loc(post, 'text'))
+    return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
+                           text_html=text_html, preview=True,
+                           meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -2772,8 +3026,10 @@ def project_detail(pid: str):
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
+    long_html = render_md(loc(proj, 'long'))
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
-                           long_html=render_md(loc(proj, 'long')),
+                           long_html=long_html,
+                           meta_desc=(loc(proj, 'desc') or _plain_excerpt(long_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
 

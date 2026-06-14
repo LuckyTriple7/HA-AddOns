@@ -38,6 +38,8 @@ https://github.com/LuckyTriple7/HA-AddOns
 | HA SysWatch | ✅ | ✅ | Alpine |
 | phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
 | MediaGrab | ✅ | ✅ | Alpine |
+| GitPulse | ✅ | ✅ | Alpine |
+| MyPage | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -242,6 +244,34 @@ yt-dlp Web-GUI — Videos und Audio von YouTube, TikTok, Instagram, Vimeo, Sound
 
 → [Dokumentation & Changelog](mediagrab/README.md)
 
+### [GitPulse](gitpulse/)
+
+GitHub Control Panel direkt in Home Assistant — PRs, Issues, CI-Status, Security-Alerts und Release-Tracker auf einen Blick.
+
+- Pull Requests und Issues aller eigenen Repos übersichten, kommentieren und mergen
+- CI / GitHub Actions: Status-Übersicht, Workflow starten/stoppen, Favoriten
+- Security-Alerts: Dependabot, CodeQL, Secret Scanning mit Autofix-Integration
+- Release-Tracker: neue Versionen von eigenen und beobachteten Repos mit Badge
+- Add-on Manager: Versions-Bump (+Major/+Minor/+Patch/+Dep) und Changelog direkt in der UI
+- Branch-Sync Kachel: zeigt ↑/↓ Commits zwischen Dev- und Main-Branch je Repo
+- Cherry-Pick: Commits zwischen Branches auswählen und PR erstellen
+- Telegram & E-Mail Benachrichtigungen für PRs, Issues, Workflows, Releases
+- Passwortschutz, PWA, Dark/Light Mode, DE/EN
+
+→ [Dokumentation & Changelog](gitpulse/README.md)
+
+### [MyPage](mypage/)
+
+Homepage-Baukasten direkt in Home Assistant — eigene Webseite ohne Design-Kenntnisse, vom Portfolio bis zur Vereins- oder Dienstleisterseite.
+
+- Inhaltsbereiche: Projekte (GitHub-Import), Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, FAQ, Veranstaltungen, Standort — per Drag & Drop sortier- und ausblendbar
+- Zweisprachig (DE/EN) mit optionaler Auto-Übersetzung, Hell/Dunkel, eigene Schriftarten & CSS
+- Besucherstatistik (Länder, Browser, Referrer), Kontaktformular mit Spam-Schutz, RSS, PWA, SEO
+- Mitglieder-Bereich mit Datei-Sharing (optional SMB), Termin-/Buchungs-Button, Unterstützen-Button
+- Backup & statischer Export, Home-Assistant-Sensoren
+
+→ [Dokumentation & Changelog](mypage/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -284,6 +314,8 @@ https://github.com/LuckyTriple7/HA-AddOns
 | HA SysWatch | ✅ | ✅ | Alpine |
 | phpMyAdmin MariaDB 2 | ✅ | ✅ | Alpine |
 | MediaGrab | ✅ | ✅ | Alpine |
+| GitPulse | ✅ | ✅ | Alpine |
+| MyPage | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -487,3 +519,31 @@ yt-dlp web GUI — download videos and audio from YouTube, TikTok, Instagram, Vi
 - REST API for HA sensors (`/api/status`)
 
 → [Documentation & Changelog](mediagrab/README.md)
+
+### [GitPulse](gitpulse/)
+
+GitHub Control Panel directly in Home Assistant — PRs, Issues, CI status, security alerts and release tracker at a glance.
+
+- Overview of pull requests and issues across all your repos — comment and merge directly in the UI
+- CI / GitHub Actions: status overview, trigger/stop workflows, favorites
+- Security alerts: Dependabot, CodeQL, Secret Scanning with autofix integration
+- Release tracker: new versions of your own and watched repos with badge indicator
+- Add-on Manager: version bump (+Major/+Minor/+Patch/+Dep) and changelog entry directly in the UI
+- Branch-Sync tile: shows ↑/↓ commits between dev and main branch per repo
+- Cherry-Pick: select commits between branches and create a PR
+- Telegram & e-mail notifications for PRs, issues, workflows and releases
+- Password protection, PWA, Dark/Light mode, DE/EN
+
+→ [Documentation & Changelog](gitpulse/README.md)
+
+### [MyPage](mypage/)
+
+Homepage builder directly in Home Assistant — your own website without design skills, from a portfolio to a club or service-provider page.
+
+- Content sections: projects (GitHub import), blog, services, testimonials, team, photo albums, skills, timeline, FAQ, events, location — reorder and hide via drag & drop
+- Bilingual (DE/EN) with optional auto-translation, light/dark, custom fonts & CSS
+- Visitor stats (countries, browsers, referrers), contact form with spam protection, RSS, PWA, SEO
+- Members area with file sharing (optional SMB), appointment/booking button, support button
+- Backup & static export, Home Assistant sensors
+
+→ [Documentation & Changelog](mypage/README.md)

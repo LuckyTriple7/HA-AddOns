@@ -4,24 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ p.title }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
-  <meta name="description" content="{{ loc(p, 'desc') }}">
+  <meta name="description" content="{{ meta_desc }}">
   <meta property="og:title" content="{{ p.title }}">
-  <meta property="og:description" content="{{ loc(p, 'desc') }}">
+  <meta property="og:description" content="{{ meta_desc }}">
   {% if p.image %}<meta property="og:image" content="{{ p.image }}">{% endif %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   <meta name="theme-color" content="#0d1117">
   <style>
     :root {
       --bg:#0d1117; --surf:#161b22; --border:#30363d;
-      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
     }
     [data-theme="light"] {
       --bg:#f6f8fa; --surf:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#636c76;
     }
+    {{ font_faces|safe }}
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       background: var(--bg); color: var(--text); line-height: 1.65;
     }
     a { color: var(--accent); text-decoration: none; }

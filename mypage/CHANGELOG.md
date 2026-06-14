@@ -1,5 +1,124 @@
 # Changelog
 
+## 0.6.32
+
+- 🌍 Admin-Panel: letzte hartcodierten deutschen Beispiel-Platzhalter lokalisiert (Wasserzeichen, Adresse, Absender-Mail, Markdown-Hinweis) — folgen jetzt der Admin-Sprache (DE/EN). Die sprachspezifischen „(DE)/(EN)"-Beispiele bleiben bewusst.
+
+## 0.6.31
+
+- 🌍 Weitere hartcodierte DE-Texte lokalisiert: aria-labels (Zurück/Weiter/Schließen) auf Startseite & Blog-Beitrag, die Easter-Egg-Standardtexte und der Konsolen-Gruß folgen jetzt der Seitensprache (DE/EN).
+
+## 0.6.30
+
+- 🌍 **Mini Games zweisprachig**: Alle Spieltexte (Buttons, Punkte/Score, Gewinn-/Verlustmeldungen, 17+4 usw.) folgen jetzt der Seitensprache (DE/EN) — waren vorher fest auf Deutsch.
+
+## 0.6.29
+
+- 🃏 **17+4** (Blackjack) als sechstes Mini-Game: gegen den Dealer, Karte ziehen / halten, Guthaben mit Einsatz (Gewinn +10, Blackjack +15), Dealer zieht bis 17. Mit „🔄 Aufladen".
+
+## 0.6.28
+
+- 🎰 Slot-Auszahlungen angehoben: Zwei Gleiche **+50**, Dreierpasch **+200**.
+- 💰 **Progressiver Jackpot** (serverseitig, für alle Besucher gemeinsam): startet bei **500**, jeder Spin erhöht ihn um **1**; wer **777** trifft, gewinnt den aktuellen Stand, danach springt er zurück auf 500. Wird in der `site.json` gespeichert.
+
+## 0.6.27
+
+- 🎰 Slot Machine: Leeres Guthaben wird beim Öffnen automatisch wieder auf 100 gesetzt, plus ein **„🔄 Aufladen"-Button** für jederzeit frisches Guthaben — man bleibt also nie stecken.
+- 🔊 **Sound bei Gewinn**: kleine Tonfolge je nach Gewinn (Jackpot > Dreierpasch > Zwei Gleiche), erzeugt per Web Audio — keine externen Dateien.
+
+## 0.6.26
+
+- 🐞 **Snake-Fix**: Trifft die Schlange den Rand oder sich selbst, kommt jetzt **Game Over** (mit Bestwert) und ein **Neustart** per Leertaste/Tippen — vorher lief das Spiel einfach weiter.
+- 🎰 **Slot Machine** als fünftes Mini-Game: Drehen kostet Guthaben, **777 = Jackpot**, drei gleiche = großer Gewinn, die zwei linken gleich = kleiner Gewinn. Guthaben wird lokal gespeichert.
+
+## 0.6.25
+
+- 🎮 **Mini Games**: Optionaler Footer-Link „Mini Games" (Design-Tab, Standard: aus) öffnet ein kleines Menü mit vier selbst gehosteten Spielen — **Snake**, **Dino-Runner**, **Pong** (gegen KI) und **Foto-Memory** (nutzt automatisch deine Fotoalbum-Bilder, sonst Emojis). Highscores für Snake/Dino werden lokal im Browser gespeichert. Keine externen Libraries.
+
+## 0.6.24
+
+- 🐞 Easter-Egg-Fix: Tastatur-Eggs (Konami, „matrixx") lösen nicht mehr aus, während man in einem Eingabefeld (z. B. Kontaktformular) tippt. Das Matrix-Wort wurde zudem auf „matrixx" geändert.
+
+## 0.6.23
+
+- 🔎 **Meta-Description für alle Seiten**: Blog-Beiträge, Blog-Liste und Projekt-Detailseiten bekommen jetzt eine eigene `<meta name="description">` (+ og:description) — bei Beiträgen automatisch aus den ersten ~155 Zeichen des Textes, bei Projekten aus der Beschreibung, bei der Blog-Liste aus der Seitenbeschreibung. So zeigt Google überall einen sinnvollen Snippet statt zusammengewürfeltem Seitentext.
+- ✏️ Optionales **SEO-Feld je Beitrag** (DE/EN) im Bearbeiten-Dialog — leer = automatischer Auszug.
+
+## 0.6.22
+
+- 🔎 **Bessere Google-Snippets**: Neues Feld **SEO-Beschreibung** (DE/EN) im Design-Tab. Ist es leer, nutzt MyPage automatisch Tagline → „Über mich"-Auszug → Name als Meta-Description (`<meta name="description">`, og:description und strukturierte Daten). So zeigt Google eine echte Beschreibung statt der Navigations-Labels.
+
+## 0.6.21
+
+- 💅 Admin-Panel: mehr vertikaler Abstand, wenn nach einem Hinweistext direkt das nächste Feld folgt (z. B. IndexNow-Hinweis → Favicon) — sauberere Trennung der Blöcke.
+
+## 0.6.20
+
+- 💅 Admin-Panel: größerer horizontaler Abstand zwischen den zweispaltigen Feldern (14 → 36 px) — übersichtlicher, vor allem im Design-Tab.
+
+## 0.6.19
+
+- 🥚 **Easter Eggs** (Design-Tab, Standard: aus) — versteckte Spielereien für Besucher:
+  - **Konami-Code** (↑↑↓↓←→←→ B A) → Konfetti + frei einstellbare Nachricht
+  - **Avatar 5× klicken** → kleine Drehung + geheime Zweit-Tagline (einstellbar)
+  - Wort **„matrix"** tippen → kurzer grüner Code-Regen
+  - freundlicher **Gruß in der Browser-Konsole** (F12)
+
+## 0.6.18
+
+- 🙈 **Schalter „Von Suchmaschinen indexieren lassen"** (Design-Tab, Standard: **an**). Auf *Nein* gestellt, bittet die Seite alle Suchmaschinen, sie nicht aufzunehmen: `noindex, nofollow`-Meta auf allen öffentlichen Seiten, `robots.txt` mit `Disallow: /`, und IndexNow pausiert automatisch. Praktisch für private Seiten, die nicht öffentlich gefunden werden sollen.
+
+## 0.6.17
+
+- 📝 **IndexNow-Status im Add-on-Log**: Jede Meldung an Bing wird jetzt protokolliert — beim Senden („sende N URL(s)") und mit dem Ergebnis inkl. verständlicher Deutung der Bing-Antwort (HTTP 200/202 = ok, 403/422 = Key-/Domain-Problem usw.). Log-Texte in ASCII, damit sie überall sauber erscheinen.
+
+## 0.6.16
+
+- 🚀 **IndexNow (Bing)**: Neue Option im Design-Tab. Wenn aktiv, benachrichtigt MyPage **Bing** (und Partner wie DuckDuckGo/Ecosia) automatisch, sobald du einen Beitrag oder ein Projekt veröffentlichst — für schnellere Indexierung. Der nötige Schlüssel wird automatisch erzeugt und unter `https://deine-domain.de/<key>.txt` ausgeliefert. Zusätzlich ein Button „Jetzt an Bing melden", der alle öffentlichen URLs (Startseite, Projekt-Detailseiten, Blog) auf einmal übermittelt. Voraussetzung: öffentliche URL gesetzt. (Google nutzt IndexNow nicht — dort weiterhin Sitemap/Search Console.)
+
+## 0.6.15
+
+- 🔍 **Suchmaschinen-Crawler im Besucher-Log erkennbar**: Bekannte Bots (Googlebot, Bingbot, DuckDuckBot, Applebot, GPTBot u. a.) werden jetzt namentlich angezeigt statt nur „Bot". Über dem Log steht außerdem „Zuletzt von Suchmaschinen besucht: Googlebot (Datum) · Bingbot (Datum) …" — so siehst du auf einen Blick, wann Google zuletzt da war.
+
+## 0.6.14
+
+- 🔎 **Sitemap mit `<lastmod>`**: Startseite, `/blog` und Blog-Beiträge tragen jetzt ein Änderungsdatum — hilft Suchmaschinen beim Crawlen. (Hinweis: Die Sitemap ist bewusst kompakt, weil die meisten Inhalte auf der Startseite liegen; eigene URLs gibt es nur für Projekte **mit Detailseite** und Blog-Beiträge.)
+
+## 0.6.13
+
+- 🐞 **Fix: Tipp-Statistik zeigt echte Werte.** „zuletzt gezeigt" und „wie oft" waren zuvor nur **rechnerische Projektionen** (so, als hätte es die Tipps schon immer gegeben) — daher Datumsangaben in der Vergangenheit und unmögliche Zahlen bei frisch angelegten Tipps. Jetzt bekommt jeder Tipp eine ID, und die **tatsächliche** Anzeige wird festgehalten (einmal pro Tag). Neue Tipps zeigen ehrlich „noch nicht gezeigt"; angezeigt wird „zuletzt gezeigt: \<Datum\> · an N Tag(en) gezeigt".
+
+## 0.6.12
+
+- 📥 **Tipps importieren**: Neuer „Importieren"-Button im Tipp-Bereich — ein JSON-Array einfügen, die Tipps werden an die Liste angehängt (überschreibt nichts). Das JSON wird beim Import auf Gültigkeit geprüft; ungültige Eingaben werden mit Hinweis abgelehnt.
+- 📊 Beim Tipp-Hinweis jetzt zusätzlich **„wie oft gezeigt"** (Häufigkeit im Fenster: 365 Tage bzw. 52 Wochen) — praktisch, um bei Zufalls-Auswahl die Verteilung zu sehen.
+
+## 0.6.11
+
+- 💡 **Tipps: Rotations-Einstellungen** im Kopf des Tipp-Bereichs: **Täglich** (Überschrift „Tipp des Tages") oder **Wöchentlich** (Überschrift „Tipp der Woche"), plus **Zufalls-Schalter** (zufällige, aber für alle Besucher gleiche Auswahl pro Tag/Woche statt der Reihe nach).
+- 🕖 Pro Tipp ein **„zuletzt gezeigt"-Hinweis** im Admin (aus der Rotation berechnet).
+- 🌐 **DE→EN-Übersetzer-Button** auch im Tipp-Bereich.
+
+## 0.6.10
+
+- 🐞 **Fix (wirklich diesmal): Sortieren im Inhalt-Tab speichert.** Beim Ziehen hing die Pointer-Capture am Griff *innerhalb* des verschobenen Elements — beim Verschieben im DOM ging die Capture verloren, `pointerup` feuerte nicht mehr und die Reihenfolge wurde nicht gespeichert. `pointermove`/`pointerup` laufen jetzt über `document` und bleiben dadurch stabil (Maus + Touch).
+
+## 0.6.9
+
+- 🐞 **Fix: Sortieren im Inhalt-Tab wird wieder gespeichert.** Die Akkordeon-Bereiche nutzten `<details>/<summary>` mit interaktiven Elementen (Auge-/Sortier-Griff) im `<summary>` — das ist ungültiges HTML und störte die Drag-&-Drop-Events. Umbau auf ein eigenes Klapp-Element (`acc-head`/`acc-body`); Drag-&-Drop speichert jetzt zuverlässig, und die Barrierefreiheits-Warnung („interactive element within summary") ist behoben.
+
+## 0.6.8
+
+- 💡 **Tipp des Tages**: Neuer Inhaltsbereich — pflege eine Liste von Tipps (DE/EN, Markdown), auf der Startseite wird täglich automatisch einer angezeigt (rotiert deterministisch übers Datum, für alle Besucher gleich). Sortier- und ausblendbar wie die anderen Bereiche.
+
+## 0.6.7
+
+- 👁 **Blog-Vorschau im Admin**: Jeder Beitrag hat jetzt einen „Vorschau"-Button — auch **Entwürfe** und **geplante** Beiträge lassen sich im finalen Layout ansehen, bevor sie veröffentlicht sind (öffnet in neuem Tab, login-geschützt, mit Vorschau-Hinweisleiste).
+
+## 0.6.6
+
+- 🔤 **Schriftart gilt jetzt überall**: Die gewählte Schrift (inkl. eigenem Font-Upload) wird nicht mehr nur auf der Startseite, sondern auf allen öffentlichen Seiten angewendet — Blog-Liste & -Beiträge, Projekt-Detailseiten, Impressum/Datenschutz, Mitglieder-Bereich, Wartungs-, 404- und Fehlerseiten.
+
 ## 0.6.5
 
 - 🧱 **Gestaltete Fehlerseiten** für **403** (kein Zugriff), **413** (Datei zu groß) und **500** (Serverfehler) — passend zum bestehenden 404-Design, zweisprachig (DE/EN), auf der öffentlichen Seite und im Admin-Panel. Statt der nackten Standard-Fehlerseite gibt es jetzt eine klare Meldung mit Zurück-/Startseite-Link.

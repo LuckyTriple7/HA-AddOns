@@ -4,10 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ loc(p, 'title') }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="description" content="{{ meta_desc }}">
   <meta property="og:title" content="{{ loc(p, 'title') }}">
+  <meta property="og:description" content="{{ meta_desc }}">
   {% if p.image %}<meta property="og:image" content="{{ p.image }}">{% endif %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   <meta name="theme-color" content="#0d1117">
   <script type="application/ld+json">{{ {
     '@context': 'https://schema.org',
@@ -19,14 +22,15 @@
   <style>
     :root {
       --bg:#0d1117; --surf:#161b22; --border:#30363d;
-      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }};
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
     }
     [data-theme="light"] {
       --bg:#f6f8fa; --surf:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#636c76;
     }
+    {{ font_faces|safe }}
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       background: var(--bg); color: var(--text); line-height: 1.7;
     }
     a { color: var(--accent); text-decoration: none; }
@@ -61,6 +65,7 @@
     .lightbox:not(.actual) img { max-width: 94vw; max-height: 92vh; border-radius: 8px; cursor: zoom-in; }
     .lightbox.actual img { max-width: none; display: block; margin: 0 auto; cursor: zoom-out; }
     .hero-img, .gal-rail img { cursor: zoom-in; }
+    .preview-bar { background: var(--accent); color: #fff; text-align: center; padding: 7px 14px; font-size: 0.85rem; font-weight: 600; position: sticky; top: 0; z-index: 50; }
     .content { font-size: 0.96rem; }
     .content h1, .content h2, .content h3 { margin: 22px 0 8px; font-size: 1.2rem; }
     .content p { margin-bottom: 12px; }
@@ -75,9 +80,11 @@
   </style>
 </head>
 <body>
+  {% if preview %}<div class="preview-bar">{{ t.preview_banner }}</div>{% endif %}
   <header>
     <div class="wrap header-inner">
-      <a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
+      {% if preview %}<span class="brand">{{ site.design.site_title or site.profile.name or 'MyPage' }}</span>
+      {% else %}<a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>{% endif %}
     </div>
   </header>
   <main class="wrap">
@@ -94,16 +101,16 @@
     <div class="content">{{ text_html|safe }}</div>
     {% if p.gallery %}
     <div class="gal-rail-wrap">
-      <button class="gal-arrow gal-prev" onclick="galScroll(-1)" aria-label="Zurück">‹</button>
+      <button class="gal-arrow gal-prev" onclick="galScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="gal-rail" id="gal-rail">
         {% for img in p.gallery %}
         <img src="{{ img }}" alt="" loading="lazy" onclick="openLightbox(this.src)">
         {% endfor %}
       </div>
-      <button class="gal-arrow gal-next" onclick="galScroll(1)" aria-label="Weiter">›</button>
+      <button class="gal-arrow gal-next" onclick="galScroll(1)" aria-label="{{ t.aria_next }}">›</button>
     </div>
     {% endif %}
-    <a class="back" href="/blog">&larr; {{ t.blog_all }}</a>
+    {% if not preview %}<a class="back" href="/blog">&larr; {{ t.blog_all }}</a>{% endif %}
   </main>
   <div class="lightbox" id="lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt="" onclick="toggleLightboxActual(event)"></div>
   <footer>

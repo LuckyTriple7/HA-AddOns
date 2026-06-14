@@ -34,21 +34,21 @@
     h2 { font-size: 1.15rem; margin-bottom: 16px; }
     .panel { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
     .panel h3 { font-size: 0.95rem; margin-bottom: 14px; color: var(--text); }
-    details.acc > summary { cursor: pointer; font-size: 0.95rem; font-weight: 600; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; }
-    details.acc > summary::-webkit-details-marker { display: none; }
-    details.acc > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; display: inline-block; }
-    details.acc[open] > summary::before { transform: rotate(90deg); }
-    details.acc[open] > summary { margin-bottom: 14px; }
-    details.acc > summary:hover { color: var(--accent); }
+    .acc-head { cursor: pointer; font-size: 0.95rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .acc-head::before { content: '▸'; color: var(--muted); transition: transform .15s; display: inline-block; }
+    .panel.acc.open > .acc-head::before { transform: rotate(90deg); }
+    .panel.acc.open > .acc-head { margin-bottom: 14px; }
+    .acc-head:hover { color: var(--accent); }
+    .panel.acc:not(.open) > :not(.acc-head) { display: none; }
     .drag-handle { cursor: grab; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 0 2px; user-select: none; touch-action: none; }
     .drag-handle:hover { color: var(--accent); }
-    details.acc.dragging { opacity: .45; border-color: var(--accent); }
-    details.acc.acc-hidden { opacity: .5; }
+    .panel.acc.dragging { opacity: .45; border-color: var(--accent); }
+    .panel.acc.acc-hidden { opacity: .5; }
     .acc-ext { color: var(--muted); font-size: 0.8rem; }
     .sec-eye { order: 99; margin-left: auto; background: none; border: none; cursor: pointer; line-height: 0; padding: 2px 4px; color: var(--muted); }
     .sec-eye svg { width: 18px; height: 18px; fill: currentColor; display: block; }
     .sec-eye:hover { color: var(--text); }
-    details.acc.acc-hidden .sec-eye { color: var(--accent); }
+    .panel.acc.acc-hidden .sec-eye { color: var(--accent); }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -57,7 +57,8 @@
     }
     input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
     textarea { resize: vertical; min-height: 70px; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 36px; margin-bottom: 6px; }
+    .hint + .row, .hint + label, .hint + .upload-row { margin-top: 20px; }
     @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
     .btn { background: var(--green); border: 1px solid var(--green-h); color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; margin-top: 16px; }
     .btn:hover { background: var(--green-h); }
@@ -240,41 +241,74 @@
     <section class="tab" id="tab-content">
       <p class="hint" style="margin-bottom:14px">{{ t.content_acc_hint }} {{ t.content_dnd_hint }}</p>
       <div id="section-acc">
-      <details class="panel acc" data-key="news">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.news_heading }}</summary>
+      <div class="panel acc" data-key="news">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.news_heading }}</div>
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="blog">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></summary>
+      </div>
+      <div class="panel acc" data-key="tips">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_section }}</div>
+        <p class="hint">{{ t.tips_hint }}</p>
+        <div class="row">
+          <div>
+            <label for="tips-rotation">{{ t.tips_rotation_label }}</label>
+            <select id="tips-rotation" onchange="updateTipHints()">
+              <option value="daily">{{ t.tips_daily }}</option>
+              <option value="weekly">{{ t.tips_weekly }}</option>
+            </select>
+          </div>
+          <div>
+            <label for="tips-random">{{ t.tips_random_label }}</label>
+            <select id="tips-random" onchange="updateTipHints()">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">{{ t.tips_rotation_hint }}</p>
+        <div id="tips-list"></div>
+        <button class="btn secondary small" onclick="addTipRow()">+ {{ t.add_entry }}</button>
+        <button class="btn secondary small" onclick="translateRows(this, 'tips-list', 'tip-text_de', 'tip-text_en')">🌐 {{ t.tr_btn }}</button>
+        <button class="btn secondary small" onclick="toggleTipImport()">⬇ {{ t.tips_import }}</button>
+        <div id="tips-import-box" style="display:none;margin-top:10px">
+          <textarea id="tips-import-json" rows="6" placeholder='[{"text_de":"…","text_en":"…"}]' style="font-family:ui-monospace,Consolas,monospace;font-size:0.82rem"></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button class="btn small" onclick="importTips()">{{ t.tips_import_apply }}</button>
+            <button class="btn secondary small" onclick="toggleTipImport()">{{ t.cancel }}</button>
+          </div>
+          <p class="hint">{{ t.tips_import_hint }}</p>
+        </div>
+      </div>
+      <div class="panel acc" data-key="blog">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></div>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=blog]').click()">{{ t.tab_blog }} →</button>
-      </details>
-      <details class="panel acc" data-key="services">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.services_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="services">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.services_heading }}</div>
         <p class="hint">{{ t.services_hint }}</p>
         <div id="services-list"></div>
         <button class="btn secondary small" onclick="addServiceRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="projects">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.projects }} <span class="acc-ext">↗</span></summary>
+      </div>
+      <div class="panel acc" data-key="projects">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.projects }} <span class="acc-ext">↗</span></div>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=projects]').click()">{{ t.tab_projects }} →</button>
-      </details>
-      <details class="panel acc" data-key="skills">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.skills_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="skills">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.skills_heading }}</div>
         <label>{{ t.field_skills }}</label>
         <input type="text" id="c-skills" placeholder="Python, Flask, Docker, Home Assistant">
         <p class="hint">{{ t.skills_hint }}</p>
-      </details>
-      <details class="panel acc" data-key="testimonials">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.testimonials_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="testimonials">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.testimonials_heading }}</div>
         <p class="hint">{{ t.testimonials_hint }}</p>
         <div id="testimonials-list"></div>
         <button class="btn secondary small" onclick="addTestimonialRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="photos">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.albums_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="photos">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.albums_heading }}</div>
         <p class="hint">{{ t.albums_hint }}</p>
         <button class="btn small" onclick="openAlbumModal()" style="margin-bottom:12px">+ {{ t.new_album }}</button>
         <div class="proj-list" id="album-list"></div>
@@ -289,48 +323,48 @@
           <div>
             <label>{{ t.watermark_text }}</label>
             <div class="upload-row">
-              <input type="text" id="a-watermark" placeholder="© deine-domain.de">
+              <input type="text" id="a-watermark" placeholder="{{ t.ph_copyright }}">
               <button class="btn secondary small" onclick="saveAlbumSettings()">{{ t.save }}</button>
             </div>
           </div>
         </div>
         <p class="hint">{{ t.album_protect_hint }}</p>
-      </details>
-      <details class="panel acc" data-key="team">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="team">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</div>
         <p class="hint">{{ t.team_hint }}</p>
         <div id="team-list"></div>
         <button class="btn secondary small" onclick="addTeamRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="timeline">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="timeline">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</div>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="events">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.events_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="events">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.events_heading }}</div>
         <p class="hint">{{ t.events_hint }}</p>
         <div id="events-list"></div>
         <button class="btn secondary small" onclick="addEventRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="links">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.links_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="links">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.links_heading }}</div>
         <p class="hint">{{ t.links_hint }}</p>
         <div id="links-list"></div>
         <button class="btn secondary small" onclick="addLinkEntryRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="faq">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.faq_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="faq">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.faq_heading }}</div>
         <p class="hint">{{ t.faq_hint }}</p>
         <div id="faq-list"></div>
         <button class="btn secondary small" onclick="addFaqRow()">+ {{ t.add_entry }}</button>
-      </details>
-      <details class="panel acc" data-key="location">
-        <summary><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.location_heading }}</summary>
+      </div>
+      <div class="panel acc" data-key="location">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.location_heading }}</div>
         <p class="hint">{{ t.location_hint }}</p>
         <div class="row">
           <div><label>{{ t.location_name }}</label><input type="text" id="loc-name" placeholder="{{ t.location_name }}"></div>
-          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="Musterstr. 1, 12345 Stadt"></div>
+          <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="{{ t.ph_address }}"></div>
         </div>
         <div class="row">
           <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
@@ -347,7 +381,7 @@
             <p class="hint">{{ t.location_coords_hint }}</p>
           </div>
         </div>
-      </details>
+      </div>
       </div>
       <div style="display:flex;justify-content:flex-end;margin:4px 0 18px">
         <button class="btn" onclick="saveSections()">{{ t.save }}</button>
@@ -448,6 +482,41 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_seo_desc }} (DE)</label>
+            <input type="text" id="d-meta_description_de" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
+          </div>
+          <div>
+            <label>{{ t.field_seo_desc }} (EN)</label>
+            <input type="text" id="d-meta_description_en" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.seo_desc_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.field_allow_indexing }}</label>
+            <select id="d-allow_indexing">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
+            <p class="hint">{{ t.allow_indexing_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_indexnow }}</label>
+            <select id="d-indexnow">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button class="btn secondary" style="margin-top:0" onclick="pingIndexNow(this)">{{ t.indexnow_ping }}</button>
+          </div>
+        </div>
+        <p class="hint">{{ t.indexnow_hint }}</p>
+        <div class="row">
+          <div>
             <label>{{ t.field_favicon }}</label>
             <div class="upload-row">
               <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
@@ -521,6 +590,34 @@
         <label>{{ t.field_custom_css }}</label>
         <textarea id="d-custom_css" rows="5" style="font-family:ui-monospace,Consolas,monospace" placeholder=".hero h1 {{ '{' }} letter-spacing: 1px; {{ '}' }}"></textarea>
         <p class="hint">{{ t.custom_css_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.field_easter_eggs }}</label>
+            <select id="d-easter_eggs">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.easter_eggs_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_mini_games }}</label>
+            <select id="d-mini_games">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.mini_games_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_egg_message }}</label>
+            <input type="text" id="d-egg_message" maxlength="200" placeholder="{{ t.egg_default_msg }}">
+          </div>
+          <div>
+            <label>{{ t.field_egg_tagline }}</label>
+            <input type="text" id="d-egg_tagline" maxlength="200" placeholder="{{ t.egg_default_tagline }}">
+          </div>
+        </div>
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
         <p class="hint">{{ t.contact_telegram_hint }}</p>
       </div>
@@ -613,7 +710,7 @@
         <h3>{{ t.welcome_from_heading }}</h3>
         <p class="hint">{{ t.welcome_from_hint }}</p>
         <div class="upload-row">
-          <input type="email" id="u-welcome-from" placeholder="noreply@deine-domain.de">
+          <input type="email" id="u-welcome-from" placeholder="{{ t.ph_noreply }}">
           <button class="btn small" onclick="saveWelcomeFrom()">{{ t.save }}</button>
         </div>
       </div>
@@ -692,6 +789,7 @@
       </div>
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
+        <p id="s-crawler" class="hint" style="margin:2px 0 10px"></p>
         <div id="s-log-wrap" class="collapsible">
           <div style="overflow-x:auto">
             <table class="vtable">
@@ -758,7 +856,7 @@
       <div class="row">
         <div>
           <label>{{ t.field_long }} (DE)</label>
-          <textarea id="pm-long_de" rows="6" placeholder="# Markdown wird unterstützt"></textarea>
+          <textarea id="pm-long_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
         </div>
         <div>
           <label>{{ t.field_long }} (EN)</label>
@@ -885,6 +983,17 @@
       <input type="url" id="bm-video" placeholder="https://youtube.com/watch?v=… {{ t.video_hint }}">
       <div class="row">
         <div>
+          <label>{{ t.field_seo_desc }} (DE)</label>
+          <input type="text" id="bm-meta_de" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+        <div>
+          <label>{{ t.field_seo_desc }} (EN)</label>
+          <input type="text" id="bm-meta_en" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+      </div>
+      <p class="hint">{{ t.post_seo_hint }}</p>
+      <div class="row">
+        <div>
           <label>{{ t.field_title }} (DE) *</label>
           <input type="text" id="bm-title_de">
         </div>
@@ -974,6 +1083,65 @@
       btn.disabled = false; btn.textContent = old;
       toast(failed ? T.tr_error : T.tr_done, failed);
     }
+    // DE→EN für alle Zeilen einer dynamischen Liste (z. B. Tipps)
+    async function translateRows(btn, listId, deClass, enClass) {
+      const rows = [...el(listId).children].filter(r => {
+        const de = r.querySelector('.' + deClass); return de && de.value.trim();
+      });
+      if (!rows.length) { toast(T.tr_nothing, true); return; }
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = T.tr_running;
+      let failed = false;
+      for (const r of rows) {
+        const de = r.querySelector('.' + deClass), en = r.querySelector('.' + enClass);
+        try {
+          const res = await apiJson('api/translate', 'POST', { text: de.value, from: 'de', to: 'en' });
+          if (res.ok) en.value = (await res.json()).text; else failed = true;
+        } catch { failed = true; }
+      }
+      btn.disabled = false; btn.textContent = old;
+      toast(failed ? T.tr_error : T.tr_done, failed);
+    }
+
+    // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
+    function updateTipHints() {
+      const list = el('tips-list');
+      if (!list) return;
+      const stats = SITE.tips_stats || {};
+      const todayISO = new Date().toLocaleDateString('en-CA');   // YYYY-MM-DD (lokal)
+      [...list.children].forEach(row => {
+        const span = row.querySelector('.tip-last');
+        if (!span) return;
+        const id = row.dataset.tipId;
+        const st = id ? stats[id] : null;
+        if (!st || !st.last) { span.textContent = T.tip_never; return; }
+        const when = st.last === todayISO ? T.tip_today : st.last;
+        span.textContent = T.tip_shown + ': ' + when + ' · ' + T.tip_days.replace('{n}', st.days || 0);
+      });
+    }
+    function toggleTipImport() {
+      const b = el('tips-import-box');
+      b.style.display = b.style.display === 'none' ? 'block' : 'none';
+      if (b.style.display === 'block') el('tips-import-json').focus();
+    }
+    function importTips() {
+      let data;
+      try { data = JSON.parse(el('tips-import-json').value); }
+      catch { toast(T.tips_import_invalid, true); return; }
+      if (data && Array.isArray(data.tips)) data = data.tips;   // {"tips":[…]} ebenfalls akzeptieren
+      if (!Array.isArray(data)) { toast(T.tips_import_invalid, true); return; }
+      let added = 0;
+      data.forEach(x => {
+        if (!x || typeof x !== 'object') return;
+        const de = (x.text_de || '').toString(), en = (x.text_en || '').toString();
+        if (de || en) { addTipRow({ text_de: de, text_en: en }); added++; }
+      });
+      if (!added) { toast(T.tips_import_invalid, true); return; }
+      el('tips-import-json').value = '';
+      toggleTipImport();
+      updateTipHints();
+      toast(T.tips_import_done.replace('{n}', added));
+    }
 
     // ── Theme ──
     (function(){
@@ -1034,8 +1202,9 @@
         div.className = 'proj-item';
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
-            <button class="btn secondary small">${T.edit}</button>
-            <button class="btn danger small">✕</button>
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
           </div>`;
         div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
         // Status: Entwurf, geplant (Datum in Zukunft) oder veröffentlicht
@@ -1045,9 +1214,9 @@
         else if ((p.date || '') > today) badge = `<span class="badge-scheduled">${T.status_scheduled}</span>`;
         if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
         div.querySelector('.proj-meta').textContent = p.date || '';
-        const [editBtn, delBtn] = div.querySelectorAll('.proj-actions button');
-        editBtn.onclick = () => openPostModal(p.id);
-        delBtn.onclick = async () => {
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/blog/' + p.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openPostModal(p.id);
+        div.querySelector('.btn-del').onclick = async () => {
           if (!confirm(T.confirm_delete)) return;
           const r = await fetch('api/posts/' + p.id, { method: 'DELETE', credentials: 'same-origin' });
           if (r.ok) loadSite();
@@ -1099,6 +1268,8 @@
       el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
       el('bm-image').value = p.image || '';
       el('bm-video').value = p.video || '';
+      el('bm-meta_de').value = p.meta_de || '';
+      el('bm-meta_en').value = p.meta_en || '';
       el('bm-title_de').value = p.title_de || '';
       el('bm-title_en').value = p.title_en || '';
       el('bm-text_de').value = p.text_de || '';
@@ -1113,6 +1284,8 @@
         date:     el('bm-date').value,
         image:    el('bm-image').value,
         video:    el('bm-video').value,
+        meta_de:  el('bm-meta_de').value,
+        meta_en:  el('bm-meta_en').value,
         title_de: el('bm-title_de').value,
         title_en: el('bm-title_en').value,
         text_de:  el('bm-text_de').value,
@@ -1152,6 +1325,11 @@
       (s.links || []).forEach(l => addLinkEntryRow(l));
       el('faq-list').innerHTML = '';
       (s.faq || []).forEach(f => addFaqRow(f));
+      el('tips-rotation').value = SITE.tips_rotation === 'weekly' ? 'weekly' : 'daily';
+      el('tips-random').value = SITE.tips_random ? '1' : '0';
+      el('tips-list').innerHTML = '';
+      (s.tips || []).forEach(x => addTipRow(x));
+      updateTipHints();
       el('services-list').innerHTML = '';
       (s.services || []).forEach(x => addServiceRow(x));
       el('testimonials-list').innerHTML = '';
@@ -1173,6 +1351,11 @@
       applySectionOrder();
       initSectionDnD();
       applySectionVisibility();
+    }
+    // Akkordeon auf-/zuklappen (Klick auf Griff/Auge nicht)
+    function toggleAcc(e, head) {
+      if (e.target.closest('.drag-handle, .sec-eye')) return;
+      head.parentElement.classList.toggle('open');
     }
     // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop, Maus + Touch) ──
     function applySectionOrder() {
@@ -1200,31 +1383,34 @@
       if (!cont) return;
       sectionDnDReady = true;
       let dragEl = null;
-      // Pointer Events funktionieren für Maus UND Touch einheitlich
+      // pointermove/-up an document binden: bleibt auch dann aktiv, wenn das
+      // gezogene Element (mit dem Griff darin) im DOM verschoben wird.
+      function onMove(e) {
+        if (!dragEl) return;
+        e.preventDefault();
+        const after = sectionDragAfter(cont, e.clientY);
+        if (after == null) cont.appendChild(dragEl);
+        else if (after !== dragEl) cont.insertBefore(dragEl, after);
+      }
+      function onUp() {
+        if (!dragEl) return;
+        dragEl.classList.remove('dragging');
+        dragEl = null;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        saveSectionOrder();
+      }
       cont.querySelectorAll('.drag-handle').forEach(h => {
         h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
         h.addEventListener('pointerdown', e => {
           e.preventDefault();
           dragEl = h.closest('.acc');
           dragEl.classList.add('dragging');
-          try { h.setPointerCapture(e.pointerId); } catch (_) {}
+          document.addEventListener('pointermove', onMove);
+          document.addEventListener('pointerup', onUp);
+          document.addEventListener('pointercancel', onUp);
         });
-        h.addEventListener('pointermove', e => {
-          if (!dragEl) return;
-          e.preventDefault();
-          const after = sectionDragAfter(cont, e.clientY);
-          if (after == null) cont.appendChild(dragEl);
-          else if (after !== dragEl) cont.insertBefore(dragEl, after);
-        });
-        const end = e => {
-          if (!dragEl) return;
-          dragEl.classList.remove('dragging');
-          dragEl = null;
-          try { h.releasePointerCapture(e.pointerId); } catch (_) {}
-          saveSectionOrder();
-        };
-        h.addEventListener('pointerup', end);
-        h.addEventListener('pointercancel', end);
       });
     }
     async function saveSectionOrder() {
@@ -1489,6 +1675,28 @@
       div.querySelector('.ev-url').value = e.url || '';
       el('events-list').appendChild(div);
     }
+    function addTipRow(e) {
+      e = e || {};
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr auto">
+        <span style="font-size:.8rem;color:var(--muted);align-self:center">💡 <span class="tip-last"></span></span>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1); updateTipHints()">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1); updateTipHints()">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove(); updateTipHints()">✕</button>
+        </span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <textarea class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea>
+        <textarea class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea>
+      </div>`;
+      div.dataset.tipId = e.id || '';
+      div.querySelector('.tip-text_de').value = e.text_de || '';
+      div.querySelector('.tip-text_en').value = e.text_en || '';
+      el('tips-list').appendChild(div);
+      updateTipHints();
+    }
     async function saveSections() {
       const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
       const news = [...el('news-list').children].map(row => ({
@@ -1517,6 +1725,11 @@
         a_de: row.querySelector('.f-a_de').value,
         a_en: row.querySelector('.f-a_en').value,
       })).filter(f => f.q_de || f.q_en);
+      const tips = [...el('tips-list').children].map(row => ({
+        id:      row.dataset.tipId || '',
+        text_de: row.querySelector('.tip-text_de').value,
+        text_en: row.querySelector('.tip-text_en').value,
+      })).filter(x => x.text_de || x.text_en);
       const services = [...el('services-list').children].map(row => ({
         icon:     row.querySelector('.sv-icon').value,
         title_de: row.querySelector('.sv-title_de').value,
@@ -1559,7 +1772,8 @@
         show_map: el('loc-show_map').value === '1',
       };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, services, testimonials, team, events, location });
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location,
+          tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }
@@ -2087,6 +2301,10 @@
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
+      el('d-meta_description_de').value = d.meta_description_de || '';
+      el('d-meta_description_en').value = d.meta_description_en || '';
+      el('d-allow_indexing').value = (d.allow_indexing === false) ? '0' : '1';
+      el('d-indexnow').value = d.indexnow ? '1' : '0';
       el('d-support_url').value = d.support_url || '';
       el('d-support_label').value = d.support_label || '';
       el('d-booking_url').value = d.booking_url || '';
@@ -2105,6 +2323,10 @@
       }
       el('d-font').value = d.font || 'system';
       el('d-custom_css').value = d.custom_css || '';
+      el('d-easter_eggs').value = d.easter_eggs ? '1' : '0';
+      el('d-mini_games').value = d.mini_games ? '1' : '0';
+      el('d-egg_message').value = d.egg_message || '';
+      el('d-egg_tagline').value = d.egg_tagline || '';
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
@@ -2114,7 +2336,15 @@
         layout:          el('d-layout').value,
         font:            el('d-font').value,
         custom_css:      el('d-custom_css').value,
+        easter_eggs:     el('d-easter_eggs').value === '1',
+        mini_games:      el('d-mini_games').value === '1',
+        egg_message:     el('d-egg_message').value,
+        egg_tagline:     el('d-egg_tagline').value,
         public_url:      el('d-public_url').value,
+        meta_description_de: el('d-meta_description_de').value,
+        meta_description_en: el('d-meta_description_en').value,
+        allow_indexing:  el('d-allow_indexing').value === '1',
+        indexnow:        el('d-indexnow').value === '1',
         support_url:     el('d-support_url').value,
         support_label:   el('d-support_label').value,
         booking_url:     el('d-booking_url').value,
@@ -2127,6 +2357,14 @@
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { loadSite(); reloadPreview(); }
+    }
+    async function pingIndexNow(btn) {
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = T.tr_running;
+      const r = await apiJson('api/indexnow/ping', 'POST', {});
+      btn.disabled = false; btn.textContent = old;
+      if (r.ok) { const d = await r.json(); toast(T.indexnow_done.replace('{n}', d.count)); }
+      else { toast(T.indexnow_need, true); }
     }
 
     // ── Projekte ──
@@ -2382,8 +2620,34 @@
         el(target).appendChild(row);
       });
     }
+    // Bekannte Crawler/Bots am User-Agent erkennen ('' = kein Crawler)
+    function crawlerName(ua) {
+      if (!ua) return '';
+      const u = ua.toLowerCase();
+      if (/googlebot|google-inspectiontool|storebot-google|googleother|google-extended/.test(u)) return 'Googlebot';
+      if (/bingbot|adidxbot|bingpreview/.test(u)) return 'Bingbot';
+      if (/duckduckbot/.test(u)) return 'DuckDuckBot';
+      if (/yandexbot/.test(u)) return 'YandexBot';
+      if (/baiduspider/.test(u)) return 'Baiduspider';
+      if (/applebot/.test(u)) return 'Applebot';
+      if (/facebookexternalhit|facebot/.test(u)) return 'Facebook';
+      if (/twitterbot/.test(u)) return 'Twitterbot';
+      if (/slackbot/.test(u)) return 'Slackbot';
+      if (/telegrambot/.test(u)) return 'TelegramBot';
+      if (/gptbot|oai-searchbot|chatgpt-user/.test(u)) return 'GPTBot';
+      if (/claudebot|anthropic-ai|claude-web/.test(u)) return 'ClaudeBot';
+      if (/ahrefsbot/.test(u)) return 'AhrefsBot';
+      if (/semrushbot/.test(u)) return 'SemrushBot';
+      if (/petalbot/.test(u)) return 'PetalBot';
+      if (/bytespider/.test(u)) return 'Bytespider';
+      if (/uptimerobot|pingdom/.test(u)) return 'Uptime-Monitor';
+      if (/bot|crawl|spider/.test(u)) return 'Bot';
+      return '';
+    }
     function browserInfo(ua) {
       if (!ua) return '–';
+      const c = crawlerName(ua);
+      if (c) return '🔍 ' + c;
       let b = 'Browser';
       if (/edg\//i.test(ua)) b = 'Edge';
       else if (/opr\/|opera/i.test(ua)) b = 'Opera';
@@ -2402,6 +2666,19 @@
     function renderVisitorLog(log) {
       const tbody = el('s-log');
       tbody.innerHTML = '';
+      // Zusammenfassung: wann waren Suchmaschinen-Crawler zuletzt da?
+      const last = {};
+      log.forEach(v => {
+        const c = crawlerName(v.ua);
+        if (c && c !== 'Bot' && c !== 'Uptime-Monitor' && (!last[c] || v.ts > last[c])) last[c] = v.ts;
+      });
+      const names = Object.keys(last).sort((a, b) => {
+        const pr = n => n === 'Googlebot' ? 0 : n === 'Bingbot' ? 1 : 2;
+        return pr(a) - pr(b) || a.localeCompare(b);
+      });
+      el('s-crawler').textContent = names.length
+        ? T.crawler_last + ': ' + names.map(n => `${n} (${new Date(last[n] * 1000).toLocaleString()})`).join(' · ')
+        : T.crawler_none;
       if (!log.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="hint">${T.no_data}</td></tr>`;
         return;
