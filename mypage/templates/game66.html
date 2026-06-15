@@ -590,11 +590,15 @@
   let tabActive = true;  // Mehr-Tab-Schutz: nur ein aktiver Tab spielt
   let drawnCard = null;  // zuletzt vom Talon gezogene Karte (blau umrandet)
   let handSort = localStorage.getItem('g66_handsort') === '1';  // Hand nach Wertigkeit sortieren
-  // Sortierung: zuerst Farbe (Kreuz<Karo<Herz<Pik), dann Wert (Bube<Dame<König<10<Ass)
+  // Sortierung: zuerst Farbe (Kreuz<Karo<Herz<Pik), dann Wert (Bube<Dame<König<10<Ass).
+  // Trumpf steht immer ganz rechts (unabhaengig von der Farbe), höchster Trumpf zuletzt.
   const SUIT_RANK = {c: 0, d: 1, h: 2, s: 3};
   const RANK_VAL = {J: 2, Q: 3, K: 4, T: 10, A: 11};
-  const sortedHand = hand => hand.slice().sort((a, b) =>
-    (SUIT_RANK[a[1]] - SUIT_RANK[b[1]]) || (RANK_VAL[a[0]] - RANK_VAL[b[0]]));
+  const sortedHand = (hand, trump) => hand.slice().sort((a, b) => {
+    const at = a[1] === trump, bt = b[1] === trump;
+    if (at !== bt) return at ? 1 : -1;            // Trumpf nach rechts
+    return (SUIT_RANK[a[1]] - SUIT_RANK[b[1]]) || (RANK_VAL[a[0]] - RANK_VAL[b[0]]);
+  });
   const LEVEL_DEFS = [
     ['easy', G.level_easy, G.level_easy_desc],
     ['medium', G.level_medium, G.level_medium_desc],
@@ -1224,7 +1228,7 @@
 
     // Eigene Hand (optional nach Wertigkeit sortiert; blauer Talon-Rand bleibt erhalten)
     const mh = $('me-hand'); mh.innerHTML = '';
-    (handSort ? sortedHand(v.hand) : v.hand).forEach(card => {
+    (handSort ? sortedHand(v.hand, v.trump) : v.hand).forEach(card => {
       const slot = document.createElement('div');
       slot.className = 'card-slot';
       slot.dataset.card = card;

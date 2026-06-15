@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.75
+
+- 🗂️ **66: Trumpf beim Sortieren immer rechts** — bei aktivierter Hand-Sortierung stehen die **Trumpfkarten jetzt immer ganz rechts** (höchster Trumpf außen), unabhängig von der Farbe — vorher wurden sie nach Farbe einsortiert und konnten in der Mitte landen. Der **goldene Rahmen** um die Trumpfkarten bleibt unverändert erhalten. Im Browser verifiziert.
+
 ## 0.6.74
 
 - ⚡ **66: Trumpf-Buben-Tausch-Animation flüssiger** — der Tausch wirkte träge und ruckelte. Zwei Ursachen behoben: (1) `flyExchange` erzeugte zwei **frische `<img>`** und wartete auf deren `load`-Event (bis 200 ms Startverzögerung) bzw. dekodierte das SVG erst während der Animation (Ruckeln) — jetzt werden die **bereits gerenderten Karten geklont** (wie bei der Spielerkarte), plus `will-change:transform`. (2) Vor der Animation lag ein **toter Leerlauf** (~475 ms) im Frame-Player — für den Tausch entfernt, die Animation schließt jetzt direkt an. Im Browser verifiziert (Tausch läuft sauber, Klone werden korrekt aufgeräumt).
