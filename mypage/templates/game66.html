@@ -715,6 +715,13 @@
   }
 
   // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
+  // Trumpf-Buben-Tausch erkennen: Trumpfkarte geaendert, Tisch unveraendert
+  function isExchangeTransition(prev, cur){
+    return prev && cur && prev.trump_card && cur.trump_card
+      && prev.trump_card !== cur.trump_card
+      && (prev.table || []).length === (cur.table || []).length;
+  }
+
   async function playFrames(frames){
     for (let i = 0; i < frames.length; i++){
       if (i > 0) await animateTransition(frames[i - 1], frames[i]);
@@ -727,8 +734,12 @@
         const n = (frames[i].table || []).length;
         // Voller Stich liegt → die Gewinnerkarte (laut Folge-Frame) blinkt waehrend der Liegezeit
         if (n >= 2) highlightWinningCard(frames[i], frames[i + 1].last_trick_winner);
-        await sleep(n >= 2 ? lingerMs
-                  : (n === 1 ? Math.round(lingerMs * 0.48) : Math.round(lingerMs * 0.38)));
+        // Vor einem Trumpf-Buben-Tausch keinen Leerlauf einlegen — die Animation
+        // soll direkt nach dem Render anschliessen (sonst wirkt sie verzoegert/abgehackt).
+        if (!isExchangeTransition(frames[i], frames[i + 1])){
+          await sleep(n >= 2 ? lingerMs
+                    : (n === 1 ? Math.round(lingerMs * 0.48) : Math.round(lingerMs * 0.38)));
+        }
       }
     }
   }
@@ -737,8 +748,7 @@
   async function animateTransition(prev, cur){
     if (reduceMotion) return;
     // Trumpf-Buben-Tausch erkennen: Trumpfkarte hat sich geändert, Tisch unverändert
-    if (prev.trump_card && cur.trump_card && prev.trump_card !== cur.trump_card
-        && (prev.table||[]).length === (cur.table||[]).length){
+    if (isExchangeTransition(prev, cur)){
       const who = (JSON.stringify(prev.hand) !== JSON.stringify(cur.hand)) ? 'p' : 'a';
       if (debugMode) {
         const dbg = document.createElement('div');
@@ -989,24 +999,26 @@
       const done = () => { if (--pending <= 0) resolve(); };
       const dur = flyMs / 1000;
 
-      // Bube fliegt von Hand zur Trumpf-Position
-      const jackClone = document.createElement('img');
-      jackClone.src = (who === 'p') ? img(newTrump) : img('back');
+      // Bube fliegt von Hand zur Trumpf-Position. Die bereits geladene/dekodierte
+      // Karte klonen (statt neues <img> laden) — sonst Start-Verzoegerung durch
+      // load-Event und Ruckeln durch SVG-Decode im ersten Frame.
+      const jackClone = handCard.cloneNode(true);
+      jackClone.className = ''; jackClone.removeAttribute('id');
       jackClone.style.cssText = 'position:fixed;margin:0;z-index:61;pointer-events:none;border-radius:6px;'
         + 'left:' + hr.left + 'px;top:' + hr.top + 'px;'
         + 'height:' + hr.height + 'px;width:' + hr.width + 'px;'
-        + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);'
+        + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);will-change:transform;'
         + 'box-shadow:0 0 0 2px var(--gold),0 8px 18px rgba(0,0,0,.5)';
       document.body.appendChild(jackClone);
       handCard.style.visibility = 'hidden';
 
       // Trumpfkarte fliegt von Trumpf-Position zur Hand
-      const trumpClone = document.createElement('img');
-      trumpClone.src = img(oldTrump);
+      const trumpClone = trumpEl.cloneNode(true);
+      trumpClone.className = ''; trumpClone.removeAttribute('id');
       trumpClone.style.cssText = 'position:fixed;margin:0;z-index:62;pointer-events:none;border-radius:6px;'
         + 'left:' + tr.left + 'px;top:' + tr.top + 'px;'
         + 'height:' + tr.height + 'px;width:' + tr.width + 'px;'
-        + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);'
+        + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);will-change:transform;'
         + 'box-shadow:0 0 0 2px var(--gold),0 8px 18px rgba(0,0,0,.5)';
       document.body.appendChild(trumpClone);
       trumpEl.style.visibility = 'hidden';
@@ -1016,23 +1028,11 @@
       const tdx = -jdx * (hr.width / tr.width);
       const tdy = -jdy * (hr.height / tr.height);
 
-      const startFly = () => {
-        requestAnimationFrame(() => {
-          jackClone.style.transform = 'translate(' + jdx + 'px,' + jdy + 'px)';
-          trumpClone.style.transform = 'translate(' + tdx + 'px,' + tdy + 'px)';
-        });
-      };
-
-      const jackReady = jackClone.complete && jackClone.naturalWidth;
-      const trumpReady = trumpClone.complete && trumpClone.naturalWidth;
-      if (jackReady && trumpReady) startFly();
-      else {
-        let started = false;
-        const go = () => { if (started) return; started = true; startFly(); };
-        if (!jackReady) jackClone.addEventListener('load', () => { if (trumpClone.complete) go(); }, {once:true});
-        if (!trumpReady) trumpClone.addEventListener('load', () => { if (jackClone.complete) go(); }, {once:true});
-        setTimeout(go, 200);
-      }
+      // Klone sind sofort dekodiert -> ohne load-Wartezeit starten
+      requestAnimationFrame(() => {
+        jackClone.style.transform = 'translate(' + jdx + 'px,' + jdy + 'px)';
+        trumpClone.style.transform = 'translate(' + tdx + 'px,' + tdy + 'px)';
+      });
 
       const finJ = () => { jackClone.remove(); done(); };
       const finT = () => { trumpClone.remove(); done(); };

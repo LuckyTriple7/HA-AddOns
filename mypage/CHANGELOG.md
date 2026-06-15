@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.74
+
+- ⚡ **66: Trumpf-Buben-Tausch-Animation flüssiger** — der Tausch wirkte träge und ruckelte. Zwei Ursachen behoben: (1) `flyExchange` erzeugte zwei **frische `<img>`** und wartete auf deren `load`-Event (bis 200 ms Startverzögerung) bzw. dekodierte das SVG erst während der Animation (Ruckeln) — jetzt werden die **bereits gerenderten Karten geklont** (wie bei der Spielerkarte), plus `will-change:transform`. (2) Vor der Animation lag ein **toter Leerlauf** (~475 ms) im Frame-Player — für den Tausch entfernt, die Animation schließt jetzt direkt an. Im Browser verifiziert (Tausch läuft sauber, Klone werden korrekt aufgeräumt).
+
 ## 0.6.73
 
 - 🐛 **66: Talon-Stapel fehlte beim Spielstart** — nach „Neues Spiel" bzw. dem Neu-Button (↻) war der verdeckte Kartenstapel im Talon unsichtbar und tauchte erst nach einem harten Reload (Strg+R) auf. Ursache: `clearBoard()` setzte den Stapel auf `visibility:hidden`, aber `render()` stellte nur die Trumpfkarte wieder her, nicht den Stapel. Jetzt wird auch `#stock-back` zurückgesetzt. Im Browser verifiziert (sichtbar nach Deal **und** nach Neu-Button, ohne Reload).
