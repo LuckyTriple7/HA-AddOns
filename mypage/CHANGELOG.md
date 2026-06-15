@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.79
+
+- 🐛 **66: Erster Talon-Nachzug wurde manchmal nicht animiert** — beim Nachziehen erschien die Karte des ersten Ziehers gelegentlich sofort am Stapel (ohne Flug), nur der zweite Nachzug war animiert. Ursache: Der Flug lud das Kartenbild frisch per `src` — je nach Decode-/Cache-Timing startete die CSS-Transition dann nicht. Jetzt wird (wie beim Spielerkarten-Flug) die bereits dekodierte Stapelkarte geklont und die Startposition vor dem Flug per Reflow festgeschrieben, sodass die Animation zuverlässig startet.
+
 ## 0.6.78
 
 - ❓ **66: Rückfrage beim Wechsel von Schwierigkeit/Regeln** — das Umstellen der KI-Schwierigkeit (oder der Regeln) startet ein neues Match. Vorher passierte das sofort und ohne Vorwarnung; jetzt erscheint dieselbe Sicherheitsabfrage wie beim Neu-Button („Laufendes Match aufgeben und neu beginnen?"). Bei Abbruch bleibt das laufende Spiel erhalten. Das erneute Wählen der **bereits aktiven** Stufe löst keine Rückfrage (und kein neues Spiel) aus. Im Browser verifiziert.
