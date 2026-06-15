@@ -132,7 +132,7 @@
     .last-trick .pc { height: clamp(48px, 10vh, 72px); }
     .last-trick .pc.by-ai { box-shadow: 0 0 0 2px #00e5ff; }
     /* Gespielte-Karten-Modal */
-    .played-grid { display: flex; flex-direction: column; gap: 10px; margin: 10px auto; }
+    .played-grid { display: flex; flex-direction: column; gap: 10px; margin: 10px auto; align-items: center; }
     .played-row { display: flex; align-items: center; gap: 6px; }
     .played-row .ps { font-size: 1.3rem; width: 30px; text-align: center; font-variant-emoji: text; }
     .played-row .ps.red { color: #d61f1f; }
@@ -180,6 +180,8 @@
     .rule-opt p { font-size: 0.8rem; opacity: 0.85; margin: 0; line-height: 1.45; }
     .rule-opt .act { color: var(--gold); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
     .banner .box.wide { width: min(620px, 92vw); }
+    /* Gespielte-Karten-Modal: Box an den Karteninhalt anpassen (nicht fix 620px) */
+    #played-modal .box.wide { width: auto; max-width: 92vw; }
     .scrollbox { max-height: 62vh; overflow-y: auto; text-align: left; margin: 6px 0 14px;
                  padding-right: 6px; }
     .scrollbox.md { font-size: 0.86rem; line-height: 1.5; }

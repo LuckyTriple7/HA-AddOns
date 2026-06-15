@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.80
+
+- 💅 **66: „Gespielte Karten"-Fenster kompakter & zentriert** — das Modal war fix 620px breit, wodurch die Karten linksbündig mit viel Leerraum standen. Jetzt passt sich die Box an den Karteninhalt an und die Kartenreihen sind horizontal zentriert. Im Browser verifiziert (Box ~405px statt 620, Inhalt mittig).
+
 ## 0.6.79
 
 - 🐛 **66: Erster Talon-Nachzug wurde manchmal nicht animiert** — beim Nachziehen erschien die Karte des ersten Ziehers gelegentlich sofort am Stapel (ohne Flug), nur der zweite Nachzug war animiert. Ursache: Der Flug lud das Kartenbild frisch per `src` — je nach Decode-/Cache-Timing startete die CSS-Transition dann nicht. Jetzt wird (wie beim Spielerkarten-Flug) die bereits dekodierte Stapelkarte geklont und die Startposition vor dem Flug per Reflow festgeschrieben, sodass die Animation zuverlässig startet.
