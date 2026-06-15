@@ -13,10 +13,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+COPY game66.py .
+COPY 66_REGELN.md .
 COPY icon.png .
 COPY fonts/ fonts/
 COPY templates/ templates/
 COPY locales/ locales/
+COPY static/ static/
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 

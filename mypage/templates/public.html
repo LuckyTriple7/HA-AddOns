@@ -360,6 +360,20 @@
     /* Mini-Games */
     .game-ov { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 95; display: flex; align-items: center; justify-content: center; padding: 18px; }
     .game-box { position: relative; background: var(--surf); border: 1px solid var(--accent); border-radius: 14px; padding: 20px; max-width: 96vw; max-height: 92vh; overflow: auto; text-align: center; }
+    @keyframes mg-shake {
+      0%, 100% { transform: translate(0, 0) rotate(0); }
+      10% { transform: translate(-7px, 4px) rotate(-1deg); }
+      20% { transform: translate(8px, -3px) rotate(1deg); }
+      30% { transform: translate(-8px, -4px) rotate(-1deg); }
+      40% { transform: translate(7px, 5px) rotate(1deg); }
+      50% { transform: translate(-6px, 3px) rotate(-1deg); }
+      60% { transform: translate(7px, -4px) rotate(1deg); }
+      70% { transform: translate(-7px, 4px) rotate(-1deg); }
+      80% { transform: translate(5px, 3px) rotate(1deg); }
+      90% { transform: translate(-4px, -2px) rotate(0); }
+    }
+    .game-box.shake { animation: mg-shake 0.7s ease; }
+    @media (prefers-reduced-motion: reduce) { .game-box.shake { animation: none; } }
     .game-close { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--muted); font-size: 1.25rem; cursor: pointer; line-height: 1; }
     .game-close:hover { color: var(--accent); }
     .game-title { font-weight: 700; margin-bottom: 12px; }
@@ -380,6 +394,9 @@
     .pcard { width: 44px; height: 62px; background: #fff; color: #111; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.02rem; border: 1px solid #bbb; }
     .pcard.red { color: #c0392b; }
     .pcard.back { background: linear-gradient(135deg, #30363d, #161b22); color: #58a6ff; border-color: #30363d; }
+    .pcard.held { outline: 3px solid var(--accent); outline-offset: 1px; box-shadow: 0 0 8px var(--accent); }
+    .pcard.win { outline: 3px solid #f1c40f; outline-offset: 1px; box-shadow: 0 0 12px #f1c40f; transition: box-shadow .2s; }
+    .pcard.dim { opacity: 0.4; filter: grayscale(0.6); }
     .slot-reels { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
     .slot-cell { width: 72px; height: 72px; border: 2px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.3rem; background: #0d1117; }
     .btn-spin { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; font-weight: 700; cursor: pointer; }
@@ -392,8 +409,54 @@
       .avatar { width: 96px; height: 96px; }
       .hero h1 { font-size: 1.6rem; }
     }
+
+    /* ── Einblend-Effekte (Reveal beim Laden/Scrollen) ── */
+    /* Nur aktiv, wenn JS die Seite „scharf" gestellt hat (html.rv-armed) — ohne JS bleibt alles sichtbar */
+    /* Verborgener Ausgangszustand für Blöcke und (bei Stagger) einzelne Karten */
+    html.rv-armed[data-reveal] main > *,
+    html.rv-armed[data-reveal] .rv-card {
+      opacity: 0;
+      transition: opacity .6s ease, transform .6s ease, filter .6s ease;
+      will-change: opacity, transform;
+    }
+    /* Der gewählte Effekt gilt für Blöcke UND Karten gleichermaßen */
+    html.rv-armed[data-reveal="slide"] main > *,
+    html.rv-armed[data-reveal="slide"] .rv-card { transform: translateY(26px); }
+    html.rv-armed[data-reveal="zoom"] main > *,
+    html.rv-armed[data-reveal="zoom"] .rv-card { transform: scale(.95); transform-origin: center top; }
+    html.rv-armed[data-reveal="blur"] main > *,
+    html.rv-armed[data-reveal="blur"] .rv-card { filter: blur(10px); }
+    /* Stagger: Container, die Karten enthalten, bewegen sich NICHT selbst (sofort sichtbar) —
+       die Bewegung tragen die einzelnen Karten nacheinander. Überschriften/Hero behalten den Effekt. */
+    html.rv-armed[data-reveal-stagger] main > *:has(.rv-card) {
+      opacity: 1 !important; transform: none !important; filter: none !important;
+    }
+    /* Sichtbarer Endzustand */
+    html.rv-armed[data-reveal] main > .rv-in,
+    html.rv-armed[data-reveal] .rv-card.rv-in {
+      opacity: 1 !important; transform: none !important; filter: none !important;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html.rv-armed main > *,
+      html.rv-armed .rv-card {
+        opacity: 1 !important; transform: none !important; filter: none !important; transition: none !important;
+      }
+    }
   </style>
   {% if site.design.custom_css %}<style>{{ site.design.custom_css|safe }}</style>{% endif %}
+  <script>
+    // Einblend-Effekte vorbereiten: läuft vor dem ersten Paint → kein Aufblitzen.
+    // Bei „off", reduzierter Bewegung oder ohne JS bleibt alles sofort sichtbar.
+    (function () {
+      var mode = {{ site.design.reveal_effect|tojson }};
+      if (!mode || mode === 'off') return;
+      try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+      var h = document.documentElement;
+      h.setAttribute('data-reveal', mode);
+      {% if site.design.reveal_stagger %}h.setAttribute('data-reveal-stagger', '1');{% endif %}
+      h.classList.add('rv-armed');
+    })();
+  </script>
 </head>
 <body>
   <header>
@@ -691,7 +754,7 @@
 
     {% elif _sec == 'timeline' %}
     {% if sections.timeline %}
-    <h2 class="section-title" id="timeline">{{ t.timeline_heading }}</h2>
+    <h2 class="section-title" id="timeline">{{ timeline_title|default('') or t.timeline_heading }}</h2>
     <div class="timeline">
       {% for e in sections.timeline %}
       <div class="tl-item">
@@ -1198,7 +1261,7 @@
     function openGameMenu() {
       openGame('🎮 Mini Games', mount => {
         const m = document.createElement('div'); m.className = 'game-menu';
-        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory], ['🎰 Slot', gameSlot], ['🃏 17+4', gameCards]]
+        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory], ['🎰 Slot', gameSlot], ['🃏 17+4', gameCards], ['🎴 Poker', gamePoker]]
           .forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => openGame(label, fn); m.appendChild(b); });
         mount.appendChild(m);
         return null;
@@ -1219,6 +1282,23 @@
         o.connect(g).connect(_ac.destination); o.start(t); o.stop(t + dur + 0.02); t += dur;
       });
     }
+    // Casino-Jackpot-Klingel: schnelles, metallisches „dring-dring" (Grundton + inharmonischer Oberton)
+    function slotBell() {
+      if (!_ac) return;
+      let t = _ac.currentTime;
+      for (let k = 0; k < 9; k++) {
+        [1568, 3740].forEach((f, idx) => {
+          const o = _ac.createOscillator(), g = _ac.createGain();
+          o.type = 'triangle'; o.frequency.value = f;
+          const amp = idx === 0 ? 0.22 : 0.09;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(amp, t + 0.004);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+          o.connect(g).connect(_ac.destination); o.start(t); o.stop(t + 0.17);
+        });
+        t += 0.125;
+      }
+    }
 
     // Lokalisierte Spieltexte (folgen der Seitensprache)
     const G = {
@@ -1233,7 +1313,13 @@
       hit: {{ t.g_hit|tojson }}, stand: {{ t.g_stand|tojson }}, newround: {{ t.g_newround|tojson }},
       stake: {{ t.g_stake|tojson }}, nocreditRefill: {{ t.g_nocredit_refill|tojson }}, bust: {{ t.g_bust|tojson }},
       blackjack: {{ t.g_blackjack|tojson }}, won: {{ t.g_won|tojson }}, lost: {{ t.g_lost|tojson }},
-      push: {{ t.g_push|tojson }}, cardsGoal: {{ t.g_cards_goal|tojson }}
+      push: {{ t.g_push|tojson }}, cardsGoal: {{ t.g_cards_goal|tojson }},
+      pk_deal: {{ t.g_pk_deal|tojson }}, pk_draw: {{ t.g_pk_draw|tojson }}, pk_hold: {{ t.g_pk_hold|tojson }},
+      pk_holddraw: {{ t.g_pk_holddraw|tojson }}, pk_goal: {{ t.g_pk_goal|tojson }},
+      pk_royal: {{ t.g_pk_royal|tojson }}, pk_sflush: {{ t.g_pk_sflush|tojson }}, pk_quads: {{ t.g_pk_quads|tojson }},
+      pk_full: {{ t.g_pk_full|tojson }}, pk_flush: {{ t.g_pk_flush|tojson }}, pk_straight: {{ t.g_pk_straight|tojson }},
+      pk_trips: {{ t.g_pk_trips|tojson }}, pk_twopair: {{ t.g_pk_twopair|tojson }}, pk_jacks: {{ t.g_pk_jacks|tojson }},
+      sim: {{ t.g_sim|tojson }}
     };
 
     function gameSnake(mount) {
@@ -1374,50 +1460,70 @@
     }
 
     function gameSlot(mount) {
-      const SYM = ['7️⃣', '🍒', '🍋', '🔔', '⭐', '💎', '🍉'];
+      const SYM = ['7️⃣', '🍒', '🍋', '🔔', '⭐', '💎', '🍉', '🚫'];
+      const BET = 10;
+      // Auszahlungen je Symbol (🚫 = Niete, zahlt nie). Paar = Walze 1+2 gleich (von links), Drilling = alle drei gleich.
+      const PAIR   = { '7️⃣': 100, '💎': 50, '🔔': 40, '⭐': 40, '🍉': 30, '🍒': 20, '🍋': 20 };
+      const TRIPLE = { '💎': 200, '🔔': 100, '⭐': 100, '🍉': 80, '🍒': 50, '🍋': 50 };  // 7️⃣ = Jackpot (serverseitig)
       let credits = +(localStorage.getItem('mg-slot-cr') || 100);
-      if (credits < 5) credits = 100;   // leeres Konto beim Öffnen wieder auffüllen
-      localStorage.setItem('mg-slot-cr', credits);
       const jp = document.createElement('div'); jp.className = 'slot-jackpot'; jp.textContent = '💰 Jackpot: …';
       const reels = document.createElement('div'); reels.className = 'slot-reels';
       const cells = [0, 1, 2].map(() => { const c = document.createElement('div'); c.className = 'slot-cell'; c.textContent = '❔'; reels.appendChild(c); return c; });
       const cr = document.createElement('div'); cr.className = 'game-info';
       const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap';
-      const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 ' + G.spin;
+      const btn = document.createElement('button'); btn.className = 'btn-spin'; btn.textContent = '🎰 ' + G.spin + ' (−' + BET + ')';
       const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 ' + G.refill;
       ctrl.append(btn, refill);
       const msg = document.createElement('div'); msg.className = 'game-info';
       mount.append(jp, reels, cr, ctrl, msg);
       let spinning = false, timers = [], jackpot = 500;
-      function upd() { cr.textContent = G.credits + ': ' + credits; }
+      // Aufladen-Button nur bei leerem (nicht mehr bespielbarem) Konto zeigen
+      function upd() { cr.textContent = G.credits + ': ' + credits; refill.style.display = credits < BET ? '' : 'none'; }
       function updJp() { jp.textContent = '💰 ' + G.jackpot + ': ' + jackpot; }
       upd();
       // Aktuellen (serverweiten) Jackpot holen
       fetch('api/slot', { credentials: 'same-origin' }).then(r => r.json()).then(d => { jackpot = d.jackpot; updJp(); }).catch(() => updJp());
       refill.onclick = () => { credits = 100; localStorage.setItem('mg-slot-cr', credits); upd(); btn.disabled = false; msg.textContent = '🔄 ' + G.refilled; };
+      // Jackpot-Feier: Casino-Klingel + wackelndes Fenster (für echten Gewinn UND Simulation)
+      function celebrate() {
+        audioReady(); slotBell();
+        const box = mount.closest('.game-box');
+        if (box) { box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake'); setTimeout(() => box.classList.remove('shake'), 800); }
+      }
       function finish(res) {
         const SEVEN = '7️⃣';
         spinning = false; btn.disabled = false;
-        if (res[0] === res[1] && res[1] === res[2] && res[0] === SEVEN) {
-          beep([523, 659, 784, 1047, 1319], 0.12); msg.textContent = G.jackpotHit + ' …';
-          // Jackpot serverseitig auszahlen (exakter Betrag) und auf 500 zurücksetzen
-          fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: true }) })
-            .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = G.jackpotHit + '  +' + d.won; })
-            .catch(() => { credits += jackpot; localStorage.setItem('mg-slot-cr', credits); upd(); msg.textContent = G.jackpotHit + '  +' + jackpot; });
+        // Drilling (alle drei gleich)
+        if (res[0] === res[1] && res[1] === res[2]) {
+          if (res[0] === SEVEN) {
+            celebrate(); msg.textContent = G.jackpotHit + ' …';
+            // Jackpot serverseitig auszahlen (exakter Betrag) und auf 500 zurücksetzen
+            fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: true }) })
+              .then(r => r.json()).then(d => { credits += d.won; localStorage.setItem('mg-slot-cr', credits); upd(); jackpot = d.jackpot; updJp(); msg.textContent = G.jackpotHit + '  +' + d.won; })
+              .catch(() => { credits += jackpot; localStorage.setItem('mg-slot-cr', credits); upd(); msg.textContent = G.jackpotHit + '  +' + jackpot; });
+            return;
+          }
+          const win = TRIPLE[res[0]] || 0;
+          credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
+          if (win) { msg.textContent = '✨ ' + G.triple + ' ' + res[0] + '  +' + win; beep([523, 784, 1047], 0.13); }
+          else { msg.textContent = G.nowin; beep([220, 165], 0.1, 'sine'); }
           return;
         }
-        let win = 0, txt = '';
-        if (res[0] === res[1] && res[1] === res[2]) { win = 200; txt = '✨ ' + G.triple + ' ' + res[0] + '  +200'; beep([523, 784, 1047], 0.13); }
-        else if (res[0] === res[1]) { win = 50; txt = G.twoeq; beep([659, 880], 0.12); }
-        else { txt = G.nowin; beep([220, 165], 0.1, 'sine'); }
-        credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
-        msg.textContent = txt;
+        // Paar von links (Walze 1 == Walze 2)
+        if (res[0] === res[1]) {
+          const win = PAIR[res[0]] || 0;
+          credits += win; localStorage.setItem('mg-slot-cr', credits); upd();
+          if (win) { msg.textContent = G.twoeq + ' ' + res[0] + '  +' + win; beep([659, 880], 0.12); }
+          else { msg.textContent = G.nowin; beep([220, 165], 0.1, 'sine'); }
+          return;
+        }
+        msg.textContent = G.nowin; beep([220, 165], 0.1, 'sine');
       }
       function spin() {
         if (spinning) return;
-        if (credits < 5) { msg.textContent = G.nocredit; return; }
+        if (credits < BET) { msg.textContent = G.nocredit; upd(); return; }
         audioReady();
-        spinning = true; credits -= 5; upd(); msg.textContent = ''; btn.disabled = true;
+        spinning = true; credits -= BET; upd(); msg.textContent = ''; btn.disabled = true;
         // Jeder Lauf erhöht den serverweiten Jackpot um 1
         fetch('api/slot', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ win: false }) })
           .then(r => r.json()).then(d => { jackpot = d.jackpot; updJp(); }).catch(() => {});
@@ -1428,13 +1534,28 @@
         });
       }
       btn.onclick = spin;
-      return () => { timers.forEach(t => { clearInterval(t); clearTimeout(t); }); };
+      // „jackpot" tippen = Simulation der Jackpot-Feier (Klingel + Wackeln), OHNE Auszahlung
+      function simulateJackpot() {
+        if (spinning) return;
+        cells.forEach(c => c.textContent = '7️⃣');
+        celebrate();
+        msg.textContent = G.jackpotHit + ' — ' + G.sim;
+      }
+      let typed = '';
+      function onKey(e) {
+        const el = e.target;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+        if (e.key && e.key.length === 1) { typed = (typed + e.key.toLowerCase()).slice(-7); if (typed === 'jackpot') { typed = ''; simulateJackpot(); } }
+      }
+      document.addEventListener('keydown', onKey);
+      return () => { timers.forEach(t => { clearInterval(t); clearTimeout(t); }); document.removeEventListener('keydown', onKey); };
     }
 
     function gameCards(mount) {
       const SUITS = ['♠', '♥', '♦', '♣'], RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+      const BET = 10;
       let credits = +(localStorage.getItem('mg-cards-cr') || 100);
-      if (credits < 10) credits = 100; localStorage.setItem('mg-cards-cr', credits);
+      localStorage.setItem('mg-cards-cr', credits);
       const dl = document.createElement('div'); dl.className = 'cards-label';
       const drow = document.createElement('div'); drow.className = 'cards-row';
       const pl = document.createElement('div'); pl.className = 'cards-label';
@@ -1455,7 +1576,7 @@
         if (hidden) { d.className = 'pcard back'; d.textContent = '?'; return d; }
         d.className = 'pcard' + (c.s === '♥' || c.s === '♦' ? ' red' : ''); d.textContent = c.r + c.s; return d;
       }
-      function upd() { cr.textContent = G.credits + ': ' + credits + ' · ' + G.stake; }
+      function upd() { cr.textContent = G.credits + ': ' + credits + ' · ' + G.stake; refill.style.display = credits < BET ? '' : 'none'; }
       function render() {
         drow.innerHTML = ''; prow.innerHTML = '';
         dealer.forEach((c, i) => drow.appendChild(card(c, state === 'playing' && i === 1)));
@@ -1468,7 +1589,7 @@
       }
       function newRound() {
         if (state === 'playing') return;
-        if (credits < 10) { msg.textContent = G.nocreditRefill; return; }
+        if (credits < BET) { msg.textContent = G.nocreditRefill; return; }
         audioReady();
         deck = []; SUITS.forEach(s => RANKS.forEach(r => deck.push({ r, s })));
         for (let i = deck.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
@@ -1493,7 +1614,150 @@
       render(); msg.textContent = G.cardsGoal;
       return () => {};
     }
+
+    // Video Poker (Jacks or Better): geben → halten → tauschen → werten
+    function gamePoker(mount) {
+      const SUITS = ['♠', '♥', '♦', '♣'], RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+      const BET = 10;
+      // [Schlüssel, Auszahlung × Einsatz, Anzeigename]
+      const PAYS = [
+        ['royal', 250, G.pk_royal], ['sflush', 50, G.pk_sflush], ['quads', 25, G.pk_quads],
+        ['full', 9, G.pk_full], ['flush', 6, G.pk_flush], ['straight', 4, G.pk_straight],
+        ['trips', 3, G.pk_trips], ['twopair', 2, G.pk_twopair], ['jacks', 1, G.pk_jacks]
+      ];
+      let credits = +(localStorage.getItem('mg-poker-cr') || 100);
+      localStorage.setItem('mg-poker-cr', credits);
+      const pay = document.createElement('div'); pay.className = 'cards-label'; pay.style.cssText = 'text-align:center;line-height:1.6;font-size:0.72rem;max-width:340px;margin:0 auto 6px';
+      pay.textContent = PAYS.map(p => p[2] + ' ×' + p[1]).join('  ·  ');
+      const prow = document.createElement('div'); prow.className = 'cards-row';
+      const cr = document.createElement('div'); cr.className = 'game-info';
+      const ctrl = document.createElement('div'); ctrl.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px';
+      const bDeal = document.createElement('button'); bDeal.className = 'btn-spin'; bDeal.textContent = '▶ ' + G.pk_deal + ' (−' + BET + ')';
+      const bDraw = document.createElement('button'); bDraw.className = 'btn-spin'; bDraw.textContent = '🔄 ' + G.pk_draw;
+      const refill = document.createElement('button'); refill.className = 'btn-refill'; refill.textContent = '🔄 ' + G.refill;
+      ctrl.append(bDeal, bDraw, refill);
+      const msg = document.createElement('div'); msg.className = 'game-info';
+      mount.append(pay, prow, cr, ctrl, msg);
+      let deck = [], hand = [], held = [false, false, false, false, false], state = 'idle', winIdx = [];
+      function upd() { cr.textContent = G.credits + ': ' + credits + ' · ' + G.stake; refill.style.display = credits < BET ? '' : 'none'; }
+      function newDeck() {
+        deck = []; SUITS.forEach(s => RANKS.forEach(r => deck.push({ r, s })));
+        for (let i = deck.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
+      }
+      function render() {
+        prow.innerHTML = '';
+        hand.forEach((c, i) => {
+          const d = document.createElement('div');
+          const isWin = winIdx.indexOf(i) !== -1;
+          d.className = 'pcard' + ((c.s === '♥' || c.s === '♦') ? ' red' : '') + (held[i] ? ' held' : '')
+            + (isWin ? ' win' : '') + (winIdx.length && !isWin ? ' dim' : '');
+          d.textContent = c.r + c.s;
+          if (state === 'draw') { d.style.cursor = 'pointer'; d.title = G.pk_hold; d.onclick = () => { held[i] = !held[i]; render(); }; }
+          prow.appendChild(d);
+        });
+        bDeal.disabled = state === 'draw';
+        bDraw.disabled = state !== 'draw';
+        upd();
+      }
+      function rankVal(r) { return ({ J: 11, Q: 12, K: 13, A: 14 })[r] || +r; }
+      function evaluate(cards) {
+        const vals = cards.map(c => rankVal(c.r));
+        const flush = cards.every(c => c.s === cards[0].s);
+        const cnt = {}; vals.forEach(v => cnt[v] = (cnt[v] || 0) + 1);
+        const counts = Object.values(cnt).sort((a, b) => b - a);
+        const uniq = Object.keys(cnt).map(Number).sort((a, b) => a - b);
+        const ALL = [0, 1, 2, 3, 4];
+        // Indizes der Karten mit Rang-Anzahl n (z. B. das Paar, der Drilling …)
+        const idxOf = n => { const rs = Object.keys(cnt).filter(k => cnt[k] === n).map(Number); return vals.map((v, i) => rs.indexOf(v) !== -1 ? i : -1).filter(i => i !== -1); };
+        let straight = false;
+        if (uniq.length === 5) {
+          if (uniq[4] - uniq[0] === 4) straight = true;
+          if (uniq[0] === 2 && uniq[1] === 3 && uniq[2] === 4 && uniq[3] === 5 && uniq[4] === 14) straight = true; // A-2-3-4-5
+        }
+        const royal = straight && flush && uniq[0] === 10;
+        if (royal) return { pay: PAYS[0], win: ALL };
+        if (straight && flush) return { pay: PAYS[1], win: ALL };
+        if (counts[0] === 4) return { pay: PAYS[2], win: idxOf(4) };
+        if (counts[0] === 3 && counts[1] === 2) return { pay: PAYS[3], win: ALL };
+        if (flush) return { pay: PAYS[4], win: ALL };
+        if (straight) return { pay: PAYS[5], win: ALL };
+        if (counts[0] === 3) return { pay: PAYS[6], win: idxOf(3) };
+        if (counts[0] === 2 && counts[1] === 2) return { pay: PAYS[7], win: idxOf(2) };
+        if (counts[0] === 2) { const pr = +Object.keys(cnt).find(k => cnt[k] === 2); if (pr >= 11) return { pay: PAYS[8], win: idxOf(2) }; }
+        return null;
+      }
+      function deal() {
+        if (state === 'draw') return;
+        if (credits < BET) { msg.textContent = G.nocreditRefill; upd(); return; }
+        audioReady();
+        credits -= BET; localStorage.setItem('mg-poker-cr', credits);
+        newDeck();
+        hand = [deck.pop(), deck.pop(), deck.pop(), deck.pop(), deck.pop()];
+        held = [false, false, false, false, false]; winIdx = [];
+        state = 'draw'; msg.textContent = G.pk_holddraw; render();
+        beep([523, 659], 0.08);
+      }
+      function draw() {
+        if (state !== 'draw') return;
+        for (let i = 0; i < 5; i++) { if (!held[i]) hand[i] = deck.pop(); }
+        state = 'idle'; held = [false, false, false, false, false];
+        const res = evaluate(hand);
+        if (res) {
+          const win = res.pay[1] * BET;
+          credits += win; localStorage.setItem('mg-poker-cr', credits);
+          winIdx = res.win;
+          msg.textContent = '✨ ' + res.pay[2] + '  +' + win;
+          beep([523, 784, 1047, 1319], 0.12);
+        } else {
+          winIdx = [];
+          msg.textContent = G.nowin;
+          beep([220, 165], 0.1, 'sine');
+        }
+        render();
+      }
+      bDeal.onclick = deal; bDraw.onclick = draw;
+      refill.onclick = () => { credits = 100; localStorage.setItem('mg-poker-cr', credits); upd(); msg.textContent = '🔄 ' + G.refilled; };
+      render(); msg.textContent = G.pk_goal;
+      return () => {};
+    }
   </script>
   {% endif %}
+
+  <script>
+    // Einblend-Effekte: Sektionen (und optional Karten gestaffelt) einblenden, sobald sie sichtbar werden.
+    (function () {
+      try {
+        var root = document.documentElement;
+        if (!root.classList.contains('rv-armed')) return;   // aus / reduzierte Bewegung / kein JS
+        var stagger = root.hasAttribute('data-reveal-stagger');
+        var CARD = '.svc-card,.min-item,.row-item,.card,.tm-card,.album-card,.team-card,.tl-item,.ev-item,.news-item,.faq-item,.link-item';
+        var blocks = [].slice.call(document.querySelectorAll('main > *'));
+        if (stagger) {
+          blocks.forEach(function (blk) {
+            [].slice.call(blk.querySelectorAll(CARD)).forEach(function (c, i) {
+              c.classList.add('rv-card');
+              c.style.transitionDelay = Math.min(i, 12) * 0.06 + 's';
+            });
+          });
+        }
+        function reveal(blk) {
+          blk.classList.add('rv-in');
+          if (stagger) { [].slice.call(blk.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); }); }
+        }
+        if (!('IntersectionObserver' in window)) { blocks.forEach(reveal); return; }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) { if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); } });
+        }, { threshold: 0.05, rootMargin: '0px 0px -6% 0px' });
+        blocks.forEach(function (blk) { io.observe(blk); });
+        // Sicherheitsnetz: falls etwas hakt, nach 4 s alles zeigen
+        setTimeout(function () { blocks.forEach(reveal); }, 4000);
+      } catch (e) {
+        [].slice.call(document.querySelectorAll('main > *')).forEach(function (s) {
+          s.classList.add('rv-in');
+          [].slice.call(s.querySelectorAll('.rv-card')).forEach(function (c) { c.classList.add('rv-in'); });
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

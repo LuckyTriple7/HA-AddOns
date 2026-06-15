@@ -1,5 +1,216 @@
 # Changelog
 
+## 0.6.80
+
+- 💅 **66: „Gespielte Karten"-Fenster kompakter & zentriert** — das Modal war fix 620px breit, wodurch die Karten linksbündig mit viel Leerraum standen. Jetzt passt sich die Box an den Karteninhalt an und die Kartenreihen sind horizontal zentriert. Im Browser verifiziert (Box ~405px statt 620, Inhalt mittig).
+
+## 0.6.79
+
+- 🐛 **66: Erster Talon-Nachzug wurde manchmal nicht animiert** — beim Nachziehen erschien die Karte des ersten Ziehers gelegentlich sofort am Stapel (ohne Flug), nur der zweite Nachzug war animiert. Ursache: Der Flug lud das Kartenbild frisch per `src` — je nach Decode-/Cache-Timing startete die CSS-Transition dann nicht. Jetzt wird (wie beim Spielerkarten-Flug) die bereits dekodierte Stapelkarte geklont und die Startposition vor dem Flug per Reflow festgeschrieben, sodass die Animation zuverlässig startet.
+
+## 0.6.78
+
+- ❓ **66: Rückfrage beim Wechsel von Schwierigkeit/Regeln** — das Umstellen der KI-Schwierigkeit (oder der Regeln) startet ein neues Match. Vorher passierte das sofort und ohne Vorwarnung; jetzt erscheint dieselbe Sicherheitsabfrage wie beim Neu-Button („Laufendes Match aufgeben und neu beginnen?"). Bei Abbruch bleibt das laufende Spiel erhalten. Das erneute Wählen der **bereits aktiven** Stufe löst keine Rückfrage (und kein neues Spiel) aus. Im Browser verifiziert.
+
+## 0.6.77
+
+- 🎬 **66: Nachziehen vom Talon jetzt nacheinander sichtbar** — nach einem Stich zieht zuerst der **Stichgewinner** eine Karte vom Talon, dann der andere — als **zwei getrennte Animationen**. Vorher liefen beide Nachzüge gleichzeitig (und direkt danach spielte die KI), wodurch der Nachzug der KI optisch unterging und nur der eigene sichtbar war. Im Browser verifiziert (zwei sequenzielle Flüge, Gewinner zuerst, beide Richtungen sichtbar).
+
+## 0.6.76
+
+- 🩹 **66: Talon springt nicht mehr beim letzten Stich** — der Talon-Stapel verschob sich vertikal, wenn der „letzte Stich" ein-/ausgeblendet wurde (z. B. während ein Stich auf dem Tisch liegt). Ursache: Der Bereich wurde per `display:none` ein-/ausgeklappt, wodurch die zentrierte Spielfeldmitte sprang. Jetzt bleibt der Platz reserviert (feste `min-height`); nur die Karten darin werden ein-/ausgeblendet. Im Browser verifiziert (Talon-Position identisch in beiden Zuständen).
+
+## 0.6.75
+
+- 🗂️ **66: Trumpf beim Sortieren immer rechts** — bei aktivierter Hand-Sortierung stehen die **Trumpfkarten jetzt immer ganz rechts** (höchster Trumpf außen), unabhängig von der Farbe — vorher wurden sie nach Farbe einsortiert und konnten in der Mitte landen. Der **goldene Rahmen** um die Trumpfkarten bleibt unverändert erhalten. Im Browser verifiziert.
+
+## 0.6.74
+
+- ⚡ **66: Trumpf-Buben-Tausch-Animation flüssiger** — der Tausch wirkte träge und ruckelte. Zwei Ursachen behoben: (1) `flyExchange` erzeugte zwei **frische `<img>`** und wartete auf deren `load`-Event (bis 200 ms Startverzögerung) bzw. dekodierte das SVG erst während der Animation (Ruckeln) — jetzt werden die **bereits gerenderten Karten geklont** (wie bei der Spielerkarte), plus `will-change:transform`. (2) Vor der Animation lag ein **toter Leerlauf** (~475 ms) im Frame-Player — für den Tausch entfernt, die Animation schließt jetzt direkt an. Im Browser verifiziert (Tausch läuft sauber, Klone werden korrekt aufgeräumt).
+
+## 0.6.73
+
+- 🐛 **66: Talon-Stapel fehlte beim Spielstart** — nach „Neues Spiel" bzw. dem Neu-Button (↻) war der verdeckte Kartenstapel im Talon unsichtbar und tauchte erst nach einem harten Reload (Strg+R) auf. Ursache: `clearBoard()` setzte den Stapel auf `visibility:hidden`, aber `render()` stellte nur die Trumpfkarte wieder her, nicht den Stapel. Jetzt wird auch `#stock-back` zurückgesetzt. Im Browser verifiziert (sichtbar nach Deal **und** nach Neu-Button, ohne Reload).
+
+## 0.6.72
+
+- 🎮 **66: Großes Update — KI, UX & Animationen überarbeitet.** Umfassende Überarbeitung des Kartenspiels:
+  - **Stärkere KI** — neues Fähigkeiten-System mit festen Stärkestufen (easy=35, medium=65, hard=100, adaptive passt sich an): Card-Counting, Gegner-Handschätzung, sichere Asse, smarteres Schmieren, punktestandbewusstes Stechen und ein Minimax-Endspiel (perfektes Spiel in Phase 2, nur auf hard).
+  - **Animationen behoben** — Kartengeben läuft jetzt auch beim ersten Laden, KI-Karte fliegt zuverlässig zur Mitte, Trumpf-Sichtbarkeit nach Tausch korrigiert, eigene Auslos-Zeremonie („wer fängt an") mit 3D-Kartenflip, Zudreh-Animation.
+  - **Neue UX** — Toast-Einblendungen bei KI-Aktionen, vollständige **Tastatur-Steuerung** (1–5, E, Z, J/N, U, P, L, Esc), Inline-Hochzeitsabfrage statt Browser-Dialog, „letzter Stich" auf dem Feld, Übersicht „gespielte Karten", **Undo** (easy/medium), synthetische **Soundeffekte** und Mobile-Optimierung.
+  - 🌍 **Vollständig zweisprachig (DE/EN)** — alle 36 neuen UI-Texte (Tastatur-Hints, Toasts, Einstellungen, Rang-Namen, Banner) in `de.json` **und** `en.json` ergänzt; der Spielverlauf-Log bleibt pro Eintrag bilingual. Im echten Browser (Playwright) verifiziert: Seite lädt fehlerfrei in DE+EN, Züge laufen durch, keine JS-Fehler.
+
+## 0.6.71
+
+- ✨ **66: KI-Karte fliegt jetzt wie deine** — die ausgespielte KI-Karte wird jetzt **genauso animiert wie die Spielerkarte**: Sie klont die echte (verdeckte) Karte aus der KI-Hand und lässt sie auf den Tisch fliegen — kein Bild-Nachladen, kein wackeliges Container-Rechteck mehr. Beim Landen wird die Karte aufgedeckt. Im echten Browser verifiziert (KI-Karte startet oben in der KI-Hand und fliegt sichtbar zur Mitte).
+
+## 0.6.70
+
+- ⏪ **66: Revert auf Stand 0.6.65** — die Animations-Experimente aus 0.6.66–0.6.69 (Kartengeben-Animation, KI-Eröffnungs-Flug, Trumpftausch-Flug) werden vollständig zurückgenommen. Spiellogik und Oberfläche entsprechen wieder 0.6.65 (inkl. Hochzeitswert-Anzeige). Die bestehende KI-Kartenanimation im Spielverlauf bleibt erhalten.
+
+## 0.6.69
+
+- 🐛 **66: KI-Karte fliegt jetzt zuverlässig** — die ausgespielte KI-Karte startet ihren Flug nun von einer **echten (verdeckten) Karte** der KI-Hand — genau wie deine Karte von ihrer Handposition fliegt. Vorher startete sie vom Hand-Container, der je nach Zustand Breite 0 hatte → kein Flug. Notfall-Start ist der Talon.
+
+## 0.6.68
+
+- 🐛 **66: Austeil- & KI-Karten-Animation wirklich behoben** (im echten Browser mit Playwright getestet): Beim Austeilen wurden **nur die 5 Karten des Spielers** animiert — die 5 KI-Karten fielen aus, weil der leere KI-Handbereich auf Breite 0 zusammenfällt und der Kartenflug dann verworfen wurde. Jetzt werden **alle 10 Karten** über stabile Zielpunkte mittig über jedem Platz ausgeteilt. Dadurch fliegt auch die **erste KI-Karte** beim Partiebeginn zuverlässig ein (vorher zufällig mal ja, mal nein).
+
+## 0.6.67
+
+- 🐛 **66: Austeil- & KI-Eröffnungs-Animation zuverlässig** — Fix zu 0.6.66: Die Animationen hingen davon ab, dass der Server-Teil neu gestartet wurde, und die KI-Eröffnung wurde nur animiert, wenn der Spieler Vorhand war (wirkte zufällig). Eine neue Partie wird jetzt rein clientseitig erkannt: Die Karten werden immer animiert ausgeteilt, und die erste KI-Karte fliegt zuverlässig in die Mitte — egal, wer gibt.
+
+## 0.6.66
+
+- 🎬 **66: Mehr Animationen** — drei flüssigere Abläufe:
+  - **Kartengeben animiert** — zu Beginn jeder Partie werden die Karten jetzt nacheinander vom Talon in beide Hände ausgeteilt.
+  - **KI-Eröffnung fliegt ein** — legt die KI als Erste eine Karte in die Mitte (Partiebeginn), ist die Karte jetzt animiert, genau wie beim Nachziehen im Stich.
+  - **Trumpf-Bube tauschen animiert** — beim Tauschen fliegt der Bube zum Trumpfplatz und die aufgedeckte Karte in die Hand (Spieler **und** KI).
+
+## 0.6.65
+
+- 🐛 **66: Hochzeitskarte flackert nicht mehr** — Fix zu 0.6.63/0.6.64: Beim Ansagen entfiel ein überflüssiges Zwischenbild mit leerem Tisch. Die Hochzeitskarte fliegt jetzt in die Mitte und **bleibt dort liegen** (samt Wert), statt kurz zu verschwinden und wieder aufzutauchen.
+
+## 0.6.64
+
+- 🐛 **66: Hochzeitskarte wieder sichtbar** — Fix zu 0.6.63: Die ausgespielte Hochzeitskarte wurde durch das Wert-Abzeichen nicht mehr auf dem Tisch angezeigt. Der Wert (20/40) liegt jetzt als reines Overlay über der Karte, ohne das Tisch-Layout zu verändern.
+
+## 0.6.63
+
+- 💍 **66: Hochzeitswert auf dem Tisch** — wird eine **Hochzeit** ausgespielt (von dir oder der KI), erscheint jetzt **über der ausgespielten Karte** der Wert **20** bzw. **40 (Trumpf)** als goldenes Abzeichen. Reine optische Anzeige — sie erscheint unabhängig davon, ob die Hochzeit schon zählt (also auch ohne ersten Stich).
+
+## 0.6.62
+
+- 🗂️ **66: Hand sortieren** — neuer **„⇅ Sortieren"-Button** (links neben „Zudrehen") ordnet dein Blatt nach Wertigkeit: zuerst nach **Farbe** (Kreuz, Karo, Herz, Pik), dann nach **Kartenwert** (Bube, Dame, König, 10, Ass). Die Einstellung ist ein **Umschalter** und bleibt gespeichert; der **blaue Rahmen** der zuletzt vom Talon gezogenen Karte bleibt dabei erhalten.
+
+## 0.6.61
+
+- ✨ **66: Gewinnerkarte blinkt** — sobald ein voller Stich auf dem Tisch liegt, **blinkt die Karte auf, die den Stich gewonnen hat** (grüner Schein), bevor die Karten zum Gewinner fliegen — so erkennt man auf einen Blick, welche Karte gestochen hat. Der goldene Rahmen der KI-Karte bleibt dabei erhalten.
+
+## 0.6.60
+
+- 🪽 **66: Stich fliegt zum Gewinner** — wenn ein voller Stich nach der Liegezeit abgeräumt wird, **fliegen die beiden Karten jetzt animiert** zum Spieler, der den Stich gewonnen hat (zu deiner bzw. zur KI-Stichanzeige), statt einfach zu verschwinden. Dadurch ist auf einen Blick erkennbar, wer den Stich geholt hat.
+- 🎨 **66: Trumpf-Farbsymbol in echter Farbe** — das Farbsymbol bei „verbleibende Karten · Trumpf" wird jetzt in der **passenden Spielfarbe** dargestellt (♦/♥ rot, ♠/♣ schwarz, mit weißem Halo zur besseren Lesbarkeit auf dem Filz) statt durchgehend weiß. Per **Mouseover** erscheint zudem der Farbname (Kreuz, Karo, Herz, Pik).
+
+## 0.6.59
+
+- 🔵 **66: Gezogene Karte markiert** — die zuletzt **vom Talon nachgezogene Karte** erhält in deinem Blatt einen **blauen Rand**, damit du sie sofort erkennst. Der Rand verschwindet automatisch, sobald du die nächste Karte ausspielst.
+
+## 0.6.58
+
+- 🎨 **66: Trumpf-Symbol besser erkennbar** — ♠/♣ wurden je nach System als dickes schwarzes Emoji dargestellt und waren auf dem grünen Filz kaum zu sehen. Jetzt werden alle Farbsymbole als **Text** gerendert (♠/♣ in Weiß, ♦/♥ in hellem Rot) und sind klar lesbar.
+
+## 0.6.57
+
+- 💾 **Spielstände im Backup** — die 66-**Spielstände und der Verlauf** (`games/66_<uid>.json`, `games/66hist_<uid>.json`) werden jetzt **mit gesichert und wiederhergestellt** (Admin → Backup/Restore). So gehen laufende Partien und die Historie bei einem Wiederherstellen nicht verloren. Beim Restore werden nur gültige Spieldateinamen akzeptiert (abgesichert gegen Zip-Slip/Fremddateien).
+
+## 0.6.56
+
+- 🔎 **66: Bessere Lesbarkeit am Stapel** — die Anzeige von **Trumpf** und **verbleibenden Talon-Karten** unter dem Stapel ist jetzt **deutlich größer**; rote Trumpffarben (♦/♥) werden farbig dargestellt.
+- 🟡 **KI-Karte hervorgehoben** — die von der **KI gespielte Karte** auf dem Tisch erhält jetzt einen **goldenen Rahmen** (auch schon während des Einfliegens), damit man auf einen Blick erkennt, was die KI gelegt hat.
+
+## 0.6.55
+
+- 🐛 **66: KI-Kartenanimation sichtbar gemacht** — die Flugbewegung der **KI-Karte** fehlte, weil das Kartenbild beim Start des Flugs teils noch nicht geladen war (eine „unsichtbare" Karte flog, die Karte erschien erst am Ende). Jetzt startet der Flug erst, **wenn das Bild geladen ist**, und alle Karten-SVGs werden beim Öffnen **vorgeladen**, damit die Animation sofort flüssig läuft.
+
+## 0.6.54
+
+- 🔀 **66: Mehr-Tab-Schutz** — ist das Spiel bereits in einem Browser-Tab offen und du öffnest es in einem **weiteren Tab**, übernimmt der neue Tab und der **alte wird getrennt** (pausiert). Der getrennte Tab zeigt einen Hinweis mit **„Hier weiterspielen"**, um die Kontrolle zurückzuholen. So kommen sich zwei Tabs nicht mehr in die Quere (z. B. doppelte Anzeigen). Umgesetzt über `BroadcastChannel`; dein Spielstand bleibt server­seitig sicher gespeichert.
+
+## 0.6.53
+
+- 🐛 **66: Auslosung erscheint nicht mehr mitten im Spiel** — die „Wer beginnt?"-Anzeige wird jetzt nur noch **ganz zu Beginn** (vor dem ersten Stich) und **einmal pro Browser** gezeigt. Vorher konnte sie in einem **zweiten Tab** (oder nach einem Reload) während der laufenden ersten Partie noch einmal auftauchen.
+
+## 0.6.52
+
+- ✨ **66: Mehr Kartenanimationen** — jetzt fliegt auch die **Karte der KI** sichtbar vom Gegnerblatt auf den Tisch, und beim **Nachziehen vom Talon** fliegen die Karten vom Stapel in die Hände (vorher nur die selbst gespielte Karte). Respektiert „Bewegung reduzieren".
+- 🎚 **Größere Tempo-Spannen**: Bewegungsdauer der Karte bis **1 s**, Liegezeit eines Stichs bis **10 s** einstellbar.
+- 🧠 Klareres Icon für das Schwierigkeits-Menü (das bisherige Symbol wurde auf manchen Systemen falsch dargestellt).
+
+## 0.6.51
+
+- ⚙ **66: Animations-Tempo einstellbar** — über das neue ⚙-Menü lassen sich die **Bewegungsdauer der Karte** und die **Liegezeit eines Stichs** per Schieberegler frei einstellen (statt fest verdrahtet). Die Werte werden **im Browser gespeichert** und gelten ab dem nächsten Zug; ein Klick auf „Zurücksetzen" stellt die Standardwerte wieder her.
+
+## 0.6.50
+
+- 🏅 **66: Spielverlauf** — über das neue 🏅-Menü siehst du deine **letzten beendeten Matches** mit **Datum & Uhrzeit**, **Endstand** (Bummerl), **Regelvariante**, **Schwierigkeitsgrad** und Anzahl der Partien. Wird pro Benutzer gespeichert (lokal, **nicht** auf dem SMB-Share, max. 50 Einträge) und ist geräteübergreifend abrufbar. Datum/Uhrzeit werden in deiner lokalen Zeitzone angezeigt.
+- 📖 **66: Spielregeln in der UI** — das 📖-Menü zeigt die kompletten Regeln (inkl. „Andys Oma" und Schwierigkeitsgrade) direkt im Spiel, gerendert aus dem mitgelieferten Regel-Dokument.
+- ✅ Neue Endpoints `GET /api/66/history` und `GET /api/66/rules`; Match-Ende wird einmalig (ohne Doppelzählung) aufgezeichnet. End-to-End getestet.
+
+## 0.6.49
+
+- 🎚 **66: KI-Schwierigkeitsgrade** — über das neue 🎚-Menü wählbar: **Leicht**, **Mittel**, **Schwer** und **Adaptiv**. Ein Wechsel der Schwierigkeit startet (wie beim Regelwechsel) ein **neues Match**. Leicht/Mittel lassen die KI mit steigender Wahrscheinlichkeit unbedacht spielen, Schwer spielt durchgehend nach bester Strategie.
+- 🤖 **Adaptiver Modus**: Die KI passt sich laufend an — **gewinnst du eine Partie, wird sie stärker; verlierst du, wird sie schwächer**. Die aktuelle Stärke wird oben als Prozentwert angezeigt. So bleibt es spannend, egal wie gut man spielt.
+- ✅ Erweitert um Tests für alle Schwierigkeitsgrade (Epsilon je Level, adaptive Anpassung in beide Richtungen samt Grenzen, Invarianten-Playouts pro Level).
+
+## 0.6.48
+
+- 🃏 **66: zweite Regelvariante „Andys Oma"** — über das neue ⚖-Menü umschaltbar (ein Regelwechsel startet ein neues Match). Dabei wird **kein vorzeitiges Ausmelden** gespielt: Es geht **immer bis zum Ende**, dann wird gezählt — wer 66+ hat gewinnt, sonst der **letzte Stich**. Spielpunkte wie gewohnt (0 → 3, < 33 → 2, ≥ 33 → 1); Zudreher muss 66 schaffen, sonst 3 für den Gegner. Die bisherigen Standardregeln bleiben unverändert wählbar.
+- 🎲 **Auslosen zu Spielbeginn**: Jeder zieht eine Karte, die höhere beginnt — bei Gleichrang entscheidet die Farbe (**Kreuz < Karo < Herz < Pik**). Wird kurz angezeigt. In Folgepartien spielt weiterhin der **Gewinner der letzten Partie** aus.
+- ✨ **Karten-Fluganimation**: Eine angeklickte Handkarte **fliegt jetzt sichtbar auf den Tisch** (statt einfach zu erscheinen) — deutlich übersichtlicher. Respektiert „Bewegung reduzieren".
+- ✅ Regelwerk erweitert und durch Tests abgesichert (Standard **und** Oma je tausende Playouts, Auslos-Logik, Wertungen) sowie End-to-End-Routentests (Varianten, Auslosen).
+
+## 0.6.47
+
+- 🎬 **66: Stiche werden jetzt animiert abgespielt.** Bisher sprang die Anzeige nach einem Stich sofort zum Endzustand — die gespielten Karten waren kaum zu sehen. Der Server liefert pro Zug nun eine Folge von **Zwischenbildern**, die der Client mit kurzen Pausen abspielt: der **volle Stich (deine Karte + die der KI) bleibt ~1,25 s sichtbar liegen**, bevor abgeräumt wird; Karten auf dem Tisch werden sanft eingeblendet. Eingaben sind während der Animation gesperrt. Respektiert „Bewegung reduzieren".
+
+## 0.6.46
+
+- 🃏 **Neues Mitglieder-Spiel: 66 (Sechsundsechzig)** — das klassische Stichspiel gegen eine **KI**. Nur für angemeldete Benutzer (im persönlichen Bereich), öffnet sich als **Vollfenster-Iframe** (kein Browser-Vollbild). 20-Karten-Variante (ohne Neuner, je 5 Karten): Hochzeiten (20/40), Trumpf-Bube tauschen, Zudrehen, Ausmelden bei 66 Augen; Wertung 1/2/3 Spielpunkte, Match (Bummerl) bis 7.
+- 💾 **Server-autoritativ & geräteübergreifend**: Regelwerk und KI laufen auf dem Server, **jeder Zug wird gespeichert** (lokal im `addon_config`, **nicht** auf dem SMB-Share) — auf einem anderen Gerät weiterspielen ist möglich. Die KI-Hand bleibt serverseitig verborgen (kein Mogeln).
+- 🎴 **Kartendeck austauschbar**: mitgeliefertes, gemeinfreies Deck (*Vector Playing Cards*, Byron Knoll) als SVG unter `/cards/<deck>/…`; weitere Decks später per Ordner ergänzbar.
+- ✅ Abgesichert durch ein Test-Harness (Regel-Invarianten, Wertung, tausende Zufalls-Playouts) und End-to-End-Routentests (inkl. geräteübergreifendem Fortsetzen). Voll DE/EN lokalisiert.
+
+## 0.6.45
+
+- 🎴 Video Poker: Nach dem Tauschen werden die **gewinnenden Karten golden hervorgehoben**, die übrigen abgedunkelt — so ist auf einen Blick klar, *warum* eine Hand gewonnen hat (z. B. welches Paar). Die Bewertung selbst war korrekt; „Buben oder besser" erfordert weiterhin ein echtes Paar ab Bube (über alle 2,6 Mio. Hände verifiziert).
+
+## 0.6.44
+
+- 🔔 Slot-Jackpot: Beim Jackpot (3× 7️⃣) ertönt jetzt eine **Casino-Klingel** (metallisches „dring-dring" per Web Audio) und das **Spielfenster wackelt**. Respektiert „Bewegung reduzieren" (kein Wackeln).
+- 🧪 **Jackpot-Simulation**: Bei geöffnetem Slot einfach **`jackpot` tippen** → Klingel + Wackeln + 777-Anzeige als Vorschau, **ohne** Auszahlung (Guthaben/Jackpot bleiben unberührt). Praktisch zum Vorführen des Effekts.
+
+## 0.6.43
+
+- 🎴 **Neues 7. Mini-Game: Video Poker (Jacks or Better)** — Geben → Karten antippen zum Halten → Tauschen → werten. Klassische Gewinntabelle (×Einsatz): Royal Flush 250, Straight Flush 50, Vierling 25, Full House 9, Flush 6, Straße 4, Drilling 3, Zwei Paare 2, Buben oder besser 1. Einsatz 10, Aufladen-Button wie bei Slot/17+4 (nur bei leerem Konto), Guthaben in `localStorage`. Voll DE/EN lokalisiert. Damit sind es **7 Mini-Games** 🍀.
+
+## 0.6.42
+
+- 🎰 Slot: Neue, symbolabhängige Gewinntabelle und realistischere Auszahlquote (~62 % bei Basis-Jackpot, steigend mit dem progressiven Jackpot). Neues 8. Symbol **🚫 Niete** (zahlt nie) senkt die Trefferquote. Auszahlungen (Paar = Walze 1+2 gleich von links / Drilling = alle drei): 🍒🍋 20/50 · 🍉 30/80 · 🔔⭐ 40/100 · 💎 50/200 · 7️⃣ 100/Jackpot. Gewinnbetrag wird jetzt dynamisch je Symbol im Hinweis angezeigt.
+
+## 0.6.41
+
+- 🃏 17+4 (Blackjack): Gleicher Aufladen-Fix wie beim Slot. Der „🔄 Aufladen"-Button erscheint jetzt **nur bei leerem Konto** (Guthaben unter dem Einsatz von 10) und das Guthaben wird beim Öffnen **nicht mehr automatisch** auf 100 zurückgesetzt — ein vorhandener Spielstand bleibt erhalten.
+
+## 0.6.40
+
+- 🐛 Einblend-Effekte: Die Auswahl (Einblenden / Hochgleiten / Zoom / Unschärfe) sah optisch immer gleich aus. Ursache: Bei aktivem Stagger (Standard) wurden die Inhaltsblöcke auf reines Einblenden gezwungen, sodass nur die kaum sichtbare Kartenbewegung den Unterschied trug. Jetzt wirkt der gewählte Effekt auf **allen Blöcken** (Überschriften, Hero, Inhalte) — die Effekte sind klar unterscheidbar. Bei Stagger bleiben nur die Karten-Container selbst ruhig (via `:has()`), während ihre Kacheln den Effekt nacheinander tragen.
+
+## 0.6.39
+
+- ✨ **Werdegang-Überschrift frei konfigurierbar**: Im Werdegang-Tab lässt sich jetzt eine eigene Überschrift (DE/EN) vergeben — z. B. „Unsere Geschichte", „Meilensteine" oder „Über den Verein". Sie erscheint dann sowohl als Abschnittsüberschrift als auch im Navigationsmenü. Bleibt das Feld leer, wird wie bisher „Werdegang" verwendet. Der Tab-Name im Admin bleibt „Werdegang".
+
+## 0.6.38
+
+- 🐛 Einblend-Effekte: Animation griff nur beim oberen Bereich (Hero), der Rest der Seite blieb statisch. Ursache: nur der Kopfbereich ist ein `<section>`, die übrigen Blöcke (Überschriften, Projekt-/Service-/Galerie-Raster usw.) sind direkte `main`-Kinder. Reveal zielt jetzt auf **alle Inhaltsblöcke** (`main > *`) — damit blenden Überschriften und Abschnitte beim Scrollen ebenfalls ein, Stagger inklusive.
+
+## 0.6.37
+
+- ✨ **Einblend-Effekte** für die öffentliche Seite (neu im Design-Bereich): Inhalte erscheinen animiert beim Öffnen und beim Scrollen. Auswählbar: **Aus** (Standard), **Sanftes Einblenden**, **Einblenden + Hochgleiten**, **Zoom** oder **Unschärfe → scharf**. Zusätzlich optionaler **Stagger** – Kacheln/Karten eines Abschnitts erscheinen leicht versetzt nacheinander. Abhängigkeitsfrei (reines CSS + `IntersectionObserver`), flackerfrei (Vorbereitung vor dem ersten Rendern) und **barrierefrei**: Wer im System „Bewegung reduzieren" aktiviert hat oder kein JavaScript nutzt, sieht alle Inhalte sofort ohne Animation.
+
+## 0.6.36
+
+- ✨ **Markdown-Editor jetzt als Overlay-Fenster mit Live-Vorschau**: Statt der Toolbar direkt am Feld gibt es nun einen **„✏️ Bearbeiten"-Button**. Ein Klick öffnet ein Editor-Fenster **im selben Tab** (wie die Mini-Games) — **Editor links, gerenderte Vorschau rechts**. Markierst du Text und klickst z. B. **Fett**, erscheint er sofort fett in der Vorschau. „Übernehmen" schreibt das Markdown zurück ins Feld, „Abbrechen"/Esc verwirft. Eigener, abhängigkeitsfreier Markdown-Renderer (Überschriften, Fett/Kursiv, Listen, Zitate, Code, Links); HTML wird escaped und unsichere Links (z. B. `javascript:`) werden verworfen.
+
+## 0.6.35
+
+- ✍️ **Markdown-Editor** für alle längeren Textfelder (Blog-Text, Projekt-Beschreibung, Bio, Tipps, FAQ-Antworten): Mini-Toolbar mit **Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, Link** und einem **Emoji-Picker** (😀) — „wie ein Mini-Office", erzeugt sauberes Markdown direkt im Textfeld.
+- 🌐 **Übersetzer-Button überschreibt nichts mehr**: „DE → EN" füllt jetzt nur noch **leere** englische Felder; vorhandene englische Texte bleiben unangetastet. Ist die Admin-Sprache bereits **EN**, wird der Button gar nicht mehr angezeigt.
+
+## 0.6.34
+
+- 🎰 Slot-Fixes: Der „🔄 Aufladen"-Button erscheint jetzt **nur bei leerem Konto** (zuvor überschrieb er auch ein vorhandenes Guthaben mit 100). Das Guthaben bleibt beim Öffnen erhalten (kein automatisches Zurücksetzen mehr). Einsatz von **5 auf 10** erhöht.
+
 ## 0.6.33
 
 - 🔒 Sicherheit (CodeQL HIGH, Reflected XSS): Die IndexNow-Keyfile-Route gibt nun den **serverseitig gespeicherten** Schlüssel zurück statt des Werts aus der URL — der Eingabe-Taint fließt nicht mehr in die Antwort. Verhalten unverändert (war durch die `[a-f0-9]{32}`-Prüfung ohnehin nicht ausnutzbar).

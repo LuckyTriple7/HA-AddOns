@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>66 – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root { --gold:#f1c40f; --felt1:#0f5c43; --felt2:#0a3f2e; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(ellipse at center, var(--felt1), var(--felt2));
+      color: #eaf3ee; overflow: hidden; user-select: none;
+      display: flex; flex-direction: column;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; font-size: 0.85rem; }
+    .topbar .title { font-weight: 700; letter-spacing: 0.5px; }
+    .rulestag { font-size: 0.7rem; opacity: 0.9; background: rgba(255,255,255,0.12);
+                padding: 2px 9px; border-radius: 10px; white-space: nowrap; }
+    .spacer { flex: 1; }
+    .bummerl { font-size: 0.8rem; opacity: 0.95; }
+    .bummerl b { color: var(--gold); }
+    .iconbtn {
+      background: rgba(255,255,255,0.12); border: none; color: #fff; width: 34px; height: 34px;
+      border-radius: 8px; font-size: 1.1rem; cursor: pointer; line-height: 1;
+    }
+    .iconbtn:hover { background: rgba(255,255,255,0.22); }
+    .felt { flex: 1; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 4px 12px 10px; min-height: 0; }
+    .seat { display: flex; align-items: center; gap: 14px; }
+    .seat.me { justify-content: center; margin-bottom: 18px; }
+    .info { font-size: 0.8rem; line-height: 1.35; min-width: 96px; }
+    .info .who { font-weight: 700; }
+    .info .turn { color: var(--gold); font-weight: 700; }
+    .pts { font-size: 1.5rem; font-weight: 800; }
+    .badge { display: inline-block; background: var(--gold); color: #222; font-size: 0.62rem;
+             font-weight: 700; padding: 1px 6px; border-radius: 10px; vertical-align: middle; }
+    .hand { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; min-height: 0; }
+    .hand.opp { gap: 0; }
+    .pc { height: clamp(78px, 19vh, 138px); width: auto; border-radius: 6px;
+          box-shadow: 0 3px 8px rgba(0,0,0,0.45); display: block; }
+    .hand.opp .pc { margin-left: -34px; }
+    .hand.opp .pc:first-child { margin-left: 0; }
+    .card-slot { position: relative; transition: transform 0.12s; }
+    .hand.me .card-slot.playable { cursor: pointer; }
+    .hand.me .card-slot.playable:hover { transform: translateY(-12px); }
+    .hand.me .card-slot.disabled { opacity: 0.42; filter: grayscale(0.5); }
+    .hand.me .card-slot.is-trump .pc {
+      box-shadow: 0 0 0 2.5px var(--gold), 0 3px 8px rgba(0,0,0,0.45),
+                  0 0 10px rgba(241,196,15,0.55);
+    }
+    /* Frisch vom Talon gezogene Karte (blauer Rand, bis zum nächsten Ausspielen) */
+    .hand.me .card-slot.drawn .pc { box-shadow: 0 0 0 3px #4aa3ff, 0 3px 8px rgba(0,0,0,0.45),
+                                    0 0 12px rgba(74,163,255,0.75); }
+    .center { display: flex; align-items: center; justify-content: center; gap: 26px; flex: 1; min-height: 0; }
+    .stockwrap { position: relative; text-align: center; }
+    .stockwrap .trump { transform: rotate(90deg); }
+    .stockwrap .stack { position: absolute; left: 46px; top: 0; }
+    .count { font-size: clamp(0.95rem, 2.7vw, 1.2rem); opacity: 1; margin-top: 8px; font-weight: 700;
+             letter-spacing: 0.3px; }
+    .count .suit { font-size: 1.3em; vertical-align: -0.08em; color: #111; font-weight: 700;
+                   font-variant-emoji: text; cursor: help;
+                   text-shadow: 0 0 2px rgba(255,255,255,.95), 0 0 4px rgba(255,255,255,.8); }
+    .count .suit.red { color: #d61f1f; }
+    .stockwrap .trump, .stockwrap .stack { transition: filter 0.6s ease, opacity 0.6s ease; }
+    .stockwrap.is-closed .trump { filter: brightness(0.35) grayscale(0.7); }
+    .stockwrap.is-closed .stack { filter: brightness(0.35) grayscale(0.7); opacity: 0.5; }
+    .stockwrap.is-closed::after {
+      content: '🔒'; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -80%); font-size: 1.8rem;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.7)); pointer-events: none;
+      animation: lockIn 0.5s ease both;
+    }
+    @keyframes lockIn {
+      0%   { opacity: 0; transform: translate(-50%, -80%) scale(2.5) rotate(-20deg); }
+      60%  { opacity: 1; transform: translate(-50%, -80%) scale(0.9) rotate(3deg); }
+      100% { opacity: 1; transform: translate(-50%, -80%) scale(1) rotate(0); }
+    }
+    .table-cards { display: flex; gap: 14px; align-items: center; justify-content: center;
+                    min-height: clamp(86px, 20vh, 146px);
+                    min-width: clamp(120px, calc(26vh + 14px), 204px); }
+    .table-cards .lead { transform: translateY(-6px) rotate(-4deg); }
+    .table-cards .follow { transform: translateY(6px) rotate(4deg); }
+    /* Hochzeitswert über der ausgespielten Karte (reine Anzeige: 20 / 40 Trumpf) */
+    .table-cards { position: relative; }
+    .table-wrap { position: relative; display: inline-block; }
+    .meld-val {
+      position: absolute; left: 50%; top: -2px; transform: translate(-50%, -100%);
+      background: var(--gold); color: #20160a; font-weight: 800;
+      font-size: 0.82rem; line-height: 1; padding: 3px 8px; border-radius: 999px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.55), 0 0 8px rgba(241,196,15,0.7);
+      pointer-events: none; white-space: nowrap; z-index: 3;
+    }
+    .meld-val.t40 { background: #e8b923; box-shadow: 0 2px 6px rgba(0,0,0,0.55), 0 0 12px rgba(241,196,15,0.95); }
+    /* Vom Gegner gespielte Karte hervorheben (goldener Rahmen) */
+    .table-cards .by-ai { box-shadow: 0 0 0 3px #00e5ff, 0 3px 10px rgba(0,0,0,0.5),
+                          0 0 14px rgba(0,229,255,0.6); }
+    @keyframes cardFade { from { opacity: 0; } to { opacity: 1; } }
+    .table-cards .pc { animation: cardFade 0.26s ease; }
+    /* Gewinnerkarte des Stichs blinkt auf (gruener Schein; KI-Goldrahmen bleibt erhalten) */
+    @keyframes trickWin {
+      0%, 100% { outline-color: rgba(130,255,150,.12); filter: drop-shadow(0 0 0 rgba(130,255,150,0)); }
+      50%      { outline-color: rgba(130,255,150,1);   filter: drop-shadow(0 0 11px rgba(130,255,150,.9)); }
+    }
+    .table-cards .pc.won { outline: 3px solid transparent; outline-offset: 2px; border-radius: 6px;
+                           animation: trickWin 0.5s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .table-cards .pc { animation: none; }
+      .table-cards .pc.won { animation: none; outline-color: rgba(130,255,150,1); }
+    }
+    /* Toast-Benachrichtigungen (KI-Aktionen) */
+    .toast-wrap { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 100;
+                  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+    .toast { background: rgba(0,0,0,0.82); color: #fff; padding: 8px 18px; border-radius: 10px;
+             font-size: 0.84rem; font-weight: 600; white-space: nowrap; backdrop-filter: blur(6px);
+             animation: toastIn 0.3s ease; transition: opacity 0.4s ease; }
+    .toast.gold { background: rgba(241,196,15,0.92); color: #20160a; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+    /* Hochzeits-Auswahl (statt confirm-Dialog) */
+    .marry-bar { display: flex; align-items: center; justify-content: center; gap: 10px;
+                 padding: 6px 0; animation: toastIn 0.2s ease; }
+    .marry-bar span { font-size: 0.86rem; font-weight: 700; }
+    /* Letzter Stich (kleine Karten unter dem Tisch) */
+    .last-trick { display: flex; align-items: center; justify-content: center; gap: 8px;
+                  padding: 2px 0; opacity: 0.55; transition: opacity 0.2s; cursor: default;
+                  min-height: clamp(48px, 10vh, 72px); }
+    .last-trick:hover { opacity: 1; }
+    .last-trick .pc { height: clamp(48px, 10vh, 72px); }
+    .last-trick .pc.by-ai { box-shadow: 0 0 0 2px #00e5ff; }
+    /* Gespielte-Karten-Modal */
+    .played-grid { display: flex; flex-direction: column; gap: 10px; margin: 10px auto; align-items: center; }
+    .played-row { display: flex; align-items: center; gap: 6px; }
+    .played-row .ps { font-size: 1.3rem; width: 30px; text-align: center; font-variant-emoji: text; }
+    .played-row .ps.red { color: #d61f1f; }
+    .played-row .pcard { height: 80px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+                          transition: opacity 0.2s; }
+    .played-row .pcard.used { opacity: 0.22; filter: grayscale(0.8); }
+    .played-row .pcard.in-hand { box-shadow: 0 0 0 2.5px var(--gold), 0 2px 5px rgba(0,0,0,0.4); }
+    .played-row .pcard.on-table { box-shadow: 0 0 0 2.5px rgba(130,255,150,0.8), 0 2px 5px rgba(0,0,0,0.4); }
+    .played-row .pcard.in-stock { opacity: 0.55; }
+    .played-legend { display: flex; gap: 16px; justify-content: center; font-size: 0.74rem;
+                     margin: 2px 0 8px; opacity: 0.75; }
+    .played-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px;
+                                   border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    .played-legend .pl-hand::before { background: var(--gold); }
+    .played-legend .pl-table::before { background: rgba(130,255,150,0.8); }
+    .played-legend .pl-gone::before { background: rgba(255,255,255,0.18); }
+    .actionbar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 2px; min-height: 40px; }
+    .btn {
+      background: var(--gold); color: #20160a; border: none; padding: 9px 16px; border-radius: 8px;
+      font-size: 0.86rem; font-weight: 700; cursor: pointer;
+    }
+    .btn.ghost { background: rgba(255,255,255,0.14); color: #fff; }
+    .btn.ghost.active { background: rgba(74,163,255,0.32); box-shadow: inset 0 0 0 1px rgba(74,163,255,0.85); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .hint { text-align: center; font-size: 0.82rem; min-height: 18px; opacity: 0.95; }
+    .log { position: fixed; left: 10px; bottom: 10px; width: min(280px, 70vw); max-height: 34vh;
+           background: rgba(0,0,0,0.55); border-radius: 10px; padding: 8px 12px; font-size: 0.74rem;
+           overflow-y: auto; display: none; }
+    .log.show { display: block; }
+    .log div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .banner { position: fixed; inset: 0; background: rgba(0,0,0,0.66); display: none;
+              align-items: center; justify-content: center; z-index: 50; }
+    .banner.show { display: flex; }
+    .banner .box { background: #14241c; border: 1px solid rgba(255,255,255,0.15); border-radius: 14px;
+                   padding: 28px 34px; text-align: center; max-width: 90vw; }
+    .banner h2 { font-size: 1.4rem; margin-bottom: 8px; }
+    .banner p { opacity: 0.9; margin-bottom: 18px; }
+    .banner .big { font-size: 2.2rem; margin-bottom: 10px; }
+    .rules-list { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; text-align: left; }
+    .rule-opt { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 10px; padding: 12px 14px; cursor: pointer; max-width: 340px; }
+    .rule-opt:hover { background: rgba(255,255,255,0.16); }
+    .rule-opt.active { border-color: var(--gold); }
+    .rule-opt h3 { font-size: 1rem; margin-bottom: 4px; }
+    .rule-opt p { font-size: 0.8rem; opacity: 0.85; margin: 0; line-height: 1.45; }
+    .rule-opt .act { color: var(--gold); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+    .banner .box.wide { width: min(620px, 92vw); }
+    /* Gespielte-Karten-Modal: Box an den Karteninhalt anpassen (nicht fix 620px) */
+    #played-modal .box.wide { width: auto; max-width: 92vw; }
+    .scrollbox { max-height: 62vh; overflow-y: auto; text-align: left; margin: 6px 0 14px;
+                 padding-right: 6px; }
+    .scrollbox.md { font-size: 0.86rem; line-height: 1.5; }
+    .scrollbox.md h1 { font-size: 1.2rem; margin: 12px 0 6px; }
+    .scrollbox.md h2 { font-size: 1.05rem; margin: 14px 0 6px; border:0; }
+    .scrollbox.md h3 { font-size: 0.95rem; margin: 10px 0 4px; }
+    .scrollbox.md p { opacity: 0.92; margin: 6px 0; }
+    .scrollbox.md ul, .scrollbox.md ol { margin: 6px 0 6px 18px; }
+    .scrollbox.md li { margin: 3px 0; }
+    .scrollbox.md hr { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 14px 0; }
+    .scrollbox.md table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.8rem; }
+    .scrollbox.md th, .scrollbox.md td { border: 1px solid rgba(255,255,255,0.18);
+                                         padding: 5px 8px; text-align: left; }
+    .scrollbox.md th { background: rgba(255,255,255,0.08); }
+    .scrollbox.md code { background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 4px; }
+    .scrollbox.md a { color: var(--gold); }
+    .hist-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px;
+                border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .hist-row .ico { font-size: 1.2rem; }
+    .hist-row .meta { flex: 1; min-width: 0; }
+    .hist-row .when { font-size: 0.82rem; }
+    .hist-row .tags { font-size: 0.72rem; opacity: 0.7; }
+    .hist-row .score { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .hist-row.win .score { color: var(--gold); }
+    .hist-empty { opacity: 0.7; padding: 16px 4px; text-align: center; }
+    .setting { text-align: left; margin: 12px 0; width: min(340px, 80vw); }
+    .setting label { display: block; font-size: 0.86rem; margin-bottom: 7px; }
+    .setting label b { color: var(--gold); font-variant-numeric: tabular-nums; }
+    .setting input[type=range] { width: 100%; accent-color: var(--gold); }
+    .setting-hint { font-size: 0.74rem; opacity: 0.7; margin: 4px 0 16px; max-width: 340px; }
+    .cut-cards { display: flex; gap: 26px; justify-content: center; margin: 8px 0 14px; perspective: 600px; }
+    .cut-lbl { font-size: 0.8rem; opacity: 0.85; margin-bottom: 6px; }
+    .cut-slot { position: relative; width: clamp(69px, 15vw, 104px); height: clamp(100px, 22vh, 150px); }
+    .cut-slot .cut-face, .cut-slot .cut-back {
+      position: absolute; inset: 0; backface-visibility: hidden; border-radius: 8px;
+    }
+    .cut-slot .cut-face { transform: rotateY(180deg); }
+    .cut-slot .cut-face img, .cut-slot .cut-back img { width: 100%; height: 100%; border-radius: 8px; }
+    .cut-slot { transform-style: preserve-3d; }
+    .cut-slot.shuffle { animation: cutShuffle 0.18s ease-in-out infinite alternate; }
+    .cut-slot.revealed { animation: cutFlip 0.6s ease forwards; }
+    .cut-slot.revealed.winner img { box-shadow: 0 0 14px 3px var(--gold); }
+    @keyframes cutShuffle {
+      0%   { transform: translateY(-3px) rotate(-2deg); }
+      100% { transform: translateY(3px) rotate(2deg); }
+    }
+    @keyframes cutFlip { from { transform: rotateY(0deg); } to { transform: rotateY(180deg); } }
+    #cut-result { opacity: 0; transition: opacity 0.4s ease; }
+    #cut-result.visible { opacity: 1; }
+    #cut-go { opacity: 0; transition: opacity 0.4s ease; pointer-events: none; }
+    #cut-go.visible { opacity: 1; pointer-events: auto; }
+    @media (prefers-reduced-motion: reduce) { .cut-slot.shuffle { animation: none; } .cut-slot.revealed { animation: none; transform: rotateY(180deg); } }
+
+    /* ── Mobile-Optimierung ───────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .topbar { gap: 6px; padding: 6px 8px; flex-wrap: wrap; }
+      .topbar .title { font-size: 0.8rem; }
+      .bummerl { font-size: 0.7rem; }
+      .rulestag { font-size: 0.6rem; padding: 1px 6px; }
+      .iconbtn { width: 38px; height: 38px; font-size: 1.15rem; min-width: 38px; }
+      .felt { padding: 2px 6px 6px; }
+      .seat { gap: 8px; }
+      .info { font-size: 0.72rem; min-width: 72px; }
+      .pts { font-size: 1.2rem; }
+      .hand.me { gap: 4px; }
+      .hand.me .card-slot { padding: 4px 0; }
+      .pc { height: clamp(68px, 17vh, 120px); }
+      .hand.opp .pc { margin-left: -28px; }
+      .btn { min-width: 44px; min-height: 44px; padding: 10px 18px; font-size: 0.88rem; }
+      .marry-bar { gap: 6px; }
+      .marry-bar .btn { padding: 8px 14px; }
+      .last-trick { min-height: clamp(40px, 8vh, 60px); }
+      .last-trick .pc { height: clamp(40px, 8vh, 60px); }
+      .played-row .pcard { height: 64px; }
+      .actionbar { gap: 4px; }
+      .actionbar .btn { padding: 7px 12px; font-size: 0.78rem; }
+    }
+    @media (max-width: 380px) {
+      .topbar { gap: 4px; padding: 4px 6px; }
+      .iconbtn { width: 34px; height: 34px; font-size: 1rem; min-width: 34px; }
+      .pc { height: clamp(58px, 15vh, 100px); }
+      .hand.opp .pc { margin-left: -22px; }
+      .bummerl { display: none; }
+    }
+    @media (pointer: coarse) {
+      .hand.me .card-slot { padding: 6px 0; }
+      .hand.me .card-slot.playable:active { transform: translateY(-14px) scale(1.05); }
+      .iconbtn { width: 40px; height: 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="title">🃏 66</span>
+    <span class="rulestag" id="rulestag"></span>
+    <span class="rulestag" id="leveltag"></span>
+    <span class="bummerl">{{ t.g66_bummerl }}: <b id="bm-p">0</b> : <b id="bm-a">0</b> &nbsp;<span style="opacity:.6">/ 7</span></span>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="btn-level" title="{{ t.g66_level }}">🧠</button>
+    <button class="iconbtn" id="btn-rules" title="{{ t.g66_rules }}">⚖</button>
+    <button class="iconbtn" id="btn-rulesdoc" title="{{ t.g66_rulesdoc }}">📖</button>
+    <button class="iconbtn" id="btn-history" title="{{ t.g66_history }}">🏅</button>
+    <button class="iconbtn" id="btn-played" title="{{ t.g66_played }}">📋</button>
+    <button class="iconbtn" id="btn-settings" title="{{ t.g66_settings }}">⚙</button>
+    <button class="iconbtn" id="btn-undo" title="{{ t.g66_undo }}" style="display:none">↶</button>
+    <button class="iconbtn" id="btn-log" title="{{ t.g66_log }}">≡</button>
+    <button class="iconbtn" id="btn-new" title="{{ t.g66_new }}">↻</button>
+    <button class="iconbtn" id="btn-close" title="{{ t.g66_close_lbl }}">✕</button>
+  </div>
+
+  <div class="felt">
+    <div class="seat opp">
+      <div class="info">
+        <div class="who">{{ t.g66_ai }} <span id="opp-turn" class="turn" style="display:none">●</span></div>
+        <div>{{ t.g66_tricks }}: <span id="opp-tricks">0</span> <span id="opp-meld"></span></div>
+      </div>
+      <div class="pts" id="opp-pts">0</div>
+      <div class="hand opp" id="opp-hand"></div>
+    </div>
+
+    <div class="center">
+      <div class="stockwrap" id="stockwrap">
+        <img class="pc trump" id="trump-card" alt="trump">
+        <img class="pc stack" id="stock-back" src="/cards/{{ deck }}/back.svg" alt="">
+        <div class="count"><span id="stock-count">0</span> · <span id="trump-suit"></span> <span id="closed-badge"></span></div>
+      </div>
+      <div class="table-cards" id="table-cards"></div>
+    </div>
+
+    <div class="last-trick" id="last-trick" style="display:none" title="{{ t.g66_last_trick }}">
+      <img class="pc" id="lt-1" alt="">
+      <img class="pc" id="lt-2" alt="">
+    </div>
+
+    <div class="seat me">
+      <div class="info">
+        <div class="who">{{ t.g66_you }} <span id="me-turn" class="turn" style="display:none">●</span></div>
+        <div>{{ t.g66_tricks }}: <span id="me-tricks">0</span> <span id="me-meld"></span></div>
+      </div>
+      <div class="pts" id="me-pts">0</div>
+    </div>
+    <div class="hand me" id="me-hand"></div>
+    <div class="hint" id="hint"></div>
+    <div class="marry-bar" id="marry-bar" style="display:none">
+      <span id="marry-label"></span>
+      <button class="btn" id="marry-yes"></button>
+      <button class="btn ghost" id="marry-no"></button>
+    </div>
+    <div class="actionbar" id="actionbar"></div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="banner" id="banner">
+    <div class="box">
+      <div class="big" id="banner-big"></div>
+      <h2 id="banner-title"></h2>
+      <p id="banner-text"></p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn" id="banner-btn"></button>
+        <button class="btn ghost" id="banner-no" style="display:none"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="banner" id="rules-modal">
+    <div class="box">
+      <h2>⚖ {{ t.g66_rules }}</h2>
+      <div class="rules-list" id="rules-list"></div>
+      <button class="btn ghost" id="rules-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="level-modal">
+    <div class="box">
+      <h2>🧠 {{ t.g66_level }}</h2>
+      <div class="rules-list" id="level-list"></div>
+      <button class="btn ghost" id="level-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="history-modal">
+    <div class="box wide">
+      <h2>🏅 {{ t.g66_history }}</h2>
+      <div class="scrollbox" id="history-list"></div>
+      <button class="btn ghost" id="history-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="rulesdoc-modal">
+    <div class="box wide">
+      <h2>📖 {{ t.g66_rulesdoc }}</h2>
+      <div class="scrollbox md" id="rulesdoc-body"></div>
+      <button class="btn ghost" id="rulesdoc-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="settings-modal">
+    <div class="box">
+      <h2>⚙ {{ t.g66_settings }}</h2>
+      <div class="setting">
+        <label>{{ t.g66_speed_move }}: <b id="fly-val"></b></label>
+        <input type="range" id="fly-range" min="120" max="1000" step="20">
+      </div>
+      <div class="setting">
+        <label>{{ t.g66_speed_linger }}: <b id="linger-val"></b></label>
+        <input type="range" id="linger-range" min="300" max="10000" step="100">
+      </div>
+      <div class="setting">
+        <label>{{ t.g66_speed_toast }}: <b id="toast-val"></b></label>
+        <input type="range" id="toast-range" min="2000" max="5000" step="100">
+      </div>
+      <p class="setting-hint">{{ t.g66_settings_hint }}</p>
+      <div class="setting" style="margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="sound-check" style="width:18px;height:18px;accent-color:var(--gold)">
+          {{ t.g66_sound_label }}
+        </label>
+        <p class="setting-hint" style="margin-top:2px">{{ t.g66_sound_hint }}</p>
+      </div>
+      <div class="setting" style="margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="debug-check" style="width:18px;height:18px;accent-color:var(--gold)">
+          {{ t.g66_debug_label }}
+        </label>
+        <p class="setting-hint" style="margin-top:2px">{{ t.g66_debug_hint }}</p>
+      </div>
+      <div class="setting" style="margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="played-check" style="width:18px;height:18px;accent-color:var(--gold)">
+          {{ t.g66_played_opt }}
+        </label>
+        <p class="setting-hint" style="margin-top:2px">{{ t.g66_played_opt_hint }}</p>
+      </div>
+      <div class="setting" style="margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="lasttrick-check" style="width:18px;height:18px;accent-color:var(--gold)">
+          {{ t.g66_lasttrick_opt }}
+        </label>
+        <p class="setting-hint" style="margin-top:2px">{{ t.g66_lasttrick_opt_hint }}</p>
+      </div>
+      <div class="setting" style="margin-top:12px">
+        <label style="font-size:0.86rem;font-weight:700">{{ t.g66_keyboard }}</label>
+        <p class="setting-hint" style="margin-top:4px">
+          <b>1–5</b> {{ t.g66_kb_play }} &nbsp; <b>E</b> {{ t.g66_kb_exchange }} &nbsp; <b>Z</b> {{ t.g66_kb_close }}<br>
+          <b>J/N</b> {{ t.g66_kb_marry }} &nbsp; <b>P</b> {{ t.g66_kb_played }} &nbsp; <b>Enter</b> {{ t.g66_kb_next }}<br>
+          <b>U</b> {{ t.g66_kb_undo }} &nbsp; <b>L</b> {{ t.g66_kb_log }} &nbsp; <b>Esc</b> {{ t.g66_kb_esc }}
+        </p>
+      </div>
+      <button class="btn ghost" id="settings-reset">{{ t.g66_reset }}</button>
+      <button class="btn" id="settings-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="played-modal">
+    <div class="box wide">
+      <h2>📋 {{ t.g66_played }}</h2>
+      <div class="played-legend">
+        <span class="pl-hand">{{ t.g66_played_hand }}</span>
+        <span class="pl-table">{{ t.g66_played_table }}</span>
+        <span class="pl-gone">{{ t.g66_played_gone }}</span>
+      </div>
+      <div id="played-grid" class="played-grid"></div>
+      <button class="btn ghost" id="played-cancel">✕</button>
+    </div>
+  </div>
+
+  <div class="banner" id="tab-modal" style="z-index:80">
+    <div class="box">
+      <div class="big">🔀</div>
+      <h2>{{ t.g66_tab_title }}</h2>
+      <p>{{ t.g66_tab_text }}</p>
+      <button class="btn" id="tab-resume">{{ t.g66_tab_resume }}</button>
+    </div>
+  </div>
+
+  <div class="banner" id="cut-modal">
+    <div class="box">
+      <h2>🎲 {{ t.g66_cut_title }}</h2>
+      <div class="cut-cards">
+        <div>
+          <div class="cut-lbl">{{ t.g66_you }}</div>
+          <div class="cut-slot" id="cut-slot-p">
+            <div class="cut-back"><img src="/cards/{{ deck }}/back.svg" alt=""></div>
+            <div class="cut-face"><img id="cut-p" alt=""></div>
+          </div>
+        </div>
+        <div>
+          <div class="cut-lbl">{{ t.g66_ai }}</div>
+          <div class="cut-slot" id="cut-slot-a">
+            <div class="cut-back"><img src="/cards/{{ deck }}/back.svg" alt=""></div>
+            <div class="cut-face"><img id="cut-a" alt=""></div>
+          </div>
+        </div>
+      </div>
+      <p id="cut-result"></p>
+      <button class="btn" id="cut-go"></button>
+    </div>
+  </div>
+
+  <script>
+  const G = {
+    deck: {{ deck|tojson }},
+    lang: {{ lang|tojson }},
+    you: {{ t.g66_you|tojson }}, ai: {{ t.g66_ai|tojson }},
+    close_talon: {{ t.g66_close_talon|tojson }}, exchange: {{ t.g66_exchange|tojson }},
+    marry_ask: {{ t.g66_marry_ask|tojson }}, close_confirm: {{ t.g66_close_confirm|tojson }},
+    new_confirm: {{ t.g66_new_confirm|tojson }},
+    your_turn: {{ t.g66_your_turn|tojson }}, ai_turn: {{ t.g66_ai_turn|tojson }},
+    next: {{ t.g66_next|tojson }}, new_match: {{ t.g66_new|tojson }}, banner_no: {{ t.g66_banner_no|tojson }},
+    deal_win: {{ t.g66_deal_win|tojson }}, deal_lose: {{ t.g66_deal_lose|tojson }},
+    match_win: {{ t.g66_match_win|tojson }}, match_lose: {{ t.g66_match_lose|tojson }},
+    gp: {{ t.g66_gp|tojson }}, closed_badge: {{ t.g66_closed_badge|tojson }},
+    err: {{ t.g66_err|tojson }},
+    rules: {{ t.g66_rules|tojson }},
+    rules_std: {{ t.g66_rules_std|tojson }}, rules_std_desc: {{ t.g66_rules_std_desc|tojson }},
+    rules_oma: {{ t.g66_rules_oma|tojson }}, rules_oma_desc: {{ t.g66_rules_oma_desc|tojson }},
+    rules_active: {{ t.g66_rules_active|tojson }}, rules_start: {{ t.g66_rules_start|tojson }},
+    cut_you: {{ t.g66_cut_you|tojson }}, cut_ai: {{ t.g66_cut_ai|tojson }}, cut_go: {{ t.g66_cut_go|tojson }},
+    level: {{ t.g66_level|tojson }}, level_start: {{ t.g66_level_start|tojson }}, strength: {{ t.g66_strength|tojson }},
+    level_easy: {{ t.g66_level_easy|tojson }}, level_easy_desc: {{ t.g66_level_easy_desc|tojson }},
+    level_medium: {{ t.g66_level_medium|tojson }}, level_medium_desc: {{ t.g66_level_medium_desc|tojson }},
+    level_hard: {{ t.g66_level_hard|tojson }}, level_hard_desc: {{ t.g66_level_hard_desc|tojson }},
+    level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }},
+    history: {{ t.g66_history|tojson }}, history_empty: {{ t.g66_history_empty|tojson }},
+    history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }},
+    settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }},
+    suit_c: {{ t.g66_suit_c|tojson }}, suit_d: {{ t.g66_suit_d|tojson }},
+    suit_h: {{ t.g66_suit_h|tojson }}, suit_s: {{ t.g66_suit_s|tojson }},
+    sort: {{ t.g66_sort|tojson }},
+    marriage_announce: {{ t.g66_marriage_announce|tojson }},
+    toast_exchange: {{ t.g66_toast_exchange|tojson }},
+    toast_closed: {{ t.g66_toast_closed|tojson }},
+    played: {{ t.g66_played|tojson }},
+    played_hand: {{ t.g66_played_hand|tojson }},
+    played_table: {{ t.g66_played_table|tojson }},
+    played_gone: {{ t.g66_played_gone|tojson }},
+    marry_yes: {{ t.g66_marry_yes|tojson }},
+    marry_no: {{ t.g66_marry_no|tojson }},
+    rank_a: {{ t.g66_rank_a|tojson }},
+    rank_t: {{ t.g66_rank_t|tojson }},
+    rank_k: {{ t.g66_rank_k|tojson }},
+    rank_q: {{ t.g66_rank_q|tojson }},
+    rank_j: {{ t.g66_rank_j|tojson }},
+    last_trick: {{ t.g66_last_trick|tojson }},
+    undo: {{ t.g66_undo|tojson }}, undo_toast: {{ t.g66_undo_toast|tojson }}
+  };
+  const $ = id => document.getElementById(id);
+  const img = code => `/cards/${G.deck}/${code}.svg`;
+
+  // ── Sound-Engine (Web Audio API, kein Netzwerk) ──────────────────────────
+  let soundOn = localStorage.getItem('g66_sound') !== '0';
+  let audioCtx = null;
+  function getAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+  function playTone(freq, dur, type, vol){
+    if(!soundOn) return;
+    try {
+      const ctx = getAudio(), o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type || 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(vol || 0.12, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + dur);
+    } catch(e){}
+  }
+  function playNoise(dur, vol){
+    if(!soundOn) return;
+    try {
+      const ctx = getAudio(), len = ctx.sampleRate * dur, buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * 0.5;
+      const src = ctx.createBufferSource(), g = ctx.createGain();
+      src.buffer = buf;
+      g.gain.setValueAtTime(vol || 0.08, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      src.connect(g); g.connect(ctx.destination);
+      src.start();
+    } catch(e){}
+  }
+  const SFX = {
+    cardPlay:  () => playNoise(0.08, 0.15),
+    cardDraw:  () => playNoise(0.06, 0.10),
+    trick:     () => { playNoise(0.05, 0.10); setTimeout(()=>playNoise(0.04, 0.08), 60); },
+    meld:      () => { playTone(523, 0.12, 'triangle', 0.14); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.14), 100); },
+    close:     () => playTone(330, 0.25, 'square', 0.08),
+    exchange:  () => { playTone(440, 0.08, 'sine', 0.10); setTimeout(()=>playTone(554, 0.08, 'sine', 0.10), 80); },
+    win:       () => { [523,659,784].forEach((f,i) => setTimeout(()=>playTone(f, 0.2, 'triangle', 0.15), i*120)); },
+    lose:      () => { [392,330,262].forEach((f,i) => setTimeout(()=>playTone(f, 0.25, 'sine', 0.10), i*150)); },
+    undo:      () => playTone(370, 0.15, 'sine', 0.08),
+    drumroll:  (durMs) => {
+      if(!soundOn) return;
+      const dur = (durMs || 3000) / 1000;
+      const steps = Math.floor(dur * 18);
+      for(let i=0;i<steps;i++){
+        const t = i / steps;
+        const vol = 0.03 + t * 0.12;
+        const gap = (1 - t * 0.6) * (dur / steps) * 1000;
+        setTimeout(() => playNoise(0.04, vol), i * gap);
+      }
+    },
+    cymbal:    () => playNoise(0.35, 0.18),
+  };
+  // Karten-SVGs vorab laden, damit auch die KI-Karte sofort sichtbar fliegt
+  (function preloadCards(){
+    const codes = ['back'];
+    ['A','T','K','Q','J'].forEach(r => ['c','d','h','s'].forEach(s => codes.push(r + s)));
+    codes.forEach(code => { const im = new Image(); im.src = img(code); });
+  })();
+  let V = null, busy = false, curRules = 'standard', curLevel = 'medium', cutShown = null, canUndo = false;
+  let tabActive = true;  // Mehr-Tab-Schutz: nur ein aktiver Tab spielt
+  let drawnCard = null;  // zuletzt vom Talon gezogene Karte (blau umrandet)
+  let handSort = localStorage.getItem('g66_handsort') === '1';  // Hand nach Wertigkeit sortieren
+  // Sortierung: zuerst Farbe (Kreuz<Karo<Herz<Pik), dann Wert (Bube<Dame<König<10<Ass).
+  // Trumpf steht immer ganz rechts (unabhaengig von der Farbe), höchster Trumpf zuletzt.
+  const SUIT_RANK = {c: 0, d: 1, h: 2, s: 3};
+  const RANK_VAL = {J: 2, Q: 3, K: 4, T: 10, A: 11};
+  const sortedHand = (hand, trump) => hand.slice().sort((a, b) => {
+    const at = a[1] === trump, bt = b[1] === trump;
+    if (at !== bt) return at ? 1 : -1;            // Trumpf nach rechts
+    return (SUIT_RANK[a[1]] - SUIT_RANK[b[1]]) || (RANK_VAL[a[0]] - RANK_VAL[b[0]]);
+  });
+  const LEVEL_DEFS = [
+    ['easy', G.level_easy, G.level_easy_desc],
+    ['medium', G.level_medium, G.level_medium_desc],
+    ['hard', G.level_hard, G.level_hard_desc],
+    ['adaptive', G.level_adaptive, G.level_adaptive_desc]
+  ];
+  const levelName = key => ({easy: G.level_easy, medium: G.level_medium,
+    hard: G.level_hard, adaptive: G.level_adaptive}[key] || G.level_medium);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Anpassbare Timings (im Browser gespeichert): Kartenflug + Liegezeit eines Stichs
+  const FLY_DEFAULT = 380, LINGER_DEFAULT = 1250, TOAST_DEFAULT = 2700;
+  const clampInt = (v, lo, hi, def) => {
+    v = parseInt(v, 10); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
+  };
+  let flyMs = clampInt(localStorage.getItem('g66_fly'), 120, 1000, FLY_DEFAULT);
+  let lingerMs = clampInt(localStorage.getItem('g66_linger'), 300, 10000, LINGER_DEFAULT);
+  let toastMs = clampInt(localStorage.getItem('g66_toast'), 2000, 5000, TOAST_DEFAULT);
+  let debugMode = localStorage.getItem('g66_debug') === '1';
+  let showPlayed = localStorage.getItem('g66_show_played') === '1';
+  let showLastTrick = localStorage.getItem('g66_show_lasttrick') !== '0';
+
+  function cardImg(code, cls){
+    const i = document.createElement('img');
+    i.className = 'pc' + (cls ? ' ' + cls : '');
+    i.src = img(code); i.alt = code; return i;
+  }
+
+  async function api(url, opts){
+    try {
+      const r = await fetch(url, opts);
+      if (r.status === 403){ $('hint').textContent = G.err; return null; }
+      if (r.status === 409){ return await api('/api/66/state'); }
+      return await r.json();
+    } catch(e){ $('hint').textContent = G.err; return null; }
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  const RANK_NAME = {A:G.rank_a, T:G.rank_t, K:G.rank_k, Q:G.rank_q, J:G.rank_j};
+  function cardName(code){ return (RANK_NAME[code[0]]||code[0]) + ' ' + suitSym(code[1]); }
+
+  function showToast(text, cls){
+    let wrap = document.querySelector('.toast-wrap');
+    if (!wrap){ wrap = document.createElement('div'); wrap.className = 'toast-wrap'; document.body.appendChild(wrap); }
+    const t = document.createElement('div');
+    t.className = 'toast' + (cls ? ' ' + cls : '');
+    t.textContent = text;
+    wrap.appendChild(t);
+    const fadeStart = toastMs - 400;
+    setTimeout(() => { t.style.opacity = '0'; }, fadeStart);
+    setTimeout(() => t.remove(), toastMs);
+  }
+
+  let playerClosing = false;
+  let pendingMarryCard = null;
+
+  async function loadState(){
+    const v = await api('/api/66/state');
+    if (v){
+      await maybeShowCut(v);
+      render(v);
+      if (isFreshDeal(v)) await dealCards();
+    }
+  }
+
+  // Nur ganz am Match-Anfang (vor dem ersten Stich) — sonst taucht das Auslosen
+  // in einem zweiten Tab / nach Reload mitten im Spiel auf
+  function cutAtStart(v){
+    return !!(v && v.deal_no === 1
+      && v.tricks && v.tricks.p === 0 && v.tricks.a === 0
+      && v.bummerl && v.bummerl.p === 0 && v.bummerl.a === 0);
+  }
+
+  // Auslosen anzeigen (einmal pro Browser) — zwei gezogene Karten, wer beginnt
+  function maybeShowCut(v){
+    return new Promise(resolve => {
+      const cut = v && v.cut;
+      const sig = cut ? JSON.stringify(cut) : null;
+      if (!cut || !cutAtStart(v)){ resolve(); return; }
+      let seen = null;
+      try { seen = localStorage.getItem('g66_cutseen'); } catch(e){}
+      if (sig === cutShown || sig === seen){ resolve(); return; }
+      cutShown = sig;
+      try { localStorage.setItem('g66_cutseen', sig); } catch(e){}
+
+      const slotP = $('cut-slot-p'), slotA = $('cut-slot-a');
+      const res = $('cut-result'), go = $('cut-go');
+      $('cut-p').src = img(cut.p);
+      $('cut-a').src = img(cut.a);
+      res.textContent = (cut.leader === 'p') ? G.cut_you : G.cut_ai;
+      go.textContent = G.cut_go;
+
+      slotP.className = 'cut-slot shuffle';
+      slotA.className = 'cut-slot shuffle';
+      res.classList.remove('visible');
+      go.classList.remove('visible');
+      const winnerSlot = cut.leader === 'p' ? slotP : slotA;
+
+      const m = $('cut-modal'); m.classList.add('show');
+      SFX.drumroll(4000);
+
+      setTimeout(() => { slotP.classList.remove('shuffle'); slotP.classList.add('revealed'); SFX.cardPlay(); }, 1800);
+      setTimeout(() => { slotA.classList.remove('shuffle'); slotA.classList.add('revealed'); SFX.cardPlay(); }, 3200);
+      setTimeout(() => {
+        winnerSlot.classList.add('winner');
+        res.classList.add('visible');
+        SFX.cymbal();
+      }, 4200);
+      setTimeout(() => { go.classList.add('visible'); }, 4800);
+
+      go.onclick = () => {
+        slotP.className = 'cut-slot'; slotA.className = 'cut-slot';
+        res.classList.remove('visible'); go.classList.remove('visible');
+        m.classList.remove('show');
+        resolve();
+      };
+    });
+  }
+
+  // Frames mit Pausen abspielen — der volle Stich (2 Karten) bleibt sichtbar liegen
+  // Trumpf-Buben-Tausch erkennen: Trumpfkarte geaendert, Tisch unveraendert
+  function isExchangeTransition(prev, cur){
+    return prev && cur && prev.trump_card && cur.trump_card
+      && prev.trump_card !== cur.trump_card
+      && (prev.table || []).length === (cur.table || []).length;
+  }
+
+  async function playFrames(frames){
+    for (let i = 0; i < frames.length; i++){
+      if (i > 0) await animateTransition(frames[i - 1], frames[i]);
+      render(frames[i]);
+      // Frisches Deal: Karten-Geben-Animation
+      if (isFreshDeal(frames[i]) && (i === 0 || !isFreshDeal(frames[i - 1]))){
+        await dealCards();
+      }
+      if (i < frames.length - 1){
+        const n = (frames[i].table || []).length;
+        // Voller Stich liegt → die Gewinnerkarte (laut Folge-Frame) blinkt waehrend der Liegezeit
+        if (n >= 2) highlightWinningCard(frames[i], frames[i + 1].last_trick_winner);
+        // Vor einem Trumpf-Buben-Tausch keinen Leerlauf einlegen — die Animation
+        // soll direkt nach dem Render anschliessen (sonst wirkt sie verzoegert/abgehackt).
+        if (!isExchangeTransition(frames[i], frames[i + 1])){
+          await sleep(n >= 2 ? lingerMs
+                    : (n === 1 ? Math.round(lingerMs * 0.48) : Math.round(lingerMs * 0.38)));
+        }
+      }
+    }
+  }
+
+  // Übergang zweier Frames animieren: KI legt eine Karte / es wird nachgezogen
+  async function animateTransition(prev, cur){
+    if (reduceMotion) return;
+    // Trumpf-Buben-Tausch erkennen: Trumpfkarte hat sich geändert, Tisch unverändert
+    if (isExchangeTransition(prev, cur)){
+      const who = (JSON.stringify(prev.hand) !== JSON.stringify(cur.hand)) ? 'p' : 'a';
+      if (debugMode) {
+        const dbg = document.createElement('div');
+        dbg.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:999;background:#8e44ad;color:#fff;padding:4px 14px;border-radius:8px;font-size:13px;font-weight:700;pointer-events:none;transition:opacity .4s;';
+        dbg.textContent = 'flyExchange(' + who + ') ' + prev.trump_card + '→' + cur.trump_card;
+        document.body.appendChild(dbg);
+        setTimeout(() => { dbg.style.opacity = '0'; }, 2000);
+        setTimeout(() => dbg.remove(), 2500);
+      }
+      if (who === 'a') showToast(G.ai + ': ' + G.toast_exchange);
+      SFX.exchange();
+      await flyExchange(who, prev.trump_card, cur.trump_card);
+      return;
+    }
+    if (cur.closed && !prev.closed && !playerClosing){ showToast(G.ai + ': ' + G.toast_closed); SFX.close(); }
+    playerClosing = false;
+    const pt = prev.table || [], ct = cur.table || [];
+    if (ct.length > pt.length){
+      const added = ct[ct.length - 1];
+      if (added && added.who === 'a'){
+        let msg = G.ai + ': ' + cardName(added.card);
+        if (added.meld) msg += '  ·  ' + G.marriage_announce + ' +' + added.meld;
+        showToast(msg);
+        if (added.meld){ showToast('+' + added.meld, 'gold'); SFX.meld(); } else { SFX.cardPlay(); }
+        await flyAiCard(added.card);
+      }
+      return;
+    }
+    // Stich abgeräumt → die beiden Karten zum Stichgewinner fliegen lassen
+    if (ct.length < pt.length){
+      const w = cur.last_trick_winner;
+      const target = (w === 'p') ? ($('me-tricks') || $('me-hand'))
+                   : (w === 'a') ? ($('opp-tricks') || $('opp-hand')) : null;
+      SFX.trick();
+      if (target) await flyTrickTo(target);
+    }
+    // Stich aufgelöst → vom Talon nachziehen (Stapel schrumpft, Hände wachsen)
+    if ((cur.stock_count || 0) < (prev.stock_count || 0)){
+      const drawP = (cur.hand || []).length > (prev.hand || []).length;
+      const drawA = (cur.ai_count || 0) > (prev.ai_count || 0);
+      if (drawP){
+        const prevH = prev.hand || [];
+        const fresh = (cur.hand || []).filter(c => !prevH.includes(c));
+        if (fresh.length) drawnCard = fresh[fresh.length - 1];
+      }
+      if (debugMode) {
+        const src = $('stock-back') || $('trump-card') || $('stockwrap');
+        const sr = src && src.getBoundingClientRect();
+        const oh = $('opp-hand'); const or2 = oh && oh.getBoundingClientRect();
+        const dbg = document.createElement('div');
+        dbg.style.cssText = 'position:fixed;top:30px;left:50%;transform:translateX(-50%);z-index:999;background:#2980b9;color:#fff;padding:4px 14px;border-radius:8px;font-size:12px;font-weight:700;pointer-events:none;transition:opacity .4s;white-space:pre;';
+        dbg.textContent = 'flyDraw: P=' + drawP + ' A=' + drawA
+          + '  stock=' + prev.stock_count + '→' + cur.stock_count
+          + '  ai=' + (prev.ai_count||0) + '→' + (cur.ai_count||0)
+          + '\nsrc=' + (sr ? Math.round(sr.width) + 'x' + Math.round(sr.height) : 'null')
+          + ' dst=' + (or2 ? Math.round(or2.width) + 'x' + Math.round(or2.height) + '@' + Math.round(or2.left) + ',' + Math.round(or2.top) : 'null');
+        document.body.appendChild(dbg);
+        setTimeout(() => { dbg.style.opacity = '0'; }, 3000);
+        setTimeout(() => dbg.remove(), 3500);
+      }
+      // Stichgewinner zieht zuerst, dann der andere — als getrennte Animationen
+      const w = cur.last_trick_winner;
+      const order = (w === 'a') ? ['a', 'p'] : ['p', 'a'];
+      for (const who of order){
+        if (who === 'p' && drawP){ SFX.cardDraw(); await flyDraw($('me-hand')); }
+        if (who === 'a' && drawA){ SFX.cardDraw(); await flyDraw($('opp-hand')); }
+      }
+    }
+  }
+
+  async function applyResult(r){
+    if (r && r.frames){ await maybeShowCut(r.frames[0]); await playFrames(r.frames); }
+    else if (r){ await maybeShowCut(r); render(r); }
+  }
+
+  function updateUndo(){
+    const allowed = canUndo && (curLevel === 'easy' || curLevel === 'medium');
+    $('btn-undo').style.display = allowed ? '' : 'none';
+  }
+
+  async function doUndo(){
+    if (busy || !canUndo) return; busy = true;
+    const r = await api('/api/66/undo', {method: 'POST'});
+    canUndo = false; updateUndo();
+    if (r && !r.error) { render(r); showToast(G.undo_toast); SFX.undo(); }
+    busy = false;
+  }
+
+  async function doMove(action){  // setzt voraus, dass busy bereits true ist
+    drawnCard = null;  // beim nächsten Zug verschwindet der blaue Rand
+    const r = await api('/api/66/move', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action})
+    });
+    if (r && !r.error && action.type !== 'next') { canUndo = true; updateUndo(); }
+    await applyResult(r);
+  }
+
+  async function send(action){    // für Buttons (ohne Fluganimation)
+    if (busy || !tabActive) return; busy = true;
+    await doMove(action);
+    busy = false;
+  }
+
+  // Angeklickte Handkarte animiert auf den Tisch fliegen lassen
+  function flyCard(card){
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const slot = document.querySelector('#me-hand .card-slot[data-card="' + CSS.escape(card) + '"]');
+      const tableEl = $('table-cards');
+      const sImg = slot && slot.querySelector('img');
+      if (!sImg || !tableEl){ resolve(); return; }
+      const s = sImg.getBoundingClientRect();
+      const t = tableEl.getBoundingClientRect();
+      const clone = sImg.cloneNode(true);
+      clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+        + 'left:' + s.left + 'px;top:' + s.top + 'px;height:' + s.height + 'px;width:auto;'
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+        + (flyMs / 1000) + 's ease;'
+        + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+      document.body.appendChild(clone);
+      slot.style.visibility = 'hidden';
+      const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+      const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      clone.addEventListener('transitionend', fin, {once: true});
+      setTimeout(fin, flyMs + 60);
+    });
+  }
+
+  // Allgemeiner Kartenflug: zentriertes Klon-Bild vom Quell-Rechteck zur Ziel-Mitte
+  function flyBetween(srcRect, dstEl, code, opts){
+    opts = opts || {};
+    return new Promise(resolve => {
+      if (reduceMotion || !srcRect || !dstEl){
+        if (debugMode) console.log('flyBetween SKIP:', code, 'motion=' + reduceMotion, 'src=' + !!srcRect, 'dst=' + !!dstEl);
+        resolve(); return;
+      }
+      const t = dstEl.getBoundingClientRect();
+      if (!srcRect.width || !t.width){
+        if (debugMode) console.log('flyBetween SKIP zero:', code, 'srcW=' + srcRect.width, 'dstW=' + t.width);
+        resolve(); return;
+      }
+      const clone = document.createElement('img');
+      clone.alt = '';
+      const h = opts.height || srcRect.height || 90;
+      clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:' + (opts.z || 60) + ';'
+        + 'left:' + (srcRect.left + srcRect.width / 2) + 'px;'
+        + 'top:' + (srcRect.top + srcRect.height / 2) + 'px;'
+        + 'height:' + h + 'px;width:auto;transform:translate(-50%,-50%) scale(0.9);'
+        + (opts.fadeIn ? 'opacity:.6;' : '')
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+        + (flyMs / 1000) + 's ease;box-shadow:' + (opts.ring ? '0 0 0 3px var(--gold),' : '')
+        + '0 10px 22px rgba(0,0,0,.5)';
+      document.body.appendChild(clone);
+      const dx = (t.left + t.width / 2) - (srcRect.left + srcRect.width / 2);
+      const dy = (t.top + t.height / 2) - (srcRect.top + srcRect.height / 2);
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      const move = () => {
+        requestAnimationFrame(() => {
+          clone.style.transform = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) scale(1)';
+          if (opts.fadeIn) clone.style.opacity = '1';
+        });
+        clone.addEventListener('transitionend', fin, {once: true});
+        setTimeout(fin, flyMs + 80);
+      };
+      // Erst losfliegen, wenn das Bild geladen ist — sonst fliegt eine unsichtbare Karte
+      clone.src = img(code);
+      if (clone.complete && clone.naturalWidth){ move(); }
+      else {
+        let started = false;
+        const go = () => { if (started) return; started = true; move(); };
+        clone.addEventListener('load', go, {once: true});
+        clone.addEventListener('error', go, {once: true});
+        setTimeout(go, 200);  // Fallback, falls load haengt
+      }
+    });
+  }
+
+  // KI spielt eine Karte: die aufgedeckte Karte fliegt von der KI-Hand auf den Tisch.
+  // Startet an der Position einer verdeckten Karte, zeigt aber das Kartenbild (face-up),
+  // damit der Flug auf dem dunklen Filz sichtbar ist.
+  function flyAiCard(card){
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const oh = $('opp-hand');
+      const back = oh && (oh.querySelector('.pc') || oh.lastElementChild);
+      const tableEl = $('table-cards');
+      const s = back && back.getBoundingClientRect();
+      if (debugMode) {
+        const dbg = document.createElement('div');
+        dbg.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:999;background:#e74c3c;color:#fff;padding:4px 14px;border-radius:8px;font-size:13px;font-weight:700;pointer-events:none;transition:opacity .4s;';
+        dbg.textContent = 'flyAiCard(' + card + ') back=' + !!back + ' w=' + (s ? Math.round(s.width) : 0) + ' oh=' + (oh ? oh.children.length : 0);
+        document.body.appendChild(dbg);
+        setTimeout(() => { dbg.style.opacity = '0'; }, 2000);
+        setTimeout(() => dbg.remove(), 2500);
+      }
+      if (!back || !s || !s.width || !tableEl){ resolve(); return; }
+      const t = tableEl.getBoundingClientRect();
+      const clone = document.createElement('img');
+      clone.src = img(card);
+      clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+        + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+        + 'height:' + s.height + 'px;width:' + s.width + 'px;border-radius:6px;'
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1);'
+        + 'box-shadow:0 0 0 3px #00e5ff,0 10px 22px rgba(0,0,0,.55),'
+        + '0 0 18px rgba(0,229,255,0.6)';
+      document.body.appendChild(clone);
+      back.style.visibility = 'hidden';
+      const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+      const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      const startFly = () => {
+        requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
+      };
+      if (clone.complete && clone.naturalWidth) startFly();
+      else {
+        let started = false;
+        const go = () => { if (started) return; started = true; startFly(); };
+        clone.addEventListener('load', go, {once: true});
+        setTimeout(go, 150);
+      }
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      clone.addEventListener('transitionend', fin, {once: true});
+      setTimeout(fin, flyMs + 80);
+    });
+  }
+
+  // Trumpf-Buben tauschen: Bube fliegt zur Trumpfkarte, Trumpfkarte fliegt zur Hand
+  function flyExchange(who, oldTrump, newTrump){
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const trumpEl = $('trump-card');
+      const tr = trumpEl && trumpEl.getBoundingClientRect();
+      if (!trumpEl || !tr || !tr.width){ resolve(); return; }
+      const handEl = (who === 'p') ? $('me-hand') : $('opp-hand');
+      let handCard = null;
+      if (who === 'p') {
+        handCard = document.querySelector('#me-hand .card-slot[data-card="' + CSS.escape(newTrump) + '"] img')
+                || document.querySelector('#me-hand .card-slot:last-child img');
+      } else {
+        handCard = handEl && (handEl.querySelector('.pc') || handEl.lastElementChild);
+      }
+      const hr = handCard && handCard.getBoundingClientRect();
+      if (!handCard || !hr || !hr.width){ resolve(); return; }
+
+      let pending = 2;
+      const done = () => { if (--pending <= 0) resolve(); };
+      const dur = flyMs / 1000;
+
+      // Bube fliegt von Hand zur Trumpf-Position. Die bereits geladene/dekodierte
+      // Karte klonen (statt neues <img> laden) — sonst Start-Verzoegerung durch
+      // load-Event und Ruckeln durch SVG-Decode im ersten Frame.
+      const jackClone = handCard.cloneNode(true);
+      jackClone.className = ''; jackClone.removeAttribute('id');
+      jackClone.style.cssText = 'position:fixed;margin:0;z-index:61;pointer-events:none;border-radius:6px;'
+        + 'left:' + hr.left + 'px;top:' + hr.top + 'px;'
+        + 'height:' + hr.height + 'px;width:' + hr.width + 'px;'
+        + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);will-change:transform;'
+        + 'box-shadow:0 0 0 2px var(--gold),0 8px 18px rgba(0,0,0,.5)';
+      document.body.appendChild(jackClone);
+      handCard.style.visibility = 'hidden';
+
+      // Trumpfkarte fliegt von Trumpf-Position zur Hand
+      const trumpClone = trumpEl.cloneNode(true);
+      trumpClone.className = ''; trumpClone.removeAttribute('id');
+      trumpClone.style.cssText = 'position:fixed;margin:0;z-index:62;pointer-events:none;border-radius:6px;'
+        + 'left:' + tr.left + 'px;top:' + tr.top + 'px;'
+        + 'height:' + tr.height + 'px;width:' + tr.width + 'px;'
+        + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);will-change:transform;'
+        + 'box-shadow:0 0 0 2px var(--gold),0 8px 18px rgba(0,0,0,.5)';
+      document.body.appendChild(trumpClone);
+      trumpEl.style.visibility = 'hidden';
+
+      const jdx = (tr.left + tr.width/2) - (hr.left + hr.width/2);
+      const jdy = (tr.top + tr.height/2) - (hr.top + hr.height/2);
+      const tdx = -jdx * (hr.width / tr.width);
+      const tdy = -jdy * (hr.height / tr.height);
+
+      // Klone sind sofort dekodiert -> ohne load-Wartezeit starten
+      requestAnimationFrame(() => {
+        jackClone.style.transform = 'translate(' + jdx + 'px,' + jdy + 'px)';
+        trumpClone.style.transform = 'translate(' + tdx + 'px,' + tdy + 'px)';
+      });
+
+      const finJ = () => { jackClone.remove(); done(); };
+      const finT = () => { trumpClone.remove(); done(); };
+      jackClone.addEventListener('transitionend', finJ, {once:true});
+      trumpClone.addEventListener('transitionend', finT, {once:true});
+      setTimeout(finJ, flyMs + 80);
+      setTimeout(finT, flyMs + 80);
+    });
+  }
+
+  // Karten-Geben-Animation: Karten dimmen nacheinander auf
+  function isFreshDeal(f){
+    return f && !(f.table||[]).length && f.stock_count >= 9
+      && f.tricks && f.tricks.p === 0 && f.tricks.a === 0;
+  }
+  async function dealCards(){
+    if (reduceMotion) return;
+    const meSlots = Array.from($('me-hand').querySelectorAll('.card-slot'));
+    const oppCards = Array.from($('opp-hand').querySelectorAll('.pc'));
+    const trumpEl = $('trump-card');
+    const stockEl = $('stock-back');
+    const countLine = $('stock-count').parentElement;
+
+    // Alles sofort verstecken (synchron, kein Paint dazwischen)
+    meSlots.forEach(s => { s.style.opacity = '0'; s.style.transition = 'none'; });
+    oppCards.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
+    if (trumpEl) { trumpEl.style.opacity = '0'; trumpEl.style.transition = 'none'; }
+    if (stockEl) { stockEl.style.opacity = '0'; stockEl.style.transition = 'none'; }
+    if (countLine) { countLine.style.opacity = '0'; countLine.style.transition = 'none'; }
+
+    const fadeDur = flyMs / 1000;
+    const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
+    const pause = Math.max(60, Math.round(flyMs * 0.25));
+
+    if (debugMode) {
+      const dbg = document.createElement('div');
+      dbg.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:999;background:#27ae60;color:#fff;padding:4px 14px;border-radius:8px;font-size:13px;font-weight:700;pointer-events:none;transition:opacity .4s;';
+      dbg.textContent = 'dealCards() opp=' + oppCards.length + ' me=' + meSlots.length + ' fade=' + flyMs + 'ms pause=' + pause + 'ms';
+      document.body.appendChild(dbg);
+      setTimeout(() => { dbg.style.opacity = '0'; }, 2000);
+      setTimeout(() => dbg.remove(), 2500);
+    }
+
+    // Abwechselnd KI / Spieler aufdimmen
+    const max = Math.max(meSlots.length, oppCards.length);
+    for (let i = 0; i < max; i++){
+      if (oppCards[i]) { fadeIn(oppCards[i]); await sleep(pause); }
+      if (meSlots[i]) { fadeIn(meSlots[i]); await sleep(pause); }
+    }
+    // Trumpf + Talon einblenden
+    await sleep(pause);
+    if (trumpEl) fadeIn(trumpEl);
+    await sleep(pause);
+    if (stockEl) fadeIn(stockEl);
+    if (countLine) fadeIn(countLine);
+    await sleep(pause * 2);
+
+    // Inline-Styles aufräumen
+    meSlots.forEach(s => { s.style.opacity = ''; s.style.transition = ''; });
+    oppCards.forEach(c => { c.style.opacity = ''; c.style.transition = ''; });
+    [trumpEl, stockEl, countLine].forEach(el => { if (el) { el.style.opacity = ''; el.style.transition = ''; } });
+  }
+
+  // Nachziehen vom Talon: verdeckte Karte vom Stapel in eine Hand.
+  // Klont die bereits dekodierte Stapelkarte (#stock-back) statt ein frisches
+  // <img> zu laden — sonst startet die Transition (je nach Decode-/Cache-Timing)
+  // manchmal nicht und die Karte erscheint instant (v.a. beim ersten Nachzug).
+  function flyDraw(handEl){
+    return new Promise(resolve => {
+      if (reduceMotion){ resolve(); return; }
+      const stock = $('stock-back');
+      const s = stock && stock.getBoundingClientRect();
+      if (!stock || !s || !s.width || !handEl){ resolve(); return; }
+      const t = handEl.getBoundingClientRect();
+      if (!t.width){ resolve(); return; }
+      const clone = stock.cloneNode(true);
+      clone.className = ''; clone.removeAttribute('id');
+      clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:58;display:block;'
+        + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+        + 'height:' + s.height + 'px;width:' + s.width + 'px;opacity:.6;'
+        + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+        + (flyMs / 1000) + 's ease;box-shadow:0 10px 22px rgba(0,0,0,.5)';
+      document.body.appendChild(clone);
+      const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+      const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      let done = false;
+      const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
+      void clone.offsetWidth;  // Startposition committen → Transition startet zuverlaessig
+      requestAnimationFrame(() => {
+        clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+        clone.style.opacity = '1';
+      });
+      clone.addEventListener('transitionend', fin, {once: true});
+      setTimeout(fin, flyMs + 80);
+    });
+  }
+
+  // Stich abräumen: die liegenden Karten schrumpfend zum Gewinner-Bereich fliegen
+  function flyTrickTo(targetEl){
+    return new Promise(resolve => {
+      if (reduceMotion || !targetEl){ resolve(); return; }
+      const cards = Array.from(document.querySelectorAll('#table-cards .pc'));
+      if (!cards.length){ resolve(); return; }
+      const t = targetEl.getBoundingClientRect();
+      let pending = cards.length;
+      const allDone = () => { if (--pending <= 0) resolve(); };
+      cards.forEach(srcImg => {
+        const s = srcImg.getBoundingClientRect();
+        if (!s.width){ allDone(); return; }
+        const clone = srcImg.cloneNode(true);
+        clone.className = '';
+        clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:62;'
+          + 'left:' + s.left + 'px;top:' + s.top + 'px;height:' + s.height + 'px;width:' + s.width + 'px;'
+          + 'transition:transform ' + (flyMs / 1000) + 's cubic-bezier(.4,.8,.3,1),opacity '
+          + (flyMs / 1000) + 's ease;box-shadow:0 10px 22px rgba(0,0,0,.5)';
+        document.body.appendChild(clone);
+        srcImg.style.visibility = 'hidden';
+        const badge = srcImg.parentElement && srcImg.parentElement.querySelector('.meld-val');
+        if (badge) badge.style.visibility = 'hidden';
+        const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
+        const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+        let done = false;
+        const fin = () => { if (done) return; done = true; clone.remove(); allDone(); };
+        requestAnimationFrame(() => {
+          clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(0.35)';
+          clone.style.opacity = '0.25';
+        });
+        clone.addEventListener('transitionend', fin, {once: true});
+        setTimeout(fin, flyMs + 80);
+      });
+    });
+  }
+
+  // Die Karte des Stichgewinners auf dem Tisch aufblinken lassen
+  function highlightWinningCard(frame, who){
+    if (!who) return;
+    const idx = (frame.table || []).findIndex(p => p.who === who);
+    if (idx < 0) return;
+    const cards = document.querySelectorAll('#table-cards .pc');
+    if (cards[idx]) cards[idx].classList.add('won');
+  }
+
+  function hasLegal(pred){ return (V.legal || []).some(pred); }
+
+  function render(v){
+    V = v;
+    curRules = v.rules || 'standard';
+    $('rulestag').textContent = (curRules === 'oma') ? G.rules_oma : G.rules_std;
+    curLevel = v.level || 'medium';
+    $('leveltag').textContent = (curLevel === 'adaptive')
+      ? levelName(curLevel) + ' · ' + (v.ai_strength != null ? v.ai_strength + '%' : '')
+      : levelName(curLevel);
+    $('bm-p').textContent = v.bummerl.p;
+    $('bm-a').textContent = v.bummerl.a;
+    $('me-pts').textContent = v.pts.p;
+    $('opp-pts').textContent = v.pts.a;
+    $('me-tricks').textContent = v.tricks.p;
+    $('opp-tricks').textContent = v.tricks.a;
+    $('me-meld').innerHTML = meldBadge(v.melds.p);
+    $('opp-meld').innerHTML = meldBadge(v.melds.a);
+    $('me-turn').style.display = (v.turn === 'p' && v.status === 'playing') ? '' : 'none';
+    $('opp-turn').style.display = (v.turn === 'a' && v.status === 'playing') ? '' : 'none';
+
+    // Gegnerhand (Rückseiten)
+    const oh = $('opp-hand'); oh.innerHTML = '';
+    for (let i = 0; i < v.ai_count; i++) oh.appendChild(cardImg('back'));
+
+    // Talon + Trumpf
+    if (v.trump_card){
+      $('trump-card').src = img(v.trump_card); $('trump-card').style.display = '';
+      $('trump-card').style.visibility = '';
+      $('stock-back').style.display = v.stock_count > 1 ? '' : 'none';
+      $('stock-back').style.visibility = '';
+    } else {
+      $('trump-card').style.display = 'none'; $('stock-back').style.display = 'none';
+    }
+    $('stock-count').textContent = v.stock_count;
+    const ts = $('trump-suit');
+    ts.textContent = suitSym(v.trump);
+    ts.className = 'suit' + ((v.trump === 'd' || v.trump === 'h') ? ' red' : '');
+    ts.title = suitName(v.trump);
+    $('closed-badge').innerHTML = v.closed ? '<span class="badge">' + G.closed_badge + '</span>' : '';
+    $('stockwrap').classList.toggle('is-closed', !!v.closed);
+
+    // Letzter Stich. Wenn die Option an ist, bleibt der Bereich IMMER sichtbar
+    // (reservierter Platz via min-height) — nur die Karten darin werden ein-/
+    // ausgeblendet. Sonst springt der Talon beim Auf-/Zuklappen vertikal.
+    const lt = v.last_trick;
+    const lt1 = $('lt-1'), lt2 = $('lt-2');
+    if (showLastTrick){
+      $('last-trick').style.display = '';
+      if (lt && lt.length === 2 && !(v.table && v.table.length)){
+        lt1.src = img(lt[0].card);
+        lt1.className = 'pc' + (lt[0].who === 'a' ? ' by-ai' : '');
+        lt2.src = img(lt[1].card);
+        lt2.className = 'pc' + (lt[1].who === 'a' ? ' by-ai' : '');
+        lt1.style.visibility = ''; lt2.style.visibility = '';
+      } else {
+        lt1.style.visibility = 'hidden'; lt2.style.visibility = 'hidden';
+      }
+    } else {
+      $('last-trick').style.display = 'none';
+    }
+
+    // Tisch
+    const tc = $('table-cards'); tc.innerHTML = '';
+    v.table.forEach((p, idx) => {
+      const cls = (idx === 0 ? 'lead' : 'follow') + (p.who === 'a' ? ' by-ai' : '');
+      const cimg = cardImg(p.card, cls);
+      if (p.meld) {
+        const wrap = document.createElement('div');
+        wrap.className = 'table-wrap';
+        wrap.appendChild(cimg);
+        const tag = document.createElement('span');
+        tag.className = 'meld-val' + (p.meld >= 40 ? ' t40' : '');
+        tag.textContent = p.meld;
+        tag.title = G.marriage_announce;
+        wrap.appendChild(tag);
+        tc.appendChild(wrap);
+      } else {
+        tc.appendChild(cimg);
+      }
+    });
+
+    // Eigene Hand (optional nach Wertigkeit sortiert; blauer Talon-Rand bleibt erhalten)
+    const mh = $('me-hand'); mh.innerHTML = '';
+    (handSort ? sortedHand(v.hand, v.trump) : v.hand).forEach(card => {
+      const slot = document.createElement('div');
+      slot.className = 'card-slot';
+      slot.dataset.card = card;
+      const playable = (v.turn === 'p' && v.status === 'playing'
+        && hasLegal(a => a.type === 'play' && a.card === card));
+      slot.classList.add(playable ? 'playable' : 'disabled');
+      if (card[1] === v.trump) slot.classList.add('is-trump');
+      if (card === drawnCard) slot.classList.add('drawn');
+      slot.appendChild(cardImg(card));
+      if (playable) slot.onclick = () => onCard(card);
+      mh.appendChild(slot);
+    });
+
+    renderActions(v);
+    renderHint(v);
+    renderLog(v);
+    renderBanner(v);
+  }
+
+  // '︎' = Text-Darstellung erzwingen (sonst rendern ♠/♣ als schwarzes Emoji)
+  function suitSym(s){ const m = {c:'♣', d:'♦', h:'♥', s:'♠'}; return m[s] ? m[s] + '︎' : s; }
+  function suitName(s){ return {c:G.suit_c, d:G.suit_d, h:G.suit_h, s:G.suit_s}[s] || ''; }
+  function meldBadge(arr){
+    return arr && arr.length
+      ? '<span class="badge">' + arr.map(suitSym).join('') + '</span>' : '';
+  }
+
+  function renderActions(v){
+    const bar = $('actionbar'); bar.innerHTML = '';
+    if (v.status !== 'playing' || v.turn !== 'p') return;
+    // Sortieren-Toggle — links neben Tauschen/Zudrehen
+    const sb = document.createElement('button');
+    sb.className = 'btn ghost' + (handSort ? ' active' : '');
+    sb.textContent = '⇅ ' + G.sort;
+    sb.onclick = () => {
+      handSort = !handSort;
+      localStorage.setItem('g66_handsort', handSort ? '1' : '0');
+      if (V) render(V);
+    };
+    bar.appendChild(sb);
+    if (hasLegal(a => a.type === 'exchange')){
+      const b = document.createElement('button');
+      b.className = 'btn ghost'; b.textContent = '🔄 ' + G.exchange;
+      b.onclick = () => send({type: 'exchange'}); bar.appendChild(b);
+    }
+    if (hasLegal(a => a.type === 'close')){
+      const b = document.createElement('button');
+      b.className = 'btn ghost'; b.textContent = '🔒 ' + G.close_talon;
+      b.onclick = () => { if (confirm(G.close_confirm)){ playerClosing = true; send({type: 'close'}); } };
+      bar.appendChild(b);
+    }
+  }
+
+  function showMarryPrompt(card){
+    pendingMarryCard = card;
+    const bar = $('marry-bar');
+    $('marry-label').textContent = G.marry_ask;
+    $('marry-yes').textContent = G.marry_yes;
+    $('marry-no').textContent = G.marry_no;
+    bar.style.display = '';
+    const slot = document.querySelector('#me-hand .card-slot[data-card="' + CSS.escape(card) + '"]');
+    if (slot) slot.style.transform = 'translateY(-12px)';
+  }
+  function hideMarryPrompt(){
+    $('marry-bar').style.display = 'none';
+    pendingMarryCard = null;
+  }
+  async function resolveMarry(marry){
+    const card = pendingMarryCard;
+    hideMarryPrompt();
+    if (!card) return;
+    busy = true;
+    if (marry) SFX.meld(); else SFX.cardPlay();
+    await flyCard(card);
+    await doMove(marry ? {type:'play',card,marry:true} : {type:'play',card});
+    busy = false;
+  }
+  $('marry-yes').onclick = () => resolveMarry(true);
+  $('marry-no').onclick = () => resolveMarry(false);
+
+  async function onCard(card){
+    if (busy || !tabActive) return;
+    if (pendingMarryCard){ hideMarryPrompt(); return; }
+    const canMarry = hasLegal(a => a.type === 'play' && a.card === card && a.marry);
+    if (canMarry){ showMarryPrompt(card); return; }
+    busy = true;
+    SFX.cardPlay();
+    await flyCard(card);
+    await doMove({type: 'play', card});
+    busy = false;
+  }
+
+  function renderHint(v){
+    let h = '';
+    if (v.status === 'playing') h = (v.turn === 'p') ? G.your_turn : G.ai_turn;
+    $('hint').textContent = h;
+  }
+
+  function renderLog(v){
+    const el = $('log'); el.innerHTML = '';
+    (v.log || []).slice(-30).forEach(e => {
+      const d = document.createElement('div');
+      d.textContent = G.lang === 'en' ? e.en : e.de;
+      el.appendChild(d);
+    });
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function renderBanner(v){
+    const b = $('banner');
+    if (v.status === 'playing' || !v.result){ b.classList.remove('show'); return; }
+    const win = v.result.winner === 'p';
+    const matchOver = (v.status === 'match_over');
+    $('banner-big').textContent = matchOver ? (win ? '🏆' : '😔') : (win ? '😊' : '😞');
+    if (win) SFX.win(); else SFX.lose();
+    $('banner-title').textContent = matchOver
+      ? (win ? G.match_win : G.match_lose)
+      : (win ? G.deal_win : G.deal_lose);
+    $('banner-text').textContent = '+' + v.result.gp + ' ' + G.gp
+      + '  ·  ' + v.result.pts.p + ' : ' + v.result.pts.a;
+    const btn = $('banner-btn');
+    const noBtn = $('banner-no');
+    btn.textContent = matchOver ? G.new_match : G.next;
+    btn.onclick = matchOver ? () => newMatch() : () => send({type: 'next'});
+    if (matchOver){
+      noBtn.textContent = G.banner_no;
+      noBtn.onclick = () => b.classList.remove('show');
+      noBtn.style.display = '';
+    } else {
+      noBtn.style.display = 'none';
+    }
+    b.classList.add('show');
+  }
+
+  function clearBoard(){
+    canUndo = false; updateUndo();
+    $('opp-hand').innerHTML = '';
+    $('me-hand').innerHTML = '';
+    $('table-cards').innerHTML = '';
+    $('last-trick').style.display = 'none';
+    $('hint').textContent = '';
+    $('trump-card').style.visibility = 'hidden';
+    $('stock-back').style.visibility = 'hidden';
+    $('stock-count').textContent = '';
+    $('closed-badge').innerHTML = '';
+    $('opp-pts').textContent = '0'; $('me-pts').textContent = '0';
+    $('opp-tricks').textContent = '0'; $('me-tricks').textContent = '0';
+    $('opp-meld').textContent = ''; $('me-meld').textContent = '';
+    $('banner').classList.remove('show');
+  }
+
+  async function newMatch(rules, level){
+    if (busy || !tabActive) return; busy = true;
+    drawnCard = null;
+    clearBoard();
+    rules = rules || curRules; level = level || curLevel;
+    const r = await api('/api/66/new', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({rules, level})
+    });
+    await applyResult(r);
+    busy = false;
+  }
+
+  function openRules(){
+    const list = $('rules-list'); list.innerHTML = '';
+    [['standard', G.rules_std, G.rules_std_desc], ['oma', G.rules_oma, G.rules_oma_desc]]
+      .forEach(([key, name, desc]) => {
+        const o = document.createElement('div');
+        o.className = 'rule-opt' + (key === curRules ? ' active' : '');
+        const tag = (key === curRules) ? ' <span class="act">' + G.rules_active + '</span>' : '';
+        const h = document.createElement('h3'); h.innerHTML = name + tag;
+        const p = document.createElement('p'); p.textContent = desc;
+        o.appendChild(h); o.appendChild(p);
+        o.onclick = () => chooseRules(key);
+        list.appendChild(o);
+      });
+    $('rules-modal').classList.add('show');
+  }
+  function closeRules(){ $('rules-modal').classList.remove('show'); }
+  async function chooseRules(key){
+    closeRules();
+    if (key === curRules) return;                 // schon aktiv → nichts tun
+    if (!confirm(G.new_confirm)) return;          // Hinweis: startet neues Match
+    await newMatch(key, curLevel);
+  }
+
+  function openLevel(){
+    const list = $('level-list'); list.innerHTML = '';
+    LEVEL_DEFS.forEach(([key, name, desc]) => {
+      const o = document.createElement('div');
+      o.className = 'rule-opt' + (key === curLevel ? ' active' : '');
+      let label = name;
+      if (key === 'adaptive' && key === curLevel && V && V.ai_strength != null)
+        label += ' · ' + V.ai_strength + '%';
+      const tag = (key === curLevel) ? ' <span class="act">' + G.rules_active + '</span>' : '';
+      const h = document.createElement('h3'); h.innerHTML = label + tag;
+      const p = document.createElement('p'); p.textContent = desc;
+      o.appendChild(h); o.appendChild(p);
+      o.onclick = () => chooseLevel(key);
+      list.appendChild(o);
+    });
+    $('level-modal').classList.add('show');
+  }
+  function closeLevel(){ $('level-modal').classList.remove('show'); }
+  async function chooseLevel(key){
+    closeLevel();
+    if (key === curLevel) return;                 // schon aktiv → nichts tun
+    if (!confirm(G.new_confirm)) return;          // Hinweis: startet neues Match
+    await newMatch(curRules, key);
+  }
+
+  const fmtWhen = ts => {
+    try { return new Date(ts * 1000).toLocaleString(G.lang); }
+    catch(e){ return new Date(ts * 1000).toLocaleString(); }
+  };
+  async function openHistory(){
+    const list = $('history-list');
+    list.innerHTML = '';
+    $('history-modal').classList.add('show');
+    const r = await api('/api/66/history');
+    const games = (r && r.games) || [];
+    if (!games.length){
+      const e = document.createElement('div');
+      e.className = 'hist-empty'; e.textContent = G.history_empty;
+      list.appendChild(e); return;
+    }
+    games.forEach(gm => {
+      const win = gm.winner === 'p';
+      const row = document.createElement('div');
+      row.className = 'hist-row' + (win ? ' win' : '');
+      const ico = document.createElement('div');
+      ico.className = 'ico'; ico.textContent = win ? '🏆' : '🙂';
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const when = document.createElement('div');
+      when.className = 'when'; when.textContent = fmtWhen(gm.ts);
+      const tags = document.createElement('div');
+      tags.className = 'tags';
+      const rname = (gm.rules === 'oma') ? G.rules_oma : G.rules_std;
+      tags.textContent = rname + ' · ' + levelName(gm.level)
+        + ' · ' + (gm.deals || 0) + ' ' + G.history_deals;
+      meta.appendChild(when); meta.appendChild(tags);
+      const score = document.createElement('div');
+      score.className = 'score';
+      const bm = gm.bummerl || {};
+      score.textContent = (bm.p != null ? bm.p : '–') + ' : ' + (bm.a != null ? bm.a : '–');
+      row.appendChild(ico); row.appendChild(meta); row.appendChild(score);
+      list.appendChild(row);
+    });
+  }
+  function closeHistory(){ $('history-modal').classList.remove('show'); }
+
+  function openPlayed(){
+    if (!V) return;
+    const grid = $('played-grid'); grid.innerHTML = '';
+    const gone = new Set(V.played || []);
+    const hand = new Set(V.hand || []);
+    const onTable = new Set((V.table || []).map(t => t.card));
+    ['c','d','h','s'].forEach(s => {
+      const row = document.createElement('div'); row.className = 'played-row';
+      const sh = document.createElement('span');
+      sh.className = 'ps' + ((s === 'd' || s === 'h') ? ' red' : '');
+      sh.textContent = suitSym(s);
+      row.appendChild(sh);
+      ['A','T','K','Q','J'].forEach(r => {
+        const card = r + s;
+        const ci = document.createElement('img');
+        ci.className = 'pcard'; ci.src = img(card); ci.alt = card;
+        ci.title = cardName(card);
+        if (gone.has(card)) ci.classList.add('used');
+        else if (hand.has(card)) ci.classList.add('in-hand');
+        else if (onTable.has(card)) ci.classList.add('on-table');
+        row.appendChild(ci);
+      });
+      grid.appendChild(row);
+    });
+    $('played-modal').classList.add('show');
+  }
+  function closePlayed(){ $('played-modal').classList.remove('show'); }
+
+  let rulesLoaded = false;
+  async function openRulesDoc(){
+    $('rulesdoc-modal').classList.add('show');
+    if (rulesLoaded) return;
+    const r = await api('/api/66/rules');
+    if (r && r.html){ $('rulesdoc-body').innerHTML = r.html; rulesLoaded = true; }
+  }
+  function closeRulesDoc(){ $('rulesdoc-modal').classList.remove('show'); }
+
+  const fmtSec = ms => (ms / 1000).toFixed(2).replace('.', (G.lang || '').startsWith('de') ? ',' : '.') + ' s';
+  function applyPlayedVisibility(){
+    $('btn-played').style.display = showPlayed ? '' : 'none';
+  }
+  applyPlayedVisibility();
+  function refreshSettings(){
+    $('fly-range').value = flyMs; $('linger-range').value = lingerMs; $('toast-range').value = toastMs;
+    $('fly-val').textContent = fmtSec(flyMs);
+    $('linger-val').textContent = fmtSec(lingerMs);
+    $('toast-val').textContent = fmtSec(toastMs);
+    $('sound-check').checked = soundOn;
+    $('debug-check').checked = debugMode;
+    $('played-check').checked = showPlayed;
+    $('lasttrick-check').checked = showLastTrick;
+  }
+  function openSettings(){ refreshSettings(); $('settings-modal').classList.add('show'); }
+  function closeSettings(){ $('settings-modal').classList.remove('show'); }
+
+  function closeGame(){
+    if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
+    else location.href = '/bereich';
+  }
+
+  $('btn-close').onclick = closeGame;
+  $('btn-undo').onclick = doUndo;
+  $('btn-log').onclick = () => $('log').classList.toggle('show');
+  $('btn-new').onclick = () => { if (confirm(G.new_confirm)) newMatch(); };
+  $('btn-rules').onclick = openRules;
+  $('rules-cancel').onclick = closeRules;
+  $('btn-level').onclick = openLevel;
+  $('level-cancel').onclick = closeLevel;
+  $('btn-history').onclick = openHistory;
+  $('history-cancel').onclick = closeHistory;
+  $('btn-played').onclick = openPlayed;
+  $('played-cancel').onclick = closePlayed;
+  $('btn-rulesdoc').onclick = openRulesDoc;
+  $('rulesdoc-cancel').onclick = closeRulesDoc;
+  $('btn-settings').onclick = openSettings;
+  $('settings-cancel').onclick = closeSettings;
+  $('fly-range').oninput = e => {
+    flyMs = clampInt(e.target.value, 120, 1000, FLY_DEFAULT);
+    $('fly-val').textContent = fmtSec(flyMs); localStorage.setItem('g66_fly', flyMs);
+  };
+  $('linger-range').oninput = e => {
+    lingerMs = clampInt(e.target.value, 300, 10000, LINGER_DEFAULT);
+    $('linger-val').textContent = fmtSec(lingerMs); localStorage.setItem('g66_linger', lingerMs);
+  };
+  $('toast-range').oninput = e => {
+    toastMs = clampInt(e.target.value, 2000, 5000, TOAST_DEFAULT);
+    $('toast-val').textContent = fmtSec(toastMs); localStorage.setItem('g66_toast', toastMs);
+  };
+  $('sound-check').onchange = e => {
+    soundOn = e.target.checked;
+    localStorage.setItem('g66_sound', soundOn ? '1' : '0');
+    if (soundOn) SFX.cardPlay();
+  };
+  $('debug-check').onchange = e => {
+    debugMode = e.target.checked;
+    localStorage.setItem('g66_debug', debugMode ? '1' : '0');
+  };
+  $('played-check').onchange = e => {
+    showPlayed = e.target.checked;
+    localStorage.setItem('g66_show_played', showPlayed ? '1' : '0');
+    applyPlayedVisibility();
+  };
+  $('lasttrick-check').onchange = e => {
+    showLastTrick = e.target.checked;
+    localStorage.setItem('g66_show_lasttrick', showLastTrick ? '1' : '0');
+    if (!showLastTrick) $('last-trick').style.display = 'none';
+  };
+  $('settings-reset').onclick = () => {
+    flyMs = FLY_DEFAULT; lingerMs = LINGER_DEFAULT; toastMs = TOAST_DEFAULT; debugMode = false; showPlayed = false; showLastTrick = true; soundOn = true;
+    localStorage.setItem('g66_fly', flyMs); localStorage.setItem('g66_linger', lingerMs); localStorage.setItem('g66_toast', toastMs);
+    localStorage.removeItem('g66_debug'); localStorage.removeItem('g66_show_played'); localStorage.removeItem('g66_show_lasttrick'); localStorage.removeItem('g66_sound');
+    applyPlayedVisibility();
+    refreshSettings();
+  };
+  document.addEventListener('keydown', e => {
+    if ($('tab-modal').classList.contains('show')) return;
+    if ($('cut-modal').classList.contains('show')) return;
+    const anyModal = ['rules-modal','level-modal','history-modal','rulesdoc-modal','settings-modal','played-modal']
+      .some(id => $(id).classList.contains('show'));
+
+    if (e.key === 'Escape'){
+      if (pendingMarryCard){ hideMarryPrompt(); return; }
+      if ($('played-modal').classList.contains('show')) closePlayed();
+      else if ($('rules-modal').classList.contains('show')) closeRules();
+      else if ($('level-modal').classList.contains('show')) closeLevel();
+      else if ($('history-modal').classList.contains('show')) closeHistory();
+      else if ($('rulesdoc-modal').classList.contains('show')) closeRulesDoc();
+      else if ($('settings-modal').classList.contains('show')) closeSettings();
+      else closeGame();
+      return;
+    }
+    if (anyModal) return;
+
+    // Hochzeits-Prompt: J/Enter = Ja, N/Escape = Nein
+    if (pendingMarryCard){
+      if (e.key === 'j' || e.key === 'J' || e.key === 'Enter') resolveMarry(true);
+      else if (e.key === 'n' || e.key === 'N') resolveMarry(false);
+      return;
+    }
+
+    // Banner sichtbar: Enter/Space = Ja, N/Esc = Nein (bei Match-Over)
+    if ($('banner').classList.contains('show')){
+      if (e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        $('banner-btn').click();
+      } else if ($('banner-no').style.display !== 'none' && (e.key === 'n' || e.key === 'N' || e.key === 'Escape')){
+        $('banner-no').click();
+      }
+      return;
+    }
+
+    if (busy || !tabActive || !V || V.status !== 'playing' || V.turn !== 'p') return;
+
+    // 1-5: Karte spielen (links nach rechts)
+    const num = parseInt(e.key, 10);
+    if (num >= 1 && num <= 5){
+      const slots = Array.from(document.querySelectorAll('#me-hand .card-slot.playable'));
+      if (slots[num - 1]){
+        const card = slots[num - 1].dataset.card;
+        onCard(card);
+      }
+      return;
+    }
+
+    // E: Tauschen
+    if ((e.key === 'e' || e.key === 'E') && hasLegal(a => a.type === 'exchange')){
+      send({type: 'exchange'}); return;
+    }
+
+    // Z: Zudrücken
+    if ((e.key === 'z' || e.key === 'Z') && hasLegal(a => a.type === 'close')){
+      if (confirm(G.close_confirm)){ playerClosing = true; send({type: 'close'}); }
+      return;
+    }
+
+    // P: Gespielte Karten
+    if (e.key === 'p' || e.key === 'P'){
+      openPlayed(); return;
+    }
+
+    // U: Undo
+    if (e.key === 'u' || e.key === 'U'){
+      if (canUndo) doUndo(); return;
+    }
+
+    // L: Log ein/ausblenden
+    if (e.key === 'l' || e.key === 'L'){
+      $('log').classList.toggle('show'); return;
+    }
+  });
+
+  // ── Mehr-Tab-Schutz ─────────────────────────────────────────────────────────
+  // Es ist immer nur EIN Tab aktiv. Wird das Spiel in einem weiteren Tab geöffnet,
+  // übernimmt der neue Tab; der alte wird getrennt (pausiert) und kann per Klick
+  // wieder übernehmen. Da das Spiel server-autoritativ ist, geht nichts verloren.
+  const TAB_ID = Math.random().toString(36).slice(2);
+  let bc = null, myClaimTs = 0;
+  function claim(){
+    myClaimTs = Date.now();
+    if (bc) try { bc.postMessage({type: 'claim', id: TAB_ID, ts: myClaimTs}); } catch(e){}
+  }
+  function becomePassive(){
+    if (!tabActive) return;
+    tabActive = false; busy = false;
+    $('tab-modal').classList.add('show');
+  }
+  function becomeActive(){
+    tabActive = true; busy = false;
+    $('tab-modal').classList.remove('show');
+    claim();        // anderen Tabs mitteilen, dass jetzt dieser aktiv ist
+    loadState();    // frischen Stand holen
+  }
+  try {
+    bc = new BroadcastChannel('mypage-g66');
+    bc.onmessage = e => {
+      const m = e.data;
+      if (!m || m.id === TAB_ID || m.type !== 'claim') return;
+      // Der spätere Claim gewinnt; bei Gleichstand der größere id-String
+      if (m.ts > myClaimTs || (m.ts === myClaimTs && m.id > TAB_ID)) becomePassive();
+    };
+  } catch(e){ bc = null; }
+  $('tab-resume').onclick = becomeActive;
+  claim();          // dieser Tab beansprucht beim Laden die aktive Rolle
+
+  loadState();
+  </script>
+</body>
+</html>

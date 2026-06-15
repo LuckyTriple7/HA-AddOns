@@ -148,6 +148,26 @@
     .toast.show { opacity: 1; }
     .toast.err { background: var(--red); }
     .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; }
+    .md-edit-btn { margin-top: 6px; padding: 5px 12px; font-size: 0.82rem; }
+    .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
+    .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
+    .md-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .md-emoji-pop { position: absolute; top: 34px; left: 0; z-index: 30; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+    .md-emoji-pop button { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 3px; border-radius: 4px; }
+    .md-emoji-pop button:hover { background: var(--surf2, var(--border)); }
+    .md-modal-box { max-width: 1000px; }
+    .md-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .md-editor-ta { width: 100%; min-height: 360px; resize: vertical; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88rem; line-height: 1.5; }
+    .md-preview { min-height: 360px; max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; background: var(--bg); }
+    .md-preview > :first-child { margin-top: 0; }
+    .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4, .md-preview h5, .md-preview h6 { margin: 0.6em 0 0.3em; line-height: 1.25; }
+    .md-preview p { margin: 0.5em 0; }
+    .md-preview ul, .md-preview ol { margin: 0.5em 0; padding-left: 1.5em; }
+    .md-preview blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+    .md-preview code { background: var(--surf2, var(--border)); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+    .md-preview a { color: var(--accent); }
+    .md-preview .md-empty { color: var(--muted); font-style: italic; }
+    @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .link-row input { flex: 1; }
     .empty-note { color: var(--muted); font-size: 0.85rem; padding: 18px; text-align: center; }
@@ -232,7 +252,7 @@
         <button class="btn secondary small" onclick="addLinkRow()">+ {{ t.add_link }}</button>
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" onclick="saveProfile()">{{ t.save }}</button>
-          <button class="btn secondary" onclick="translateFields(this, [['p-tagline_de','p-tagline_en'],['p-bio_de','p-bio_en']])">🌐 {{ t.tr_btn }}</button>
+          {% if lang != 'en' %}<button class="btn secondary" onclick="translateFields(this, [['p-tagline_de','p-tagline_en'],['p-bio_de','p-bio_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
         </div>
       </div>
     </section>
@@ -268,7 +288,7 @@
         <p class="hint">{{ t.tips_rotation_hint }}</p>
         <div id="tips-list"></div>
         <button class="btn secondary small" onclick="addTipRow()">+ {{ t.add_entry }}</button>
-        <button class="btn secondary small" onclick="translateRows(this, 'tips-list', 'tip-text_de', 'tip-text_en')">🌐 {{ t.tr_btn }}</button>
+        {% if lang != 'en' %}<button class="btn secondary small" onclick="translateRows(this, 'tips-list', 'tip-text_de', 'tip-text_en')">🌐 {{ t.tr_btn }}</button>{% endif %}
         <button class="btn secondary small" onclick="toggleTipImport()">⬇ {{ t.tips_import }}</button>
         <div id="tips-import-box" style="display:none;margin-top:10px">
           <textarea id="tips-import-json" rows="6" placeholder='[{"text_de":"…","text_en":"…"}]' style="font-family:ui-monospace,Consolas,monospace;font-size:0.82rem"></textarea>
@@ -338,6 +358,17 @@
       </div>
       <div class="panel acc" data-key="timeline">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.timeline_heading }}</div>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label>{{ t.timeline_title_label }} (DE)</label>
+            <input type="text" id="tl-title_de" maxlength="60" placeholder="{{ t.timeline_heading }}">
+          </div>
+          <div>
+            <label>{{ t.timeline_title_label }} (EN)</label>
+            <input type="text" id="tl-title_en" maxlength="60" placeholder="{{ t.timeline_heading }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.timeline_title_hint }}</p>
         <div id="timeline-list"></div>
         <button class="btn secondary small" onclick="addTimelineRow()">+ {{ t.add_entry }}</button>
       </div>
@@ -610,6 +641,27 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_reveal_effect }}</label>
+            <select id="d-reveal_effect">
+              <option value="off">{{ t.reveal_off }}</option>
+              <option value="fade">{{ t.reveal_fade }}</option>
+              <option value="slide">{{ t.reveal_slide }}</option>
+              <option value="zoom">{{ t.reveal_zoom }}</option>
+              <option value="blur">{{ t.reveal_blur }}</option>
+            </select>
+            <p class="hint">{{ t.reveal_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_reveal_stagger }}</label>
+            <select id="d-reveal_stagger">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.reveal_stagger_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_egg_message }}</label>
             <input type="text" id="d-egg_message" maxlength="200" placeholder="{{ t.egg_default_msg }}">
           </div>
@@ -869,7 +921,7 @@
       <button class="btn secondary small" onclick="pickUpload(u => { modalGallery.push(u); renderModalGallery(); })">+ {{ t.add_image }}</button>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeProjectModal()">{{ t.cancel }}</button>
-        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['pm-desc_de','pm-desc_en'],['pm-long_de','pm-long_en']])">🌐 {{ t.tr_btn }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['pm-desc_de','pm-desc_en'],['pm-long_de','pm-long_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
         <button class="btn" style="margin-top:16px" onclick="saveProject()">{{ t.save }}</button>
       </div>
     </div>
@@ -937,7 +989,7 @@
       <p class="hint" id="am-progress" style="margin-top:6px"></p>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('album-modal').classList.remove('open')">{{ t.cancel }}</button>
-        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['am-title_de','am-title_en'],['am-desc_de','am-desc_en']])">🌐 {{ t.tr_btn }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['am-title_de','am-title_en'],['am-desc_de','am-desc_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
         <button class="btn" style="margin-top:16px" onclick="saveAlbum()">{{ t.save }}</button>
       </div>
     </div>
@@ -1019,8 +1071,23 @@
       <p class="hint" id="bm-gallery-progress" style="margin-top:6px"></p>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
-        <button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['bm-title_de','bm-title_en'],['bm-text_de','bm-text_en']])">🌐 {{ t.tr_btn }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['bm-title_de','bm-title_en'],['bm-text_de','bm-text_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
         <button class="btn" style="margin-top:16px" onclick="savePost()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="md-modal">
+    <div class="modal md-modal-box">
+      <h3 id="md-modal-title">{{ t.md_editor_title }}</h3>
+      <div class="md-toolbar" id="md-modal-toolbar"></div>
+      <div class="md-split">
+        <textarea id="md-modal-ta" class="md-editor-ta" spellcheck="true"></textarea>
+        <div class="md-preview" id="md-modal-preview" aria-live="polite"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="closeMdModal()">{{ t.cancel }}</button>
+        <button class="btn" onclick="applyMdModal()">{{ t.md_apply }}</button>
       </div>
     </div>
   </div>
@@ -1068,7 +1135,8 @@
     // ── Auto-Übersetzung DE→EN (MyMemory) ──
     // pairs: [[deFeldId, enFeldId], …] — füllt leere/alle EN-Felder aus den DE-Texten
     async function translateFields(btn, pairs) {
-      const todo = pairs.filter(([de]) => el(de) && el(de).value.trim());
+      // Nur leere EN-Felder füllen — vorhandene EN-Texte nicht überschreiben
+      const todo = pairs.filter(([de, en]) => el(de) && el(de).value.trim() && el(en) && !el(en).value.trim());
       if (!todo.length) { toast(T.tr_nothing, true); return; }
       const old = btn.textContent;
       btn.disabled = true; btn.textContent = T.tr_running;
@@ -1086,7 +1154,8 @@
     // DE→EN für alle Zeilen einer dynamischen Liste (z. B. Tipps)
     async function translateRows(btn, listId, deClass, enClass) {
       const rows = [...el(listId).children].filter(r => {
-        const de = r.querySelector('.' + deClass); return de && de.value.trim();
+        const de = r.querySelector('.' + deClass), en = r.querySelector('.' + enClass);
+        return de && de.value.trim() && en && !en.value.trim();   // nur leere EN-Felder
       });
       if (!rows.length) { toast(T.tr_nothing, true); return; }
       const old = btn.textContent;
@@ -1101,6 +1170,123 @@
       }
       btn.disabled = false; btn.textContent = old;
       toast(failed ? T.tr_error : T.tr_done, failed);
+    }
+
+    // ── Markdown-Editor: Mini-Toolbar für Textfelder (Fett/Kursiv/Listen/Link/Emoji) ──
+    function mdReplaceSel(ta, text) {
+      const s = ta.selectionStart, v = ta.value;
+      ta.value = v.slice(0, s) + text + v.slice(ta.selectionEnd);
+      ta.focus(); ta.selectionStart = ta.selectionEnd = s + text.length;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function mdWrap(ta, before, after) {
+      after = after === undefined ? before : after;
+      const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value, sel = v.slice(s, e);
+      ta.value = v.slice(0, s) + before + sel + after + v.slice(e);
+      ta.focus();
+      if (sel) { ta.selectionStart = s + before.length; ta.selectionEnd = e + before.length; }
+      else { ta.selectionStart = ta.selectionEnd = s + before.length; }
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function mdLine(ta, prefix) {
+      const s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+      const ls = v.lastIndexOf('\n', s - 1) + 1; const block = v.slice(ls, e); let n = 1;
+      const out = block.split('\n').map(l => prefix === '1. ' ? (n++ + '. ' + l) : prefix + l).join('\n');
+      ta.value = v.slice(0, ls) + out + v.slice(e);
+      ta.focus(); ta.selectionStart = ls; ta.selectionEnd = ls + out.length;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function mdLink(ta) {
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd) || T.md_link_text;
+      const url = prompt('URL:', 'https://'); if (!url) return;
+      mdReplaceSel(ta, '[' + sel + '](' + url + ')');
+    }
+    const MD_EMOJI = ['😀','😉','😎','🥳','👍','🙏','❤️','🎉','✅','⭐','🔥','💡','📌','🚀','☕','📷','🎮','🌍','✨','🎈'];
+    function mdEmoji(btn, ta) {
+      let pop = btn.parentNode.querySelector('.md-emoji-pop');
+      if (pop) { pop.remove(); return; }
+      pop = document.createElement('div'); pop.className = 'md-emoji-pop';
+      MD_EMOJI.forEach(em => { const b = document.createElement('button'); b.type = 'button'; b.textContent = em; b.onmousedown = ev => ev.preventDefault(); b.onclick = () => { mdReplaceSel(ta, em); pop.remove(); }; pop.appendChild(b); });
+      btn.parentNode.appendChild(pop);
+      setTimeout(() => document.addEventListener('click', function h(ev) { if (!pop.contains(ev.target) && ev.target !== btn) { pop.remove(); document.removeEventListener('click', h); } }), 0);
+    }
+    // Markdown → HTML für die Live-Vorschau (eigener Mini-Renderer, ohne Library)
+    function mdEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function mdInline(s) {
+      s = mdEsc(s);
+      s = s.replace(/`([^`]+)`/g, (m, c) => '<code>' + c + '</code>');
+      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, txt, url) => {
+        url = url.trim();
+        if (!/^(https?:|mailto:)/i.test(url)) return txt;
+        return '<a href="' + url.replace(/"/g, '%22') + '" target="_blank" rel="noopener">' + txt + '</a>';
+      });
+      return s;
+    }
+    function mdToHtml(md) {
+      const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
+      let html = '', listType = null, m;
+      const closeList = () => { if (listType) { html += '</' + listType + '>'; listType = null; } };
+      for (const line of lines) {
+        if (m = line.match(/^(#{1,6})\s+(.*)$/)) { closeList(); const lv = m[1].length; html += '<h' + lv + '>' + mdInline(m[2]) + '</h' + lv + '>'; continue; }
+        if (m = line.match(/^>\s?(.*)$/)) { closeList(); html += '<blockquote>' + mdInline(m[1]) + '</blockquote>'; continue; }
+        if (m = line.match(/^\s*[-*]\s+(.*)$/)) { if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; } html += '<li>' + mdInline(m[1]) + '</li>'; continue; }
+        if (m = line.match(/^\s*\d+\.\s+(.*)$/)) { if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; } html += '<li>' + mdInline(m[1]) + '</li>'; continue; }
+        if (line.trim() === '') { closeList(); continue; }
+        closeList(); html += '<p>' + mdInline(line) + '</p>';
+      }
+      closeList();
+      return html || '<p class="md-empty">' + mdEsc(T.md_preview_empty || '') + '</p>';
+    }
+
+    // Overlay-Editor: ein wiederverwendbares Fenster mit Live-Vorschau
+    let MD_SRC = null, MD_BAR_BUILT = false;
+    function mdPreview() { el('md-modal-preview').innerHTML = mdToHtml(el('md-modal-ta').value); }
+    function mdBuildToolbar() {
+      if (MD_BAR_BUILT) return; MD_BAR_BUILT = true;
+      const ta = el('md-modal-ta'), bar = el('md-modal-toolbar');
+      const mk = (html, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'md-btn'; b.innerHTML = html; b.title = title; b.onmousedown = e => e.preventDefault(); b.onclick = e => fn(e); return b; };
+      bar.append(
+        mk('<b>B</b>', T.md_bold, () => mdWrap(ta, '**')),
+        mk('<i>I</i>', T.md_italic, () => mdWrap(ta, '*')),
+        mk('H', T.md_heading, () => mdLine(ta, '## ')),
+        mk('•', T.md_list, () => mdLine(ta, '- ')),
+        mk('1.', T.md_numlist, () => mdLine(ta, '1. ')),
+        mk('&#10077;', T.md_quote, () => mdLine(ta, '> ')),
+        mk('&lt;/&gt;', T.md_code, () => mdWrap(ta, '`')),
+        mk('🔗', T.md_link, () => mdLink(ta)),
+        mk('😀', T.md_emoji, e => mdEmoji(e.currentTarget, ta))
+      );
+      ta.addEventListener('input', mdPreview);
+    }
+    function openMdModal(srcTa, label) {
+      if (!srcTa) return;
+      MD_SRC = srcTa; mdBuildToolbar();
+      el('md-modal-title').textContent = label ? (T.md_editor_title + ' — ' + label) : T.md_editor_title;
+      const ta = el('md-modal-ta');
+      ta.value = srcTa.value; mdPreview();
+      el('md-modal').classList.add('open');
+      setTimeout(() => ta.focus(), 0);
+    }
+    function applyMdModal() {
+      if (MD_SRC) { MD_SRC.value = el('md-modal-ta').value; MD_SRC.dispatchEvent(new Event('input', { bubbles: true })); }
+      closeMdModal();
+    }
+    function closeMdModal() { el('md-modal').classList.remove('open'); MD_SRC = null; }
+
+    function attachMd(ta) {
+      if (!ta || ta.dataset.md) return; ta.dataset.md = '1';
+      const lbl = (ta.closest('div') && ta.closest('div').querySelector('label') ? ta.closest('div').querySelector('label').textContent : '').trim();
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn secondary md-edit-btn';
+      btn.innerHTML = '✏️ ' + T.md_edit;
+      btn.onclick = () => openMdModal(ta, lbl);
+      ta.parentNode.insertBefore(btn, ta.nextSibling);
+    }
+    function initMdEditors() {
+      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en'].forEach(id => attachMd(el(id)));
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
     // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
@@ -1319,6 +1505,8 @@
       el('c-skills').value = (s.skills || []).join(', ');
       el('news-list').innerHTML = '';
       (s.news || []).forEach(n => addNewsRow(n));
+      el('tl-title_de').value = s.timeline_title_de || '';
+      el('tl-title_en').value = s.timeline_title_en || '';
       el('timeline-list').innerHTML = '';
       (s.timeline || []).forEach(e => addTimelineRow(e));
       el('links-list').innerHTML = '';
@@ -1494,14 +1682,15 @@
         </span>
       </div>
       <div class="row" style="margin-top:8px">
-        <textarea class="f-a_de" placeholder="${T.faq_a} (DE)"></textarea>
-        <textarea class="f-a_en" placeholder="${T.faq_a} (EN)"></textarea>
+        <div><textarea class="f-a_de" placeholder="${T.faq_a} (DE)"></textarea></div>
+        <div><textarea class="f-a_en" placeholder="${T.faq_a} (EN)"></textarea></div>
       </div>`;
       div.querySelector('.f-q_de').value = f.q_de || '';
       div.querySelector('.f-q_en').value = f.q_en || '';
       div.querySelector('.f-a_de').value = f.a_de || '';
       div.querySelector('.f-a_en').value = f.a_en || '';
       el('faq-list').appendChild(div);
+      attachMd(div.querySelector('.f-a_de')); attachMd(div.querySelector('.f-a_en'));
     }
     async function saveAlbumSettings() {
       const r = await apiJson('api/sections', 'POST', {
@@ -1688,13 +1877,14 @@
         </span>
       </div>
       <div class="row" style="margin-top:8px">
-        <textarea class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea>
-        <textarea class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea>
+        <div><textarea class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea></div>
+        <div><textarea class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea></div>
       </div>`;
       div.dataset.tipId = e.id || '';
       div.querySelector('.tip-text_de').value = e.text_de || '';
       div.querySelector('.tip-text_en').value = e.text_en || '';
       el('tips-list').appendChild(div);
+      attachMd(div.querySelector('.tip-text_de')); attachMd(div.querySelector('.tip-text_en'));
       updateTipHints();
     }
     async function saveSections() {
@@ -1773,6 +1963,7 @@
       };
       const r = await apiJson('api/sections', 'POST',
         { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location,
+          timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
@@ -2325,6 +2516,8 @@
       el('d-custom_css').value = d.custom_css || '';
       el('d-easter_eggs').value = d.easter_eggs ? '1' : '0';
       el('d-mini_games').value = d.mini_games ? '1' : '0';
+      el('d-reveal_effect').value = d.reveal_effect || 'off';
+      el('d-reveal_stagger').value = d.reveal_stagger ? '1' : '0';
       el('d-egg_message').value = d.egg_message || '';
       el('d-egg_tagline').value = d.egg_tagline || '';
     }
@@ -2338,6 +2531,8 @@
         custom_css:      el('d-custom_css').value,
         easter_eggs:     el('d-easter_eggs').value === '1',
         mini_games:      el('d-mini_games').value === '1',
+        reveal_effect:   el('d-reveal_effect').value,
+        reveal_stagger:  el('d-reveal_stagger').value === '1',
         egg_message:     el('d-egg_message').value,
         egg_tagline:     el('d-egg_tagline').value,
         public_url:      el('d-public_url').value,
@@ -2701,6 +2896,7 @@
       });
     }
 
+    initMdEditors();
     loadSite();
   </script>
 </body>

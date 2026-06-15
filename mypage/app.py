@@ -45,6 +45,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, safe_join
 import requests as http
 
+import game66
+
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
@@ -78,6 +80,13 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 USERFILES_BASE.mkdir(parents=True, exist_ok=True)
 WM_CACHE_DIR = Path(_DATA) / 'wm_cache'
 WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
+GAMES_DIR = Path(_DATA) / 'games'
+GAMES_DIR.mkdir(parents=True, exist_ok=True)
+# Erlaubte Spieldateinamen (für Backup/Restore): 66_<uid>.json / 66hist_<uid>.json
+_GAME_FILE_RE = re.compile(r'^66(hist)?_[a-f0-9]{6,32}\.json$')
+# Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
+CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
@@ -120,6 +129,7 @@ _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
 _slot_lock  = threading.Lock()
+_game_lock  = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -233,6 +243,8 @@ DEFAULT_SITE = {
         'allow_indexing': True,
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
         'mini_games': False,
+        'reveal_effect': 'off', 'reveal_stagger': True,
+        'card_deck': 'knoll',
         'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
@@ -243,6 +255,7 @@ DEFAULT_SITE = {
     'sections': {
         'skills': [],
         'timeline': [],
+        'timeline_title_de': '', 'timeline_title_en': '',
         'news': [],
         'links': [],
         'faq': [],
@@ -1623,6 +1636,13 @@ def api_design():
         d['layout'] = raw['layout']
     if raw.get('font') in (set(SYSTEM_FONTS) | set(WEB_FONTS) | {'custom'}):
         d['font'] = raw['font']
+    if raw.get('reveal_effect') in ('off', 'fade', 'slide', 'zoom', 'blur'):
+        d['reveal_effect'] = raw['reveal_effect']
+    if 'card_deck' in raw:
+        # nur Decks zulassen, die als Ordner mitgeliefert sind
+        slug = secure_filename(str(raw['card_deck']))
+        if slug and (CARDS_DIR / slug).is_dir():
+            d['card_deck'] = slug
     if 'custom_css' in raw:
         # '<' komplett entfernen — in CSS nie nötig, macht jeden Tag-Ausbruch
         # aus dem <style>-Block unmöglich (auch </style><script>)
@@ -1641,7 +1661,7 @@ def api_design():
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
-                 'allow_indexing', 'easter_eggs', 'mini_games'):
+                 'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
@@ -1690,6 +1710,9 @@ def api_sections():
             'text_de':  _clean_str(e.get('text_de'), 1000),
             'text_en':  _clean_str(e.get('text_en'), 1000),
         } for e in raw['timeline'][:30] if isinstance(e, dict)]
+    for k in ('timeline_title_de', 'timeline_title_en'):
+        if k in raw:
+            sec[k] = _clean_str(raw[k], 60)
     if isinstance(raw.get('news'), list):
         sec['news'] = [{
             'date':    _clean_str(e.get('date'), 30),
@@ -1886,6 +1909,11 @@ def api_backup():
         for f in UPLOADS_DIR.iterdir():
             if f.is_file():
                 z.write(f, 'uploads/' + f.name)
+        # Kartenspiel-Spielstände + Verlauf (66_<uid>.json / 66hist_<uid>.json)
+        if GAMES_DIR.is_dir():
+            for f in sorted(GAMES_DIR.iterdir()):
+                if f.is_file() and _GAME_FILE_RE.match(f.name):
+                    z.write(f, 'games/' + f.name)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
@@ -1915,6 +1943,15 @@ def api_restore():
                     if not name or Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
                         continue
                     target = safe_under(UPLOADS_DIR, name)
+                elif member.startswith('games/'):
+                    name = Path(member).name
+                    if not _GAME_FILE_RE.match(name):
+                        continue
+                    try:
+                        json.loads(z.read(member))  # muss valides JSON sein
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+                    target = safe_under(GAMES_DIR, name)
                 else:
                     continue
                 if target is None:
@@ -2479,6 +2516,20 @@ def public_fonts(filename: str):
     return send_from_directory(FONTS_DIR, safe, max_age=2592000)  # 30 Tage
 
 
+@public_app.route('/cards/<deck>/<path:filename>')
+def public_cards(deck: str, filename: str):
+    """Kartendeck-Grafiken (mitgeliefert, gemeinfrei) — pro Deck ein Unterordner."""
+    safe_deck = secure_filename(deck)
+    safe = secure_filename(filename)
+    base = safe_under(CARDS_DIR, safe_deck)
+    if base is None or not base.is_dir():
+        abort(404)
+    target = safe_under(base, safe)
+    if target is None or not target.is_file():
+        abort(404)
+    return send_from_directory(base, safe, max_age=2592000)  # 30 Tage
+
+
 def effective_watermark() -> str:
     """Wasserzeichen-Text: eigener Text > © + Domain > © MyPage."""
     site = load_site()
@@ -2683,6 +2734,193 @@ def api_slot():
             site['slot_jackpot'] = jp
             save_site(site)
     return jsonify({'jackpot': jp})
+
+
+# ── 66 / Schnapsen (Mitglieder-Spiel, server-autoritativ) ──────────────────────
+
+def _game66_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'66_{uid}.json'
+
+
+def load_game66(uid: str) -> dict | None:
+    p = _game66_path(uid)
+    if p is None:
+        return None
+    try:
+        with open(p, encoding='utf-8') as f:
+            st = json.load(f)
+        return st if game66.is_valid_state(st) else None
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        log.warning("66-Spielstand defekt (%s): %s", uid[:8], e)
+        return None
+
+
+def save_game66(uid: str, state: dict) -> None:
+    p = _game66_path(uid)
+    if p is None:
+        return
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(state, f, ensure_ascii=False)
+    os.replace(tmp, p)  # atomar ersetzen → kein halb geschriebener Stand
+
+
+GAME66_HISTORY_MAX = 50
+
+
+def _game66_hist_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'66hist_{uid}.json'
+
+
+def load_game66_history(uid: str) -> list:
+    p = _game66_hist_path(uid)
+    if p is None:
+        return []
+    try:
+        with open(p, encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        log.warning("66-Verlauf defekt (%s): %s", uid[:8], e)
+        return []
+
+
+def append_game66_history(uid: str, entry: dict) -> None:
+    p = _game66_hist_path(uid)
+    if p is None:
+        return
+    hist = load_game66_history(uid)
+    hist.append(entry)
+    hist = hist[-GAME66_HISTORY_MAX:]
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(hist, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def _record_match_if_over(uid: str, st: dict) -> bool:
+    """Beendetes Match einmalig in den Verlauf schreiben. True, wenn aufgezeichnet."""
+    if st.get('status') != 'match_over' or st.get('recorded'):
+        return False
+    st['recorded'] = True
+    res = st.get('result') or {}
+    append_game66_history(uid, {
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': res.get('winner'),
+        'bummerl': dict(st.get('bummerl', {})),
+        'rules': st.get('rules', 'standard'),
+        'level': st.get('level', 'medium'),
+        'deals': st.get('deal_no', 0),
+    })
+    return True
+
+
+def _require_member():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    return member
+
+
+@public_app.route('/bereich/66')
+def game66_page():
+    """Vollfenster-Spielseite (wird vom Mitgliederbereich als Iframe geöffnet)."""
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    deck = site['design'].get('card_deck') or 'knoll'
+    return render_template('game66.html', t=t, lang=lang, site=site,
+                           member=member, deck=deck,
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/66/state')
+def api_game66_state():
+    member = _require_member()
+    with _game_lock:
+        st = load_game66(member['id'])
+        if st is None:
+            st = game66.new_match()
+            game66.ai_run(st)
+            save_game66(member['id'], st)
+        elif st['status'] == 'playing' and st['turn'] == 'a':
+            game66.ai_run(st)
+            save_game66(member['id'], st)
+        if _record_match_if_over(member['id'], st):
+            save_game66(member['id'], st)
+    return jsonify(game66.public_view(st))
+
+
+@public_app.route('/api/66/move', methods=['POST'])
+def api_game66_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    raw = data.get('action')
+    if not isinstance(raw, dict):
+        abort(400)
+    # Nur whitelisted Felder übernehmen (kein ungeprüfter Client-Input ins Regelwerk)
+    act = {'type': str(raw.get('type', ''))[:12]}
+    if raw.get('card') is not None:
+        act['card'] = str(raw.get('card'))[:2]
+    if raw.get('marry'):
+        act['marry'] = True
+    with _game_lock:
+        st = load_game66(member['id'])
+        if st is None:
+            abort(409)  # kein laufendes Spiel → Client soll /state holen
+        try:
+            frames = game66.apply_player_frames(st, act)
+        except game66.IllegalMove:
+            # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
+            return jsonify({'frames': [game66.public_view(st)]})
+        _record_match_if_over(member['id'], st)
+        save_game66(member['id'], st)
+    return jsonify({'frames': frames})
+
+
+@public_app.route('/api/66/new', methods=['POST'])
+def api_game66_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    rules = data.get('rules')
+    rules = rules if rules in game66.RULESETS else 'standard'
+    level = data.get('level')
+    level = level if level in game66.LEVELS else 'medium'
+    with _game_lock:
+        st = game66.new_match(rules=rules, level=level)
+        frames = game66.deal_frames(st)  # KI-Eröffnung animierbar
+        save_game66(member['id'], st)
+    return jsonify({'frames': frames})
+
+
+@public_app.route('/api/66/history')
+def api_game66_history():
+    member = _require_member()
+    hist = load_game66_history(member['id'])
+    return jsonify({'games': list(reversed(hist))})  # neueste zuerst
+
+
+@public_app.route('/api/66/rules')
+def api_game66_rules():
+    _require_member()
+    try:
+        text = (Path(_BASE) / '66_REGELN.md').read_text(encoding='utf-8')
+    except OSError:
+        text = ''
+    # Inhalt stammt aus dem mitgelieferten Repo-Dokument (kein Nutzer-Input)
+    html = md_lib.markdown(text, extensions=['tables', 'sane_lists'])
+    return jsonify({'html': html})
 
 
 @public_app.route('/sitemap.xml')
@@ -2929,13 +3167,17 @@ def public_index():
     hidden = set(site.get('hidden_sections') or [])
     section_order = [k for k in section_order if k not in hidden]
 
+    # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
+    timeline_title = loc(sections, 'timeline_title')
+
     # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
     nav_items = []
     if site['design'].get('show_nav', True):
         for key in section_order:
             anchor, label_key, present = section_defs[key]
             if present:
-                nav_items.append({'anchor': anchor, 'label': t.get(label_key, label_key)})
+                label = timeline_title if (key == 'timeline' and timeline_title) else t.get(label_key, label_key)
+                nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
 
@@ -2951,6 +3193,7 @@ def public_index():
                            latest_posts=latest_posts,
                            nav_items=nav_items,
                            section_order=section_order,
+                           timeline_title=timeline_title,
                            tip_of_day=tip_of_day, tips_weekly=tips_weekly,
                            static_export=static_export,
                            contact_enabled=contact_enabled,

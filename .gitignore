@@ -5,3 +5,11 @@ mypage/.venv/
 __pycache__/
 *.pyc
 .env
+
+# Lokaler Playwright-Testharness (nicht committen)
+mypage/_pwtest/
+
+# Arbeitsordner/Backups der externen Fix-Session (nicht syncen)
+mypage/localserver/
+mypage/*.org
+mypage/*,org
