@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.76
+
+- 🩹 **66: Talon springt nicht mehr beim letzten Stich** — der Talon-Stapel verschob sich vertikal, wenn der „letzte Stich" ein-/ausgeblendet wurde (z. B. während ein Stich auf dem Tisch liegt). Ursache: Der Bereich wurde per `display:none` ein-/ausgeklappt, wodurch die zentrierte Spielfeldmitte sprang. Jetzt bleibt der Platz reserviert (feste `min-height`); nur die Karten darin werden ein-/ausgeblendet. Im Browser verifiziert (Talon-Position identisch in beiden Zuständen).
+
 ## 0.6.75
 
 - 🗂️ **66: Trumpf beim Sortieren immer rechts** — bei aktivierter Hand-Sortierung stehen die **Trumpfkarten jetzt immer ganz rechts** (höchster Trumpf außen), unabhängig von der Farbe — vorher wurden sie nach Farbe einsortiert und konnten in der Mitte landen. Der **goldene Rahmen** um die Trumpfkarten bleibt unverändert erhalten. Im Browser verifiziert.

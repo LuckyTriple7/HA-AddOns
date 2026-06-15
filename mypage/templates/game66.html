@@ -126,7 +126,8 @@
     .marry-bar span { font-size: 0.86rem; font-weight: 700; }
     /* Letzter Stich (kleine Karten unter dem Tisch) */
     .last-trick { display: flex; align-items: center; justify-content: center; gap: 8px;
-                  padding: 2px 0; opacity: 0.55; transition: opacity 0.2s; cursor: default; }
+                  padding: 2px 0; opacity: 0.55; transition: opacity 0.2s; cursor: default;
+                  min-height: clamp(48px, 10vh, 72px); }
     .last-trick:hover { opacity: 1; }
     .last-trick .pc { height: clamp(48px, 10vh, 72px); }
     .last-trick .pc.by-ai { box-shadow: 0 0 0 2px #00e5ff; }
@@ -250,6 +251,7 @@
       .btn { min-width: 44px; min-height: 44px; padding: 10px 18px; font-size: 0.88rem; }
       .marry-bar { gap: 6px; }
       .marry-bar .btn { padding: 8px 14px; }
+      .last-trick { min-height: clamp(40px, 8vh, 60px); }
       .last-trick .pc { height: clamp(40px, 8vh, 60px); }
       .played-row .pcard { height: 64px; }
       .actionbar { gap: 4px; }
@@ -1194,14 +1196,22 @@
     $('closed-badge').innerHTML = v.closed ? '<span class="badge">' + G.closed_badge + '</span>' : '';
     $('stockwrap').classList.toggle('is-closed', !!v.closed);
 
-    // Letzter Stich
+    // Letzter Stich. Wenn die Option an ist, bleibt der Bereich IMMER sichtbar
+    // (reservierter Platz via min-height) — nur die Karten darin werden ein-/
+    // ausgeblendet. Sonst springt der Talon beim Auf-/Zuklappen vertikal.
     const lt = v.last_trick;
-    if (showLastTrick && lt && lt.length === 2 && !(v.table && v.table.length)){
-      $('lt-1').src = img(lt[0].card);
-      $('lt-1').className = 'pc' + (lt[0].who === 'a' ? ' by-ai' : '');
-      $('lt-2').src = img(lt[1].card);
-      $('lt-2').className = 'pc' + (lt[1].who === 'a' ? ' by-ai' : '');
+    const lt1 = $('lt-1'), lt2 = $('lt-2');
+    if (showLastTrick){
       $('last-trick').style.display = '';
+      if (lt && lt.length === 2 && !(v.table && v.table.length)){
+        lt1.src = img(lt[0].card);
+        lt1.className = 'pc' + (lt[0].who === 'a' ? ' by-ai' : '');
+        lt2.src = img(lt[1].card);
+        lt2.className = 'pc' + (lt[1].who === 'a' ? ' by-ai' : '');
+        lt1.style.visibility = ''; lt2.style.visibility = '';
+      } else {
+        lt1.style.visibility = 'hidden'; lt2.style.visibility = 'hidden';
+      }
     } else {
       $('last-trick').style.display = 'none';
     }
