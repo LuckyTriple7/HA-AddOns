@@ -792,17 +792,14 @@
       if (target) await flyTrickTo(target);
     }
     // Stich aufgelöst → vom Talon nachziehen (Stapel schrumpft, Hände wachsen)
-    if ((cur.stock_count || 0) < (prev.stock_count || 0)){ SFX.cardDraw();
-      const flights = [];
+    if ((cur.stock_count || 0) < (prev.stock_count || 0)){
       const drawP = (cur.hand || []).length > (prev.hand || []).length;
       const drawA = (cur.ai_count || 0) > (prev.ai_count || 0);
       if (drawP){
         const prevH = prev.hand || [];
         const fresh = (cur.hand || []).filter(c => !prevH.includes(c));
         if (fresh.length) drawnCard = fresh[fresh.length - 1];
-        flights.push(flyDraw($('me-hand')));
       }
-      if (drawA) flights.push(flyDraw($('opp-hand')));
       if (debugMode) {
         const src = $('stock-back') || $('trump-card') || $('stockwrap');
         const sr = src && src.getBoundingClientRect();
@@ -818,7 +815,13 @@
         setTimeout(() => { dbg.style.opacity = '0'; }, 3000);
         setTimeout(() => dbg.remove(), 3500);
       }
-      if (flights.length) await Promise.all(flights);
+      // Stichgewinner zieht zuerst, dann der andere — als getrennte Animationen
+      const w = cur.last_trick_winner;
+      const order = (w === 'a') ? ['a', 'p'] : ['p', 'a'];
+      for (const who of order){
+        if (who === 'p' && drawP){ SFX.cardDraw(); await flyDraw($('me-hand')); }
+        if (who === 'a' && drawA){ SFX.cardDraw(); await flyDraw($('opp-hand')); }
+      }
     }
   }
 

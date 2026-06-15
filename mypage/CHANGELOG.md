@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.77
+
+- 🎬 **66: Nachziehen vom Talon jetzt nacheinander sichtbar** — nach einem Stich zieht zuerst der **Stichgewinner** eine Karte vom Talon, dann der andere — als **zwei getrennte Animationen**. Vorher liefen beide Nachzüge gleichzeitig (und direkt danach spielte die KI), wodurch der Nachzug der KI optisch unterging und nur der eigene sichtbar war. Im Browser verifiziert (zwei sequenzielle Flüge, Gewinner zuerst, beide Richtungen sichtbar).
+
 ## 0.6.76
 
 - 🩹 **66: Talon springt nicht mehr beim letzten Stich** — der Talon-Stapel verschob sich vertikal, wenn der „letzte Stich" ein-/ausgeblendet wurde (z. B. während ein Stich auf dem Tisch liegt). Ursache: Der Bereich wurde per `display:none` ein-/ausgeklappt, wodurch die zentrierte Spielfeldmitte sprang. Jetzt bleibt der Platz reserviert (feste `min-height`); nur die Karten darin werden ein-/ausgeblendet. Im Browser verifiziert (Talon-Position identisch in beiden Zuständen).
