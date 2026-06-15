@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.73
+
+- 🐛 **66: Talon-Stapel fehlte beim Spielstart** — nach „Neues Spiel" bzw. dem Neu-Button (↻) war der verdeckte Kartenstapel im Talon unsichtbar und tauchte erst nach einem harten Reload (Strg+R) auf. Ursache: `clearBoard()` setzte den Stapel auf `visibility:hidden`, aber `render()` stellte nur die Trumpfkarte wieder her, nicht den Stapel. Jetzt wird auch `#stock-back` zurückgesetzt. Im Browser verifiziert (sichtbar nach Deal **und** nach Neu-Button, ohne Reload).
+
 ## 0.6.72
 
 - 🎮 **66: Großes Update — KI, UX & Animationen überarbeitet.** Umfassende Überarbeitung des Kartenspiels:
