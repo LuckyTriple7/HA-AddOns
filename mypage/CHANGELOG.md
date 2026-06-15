@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.78
+
+- ❓ **66: Rückfrage beim Wechsel von Schwierigkeit/Regeln** — das Umstellen der KI-Schwierigkeit (oder der Regeln) startet ein neues Match. Vorher passierte das sofort und ohne Vorwarnung; jetzt erscheint dieselbe Sicherheitsabfrage wie beim Neu-Button („Laufendes Match aufgeben und neu beginnen?"). Bei Abbruch bleibt das laufende Spiel erhalten. Das erneute Wählen der **bereits aktiven** Stufe löst keine Rückfrage (und kein neues Spiel) aus. Im Browser verifiziert.
+
 ## 0.6.77
 
 - 🎬 **66: Nachziehen vom Talon jetzt nacheinander sichtbar** — nach einem Stich zieht zuerst der **Stichgewinner** eine Karte vom Talon, dann der andere — als **zwei getrennte Animationen**. Vorher liefen beide Nachzüge gleichzeitig (und direkt danach spielte die KI), wodurch der Nachzug der KI optisch unterging und nur der eigene sichtbar war. Im Browser verifiziert (zwei sequenzielle Flüge, Gewinner zuerst, beide Richtungen sichtbar).

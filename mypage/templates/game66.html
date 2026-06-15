@@ -1422,7 +1422,12 @@
     $('rules-modal').classList.add('show');
   }
   function closeRules(){ $('rules-modal').classList.remove('show'); }
-  async function chooseRules(key){ closeRules(); await newMatch(key, curLevel); }
+  async function chooseRules(key){
+    closeRules();
+    if (key === curRules) return;                 // schon aktiv → nichts tun
+    if (!confirm(G.new_confirm)) return;          // Hinweis: startet neues Match
+    await newMatch(key, curLevel);
+  }
 
   function openLevel(){
     const list = $('level-list'); list.innerHTML = '';
@@ -1442,7 +1447,12 @@
     $('level-modal').classList.add('show');
   }
   function closeLevel(){ $('level-modal').classList.remove('show'); }
-  async function chooseLevel(key){ closeLevel(); await newMatch(curRules, key); }
+  async function chooseLevel(key){
+    closeLevel();
+    if (key === curLevel) return;                 // schon aktiv → nichts tun
+    if (!confirm(G.new_confirm)) return;          // Hinweis: startet neues Match
+    await newMatch(curRules, key);
+  }
 
   const fmtWhen = ts => {
     try { return new Date(ts * 1000).toLocaleString(G.lang); }
