@@ -87,6 +87,7 @@ def new_match(first_dealer: str | None = None, rng: random.Random | None = None,
         'status': 'playing',
         'log': [],
     }
+    state['_next_seed'] = rng.randint(0, 2**63)
     if level == 'adaptive':
         state['adapt_eps'] = _ADAPT_START
     if first_dealer:
@@ -137,10 +138,12 @@ def _new_deal(state: dict, dealer: str, rng: random.Random) -> None:
     state['lead'] = lead
     state['turn'] = lead
     state['last_trick_winner'] = None
+    state['last_trick'] = None
     state['status'] = 'playing'
     state['result'] = None
     _log(state, 'deal', f'Partie {state["deal_no"]} — Trumpf {state["trump"]}',
          f'Deal {state["deal_no"]} — trump {state["trump"]}')
+    _capture(state)
 
 
 # ── Punkte ────────────────────────────────────────────────────────────────────
@@ -226,6 +229,7 @@ def _do_exchange(state: dict, who: str) -> None:
     upcard = state['stock'][-1]
     if upcard == jack:
         raise IllegalMove('Nichts zu tauschen')
+    _capture(state)
     hand.remove(jack)
     hand.append(upcard)
     state['stock'][-1] = jack
@@ -311,6 +315,7 @@ def _resolve_trick(state: dict) -> None:
     state['trick_pts'][winner] += pts
     state['has_trick'][winner] = True
     state['last_trick_winner'] = winner
+    state['last_trick'] = [dict(t) for t in state['table']]
     state['table'] = []
     _log(state, 'trick', f'{_name(winner)} gewinnt den Stich (+{pts})',
          f'{_name(winner, True)} wins the trick (+{pts})', winner)
@@ -434,7 +439,9 @@ def _start_next_deal(state: dict) -> dict:
         raise IllegalMove('Partie noch nicht beendet')
     loser = other(state['result']['winner'])
     state['cut'] = None  # Auslosen war nur für die erste Partie
-    _new_deal(state, dealer=loser, rng=random.Random())
+    rng = random.Random(state.get('_next_seed'))
+    state['_next_seed'] = rng.randint(0, 2**63)
+    _new_deal(state, dealer=loser, rng=rng)
     return state
 
 
@@ -506,6 +513,7 @@ def deal_frames(state: dict) -> list:
     frames: list = []
     state['_cap'] = frames
     try:
+        _capture(state)
         ai_run(state)
     finally:
         state.pop('_cap', None)
@@ -536,11 +544,95 @@ def _ai_strength(state: dict) -> int:
     return round((1.0 - _ai_epsilon(state)) * 100)
 
 
+# ── Card Counting ────────────────────────────────────────────────────────────
+
+def _card_played(state: dict, card: str) -> bool:
+    return card in state['won']['p'] or card in state['won']['a']
+
+
+def _cards_played(state: dict) -> set:
+    return set(state['won']['p']) | set(state['won']['a'])
+
+
+def _opponent_possible(state: dict) -> set:
+    """Karten, die der Gegner auf der Hand haben kann."""
+    all_cards = set(full_deck())
+    played = _cards_played(state)
+    own_hand = set(state['hands']['a'])
+    table = {t['card'] for t in state['table']}
+    trump_up = {state['stock'][-1]} if state['stock'] else set()
+    return all_cards - played - own_hand - table - trump_up
+
+
+def _opponent_has_suit(state: dict, s: str) -> bool:
+    """Kann der Gegner noch Karten dieser Farbe haben?"""
+    return any(suit(c) == s for c in _opponent_possible(state))
+
+
+def _safe_ace(state: dict, card: str) -> bool:
+    """Ist dieses Ass sicher (keine höhere Karte beim Gegner möglich)?
+    In Phase 1: Ass ist sicher, wenn Gegner kein Trumpf haben kann oder
+    die Farbe bedienen muss. In Phase 2: per Farbzwang sicher, wenn Gegner
+    die Farbe hat (Ass ist höchste Karte)."""
+    s = suit(card)
+    trump = state['trump']
+    if s == trump:
+        return True
+    if state['phase2']:
+        return True
+    opp = _opponent_possible(state)
+    opp_trumps = [c for c in opp if suit(c) == trump]
+    return len(opp_trumps) == 0
+
+
+# ── Fähigkeiten-System (Capabilities) ───────────────────────────────────────
+
+_CAPS = {
+    'lead_aces':    60,
+    'phase2_top':   75,
+    'card_count':   70,
+    'close':        50,
+    'score_simple': 60,
+    'score_full':   80,
+    'hand_read':    70,
+    'schmieren':    65,
+    'minimax':      85,
+}
+
+_LEVEL_STRENGTH = {'easy': 35, 'medium': 65, 'hard': 100}
+
+
+def _ai_caps(state: dict) -> dict:
+    lvl = state.get('level', 'medium')
+    s = _LEVEL_STRENGTH.get(lvl, _ai_strength(state))
+    return {cap: s >= thresh for cap, thresh in _CAPS.items()}
+
+
 def _ai_random_action(state: dict) -> dict | None:
     """Zufällige legale Kartenwahl (ohne Hochzeit/Zudrehen) — schwächeres Spiel."""
     plays = [a for a in legal_actions(state, 'a')
              if a['type'] == 'play' and not a.get('marry')]
     return _ai_rng.choice(plays) if plays else None
+
+
+def _ai_minimax(state: dict, maximizing: bool, depth: int = 0):
+    who = 'a' if maximizing else 'p'
+    if state['status'] != 'playing' or not state['hands']['a']:
+        return (usable(state, 'a') - usable(state, 'p'), None)
+    if state['turn'] != who:
+        return _ai_minimax(state, not maximizing, depth)
+    best_score = -999 if maximizing else 999
+    best_action = None
+    for action in legal_actions(state, who):
+        child = copy.deepcopy(state)
+        child.pop('_cap', None)
+        apply_action(child, who, action)
+        score, _ = _ai_minimax(child, maximizing if child['turn'] == who else not maximizing, depth + 1)
+        if maximizing and score > best_score:
+            best_score, best_action = score, action
+        elif not maximizing and score < best_score:
+            best_score, best_action = score, action
+    return (best_score, best_action)
 
 
 def _ai_choose(state: dict) -> dict:
@@ -549,10 +641,15 @@ def _ai_choose(state: dict) -> dict:
         rnd = _ai_random_action(state)
         if rnd is not None:
             return rnd
-    return _ai_lead(state) if not state['table'] else _ai_follow(state)
+    caps = _ai_caps(state)
+    if caps.get('minimax') and state['phase2']:
+        _, action = _ai_minimax(state, True)
+        if action:
+            return action
+    return _ai_lead(state, caps) if not state['table'] else _ai_follow(state, caps)
 
 
-def _ai_lead(state: dict) -> dict:
+def _ai_lead(state: dict, caps: dict) -> dict:
     hand = state['hands']['a']
     trump = state['trump']
     jack = 'J' + trump
@@ -570,41 +667,126 @@ def _ai_lead(state: dict) -> dict:
         s = marriages[0]
         return {'type': 'play', 'card': 'Q' + s, 'marry': True}
 
-    # 3) Zudrehen, wenn der Sieg realistisch ist
-    if not state['phase2'] and state['stock'] and _ai_should_close(state):
+    # 3) Zudrehen (nur wenn freigeschaltet)
+    if caps.get('close') and not state['phase2'] and state['stock'] and _ai_should_close(state):
         return {'type': 'close'}
 
-    # 4) Normal ausspielen: niedrige Nicht-Trumpf-Karte abwerfen
-    return {'type': 'play', 'card': _ai_lead_card(state)}
+    # 4) Normal ausspielen
+    return {'type': 'play', 'card': _ai_lead_card(state, caps)}
 
 
 def _ai_should_close(state: dict) -> bool:
     hand = state['hands']['a']
     trump = state['trump']
-    extra = sum(val(c) for c in hand if rank(c) == 'A')
-    extra += sum(val(c) for c in hand if suit(c) == trump and rank(c) in ('A', 'T'))
-    return usable(state, 'a') >= 40 and usable(state, 'a') + extra >= 70
+    pts = usable(state, 'a')
+
+    trumps = sorted([c for c in hand if suit(c) == trump], key=val, reverse=True)
+    non_trumps = [c for c in hand if suit(c) != trump]
+
+    sure_pts = 0
+    sure_tricks = 0
+
+    for c in trumps:
+        r = rank(c)
+        if r == 'A':
+            sure_pts += val(c) + 5
+            sure_tricks += 1
+        elif r == 'T':
+            if ('A' + trump) in hand or _card_played(state, 'A' + trump):
+                sure_pts += val(c) + 5
+                sure_tricks += 1
+
+    for c in non_trumps:
+        if rank(c) == 'A':
+            sure_pts += val(c) + 4
+            sure_tricks += 1
+
+    projected = pts + sure_pts
+    opp_no_trick = not state['has_trick'][other('a')]
+    threshold = 62 if opp_no_trick else 66
+
+    return projected >= threshold and sure_tricks >= 2
 
 
-def _ai_lead_card(state: dict) -> str:
+def _ai_lead_card(state: dict, caps: dict) -> str:
     hand = state['hands']['a']
     trump = state['trump']
     nontrump = [c for c in hand if suit(c) != trump]
+    trumps = [c for c in hand if suit(c) == trump]
+
+    if state['phase2'] and caps.get('phase2_top'):
+        if trumps:
+            return max(trumps, key=val)
+        return max(hand, key=val)
+
+    if caps.get('lead_aces'):
+        pts = usable(state, 'a')
+        if pts >= 56:
+            aces = [c for c in hand if rank(c) == 'A']
+            if aces:
+                nt_aces = [c for c in aces if suit(c) != trump]
+                return nt_aces[0] if nt_aces else aces[0]
+        nt_aces = [c for c in nontrump if rank(c) == 'A']
+        if nt_aces:
+            if caps.get('hand_read'):
+                safe = [c for c in nt_aces if _safe_ace(state, c)]
+                if safe:
+                    return safe[0]
+            else:
+                return nt_aces[0]
+
+    if caps.get('hand_read') and not state['phase2']:
+        opp = _opponent_possible(state)
+        for c in sorted(nontrump, key=val, reverse=True):
+            s = suit(c)
+            opp_same = [o for o in opp if suit(o) == s]
+            if opp_same and all(val(c) > val(o) for o in opp_same):
+                return c
+
     pool = nontrump or hand
     return min(pool, key=val)
 
 
-def _ai_follow(state: dict) -> dict:
+def _ai_follow(state: dict, caps: dict) -> dict:
     hand = state['hands']['a']
     trump = state['trump']
     led = state['table'][0]['card']
     legal = _legal_follow(state, hand) if state['phase2'] else list(hand)
     winners = [c for c in legal if _beats(c, led, trump)]
+
     if winners:
         cheapest = min(winners, key=val)
-        # Stich nehmen, wenn er sich lohnt oder der Sieg billig ist
+
+        if caps.get('score_simple') and usable(state, 'a') >= 56:
+            return {'type': 'play', 'card': cheapest}
+
         if val(led) >= 10 or val(cheapest) <= VALUES['K']:
             return {'type': 'play', 'card': cheapest}
+
+        if caps.get('hand_read'):
+            led_s = suit(led)
+            opp = _opponent_possible(state)
+            opp_same = [c for c in opp if suit(c) == led_s and _beats(c, led, trump)]
+            if not opp_same:
+                return {'type': 'play', 'card': cheapest}
+
+    # Schmieren: Wenn der Gegner führt und die KI nicht stechen kann/will,
+    # wertvolle Karten abwerfen wenn sicher ist, dass der Gegner den Stich
+    # sowieso bekommt (= niedrig abwerfen). Aber wenn die KI den Stich
+    # gewonnen hätte und schmieren kann: hohe Karte dazulegen.
+    if not winners and caps.get('schmieren'):
+        nontrump = [c for c in legal if suit(c) != trump]
+        pool = nontrump or legal
+        return {'type': 'play', 'card': min(pool, key=val)}
+
+    # Schmieren bei gewonnenem Stich: teure Karte dazulegen
+    if winners and caps.get('schmieren'):
+        best_winner = max(winners, key=val)
+        trick_val = val(led) + val(best_winner)
+        pts = usable(state, 'a')
+        if pts + trick_val >= 66:
+            return {'type': 'play', 'card': best_winner}
+
     nontrump = [c for c in legal if suit(c) != trump]
     pool = nontrump or legal
     return {'type': 'play', 'card': min(pool, key=val)}
@@ -635,6 +817,8 @@ def public_view(state: dict) -> dict:
         'turn': state['turn'],
         'lead': state['lead'],
         'last_trick_winner': state.get('last_trick_winner'),
+        'last_trick': state.get('last_trick'),
+        'played': list(state['won']['p']) + list(state['won']['a']),
         'dealer': state['dealer'],
         'deal_no': state['deal_no'],
         'status': state['status'],

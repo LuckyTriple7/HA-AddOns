@@ -7,7 +7,6 @@
   "password": "Password",
   "error_credentials": "Invalid credentials.",
   "error_locked": "Too many failed attempts. Please wait 15 minutes.",
-
   "admin_title": "Admin",
   "tab_profile": "Profile",
   "tab_projects": "Projects",
@@ -19,7 +18,6 @@
   "tab_system": "System",
   "tab_blog": "Blog",
   "tab_users": "Users",
-
   "users_heading": "Users",
   "users_hint": "Each user gets their own password-protected file area at /bereich. The username is the email address. If a mail server is configured, the user automatically receives their credentials by email.",
   "user_create_heading": "Create new user",
@@ -83,7 +81,6 @@
   "storage_down_admin_title": "File storage unreachable",
   "storage_down_admin": "The SMB storage is currently unreachable — user files are temporarily offline. The connection is restored automatically (checked every minute).",
   "member_err_storage": "The file storage is currently unavailable. Please try again in a few minutes.",
-
   "member_area": "Personal area",
   "member_login_link": "Login",
   "member_email": "Email address",
@@ -98,7 +95,6 @@
   "member_confirm_delete": "Really delete this file?",
   "member_err_quota": "Storage limit reached — the file was not saved.",
   "member_err_nofile": "No file selected.",
-
   "blog_heading": "Blog",
   "blog_all": "All posts",
   "blog_hint": "Posts appear under /blog, the latest three also on the homepage. Markdown is supported.",
@@ -112,7 +108,6 @@
   "status_draft": "Draft",
   "status_scheduled": "Scheduled",
   "post_schedule_hint": "If set to \"Published\" with a future date, the post appears automatically from that day on.",
-
   "field_layout": "Project layout",
   "layout_cards": "Cards",
   "layout_list": "List",
@@ -324,18 +319,13 @@
   "tr_nothing": "No German text to translate.",
   "field_custom_css": "Custom CSS (optional)",
   "custom_css_hint": "Your own CSS rules for the public page. For advanced users — included as-is.",
-
   "import_readme": "Use the repos' README as detail text",
-
   "export_heading": "Static export",
   "export_hint": "Downloads the whole site as a static HTML package (German) — e.g. for GitHub Pages. Contact form and language switcher are disabled in the export.",
   "export_download": "Download export",
-
   "sensors_heading": "Home Assistant sensors",
   "sensors_hint": "The add-on automatically reports sensor.mypage_views_total, sensor.mypage_visitors_total, sensor.mypage_views_today and sensor.mypage_visitors_today to Home Assistant (every 2 minutes).",
-
   "stat_total_uniques": "Total visitors",
-
   "nf_title": "Page not found",
   "nf_text": "The requested page does not exist (anymore).",
   "nf_home": "Back to home",
@@ -346,7 +336,6 @@
   "err_413_text": "The uploaded file exceeds the allowed limit. Please reduce its size and try again.",
   "err_500_title": "Something went wrong",
   "err_500_text": "An unexpected error occurred on the server. Please try again later.",
-
   "skills_heading": "Skills",
   "field_skills": "Skills (comma-separated)",
   "skills_hint": "Shown as chips on the page. Emojis work too: 🐍 Python",
@@ -372,19 +361,16 @@
   "album_protect": "Protect images",
   "watermark_text": "Watermark text",
   "album_protect_hint": "Burns the watermark into all album images and disables right-click/drag. Note: full download protection is technically impossible on the web (screenshots always remain). Empty field = \"© your-domain.com\".",
-
   "field_long": "Detail text (Markdown)",
   "long_hint": "With a detail text or gallery the project gets its own subpage, linked from the card.",
   "field_gallery": "Gallery",
   "add_image": "Add image",
   "more": "Learn more",
-
   "field_favicon": "Favicon (URL or upload)",
   "field_contact_enabled": "Show contact form",
   "contact_telegram_hint": "Tip: get notified about new messages via Telegram (bot token + chat ID) or email (SMTP) — configurable in the add-on options.",
   "preview_reload": "Reload",
   "preview_open": "Open in new tab",
-
   "contact_heading": "Contact",
   "contact_name": "Name",
   "contact_email": "Email (for the reply)",
@@ -395,12 +381,10 @@
   "contact_rate_limited": "Too many messages — please try again later.",
   "contact_captcha": "Security question:",
   "contact_captcha_wrong": "Security question answered incorrectly — please try again.",
-
   "messages_heading": "Received messages",
   "messages_hint": "Messages from the public page's contact form (up to 200 are kept).",
   "no_messages": "No messages.",
   "confirm_delete_msg": "Really delete this message?",
-
   "maintenance_heading": "Maintenance mode",
   "maintenance_hint": "Takes the public page offline and shows a notice instead (HTTP 503). The admin panel stays available.",
   "maintenance_text": "Notice text (Markdown)",
@@ -408,7 +392,6 @@
   "maintenance_on": "ACTIVE",
   "maintenance_enable": "Enable maintenance mode",
   "maintenance_disable": "Disable maintenance mode",
-
   "backup_heading": "Backup",
   "backup_hint": "Saves content, statistics, messages and all uploaded images as a ZIP.",
   "backup_download": "Download backup",
@@ -417,20 +400,17 @@
   "restore_done": "Backup restored",
   "error_restore": "Restore failed — invalid backup file?",
   "confirm_restore": "Restore backup? Existing content will be overwritten.",
-
   "stat_referrers": "Top referrers",
   "stat_browsers": "Browsers",
   "stat_countries": "Countries",
   "show_more": "Show more ▾",
   "show_less": "Show less ▴",
-
   "legal_impressum": "Imprint",
   "legal_privacy": "Privacy policy",
   "legal_hint_impressum": "Required in Germany for non-private sites (§5 DDG). Generate a template, e.g. with the e-recht24.de imprint generator, and paste it here.",
   "legal_hint_privacy": "Required by Art. 13 GDPR — among other things because of the visitor log (IP addresses). Generate a template, e.g. with datenschutz-generator.de (free for individuals), and paste it here.",
   "legal_footer_hint": "Once text is entered, the links appear automatically in the footer of the public page (/impressum and /datenschutz). Empty pages are not linked.",
   "optional": "optional",
-
   "profile_heading": "About me",
   "field_name": "Name",
   "field_github_user": "GitHub username",
@@ -442,7 +422,6 @@
   "field_links": "Additional links",
   "add_link": "Add link",
   "link_label": "Label",
-
   "github_import": "Import from GitHub",
   "load_repos": "Load repos",
   "import_selected": "Import selection",
@@ -452,7 +431,6 @@
   "error_user": "Please enter a GitHub username.",
   "error_select": "Please select at least one repo.",
   "loading": "Loading…",
-
   "my_projects": "My projects",
   "new_project": "New project",
   "edit_project": "Edit project",
@@ -488,7 +466,6 @@
   "confirm_delete": "Really delete this project?",
   "deleted": "Deleted",
   "error_title": "Title is required.",
-
   "design_heading": "Appearance",
   "field_site_title": "Site title",
   "field_accent": "Accent color",
@@ -539,7 +516,6 @@
   "no": "No",
   "preview_heading": "Preview",
   "preview_hint": "The public page runs on port 17760 — open it in a new tab to see your changes.",
-
   "stat_total": "Total views",
   "stat_today_views": "Views today",
   "stat_today_uniques": "Visitors today",
@@ -553,7 +529,6 @@
   "col_ref": "Referrer",
   "badge_new": "New",
   "no_data": "No data yet.",
-
   "save": "Save",
   "cancel": "Cancel",
   "saved": "Saved",
@@ -563,9 +538,44 @@
   "error_save": "Saving failed.",
   "error_load": "Loading failed.",
   "error_upload": "Upload failed (PNG/JPG/GIF/WebP only, max. 8 MB).",
-
   "projects": "Projects",
   "demo": "Demo",
   "visitors": "visitors",
-  "no_projects": "Something is coming soon."
+  "no_projects": "Something is coming soon.",
+  "g66_banner_no": "No",
+  "g66_debug_hint": "Shows animation info during AI moves.",
+  "g66_debug_label": "Debug overlay",
+  "g66_kb_close": "Close talon",
+  "g66_kb_esc": "Close",
+  "g66_kb_exchange": "Swap",
+  "g66_kb_log": "Log",
+  "g66_kb_marry": "Marriage yes/no",
+  "g66_kb_next": "Next",
+  "g66_kb_play": "Play card",
+  "g66_kb_played": "Played cards",
+  "g66_kb_undo": "Undo",
+  "g66_keyboard": "Keyboard",
+  "g66_last_trick": "Last trick",
+  "g66_lasttrick_opt": "Show last trick",
+  "g66_lasttrick_opt_hint": "Shows the two cards of the last trick on the table.",
+  "g66_marry_no": "No",
+  "g66_marry_yes": "Yes, announce",
+  "g66_played": "Played cards",
+  "g66_played_gone": "Played",
+  "g66_played_hand": "Hand",
+  "g66_played_opt": "Show played cards",
+  "g66_played_opt_hint": "Shows the 📋 button in the bar.",
+  "g66_played_table": "Table",
+  "g66_rank_a": "Ace",
+  "g66_rank_j": "Jack",
+  "g66_rank_k": "King",
+  "g66_rank_q": "Queen",
+  "g66_rank_t": "10",
+  "g66_sound_hint": "Short sounds for card moves, tricks and announcements.",
+  "g66_sound_label": "Sound effects",
+  "g66_speed_toast": "Info banner duration",
+  "g66_toast_closed": "Closed!",
+  "g66_toast_exchange": "Trump swap",
+  "g66_undo": "Undo",
+  "g66_undo_toast": "Move undone"
 }

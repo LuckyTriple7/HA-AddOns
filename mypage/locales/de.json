@@ -7,7 +7,6 @@
   "password": "Passwort",
   "error_credentials": "Ungültige Anmeldedaten.",
   "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
-
   "admin_title": "Admin",
   "tab_profile": "Profil",
   "tab_projects": "Projekte",
@@ -19,7 +18,6 @@
   "tab_system": "System",
   "tab_blog": "Blog",
   "tab_users": "Benutzer",
-
   "users_heading": "Benutzer",
   "users_hint": "Jeder Benutzer bekommt einen eigenen, passwortgeschützten Dateibereich unter /bereich. Der Benutzername ist die E-Mail-Adresse. Ist ein Mailserver konfiguriert, erhält der Benutzer die Zugangsdaten automatisch per E-Mail.",
   "user_create_heading": "Neuen Benutzer anlegen",
@@ -83,7 +81,6 @@
   "storage_down_admin_title": "Dateispeicher nicht erreichbar",
   "storage_down_admin": "Der SMB-Speicher ist gerade nicht erreichbar — Benutzer-Dateien sind vorübergehend offline. Die Verbindung wird automatisch wiederhergestellt (Prüfung jede Minute).",
   "member_err_storage": "Der Dateispeicher ist gerade nicht erreichbar. Bitte versuche es in ein paar Minuten erneut.",
-
   "member_area": "Persönlicher Bereich",
   "member_login_link": "Login",
   "member_email": "E-Mail-Adresse",
@@ -98,7 +95,6 @@
   "member_confirm_delete": "Datei wirklich löschen?",
   "member_err_quota": "Speicherlimit erreicht — Datei wurde nicht gespeichert.",
   "member_err_nofile": "Keine Datei ausgewählt.",
-
   "blog_heading": "Blog",
   "blog_all": "Alle Beiträge",
   "blog_hint": "Beiträge erscheinen unter /blog, die neuesten drei auch auf der Startseite. Markdown wird unterstützt.",
@@ -112,7 +108,6 @@
   "status_draft": "Entwurf",
   "status_scheduled": "Geplant",
   "post_schedule_hint": "Bei „Veröffentlicht\" mit einem Datum in der Zukunft erscheint der Beitrag automatisch erst ab diesem Tag.",
-
   "field_layout": "Projekt-Layout",
   "layout_cards": "Karten",
   "layout_list": "Liste",
@@ -324,18 +319,13 @@
   "tr_nothing": "Keine deutschen Texte zum Übersetzen.",
   "field_custom_css": "Eigenes CSS (optional)",
   "custom_css_hint": "Eigene CSS-Regeln für die öffentliche Seite. Für Fortgeschrittene — wird unverändert eingebunden.",
-
   "import_readme": "README der Repos als Detailtext übernehmen",
-
   "export_heading": "Statischer Export",
   "export_hint": "Lädt die komplette Seite als statisches HTML-Paket (deutsch) — z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.",
   "export_download": "Export herunterladen",
-
   "sensors_heading": "Home-Assistant-Sensoren",
   "sensors_hint": "Das Add-on meldet automatisch sensor.mypage_views_total, sensor.mypage_visitors_total, sensor.mypage_views_today und sensor.mypage_visitors_today an Home Assistant (alle 2 Minuten).",
-
   "stat_total_uniques": "Besucher gesamt",
-
   "nf_title": "Seite nicht gefunden",
   "nf_text": "Die angeforderte Seite existiert nicht (mehr).",
   "nf_home": "Zur Startseite",
@@ -346,7 +336,6 @@
   "err_413_text": "Die hochgeladene Datei überschreitet das erlaubte Limit. Bitte verkleinern und erneut versuchen.",
   "err_500_title": "Etwas ist schiefgelaufen",
   "err_500_text": "Auf dem Server ist ein unerwarteter Fehler aufgetreten. Bitte versuche es später erneut.",
-
   "skills_heading": "Skills",
   "field_skills": "Skills (kommagetrennt)",
   "skills_hint": "Werden als Chips auf der Seite angezeigt. Emojis funktionieren auch: 🐍 Python",
@@ -372,19 +361,16 @@
   "album_protect": "Bilder schützen",
   "watermark_text": "Wasserzeichen-Text",
   "album_protect_hint": "Brennt das Wasserzeichen in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Hinweis: ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots bleiben immer). Leeres Textfeld = „© deine-domain.de\".",
-
   "field_long": "Detailtext (Markdown)",
   "long_hint": "Mit Detailtext oder Galerie bekommt das Projekt eine eigene Unterseite, die von der Karte aus verlinkt wird.",
   "field_gallery": "Galerie",
   "add_image": "Bild hinzufügen",
   "more": "Mehr erfahren",
-
   "field_favicon": "Favicon (URL oder Upload)",
   "field_contact_enabled": "Kontaktformular anzeigen",
   "contact_telegram_hint": "Tipp: Benachrichtigungen bei neuen Nachrichten per Telegram (Bot-Token + Chat-ID) oder E-Mail (SMTP) — einstellbar in den Add-on-Optionen.",
   "preview_reload": "Neu laden",
   "preview_open": "In neuem Tab öffnen",
-
   "contact_heading": "Kontakt",
   "contact_name": "Name",
   "contact_email": "E-Mail (für die Antwort)",
@@ -395,12 +381,10 @@
   "contact_rate_limited": "Zu viele Nachrichten — bitte später erneut versuchen.",
   "contact_captcha": "Sicherheitsfrage:",
   "contact_captcha_wrong": "Sicherheitsfrage falsch beantwortet — bitte erneut versuchen.",
-
   "messages_heading": "Eingegangene Nachrichten",
   "messages_hint": "Nachrichten aus dem Kontaktformular der öffentlichen Seite (maximal 200 werden aufbewahrt).",
   "no_messages": "Keine Nachrichten.",
   "confirm_delete_msg": "Nachricht wirklich löschen?",
-
   "maintenance_heading": "Wartungsmodus",
   "maintenance_hint": "Schaltet die öffentliche Seite ab und zeigt stattdessen einen Hinweis (HTTP 503). Das Admin-Panel bleibt erreichbar.",
   "maintenance_text": "Hinweistext (Markdown)",
@@ -408,7 +392,6 @@
   "maintenance_on": "AKTIV",
   "maintenance_enable": "Wartungsmodus einschalten",
   "maintenance_disable": "Wartungsmodus ausschalten",
-
   "backup_heading": "Backup",
   "backup_hint": "Sichert Inhalte, Statistik, Nachrichten und alle hochgeladenen Bilder als ZIP.",
   "backup_download": "Backup herunterladen",
@@ -417,20 +400,17 @@
   "restore_done": "Backup wiederhergestellt",
   "error_restore": "Wiederherstellen fehlgeschlagen — ungültige Backup-Datei?",
   "confirm_restore": "Backup einspielen? Vorhandene Inhalte werden überschrieben.",
-
   "stat_referrers": "Top-Referrer",
   "stat_browsers": "Browser",
   "stat_countries": "Länder",
   "show_more": "Mehr anzeigen ▾",
   "show_less": "Weniger anzeigen ▴",
-
   "legal_impressum": "Impressum",
   "legal_privacy": "Datenschutzerklärung",
   "legal_hint_impressum": "Pflicht für nicht rein private Seiten (§5 DDG). Vorlage z. B. über den Impressum-Generator von e-recht24.de erstellen und hier einfügen.",
   "legal_hint_privacy": "Pflicht nach Art. 13 DSGVO — u. a. wegen des Besucher-Logs (IP-Adressen). Vorlage z. B. über datenschutz-generator.de (für Privatpersonen kostenlos) erstellen und hier einfügen.",
   "legal_footer_hint": "Sobald Text eingetragen ist, erscheinen die Links automatisch im Footer der öffentlichen Seite (/impressum und /datenschutz). Leere Seiten werden nicht verlinkt.",
   "optional": "optional",
-
   "profile_heading": "Über mich",
   "field_name": "Name",
   "field_github_user": "GitHub-Benutzername",
@@ -442,7 +422,6 @@
   "field_links": "Weitere Links",
   "add_link": "Link hinzufügen",
   "link_label": "Bezeichnung",
-
   "github_import": "Von GitHub importieren",
   "load_repos": "Repos laden",
   "import_selected": "Auswahl importieren",
@@ -452,7 +431,6 @@
   "error_user": "Bitte GitHub-Benutzernamen eingeben.",
   "error_select": "Bitte mindestens ein Repo auswählen.",
   "loading": "Lade…",
-
   "my_projects": "Meine Projekte",
   "new_project": "Neues Projekt",
   "edit_project": "Projekt bearbeiten",
@@ -488,7 +466,6 @@
   "confirm_delete": "Projekt wirklich löschen?",
   "deleted": "Gelöscht",
   "error_title": "Titel ist erforderlich.",
-
   "design_heading": "Darstellung",
   "field_site_title": "Seitentitel",
   "field_accent": "Akzentfarbe",
@@ -539,7 +516,6 @@
   "no": "Nein",
   "preview_heading": "Vorschau",
   "preview_hint": "Die öffentliche Seite läuft auf Port 17760 — öffne sie in einem neuen Tab, um Änderungen zu sehen.",
-
   "stat_total": "Aufrufe gesamt",
   "stat_today_views": "Aufrufe heute",
   "stat_today_uniques": "Besucher heute",
@@ -553,7 +529,6 @@
   "col_ref": "Referrer",
   "badge_new": "Neu",
   "no_data": "Noch keine Daten.",
-
   "save": "Speichern",
   "cancel": "Abbrechen",
   "saved": "Gespeichert",
@@ -563,9 +538,44 @@
   "error_save": "Speichern fehlgeschlagen.",
   "error_load": "Laden fehlgeschlagen.",
   "error_upload": "Upload fehlgeschlagen (nur PNG/JPG/GIF/WebP, max. 8 MB).",
-
   "projects": "Projekte",
   "demo": "Demo",
   "visitors": "Besucher",
-  "no_projects": "Hier entsteht in Kürze etwas."
+  "no_projects": "Hier entsteht in Kürze etwas.",
+  "g66_banner_no": "Nein",
+  "g66_debug_hint": "Zeigt Animations-Infos bei KI-Zügen an.",
+  "g66_debug_label": "Debug-Overlay",
+  "g66_kb_close": "Zudrücken",
+  "g66_kb_esc": "Schließen",
+  "g66_kb_exchange": "Tauschen",
+  "g66_kb_log": "Log",
+  "g66_kb_marry": "Hochzeit Ja/Nein",
+  "g66_kb_next": "Weiter",
+  "g66_kb_play": "Karte spielen",
+  "g66_kb_played": "Gespielte Karten",
+  "g66_kb_undo": "Rückgängig",
+  "g66_keyboard": "Tastatur",
+  "g66_last_trick": "Letzter Stich",
+  "g66_lasttrick_opt": "Letzten Stich anzeigen",
+  "g66_lasttrick_opt_hint": "Zeigt die beiden Karten des letzten Stichs auf dem Tisch.",
+  "g66_marry_no": "Nein",
+  "g66_marry_yes": "Ja, ansagen",
+  "g66_played": "Gespielte Karten",
+  "g66_played_gone": "Gespielt",
+  "g66_played_hand": "Hand",
+  "g66_played_opt": "Gespielte Karten anzeigen",
+  "g66_played_opt_hint": "Zeigt den 📋-Button in der Leiste an.",
+  "g66_played_table": "Tisch",
+  "g66_rank_a": "Ass",
+  "g66_rank_j": "Bube",
+  "g66_rank_k": "König",
+  "g66_rank_q": "Dame",
+  "g66_rank_t": "10",
+  "g66_sound_hint": "Kurze Töne bei Kartenzügen, Stichen und Meldungen.",
+  "g66_sound_label": "Soundeffekte",
+  "g66_speed_toast": "Info-Einblendung",
+  "g66_toast_closed": "Zugedrückt!",
+  "g66_toast_exchange": "Trumpftausch",
+  "g66_undo": "Rückgängig",
+  "g66_undo_toast": "Zug zurückgenommen"
 }

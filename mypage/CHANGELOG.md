@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.72
+
+- 🎮 **66: Großes Update — KI, UX & Animationen überarbeitet.** Umfassende Überarbeitung des Kartenspiels:
+  - **Stärkere KI** — neues Fähigkeiten-System mit festen Stärkestufen (easy=35, medium=65, hard=100, adaptive passt sich an): Card-Counting, Gegner-Handschätzung, sichere Asse, smarteres Schmieren, punktestandbewusstes Stechen und ein Minimax-Endspiel (perfektes Spiel in Phase 2, nur auf hard).
+  - **Animationen behoben** — Kartengeben läuft jetzt auch beim ersten Laden, KI-Karte fliegt zuverlässig zur Mitte, Trumpf-Sichtbarkeit nach Tausch korrigiert, eigene Auslos-Zeremonie („wer fängt an") mit 3D-Kartenflip, Zudreh-Animation.
+  - **Neue UX** — Toast-Einblendungen bei KI-Aktionen, vollständige **Tastatur-Steuerung** (1–5, E, Z, J/N, U, P, L, Esc), Inline-Hochzeitsabfrage statt Browser-Dialog, „letzter Stich" auf dem Feld, Übersicht „gespielte Karten", **Undo** (easy/medium), synthetische **Soundeffekte** und Mobile-Optimierung.
+  - 🌍 **Vollständig zweisprachig (DE/EN)** — alle 36 neuen UI-Texte (Tastatur-Hints, Toasts, Einstellungen, Rang-Namen, Banner) in `de.json` **und** `en.json` ergänzt; der Spielverlauf-Log bleibt pro Eintrag bilingual. Im echten Browser (Playwright) verifiziert: Seite lädt fehlerfrei in DE+EN, Züge laufen durch, keine JS-Fehler.
+
 ## 0.6.71
 
 - ✨ **66: KI-Karte fliegt jetzt wie deine** — die ausgespielte KI-Karte wird jetzt **genauso animiert wie die Spielerkarte**: Sie klont die echte (verdeckte) Karte aus der KI-Hand und lässt sie auf den Tisch fliegen — kein Bild-Nachladen, kein wackeliges Container-Rechteck mehr. Beim Landen wird die Karte aufgedeckt. Im echten Browser verifiziert (KI-Karte startet oben in der KI-Hand und fliegt sichtbar zur Mitte).
