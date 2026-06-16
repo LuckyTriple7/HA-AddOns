@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.92
+
+- 🏠 **Home-Assistant-Sensoren für den Live-Spielstatus** — das Add-on meldet jetzt zusätzlich, wer gerade spielt:
+  - `binary_sensor.mypage_spielt_jemand` (an/aus, sobald ≥1 Mitglied spielt; Attribut `count`),
+  - `sensor.mypage_spieler_aktiv` (Anzahl; Attribute: Liste `spieler` mit Name/Spiel/seit + `pro_spiel`-Aufschlüsselung),
+  - `sensor.mypage_aktiv_66` / `_20ab` / `_schwimmen` (Anzahl je Spiel + Namensliste).
+  Aktualisierung alle 30 s plus Sofort-Push bei Spielstart/-ende. Die Gesamtzahl der Mitglieder gibt es bereits als `sensor.mypage_members`. (Nur aktiv mit `SUPERVISOR_TOKEN`, d. h. im echten HA-Betrieb.)
+
 ## 0.6.91
 
 - 🔄 **Admin: Live-Spielstatus aktualisiert sich automatisch** — die grün/grau-Bubble in der Benutzerliste wurde bisher nur beim Tab-Wechsel neu geladen. Jetzt pollt das Panel alle 10 s einen leichten Status-Endpoint und aktualisiert nur die Bubbles (kein Neuaufbau der Liste, nichts „springt"); das Polling läuft nur, solange der Benutzer-Tab offen und sichtbar ist.

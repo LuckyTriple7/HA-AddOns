@@ -1242,6 +1242,70 @@ def _sensor_worker() -> None:
         time.sleep(120)
 
 
+# ── Spiel-Sensoren (Live: wer spielt gerade was) ──────────────────────────────
+_HA_GAME_LABELS = {'66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen'}
+
+
+def _playing_overview() -> tuple[list, dict]:
+    """Liefert (spieler, pro_spiel): wer spielt gerade welches Spiel."""
+    players: list = []
+    per_game: dict = {'66': [], '20ab': [], 'schwimmen': []}
+    for u in load_users():
+        p = _user_playing(u['id'])
+        if not p:
+            continue
+        name = u.get('name') or u.get('email') or u['id']
+        players.append({'name': name, 'game': p['game'],
+                        'game_label': _HA_GAME_LABELS.get(p['game'], p['game']),
+                        'since': datetime.fromtimestamp(p['since'], timezone.utc).isoformat()})
+        per_game.setdefault(p['game'], []).append(name)
+    return players, per_game
+
+
+def push_ha_games() -> None:
+    """Meldet den Live-Spielstatus als Sensoren an Home Assistant."""
+    if not SUPERVISOR_TOKEN:
+        return
+    players, per_game = _playing_overview()
+    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    base = 'http://supervisor/core/api/states'
+    try:
+        http.post(f'{base}/sensor.mypage_spieler_aktiv', headers=headers, timeout=10,
+                  json={'state': len(players),
+                        'attributes': {'friendly_name': 'MyPage Spieler aktiv',
+                                       'icon': 'mdi:cards-playing', 'unit_of_measurement': 'Spieler',
+                                       'spieler': players,
+                                       'pro_spiel': {_HA_GAME_LABELS[g]: len(v)
+                                                     for g, v in per_game.items()}}})
+        for g in ('66', '20ab', 'schwimmen'):
+            http.post(f'{base}/sensor.mypage_aktiv_{g}', headers=headers, timeout=10,
+                      json={'state': len(per_game.get(g, [])),
+                            'attributes': {'friendly_name': f'MyPage aktiv {_HA_GAME_LABELS[g]}',
+                                           'icon': 'mdi:cards-playing-outline',
+                                           'unit_of_measurement': 'Spieler',
+                                           'spieler': per_game.get(g, [])}})
+        http.post(f'{base}/binary_sensor.mypage_spielt_jemand', headers=headers, timeout=10,
+                  json={'state': 'on' if players else 'off',
+                        'attributes': {'friendly_name': 'MyPage spielt jemand',
+                                       'icon': 'mdi:account-clock', 'count': len(players)}})
+    except Exception as e:
+        log.warning("HA-Spiel-Sensoren konnten nicht aktualisiert werden: %s", e)
+
+
+def _ha_games_async() -> None:
+    """Sofortiger Push (z. B. bei Spielstart/-ende), ohne den Request zu blockieren."""
+    if SUPERVISOR_TOKEN:
+        threading.Thread(target=push_ha_games, daemon=True).start()
+
+
+def _ha_games_worker() -> None:
+    if not SUPERVISOR_TOKEN:
+        return
+    while True:
+        push_ha_games()
+        time.sleep(30)  # Spielstatus ändert sich schneller als Besucherzahlen
+
+
 # ── Blog-Posts ────────────────────────────────────────────────────────────────
 
 def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
@@ -2913,7 +2977,8 @@ def _sess_claim(game: str, uid: str, force: bool = False) -> dict:
         _gsess_open(uid, game, now,
                     prev_last_seen=(None if takeover else (prev.get('last_seen') if prev else None)),
                     takeover=takeover)
-        return {'token': token}
+    _ha_games_async()  # HA-Sensoren sofort aktualisieren (Spielstart)
+    return {'token': token}
 
 
 def _sess_heartbeat(game: str, uid: str, token: str) -> dict:
@@ -2931,6 +2996,7 @@ def _sess_release(game: str, uid: str, token: str) -> dict:
         if s and token and token == s.get('token'):
             _game_sessions.pop((game, uid), None)
             _gsess_finish(uid, game, 'closed')  # sauber beendet (✕ / Zurück)
+            _ha_games_async()  # HA-Sensoren sofort aktualisieren (Spielende)
             return {'ok': True}
         return {'error': 'invalid_token'}
 
@@ -4323,6 +4389,7 @@ if __name__ == '__main__':
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()
     threading.Thread(target=_sensor_worker, daemon=True).start()
+    threading.Thread(target=_ha_games_worker, daemon=True).start()
     threading.Thread(target=_geoip_worker, daemon=True).start()
     threading.Thread(target=_smb_watchdog, daemon=True).start()
 
