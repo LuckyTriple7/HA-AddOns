@@ -1266,13 +1266,14 @@ async function doPass(){
   const v = await api('/api/schwimmen/move', {type:'pass'});
   if(v && v.state){
     if(v.tournament !== undefined) tournamentState = v.tournament;
-    gameState = v.state;
-    render(gameState);
-    if(gameState.table_refreshed){
+    if(v.state.table_refreshed){
       showToast(G.all_passed, 'gold');
       addLog(G.all_passed, '', '', 'info');
-      await flashTableCards();
+      // DOM zeigt hier noch den alten Tisch → abräumen + neu austeilen
+      await animateTableRefresh(v.state.table_cards);
     }
+    gameState = v.state;
+    render(gameState);
     await advanceAI();
   }
 }
@@ -1398,6 +1399,72 @@ async function flashTableCards(){
   });
   await sleep(600);
   cards.forEach(c => { c.style.boxShadow = ''; c.style.transition = ''; });
+}
+
+/* Alle haben gepasst → alter Tisch wird abgeräumt und 3 neue Karten ausgeteilt.
+   Erwartet, dass #table-cards beim Aufruf noch die ALTEN Karten zeigt;
+   `newCards` ist die neue 3er-Mitte. Der Aufrufer rendert danach den Stand neu. */
+async function animateTableRefresh(newCards){
+  if(reduceMotion) return;
+  const cont = $('table-cards');
+  const oldEls = Array.from(cont.querySelectorAll('.card'));
+  const dur = flyMs / 1000;
+
+  // Deck-/Stapelzentrum (wie beim Austeilen)
+  const pa = $('play-area').getBoundingClientRect();
+  const deckX = pa.left + pa.width / 2;
+  const deckY = pa.top + pa.height / 2 - 20;
+
+  // ── Phase 1: alte Tischkarten zum Stapel wegwischen ──
+  oldEls.forEach((el, i) => {
+    const r = el.getBoundingClientRect();
+    const clone = el.cloneNode(true);
+    clone.style.cssText =
+      'position:fixed;z-index:60;pointer-events:none;margin:0;' +
+      'left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transition:transform '+dur+'s cubic-bezier(.5,0,.8,.3),opacity '+dur+'s ease;';
+    document.body.appendChild(clone);
+    el.style.visibility = 'hidden';
+    const dx = (deckX - r.width / 2) - r.left;
+    const dy = (deckY - r.height / 2) - r.top;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      clone.style.transform = 'translate('+dx+'px,'+dy+'px) scale(0.5) rotate('+((i-1)*14)+'deg)';
+      clone.style.opacity = '0';
+    }));
+    setTimeout(()=>clone.remove(), flyMs + 30);
+  });
+  SFX.swap();
+  await sleep(Math.round(flyMs * 0.7));
+
+  // ── neue Mitte in den DOM (zunächst versteckt) ──
+  cont.innerHTML = newCards.map(c => cardHtml(c)).join('');
+  const newEls = Array.from(cont.querySelectorAll('.card'));
+  newEls.forEach(el => { el.style.visibility = 'hidden'; });
+
+  // ── Phase 2: neue Karten vom Deckzentrum einfliegen ──
+  const pause = Math.max(40, Math.round(flyMs * 0.18));
+  for(const el of newEls){
+    const r = el.getBoundingClientRect();
+    const sx = deckX - r.width / 2, sy = deckY - r.height / 2;
+    const dx = r.left - sx, dy = r.top - sy;
+    const clone = el.cloneNode(true);
+    clone.style.cssText =
+      'position:fixed;z-index:60;pointer-events:none;margin:0;visibility:visible;' +
+      'left:'+sx+'px;top:'+sy+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transform:scale(0.3);opacity:0;' +
+      'transition:transform '+dur+'s cubic-bezier(.2,.8,.3,1),opacity '+(dur*0.4)+'s ease;';
+    document.body.appendChild(clone);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      clone.style.transform = 'translate('+dx+'px,'+dy+'px) scale(1)';
+      clone.style.opacity = '1';
+    }));
+    SFX.deal();
+    await sleep(pause);
+    setTimeout(()=>{ el.style.visibility = ''; clone.remove(); }, flyMs + 20);
+  }
+  await sleep(flyMs + 40);
+  newEls.forEach(el => { el.style.visibility = ''; });
+  await flashTableCards();  // kurzes Aufleuchten als Abschluss
 }
 
 async function animateAiSwapOne(who, tableCardCode){
@@ -1577,11 +1644,13 @@ async function advanceAI(){
       if(v.tournament !== undefined) tournamentState = v.tournament;
 
       if(v.event) await handleEvent(v.event);
+      if(v.event && v.event.table_refreshed){
+        // DOM zeigt hier noch den alten Tisch → abräumen + neu austeilen
+        await animateTableRefresh(v.state.table_cards);
+      }
       gameState = v.state;
       render(gameState);
       if(v.event && (v.event.type === 'swap_one' || v.event.type === 'swap_all'))
-        await flashTableCards();
-      if(v.event && v.event.table_refreshed)
         await flashTableCards();
     }
     if(gameState){

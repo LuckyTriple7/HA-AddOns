@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.86
+
+- 🎴 **Schwimmen: Animation beim Tischwechsel** — wenn alle passen, wurde die neue Mitte bisher nur kurz angeleuchtet, die Karten erschienen aber schlagartig. Jetzt werden die drei alten Tischkarten zum Stapel weggewischt und die drei neuen einzeln vom Deckzentrum eingeteilt (mit Austeil-Sound), genau wie beim Rundenstart — sowohl wenn der Spieler als auch wenn die KI das letzte Passen auslöst. Respektiert „Bewegung reduzieren".
+
 ## 0.6.85
 
 - ↶ **66: Zug zurücknehmen funktioniert jetzt** — der Undo-Button (und die Taste „U") war im Client vorhanden, aber die Server-Route fehlte, sodass nichts passierte. Jetzt wird vor jedem Spielerzug ein Schnappschuss abgelegt und `/api/66/undo` stellt den Stand vor dem letzten Zug wieder her — analog zu 20 AB und Schwimmen. Undo ist (wie bisher im Client vorgesehen) nur auf den Stufen Leicht/Mittel verfügbar.
