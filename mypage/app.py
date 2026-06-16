@@ -2262,6 +2262,15 @@ def api_user_games(uid: str):
                     'sessions': list(reversed(sessions))[:30]})
 
 
+@admin_app.route('/api/users/playing')
+def api_users_playing():
+    """Leichtgewichtig: nur der Live-Spielstatus aller Mitglieder (für Polling)."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'playing': {u['id']: _user_playing(u['id']) for u in load_users()}})
+
+
 @admin_app.route('/api/users/<uid>/files', methods=['GET', 'POST'])
 def api_user_files(uid: str):
     err = _api_auth()
