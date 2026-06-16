@@ -2922,10 +2922,9 @@ def api_game66_state():
     with _game_lock:
         st = load_game66(member['id'])
         if st is None:
-            st = game_66.new_match()
-            game_66.ai_run(st)
-            save_game66(member['id'], st)
-        elif st['status'] == 'playing' and st['turn'] == 'a':
+            # Kein laufendes Spiel → Client zeigt den Startbildschirm (Auswahl/Fortsetzen)
+            return jsonify({'status': 'no_game'})
+        if st['status'] == 'playing' and st['turn'] == 'a':
             game_66.ai_run(st)
             save_game66(member['id'], st)
         if _record_match_if_over(member['id'], st):

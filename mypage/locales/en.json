@@ -776,5 +776,10 @@
   "g20_device_takeover": "Take over here",
   "g20_intro": "A challenging trick-taking game for three against two AI opponents — bidding, choosing trump, swapping cards. Your progress is saved and can be continued on any device.",
   "gs_intro": "The classic for three against two AI opponents — swap cards, knock, reach 31. Your progress is saved and can be continued on any device.",
-  "gs_play": "Play"
+  "gs_play": "Play",
+  "g66_subtitle": "The classic trick-taking game",
+  "g66_resume": "Resume",
+  "g66_back": "To members area",
+  "g20_back": "To members area",
+  "gs_back": "To members area"
 }

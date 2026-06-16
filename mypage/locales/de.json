@@ -776,5 +776,10 @@
   "g20_device_takeover": "Hier übernehmen",
   "g20_intro": "Anspruchsvolles Stichspiel für drei gegen zwei KI-Gegner — reizen, Trumpf wählen, Karten tauschen. Spielstand wird gespeichert und ist auf jedem Gerät fortsetzbar.",
   "gs_intro": "Der Klassiker für drei gegen zwei KI-Gegner — Karten tauschen, klopfen, 31 erreichen. Spielstand wird gespeichert und ist auf jedem Gerät fortsetzbar.",
-  "gs_play": "Spielen"
+  "gs_play": "Spielen",
+  "g66_subtitle": "Das klassische Stichspiel",
+  "g66_resume": "Fortsetzen",
+  "g66_back": "Zum Mitgliederbereich",
+  "g20_back": "Zum Mitgliederbereich",
+  "gs_back": "Zum Mitgliederbereich"
 }

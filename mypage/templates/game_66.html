@@ -271,9 +271,54 @@
       .hand.me .card-slot.playable:active { transform: translateY(-14px) scale(1.05); }
       .iconbtn { width: 40px; height: 40px; }
     }
+    /* ── Startbildschirm (Schwierigkeit / Regeln / Fortsetzen) ── */
+    #start-screen { display: flex; position: fixed; inset: 0; z-index: 70;
+      background: radial-gradient(ellipse at center, var(--felt1), var(--felt2));
+      justify-content: center; align-items: center; padding: 20px; overflow: auto; }
+    #start-screen.hidden { display: none; }
+    .start-box { text-align: center; max-width: 560px; }
+    .start-box h1 { font-size: 48px; margin-bottom: 6px; color: var(--gold); }
+    .start-box .sub { font-size: 16px; opacity: 0.7; margin-bottom: 28px; }
+    .start-box .seclabel { font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+      opacity: 0.55; margin: 22px 0 10px; }
+    .start-box .levels { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .start-box .level-btn { padding: 13px 26px; border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 10px; background: rgba(255,255,255,0.06); color: #f0f0f0;
+      font-size: 16px; cursor: pointer; transition: background 0.2s, border-color 0.2s;
+      font-family: inherit; }
+    .start-box .level-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--gold); }
+    .start-box .level-btn.active { border-color: var(--gold); color: var(--gold); }
+    @media (max-width: 520px) {
+      .start-box h1 { font-size: 34px; }
+      .start-box .level-btn { padding: 11px 18px; font-size: 15px; }
+    }
   </style>
 </head>
 <body>
+  <div id="start-screen">
+    <div class="start-box">
+      <h1>🃏 {{ t.g66_title }}</h1>
+      <div class="sub">{{ t.g66_subtitle }}</div>
+      <div id="g66-resume-box" style="display:none;margin-bottom:18px">
+        <button class="level-btn" style="border-color:var(--gold);color:var(--gold);font-size:18px;padding:16px 36px" onclick="resumeGame()">▶ {{ t.g66_resume }}</button>
+      </div>
+      <div class="seclabel">🧠 {{ t.g66_level }}</div>
+      <div class="levels">
+        <button class="level-btn" onclick="startGame('easy')">{{ t.g66_level_easy }}</button>
+        <button class="level-btn" onclick="startGame('medium')">{{ t.g66_level_medium }}</button>
+        <button class="level-btn" onclick="startGame('hard')">{{ t.g66_level_hard }}</button>
+        <button class="level-btn" onclick="startGame('adaptive')">{{ t.g66_level_adaptive }}</button>
+      </div>
+      <div class="seclabel">⚖ {{ t.g66_rules }}</div>
+      <div class="levels">
+        <button class="level-btn active" id="start-rules-standard" onclick="pickStartRules('standard')">{{ t.g66_rules_std }}</button>
+        <button class="level-btn" id="start-rules-oma" onclick="pickStartRules('oma')">{{ t.g66_rules_oma }}</button>
+      </div>
+      <div style="margin-top:30px">
+        <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.g66_back }}</button>
+      </div>
+    </div>
+  </div>
   <div class="topbar">
     <span class="title">🃏 66</span>
     <span class="rulestag" id="rulestag"></span>
@@ -722,11 +767,35 @@
 
   async function loadState(){
     const v = await api('/api/66/state');
-    if (v){
-      await maybeShowCut(v);
-      render(v);
-      if (isFreshDeal(v)) await dealCards();
-    }
+    if (!v) return;
+    if (v.status === 'no_game'){ showStart(); return; }   // kein Spiel → Startbildschirm
+    hideStart();
+    await maybeShowCut(v);
+    render(v);
+    if (isFreshDeal(v)) await dealCards();
+  }
+
+  // ── Startbildschirm (Schwierigkeit / Regeln / Fortsetzen) ────────────────
+  let startRules = 'standard';
+  function pickStartRules(key){
+    startRules = (key === 'oma') ? 'oma' : 'standard';
+    $('start-rules-standard').classList.toggle('active', startRules === 'standard');
+    $('start-rules-oma').classList.toggle('active', startRules === 'oma');
+  }
+  function hideStart(){ $('start-screen').classList.add('hidden'); }
+  function showStart(){ $('start-screen').classList.remove('hidden'); checkResume(); }
+  async function checkResume(){
+    const v = await api('/api/66/state');
+    const has = v && v.status && v.status !== 'no_game' && v.status !== 'match_over';
+    $('g66-resume-box').style.display = has ? '' : 'none';
+  }
+  async function startGame(level){
+    hideStart();
+    await newMatch(startRules, level);
+  }
+  async function resumeGame(){
+    hideStart();
+    await loadState();
   }
 
   // Nur ganz am Match-Anfang (vor dem ersten Stich) — sonst taucht das Auslosen
@@ -1812,10 +1881,10 @@
   $('tab-resume').onclick = becomeActive;
   claim();          // dieser Tab beansprucht beim Laden die aktive Rolle
 
-  // Session beim Laden beanspruchen, dann State holen
+  // Session beanspruchen, dann Startbildschirm zeigen (Auswahl / Fortsetzen)
   (async () => {
     const ok = await claimSession(false);
-    if (ok) loadState();
+    if (ok) showStart();
   })();
   </script>
 </body>

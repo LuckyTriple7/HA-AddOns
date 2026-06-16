@@ -401,6 +401,9 @@ body{
       <button class="level-btn" onclick="startGame('hard')">{{ t.g20_level_hard }}</button>
     </div>
     <div id="stats-box"></div>
+    <div style="margin-top:28px">
+      <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.g20_back }}</button>
+    </div>
   </div>
 </div>
 
@@ -472,7 +475,7 @@ body{
 <div id="toast-container"></div>
 
 <!-- ── Modal: Tab-Schutz ───────────────────── -->
-<div class="modal-overlay" id="tab-modal" style="z-index:110">
+<div class="modal-overlay" id="tab-modal" style="z-index:310">
   <div class="modal-box" style="text-align:center">
     <div style="font-size:2.5rem;margin-bottom:8px">🔀</div>
     <h2>{{ t.g20_tab_title }}</h2>
@@ -482,7 +485,7 @@ body{
 </div>
 
 <!-- ── Modal: Device-Schutz ───────────────── -->
-<div class="modal-overlay" id="device-modal" style="z-index:120">
+<div class="modal-overlay" id="device-modal" style="z-index:320">
   <div class="modal-box" style="text-align:center">
     <div style="font-size:2.5rem;margin-bottom:8px">📱</div>
     <h2>{{ t.g20_device_title }}</h2>

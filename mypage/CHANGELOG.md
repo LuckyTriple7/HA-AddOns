@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.83
+
+- 🎬 **Startbildschirm für alle drei Spiele vereinheitlicht** — auch 66 zeigt jetzt beim Öffnen einen Startbildschirm mit Schwierigkeitswahl (Leicht/Mittel/Schwer/Adaptiv) und Regelvariante (Standard/Oma) statt sofort eine Partie zu starten. Ein laufendes Spiel lässt sich über „Fortsetzen" weiterspielen. `/api/66/state` legt nicht mehr automatisch ein Spiel an.
+- 🔙 **„Zum Mitgliederbereich"-Button auf allen Startbildschirmen** — von 66, 20 AB und Schwimmen kommt man jetzt direkt aus dem Startbildschirm zurück zur Übersicht (der Overlay verdeckte zuvor den Schließen-Button der Topbar).
+- 🧱 **Z-Index korrigiert** — Tab-/Geräte-Hinweise (Session-Schutz) liegen nun zuverlässig über dem Startbildschirm, sodass „Hier übernehmen" auch dort bedienbar ist.
+
 ## 0.6.82
 
 - 🛠️ **Docker-Build-Fix** — der Dockerfile kopierte noch `game66.py` (in 0.6.81 zu `game_66.py` umbenannt) und nicht die neuen Spielmodule/Regeldateien. Jetzt werden `game_66.py`, `game_20ab.py`, `game_schwimmen.py` sowie die `game_*_rules_{de,en}.md` ins Image kopiert.
