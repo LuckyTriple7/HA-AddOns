@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.96
+
+- 🧩 **66-Startbildschirm: Layout korrigiert** — die Statistik wird jetzt komplett in einer Reihe dargestellt (die feste Maximalbreite der Startbox hatte das 6er-Raster auf 5+1 umgebrochen), und der „Zum Mitgliederbereich"-Button sitzt nun immer unten, unterhalb der Statistik (wie bei 20 AB/Schwimmen).
+
 ## 0.6.95
 
 - 🕒 **Admin: Sitzungs-Verlauf auf 100 erhöht** — das Sitzungs-Log speichert jetzt bis zu 100 Spielsitzungen pro Mitglied (vorher 50) und das Spiele-Fenster zeigt entsprechend bis zu 100 (vorher 30) an.
