@@ -167,7 +167,9 @@ body{
   top:50%;left:50%;transform:translate(-50%,-50%);
   font-size:13px;color:rgba(255,255,255,0.2);letter-spacing:2px;
 }
-.card.trump-suit{border-color:var(--gold)}
+/* Trumpf-Markierung: Gold-Ring per box-shadow (wirkt auch auf randlose Knoll-Karten,
+   reines border-color wäre dort unsichtbar, da .knoll-card border:none hat) */
+.card.trump-suit{border-color:var(--gold);box-shadow:0 0 0 2.5px var(--gold),0 2px 8px rgba(0,0,0,0.35)}
 .card.exchange-sel{opacity:0.4;border-color:#ff4444;box-shadow:0 0 10px rgba(255,68,68,0.5);transform:translateY(-10px)}
 
 /* ── Buttons ──────────────────────────────── */

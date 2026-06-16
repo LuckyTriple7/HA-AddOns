@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.93
+
+- 🟡 **20 AB: goldener Trumpf-Rahmen wieder sichtbar** — die Trumpfkarten auf der eigenen Hand sollten (wie bei 66) golden umrandet sein, was beim Knoll-Deck nicht zu sehen war: die Markierung nutzte nur `border-color`, Knoll-Karten haben aber gar keinen Rahmen. Jetzt wird der Trumpf wie bei 66 per Gold-`box-shadow`-Ring markiert, der auf beiden Decks greift.
+
 ## 0.6.92
 
 - 🏠 **Home-Assistant-Sensoren für den Live-Spielstatus** — das Add-on meldet jetzt zusätzlich, wer gerade spielt:
