@@ -288,6 +288,16 @@
       font-family: inherit; }
     .start-box .level-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--gold); }
     .start-box .level-btn.active { border-color: var(--gold); color: var(--gold); }
+    /* Statistik auf dem Startbildschirm (wie 20 AB / Schwimmen) */
+    #g66-stats-box { margin-top: 30px; }
+    #g66-stats-box .stats-title { font-size: 15px; opacity: 0.6; margin-bottom: 10px;
+      letter-spacing: 1px; text-transform: uppercase; }
+    .stats-grid { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .stat { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 10px 18px; min-width: 80px; }
+    .stat-val { font-size: 26px; font-weight: 700; color: var(--gold); }
+    .stat-label { font-size: 11px; opacity: 0.55; margin-top: 2px; }
+    #g66-stats-box .stats-empty { font-size: 13px; opacity: 0.4; padding: 8px 0; }
     @media (max-width: 520px) {
       .start-box h1 { font-size: 34px; }
       .start-box .level-btn { padding: 11px 18px; font-size: 15px; }
@@ -317,6 +327,7 @@
       <div style="margin-top:30px">
         <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.g66_back }}</button>
       </div>
+      <div id="g66-stats-box"></div>
     </div>
   </div>
   <div class="topbar">
@@ -562,6 +573,10 @@
     level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }},
     history: {{ t.g66_history|tojson }}, history_empty: {{ t.g66_history_empty|tojson }},
     history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }},
+    stats: {{ t.g66_stats|tojson }}, stats_games: {{ t.g66_stats_games|tojson }},
+    stats_wins: {{ t.g66_stats_wins|tojson }}, stats_losses: {{ t.g66_stats_losses|tojson }},
+    stats_winrate: {{ t.g66_stats_winrate|tojson }}, stats_streak: {{ t.g66_stats_streak|tojson }},
+    stats_best: {{ t.g66_stats_best|tojson }}, stats_empty: {{ t.g66_stats_empty|tojson }},
     settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }},
     suit_c: {{ t.g66_suit_c|tojson }}, suit_d: {{ t.g66_suit_d|tojson }},
     suit_h: {{ t.g66_suit_h|tojson }}, suit_s: {{ t.g66_suit_s|tojson }},
@@ -783,7 +798,38 @@
     $('start-rules-oma').classList.toggle('active', startRules === 'oma');
   }
   function hideStart(){ $('start-screen').classList.add('hidden'); }
-  function showStart(){ $('start-screen').classList.remove('hidden'); checkResume(); }
+  function showStart(){ $('start-screen').classList.remove('hidden'); checkResume(); renderStartStats(); }
+
+  // Statistik auf dem Startbildschirm (wie 20 AB / Schwimmen)
+  function calcStats66(games){
+    let wins = 0, losses = 0, streak = 0, best = 0;
+    games.forEach(gm => {
+      if (gm.winner === 'p'){ wins++; streak = Math.max(0, streak) + 1; }
+      else { losses++; streak = Math.min(0, streak) - 1; }
+      best = Math.max(best, streak);
+    });
+    return { wins, losses, total: wins + losses, streak, best_streak: best };
+  }
+  async function renderStartStats(){
+    const box = $('g66-stats-box');
+    if (!box) return;
+    const r = await api('/api/66/history');
+    const games = (r && r.games) || [];
+    if (!games.length){ box.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>'; return; }
+    const s = calcStats66(games);
+    const rate = s.total ? Math.round(s.wins / s.total * 100) : 0;
+    const streakText = s.streak > 0 ? s.streak + 'W' : (s.streak < 0 ? Math.abs(s.streak) + 'L' : '—');
+    box.innerHTML =
+      '<div class="stats-title">📊 ' + G.stats + '</div>' +
+      '<div class="stats-grid">' +
+        '<div class="stat"><div class="stat-val">' + s.total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+        '<div class="stat"><div class="stat-val" style="color:#4caf50">' + s.wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+        '<div class="stat"><div class="stat-val" style="color:#e57373">' + s.losses + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+        '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+        '<div class="stat"><div class="stat-val">' + streakText + '</div><div class="stat-label">' + G.stats_streak + '</div></div>' +
+        '<div class="stat"><div class="stat-val">' + s.best_streak + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+      '</div>';
+  }
   async function checkResume(){
     const v = await api('/api/66/state');
     const has = v && v.status && v.status !== 'no_game' && v.status !== 'match_over';
