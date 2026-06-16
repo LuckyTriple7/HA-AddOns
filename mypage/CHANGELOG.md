@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.81
+
+- 🎴 **Zwei neue Mitglieder-Kartenspiele: 20 AB und Schwimmen** — beide spielen server-autoritativ gegen zwei KI-Gegner, sind voll auf Deutsch/Englisch lokalisiert und erscheinen als eigene Kacheln im Mitgliederbereich (Vollfenster-Iframe wie 66). Spielstand, Verlauf und Statistik werden pro Mitglied gespeichert; Schwimmen zusätzlich mit Turniermodus. Spielregeln liegen als Markdown (DE/EN) vor und werden in der Spielseite eingeblendet.
+- 🃏 **Karten 7/8/9 ergänzt** — das Knoll-Deck enthält jetzt auch 7er, 8er und 9er (für 20 AB und Schwimmen).
+- 🔒 **Cross-Device-Session-Schutz für alle drei Spiele** — zusätzlich zum bestehenden Tab-Schutz (ein Browser) verhindert ein Session-Guard jetzt paralleles Spielen desselben Spielstands auf mehreren Geräten/Browsern: Beim Laden wird die Session beansprucht (Heartbeat alle 15 s, automatische Freigabe nach 30 s ohne Lebenszeichen oder beim Schließen). Ein anderes Gerät kann per „Hier übernehmen" übernehmen; gesperrte Aktionen liefern HTTP 423.
+- 🧹 **Einheitliche Dateinamen** — das 66-Spiel heißt nun konsistent `game_66.py` / `game_66.html` (analog `game_20ab`, `game_schwimmen`). URLs und Funktionsnamen unverändert.
+
 ## 0.6.80
 
 - 💅 **66: „Gespielte Karten"-Fenster kompakter & zentriert** — das Modal war fix 620px breit, wodurch die Karten linksbündig mit viel Leerraum standen. Jetzt passt sich die Box an den Karteninhalt an und die Kartenreihen sind horizontal zentriert. Im Browser verifiziert (Box ~405px statt 620, Inhalt mittig).

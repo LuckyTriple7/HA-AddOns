@@ -458,6 +458,15 @@
     </div>
   </div>
 
+  <div class="banner" id="device-modal" style="z-index:90">
+    <div class="box">
+      <div class="big">📱</div>
+      <h2>{{ t.g66_device_title }}</h2>
+      <p>{{ t.g66_device_text }}</p>
+      <button class="btn" id="device-takeover">{{ t.g66_device_takeover }}</button>
+    </div>
+  </div>
+
   <div class="banner" id="cut-modal">
     <div class="box">
       <h2>🎲 {{ t.g66_cut_title }}</h2>
@@ -630,9 +639,61 @@
     i.src = img(code); i.alt = code; return i;
   }
 
+  // ── Session-Schutz (Cross-Device) ───────────────────────────────────────
+  let sessionToken = null;
+  let heartbeatTimer = null;
+
+  async function claimSession(force){
+    try {
+      const r = await fetch('/api/66/session', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: force ? 'force' : 'claim'})
+      });
+      const d = await r.json();
+      if (d.locked){
+        $('device-modal').classList.add('show');
+        return false;
+      }
+      if (d.token){
+        sessionToken = d.token;
+        $('device-modal').classList.remove('show');
+        startHeartbeat();
+        return true;
+      }
+    } catch(e){}
+    return true;
+  }
+
+  function startHeartbeat(){
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      if (!sessionToken) return;
+      fetch('/api/66/session', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'heartbeat', token: sessionToken})
+      }).catch(() => {});
+    }, 15000);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (!sessionToken) return;
+    navigator.sendBeacon('/api/66/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  });
+
+  $('device-takeover').onclick = async () => {
+    await claimSession(true);
+    loadState();
+  };
+
   async function api(url, opts){
     try {
       const r = await fetch(url, opts);
+      if (r.status === 423){
+        $('device-modal').classList.add('show');
+        return null;
+      }
       if (r.status === 403){ $('hint').textContent = G.err; return null; }
       if (r.status === 409){ return await api('/api/66/state'); }
       return await r.json();
@@ -839,7 +900,10 @@
 
   async function doUndo(){
     if (busy || !canUndo) return; busy = true;
-    const r = await api('/api/66/undo', {method: 'POST'});
+    const r = await api('/api/66/undo', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token: sessionToken})
+    });
     canUndo = false; updateUndo();
     if (r && !r.error) { render(r); showToast(G.undo_toast); SFX.undo(); }
     busy = false;
@@ -849,7 +913,7 @@
     drawnCard = null;  // beim nächsten Zug verschwindet der blaue Rand
     const r = await api('/api/66/move', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action})
+      body: JSON.stringify({action, token: sessionToken})
     });
     if (r && !r.error && action.type !== 'next') { canUndo = true; updateUndo(); }
     await applyResult(r);
@@ -1429,7 +1493,7 @@
     rules = rules || curRules; level = level || curLevel;
     const r = await api('/api/66/new', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({rules, level})
+      body: JSON.stringify({rules, level, token: sessionToken})
     });
     await applyResult(r);
     busy = false;
@@ -1748,7 +1812,11 @@
   $('tab-resume').onclick = becomeActive;
   claim();          // dieser Tab beansprucht beim Laden die aktive Rolle
 
-  loadState();
+  // Session beim Laden beanspruchen, dann State holen
+  (async () => {
+    const ok = await claimSession(false);
+    if (ok) loadState();
+  })();
   </script>
 </body>
 </html>

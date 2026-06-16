@@ -1,0 +1,2106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>{{ t.gs_title }}</title>
+<style>
+/* ── Reset & Body ─────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--gold:#f1c40f;--felt1:#1a2a4a;--felt2:#0e1828}
+body{
+  font-family:'Segoe UI',Tahoma,sans-serif;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  color:#f0f0f0;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  overflow-x:hidden;
+  user-select:none;
+}
+
+/* ── Topbar ───────────────────────────────── */
+#topbar{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  padding:6px 16px;
+  background:rgba(0,0,0,0.4);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  flex-shrink:0;
+}
+#scorebar{display:flex;gap:28px;justify-content:center}
+.score-item{text-align:center;min-width:90px}
+.score-name{font-size:11px;opacity:0.6;display:block;margin-bottom:2px}
+.score-val{font-size:20px;font-weight:bold;transition:color 0.3s;letter-spacing:2px}
+.score-extra{font-size:11px;opacity:0.5;display:block;margin-top:1px}
+.score-item.active-player .score-val{color:var(--gold)}
+.score-item.dealer .score-name::after{content:' 🃏';font-size:10px}
+.score-item.swimming .score-val{color:#4fc3f7}
+.score-item.eliminated .score-val{opacity:0.3;text-decoration:line-through}
+#topbar-btns{display:flex;gap:6px;position:absolute;right:16px;top:50%;transform:translateY(-50%)}
+.top-btn{
+  background:rgba(255,255,255,0.12);border:none;color:#fff;
+  font-size:1.1rem;cursor:pointer;border-radius:8px;
+  width:34px;height:34px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color 0.2s,background 0.2s;
+}
+.top-btn:hover{color:#fff;background:rgba(255,255,255,0.22)}
+
+/* ── Spielbereich ─────────────────────────── */
+#game-area{
+  flex:1;display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:10px 16px;
+  max-width:800px;width:100%;margin:0 auto;
+}
+
+/* ── Gegner ───────────────────────────────── */
+#opponents{display:flex;justify-content:space-between;gap:16px;padding:0 12px}
+.opponent{text-align:center;flex:1}
+.opp-label{font-size:13px;margin-bottom:6px;opacity:0.7}
+.opp-hand{display:flex;justify-content:center;gap:4px;flex-wrap:nowrap}
+.opp-hand .card{width:clamp(40px,8vw,65px);height:clamp(58px,12vh,95px)}
+.opp-hand .card.back::after{font-size:11px;letter-spacing:1px}
+
+/* ── Tisch ────────────────────────────────── */
+#play-area{
+  display:flex;flex-direction:column;align-items:center;
+  min-height:200px;justify-content:center;
+  position:relative;
+}
+#table-label{font-size:13px;opacity:0.5;margin-bottom:8px}
+#table-cards{
+  display:flex;justify-content:center;gap:clamp(12px, 3vw, 24px);
+  min-height:clamp(100px, 20vh, 160px);align-items:flex-end;
+}
+#table-cards .card{transition:transform 0.15s,box-shadow 0.15s}
+#table-cards .card.target{cursor:pointer;touch-action:manipulation}
+#table-cards .card.target:hover{transform:translateY(-10px);box-shadow:0 0 16px rgba(76,175,80,0.7)}
+#table-cards .card.target-active{box-shadow:0 0 0 3px rgba(76,175,80,0.8),0 4px 12px rgba(76,175,80,0.4)}
+@keyframes cardFade{from{opacity:0}to{opacity:1}}
+#table-cards .card{animation:cardFade 0.26s ease}
+#table-cards.no-fade .card{animation:none}
+#info-text{
+  margin-top:10px;font-size:15px;text-align:center;
+  min-height:24px;opacity:0.8;
+}
+#knock-info{
+  text-align:center;font-size:13px;margin-top:4px;
+  color:#ffab40;font-weight:bold;display:none;
+}
+
+/* ── Spielerhand ──────────────────────────── */
+#player-area{text-align:center;padding-bottom:10px}
+#player-label{font-size:13px;margin-bottom:5px;opacity:0.7}
+#player-hand{
+  display:flex;justify-content:center;gap:clamp(8px, 2vw, 18px);
+  min-height:clamp(90px, 20vh, 150px);align-items:flex-end;
+  flex-wrap:wrap;
+}
+#hand-value{font-size:13px;opacity:0.55;margin-top:4px}
+#actions{margin-top:12px;min-height:44px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+
+/* ── Karten ───────────────────────────────── */
+.card{
+  width:clamp(56px, 13vw, 95px);height:clamp(82px, 19vh, 140px);border-radius:10px;
+  position:relative;display:inline-block;
+  border:2px solid #555;background:#fff;
+  box-shadow:2px 3px 8px rgba(0,0,0,0.22);
+  transition:transform 0.15s,box-shadow 0.15s,opacity 0.2s;
+  vertical-align:bottom;flex-shrink:0;
+}
+.card.knoll-card{background:transparent;border:none;box-shadow:none;overflow:hidden;padding:0}
+.card.knoll-card img{width:100%;height:100%;object-fit:contain;pointer-events:none;border-radius:10px}
+.card.knoll-card.back{background:transparent}
+.card.knoll-card.back::after{display:none}
+.card .c-tl{position:absolute;top:5px;left:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15}
+.card .c-br{position:absolute;bottom:5px;right:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15;transform:rotate(180deg)}
+.card .c-mid{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:clamp(24px, 5vw, 38px)}
+.card.red{color:#cc0000}
+.card.black{color:#1a1a1a}
+.card.playable{cursor:pointer;touch-action:manipulation}
+.card.playable:hover{transform:translateY(-14px);box-shadow:0 0 16px rgba(255,215,0,0.7)}
+.card.selected{transform:translateY(-14px);border-color:var(--gold);box-shadow:0 0 20px rgba(241,196,15,0.7)}
+.card.dimmed{opacity:0.4;cursor:default}
+.card.back{
+  background:linear-gradient(135deg,#1a3c5c 0%,#2a5c8c 50%,#1a3c5c 100%);
+  border-color:#0a2a4c;cursor:default;overflow:hidden;
+}
+.card.back::before{
+  content:'';position:absolute;
+  top:5px;left:5px;right:5px;bottom:5px;
+  border:1.5px solid rgba(255,255,255,0.15);
+  border-radius:6px;
+}
+.card.back::after{
+  content:'♠♥♦♣';position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:13px;color:rgba(255,255,255,0.2);letter-spacing:2px;
+}
+
+/* ── Buttons ──────────────────────────────── */
+.btn{
+  padding:10px 24px;border:none;border-radius:8px;
+  font-size:15px;cursor:pointer;
+  transition:background 0.2s,transform 0.1s;
+  font-family:inherit;
+}
+.btn:active{transform:scale(0.96)}
+.btn-gold{background:#d4a017;color:#1a1a1a;font-weight:bold}
+.btn-gold:hover{background:#e8b82a}
+.btn-red{background:#8b3030;color:#f0f0f0}
+.btn-red:hover{background:#a04040}
+.btn-ghost{background:rgba(255,255,255,0.14);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:0.86rem;cursor:pointer}
+.btn-ghost:hover{background:rgba(255,255,255,0.22)}
+.btn-action{
+  padding:10px 20px;border:2px solid rgba(255,255,255,0.2);border-radius:10px;
+  background:rgba(255,255,255,0.06);color:#f0f0f0;font-size:14px;cursor:pointer;
+  transition:background 0.2s,border-color 0.2s;font-family:inherit;
+}
+.btn-action:hover{background:rgba(255,255,255,0.15);border-color:var(--gold)}
+.btn-action.knock{border-color:#ffab40;color:#ffab40}
+.btn-action.knock:hover{background:rgba(255,171,64,0.15)}
+
+/* ── Modals ───────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.65);z-index:100;
+  justify-content:center;align-items:center;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  background:#1a2a4a;border:1px solid rgba(255,255,255,0.15);
+  border-radius:14px;padding:24px 32px;
+  text-align:center;max-width:480px;width:92%;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  max-height:90vh;overflow-y:auto;
+}
+.modal-box.wide{max-width:750px}
+.scrollbox{max-height:62vh;overflow-y:auto;text-align:left;margin:6px 0 14px;padding-right:6px}
+.scrollbox.md{font-size:0.86rem;line-height:1.5}
+.scrollbox.md h1{font-size:1.2rem;margin:12px 0 6px}
+.scrollbox.md h2{font-size:1.05rem;margin:14px 0 6px;border:0}
+.scrollbox.md h3{font-size:0.95rem;margin:10px 0 4px}
+.scrollbox.md p{opacity:0.92;margin:6px 0}
+.scrollbox.md ul,.scrollbox.md ol{margin:6px 0 6px 18px}
+.scrollbox.md li{margin:3px 0}
+.scrollbox.md hr{border:0;border-top:1px solid rgba(255,255,255,0.15);margin:14px 0}
+.scrollbox.md table{border-collapse:collapse;width:100%;margin:8px 0;font-size:0.8rem}
+.scrollbox.md th,.scrollbox.md td{border:1px solid rgba(255,255,255,0.18);padding:5px 8px;text-align:left}
+.scrollbox.md th{background:rgba(255,255,255,0.08)}
+.scrollbox.md strong{color:#f1c40f}
+.modal-box h2{font-size:22px;margin-bottom:12px}
+.modal-box p{font-size:14px;margin:6px 0;opacity:0.85}
+.modal-box .emoji{font-size:44px;margin:8px 0}
+
+/* ── Rundenergebnis ───────────────────────── */
+.result-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+.result-table th,.result-table td{padding:6px 10px;text-align:center}
+.result-table th{opacity:0.6;font-weight:normal;border-bottom:1px solid rgba(255,255,255,0.1)}
+.result-table td.loser{color:#ff6666}
+.result-table td.winner-val{color:#66ff66}
+.result-table td.swimming{color:#4fc3f7}
+.result-table td.elim{color:#888;text-decoration:line-through}
+.result-cards{display:flex;gap:6px;justify-content:center}
+.result-cards .mini-card{
+  display:inline-block;padding:2px 6px;border-radius:4px;
+  background:rgba(255,255,255,0.1);font-size:13px;font-weight:bold;
+}
+.result-cards .mini-card.red{color:#cc0000}
+
+/* ── Settings ─────────────────────────────── */
+.setting{text-align:left;margin:12px 0;width:min(340px,80vw)}
+.setting label{display:block;font-size:0.86rem;margin-bottom:7px}
+.setting label b{color:var(--gold);font-variant-numeric:tabular-nums}
+.setting input[type=range]{width:100%;accent-color:var(--gold)}
+.setting-hint{font-size:0.74rem;opacity:0.7;margin:4px 0 16px;max-width:340px}
+.setting-check{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.86rem}
+.setting-check input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold)}
+
+/* ── Toasts ───────────────────────────────── */
+#toast-container{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  z-index:200;display:flex;flex-direction:column;gap:6px;
+  align-items:center;pointer-events:none;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.toast{
+  background:rgba(0,0,0,0.82);color:#fff;
+  padding:7px 18px;border-radius:8px;font-size:14px;
+  font-weight:600;white-space:nowrap;
+  animation:toastIn 0.3s ease;
+  transition:opacity 0.4s;
+  pointer-events:none;
+}
+.toast.gold{background:rgba(241,196,15,0.92);color:#20160a}
+.toast.info{background:rgba(0,80,160,0.85)}
+.toast.danger{background:rgba(180,30,30,0.9)}
+
+/* ── Startscreen ──────────────────────────── */
+#start-screen{
+  display:flex;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  z-index:300;
+  justify-content:center;align-items:center;
+}
+#start-screen.hidden{display:none}
+.start-box{text-align:center}
+.start-box h1{font-size:52px;margin-bottom:6px;color:var(--gold)}
+.start-box .sub{font-size:17px;opacity:0.7;margin-bottom:32px}
+.start-box .levels{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.start-box .level-btn{
+  padding:14px 28px;border:2px solid rgba(255,255,255,0.2);
+  border-radius:10px;background:rgba(255,255,255,0.06);
+  color:#f0f0f0;font-size:17px;cursor:pointer;
+  transition:background 0.2s,border-color 0.2s;
+  font-family:inherit;
+}
+.start-box .level-btn:hover{background:rgba(255,255,255,0.15);border-color:var(--gold)}
+
+#stats-box{margin-top:28px;text-align:center}
+#stats-box .stats-title{font-size:15px;opacity:0.6;margin-bottom:10px;letter-spacing:1px;text-transform:uppercase}
+.stats-grid{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.stat{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:10px 18px;min-width:80px;
+}
+.stat-val{font-size:26px;font-weight:700;color:var(--gold)}
+.stat-label{font-size:11px;opacity:0.55;margin-top:2px}
+#stats-box .stats-empty{font-size:13px;opacity:0.4;padding:8px 0}
+.stats-history{margin-top:14px;max-height:240px;overflow-y:auto;text-align:left}
+.hist-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px}
+.hist-row.win{background:rgba(76,175,80,0.08)}
+.hist-ico{font-size:16px;flex-shrink:0}
+.hist-meta{opacity:0.55;flex:1;white-space:nowrap}
+.hist-score{font-size:11px;opacity:0.7;white-space:nowrap}
+
+/* ── Zughistorie Side Panel ──────────────── */
+.game-log{
+  position:fixed;right:0;top:0;bottom:0;width:min(300px,80vw);
+  overflow-y:auto;background:rgba(10,18,36,0.96);
+  padding:48px 14px 14px;
+  font-size:12px;z-index:90;
+  border-left:1px solid rgba(255,255,255,0.12);
+  transform:translateX(100%);
+  transition:transform 0.3s cubic-bezier(.4,0,.2,1);
+  backdrop-filter:blur(6px);
+}
+.game-log.show{transform:translateX(0)}
+.log-close{
+  position:absolute;top:10px;right:12px;background:none;border:none;
+  color:#fff;font-size:20px;cursor:pointer;opacity:0.6;
+}
+.log-close:hover{opacity:1}
+.game-log .log-entry{
+  padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex;align-items:center;gap:8px;
+  animation:logSlide 0.2s ease;
+}
+@keyframes logSlide{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.game-log .log-entry .log-icon{font-size:14px;flex-shrink:0;width:18px;text-align:center}
+.game-log .log-entry .log-name{font-weight:600;font-size:11px;min-width:50px;flex-shrink:0}
+.game-log .log-entry .log-name.is-player{color:var(--gold)}
+.game-log .log-entry .log-name.is-ai{color:#4fc3f7}
+.game-log .log-entry .log-text{opacity:0.8;flex:1}
+.game-log .log-round{
+  color:var(--gold);font-weight:700;opacity:1;margin-top:10px;
+  padding:6px 8px 4px;font-size:13px;
+  border-bottom:1px solid rgba(241,196,15,0.2);
+}
+.game-log .log-round:first-child{margin-top:0}
+
+/* ── Card Flip Animation ─────────────────── */
+.card-flip-container{
+  perspective:600px;display:inline-block;
+  width:clamp(40px,8vw,65px);height:clamp(58px,12vh,95px);
+}
+.card-flip-inner{
+  position:relative;width:100%;height:100%;
+  transition:transform 0.6s ease;
+  transform-style:preserve-3d;
+}
+.card-flip-container.flipped .card-flip-inner{transform:rotateY(180deg)}
+.card-flip-front,.card-flip-back{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  backface-visibility:hidden;border-radius:10px;
+}
+.card-flip-back{transform:rotateY(0deg)}
+.card-flip-front{transform:rotateY(180deg)}
+.card-flip-front .card,.card-flip-back .card{
+  width:100%;height:100%;margin:0;
+}
+.opp-hand .card-flip-container .card .c-tl{font-size:clamp(10px,1.8vw,14px)}
+.opp-hand .card-flip-container .card .c-br{font-size:clamp(10px,1.8vw,14px)}
+.opp-hand .card-flip-container .card .c-mid{font-size:clamp(18px,4vw,28px)}
+
+/* ── Hint-Glow ───────────────────────────── */
+@keyframes hintGlow{
+  0%,100%{box-shadow:0 0 8px rgba(76,175,80,0.4)}
+  50%{box-shadow:0 0 22px rgba(76,175,80,0.9)}
+}
+.card.hint-glow{animation:hintGlow 1s ease-in-out infinite !important;border-color:#4caf50 !important}
+
+/* ── Tournament Bar ──────────────────────── */
+#tournament-bar{
+  display:none;text-align:center;padding:3px 16px;
+  background:rgba(241,196,15,0.1);
+  border-bottom:1px solid rgba(241,196,15,0.15);
+  font-size:12px;color:var(--gold);letter-spacing:0.3px;
+  flex-shrink:0;
+}
+#tournament-bar.show{display:block}
+
+/* ── Tournament Select ───────────────────── */
+.tourn-select{
+  background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+  color:#f0f0f0;padding:5px 10px;border-radius:8px;font-size:14px;
+  font-family:inherit;cursor:pointer;
+}
+
+/* ── prefers-reduced-motion ───────────────── */
+@media(prefers-reduced-motion:reduce){
+  #table-cards .card{animation:none}
+  .toast{animation:none}
+}
+
+/* ── Mobile / Touch ───────────────────────── */
+@media(max-width:600px){
+  #scorebar{gap:14px}
+  .score-val{font-size:16px}
+  .score-name{font-size:10px}
+  #player-hand{gap:8px}
+  .opp-hand{gap:3px}
+  #game-area{padding:6px 8px}
+  #topbar{padding:6px 8px}
+  #topbar-btns{gap:2px}
+  .top-btn{width:36px;height:36px;font-size:17px;padding:2px}
+  .btn{min-width:48px;min-height:48px;padding:12px 18px}
+  .btn-action{padding:10px 16px;font-size:14px;min-height:48px}
+  .card{width:clamp(60px,18vw,80px);height:clamp(88px,26vh,120px)}
+  .opp-hand .card{width:clamp(36px,10vw,50px);height:clamp(52px,14vh,74px)}
+  .card-flip-container{width:clamp(36px,10vw,50px);height:clamp(52px,14vh,74px)}
+  .game-log{width:min(260px,85vw);padding:44px 10px 10px}
+  #actions{gap:8px}
+  .modal-box{padding:18px 16px;width:96%}
+  .result-table{font-size:12px}
+  .result-table th,.result-table td{padding:4px 6px}
+  .stats-grid{gap:8px}
+  .stat{padding:8px 12px;min-width:65px}
+  .stat-val{font-size:20px}
+  .start-box h1{font-size:36px}
+  .start-box .sub{font-size:14px;margin-bottom:20px}
+  .start-box .level-btn{padding:12px 22px;font-size:15px}
+}
+@media(max-width:400px){
+  #scorebar{gap:6px;padding:4px 4px}
+  .score-val{font-size:13px}
+  .score-name{font-size:9px}
+  .score-extra{font-size:10px}
+  .modal-box{padding:14px 12px}
+  .card{width:clamp(52px,20vw,70px);height:clamp(76px,28vh,100px)}
+  .btn-action{padding:8px 12px;font-size:13px}
+  #actions{gap:6px}
+  .start-box h1{font-size:28px}
+}
+@media(pointer:coarse){
+  .card.playable{-webkit-tap-highlight-color:transparent}
+  .card.playable:active{transform:translateY(-14px) scale(1.05)}
+  .card.target:active{transform:translateY(-10px) scale(1.05)}
+  .top-btn{width:42px;height:42px}
+  .btn-action{min-height:48px;min-width:48px}
+  .btn{min-height:48px}
+}
+@media(max-height:600px){
+  #play-area{min-height:140px}
+  #opponents{padding:0 6px}
+  .opp-hand .card{height:clamp(44px,10vh,65px)}
+  .card-flip-container{height:clamp(44px,10vh,65px)}
+  #player-hand{min-height:clamp(70px,16vh,110px)}
+}
+@media(max-width:600px) and (orientation:landscape){
+  #game-area{flex-direction:row;flex-wrap:wrap;padding:4px}
+  #opponents{flex:0 0 100%;padding:0}
+  #play-area{flex:1;min-height:100px}
+  #player-area{flex:1}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Startbildschirm ─────────────────────── -->
+<div id="start-screen">
+  <div class="start-box">
+    <h1>🏊 {{ t.gs_title }}</h1>
+    <div class="sub">{{ t.gs_subtitle }}</div>
+    <div id="resume-box" style="display:none;margin-bottom:18px">
+      <button class="level-btn" style="border-color:var(--gold);color:var(--gold);font-size:18px;padding:16px 36px" onclick="resumeGame()">▶ {{ t.gs_resume }}</button>
+    </div>
+    <div class="levels">
+      <button class="level-btn" onclick="startGame('easy')">{{ t.gs_level_easy }}</button>
+      <button class="level-btn" onclick="startGame('medium')">{{ t.gs_level_medium }}</button>
+      <button class="level-btn" onclick="startGame('hard')">{{ t.gs_level_hard }}</button>
+    </div>
+    <div style="margin-top:24px">
+      <div style="font-size:15px;opacity:0.7;margin-bottom:8px">🏆 {{ t.gs_tournament }}</div>
+      <div style="margin-bottom:10px">
+        <select id="tournament-games" class="tourn-select">
+          <option value="3">3 Spiele</option>
+          <option value="5" selected>5 Spiele</option>
+          <option value="7">7 Spiele</option>
+        </select>
+      </div>
+      <div class="levels">
+        <button class="level-btn" onclick="startTournament('easy')">{{ t.gs_level_easy }}</button>
+        <button class="level-btn" onclick="startTournament('medium')">{{ t.gs_level_medium }}</button>
+        <button class="level-btn" onclick="startTournament('hard')">{{ t.gs_level_hard }}</button>
+      </div>
+    </div>
+    <div id="stats-box"></div>
+  </div>
+</div>
+
+<!-- ── Topbar mit Lives + Buttons ─────────── -->
+<div id="topbar">
+  <div id="scorebar">
+    <div class="score-item" id="si-a1">
+      <span class="score-name" id="sn-a1">{{ t.gs_ai1 }}</span>
+      <span class="score-val" id="sv-a1">♥♥♥</span>
+      <span class="score-extra" id="se-a1"></span>
+    </div>
+    <div class="score-item" id="si-p">
+      <span class="score-name" id="sn-p">{{ t.gs_player }}</span>
+      <span class="score-val" id="sv-p">♥♥♥</span>
+      <span class="score-extra" id="se-p"></span>
+    </div>
+    <div class="score-item" id="si-a2">
+      <span class="score-name" id="sn-a2">{{ t.gs_ai2 }}</span>
+      <span class="score-val" id="sv-a2">♥♥♥</span>
+      <span class="score-extra" id="se-a2"></span>
+    </div>
+  </div>
+  <div id="topbar-btns">
+    <button class="top-btn" id="btn-rules" title="{{ t.gs_rulesdoc }}">⚖</button>
+    <button class="top-btn" id="btn-stats" title="{{ t.gs_stats }}" onclick="openStats()">🏅</button>
+    <button class="top-btn" onclick="openSettings()" title="{{ t.gs_settings }}">⚙</button>
+    <button class="top-btn" id="btn-undo" title="{{ t.gs_undo }}" style="display:none">↶</button>
+    <button class="top-btn" id="btn-log" title="Verlauf" onclick="toggleLog()">≡</button>
+    <button class="top-btn" onclick="confirmNewGame()" title="{{ t.gs_new_game }}">↻</button>
+    <button class="top-btn" onclick="closeGame()" title="Schließen">✕</button>
+  </div>
+</div>
+
+<div id="tournament-bar"></div>
+
+<!-- ── Spielbereich ────────────────────────── -->
+<div id="game-area">
+  <div id="opponents">
+    <div class="opponent">
+      <div class="opp-label" id="label-a1">{{ t.gs_ai1 }}</div>
+      <div class="opp-hand" id="hand-a1"></div>
+    </div>
+    <div class="opponent">
+      <div class="opp-label" id="label-a2">{{ t.gs_ai2 }}</div>
+      <div class="opp-hand" id="hand-a2"></div>
+    </div>
+  </div>
+
+  <div id="play-area">
+    <div id="table-label">{{ t.gs_table_cards }}</div>
+    <div id="table-cards"></div>
+    <div id="info-text"></div>
+    <div id="knock-info"></div>
+  </div>
+
+  <div id="player-area">
+    <div id="player-label">{{ t.gs_player }}</div>
+    <div id="player-hand"></div>
+    <div id="hand-value"></div>
+    <div id="actions"></div>
+  </div>
+</div>
+
+<!-- ── Spielverlauf (Side Panel) ───────────── -->
+<div class="game-log" id="game-log">
+  <button class="log-close" onclick="toggleLog()" title="Schließen">✕</button>
+  <div id="game-log-content"></div>
+</div>
+
+<!-- ── Toasts ──────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── Modal: Tab-Schutz ───────────────────── -->
+<div class="modal-overlay" id="tab-modal" style="z-index:110">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">🔀</div>
+    <h2>{{ t.gs_tab_title }}</h2>
+    <p>{{ t.gs_tab_text }}</p>
+    <button class="btn btn-gold" id="tab-resume">{{ t.gs_tab_resume }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Device-Schutz ───────────────── -->
+<div class="modal-overlay" id="device-modal" style="z-index:120">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">📱</div>
+    <h2>{{ t.gs_device_title }}</h2>
+    <p>{{ t.gs_device_text }}</p>
+    <button class="btn btn-gold" id="device-takeover">{{ t.gs_device_takeover }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Rundenergebnis ──────────────── -->
+<div class="modal-overlay" id="modal-round">
+  <div class="modal-box">
+    <h2 id="round-title">{{ t.gs_round_result }}</h2>
+    <div id="round-hands"></div>
+    <table class="result-table" id="result-table">
+      <thead><tr><th>Spieler</th><th>Karten</th><th>Wert</th><th>{{ t.gs_lives }}</th></tr></thead>
+      <tbody id="result-body"></tbody>
+    </table>
+    <div id="round-extras"></div>
+    <button class="btn btn-gold" onclick="nextRound()" style="margin-top:12px" id="btn-next-round">{{ t.gs_next_round }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielende ───────────────────── -->
+<div class="modal-overlay" id="modal-gameover">
+  <div class="modal-box">
+    <div class="emoji" id="go-emoji">🏆</div>
+    <h2 id="go-title">{{ t.gs_game_over }}</h2>
+    <p id="go-text"></p>
+    <div id="go-scores"></div>
+    <div id="go-tournament" style="display:none;margin-top:12px;padding:10px;border-radius:10px;background:rgba(241,196,15,0.08)"></div>
+    <button class="btn btn-gold" id="go-btn" onclick="showStart()" style="margin-top:14px">{{ t.gs_new_game }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Statistik ──────────────────── -->
+<div class="modal-overlay" id="stats-modal">
+  <div class="modal-box">
+    <h2>📊 {{ t.gs_stats }}</h2>
+    <div id="stats-modal-content"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-ghost" onclick="resetStatsConfirm()" style="font-size:12px;opacity:0.5">{{ t.gs_stats_reset }}</button>
+      <button class="btn btn-gold" onclick="closeStats()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Einstellungen ───────────────── -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-box">
+    <h2>⚙ {{ t.gs_settings }}</h2>
+    <div class="setting">
+      <label>{{ t.gs_speed_label }}: <b id="val-ai-speed">0,7s</b></label>
+      <input type="range" id="set-ai-speed" min="200" max="2000" step="100" value="700">
+    </div>
+    <div class="setting">
+      <label>{{ t.gs_speed_fly }}: <b id="val-fly">0,38s</b></label>
+      <input type="range" id="set-fly" min="120" max="1000" step="20" value="380">
+    </div>
+    <div class="setting">
+      <label>{{ t.gs_speed_toast }}: <b id="val-toast">2,2s</b></label>
+      <input type="range" id="set-toast" min="1500" max="5000" step="100" value="2200">
+    </div>
+    <p class="setting-hint">{{ t.gs_settings_hint }}</p>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-sound" checked>
+        {{ t.gs_sound_label }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.gs_sound_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:16px">
+      <label style="font-size:0.86rem;font-weight:700">{{ t.gs_keyboard }}</label>
+      <p class="setting-hint" style="margin-top:4px">
+        <b>1-3</b> Handkarte wählen &nbsp; <b>4-6</b> Tischkarte tauschen<br>
+        <b>A</b> Alle tauschen &nbsp; <b>P</b> Passen &nbsp; <b>K</b> Klopfen<br>
+        <b>H</b> {{ t.gs_hint }} &nbsp; <b>U</b> {{ t.gs_undo }} &nbsp; <b>Enter</b> Nächste Runde<br>
+        <b>Esc</b> Schließen
+      </p>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn-ghost" id="btn-settings-reset">{{ t.gs_reset }}</button>
+      <button class="btn btn-gold" onclick="closeSettings()">✕</button>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-gold" onclick="showStart();closeSettings();" style="width:100%">{{ t.gs_new_game }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Spielregeln ─────────────────── -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal-box wide">
+    <h2>📖 {{ t.gs_rulesdoc }}</h2>
+    <div class="scrollbox md" id="rules-body">Lade Regeln…</div>
+    <button class="btn btn-gold" onclick="closeRules()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<script>
+/* ── Konstanten ────────────────────────────── */
+const CARD_DECK = {{ card_deck|tojson }};
+const G = {
+  title:        {{ t.gs_title|tojson }},
+  player:       {{ t.gs_player|tojson }},
+  ai1:          {{ t.gs_ai1|tojson }},
+  ai2:          {{ t.gs_ai2|tojson }},
+  your_turn:    {{ t.gs_your_turn|tojson }},
+  swap_one:     {{ t.gs_swap_one|tojson }},
+  swap_all:     {{ t.gs_swap_all|tojson }},
+  pass_btn:     {{ t.gs_pass|tojson }},
+  knock:        {{ t.gs_knock|tojson }},
+  next_round:   {{ t.gs_next_round|tojson }},
+  round:        {{ t.gs_round|tojson }},
+  round_result: {{ t.gs_round_result|tojson }},
+  hand_value:   {{ t.gs_hand_value|tojson }},
+  lives:        {{ t.gs_lives|tojson }},
+  game_over:    {{ t.gs_game_over|tojson }},
+  you_win:      {{ t.gs_you_win|tojson }},
+  you_lose:     {{ t.gs_you_lose|tojson }},
+  swimming:     {{ t.gs_swimming|tojson }},
+  eliminated:   {{ t.gs_eliminated|tojson }},
+  feuer:        {{ t.gs_feuer|tojson }},
+  thirty_one:   {{ t.gs_thirty_one|tojson }},
+  knocked:      {{ t.gs_knocked|tojson }},
+  all_passed:   {{ t.gs_all_passed|tojson }},
+  loses_life:   {{ t.gs_loses_life|tojson }},
+  loses_two:    {{ t.gs_loses_two|tojson }},
+  select_hand:  {{ t.gs_select_hand|tojson }},
+  select_table: {{ t.gs_select_table|tojson }},
+  settings:     {{ t.gs_settings|tojson }},
+  undo:         {{ t.gs_undo|tojson }},
+  undo_toast:   {{ t.gs_undo_toast|tojson }},
+  new_game:     {{ t.gs_new_game|tojson }},
+  plays:        {{ t.gs_plays|tojson }},
+  passes:       {{ t.gs_passes|tojson }},
+  swaps:        {{ t.gs_swaps|tojson }},
+  swaps_all:    {{ t.gs_swaps_all|tojson }},
+  knocks:       {{ t.gs_knocks|tojson }},
+  stats:        {{ t.gs_stats|tojson }},
+  stats_wins:   {{ t.gs_stats_wins|tojson }},
+  stats_losses: {{ t.gs_stats_losses|tojson }},
+  stats_games:  {{ t.gs_stats_games|tojson }},
+  stats_winrate:{{ t.gs_stats_winrate|tojson }},
+  stats_streak: {{ t.gs_stats_streak|tojson }},
+  stats_best:   {{ t.gs_stats_best|tojson }},
+  stats_reset:  {{ t.gs_stats_reset|tojson }},
+  stats_empty:  {{ t.gs_stats_empty|tojson }},
+  resume:       {{ t.gs_resume|tojson }},
+  rulesdoc:     {{ t.gs_rulesdoc|tojson }},
+  end_scores:   {{ t.gs_end_scores|tojson }},
+  table_cards:  {{ t.gs_table_cards|tojson }},
+  all_passed:   {{ t.gs_all_passed|tojson }},
+  hint:         {{ t.gs_hint|tojson }},
+  hint_swap:    {{ t.gs_hint_swap|tojson }},
+  hint_swap_all:{{ t.gs_hint_swap_all|tojson }},
+  hint_pass:    {{ t.gs_hint_pass|tojson }},
+  hint_knock:   {{ t.gs_hint_knock|tojson }},
+  hint_for:     {{ t.gs_hint_for|tojson }},
+  tournament:   {{ t.gs_tournament|tojson }},
+  tourn_game:   {{ t.gs_tournament_game|tojson }},
+  tourn_next:   {{ t.gs_tournament_next|tojson }},
+  tourn_over:   {{ t.gs_tournament_over|tojson }},
+  tourn_win:    {{ t.gs_tournament_win|tojson }},
+  tourn_lose:   {{ t.gs_tournament_lose|tojson }},
+  stats_avg:    {{ t.gs_stats_avg|tojson }},
+  stats_best_hand: {{ t.gs_stats_best_hand|tojson }},
+  stats_fav:    {{ t.gs_stats_fav_action|tojson }},
+  stats_swaps:  {{ t.gs_stats_swaps|tojson }},
+  stats_passes: {{ t.gs_stats_passes|tojson }},
+  stats_knocks: {{ t.gs_stats_knocks|tojson }},
+  stats_swaps_all: {{ t.gs_stats_swaps_all|tojson }},
+  ai_thinking: {{ t.gs_ai_thinking|tojson }},
+};
+
+const SUIT_SYM = {h:'♥', d:'♦', s:'♠', c:'♣'};
+const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
+const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
+const NAMES = {p:G.player, a1:G.ai1, a2:G.ai2};
+
+function cardName(c){ return RANK_DISP[c[1]] + ' ' + SUIT_SYM[c[0]]; }
+function livesStr(n, alive){
+  if(!alive) return '💀';
+  if(n === 0) return '🏊';
+  return '♥'.repeat(n) + '♡'.repeat(3 - n);
+}
+
+const $ = id => document.getElementById(id);
+
+/* ── State ─────────────────────────────────── */
+let gameState = null;
+let aiRunning = false;
+let canUndo = false;
+let selectedHandCard = null;
+let gameLog = [];
+let tournamentState = null;
+let hintTimer = null;
+
+/* ── Einstellungen (localStorage) ──────────── */
+function clampInt(v, lo, hi, def){ const n = parseInt(v); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); }
+const FLY_DEFAULT = 380, TOAST_DEFAULT = 2200, AISPEED_DEFAULT = 700;
+let aiDelay = clampInt(localStorage.getItem('gs_ai_speed'), 200, 2000, AISPEED_DEFAULT);
+let flyMs    = clampInt(localStorage.getItem('gs_fly'), 120, 1000, FLY_DEFAULT);
+let toastMs  = clampInt(localStorage.getItem('gs_toast'), 1500, 5000, TOAST_DEFAULT);
+let soundOn  = localStorage.getItem('gs_sound') !== '0';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const fmtSec = ms => (ms/1000).toFixed(2).replace('.',',') + 's';
+
+function initSettings(){
+  const bind = (id, varGet, varSet, fmt) => {
+    const el = $(id);
+    el.value = varGet();
+    const valEl = $('val-' + id.replace('set-',''));
+    if(valEl) valEl.textContent = fmt(varGet());
+    el.oninput = () => { varSet(parseInt(el.value)); if(valEl) valEl.textContent = fmt(varGet()); };
+  };
+  bind('set-ai-speed', ()=>aiDelay, v=>{aiDelay=v;localStorage.setItem('gs_ai_speed',v)}, fmtSec);
+  bind('set-fly', ()=>flyMs, v=>{flyMs=v;localStorage.setItem('gs_fly',v)}, fmtSec);
+  bind('set-toast', ()=>toastMs, v=>{toastMs=v;localStorage.setItem('gs_toast',v)}, fmtSec);
+
+  const snd = $('set-sound');
+  snd.checked = soundOn;
+  snd.onchange = () => { soundOn = snd.checked; localStorage.setItem('gs_sound', soundOn?'1':'0'); if(soundOn) SFX.swap(); };
+
+  $('btn-settings-reset').onclick = () => {
+    aiDelay=AISPEED_DEFAULT; flyMs=FLY_DEFAULT; toastMs=TOAST_DEFAULT; soundOn=true;
+    ['gs_ai_speed','gs_fly','gs_toast','gs_sound'].forEach(k=>localStorage.removeItem(k));
+    initSettings();
+  };
+}
+
+function openSettings(){ initSettings(); $('settings-modal').classList.add('show'); }
+function closeSettings(){ $('settings-modal').classList.remove('show'); }
+
+/* ── Sound (Web Audio) ─────────────────────── */
+let audioCtx = null;
+function getAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, dur, type, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = vol || 0.1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e){}
+}
+function playNoise(dur, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (vol||0.1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(gain); gain.connect(ctx.destination);
+    src.start();
+  } catch(e){}
+}
+const SFX = {
+  swap:     () => playNoise(0.08, 0.15),
+  knock:    () => { playTone(220, 0.15, 'square', 0.1); setTimeout(()=>playTone(220, 0.15, 'square', 0.1), 120); },
+  pass:     () => playTone(370, 0.08, 'sine', 0.06),
+  win:      () => { [523,659,784,1047].forEach((f,i) => setTimeout(()=>playTone(f, 0.2, 'triangle', 0.18), i*120)); },
+  lose:     () => { [392,330,262].forEach((f,i) => setTimeout(()=>playTone(f, 0.25, 'sine', 0.10), i*150)); },
+  undo:     () => playTone(370, 0.15, 'sine', 0.08),
+  feuer:    () => { [262,330,392,523,659].forEach((f,i) => setTimeout(()=>playTone(f, 0.18, 'sawtooth', 0.08), i*70)); },
+  thirtyone:() => { playTone(523, 0.15, 'triangle', 0.15); setTimeout(()=>playTone(784, 0.2, 'triangle', 0.15), 130); },
+  loseLife: () => { playTone(330, 0.2, 'sawtooth', 0.06); setTimeout(()=>playTone(262, 0.3, 'sawtooth', 0.05), 180); },
+  deal:     () => playNoise(0.06, 0.10),
+  hint:     () => { playTone(660, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(880, 0.15, 'triangle', 0.10), 100); },
+  tournWin: () => { [523,659,784,880,1047].forEach((f,i) => setTimeout(()=>playTone(f, 0.22, 'triangle', 0.16), i*100)); },
+};
+
+/* ── Spielverlauf (Side Panel) ────────────── */
+const LOG_ICONS = {swap_one:'↔', swap_all:'⇄', pass:'⏭', knock:'✊', round:'🎲', info:'ℹ'};
+
+function addLog(text, cls, who, action){
+  gameLog.push({text, cls: cls||'', who: who||'', action: action||''});
+  renderLog();
+}
+function addLogRound(nr){
+  addLog('── Runde ' + nr + ' ──', 'log-round', '', 'round');
+}
+function renderLog(){
+  const el = $('game-log-content');
+  if(!el) return;
+  el.innerHTML = '';
+  gameLog.slice(-60).forEach(e => {
+    const d = document.createElement('div');
+    if(e.cls === 'log-round'){
+      d.className = 'log-round';
+      d.textContent = e.text;
+    } else {
+      d.className = 'log-entry';
+      const ico = LOG_ICONS[e.action] || 'ℹ';
+      const nameCls = e.who === 'p' ? 'is-player' : (e.who ? 'is-ai' : '');
+      const name = e.who ? NAMES[e.who] || '' : '';
+      d.innerHTML =
+        '<span class="log-icon">' + ico + '</span>' +
+        (name ? '<span class="log-name ' + nameCls + '">' + name + '</span>' : '') +
+        '<span class="log-text">' + e.text + '</span>';
+    }
+    el.appendChild(d);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+function toggleLog(){ $('game-log').classList.toggle('show'); }
+function clearLog(){ gameLog = []; const c = $('game-log-content'); if(c) c.innerHTML = ''; }
+
+/* ── Session-Schutz (Cross-Device) ─────────── */
+let sessionToken = null;
+let heartbeatTimer = null;
+let tabActive = true;
+
+async function claimSession(force){
+  try {
+    const r = await fetch('/api/schwimmen/session', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: force ? 'force' : 'claim'})
+    });
+    const d = await r.json();
+    if (d.locked){
+      $('device-modal').classList.add('show');
+      return false;
+    }
+    if (d.token){
+      sessionToken = d.token;
+      $('device-modal').classList.remove('show');
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (!sessionToken) return;
+        fetch('/api/schwimmen/session', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'heartbeat', token: sessionToken})
+        }).catch(() => {});
+      }, 15000);
+      return true;
+    }
+  } catch(e){}
+  return true;
+}
+
+window.addEventListener('beforeunload', () => {
+  if (!sessionToken) return;
+  navigator.sendBeacon('/api/schwimmen/session',
+    new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+      {type: 'application/json'}));
+});
+
+$('device-takeover').onclick = async () => {
+  await claimSession(true);
+  checkResume();
+};
+
+/* ── Mehr-Tab-Schutz (BroadcastChannel) ───── */
+const TAB_ID = Math.random().toString(36).slice(2);
+let bc = null, myClaimTs = 0;
+function tabClaim(){
+  myClaimTs = Date.now();
+  if (bc) try { bc.postMessage({type: 'claim', id: TAB_ID, ts: myClaimTs}); } catch(e){}
+}
+function becomePassive(){
+  if (!tabActive) return;
+  tabActive = false;
+  $('tab-modal').classList.add('show');
+}
+function becomeActive(){
+  tabActive = true;
+  $('tab-modal').classList.remove('show');
+  tabClaim();
+  checkResume();
+}
+try {
+  bc = new BroadcastChannel('mypage-gs');
+  bc.onmessage = e => {
+    const m = e.data;
+    if (!m || m.id === TAB_ID || m.type !== 'claim') return;
+    if (m.ts > myClaimTs || (m.ts === myClaimTs && m.id > TAB_ID)) becomePassive();
+  };
+} catch(e){ bc = null; }
+$('tab-resume').onclick = becomeActive;
+tabClaim();
+
+/* ── API ───────────────────────────────────── */
+async function api(url, data){
+  if (data && sessionToken) data.token = sessionToken;
+  const opts = data
+    ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}
+    : {};
+  try {
+    const r = await fetch(url, opts);
+    if (r.status === 423){
+      $('device-modal').classList.add('show');
+      return null;
+    }
+    return r.ok ? await r.json() : null;
+  } catch(e){ return null; }
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* ── Kartenanzeige ─────────────────────────── */
+function cardSvgUrl(c){
+  return '/cards/knoll/' + c[1] + c[0] + '.svg';
+}
+
+function cardHtml(c, cls){
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card' + (cls ? ' '+cls : '') + '" data-card="' + c + '">' +
+      '<img src="' + cardSvgUrl(c) + '" draggable="false"></div>';
+  }
+  const s = c[0], r = c[1];
+  const color = SUIT_COLOR[s];
+  const sym = SUIT_SYM[s];
+  const disp = RANK_DISP[r];
+  return '<div class="card ' + color + (cls ? ' '+cls : '') + '" data-card="' + c + '">' +
+    '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
+    '<span class="c-mid">' + sym + '</span>' +
+    '<span class="c-br">' + disp + '<br>' + sym + '</span></div>';
+}
+
+function cardBackHtml(){
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card back"><img src="/cards/knoll/back.svg" draggable="false"></div>';
+  }
+  return '<div class="card back"></div>';
+}
+
+/* ── Toasts ────────────────────────────────── */
+function showToast(text, cls){
+  const t = document.createElement('div');
+  t.className = 'toast' + (cls ? ' '+cls : '');
+  t.textContent = text;
+  $('toast-container').appendChild(t);
+  const fadeStart = Math.max(toastMs - 400, 200);
+  setTimeout(() => { t.style.opacity = '0'; }, fadeStart);
+  setTimeout(() => t.remove(), toastMs);
+}
+
+/* ══════════════════════════════════════════════
+   RENDERING
+   ══════════════════════════════════════════════ */
+
+function render(st){
+  if(!st) return;
+  renderLives(st);
+  renderOpponents(st);
+  renderTable(st);
+  renderPlayerHand(st);
+  renderActions(st);
+  renderInfo(st);
+  renderHandValue(st);
+  updateUndo();
+  updateTournamentBar();
+}
+
+function renderLives(st){
+  const lives = st.lives || {};
+  const alive = st.alive || [];
+  for(const p of ['p','a1','a2']){
+    const el = $('sv-'+p);
+    const isAlive = alive.includes(p);
+    if(el) el.textContent = livesStr(lives[p] ?? 0, isAlive);
+    const si = $('si-'+p);
+    if(si){
+      si.classList.toggle('dealer', st.dealer === p);
+      si.classList.toggle('active-player', st.status === 'playing' && st.turn === p);
+      si.classList.toggle('swimming', isAlive && (lives[p] ?? 0) === 0);
+      si.classList.toggle('eliminated', !isAlive);
+    }
+    const se = $('se-'+p);
+    if(se){
+      if(!isAlive) se.textContent = '💀';
+      else if((lives[p] ?? 0) === 0) se.textContent = '🏊 Schwimmt!';
+      else se.textContent = '';
+    }
+  }
+}
+
+function renderOpponents(st){
+  const alive = st.alive || [];
+  for(const ai of ['a1','a2']){
+    const handEl = $('hand-'+ai);
+    if(!alive.includes(ai)){
+      handEl.innerHTML = '<span style="opacity:0.3;font-size:13px">💀</span>';
+      continue;
+    }
+    const count = typeof st.hands?.[ai] === 'number' ? st.hands[ai] : 0;
+    let html = '';
+    for(let i = 0; i < count; i++) html += cardBackHtml();
+    handEl.innerHTML = html;
+  }
+}
+
+function revealOpponentCards(rr){
+  if(!rr || !rr.hands) return;
+  for(const ai of ['a1','a2']){
+    const cards = rr.hands[ai];
+    if(!cards || !cards.length) continue;
+    const handEl = $('hand-'+ai);
+    if(!handEl) continue;
+    let html = '';
+    cards.forEach((c, i) => {
+      const color = SUIT_COLOR[c[0]];
+      const sym = SUIT_SYM[c[0]];
+      const disp = RANK_DISP[c[1]];
+      html +=
+        '<div class="card-flip-container" style="transition-delay:' + (i * 150) + 'ms">' +
+          '<div class="card-flip-inner">' +
+            '<div class="card-flip-back">' + cardBackHtml() + '</div>' +
+            '<div class="card-flip-front">' +
+              '<div class="card ' + color + '" style="width:100%;height:100%;margin:0">' +
+                '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
+                '<span class="c-mid">' + sym + '</span>' +
+                '<span class="c-br">' + disp + '<br>' + sym + '</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    });
+    handEl.innerHTML = html;
+    requestAnimationFrame(() => {
+      handEl.querySelectorAll('.card-flip-container').forEach((el, i) => {
+        setTimeout(() => el.classList.add('flipped'), 50 + i * 150);
+      });
+    });
+  }
+}
+
+function renderTable(st){
+  const tc = st.table_cards || [];
+  const isMyTurn = st.status === 'playing' && st.turn === 'p';
+  const hasSelection = selectedHandCard !== null;
+  let html = '';
+  for(const c of tc){
+    const targetCls = (isMyTurn && hasSelection) ? ' target' : '';
+    html += cardHtml(c, targetCls);
+  }
+  $('table-cards').innerHTML = html;
+
+  if(isMyTurn && hasSelection){
+    document.querySelectorAll('#table-cards .card.target').forEach(el => {
+      el.onclick = () => doSwapOne(el.dataset.card);
+    });
+  }
+}
+
+function renderPlayerHand(st){
+  const alive = st.alive || [];
+  if(!alive.includes('p')){
+    $('player-hand').innerHTML = '<span style="opacity:0.3;font-size:13px">💀</span>';
+    return;
+  }
+  const hand = st.hands?.p;
+  if(!hand || !Array.isArray(hand)){
+    $('player-hand').innerHTML = '';
+    return;
+  }
+  const isMyTurn = st.status === 'playing' && st.turn === 'p';
+  let html = '';
+  for(const c of hand){
+    let cls = '';
+    if(isMyTurn){
+      cls = ' playable';
+      if(selectedHandCard === c) cls = ' selected';
+    }
+    html += cardHtml(c, cls);
+  }
+  $('player-hand').innerHTML = html;
+
+  if(isMyTurn){
+    document.querySelectorAll('#player-hand .card').forEach(el => {
+      el.onclick = () => selectHandCard(el.dataset.card);
+    });
+  }
+}
+
+function renderActions(st){
+  const el = $('actions');
+  el.innerHTML = '';
+  if(st.status !== 'playing' || st.turn !== 'p') return;
+
+  const canKnock = st.knocked_by === null || st.knocked_by === undefined;
+  el.innerHTML =
+    '<button class="btn-action" onclick="doHint()" title="' + G.hint + ' (H)">💡</button>' +
+    '<button class="btn-action" onclick="doSwapAll()">↔ ' + G.swap_all + '</button>' +
+    '<button class="btn-action" onclick="doPass()">⏭ ' + G.pass_btn + '</button>' +
+    (canKnock ? '<button class="btn-action knock" onclick="doKnock()">✊ ' + G.knock + '</button>' : '');
+}
+
+function renderInfo(st){
+  const el = $('info-text');
+  const ki = $('knock-info');
+  ki.style.display = 'none';
+
+  if(st.status === 'playing'){
+    if(st.turn === 'p'){
+      el.textContent = selectedHandCard ? G.select_table : G.select_hand;
+    } else {
+      el.textContent = NAMES[st.turn] + ' ' + G.ai_thinking;
+    }
+    if(st.knocked_by){
+      ki.textContent = '✊ ' + NAMES[st.knocked_by] + ' ' + G.knocked;
+      ki.style.display = 'block';
+    }
+  } else if(st.status === 'round_over' || st.status === 'game_over'){
+    el.textContent = '';
+  } else {
+    el.textContent = '';
+  }
+}
+
+function renderHandValue(st){
+  const el = $('hand-value');
+  if(st.hand_value_p !== undefined && st.hand_value_p !== null && (st.alive || []).includes('p')){
+    el.textContent = G.hand_value + ': ' + st.hand_value_p;
+  } else {
+    el.textContent = '';
+  }
+}
+
+/* ── Undo ──────────────────────────────────── */
+function updateUndo(){
+  $('btn-undo').style.display = canUndo ? '' : 'none';
+}
+async function doUndo(){
+  if(aiRunning || !canUndo) return;
+  const v = await api('/api/schwimmen/undo', {});
+  canUndo = false;
+  selectedHandCard = null;
+  updateUndo();
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    showToast(G.undo_toast);
+    SFX.undo();
+  }
+}
+$('btn-undo').onclick = doUndo;
+
+/* ── Regeln-Modal ─────────────────────────── */
+let rulesLoaded = false;
+async function openRules(){
+  $('rules-modal').classList.add('show');
+  if(rulesLoaded) return;
+  try {
+    const r = await fetch('/api/schwimmen/rules');
+    const d = await r.json();
+    if(d && d.html){ $('rules-body').innerHTML = d.html; rulesLoaded = true; }
+  } catch(e){ $('rules-body').textContent = 'Fehler beim Laden der Regeln.'; }
+}
+function closeRules(){ $('rules-modal').classList.remove('show'); }
+$('btn-rules').onclick = openRules;
+
+/* ══════════════════════════════════════════════
+   SPIELER-AKTIONEN
+   ══════════════════════════════════════════════ */
+
+function selectHandCard(card){
+  if(selectedHandCard === card){
+    selectedHandCard = null;
+  } else {
+    selectedHandCard = card;
+  }
+  render(gameState);
+}
+
+async function doSwapOne(tableCard){
+  if(!selectedHandCard) return;
+  clearHintGlow();
+  const hc = selectedHandCard;
+  selectedHandCard = null;
+  SFX.swap();
+  addLog(cardName(hc) + ' → ' + cardName(tableCard), '', 'p', 'swap_one');
+  await animateSwapOne(hc, tableCard);
+  canUndo = true; updateUndo();
+  const v = await api('/api/schwimmen/move', {type:'swap_one', hand_card:hc, table_card:tableCard});
+  if(v && v.state){
+    if(v.tournament !== undefined) tournamentState = v.tournament;
+    gameState = v.state;
+    render(gameState);
+    await advanceAI();
+  }
+}
+
+async function doSwapAll(){
+  clearHintGlow();
+  selectedHandCard = null;
+  SFX.swap();
+  addLog('Alle Karten getauscht', '', 'p', 'swap_all');
+  await animateSwapAll();
+  canUndo = true; updateUndo();
+  const v = await api('/api/schwimmen/move', {type:'swap_all'});
+  if(v && v.state){
+    if(v.tournament !== undefined) tournamentState = v.tournament;
+    gameState = v.state;
+    render(gameState);
+    await advanceAI();
+  }
+}
+
+async function doPass(){
+  clearHintGlow();
+  selectedHandCard = null;
+  SFX.pass();
+  addLog('Passt', '', 'p', 'pass');
+  canUndo = true; updateUndo();
+  const v = await api('/api/schwimmen/move', {type:'pass'});
+  if(v && v.state){
+    if(v.tournament !== undefined) tournamentState = v.tournament;
+    gameState = v.state;
+    render(gameState);
+    if(gameState.table_refreshed){
+      showToast(G.all_passed, 'gold');
+      addLog(G.all_passed, '', '', 'info');
+      await flashTableCards();
+    }
+    await advanceAI();
+  }
+}
+
+async function doKnock(){
+  if(gameState && gameState.knocked_by) return;
+  clearHintGlow();
+  selectedHandCard = null;
+  SFX.knock();
+  addLog('Klopft! Letzte Runde!', '', 'p', 'knock');
+  showToast('✊ Du klopfst!', 'gold');
+  canUndo = true; updateUndo();
+  const v = await api('/api/schwimmen/move', {type:'knock'});
+  if(v && v.state){
+    if(v.tournament !== undefined) tournamentState = v.tournament;
+    gameState = v.state;
+    render(gameState);
+    await advanceAI();
+  }
+}
+
+async function nextRound(){
+  $('modal-round').classList.remove('show');
+  canUndo = false; updateUndo();
+  selectedHandCard = null;
+  const v = await api('/api/schwimmen/move', {type:'next_round'});
+  if(v && v.state){
+    gameState = v.state;
+    addLogRound(gameState.round_nr);
+    render(gameState);
+    await dealAnimation();
+    await advanceAI();
+  }
+}
+
+/* ── Swap Animation ───────────────────────── */
+async function animateSwapOne(handCardCode, tableCardCode){
+  if(reduceMotion) return;
+  const handEl = document.querySelector('#player-hand .card[data-card="' + handCardCode + '"]');
+  const tableEl = document.querySelector('#table-cards .card[data-card="' + tableCardCode + '"]');
+  if(!handEl || !tableEl) return;
+
+  const hRect = handEl.getBoundingClientRect();
+  const tRect = tableEl.getBoundingClientRect();
+  const dur = flyMs / 1000;
+
+  const hClone = handEl.cloneNode(true);
+  hClone.classList.remove('playable','selected');
+  hClone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+    'left:'+hRect.left+'px;top:'+hRect.top+'px;width:'+hRect.width+'px;height:'+hRect.height+'px;' +
+    'transition:transform '+dur+'s cubic-bezier(.4,.8,.3,1),opacity '+dur+'s ease;' +
+    'box-shadow:0 0 20px rgba(241,196,15,0.6);border-color:var(--gold)';
+
+  const tClone = tableEl.cloneNode(true);
+  tClone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+    'left:'+tRect.left+'px;top:'+tRect.top+'px;width:'+tRect.width+'px;height:'+tRect.height+'px;' +
+    'transition:transform '+dur+'s cubic-bezier(.4,.8,.3,1),opacity '+dur+'s ease;' +
+    'box-shadow:0 0 20px rgba(76,175,80,0.6);border-color:#4caf50';
+
+  document.body.appendChild(hClone);
+  document.body.appendChild(tClone);
+  handEl.style.visibility = 'hidden';
+  tableEl.style.visibility = 'hidden';
+
+  const dx = tRect.left - hRect.left;
+  const dy = tRect.top - hRect.top;
+  requestAnimationFrame(() => {
+    hClone.style.transform = 'translate('+dx+'px,'+dy+'px)';
+    tClone.style.transform = 'translate('+(-dx)+'px,'+(-dy)+'px)';
+  });
+
+  await sleep(flyMs + 40);
+  hClone.remove();
+  tClone.remove();
+}
+
+async function animateSwapAll(){
+  if(reduceMotion) return;
+  const handCards = Array.from(document.querySelectorAll('#player-hand .card'));
+  const tableCards = Array.from(document.querySelectorAll('#table-cards .card'));
+  if(!handCards.length || !tableCards.length) return;
+
+  const dur = flyMs / 1000;
+  const clones = [];
+
+  handCards.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const c = el.cloneNode(true);
+    c.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+      'left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transition:transform '+dur+'s ease,opacity '+dur+'s ease';
+    document.body.appendChild(c);
+    el.style.visibility = 'hidden';
+    clones.push({el: c, dy: -120});
+  });
+  tableCards.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const c = el.cloneNode(true);
+    c.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+      'left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transition:transform '+dur+'s ease,opacity '+dur+'s ease';
+    document.body.appendChild(c);
+    el.style.visibility = 'hidden';
+    clones.push({el: c, dy: 120});
+  });
+
+  requestAnimationFrame(() => {
+    clones.forEach(c => {
+      c.el.style.transform = 'translateY('+c.dy+'px) scale(0.7)';
+      c.el.style.opacity = '0';
+    });
+  });
+
+  await sleep(flyMs + 40);
+  clones.forEach(c => c.el.remove());
+}
+
+async function flashTableCards(){
+  const cards = Array.from(document.querySelectorAll('#table-cards .card'));
+  cards.forEach(c => {
+    c.style.transition = 'box-shadow 0.3s ease';
+    c.style.boxShadow = '0 0 20px rgba(0,200,255,0.7)';
+  });
+  await sleep(600);
+  cards.forEach(c => { c.style.boxShadow = ''; c.style.transition = ''; });
+}
+
+async function animateAiSwapOne(who, tableCardCode){
+  if(reduceMotion) return;
+  const tableEl = document.querySelector('#table-cards .card[data-card="' + tableCardCode + '"]');
+  const handEl = $('hand-' + who);
+  const backCard = handEl && handEl.querySelector('.card.back');
+  if(!tableEl || !backCard) return;
+
+  const tRect = tableEl.getBoundingClientRect();
+  const bRect = backCard.getBoundingClientRect();
+  const dur = flyMs / 1000;
+
+  // Tischkarte fliegt zur KI-Hand
+  const tClone = tableEl.cloneNode(true);
+  tClone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+    'left:'+tRect.left+'px;top:'+tRect.top+'px;width:'+tRect.width+'px;height:'+tRect.height+'px;' +
+    'transition:transform '+dur+'s cubic-bezier(.4,.8,.3,1),opacity '+dur+'s ease;' +
+    'box-shadow:0 0 16px rgba(0,229,255,0.6);border:2px solid #00e5ff';
+  document.body.appendChild(tClone);
+  tableEl.style.visibility = 'hidden';
+
+  // Kartenrücken fliegt zum Tisch
+  const bClone = backCard.cloneNode(true);
+  bClone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+    'left:'+bRect.left+'px;top:'+bRect.top+'px;width:'+bRect.width+'px;height:'+bRect.height+'px;' +
+    'transition:transform '+dur+'s cubic-bezier(.4,.8,.3,1),opacity '+dur+'s ease;' +
+    'box-shadow:0 0 16px rgba(0,229,255,0.6)';
+  document.body.appendChild(bClone);
+  backCard.style.visibility = 'hidden';
+
+  const dx = bRect.left - tRect.left;
+  const dy = bRect.top - tRect.top;
+  requestAnimationFrame(() => {
+    tClone.style.transform = 'translate('+dx+'px,'+dy+'px) scale(0.85)';
+    tClone.style.opacity = '0.4';
+    bClone.style.transform = 'translate('+(-dx)+'px,'+(-dy)+'px)';
+  });
+
+  await sleep(flyMs + 40);
+  tClone.remove();
+  bClone.remove();
+}
+
+async function animateAiSwapAll(who){
+  if(reduceMotion) return;
+  const handEl = $('hand-' + who);
+  const tableCards = Array.from(document.querySelectorAll('#table-cards .card'));
+  const backs = handEl ? Array.from(handEl.querySelectorAll('.card.back')) : [];
+  if(!tableCards.length || !backs.length) return;
+
+  const dur = flyMs / 1000;
+  const handCenter = handEl.getBoundingClientRect();
+  const clones = [];
+
+  tableCards.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const c = el.cloneNode(true);
+    c.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+      'left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transition:transform '+dur+'s ease,opacity '+dur+'s ease;' +
+      'box-shadow:0 0 12px rgba(0,229,255,0.5)';
+    document.body.appendChild(c);
+    el.style.visibility = 'hidden';
+    const dx = (handCenter.left + handCenter.width/2) - (r.left + r.width/2);
+    const dy = (handCenter.top + handCenter.height/2) - (r.top + r.height/2);
+    clones.push({el: c, dx, dy});
+  });
+  backs.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const c = el.cloneNode(true);
+    const tableArea = $('table-cards').getBoundingClientRect();
+    c.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+      'left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transition:transform '+dur+'s ease,opacity '+dur+'s ease';
+    document.body.appendChild(c);
+    el.style.visibility = 'hidden';
+    const dx = (tableArea.left + tableArea.width/2) - (r.left + r.width/2);
+    const dy = (tableArea.top + tableArea.height/2) - (r.top + r.height/2);
+    clones.push({el: c, dx, dy});
+  });
+
+  requestAnimationFrame(() => {
+    clones.forEach(c => {
+      c.el.style.transform = 'translate('+c.dx+'px,'+c.dy+'px) scale(0.7)';
+      c.el.style.opacity = '0.3';
+    });
+  });
+
+  await sleep(flyMs + 40);
+  clones.forEach(c => c.el.remove());
+}
+
+/* ── Deal Animation (Karten fliegen vom Stapel) ── */
+async function dealAnimation(){
+  if(reduceMotion) return;
+
+  const a1C = Array.from($('hand-a1').querySelectorAll('.card'));
+  const a2C = Array.from($('hand-a2').querySelectorAll('.card'));
+  const pC  = Array.from($('player-hand').querySelectorAll('.card'));
+  const tC  = Array.from($('table-cards').querySelectorAll('.card'));
+
+  const order = [];
+  for(let i = 0; i < 3; i++){
+    if(a1C[i]) order.push(a1C[i]);
+    if(pC[i])  order.push(pC[i]);
+    if(a2C[i]) order.push(a2C[i]);
+  }
+  tC.forEach(c => order.push(c));
+  if(!order.length) return;
+
+  const pa = $('play-area').getBoundingClientRect();
+  const deckX = pa.left + pa.width / 2;
+  const deckY = pa.top + pa.height / 2 - 20;
+
+  const targets = order.map(c => {
+    const r = c.getBoundingClientRect();
+    return { el: c, left: r.left, top: r.top, w: r.width, h: r.height };
+  });
+  order.forEach(c => { c.style.visibility = 'hidden'; });
+
+  const dur = flyMs / 1000;
+  const pause = Math.max(40, Math.round(flyMs * 0.15));
+
+  for(const t of targets){
+    const sx = deckX - t.w / 2;
+    const sy = deckY - t.h / 2;
+    const dx = t.left - sx;
+    const dy = t.top  - sy;
+
+    const clone = t.el.cloneNode(true);
+    clone.style.cssText =
+      'position:fixed;z-index:60;pointer-events:none;margin:0;' +
+      'left:'+sx+'px;top:'+sy+'px;width:'+t.w+'px;height:'+t.h+'px;' +
+      'transform:scale(0.3);opacity:0;visibility:visible;' +
+      'transition:transform '+dur+'s cubic-bezier(.2,.8,.3,1),opacity '+(dur*0.4)+'s ease';
+    document.body.appendChild(clone);
+
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      clone.style.transform = 'translate('+dx+'px,'+dy+'px) scale(1)';
+      clone.style.opacity = '1';
+    }));
+
+    SFX.deal();
+    await sleep(pause);
+
+    setTimeout(() => {
+      t.el.style.visibility = '';
+      clone.remove();
+    }, flyMs + 20);
+  }
+
+  await sleep(flyMs + 40);
+  order.forEach(c => { c.style.visibility = ''; });
+}
+
+/* ══════════════════════════════════════════════
+   KI-STEUERUNG
+   ══════════════════════════════════════════════ */
+
+function needsAI(st){
+  if(!st) return false;
+  if(st.status === 'playing' && st.turn !== 'p') return true;
+  return false;
+}
+
+async function advanceAI(){
+  if(aiRunning) return;
+  aiRunning = true;
+  let fails = 0;
+  try {
+    while(gameState && needsAI(gameState) && fails < 5){
+      await sleep(aiDelay);
+      const v = await api('/api/schwimmen/ai', {});
+      if(!v || !v.state){ fails++; continue; }
+      fails = 0;
+      if(v.tournament !== undefined) tournamentState = v.tournament;
+
+      if(v.event) await handleEvent(v.event);
+      gameState = v.state;
+      render(gameState);
+      if(v.event && (v.event.type === 'swap_one' || v.event.type === 'swap_all'))
+        await flashTableCards();
+      if(v.event && v.event.table_refreshed)
+        await flashTableCards();
+    }
+    if(gameState){
+      if(gameState.status === 'round_over') showRoundResult();
+      if(gameState.status === 'game_over') showGameOver();
+    }
+  } finally {
+    aiRunning = false;
+  }
+}
+
+async function handleEvent(evt){
+  if(!evt) return;
+  if(evt.type === 'swap_one'){
+    SFX.swap();
+    const tcName = evt.table_card_name || '?';
+    showToast(evt.name + ' nimmt ' + tcName + ' vom Tisch', 'info');
+    addLog('Nimmt ' + tcName + ' vom Tisch', '', evt.who, 'swap_one');
+    await animateAiSwapOne(evt.who, evt.table_card);
+  }
+  else if(evt.type === 'swap_all'){
+    SFX.swap();
+    showToast(evt.name + ' ' + G.swaps_all + '!', 'info');
+    addLog('Alle Karten getauscht', '', evt.who, 'swap_all');
+    await animateAiSwapAll(evt.who);
+  }
+  else if(evt.type === 'pass'){
+    SFX.pass();
+    showToast(evt.name + ' ' + G.passes, '');
+    addLog('Passt', '', evt.who, 'pass');
+    if(evt.table_refreshed){
+      showToast(G.all_passed, 'gold');
+      addLog(G.all_passed, '', '', 'info');
+    }
+  }
+  else if(evt.type === 'knock'){
+    SFX.knock();
+    showToast('✊ ' + evt.name + ' ' + G.knocks + '!', 'gold');
+    addLog('Klopft! Letzte Runde!', '', evt.who, 'knock');
+  }
+}
+
+/* ── Rundenergebnis ────────────────────────── */
+function showRoundResult(){
+  if(!gameState || !gameState.round_result) return;
+  const rr = gameState.round_result;
+
+  $('round-title').textContent = G.round_result + ' — ' + G.round + ' ' + gameState.round_nr;
+
+  let handsHtml = '';
+  if(rr.feuer) handsHtml = '<p style="color:#ff6666;font-weight:bold;font-size:18px">🔥 ' + NAMES[rr.feuer] + ': ' + G.feuer + '</p>';
+  else if(rr.thirty_one) handsHtml = '<p style="color:#66ff66;font-weight:bold;font-size:18px">💎 ' + NAMES[rr.thirty_one] + ': ' + G.thirty_one + '</p>';
+  $('round-hands').innerHTML = handsHtml;
+
+  const tbody = $('result-body');
+  tbody.innerHTML = '';
+  const alive = gameState.alive || [];
+  const losers = rr.losers || {};
+
+  for(const p of ['p','a1','a2']){
+    const cards = rr.hands?.[p];
+    const val = rr.values?.[p];
+    if(val === undefined) continue;
+
+    const tr = document.createElement('tr');
+    const isLoser = p in losers;
+    const isElim = (rr.newly_eliminated || []).includes(p);
+    const isSwim = (rr.newly_swimming || []).includes(p);
+    const loss = losers[p] || 0;
+
+    let cardsHtml = '';
+    if(cards){
+      cardsHtml = '<div class="result-cards">';
+      for(const c of cards){
+        const color = SUIT_COLOR[c[0]];
+        cardsHtml += '<span class="mini-card ' + color + '">' + RANK_DISP[c[1]] + SUIT_SYM[c[0]] + '</span>';
+      }
+      cardsHtml += '</div>';
+    }
+
+    let valCls = '';
+    if(isElim) valCls = 'elim';
+    else if(isLoser) valCls = 'loser';
+    else valCls = 'winner-val';
+
+    let livesHtml = livesStr(gameState.lives[p] ?? 0, alive.includes(p));
+    if(isLoser) livesHtml += ' <small>(-' + loss + ')</small>';
+    if(isSwim) livesHtml += ' <small style="color:#4fc3f7">🏊</small>';
+    if(isElim) livesHtml = '💀';
+
+    tr.innerHTML =
+      '<td>' + NAMES[p] + '</td>' +
+      '<td>' + cardsHtml + '</td>' +
+      '<td class="' + valCls + '">' + val + '</td>' +
+      '<td>' + livesHtml + '</td>';
+    tbody.appendChild(tr);
+  }
+
+  let extras = '';
+  if((rr.newly_swimming || []).length > 0){
+    const names = rr.newly_swimming.map(p => NAMES[p]).join(', ');
+    extras += '<p style="color:#4fc3f7;font-size:12px">🏊 ' + names + ' schwimmt!</p>';
+  }
+  if((rr.newly_eliminated || []).length > 0){
+    const names = rr.newly_eliminated.map(p => NAMES[p]).join(', ');
+    extras += '<p style="color:#888;font-size:12px">💀 ' + names + ' ausgeschieden!</p>';
+  }
+  $('round-extras').innerHTML = extras;
+
+  for(const p of ['p','a1','a2']){
+    if(rr.values?.[p] !== undefined){
+      const loss = losers[p];
+      let log = rr.values[p] + ' Punkte';
+      if(loss) log += ' → -' + loss + ' Leben';
+      addLog(log, '', p, 'info');
+    }
+  }
+
+  if(rr.feuer) SFX.feuer();
+  else if(rr.thirty_one) SFX.thirtyone();
+  else if(Object.keys(losers).length > 0) SFX.loseLife();
+
+  revealOpponentCards(rr);
+
+  setTimeout(() => {
+    $('modal-round').classList.add('show');
+  }, 800);
+}
+
+/* ── Spielende ─────────────────────────────── */
+function showGameOver(){
+  if(!gameState) return;
+
+  showRoundResult();
+
+  setTimeout(() => {
+    $('modal-round').classList.remove('show');
+
+    const winner = gameState.winner;
+    const isPlayerWin = winner === 'p';
+    $('go-emoji').textContent = isPlayerWin ? '🏆' : '😔';
+    $('go-title').textContent = G.game_over;
+    $('go-text').textContent = isPlayerWin
+      ? G.you_win
+      : NAMES[winner] + ' ' + G.you_lose;
+
+    if(isPlayerWin) SFX.win(); else SFX.lose();
+
+    let scoresHtml = '<p style="margin-top:10px;font-size:13px;opacity:0.7">' + G.end_scores + ':</p><p>';
+    for(const p of ['p','a1','a2']){
+      const l = gameState.lives[p] ?? 0;
+      const a = (gameState.alive || []).includes(p);
+      scoresHtml += NAMES[p] + ': ' + livesStr(l, a) + ' &nbsp; ';
+    }
+    scoresHtml += '</p>';
+    $('go-scores').innerHTML = scoresHtml;
+
+    const goBtn = $('go-btn');
+    const goTourn = $('go-tournament');
+
+    if(tournamentState && tournamentState.active){
+      const t = tournamentState;
+      goTourn.style.display = '';
+      goTourn.innerHTML = '🏆 ' + G.tourn_game + ' ' + t.played + '/' + t.total +
+        '<br>' + G.player + ': <b>' + t.wins.p + '</b> &nbsp; ' +
+        G.ai1 + ': <b>' + t.wins.a1 + '</b> &nbsp; ' +
+        G.ai2 + ': <b>' + t.wins.a2 + '</b>';
+      goBtn.textContent = '▶ ' + G.tourn_next;
+      goBtn.onclick = () => nextTournamentGame();
+    } else if(tournamentState && !tournamentState.active){
+      const t = tournamentState;
+      const maxW = Math.max(t.wins.p, t.wins.a1, t.wins.a2);
+      const tw = t.wins.p === maxW ? 'p' : (t.wins.a1 === maxW ? 'a1' : 'a2');
+      goTourn.style.display = '';
+      goTourn.innerHTML = '🏆 ' + G.tourn_over +
+        '<br><b style="font-size:16px">' + (tw === 'p' ? G.tourn_win : NAMES[tw] + ' ' + G.tourn_lose) + '</b>' +
+        '<br>' + G.player + ': <b>' + t.wins.p + '</b> &nbsp; ' +
+        G.ai1 + ': <b>' + t.wins.a1 + '</b> &nbsp; ' +
+        G.ai2 + ': <b>' + t.wins.a2 + '</b>';
+      if(tw === 'p') SFX.tournWin();
+      goBtn.textContent = G.new_game;
+      goBtn.onclick = () => { tournamentState = null; showStart(); };
+    } else {
+      goTourn.style.display = 'none';
+      goBtn.textContent = G.new_game;
+      goBtn.onclick = () => showStart();
+    }
+
+    $('modal-gameover').classList.add('show');
+  }, 3300);
+}
+
+function showStart(){
+  $('modal-gameover').classList.remove('show');
+  $('modal-round').classList.remove('show');
+  $('game-log').classList.remove('show');
+  gameState = null;
+  tournamentState = null;
+  canUndo = false; updateUndo();
+  selectedHandCard = null;
+  updateTournamentBar();
+  renderStats();
+  checkResume();
+  $('start-screen').classList.remove('hidden');
+}
+
+function confirmNewGame(){
+  if(!gameState || gameState.status === 'game_over'){ showStart(); return; }
+  if(confirm('Laufendes Spiel beenden?')) showStart();
+}
+
+function closeGame(){
+  if(window.parent !== window) window.parent.postMessage('close-schwimmen', location.origin);
+  else location.href = '/bereich';
+}
+
+/* ── Statistik (serverseitig) ──────────────── */
+function calcStats(games){
+  let wins=0, losses=0, streak=0, best=0;
+  let totalActions = {swap_one:0, swap_all:0, pass:0, knock:0};
+  let bestHand = 0;
+  let handSum = 0, handCount = 0;
+  games.forEach(g => {
+    if(g.winner === 'p'){ wins++; streak = Math.max(0,streak)+1; }
+    else { losses++; streak = Math.min(0,streak)-1; }
+    best = Math.max(best, streak);
+    if(g.player_actions){
+      for(const k in totalActions){
+        totalActions[k] += (g.player_actions[k] || 0);
+      }
+    }
+    if(g.best_hand && g.best_hand > bestHand) bestHand = g.best_hand;
+    if(g.best_hand > 0){ handSum += g.best_hand; handCount++; }
+  });
+  const avgHand = handCount > 0 ? (handSum / handCount).toFixed(1) : '—';
+  let favAction = '—';
+  const actionMax = Math.max(totalActions.swap_one, totalActions.swap_all, totalActions.pass, totalActions.knock);
+  if(actionMax > 0){
+    if(totalActions.swap_one === actionMax) favAction = G.stats_swaps;
+    else if(totalActions.swap_all === actionMax) favAction = G.stats_swaps_all;
+    else if(totalActions.pass === actionMax) favAction = G.stats_passes;
+    else favAction = G.stats_knocks;
+  }
+  return {wins, losses, total: wins+losses, streak, best_streak: best,
+          totalActions, bestHand, avgHand, favAction};
+}
+
+function fmtWhen(ts){
+  const d = new Date(ts * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  return pad(d.getDate()) + '.' + pad(d.getMonth()+1) + '.' + d.getFullYear()
+    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+async function renderStats(){
+  const box = $('stats-box');
+  if(!box) return;
+  const r = await api('/api/schwimmen/history');
+  const games = (r && r.games) || [];
+  if(!games.length){
+    box.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>';
+    return;
+  }
+  const s = calcStats(games);
+  const rate = Math.round(s.wins / s.total * 100);
+  const streakText = s.streak > 0 ? s.streak + 'W' : (s.streak < 0 ? Math.abs(s.streak) + 'L' : '—');
+  box.innerHTML =
+    '<div class="stats-title">📊 ' + G.stats + '</div>' +
+    '<div class="stats-grid">' +
+      '<div class="stat"><div class="stat-val">' + s.total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#4caf50">' + s.wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#e57373">' + s.losses + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + streakText + '</div><div class="stat-label">' + G.stats_streak + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + s.best_streak + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+    '</div>' +
+    (s.bestHand > 0 ? '<div class="stats-grid" style="margin-top:8px">' +
+      '<div class="stat"><div class="stat-val" style="font-size:18px">' + s.avgHand + '</div><div class="stat-label">' + G.stats_avg + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="font-size:18px;color:#66ff66">' + s.bestHand + '</div><div class="stat-label">' + G.stats_best_hand + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="font-size:14px">' + s.favAction + '</div><div class="stat-label">' + G.stats_fav + '</div></div>' +
+    '</div>' : '');
+}
+
+async function openStats(){
+  const list = $('stats-modal-content');
+  list.innerHTML = '';
+  $('stats-modal').classList.add('show');
+  const r = await api('/api/schwimmen/history');
+  const games = (r && r.games) || [];
+  if(!games.length){
+    list.innerHTML = '<p style="opacity:0.5;margin:20px 0">' + G.stats_empty + '</p>';
+    return;
+  }
+  const s = calcStats(games);
+  const rate = Math.round(s.wins / s.total * 100);
+  const streakText = s.streak > 0 ? s.streak + 'W' : (s.streak < 0 ? Math.abs(s.streak) + 'L' : '—');
+  let html =
+    '<div class="stats-grid" style="margin:16px 0">' +
+      '<div class="stat"><div class="stat-val">' + s.total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#4caf50">' + s.wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#e57373">' + s.losses + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + streakText + '</div><div class="stat-label">' + G.stats_streak + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + s.best_streak + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+    '</div>';
+  if(s.bestHand > 0){
+    html +=
+    '<div class="stats-grid" style="margin:0 0 16px">' +
+      '<div class="stat"><div class="stat-val" style="font-size:18px">' + s.avgHand + '</div><div class="stat-label">' + G.stats_avg + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="font-size:18px;color:#66ff66">' + s.bestHand + '</div><div class="stat-label">' + G.stats_best_hand + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="font-size:14px">' + s.favAction + '</div><div class="stat-label">' + G.stats_fav + '</div></div>' +
+    '</div>';
+  }
+  html += '<div class="stats-history">';
+  const recent = games.slice().reverse().slice(0, 20);
+  recent.forEach(g => {
+    const win = g.winner === 'p';
+    const ico = win ? '🏆' : '😔';
+    const lives = g.lives || {};
+    const sc = NAMES['p'] + ':' + livesStr(lives.p ?? 0, g.winner === 'p') + ' ' +
+               NAMES['a1'] + ':' + livesStr(lives.a1 ?? 0, g.winner === 'a1') + ' ' +
+               NAMES['a2'] + ':' + livesStr(lives.a2 ?? 0, g.winner === 'a2');
+    html += '<div class="hist-row' + (win ? ' win' : '') + '">' +
+      '<span class="hist-ico">' + ico + '</span>' +
+      '<span class="hist-meta">' + fmtWhen(g.ts) + ' · ' + (g.rounds||'?') + ' ' + G.round + '</span>' +
+      '<span class="hist-score">' + sc + '</span>' +
+    '</div>';
+  });
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+function closeStats(){ $('stats-modal').classList.remove('show'); }
+
+async function resetStatsConfirm(){
+  await api('/api/schwimmen/history/reset', {});
+  $('stats-modal-content').innerHTML = '<p style="opacity:0.5;margin:20px 0">' + G.stats_empty + '</p>';
+  renderStats();
+}
+
+/* ── Spiel starten ─────────────────────────── */
+async function startGame(level){
+  $('start-screen').classList.add('hidden');
+  tournamentState = null;
+  canUndo = false; updateUndo();
+  selectedHandCard = null;
+  clearLog();
+  const v = await api('/api/schwimmen/new', {level});
+  if(v && v.state){
+    if(v.tournament !== undefined) tournamentState = v.tournament;
+    gameState = v.state;
+    addLogRound(gameState.round_nr);
+    render(gameState);
+    await dealAnimation();
+    if(gameState.status === 'round_over') showRoundResult();
+    else if(gameState.status === 'game_over') showGameOver();
+    else await advanceAI();
+  }
+}
+
+async function startTournament(level){
+  const games = parseInt($('tournament-games').value) || 5;
+  $('start-screen').classList.add('hidden');
+  canUndo = false; updateUndo();
+  selectedHandCard = null;
+  clearLog();
+  const v = await api('/api/schwimmen/tournament/new', {level, games});
+  if(v && v.state){
+    tournamentState = v.tournament;
+    gameState = v.state;
+    addLogRound(gameState.round_nr);
+    render(gameState);
+    await dealAnimation();
+    if(gameState.status === 'round_over') showRoundResult();
+    else if(gameState.status === 'game_over') showGameOver();
+    else await advanceAI();
+  }
+}
+
+async function nextTournamentGame(){
+  $('modal-gameover').classList.remove('show');
+  $('modal-round').classList.remove('show');
+  canUndo = false; updateUndo();
+  selectedHandCard = null;
+  const v = await api('/api/schwimmen/tournament/next', {});
+  if(v && v.state){
+    tournamentState = v.tournament;
+    gameState = v.state;
+    addLogRound(gameState.round_nr);
+    render(gameState);
+    await dealAnimation();
+    if(gameState.status === 'round_over') showRoundResult();
+    else if(gameState.status === 'game_over') showGameOver();
+    else await advanceAI();
+  }
+}
+
+function updateTournamentBar(){
+  const bar = $('tournament-bar');
+  if(!tournamentState || !tournamentState.active){
+    bar.classList.remove('show');
+    return;
+  }
+  bar.classList.add('show');
+  const t = tournamentState;
+  const cur = t.played + (gameState && gameState.status !== 'game_over' ? 1 : 0);
+  bar.innerHTML = '🏆 ' + G.tourn_game + ' ' + cur + '/' + t.total +
+    ' &nbsp;│&nbsp; ' + G.player + ': <b>' + t.wins.p + '</b>' +
+    ' &nbsp; ' + G.ai1 + ': <b>' + t.wins.a1 + '</b>' +
+    ' &nbsp; ' + G.ai2 + ': <b>' + t.wins.a2 + '</b>';
+}
+
+async function doHint(){
+  if(!gameState || gameState.status !== 'playing' || gameState.turn !== 'p') return;
+  if(aiRunning) return;
+  clearHintGlow();
+  const v = await api('/api/schwimmen/hint');
+  if(!v || !v.hint) return;
+  SFX.hint();
+  const h = v.hint;
+  if(h.type === 'swap_one'){
+    showToast('💡 ' + G.hint_swap + ' ' + cardName(h.hand_card) + ' ' + G.hint_for + ' ' + cardName(h.table_card), 'info');
+    highlightHint(h.hand_card, h.table_card);
+  } else if(h.type === 'swap_all'){
+    showToast('💡 ' + G.hint_swap_all, 'info');
+  } else if(h.type === 'pass'){
+    showToast('💡 ' + G.hint_pass, 'info');
+  } else if(h.type === 'knock'){
+    showToast('💡 ' + G.hint_knock, 'info');
+  }
+}
+
+function highlightHint(handCard, tableCard){
+  clearHintGlow();
+  const hEl = document.querySelector('#player-hand .card[data-card="'+handCard+'"]');
+  const tEl = document.querySelector('#table-cards .card[data-card="'+tableCard+'"]');
+  if(hEl) hEl.classList.add('hint-glow');
+  if(tEl) tEl.classList.add('hint-glow');
+  hintTimer = setTimeout(clearHintGlow, 4000);
+}
+
+function clearHintGlow(){
+  if(hintTimer){ clearTimeout(hintTimer); hintTimer = null; }
+  document.querySelectorAll('.hint-glow').forEach(el => el.classList.remove('hint-glow'));
+}
+
+async function resumeGame(){
+  const v = await api('/api/schwimmen/state');
+  if(v && v.state && v.state.status !== 'game_over'){
+    $('start-screen').classList.add('hidden');
+    canUndo = false; updateUndo();
+    selectedHandCard = null;
+    if(v.tournament !== undefined) tournamentState = v.tournament;
+    gameState = v.state;
+    render(gameState);
+    if(gameState.status === 'round_over') showRoundResult();
+    else await advanceAI();
+  }
+}
+
+async function checkResume(){
+  const v = await api('/api/schwimmen/state');
+  if(v && v.state && v.state.status && v.state.status !== 'game_over'){
+    $('resume-box').style.display = '';
+  } else {
+    $('resume-box').style.display = 'none';
+  }
+}
+
+/* ── Init ──────────────────────────────────── */
+function init(){
+  initSettings();
+  renderStats();
+  checkResume();
+}
+
+/* ── Tastatur ──────────────────────────────── */
+document.addEventListener('keydown', e => {
+  const anyModal = ['settings-modal','rules-modal','stats-modal'].some(id => $(id).classList.contains('show'));
+
+  if(e.key === 'Escape'){
+    if($('game-log').classList.contains('show')){ $('game-log').classList.remove('show'); return; }
+    if($('stats-modal').classList.contains('show')){ closeStats(); return; }
+    if($('rules-modal').classList.contains('show')){ closeRules(); return; }
+    if($('settings-modal').classList.contains('show')){ closeSettings(); return; }
+    if(selectedHandCard){ selectedHandCard = null; render(gameState); return; }
+    return;
+  }
+  if(anyModal) return;
+
+  if(!gameState) return;
+  const st = gameState;
+
+  if(e.key === 'Enter' && $('modal-round').classList.contains('show')){
+    nextRound(); return;
+  }
+
+  if(st.status === 'playing' && st.turn === 'p'){
+    const hand = st.hands?.p || [];
+    const table = st.table_cards || [];
+    const num = parseInt(e.key);
+
+    if(num >= 1 && num <= 3 && hand[num-1]){
+      selectHandCard(hand[num-1]);
+      return;
+    }
+    if(num >= 4 && num <= 6 && table[num-4] && selectedHandCard){
+      doSwapOne(table[num-4]);
+      return;
+    }
+    if(e.key === 'a' || e.key === 'A'){ doSwapAll(); return; }
+    if(e.key === 'p' || e.key === 'P'){ doPass(); return; }
+    if(e.key === 'k' || e.key === 'K'){ doKnock(); return; }
+    if(e.key === 'h' || e.key === 'H'){ doHint(); return; }
+  }
+
+  if((e.key === 'u' || e.key === 'U') && canUndo){ doUndo(); return; }
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+  const ok = await claimSession(false);
+  if (ok) init();
+});
+</script>
+</body>
+</html>

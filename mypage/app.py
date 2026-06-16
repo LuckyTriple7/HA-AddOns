@@ -5,6 +5,7 @@ Zwei Server in einem Prozess:
   - Port 17760: öffentliche Homepage (kein Login, Besucherzähler)
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
+import copy
 import errno
 import hashlib
 import hmac
@@ -45,7 +46,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, safe_join
 import requests as http
 
-import game66
+import game_66
+import game_20ab
+import game_schwimmen
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -83,8 +86,8 @@ WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
-# Erlaubte Spieldateinamen (für Backup/Restore): 66_<uid>.json / 66hist_<uid>.json
-_GAME_FILE_RE = re.compile(r'^66(hist)?_[a-f0-9]{6,32}\.json$')
+# Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json / <spiel>hist_<uid>.json
+_GAME_FILE_RE = re.compile(r'^(66|20ab|schwimmen)(hist)?_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -2751,7 +2754,7 @@ def load_game66(uid: str) -> dict | None:
     try:
         with open(p, encoding='utf-8') as f:
             st = json.load(f)
-        return st if game66.is_valid_state(st) else None
+        return st if game_66.is_valid_state(st) else None
     except FileNotFoundError:
         return None
     except Exception as e:
@@ -2830,6 +2833,74 @@ def _require_member():
     return member
 
 
+# ── Cross-Device-Session-Schutz (pro Mitglied & Spiel, in-memory) ──────────────
+# Verhindert paralleles Spielen desselben Spielstands auf mehreren Geräten.
+# Schlüssel: (spiel, uid). Token = 128-Bit-Hex. Timeout 30 s ohne Heartbeat.
+_game_sessions: dict = {}
+_sess_lock = threading.Lock()
+_GAME_SESSION_TIMEOUT = 30  # Sekunden
+
+
+def _sess_active(game: str, uid: str) -> bool:
+    s = _game_sessions.get((game, uid))
+    return bool(s and s.get('token')
+                and (time.time() - s.get('last_seen', 0)) < _GAME_SESSION_TIMEOUT)
+
+
+def _sess_claim(game: str, uid: str, force: bool = False) -> dict:
+    with _sess_lock:
+        if _sess_active(game, uid) and not force:
+            return {'locked': True}
+        token = secrets.token_hex(16)
+        _game_sessions[(game, uid)] = {'token': token, 'last_seen': time.time()}
+        return {'token': token}
+
+
+def _sess_heartbeat(game: str, uid: str, token: str) -> dict:
+    with _sess_lock:
+        s = _game_sessions.get((game, uid))
+        if s and token and token == s.get('token'):
+            s['last_seen'] = time.time()
+            return {'ok': True}
+        return {'error': 'invalid_token'}
+
+
+def _sess_release(game: str, uid: str, token: str) -> dict:
+    with _sess_lock:
+        s = _game_sessions.get((game, uid))
+        if s and token and token == s.get('token'):
+            _game_sessions.pop((game, uid), None)
+            return {'ok': True}
+        return {'error': 'invalid_token'}
+
+
+def _sess_dispatch(game: str, uid: str, data: dict):
+    """POST /api/<spiel>/session — claim/force/heartbeat/release."""
+    action = str(data.get('action', ''))[:12]
+    token = str(data.get('token', ''))[:64]
+    if action == 'claim':
+        return jsonify(_sess_claim(game, uid))
+    if action == 'force':
+        return jsonify(_sess_claim(game, uid, force=True))
+    if action == 'heartbeat':
+        return jsonify(_sess_heartbeat(game, uid, token))
+    if action == 'release':
+        return jsonify(_sess_release(game, uid, token))
+    return jsonify({'error': 'unknown action'}), 400
+
+
+def _sess_locked(game: str, uid: str, data: dict) -> bool:
+    """True, wenn eine fremde Session aktiv ist und der Token nicht passt."""
+    token = str(data.get('token', ''))[:64]
+    s = _game_sessions.get((game, uid))
+    if s and _sess_active(game, uid) and token != s.get('token'):
+        return True
+    # Heartbeat bei gültigem Token auffrischen (Spielaktionen zählen als Aktivität)
+    if s and token and token == s.get('token'):
+        s['last_seen'] = time.time()
+    return False
+
+
 @public_app.route('/bereich/66')
 def game66_page():
     """Vollfenster-Spielseite (wird vom Mitgliederbereich als Iframe geöffnet)."""
@@ -2840,7 +2911,7 @@ def game66_page():
     lang = detect_language(request)
     t = load_translations(lang)
     deck = site['design'].get('card_deck') or 'knoll'
-    return render_template('game66.html', t=t, lang=lang, site=site,
+    return render_template('game_66.html', t=t, lang=lang, site=site,
                            member=member, deck=deck,
                            year=datetime.now(timezone.utc).year)
 
@@ -2851,21 +2922,23 @@ def api_game66_state():
     with _game_lock:
         st = load_game66(member['id'])
         if st is None:
-            st = game66.new_match()
-            game66.ai_run(st)
+            st = game_66.new_match()
+            game_66.ai_run(st)
             save_game66(member['id'], st)
         elif st['status'] == 'playing' and st['turn'] == 'a':
-            game66.ai_run(st)
+            game_66.ai_run(st)
             save_game66(member['id'], st)
         if _record_match_if_over(member['id'], st):
             save_game66(member['id'], st)
-    return jsonify(game66.public_view(st))
+    return jsonify(game_66.public_view(st))
 
 
 @public_app.route('/api/66/move', methods=['POST'])
 def api_game66_move():
     member = _require_member()
     data = request.get_json(silent=True) or {}
+    if _sess_locked('66', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
     raw = data.get('action')
     if not isinstance(raw, dict):
         abort(400)
@@ -2880,10 +2953,10 @@ def api_game66_move():
         if st is None:
             abort(409)  # kein laufendes Spiel → Client soll /state holen
         try:
-            frames = game66.apply_player_frames(st, act)
-        except game66.IllegalMove:
+            frames = game_66.apply_player_frames(st, act)
+        except game_66.IllegalMove:
             # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
-            return jsonify({'frames': [game66.public_view(st)]})
+            return jsonify({'frames': [game_66.public_view(st)]})
         _record_match_if_over(member['id'], st)
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
@@ -2893,13 +2966,15 @@ def api_game66_move():
 def api_game66_new():
     member = _require_member()
     data = request.get_json(silent=True) or {}
+    if _sess_locked('66', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
     rules = data.get('rules')
-    rules = rules if rules in game66.RULESETS else 'standard'
+    rules = rules if rules in game_66.RULESETS else 'standard'
     level = data.get('level')
-    level = level if level in game66.LEVELS else 'medium'
+    level = level if level in game_66.LEVELS else 'medium'
     with _game_lock:
-        st = game66.new_match(rules=rules, level=level)
-        frames = game66.deal_frames(st)  # KI-Eröffnung animierbar
+        st = game_66.new_match(rules=rules, level=level)
+        frames = game_66.deal_frames(st)  # KI-Eröffnung animierbar
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
 
@@ -2921,6 +2996,525 @@ def api_game66_rules():
     # Inhalt stammt aus dem mitgelieferten Repo-Dokument (kein Nutzer-Input)
     html = md_lib.markdown(text, extensions=['tables', 'sane_lists'])
     return jsonify({'html': html})
+
+
+@public_app.route('/api/66/session', methods=['POST'])
+def api_game66_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('66', member['id'], data)
+
+
+# ── 20 AB & Schwimmen (Mitglieder-Spiele, server-autoritativ, pro Mitglied) ────
+# Beide Spiele folgen demselben Muster wie 66: server-autoritativer Zustand,
+# public_view() redigiert Gegnerhände, Persistenz als <spiel>_<uid>.json.
+# KI-Schritte werden vom Client einzeln via /ai abgerufen (Animations-getrieben).
+
+NG_HISTORY_MAX = 50
+_ng_undo: dict = {}            # (spiel, uid) -> Snapshot vor dem letzten Spielerzug
+_schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
+
+
+def _ng_path(game: str, uid: str) -> Path | None:
+    if game not in ('20ab', 'schwimmen') or not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'{game}_{uid}.json'
+
+
+def _ng_load(game: str, uid: str) -> dict | None:
+    p = _ng_path(game, uid)
+    if p is None:
+        return None
+    try:
+        with open(p, encoding='utf-8') as f:
+            st = json.load(f)
+        return st if isinstance(st, dict) and 'status' in st else None
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        log.warning("%s-Spielstand defekt (%s): %s", game, uid[:8], e)
+        return None
+
+
+def _ng_save(game: str, uid: str, st: dict) -> None:
+    p = _ng_path(game, uid)
+    if p is None:
+        return
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(st, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def _ng_hist_path(game: str, uid: str) -> Path | None:
+    if game not in ('20ab', 'schwimmen') or not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'{game}hist_{uid}.json'
+
+
+def _ng_history(game: str, uid: str) -> list:
+    p = _ng_hist_path(game, uid)
+    if p is None:
+        return []
+    try:
+        with open(p, encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+
+
+def _ng_history_write(game: str, uid: str, games: list) -> None:
+    p = _ng_hist_path(game, uid)
+    if p is None:
+        return
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(games[-NG_HISTORY_MAX:], f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def _ng_rules_html(game: str, lang: str) -> str:
+    fname = f'game_{game}_rules_{lang}.md'
+    path = Path(_BASE) / fname
+    if not path.is_file():
+        path = Path(_BASE) / f'game_{game}_rules_de.md'
+    try:
+        text = path.read_text(encoding='utf-8')
+    except OSError:
+        text = ''
+    # Inhalt stammt aus mitgelieferten Repo-Dokumenten (kein Nutzer-Input)
+    return md_lib.markdown(text, extensions=['tables', 'sane_lists'])
+
+
+def _ng_names(t: dict, prefix: str) -> dict:
+    return {'p': t.get(f'{prefix}_player', 'Du'),
+            'a1': t.get(f'{prefix}_ai1', 'KI 1'),
+            'a2': t.get(f'{prefix}_ai2', 'KI 2')}
+
+
+# ── 20 AB ──────────────────────────────────────────────────────────────────────
+
+def _clean_20ab_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input)."""
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if raw.get('card') is not None:
+        act['card'] = str(raw.get('card'))[:2]
+    if raw.get('suit') is not None:
+        act['suit'] = str(raw.get('suit'))[:4]      # c/d/h/s oder 'next'
+    if raw.get('value') is not None:
+        act['value'] = str(raw.get('value'))[:8]     # 'yes'/'no'/'play'/'pass'
+    if isinstance(raw.get('cards'), list):
+        act['cards'] = [str(c)[:2] for c in raw['cards'][:6]]
+    return act
+
+
+def _record_20ab_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    games = _ng_history('20ab', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'scores': st.get('scores', {}),
+        'rounds': st.get('round_nr', 0),
+        'level': st.get('level', 'medium'),
+        'herz_blind': st.get('herz_blind_count', 0),
+    })
+    _ng_history_write('20ab', uid, games)
+
+
+@public_app.route('/bereich/20ab')
+def game20ab_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_20ab.html', t=t, lang=lang, site=site,
+                           member=member, card_deck='knoll',
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/20ab/state')
+def api_20ab_state():
+    member = _require_member()
+    st = _ng_load('20ab', member['id'])
+    return jsonify({'state': game_20ab.public_view(st) if st else None})
+
+
+@public_app.route('/api/20ab/new', methods=['POST'])
+def api_20ab_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('20ab', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    with _game_lock:
+        st = game_20ab.new_game(level)
+        _ng_undo.pop(('20ab', member['id']), None)
+        _ng_save('20ab', member['id'], st)
+    return jsonify({'state': game_20ab.public_view(st)})
+
+
+@public_app.route('/api/20ab/move', methods=['POST'])
+def api_20ab_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('20ab', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_20ab_move(data)
+    with _game_lock:
+        st = _ng_load('20ab', member['id'])
+        if st is None:
+            abort(409)
+        snapshot = copy.deepcopy(st)
+        try:
+            game_20ab.apply_action(st, 'p', act)
+        except game_20ab.IllegalMove:
+            return jsonify({'state': game_20ab.public_view(st)})
+        _ng_undo[('20ab', member['id'])] = snapshot
+        _record_20ab_if_over(member['id'], st)
+        _ng_save('20ab', member['id'], st)
+    return jsonify({'state': game_20ab.public_view(st)})
+
+
+@public_app.route('/api/20ab/ai', methods=['POST'])
+def api_20ab_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('20ab', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'g20')
+    with _game_lock:
+        st = _ng_load('20ab', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        s = st
+        if s['status'] == 'herz_blind_ask' and s.get('trump_chooser') != 'p':
+            who = s['trump_chooser']
+            value = game_20ab.ai_herz_blind(s, who)
+            game_20ab.apply_action(s, who, {'type': 'herz_blind', 'value': value})
+            event = {'type': 'herz_blind', 'who': who, 'value': value, 'name': names[who]}
+        elif s['status'] == 'trump_sel' and s.get('trump_chooser') != 'p':
+            who = s['trump_chooser']
+            chosen = game_20ab.ai_trump(s, who)
+            was_next = (chosen == 'next')
+            game_20ab.apply_action(s, who, {'type': 'choose_trump', 'suit': chosen})
+            event = {'type': 'trump', 'who': who, 'suit': s.get('trump'),
+                     'name': names[who], 'was_next': was_next,
+                     'trump_card': s.get('trump_card')}
+        elif s['status'] == 'bidding' and s.get('bid_turn') != 'p':
+            who = s['bid_turn']
+            value = game_20ab.ai_bid(s, who)
+            game_20ab.apply_action(s, who, {'type': 'bid', 'value': value})
+            event = {'type': 'bid', 'who': who, 'value': value, 'name': names[who]}
+            if s.get('forced'):
+                forced_p = s['bid_order'][2]
+                event['forced_player'] = forced_p
+                event['forced_name'] = names[forced_p]
+        elif s['status'] == 'exchanging' and s.get('exchange_turn') != 'p':
+            who = s['exchange_turn']
+            cards = game_20ab.ai_exchange(s, who)
+            game_20ab.apply_action(s, who, {'type': 'exchange', 'cards': cards})
+            event = {'type': 'exchange', 'who': who, 'count': len(cards), 'name': names[who]}
+        elif s['status'] == 'playing' and s.get('turn') != 'p':
+            who = s['turn']
+            card = game_20ab.ai_play(s, who)
+            game_20ab.apply_action(s, who, {'type': 'play', 'card': card})
+            event = {'type': 'play', 'who': who, 'card': card, 'name': names[who],
+                     'card_name': game_20ab.card_name(card)}
+        elif s['status'] == 'trick_done':
+            winner = s.get('trick_result')
+            game_20ab.apply_action(s, 'p', {'type': 'collect'})
+            event = {'type': 'collect', 'winner': winner, 'name': names.get(winner, '')}
+        _record_20ab_if_over(member['id'], st)
+        _ng_save('20ab', member['id'], st)
+    return jsonify({'state': game_20ab.public_view(st), 'event': event})
+
+
+@public_app.route('/api/20ab/undo', methods=['POST'])
+def api_20ab_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('20ab', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('20ab', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        _ng_save('20ab', member['id'], snap)
+    return jsonify({'state': game_20ab.public_view(snap)})
+
+
+@public_app.route('/api/20ab/rules')
+def api_20ab_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('20ab', detect_language(request))})
+
+
+@public_app.route('/api/20ab/history')
+def api_20ab_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('20ab', member['id'])))})
+
+
+@public_app.route('/api/20ab/history/reset', methods=['POST'])
+def api_20ab_history_reset():
+    member = _require_member()
+    _ng_history_write('20ab', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/20ab/session', methods=['POST'])
+def api_20ab_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('20ab', member['id'], data)
+
+
+# ── Schwimmen ──────────────────────────────────────────────────────────────────
+
+def _clean_schwimmen_move(raw: dict) -> dict:
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if raw.get('hand_card') is not None:
+        act['hand_card'] = str(raw.get('hand_card'))[:2]
+    if raw.get('table_card') is not None:
+        act['table_card'] = str(raw.get('table_card'))[:2]
+    return act
+
+
+def _record_schwimmen_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    move_log = st.get('move_log', [])
+    actions = {'swap_one': 0, 'swap_all': 0, 'pass': 0, 'knock': 0}
+    for m in move_log:
+        if m.get('who') == 'p' and m.get('action') in actions:
+            actions[m['action']] += 1
+    rr = st.get('round_result') or {}
+    best_hand = (rr.get('values', {}) or {}).get('p') or 0.0
+    games = _ng_history('schwimmen', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'lives': st.get('lives', {}),
+        'rounds': st.get('round_nr', 0),
+        'level': st.get('level', 'medium'),
+        'player_actions': actions,
+        'best_hand': best_hand,
+    })
+    _ng_history_write('schwimmen', uid, games)
+    # Turnierstand aktualisieren
+    tour = _schwimmen_tour.get(uid)
+    if tour and tour.get('active'):
+        w = st.get('winner', '')
+        if w:
+            tour['wins'][w] = tour['wins'].get(w, 0) + 1
+        tour['played'] += 1
+        if tour['played'] >= tour['total']:
+            tour['active'] = False
+
+
+@public_app.route('/bereich/schwimmen')
+def schwimmen_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_schwimmen.html', t=t, lang=lang, site=site,
+                           member=member, card_deck='knoll',
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/schwimmen/state')
+def api_schwimmen_state():
+    member = _require_member()
+    st = _ng_load('schwimmen', member['id'])
+    return jsonify({'state': game_schwimmen.public_view(st) if st else None,
+                    'tournament': _schwimmen_tour.get(member['id'])})
+
+
+@public_app.route('/api/schwimmen/new', methods=['POST'])
+def api_schwimmen_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('schwimmen', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    with _game_lock:
+        _schwimmen_tour.pop(member['id'], None)
+        st = game_schwimmen.new_game(level)
+        _ng_undo.pop(('schwimmen', member['id']), None)
+        _ng_save('schwimmen', member['id'], st)
+    return jsonify({'state': game_schwimmen.public_view(st), 'tournament': None})
+
+
+@public_app.route('/api/schwimmen/move', methods=['POST'])
+def api_schwimmen_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('schwimmen', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_schwimmen_move(data)
+    with _game_lock:
+        st = _ng_load('schwimmen', member['id'])
+        if st is None:
+            abort(409)
+        snapshot = copy.deepcopy(st)
+        try:
+            game_schwimmen.apply_action(st, 'p', act)
+        except game_schwimmen.IllegalMove:
+            return jsonify({'state': game_schwimmen.public_view(st),
+                            'tournament': _schwimmen_tour.get(member['id'])})
+        _ng_undo[('schwimmen', member['id'])] = snapshot
+        _record_schwimmen_if_over(member['id'], st)
+        _ng_save('schwimmen', member['id'], st)
+    return jsonify({'state': game_schwimmen.public_view(st),
+                    'tournament': _schwimmen_tour.get(member['id'])})
+
+
+@public_app.route('/api/schwimmen/ai', methods=['POST'])
+def api_schwimmen_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('schwimmen', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gs')
+    with _game_lock:
+        st = _ng_load('schwimmen', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        if st['status'] == 'playing' and st.get('turn') != 'p':
+            who = st['turn']
+            action = game_schwimmen.ai_play(st, who)
+            game_schwimmen.apply_action(st, who, action)
+            event = {'type': action['type'], 'who': who, 'name': names[who]}
+            if action['type'] == 'swap_one':
+                event['hand_card'] = action.get('hand_card')
+                event['table_card'] = action.get('table_card')
+                event['hand_card_name'] = game_schwimmen.card_name(action['hand_card'])
+                event['table_card_name'] = game_schwimmen.card_name(action['table_card'])
+            if st.get('table_refreshed'):
+                event['table_refreshed'] = True
+        _record_schwimmen_if_over(member['id'], st)
+        _ng_save('schwimmen', member['id'], st)
+    return jsonify({'state': game_schwimmen.public_view(st), 'event': event,
+                    'tournament': _schwimmen_tour.get(member['id'])})
+
+
+@public_app.route('/api/schwimmen/undo', methods=['POST'])
+def api_schwimmen_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('schwimmen', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('schwimmen', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        _ng_save('schwimmen', member['id'], snap)
+    return jsonify({'state': game_schwimmen.public_view(snap)})
+
+
+@public_app.route('/api/schwimmen/hint')
+def api_schwimmen_hint():
+    member = _require_member()
+    st = _ng_load('schwimmen', member['id'])
+    if st is None:
+        abort(409)
+    return jsonify({'hint': game_schwimmen.hint_for_player(st)})
+
+
+@public_app.route('/api/schwimmen/rules')
+def api_schwimmen_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('schwimmen', detect_language(request))})
+
+
+@public_app.route('/api/schwimmen/history')
+def api_schwimmen_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('schwimmen', member['id'])))})
+
+
+@public_app.route('/api/schwimmen/history/reset', methods=['POST'])
+def api_schwimmen_history_reset():
+    member = _require_member()
+    _ng_history_write('schwimmen', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/schwimmen/session', methods=['POST'])
+def api_schwimmen_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('schwimmen', member['id'], data)
+
+
+@public_app.route('/api/schwimmen/tournament/state')
+def api_schwimmen_tour_state():
+    member = _require_member()
+    return jsonify({'tournament': _schwimmen_tour.get(member['id'])})
+
+
+@public_app.route('/api/schwimmen/tournament/new', methods=['POST'])
+def api_schwimmen_tour_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('schwimmen', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    try:
+        total = min(max(int(data.get('games', 5)), 3), 9)
+    except (TypeError, ValueError):
+        total = 5
+    with _game_lock:
+        _schwimmen_tour[member['id']] = {
+            'total': total, 'played': 0,
+            'wins': {'p': 0, 'a1': 0, 'a2': 0},
+            'level': level, 'active': True,
+        }
+        st = game_schwimmen.new_game(level)
+        _ng_undo.pop(('schwimmen', member['id']), None)
+        _ng_save('schwimmen', member['id'], st)
+    return jsonify({'state': game_schwimmen.public_view(st),
+                    'tournament': _schwimmen_tour.get(member['id'])})
+
+
+@public_app.route('/api/schwimmen/tournament/next', methods=['POST'])
+def api_schwimmen_tour_next():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('schwimmen', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    tour = _schwimmen_tour.get(member['id'])
+    if not tour or not tour.get('active'):
+        return jsonify({'error': 'no_tournament'}), 400
+    with _game_lock:
+        st = game_schwimmen.new_game(tour['level'])
+        _ng_undo.pop(('schwimmen', member['id']), None)
+        _ng_save('schwimmen', member['id'], st)
+    return jsonify({'state': game_schwimmen.public_view(st),
+                    'tournament': _schwimmen_tour.get(member['id'])})
 
 
 @public_app.route('/sitemap.xml')

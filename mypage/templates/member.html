@@ -138,7 +138,17 @@
     <div class="card" style="margin-top:18px">
       <h1>🃏 {{ t.g66_title }}</h1>
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g66_intro }}</p>
-      <button class="btn" type="button" onclick="open66()">▶ {{ t.g66_play }}</button>
+      <button class="btn" type="button" onclick="openGame('66')">▶ {{ t.g66_play }}</button>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h1>🎴 {{ t.g20_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g20_intro }}</p>
+      <button class="btn" type="button" onclick="openGame('20ab')">▶ {{ t.g20_play }}</button>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h1>🏊 {{ t.gs_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gs_intro }}</p>
+      <button class="btn" type="button" onclick="openGame('schwimmen')">▶ {{ t.gs_play }}</button>
     </div>
     {% endif %}
   </main>
@@ -153,20 +163,22 @@
         document.documentElement.setAttribute('data-theme',
           window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     })();
-    // 66 als Vollfenster-Iframe öffnen (kein Browser-Vollbild)
-    function open66(){
-      if (document.getElementById('g66-frame')) return;
+    // Kartenspiel als Vollfenster-Iframe öffnen (kein Browser-Vollbild)
+    function openGame(slug){
+      const id = 'game-frame-' + slug;
+      if (document.getElementById(id)) return;
       const f = document.createElement('iframe');
-      f.id = 'g66-frame'; f.src = '/bereich/66'; f.title = '66';
+      f.id = id; f.src = '/bereich/' + slug; f.title = slug;
       f.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:9999;background:#0b3d2e';
       document.body.appendChild(f);
       document.body.style.overflow = 'hidden';
     }
     window.addEventListener('message', function(e){
-      if (e.origin === location.origin && e.data === 'close-66'){
-        const f = document.getElementById('g66-frame');
-        if (f){ f.remove(); document.body.style.overflow = ''; }
-      }
+      if (e.origin !== location.origin) return;
+      const m = /^close-(66|20ab|schwimmen)$/.exec(e.data);
+      if (!m) return;
+      const f = document.getElementById('game-frame-' + m[1]);
+      if (f){ f.remove(); document.body.style.overflow = ''; }
     });
   </script>
 </body>
