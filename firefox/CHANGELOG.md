@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-06-16
+
+### Geändert
+- Rebuild für Firefox ESR 140.12.0esr
+
+
 ## [1.0.2.1] - 2026-06-09
 
 chore(deps): Bump jlesage/baseimage-gui from debian-12-v4.12.1 to debian-12-v4.12.4 in /firefox
