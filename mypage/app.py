@@ -3008,13 +3008,8 @@ def api_game66_history():
 @public_app.route('/api/66/rules')
 def api_game66_rules():
     _require_member()
-    try:
-        text = (Path(_BASE) / '66_REGELN.md').read_text(encoding='utf-8')
-    except OSError:
-        text = ''
-    # Inhalt stammt aus dem mitgelieferten Repo-Dokument (kein Nutzer-Input)
-    html = md_lib.markdown(text, extensions=['tables', 'sane_lists'])
-    return jsonify({'html': html})
+    # Sprachabhängig aus game_66_rules_{lang}.md (DE-Fallback) — wie 20AB/Schwimmen
+    return jsonify({'html': _ng_rules_html('66', detect_language(request))})
 
 
 @public_app.route('/api/66/session', methods=['POST'])
