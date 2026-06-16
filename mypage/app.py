@@ -86,8 +86,10 @@ WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
-# Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json / <spiel>hist_<uid>.json
-_GAME_FILE_RE = re.compile(r'^(66|20ab|schwimmen)(hist)?_[a-f0-9]{6,32}\.json$')
+# Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
+# <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
+_GAME_FILE_RE = re.compile(
+    r'^(?:(?:66|20ab|schwimmen)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -2087,6 +2089,7 @@ def api_users():
                     'files': sum(1 for f in user_dir(u).iterdir() if f.is_file()) if storage_ok else 0,
                     'created': u.get('created', ''),
                     'last_login': u.get('last_login'),
+                    'playing': _user_playing(u['id']),
                     'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
@@ -2218,6 +2221,45 @@ def api_user_journal(uid: str):
     if user is None:
         return jsonify({'error': 'not found'}), 404
     return jsonify({'journal': list(reversed(user.get('journal', [])))})
+
+
+_ADMIN_GAMES = ('66', '20ab', 'schwimmen')
+
+
+def _user_playing(uid: str):
+    """Live-Status: spielt das Mitglied gerade (Heartbeat < Timeout)? Welches Spiel?"""
+    for game in _ADMIN_GAMES:
+        if _sess_active(game, uid):
+            s = _game_sessions.get((game, uid)) or {}
+            return {'game': game, 'since': int(s.get('started') or s.get('last_seen') or 0)}
+    return None
+
+
+def _game_stats(uid: str) -> list:
+    """Pro Spiel: gespielte Partien, Siege (Spieler), zuletzt gespielt — aus dem Verlauf."""
+    srcs = (('66', load_game66_history(uid)),
+            ('20ab', _ng_history('20ab', uid)),
+            ('schwimmen', _ng_history('schwimmen', uid)))
+    out = []
+    for game, hist in srcs:
+        out.append({'game': game, 'played': len(hist),
+                    'wins': sum(1 for h in hist if h.get('winner') == 'p'),
+                    'last': max((h.get('ts', 0) for h in hist), default=0)})
+    return out
+
+
+@admin_app.route('/api/users/<uid>/games')
+def api_user_games(uid: str):
+    err = _api_auth()
+    if err:
+        return err
+    user = _admin_get_user(uid)
+    if user is None:
+        return jsonify({'error': 'not found'}), 404
+    sessions = _gsess_sweep(uid)  # Timeouts nachschließen, aktuelle Liste holen
+    return jsonify({'playing': _user_playing(uid),
+                    'stats': _game_stats(uid),
+                    'sessions': list(reversed(sessions))[:30]})
 
 
 @admin_app.route('/api/users/<uid>/files', methods=['GET', 'POST'])
@@ -2849,10 +2891,19 @@ def _sess_active(game: str, uid: str) -> bool:
 
 def _sess_claim(game: str, uid: str, force: bool = False) -> dict:
     with _sess_lock:
-        if _sess_active(game, uid) and not force:
+        active = _sess_active(game, uid)
+        if active and not force:
             return {'locked': True}
+        now = int(time.time())
+        prev = _game_sessions.get((game, uid))
+        takeover = bool(prev and active and force)
         token = secrets.token_hex(16)
-        _game_sessions[(game, uid)] = {'token': token, 'last_seen': time.time()}
+        _game_sessions[(game, uid)] = {'token': token, 'last_seen': time.time(),
+                                       'started': now}
+        # Sitzungs-Log: neue Sitzung beginnen (alten offenen Eintrag passend schließen)
+        _gsess_open(uid, game, now,
+                    prev_last_seen=(None if takeover else (prev.get('last_seen') if prev else None)),
+                    takeover=takeover)
         return {'token': token}
 
 
@@ -2870,6 +2921,7 @@ def _sess_release(game: str, uid: str, token: str) -> dict:
         s = _game_sessions.get((game, uid))
         if s and token and token == s.get('token'):
             _game_sessions.pop((game, uid), None)
+            _gsess_finish(uid, game, 'closed')  # sauber beendet (✕ / Zurück)
             return {'ok': True}
         return {'error': 'invalid_token'}
 
@@ -2899,6 +2951,98 @@ def _sess_locked(game: str, uid: str, data: dict) -> bool:
     if s and token and token == s.get('token'):
         s['last_seen'] = time.time()
     return False
+
+
+# ── Persistentes Spielsitzungs-Log (pro Mitglied, überlebt Add-on-Neustarts) ──
+# Hält Start/Ende jeder Spielsitzung dauerhaft fest (im Gegensatz zum reinen
+# In-Memory-_game_sessions). Wird an den Session-Hooks claim/release/Übernahme
+# geführt; Timeouts werden beim Lesen/Claim „nachgeschlossen".
+GSESSIONS_MAX = 50
+
+
+def _gsess_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'gsessions_{uid}.json'
+
+
+def _gsess_load(uid: str) -> list:
+    p = _gsess_path(uid)
+    if p is None:
+        return []
+    try:
+        with open(p, encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+
+
+def _gsess_write(uid: str, rows: list) -> None:
+    p = _gsess_path(uid)
+    if p is None:
+        return
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(rows[-GSESSIONS_MAX:], f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def _gsess_close_open(rows: list, game: str, end_ts: int, reason: str) -> bool:
+    """Jüngsten offenen Eintrag des Spiels schließen. True, wenn etwas geschah."""
+    for row in reversed(rows):
+        if row.get('game') == game and row.get('end') is None:
+            row['end'] = int(end_ts)
+            row['reason'] = reason
+            return True
+    return False
+
+
+def _gsess_open(uid: str, game: str, now: int, prev_last_seen=None,
+                takeover: bool = False) -> None:
+    """Neue Sitzung beginnen; einen evtl. noch offenen Eintrag vorher schließen."""
+    rows = _gsess_load(uid)
+    if takeover:
+        _gsess_close_open(rows, game, now, 'takeover')
+    else:
+        # verwaister offener Eintrag (Timeout / Neustart) → an letzter Aktivität bzw. Start beenden
+        for row in reversed(rows):
+            if row.get('game') == game and row.get('end') is None:
+                row['end'] = int(prev_last_seen) if prev_last_seen else int(row.get('start', now))
+                row['reason'] = 'timeout'
+                break
+    rows.append({'game': game, 'start': int(now), 'end': None, 'reason': None})
+    _gsess_write(uid, rows)
+
+
+def _gsess_finish(uid: str, game: str, reason: str, end_ts=None) -> None:
+    rows = _gsess_load(uid)
+    if _gsess_close_open(rows, game, int(end_ts or time.time()), reason):
+        _gsess_write(uid, rows)
+
+
+def _gsess_sweep(uid: str) -> list:
+    """Offene Einträge schließen, deren Session nicht mehr aktiv ist (Timeout).
+    Liefert die aktuelle (ggf. aktualisierte) Sitzungsliste zurück."""
+    with _sess_lock:
+        rows = _gsess_load(uid)
+        changed = False
+        for row in rows:
+            if row.get('end') is not None:
+                continue
+            game = row.get('game')
+            if _sess_active(game, uid):
+                continue  # läuft wirklich noch
+            s = _game_sessions.get((game, uid))
+            end = int(s['last_seen']) if s and s.get('last_seen') else int(row.get('start', 0))
+            row['end'] = end
+            row['reason'] = 'timeout'
+            changed = True
+        if changed:
+            _gsess_write(uid, rows)
+        return rows
 
 
 @public_app.route('/bereich/66')

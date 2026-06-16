@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.90
+
+- 🟢 **Admin: Live-Spielstatus & Spielstatistik pro Mitglied** — in der Benutzerliste zeigt eine Status-Bubble vor der E-Mail, ob jemand gerade spielt (grün, pulsierend, inkl. Spiel + „seit …") oder inaktiv ist (grau). Der Journal-Button ist jetzt nur noch ein Icon (Platz gespart), dafür gibt es einen neuen 🎮-Button: Er öffnet ein Fenster mit der Spielstatistik (Partien, Siege, zuletzt gespielt — aus dem Spielverlauf) sowie einem Verlauf der letzten Spielsitzungen.
+- 🕒 **Persistentes Sitzungs-Log** — Start und Ende jeder Spielsitzung (66 / 20 AB / Schwimmen) werden dauerhaft pro Mitglied festgehalten (`gsessions_<uid>.json`), inkl. Grund (beendet / Timeout / Übernahme). Überlebt Add-on-Neustarts und ist in Backups enthalten.
+
 ## 0.6.89
 
 - 👁️ **Schwimmen: Turnier-Auswahl „Anzahl Spiele" wieder lesbar** — im Aufklappmenü auf dem Startbildschirm waren „5 Spiele" und „7 Spiele" kaum erkennbar (dunkelgrau auf dunklem Grund, erst beim Markieren sichtbar). Das Auswahlfeld hatte einen durchscheinenden Hintergrund, wodurch die nicht markierten Optionen unleserlich wurden. Jetzt undurchsichtiger dunkler Grund mit hellem Text. Zusätzlich ist die Beschriftung jetzt zweisprachig („Spiele" / „games") statt fest deutsch.
