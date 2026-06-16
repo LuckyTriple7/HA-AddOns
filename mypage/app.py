@@ -2323,7 +2323,7 @@ def api_user_games(uid: str):
     sessions = _gsess_sweep(uid)  # Timeouts nachschließen, aktuelle Liste holen
     return jsonify({'playing': _user_playing(uid),
                     'stats': _game_stats(uid),
-                    'sessions': list(reversed(sessions))[:30]})
+                    'sessions': list(reversed(sessions))[:100]})
 
 
 @admin_app.route('/api/users/playing')
@@ -3032,7 +3032,7 @@ def _sess_locked(game: str, uid: str, data: dict) -> bool:
 # Hält Start/Ende jeder Spielsitzung dauerhaft fest (im Gegensatz zum reinen
 # In-Memory-_game_sessions). Wird an den Session-Hooks claim/release/Übernahme
 # geführt; Timeouts werden beim Lesen/Claim „nachgeschlossen".
-GSESSIONS_MAX = 50
+GSESSIONS_MAX = 100
 
 
 def _gsess_path(uid: str) -> Path | None:

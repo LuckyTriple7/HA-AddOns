@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.95
+
+- 🕒 **Admin: Sitzungs-Verlauf auf 100 erhöht** — das Sitzungs-Log speichert jetzt bis zu 100 Spielsitzungen pro Mitglied (vorher 50) und das Spiele-Fenster zeigt entsprechend bis zu 100 (vorher 30) an.
+
 ## 0.6.94
 
 - 📊 **66: Statistik auf dem Startbildschirm** — wie bei 20 AB und Schwimmen zeigt jetzt auch der 66-Startbildschirm eine Übersicht (Spiele, Siege, Niederlagen, Siegquote, aktuelle Serie, beste Serie), berechnet aus dem Spielverlauf.
