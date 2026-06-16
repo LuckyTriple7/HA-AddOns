@@ -352,10 +352,13 @@ body{
 
 /* ── Tournament Select ───────────────────── */
 .tourn-select{
-  background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+  background:var(--felt1);border:1px solid rgba(255,255,255,0.25);
   color:#f0f0f0;padding:5px 10px;border-radius:8px;font-size:14px;
   font-family:inherit;cursor:pointer;
 }
+/* Aufklapp-Liste: undurchsichtiger dunkler Grund + heller Text,
+   sonst sind die nicht markierten Optionen kaum lesbar (dunkelgrau) */
+.tourn-select option{background:var(--felt2);color:#f0f0f0}
 
 /* ── prefers-reduced-motion ───────────────── */
 @media(prefers-reduced-motion:reduce){
@@ -444,9 +447,9 @@ body{
       <div style="font-size:15px;opacity:0.7;margin-bottom:8px">🏆 {{ t.gs_tournament }}</div>
       <div style="margin-bottom:10px">
         <select id="tournament-games" class="tourn-select">
-          <option value="3">3 Spiele</option>
-          <option value="5" selected>5 Spiele</option>
-          <option value="7">7 Spiele</option>
+          <option value="3">3 {{ t.gs_tournament_games }}</option>
+          <option value="5" selected>5 {{ t.gs_tournament_games }}</option>
+          <option value="7">7 {{ t.gs_tournament_games }}</option>
         </select>
       </div>
       <div class="levels">

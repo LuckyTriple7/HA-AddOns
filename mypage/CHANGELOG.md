@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.89
+
+- 👁️ **Schwimmen: Turnier-Auswahl „Anzahl Spiele" wieder lesbar** — im Aufklappmenü auf dem Startbildschirm waren „5 Spiele" und „7 Spiele" kaum erkennbar (dunkelgrau auf dunklem Grund, erst beim Markieren sichtbar). Das Auswahlfeld hatte einen durchscheinenden Hintergrund, wodurch die nicht markierten Optionen unleserlich wurden. Jetzt undurchsichtiger dunkler Grund mit hellem Text. Zusätzlich ist die Beschriftung jetzt zweisprachig („Spiele" / „games") statt fest deutsch.
+
 ## 0.6.88
 
 - 🌐 **66: Spielregeln jetzt zweisprachig (DE/EN)** — bisher gab es nur eine deutsche Regel-Datei (`66_REGELN.md`), die auch im englischen Bereich angezeigt wurde. Jetzt liefert `/api/66/rules` die Regeln sprachabhängig aus `game_66_rules_de.md` bzw. `game_66_rules_en.md` (mit DE-Fallback) — wie bereits bei 20 AB und Schwimmen. Die ausführliche deutsche Fassung (inkl. „Andys Oma"-Variante) wurde vollständig ins Englische übersetzt.
