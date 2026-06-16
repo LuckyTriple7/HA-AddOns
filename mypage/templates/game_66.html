@@ -271,9 +271,65 @@
       .hand.me .card-slot.playable:active { transform: translateY(-14px) scale(1.05); }
       .iconbtn { width: 40px; height: 40px; }
     }
+    /* ── Startbildschirm (Schwierigkeit / Regeln / Fortsetzen) ── */
+    #start-screen { display: flex; position: fixed; inset: 0; z-index: 70;
+      background: radial-gradient(ellipse at center, var(--felt1), var(--felt2));
+      justify-content: center; align-items: center; padding: 20px; overflow: auto; }
+    #start-screen.hidden { display: none; }
+    .start-box { text-align: center; }
+    .start-box h1 { font-size: 48px; margin-bottom: 6px; color: var(--gold); }
+    .start-box .sub { font-size: 16px; opacity: 0.7; margin-bottom: 28px; }
+    .start-box .seclabel { font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+      opacity: 0.55; margin: 22px 0 10px; }
+    .start-box .levels { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .start-box .level-btn { padding: 13px 26px; border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 10px; background: rgba(255,255,255,0.06); color: #f0f0f0;
+      font-size: 16px; cursor: pointer; transition: background 0.2s, border-color 0.2s;
+      font-family: inherit; }
+    .start-box .level-btn:hover { background: rgba(255,255,255,0.15); border-color: var(--gold); }
+    .start-box .level-btn.active { border-color: var(--gold); color: var(--gold); }
+    /* Statistik auf dem Startbildschirm (wie 20 AB / Schwimmen) */
+    #g66-stats-box { margin-top: 30px; }
+    #g66-stats-box .stats-title { font-size: 15px; opacity: 0.6; margin-bottom: 10px;
+      letter-spacing: 1px; text-transform: uppercase; }
+    .stats-grid { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .stat { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 10px 18px; min-width: 80px; }
+    .stat-val { font-size: 26px; font-weight: 700; color: var(--gold); }
+    .stat-label { font-size: 11px; opacity: 0.55; margin-top: 2px; }
+    #g66-stats-box .stats-empty { font-size: 13px; opacity: 0.4; padding: 8px 0; }
+    @media (max-width: 520px) {
+      .start-box h1 { font-size: 34px; }
+      .start-box .level-btn { padding: 11px 18px; font-size: 15px; }
+    }
   </style>
 </head>
 <body>
+  <div id="start-screen">
+    <div class="start-box">
+      <h1>🃏 {{ t.g66_title }}</h1>
+      <div class="sub">{{ t.g66_subtitle }}</div>
+      <div id="g66-resume-box" style="display:none;margin-bottom:18px">
+        <button class="level-btn" style="border-color:var(--gold);color:var(--gold);font-size:18px;padding:16px 36px" onclick="resumeGame()">▶ {{ t.g66_resume }}</button>
+      </div>
+      <div class="seclabel">🧠 {{ t.g66_level }}</div>
+      <div class="levels">
+        <button class="level-btn" onclick="startGame('easy')">{{ t.g66_level_easy }}</button>
+        <button class="level-btn" onclick="startGame('medium')">{{ t.g66_level_medium }}</button>
+        <button class="level-btn" onclick="startGame('hard')">{{ t.g66_level_hard }}</button>
+        <button class="level-btn" onclick="startGame('adaptive')">{{ t.g66_level_adaptive }}</button>
+      </div>
+      <div class="seclabel">⚖ {{ t.g66_rules }}</div>
+      <div class="levels">
+        <button class="level-btn active" id="start-rules-standard" onclick="pickStartRules('standard')">{{ t.g66_rules_std }}</button>
+        <button class="level-btn" id="start-rules-oma" onclick="pickStartRules('oma')">{{ t.g66_rules_oma }}</button>
+      </div>
+      <div id="g66-stats-box"></div>
+      <div style="margin-top:30px">
+        <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.g66_back }}</button>
+      </div>
+    </div>
+  </div>
   <div class="topbar">
     <span class="title">🃏 66</span>
     <span class="rulestag" id="rulestag"></span>
@@ -458,6 +514,15 @@
     </div>
   </div>
 
+  <div class="banner" id="device-modal" style="z-index:90">
+    <div class="box">
+      <div class="big">📱</div>
+      <h2>{{ t.g66_device_title }}</h2>
+      <p>{{ t.g66_device_text }}</p>
+      <button class="btn" id="device-takeover">{{ t.g66_device_takeover }}</button>
+    </div>
+  </div>
+
   <div class="banner" id="cut-modal">
     <div class="box">
       <h2>🎲 {{ t.g66_cut_title }}</h2>
@@ -508,6 +573,10 @@
     level_adaptive: {{ t.g66_level_adaptive|tojson }}, level_adaptive_desc: {{ t.g66_level_adaptive_desc|tojson }},
     history: {{ t.g66_history|tojson }}, history_empty: {{ t.g66_history_empty|tojson }},
     history_deals: {{ t.g66_history_deals|tojson }}, rulesdoc: {{ t.g66_rulesdoc|tojson }},
+    stats: {{ t.g66_stats|tojson }}, stats_games: {{ t.g66_stats_games|tojson }},
+    stats_wins: {{ t.g66_stats_wins|tojson }}, stats_losses: {{ t.g66_stats_losses|tojson }},
+    stats_winrate: {{ t.g66_stats_winrate|tojson }}, stats_streak: {{ t.g66_stats_streak|tojson }},
+    stats_best: {{ t.g66_stats_best|tojson }}, stats_empty: {{ t.g66_stats_empty|tojson }},
     settings: {{ t.g66_settings|tojson }}, reset: {{ t.g66_reset|tojson }},
     suit_c: {{ t.g66_suit_c|tojson }}, suit_d: {{ t.g66_suit_d|tojson }},
     suit_h: {{ t.g66_suit_h|tojson }}, suit_s: {{ t.g66_suit_s|tojson }},
@@ -630,9 +699,61 @@
     i.src = img(code); i.alt = code; return i;
   }
 
+  // ── Session-Schutz (Cross-Device) ───────────────────────────────────────
+  let sessionToken = null;
+  let heartbeatTimer = null;
+
+  async function claimSession(force){
+    try {
+      const r = await fetch('/api/66/session', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: force ? 'force' : 'claim'})
+      });
+      const d = await r.json();
+      if (d.locked){
+        $('device-modal').classList.add('show');
+        return false;
+      }
+      if (d.token){
+        sessionToken = d.token;
+        $('device-modal').classList.remove('show');
+        startHeartbeat();
+        return true;
+      }
+    } catch(e){}
+    return true;
+  }
+
+  function startHeartbeat(){
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      if (!sessionToken) return;
+      fetch('/api/66/session', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'heartbeat', token: sessionToken})
+      }).catch(() => {});
+    }, 15000);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (!sessionToken) return;
+    navigator.sendBeacon('/api/66/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  });
+
+  $('device-takeover').onclick = async () => {
+    await claimSession(true);
+    loadState();
+  };
+
   async function api(url, opts){
     try {
       const r = await fetch(url, opts);
+      if (r.status === 423){
+        $('device-modal').classList.add('show');
+        return null;
+      }
       if (r.status === 403){ $('hint').textContent = G.err; return null; }
       if (r.status === 409){ return await api('/api/66/state'); }
       return await r.json();
@@ -661,11 +782,66 @@
 
   async function loadState(){
     const v = await api('/api/66/state');
-    if (v){
-      await maybeShowCut(v);
-      render(v);
-      if (isFreshDeal(v)) await dealCards();
-    }
+    if (!v) return;
+    if (v.status === 'no_game'){ showStart(); return; }   // kein Spiel → Startbildschirm
+    hideStart();
+    await maybeShowCut(v);
+    render(v);
+    if (isFreshDeal(v)) await dealCards();
+  }
+
+  // ── Startbildschirm (Schwierigkeit / Regeln / Fortsetzen) ────────────────
+  let startRules = 'standard';
+  function pickStartRules(key){
+    startRules = (key === 'oma') ? 'oma' : 'standard';
+    $('start-rules-standard').classList.toggle('active', startRules === 'standard');
+    $('start-rules-oma').classList.toggle('active', startRules === 'oma');
+  }
+  function hideStart(){ $('start-screen').classList.add('hidden'); }
+  function showStart(){ $('start-screen').classList.remove('hidden'); checkResume(); renderStartStats(); }
+
+  // Statistik auf dem Startbildschirm (wie 20 AB / Schwimmen)
+  function calcStats66(games){
+    let wins = 0, losses = 0, streak = 0, best = 0;
+    games.forEach(gm => {
+      if (gm.winner === 'p'){ wins++; streak = Math.max(0, streak) + 1; }
+      else { losses++; streak = Math.min(0, streak) - 1; }
+      best = Math.max(best, streak);
+    });
+    return { wins, losses, total: wins + losses, streak, best_streak: best };
+  }
+  async function renderStartStats(){
+    const box = $('g66-stats-box');
+    if (!box) return;
+    const r = await api('/api/66/history');
+    const games = (r && r.games) || [];
+    if (!games.length){ box.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>'; return; }
+    const s = calcStats66(games);
+    const rate = s.total ? Math.round(s.wins / s.total * 100) : 0;
+    const streakText = s.streak > 0 ? s.streak + 'W' : (s.streak < 0 ? Math.abs(s.streak) + 'L' : '—');
+    box.innerHTML =
+      '<div class="stats-title">📊 ' + G.stats + '</div>' +
+      '<div class="stats-grid">' +
+        '<div class="stat"><div class="stat-val">' + s.total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+        '<div class="stat"><div class="stat-val" style="color:#4caf50">' + s.wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+        '<div class="stat"><div class="stat-val" style="color:#e57373">' + s.losses + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+        '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+        '<div class="stat"><div class="stat-val">' + streakText + '</div><div class="stat-label">' + G.stats_streak + '</div></div>' +
+        '<div class="stat"><div class="stat-val">' + s.best_streak + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+      '</div>';
+  }
+  async function checkResume(){
+    const v = await api('/api/66/state');
+    const has = v && v.status && v.status !== 'no_game' && v.status !== 'match_over';
+    $('g66-resume-box').style.display = has ? '' : 'none';
+  }
+  async function startGame(level){
+    hideStart();
+    await newMatch(startRules, level);
+  }
+  async function resumeGame(){
+    hideStart();
+    await loadState();
   }
 
   // Nur ganz am Match-Anfang (vor dem ersten Stich) — sonst taucht das Auslosen
@@ -839,7 +1015,10 @@
 
   async function doUndo(){
     if (busy || !canUndo) return; busy = true;
-    const r = await api('/api/66/undo', {method: 'POST'});
+    const r = await api('/api/66/undo', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token: sessionToken})
+    });
     canUndo = false; updateUndo();
     if (r && !r.error) { render(r); showToast(G.undo_toast); SFX.undo(); }
     busy = false;
@@ -849,7 +1028,7 @@
     drawnCard = null;  // beim nächsten Zug verschwindet der blaue Rand
     const r = await api('/api/66/move', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action})
+      body: JSON.stringify({action, token: sessionToken})
     });
     if (r && !r.error && action.type !== 'next') { canUndo = true; updateUndo(); }
     await applyResult(r);
@@ -1429,7 +1608,7 @@
     rules = rules || curRules; level = level || curLevel;
     const r = await api('/api/66/new', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({rules, level})
+      body: JSON.stringify({rules, level, token: sessionToken})
     });
     await applyResult(r);
     busy = false;
@@ -1579,7 +1758,19 @@
   function openSettings(){ refreshSettings(); $('settings-modal').classList.add('show'); }
   function closeSettings(){ $('settings-modal').classList.remove('show'); }
 
+  function releaseSession(){
+    if (!sessionToken) return;
+    if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+    try {
+      navigator.sendBeacon('/api/66/session',
+        new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+          {type: 'application/json'}));
+    } catch(e){}
+    sessionToken = null;
+  }
+
   function closeGame(){
+    releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
     if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
     else location.href = '/bereich';
   }
@@ -1748,7 +1939,11 @@
   $('tab-resume').onclick = becomeActive;
   claim();          // dieser Tab beansprucht beim Laden die aktive Rolle
 
-  loadState();
+  // Session beanspruchen, dann Startbildschirm zeigen (Auswahl / Fortsetzen)
+  (async () => {
+    const ok = await claimSession(false);
+    if (ok) showStart();
+  })();
   </script>
 </body>
 </html>

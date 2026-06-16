@@ -6,7 +6,7 @@ Keine externe Test-Lib noetig (laeuft im Add-on-Image).
 import random
 import sys
 
-import game66 as g
+import game_66 as g
 
 FAILS = []
 

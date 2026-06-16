@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.6.96
+
+- 🧩 **66-Startbildschirm: Layout korrigiert** — die Statistik wird jetzt komplett in einer Reihe dargestellt (die feste Maximalbreite der Startbox hatte das 6er-Raster auf 5+1 umgebrochen), und der „Zum Mitgliederbereich"-Button sitzt nun immer unten, unterhalb der Statistik (wie bei 20 AB/Schwimmen).
+
+## 0.6.95
+
+- 🕒 **Admin: Sitzungs-Verlauf auf 100 erhöht** — das Sitzungs-Log speichert jetzt bis zu 100 Spielsitzungen pro Mitglied (vorher 50) und das Spiele-Fenster zeigt entsprechend bis zu 100 (vorher 30) an.
+
+## 0.6.94
+
+- 📊 **66: Statistik auf dem Startbildschirm** — wie bei 20 AB und Schwimmen zeigt jetzt auch der 66-Startbildschirm eine Übersicht (Spiele, Siege, Niederlagen, Siegquote, aktuelle Serie, beste Serie), berechnet aus dem Spielverlauf.
+
+## 0.6.93
+
+- 🟡 **20 AB: goldener Trumpf-Rahmen wieder sichtbar** — die Trumpfkarten auf der eigenen Hand sollten (wie bei 66) golden umrandet sein, was beim Knoll-Deck nicht zu sehen war: die Markierung nutzte nur `border-color`, Knoll-Karten haben aber gar keinen Rahmen. Jetzt wird der Trumpf wie bei 66 per Gold-`box-shadow`-Ring markiert, der auf beiden Decks greift.
+
+## 0.6.92
+
+- 🏠 **Home-Assistant-Sensoren für den Live-Spielstatus** — das Add-on meldet jetzt zusätzlich, wer gerade spielt:
+  - `binary_sensor.mypage_spielt_jemand` (an/aus, sobald ≥1 Mitglied spielt; Attribut `count`),
+  - `sensor.mypage_spieler_aktiv` (Anzahl; Attribute: Liste `spieler` mit Name/Spiel/seit + `pro_spiel`-Aufschlüsselung),
+  - `sensor.mypage_aktiv_66` / `_20ab` / `_schwimmen` (Anzahl je Spiel + Namensliste).
+  Aktualisierung alle 30 s plus Sofort-Push bei Spielstart/-ende. Die Gesamtzahl der Mitglieder gibt es bereits als `sensor.mypage_members`. (Nur aktiv mit `SUPERVISOR_TOKEN`, d. h. im echten HA-Betrieb.)
+
+## 0.6.91
+
+- 🔄 **Admin: Live-Spielstatus aktualisiert sich automatisch** — die grün/grau-Bubble in der Benutzerliste wurde bisher nur beim Tab-Wechsel neu geladen. Jetzt pollt das Panel alle 10 s einen leichten Status-Endpoint und aktualisiert nur die Bubbles (kein Neuaufbau der Liste, nichts „springt"); das Polling läuft nur, solange der Benutzer-Tab offen und sichtbar ist.
+
+## 0.6.90
+
+- 🟢 **Admin: Live-Spielstatus & Spielstatistik pro Mitglied** — in der Benutzerliste zeigt eine Status-Bubble vor der E-Mail, ob jemand gerade spielt (grün, pulsierend, inkl. Spiel + „seit …") oder inaktiv ist (grau). Der Journal-Button ist jetzt nur noch ein Icon (Platz gespart), dafür gibt es einen neuen 🎮-Button: Er öffnet ein Fenster mit der Spielstatistik (Partien, Siege, zuletzt gespielt — aus dem Spielverlauf) sowie einem Verlauf der letzten Spielsitzungen.
+- 🕒 **Persistentes Sitzungs-Log** — Start und Ende jeder Spielsitzung (66 / 20 AB / Schwimmen) werden dauerhaft pro Mitglied festgehalten (`gsessions_<uid>.json`), inkl. Grund (beendet / Timeout / Übernahme). Überlebt Add-on-Neustarts und ist in Backups enthalten.
+
+## 0.6.89
+
+- 👁️ **Schwimmen: Turnier-Auswahl „Anzahl Spiele" wieder lesbar** — im Aufklappmenü auf dem Startbildschirm waren „5 Spiele" und „7 Spiele" kaum erkennbar (dunkelgrau auf dunklem Grund, erst beim Markieren sichtbar). Das Auswahlfeld hatte einen durchscheinenden Hintergrund, wodurch die nicht markierten Optionen unleserlich wurden. Jetzt undurchsichtiger dunkler Grund mit hellem Text. Zusätzlich ist die Beschriftung jetzt zweisprachig („Spiele" / „games") statt fest deutsch.
+
+## 0.6.88
+
+- 🌐 **66: Spielregeln jetzt zweisprachig (DE/EN)** — bisher gab es nur eine deutsche Regel-Datei (`66_REGELN.md`), die auch im englischen Bereich angezeigt wurde. Jetzt liefert `/api/66/rules` die Regeln sprachabhängig aus `game_66_rules_de.md` bzw. `game_66_rules_en.md` (mit DE-Fallback) — wie bereits bei 20 AB und Schwimmen. Die ausführliche deutsche Fassung (inkl. „Andys Oma"-Variante) wurde vollständig ins Englische übersetzt.
+
+## 0.6.87
+
+- 🔓 **Session-Sperre wird beim Schließen sofort freigegeben** — beim Beenden eines Spiels über „✕" (oder „Zurück") wurde die Geräte-Session bisher nicht aktiv freigegeben; der `beforeunload`-Beacon greift beim Schließen im iframe nicht zuverlässig. Folge: ein sofortiger Neustart meldete fälschlich „auf einem anderen Gerät aktiv" (bis der 30-Sekunden-Timeout ablief). `closeGame()` gibt die Sperre jetzt explizit per `release`-Beacon frei (66, 20 AB, Schwimmen).
+- 🃏 **20 AB: „Gespielte Karten" nutzt jetzt die Knoll-Karten** — die Übersicht der gespielten/verbleibenden Karten zeigte selbstgebaute Text-Kärtchen statt der Knoll-SVGs. Jetzt werden – wie bei 66 – die echten Kartenbilder gerendert (mit Markierung Hand/Tisch/verbraucht).
+
+## 0.6.86
+
+- 🎴 **Schwimmen: Animation beim Tischwechsel** — wenn alle passen, wurde die neue Mitte bisher nur kurz angeleuchtet, die Karten erschienen aber schlagartig. Jetzt werden die drei alten Tischkarten zum Stapel weggewischt und die drei neuen einzeln vom Deckzentrum eingeteilt (mit Austeil-Sound), genau wie beim Rundenstart — sowohl wenn der Spieler als auch wenn die KI das letzte Passen auslöst. Respektiert „Bewegung reduzieren".
+
+## 0.6.85
+
+- ↶ **66: Zug zurücknehmen funktioniert jetzt** — der Undo-Button (und die Taste „U") war im Client vorhanden, aber die Server-Route fehlte, sodass nichts passierte. Jetzt wird vor jedem Spielerzug ein Schnappschuss abgelegt und `/api/66/undo` stellt den Stand vor dem letzten Zug wieder her — analog zu 20 AB und Schwimmen. Undo ist (wie bisher im Client vorgesehen) nur auf den Stufen Leicht/Mittel verfügbar.
+
+## 0.6.84
+
+- 🃏 **20 AB: Spielerhand zeigt jetzt die Knoll-Karten** — die eigene Hand wurde fälschlich als einfache Text-Karten gerendert (`playerCardHtml` ignorierte das Kartendeck), während die KI-Karten korrekt als Knoll-SVGs erschienen. Jetzt nutzt die Spielerhand dasselbe Knoll-Deck.
+- 🚫 **20 AB & Schwimmen: „Nein" am Spielende** — das Spielende-Fenster bot nur „Neues Spiel". Wie bei 66 gibt es jetzt zusätzlich „Nein", das das Fenster nur schließt, sodass der Endstand sichtbar bleibt.
+
+## 0.6.83
+
+- 🎬 **Startbildschirm für alle drei Spiele vereinheitlicht** — auch 66 zeigt jetzt beim Öffnen einen Startbildschirm mit Schwierigkeitswahl (Leicht/Mittel/Schwer/Adaptiv) und Regelvariante (Standard/Oma) statt sofort eine Partie zu starten. Ein laufendes Spiel lässt sich über „Fortsetzen" weiterspielen. `/api/66/state` legt nicht mehr automatisch ein Spiel an.
+- 🔙 **„Zum Mitgliederbereich"-Button auf allen Startbildschirmen** — von 66, 20 AB und Schwimmen kommt man jetzt direkt aus dem Startbildschirm zurück zur Übersicht (der Overlay verdeckte zuvor den Schließen-Button der Topbar).
+- 🧱 **Z-Index korrigiert** — Tab-/Geräte-Hinweise (Session-Schutz) liegen nun zuverlässig über dem Startbildschirm, sodass „Hier übernehmen" auch dort bedienbar ist.
+
+## 0.6.82
+
+- 🛠️ **Docker-Build-Fix** — der Dockerfile kopierte noch `game66.py` (in 0.6.81 zu `game_66.py` umbenannt) und nicht die neuen Spielmodule/Regeldateien. Jetzt werden `game_66.py`, `game_20ab.py`, `game_schwimmen.py` sowie die `game_*_rules_{de,en}.md` ins Image kopiert.
+
+## 0.6.81
+
+- 🎴 **Zwei neue Mitglieder-Kartenspiele: 20 AB und Schwimmen** — beide spielen server-autoritativ gegen zwei KI-Gegner, sind voll auf Deutsch/Englisch lokalisiert und erscheinen als eigene Kacheln im Mitgliederbereich (Vollfenster-Iframe wie 66). Spielstand, Verlauf und Statistik werden pro Mitglied gespeichert; Schwimmen zusätzlich mit Turniermodus. Spielregeln liegen als Markdown (DE/EN) vor und werden in der Spielseite eingeblendet.
+- 🃏 **Karten 7/8/9 ergänzt** — das Knoll-Deck enthält jetzt auch 7er, 8er und 9er (für 20 AB und Schwimmen).
+- 🔒 **Cross-Device-Session-Schutz für alle drei Spiele** — zusätzlich zum bestehenden Tab-Schutz (ein Browser) verhindert ein Session-Guard jetzt paralleles Spielen desselben Spielstands auf mehreren Geräten/Browsern: Beim Laden wird die Session beansprucht (Heartbeat alle 15 s, automatische Freigabe nach 30 s ohne Lebenszeichen oder beim Schließen). Ein anderes Gerät kann per „Hier übernehmen" übernehmen; gesperrte Aktionen liefern HTTP 423.
+- 🧹 **Einheitliche Dateinamen** — das 66-Spiel heißt nun konsistent `game_66.py` / `game_66.html` (analog `game_20ab`, `game_schwimmen`). URLs und Funktionsnamen unverändert.
+
 ## 0.6.80
 
 - 💅 **66: „Gespielte Karten"-Fenster kompakter & zentriert** — das Modal war fix 620px breit, wodurch die Karten linksbündig mit viel Leerraum standen. Jetzt passt sich die Box an den Karteninhalt an und die Kartenreihen sind horizontal zentriert. Im Browser verifiziert (Box ~405px statt 620, Inhalt mittig).

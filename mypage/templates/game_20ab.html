@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>{{ t.g20_title }}</title>
+<style>
+/* ── Reset & Body ─────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--gold:#f1c40f;--felt1:#1a4a2a;--felt2:#0e3318}
+body{
+  font-family:'Segoe UI',Tahoma,sans-serif;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  color:#f0f0f0;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  overflow-x:hidden;
+  user-select:none;
+}
+
+/* ── Topbar ───────────────────────────────── */
+#topbar{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  padding:6px 16px;
+  background:rgba(0,0,0,0.4);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  flex-shrink:0;
+}
+#scorebar{display:flex;gap:28px;justify-content:center}
+.score-item{text-align:center;min-width:80px}
+.score-name{font-size:11px;opacity:0.6;display:block;margin-bottom:2px}
+.score-val{font-size:26px;font-weight:bold;transition:color 0.3s}
+.score-tricks{font-size:11px;opacity:0.5;display:none}
+.score-tricks.visible{display:block}
+.score-item.active-player .score-val{color:var(--gold)}
+.score-item.dealer .score-name::after{content:' 🃏';font-size:10px}
+#topbar-btns{display:flex;gap:6px;position:absolute;right:16px;top:50%;transform:translateY(-50%)}
+.top-btn{
+  background:rgba(255,255,255,0.12);border:none;color:#fff;
+  font-size:1.1rem;cursor:pointer;border-radius:8px;
+  width:34px;height:34px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color 0.2s,background 0.2s;
+}
+.top-btn:hover{color:#fff;background:rgba(255,255,255,0.22)}
+
+/* ── Trumpfanzeige ────────────────────────── */
+#trump-bar{
+  text-align:center;padding:5px 0;font-size:15px;
+  background:rgba(0,0,0,0.18);
+  min-height:28px;transition:background 0.3s;
+}
+#trump-bar.hearts{background:rgba(180,0,0,0.25);color:#ff6666}
+#trump-bar .suit-icon{font-size:20px;vertical-align:middle}
+
+/* ── Spielbereich ─────────────────────────── */
+#game-area{
+  flex:1;display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:10px 16px;
+  max-width:800px;width:100%;margin:0 auto;
+}
+
+/* ── Gegner ───────────────────────────────── */
+#opponents{display:flex;justify-content:space-between;gap:16px;padding:0 12px}
+.opponent{text-align:center;flex:1}
+.opp-label{font-size:13px;margin-bottom:6px;opacity:0.7}
+.opp-label .bid-badge{
+  display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;
+  margin-left:4px;vertical-align:middle;
+}
+.bid-badge.play{background:#2a7a2a;color:#aaffaa}
+.bid-badge.pass{background:#6a3030;color:#ffaaaa}
+.opp-hand{display:flex;justify-content:center;gap:4px;flex-wrap:nowrap}
+.opp-hand .card{width:clamp(40px,8vw,65px);height:clamp(58px,12vh,95px)}
+.opp-hand .card.back::after{font-size:11px;letter-spacing:1px}
+
+/* ── Tisch ────────────────────────────────── */
+#play-area{
+  display:flex;flex-direction:column;align-items:center;
+  min-height:180px;justify-content:center;
+  position:relative;
+}
+#table-cards{
+  display:flex;justify-content:center;gap:clamp(12px, 3vw, 24px);
+  min-height:clamp(100px, 20vh, 160px);align-items:flex-end;
+}
+.table-slot{text-align:center;transition:transform 0.3s}
+.table-label{font-size:11px;margin-bottom:4px;opacity:0.6}
+.table-slot.winner .card{
+  border-color:var(--gold);
+  animation:trickWin 0.5s ease-in-out infinite;
+}
+@keyframes trickWin{
+  0%,100%{box-shadow:0 0 12px rgba(255,215,0,0.3)}
+  50%{box-shadow:0 0 28px rgba(255,215,0,0.9),0 0 8px rgba(255,215,0,0.6)}
+}
+@keyframes cardFade{from{opacity:0}to{opacity:1}}
+#table-cards .card{animation:cardFade 0.26s ease}
+#table-cards.no-fade .card{animation:none}
+#info-text{
+  margin-top:10px;font-size:15px;text-align:center;
+  min-height:24px;opacity:0.8;
+}
+
+/* ── Letzter Stich ────────────────────────── */
+#last-trick{
+  display:none;align-items:center;justify-content:center;gap:10px;
+  padding:4px 0;opacity:0.5;transition:opacity 0.2s;cursor:default;
+}
+#last-trick:hover{opacity:1}
+#last-trick .card{
+  width:clamp(34px, 7vw, 52px);height:clamp(50px, 10vh, 76px);
+  font-size:9px;border-width:1.5px;
+}
+#last-trick .card .c-tl{font-size:9px;top:2px;left:3px}
+#last-trick .card .c-br{font-size:9px;bottom:2px;right:3px}
+#last-trick .card .c-mid{font-size:16px}
+#last-trick .lt-label{font-size:9px;opacity:0.5;text-align:center;margin-bottom:2px}
+#last-trick .lt-slot{text-align:center}
+.lt-slot .card.by-ai{box-shadow:0 0 0 2px #00e5ff}
+
+/* ── Spielerhand ──────────────────────────── */
+#player-area{text-align:center;padding-bottom:10px}
+#player-label{font-size:13px;margin-bottom:5px;opacity:0.7}
+#player-hand{
+  display:flex;justify-content:center;gap:clamp(4px, 1vw, 10px);
+  min-height:clamp(90px, 20vh, 150px);align-items:flex-end;
+  flex-wrap:wrap;
+}
+#actions{margin-top:12px;min-height:44px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+
+/* ── Karten ───────────────────────────────── */
+.card{
+  width:clamp(56px, 13vw, 95px);height:clamp(82px, 19vh, 140px);border-radius:10px;
+  position:relative;display:inline-block;
+  border:2px solid #555;background:#fff;
+  box-shadow:2px 3px 8px rgba(0,0,0,0.22);
+  transition:transform 0.15s,box-shadow 0.15s,opacity 0.2s;
+  vertical-align:bottom;flex-shrink:0;
+}
+.card.knoll-card{background:transparent;border:none;box-shadow:none;overflow:hidden;padding:0}
+.card.knoll-card img{width:100%;height:100%;object-fit:contain;pointer-events:none;border-radius:10px}
+.card.knoll-card.back{background:transparent}
+.card.knoll-card.back::after{display:none}
+.card .c-tl{position:absolute;top:5px;left:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15}
+.card .c-br{position:absolute;bottom:5px;right:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15;transform:rotate(180deg)}
+.card .c-mid{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:clamp(24px, 5vw, 38px)}
+.card.red{color:#cc0000}
+.card.black{color:#1a1a1a}
+.card.playable{cursor:pointer}
+.card.playable:hover{transform:translateY(-14px);box-shadow:0 0 16px rgba(255,215,0,0.7)}
+.card.dimmed{opacity:0.4;cursor:default}
+.card.back{
+  background:linear-gradient(135deg,#1a3c5c 0%,#2a5c8c 50%,#1a3c5c 100%);
+  border-color:#0a2a4c;cursor:default;overflow:hidden;
+}
+.card.back::before{
+  content:'';position:absolute;
+  top:5px;left:5px;right:5px;bottom:5px;
+  border:1.5px solid rgba(255,255,255,0.15);
+  border-radius:6px;
+}
+.card.back::after{
+  content:'♠♥♦♣';position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:13px;color:rgba(255,255,255,0.2);letter-spacing:2px;
+}
+/* Trumpf-Markierung: Gold-Ring per box-shadow (wirkt auch auf randlose Knoll-Karten,
+   reines border-color wäre dort unsichtbar, da .knoll-card border:none hat) */
+.card.trump-suit{border-color:var(--gold);box-shadow:0 0 0 2.5px var(--gold),0 2px 8px rgba(0,0,0,0.35)}
+.card.exchange-sel{opacity:0.4;border-color:#ff4444;box-shadow:0 0 10px rgba(255,68,68,0.5);transform:translateY(-10px)}
+
+/* ── Buttons ──────────────────────────────── */
+.btn{
+  padding:10px 24px;border:none;border-radius:8px;
+  font-size:15px;cursor:pointer;
+  transition:background 0.2s,transform 0.1s;
+  font-family:inherit;
+}
+.btn:active{transform:scale(0.96)}
+.btn-gold{background:#d4a017;color:#1a1a1a;font-weight:bold}
+.btn-gold:hover{background:#e8b82a}
+.btn-red{background:#8b3030;color:#f0f0f0}
+.btn-red:hover{background:#a04040}
+.btn-ghost{background:rgba(255,255,255,0.14);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:0.86rem;cursor:pointer}
+.btn-ghost:hover{background:rgba(255,255,255,0.22)}
+.btn-suit{
+  width:72px;height:72px;border:2px solid #555;border-radius:12px;
+  background:rgba(255,255,255,0.1);color:#f0f0f0;
+  font-size:30px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;transition:background 0.2s,border-color 0.2s;
+}
+.btn-suit:hover{background:rgba(255,255,255,0.2);border-color:var(--gold)}
+.btn-suit .suit-label{font-size:11px}
+.btn-suit.red{color:#cc0000}
+.btn-suit.black{color:#1a1a1a}
+.btn-next{
+  height:72px;padding:0 14px;border:2px solid #555;border-radius:12px;
+  background:rgba(255,255,255,0.1);color:#f0f0f0;
+  font-size:13px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;transition:background 0.2s,border-color 0.2s;
+}
+.btn-next:hover{background:rgba(255,255,255,0.2);border-color:var(--gold)}
+.btn-next span:first-child{font-size:20px}
+
+/* ── Modals ───────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.65);z-index:100;
+  justify-content:center;align-items:center;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  background:#1e3a1e;border:1px solid rgba(255,255,255,0.15);
+  border-radius:14px;padding:24px 32px;
+  text-align:center;max-width:440px;width:92%;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  max-height:90vh;overflow-y:auto;
+}
+.modal-box.wide{max-width:750px}
+.scrollbox{max-height:62vh;overflow-y:auto;text-align:left;margin:6px 0 14px;padding-right:6px}
+.scrollbox.md{font-size:0.86rem;line-height:1.5}
+.scrollbox.md h1{font-size:1.2rem;margin:12px 0 6px}
+.scrollbox.md h2{font-size:1.05rem;margin:14px 0 6px;border:0}
+.scrollbox.md h3{font-size:0.95rem;margin:10px 0 4px}
+.scrollbox.md p{opacity:0.92;margin:6px 0}
+.scrollbox.md ul,.scrollbox.md ol{margin:6px 0 6px 18px}
+.scrollbox.md li{margin:3px 0}
+.scrollbox.md hr{border:0;border-top:1px solid rgba(255,255,255,0.15);margin:14px 0}
+.scrollbox.md table{border-collapse:collapse;width:100%;margin:8px 0;font-size:0.8rem}
+.scrollbox.md th,.scrollbox.md td{border:1px solid rgba(255,255,255,0.18);padding:5px 8px;text-align:left}
+.scrollbox.md th{background:rgba(255,255,255,0.08)}
+.scrollbox.md strong{color:#f1c40f}
+.modal-box h2{font-size:22px;margin-bottom:12px}
+.modal-box p{font-size:14px;margin:6px 0;opacity:0.85}
+.modal-box .emoji{font-size:44px;margin:8px 0}
+
+/* ── Rundenergebnis ───────────────────────── */
+.result-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+.result-table th,.result-table td{padding:6px 10px;text-align:center}
+.result-table th{opacity:0.6;font-weight:normal;border-bottom:1px solid rgba(255,255,255,0.1)}
+.result-table td.positive{color:#ff6666}
+.result-table td.negative{color:#66ff66}
+.result-table td.zero{opacity:0.5}
+.result-table td.bounced{color:#ffaa44}
+
+/* ── Settings ─────────────────────────────── */
+.setting{text-align:left;margin:12px 0;width:min(340px,80vw)}
+.setting label{display:block;font-size:0.86rem;margin-bottom:7px}
+.setting label b{color:var(--gold);font-variant-numeric:tabular-nums}
+.setting input[type=range]{width:100%;accent-color:var(--gold)}
+.setting-hint{font-size:0.74rem;opacity:0.7;margin:4px 0 16px;max-width:340px}
+.setting-check{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.86rem}
+.setting-check input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold)}
+
+/* ── Gespielte Karten ─────────────────────── */
+.played-grid{display:flex;flex-direction:column;gap:10px;margin:10px auto;align-items:center}
+.played-row{display:flex;align-items:center;gap:5px}
+.played-row .ps{font-size:1.6rem;width:32px;text-align:center}
+.played-row .ps.red{color:#cc0000}
+.played-row .pcard{
+  height:76px;width:auto;border-radius:6px;display:block;vertical-align:middle;
+  box-shadow:0 2px 5px rgba(0,0,0,0.4);
+}
+.played-row .pcard.used{opacity:0.22;filter:grayscale(0.8)}
+.played-row .pcard.in-hand{box-shadow:0 0 0 2.5px var(--gold),0 2px 5px rgba(0,0,0,0.4)}
+.played-row .pcard.on-table{box-shadow:0 0 0 2.5px rgba(130,255,150,0.8),0 2px 5px rgba(0,0,0,0.4)}
+.played-legend{display:flex;gap:16px;justify-content:center;font-size:0.74rem;margin:2px 0 8px;opacity:0.75}
+.played-legend span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.played-legend .pl-hand::before{background:var(--gold)}
+.played-legend .pl-table::before{background:rgba(130,255,150,0.8)}
+.played-legend .pl-gone::before{background:rgba(255,255,255,0.18)}
+
+/* ── Toasts ───────────────────────────────── */
+#toast-container{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  z-index:200;display:flex;flex-direction:column;gap:6px;
+  align-items:center;pointer-events:none;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.toast{
+  background:rgba(0,0,0,0.82);color:#fff;
+  padding:7px 18px;border-radius:8px;font-size:14px;
+  font-weight:600;white-space:nowrap;
+  animation:toastIn 0.3s ease;
+  transition:opacity 0.4s;
+  pointer-events:none;
+}
+.toast.gold{background:rgba(241,196,15,0.92);color:#20160a}
+.toast.info{background:rgba(0,80,160,0.85)}
+
+/* ── Startscreen ──────────────────────────── */
+#start-screen{
+  display:flex;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  z-index:300;
+  justify-content:center;align-items:center;
+}
+#start-screen.hidden{display:none}
+.start-box{text-align:center}
+.start-box h1{font-size:52px;margin-bottom:6px;color:var(--gold)}
+.start-box .sub{font-size:17px;opacity:0.7;margin-bottom:32px}
+.start-box .levels{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.start-box .level-btn{
+  padding:14px 28px;border:2px solid rgba(255,255,255,0.2);
+  border-radius:10px;background:rgba(255,255,255,0.06);
+  color:#f0f0f0;font-size:17px;cursor:pointer;
+  transition:background 0.2s,border-color 0.2s;
+  font-family:inherit;
+}
+.start-box .level-btn:hover{background:rgba(255,255,255,0.15);border-color:var(--gold)}
+
+#stats-box{margin-top:28px;text-align:center}
+#stats-box .stats-title{font-size:15px;opacity:0.6;margin-bottom:10px;letter-spacing:1px;text-transform:uppercase}
+.stats-grid{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.stat{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:10px 18px;min-width:80px;
+}
+.stat-val{font-size:26px;font-weight:700;color:var(--gold)}
+.stat-label{font-size:11px;opacity:0.55;margin-top:2px}
+#stats-box .stats-empty{font-size:13px;opacity:0.4;padding:8px 0}
+.stats-history{margin-top:14px;max-height:240px;overflow-y:auto;text-align:left}
+.hist-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px}
+.hist-row.win{background:rgba(76,175,80,0.08)}
+.hist-ico{font-size:16px;flex-shrink:0}
+.hist-meta{opacity:0.55;flex:1;white-space:nowrap}
+.hist-score{font-size:11px;opacity:0.7;white-space:nowrap}
+
+.game-log{
+  position:fixed;left:10px;bottom:10px;width:min(280px,70vw);max-height:34vh;
+  overflow-y:auto;background:rgba(0,0,0,0.85);border-radius:10px;padding:8px 12px;
+  font-size:12px;display:none;z-index:80;border:1px solid rgba(255,255,255,0.12);
+}
+.game-log.show{display:block}
+.game-log div{padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);opacity:0.8}
+.game-log div:last-child{border-bottom:none}
+.game-log .log-round{color:var(--gold);font-weight:700;opacity:1;margin-top:6px}
+.game-log .log-round:first-child{margin-top:0}
+
+/* ── prefers-reduced-motion ───────────────── */
+@media(prefers-reduced-motion:reduce){
+  #table-cards .card{animation:none}
+  .table-slot.winner .card{animation:none;box-shadow:0 0 18px var(--gold)}
+  .toast{animation:none}
+}
+
+/* ── Mobile / Touch ───────────────────────── */
+@media(max-width:600px){
+  #scorebar{gap:14px}
+  .score-val{font-size:20px}
+  .score-name{font-size:10px}
+  .btn-suit{width:56px;height:56px;font-size:24px}
+  .btn-next{height:56px;font-size:11px}
+  .btn-next span:first-child{font-size:16px}
+  #player-hand{gap:4px}
+  .opp-hand{gap:2px}
+  #game-area{padding:6px 8px}
+  #topbar{padding:6px 8px}
+  #topbar-btns{gap:2px}
+  .top-btn{width:32px;height:32px;font-size:16px;padding:2px}
+  .btn{min-width:44px;min-height:44px;padding:10px 18px}
+  #last-trick .card{width:clamp(28px,6vw,42px);height:clamp(42px,8vh,62px)}
+  .played-row .pcard{height:58px;width:auto}
+}
+@media(max-width:400px){
+  #scorebar{gap:8px;padding:4px 6px}
+  .score-val{font-size:18px}
+  .btn-suit{width:48px;height:48px;font-size:20px}
+  .btn-next{height:48px;font-size:10px}
+  .modal-box{padding:16px 18px}
+}
+@media(pointer:coarse){
+  .card.playable:active{transform:translateY(-14px) scale(1.05)}
+  .top-btn{width:40px;height:40px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Startbildschirm ─────────────────────── -->
+<div id="start-screen">
+  <div class="start-box">
+    <h1>{{ t.g20_title }}</h1>
+    <div class="sub">{{ t.g20_subtitle }}</div>
+    <div id="resume-box" style="display:none;margin-bottom:18px">
+      <button class="level-btn" style="border-color:var(--gold);color:var(--gold);font-size:18px;padding:16px 36px" onclick="resumeGame()">▶ {{ t.g20_resume }}</button>
+    </div>
+    <div class="levels">
+      <button class="level-btn" onclick="startGame('easy')">{{ t.g20_level_easy }}</button>
+      <button class="level-btn" onclick="startGame('medium')">{{ t.g20_level_medium }}</button>
+      <button class="level-btn" onclick="startGame('hard')">{{ t.g20_level_hard }}</button>
+    </div>
+    <div id="stats-box"></div>
+    <div style="margin-top:28px">
+      <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.g20_back }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Topbar mit Scores + Buttons ─────────── -->
+<div id="topbar">
+  <div id="scorebar">
+    <div class="score-item" id="si-a1">
+      <span class="score-name" id="sn-a1">{{ t.g20_ai1 }}</span>
+      <span class="score-val" id="sv-a1">20</span>
+      <span class="score-tricks" id="st-a1"></span>
+    </div>
+    <div class="score-item" id="si-p">
+      <span class="score-name" id="sn-p">{{ t.g20_player }}</span>
+      <span class="score-val" id="sv-p">20</span>
+      <span class="score-tricks" id="st-p"></span>
+    </div>
+    <div class="score-item" id="si-a2">
+      <span class="score-name" id="sn-a2">{{ t.g20_ai2 }}</span>
+      <span class="score-val" id="sv-a2">20</span>
+      <span class="score-tricks" id="st-a2"></span>
+    </div>
+  </div>
+  <div id="topbar-btns">
+    <button class="top-btn" id="btn-rules" title="{{ t.g20_rulesdoc }}">⚖</button>
+    <button class="top-btn" id="btn-stats" title="{{ t.g20_stats }}" onclick="openStats()">🏅</button>
+    <button class="top-btn" id="btn-played" title="{{ t.g20_played }}" style="display:none">📋</button>
+    <button class="top-btn" onclick="openSettings()" title="{{ t.g20_settings }}">⚙</button>
+    <button class="top-btn" id="btn-undo" title="{{ t.g20_undo }}" style="display:none">↶</button>
+    <button class="top-btn" id="btn-log" title="Verlauf" onclick="toggleLog()">≡</button>
+    <button class="top-btn" onclick="confirmNewGame()" title="{{ t.g20_new_game }}">↻</button>
+    <button class="top-btn" onclick="closeGame()" title="Schließen">✕</button>
+  </div>
+</div>
+
+<!-- ── Trumpfanzeige ──────────────────────── -->
+<div id="trump-bar"></div>
+
+<!-- ── Spielbereich ────────────────────────── -->
+<div id="game-area">
+  <div id="opponents">
+    <div class="opponent">
+      <div class="opp-label" id="label-a1">{{ t.g20_ai1 }}</div>
+      <div class="opp-hand" id="hand-a1"></div>
+    </div>
+    <div class="opponent">
+      <div class="opp-label" id="label-a2">{{ t.g20_ai2 }}</div>
+      <div class="opp-hand" id="hand-a2"></div>
+    </div>
+  </div>
+
+  <div id="play-area">
+    <div id="table-cards"></div>
+    <div id="info-text"></div>
+  </div>
+
+  <div id="last-trick"></div>
+
+  <div id="player-area">
+    <div id="player-label">{{ t.g20_player }}</div>
+    <div id="player-hand"></div>
+    <div id="actions"></div>
+  </div>
+</div>
+
+<!-- ── Spielverlauf ────────────────────────── -->
+<div class="game-log" id="game-log"></div>
+
+<!-- ── Toasts ──────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── Modal: Tab-Schutz ───────────────────── -->
+<div class="modal-overlay" id="tab-modal" style="z-index:310">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">🔀</div>
+    <h2>{{ t.g20_tab_title }}</h2>
+    <p>{{ t.g20_tab_text }}</p>
+    <button class="btn btn-gold" id="tab-resume">{{ t.g20_tab_resume }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Device-Schutz ───────────────── -->
+<div class="modal-overlay" id="device-modal" style="z-index:320">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">📱</div>
+    <h2>{{ t.g20_device_title }}</h2>
+    <p>{{ t.g20_device_text }}</p>
+    <button class="btn btn-gold" id="device-takeover">{{ t.g20_device_takeover }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Rundenergebnis ──────────────── -->
+<div class="modal-overlay" id="modal-round">
+  <div class="modal-box">
+    <h2 id="round-title">{{ t.g20_round_result }}</h2>
+    <div id="round-trump-info"></div>
+    <table class="result-table" id="result-table">
+      <thead><tr><th>Spieler</th><th>{{ t.g20_tricks }}</th><th>Änderung</th><th>Neu</th></tr></thead>
+      <tbody id="result-body"></tbody>
+    </table>
+    <div id="round-extras"></div>
+    <button class="btn btn-gold" onclick="nextRound()" style="margin-top:12px">{{ t.g20_next_round }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielende ───────────────────── -->
+<div class="modal-overlay" id="modal-gameover">
+  <div class="modal-box">
+    <div class="emoji" id="go-emoji">🏆</div>
+    <h2 id="go-title">{{ t.g20_game_over }}</h2>
+    <p id="go-text"></p>
+    <div id="go-scores"></div>
+    <button class="btn btn-gold" onclick="showStart()" style="margin-top:14px">{{ t.g20_new_game }}</button>
+    <button class="btn" onclick="document.getElementById('modal-gameover').classList.remove('show')" style="margin-top:14px;margin-left:8px">{{ t.g20_banner_no }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Statistik ──────────────────── -->
+<div class="modal-overlay" id="stats-modal">
+  <div class="modal-box">
+    <h2>📊 {{ t.g20_stats }}</h2>
+    <div id="stats-modal-content"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-ghost" onclick="resetStatsConfirm()" style="font-size:12px;opacity:0.5">{{ t.g20_stats_reset }}</button>
+      <button class="btn btn-gold" onclick="closeStats()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Einstellungen ───────────────── -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-box">
+    <h2>⚙ {{ t.g20_settings }}</h2>
+    <div class="setting">
+      <label>{{ t.g20_speed_label }}: <b id="val-ai-speed">0,7s</b></label>
+      <input type="range" id="set-ai-speed" min="200" max="2000" step="100" value="700">
+    </div>
+    <div class="setting">
+      <label>{{ t.g20_speed_fly }}: <b id="val-fly">0,38s</b></label>
+      <input type="range" id="set-fly" min="120" max="1000" step="20" value="380">
+    </div>
+    <div class="setting">
+      <label>{{ t.g20_speed_linger }}: <b id="val-linger">1,25s</b></label>
+      <input type="range" id="set-linger" min="300" max="10000" step="100" value="1250">
+    </div>
+    <div class="setting">
+      <label>{{ t.g20_speed_toast }}: <b id="val-toast">2,2s</b></label>
+      <input type="range" id="set-toast" min="1500" max="5000" step="100" value="2200">
+    </div>
+    <p class="setting-hint">{{ t.g20_settings_hint }}</p>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-sound" checked>
+        {{ t.g20_sound_label }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.g20_sound_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-lasttrick" checked>
+        {{ t.g20_lasttrick_opt }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.g20_lasttrick_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-played">
+        {{ t.g20_played_opt }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.g20_played_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:16px">
+      <label style="font-size:0.86rem;font-weight:700">{{ t.g20_keyboard }}</label>
+      <p class="setting-hint" style="margin-top:4px">
+        <b>S/Enter</b> Spielen &nbsp; <b>P/Esc</b> Passen<br>
+        <b>1-4</b> Trumpf wählen (♥♦♠♣) &nbsp; <b>1-5</b> Karte spielen<br>
+        <b>U</b> {{ t.g20_undo }} &nbsp; <b>K</b> {{ t.g20_played }}<br>
+        <b>Enter</b> Nächste Runde &nbsp; <b>Esc</b> Schließen
+      </p>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn-ghost" id="btn-settings-reset">{{ t.g20_reset }}</button>
+      <button class="btn btn-gold" onclick="closeSettings()">✕</button>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-gold" onclick="showStart();closeSettings();" style="width:100%">{{ t.g20_new_game }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Gespielte Karten ────────────── -->
+<div class="modal-overlay" id="played-modal">
+  <div class="modal-box wide">
+    <h2>📋 {{ t.g20_played }}</h2>
+    <div class="played-legend">
+      <span class="pl-hand">{{ t.g20_played_hand }}</span>
+      <span class="pl-table">{{ t.g20_played_table }}</span>
+      <span class="pl-gone">{{ t.g20_played_gone }}</span>
+    </div>
+    <div id="played-grid" class="played-grid"></div>
+    <button class="btn btn-gold" onclick="closePlayed()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielregeln ─────────────────── -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal-box wide">
+    <h2>📖 {{ t.g20_rulesdoc }}</h2>
+    <div class="scrollbox md" id="rules-body">Lade Regeln…</div>
+    <button class="btn btn-gold" onclick="closeRules()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<script>
+/* ── Konstanten ────────────────────────────── */
+const CARD_DECK = {{ card_deck|tojson }};
+const G = {
+  title:        {{ t.g20_title|tojson }},
+  player:       {{ t.g20_player|tojson }},
+  ai1:          {{ t.g20_ai1|tojson }},
+  ai2:          {{ t.g20_ai2|tojson }},
+  your_turn:    {{ t.g20_your_turn|tojson }},
+  your_bid:     {{ t.g20_your_bid|tojson }},
+  your_trump:   {{ t.g20_your_trump|tojson }},
+  play:         {{ t.g20_play|tojson }},
+  pass_bid:     {{ t.g20_pass|tojson }},
+  choose_trump: {{ t.g20_choose_trump|tojson }},
+  next_round:   {{ t.g20_next_round|tojson }},
+  tricks:       {{ t.g20_tricks|tojson }},
+  round:        {{ t.g20_round|tojson }},
+  hearts_double:{{ t.g20_hearts_double|tojson }},
+  bounce:       {{ t.g20_bounce|tojson }},
+  forced:       {{ t.g20_forced|tojson }},
+  penalty:      {{ t.g20_penalty|tojson }},
+  plays:        {{ t.g20_plays|tojson }},
+  passes:       {{ t.g20_passes|tojson }},
+  chooses:      {{ t.g20_chooses|tojson }},
+  as_trump:     {{ t.g20_as_trump|tojson }},
+  wins_trick:   {{ t.g20_wins_trick|tojson }},
+  no_change:    {{ t.g20_no_change|tojson }},
+  game_over:    {{ t.g20_game_over|tojson }},
+  you_win:      {{ t.g20_you_win|tojson }},
+  you_lose:     {{ t.g20_you_lose|tojson }},
+  undo:         {{ t.g20_undo|tojson }},
+  undo_toast:   {{ t.g20_undo_toast|tojson }},
+  kreuz_forced: {{ t.g20_kreuz_forced|tojson }},
+  starts:       {{ t.g20_starts|tojson }},
+  who_starts:   {{ t.g20_who_starts|tojson }},
+  active:       {{ t.g20_active|tojson }},
+  passed:       {{ t.g20_passed|tojson }},
+  suit_h:       {{ t.g20_suit_h|tojson }},
+  suit_d:       {{ t.g20_suit_d|tojson }},
+  suit_s:       {{ t.g20_suit_s|tojson }},
+  suit_c:       {{ t.g20_suit_c|tojson }},
+  round_result: {{ t.g20_round_result|tojson }},
+  end_scores:   {{ t.g20_end_scores|tojson }},
+  settings:     {{ t.g20_settings|tojson }},
+  played:       {{ t.g20_played|tojson }},
+  played_hand:  {{ t.g20_played_hand|tojson }},
+  played_table: {{ t.g20_played_table|tojson }},
+  played_gone:  {{ t.g20_played_gone|tojson }},
+  last_trick:   {{ t.g20_last_trick|tojson }},
+  reset:        {{ t.g20_reset|tojson }},
+  exchange:     {{ t.g20_exchange|tojson }},
+  exchange_skip:{{ t.g20_exchange_skip|tojson }},
+  exchange_info:{{ t.g20_exchange_info|tojson }},
+  exchanges_n:  {{ t.g20_exchanges_n|tojson }},
+  cards:        {{ t.g20_cards|tojson }},
+  no_exchange:  {{ t.g20_no_exchange|tojson }},
+  rulesdoc:     {{ t.g20_rulesdoc|tojson }},
+  next_card:    {{ t.g20_next_card|tojson }},
+  next_card_is: {{ t.g20_next_card_is|tojson }},
+  starts_you:   {{ t.g20_starts_you|tojson }},
+  herz_blind:       {{ t.g20_herz_blind|tojson }},
+  herz_blind_desc:  {{ t.g20_herz_blind_desc|tojson }},
+  herz_blind_yes:   {{ t.g20_herz_blind_yes|tojson }},
+  herz_blind_no:    {{ t.g20_herz_blind_no|tojson }},
+  herz_blind_toast: {{ t.g20_herz_blind_toast|tojson }},
+  herz_blind_ai:    {{ t.g20_herz_blind_ai|tojson }},
+  herz_blind_skip:  {{ t.g20_herz_blind_skip|tojson }},
+  stats:            {{ t.g20_stats|tojson }},
+  stats_wins:       {{ t.g20_stats_wins|tojson }},
+  stats_losses:     {{ t.g20_stats_losses|tojson }},
+  stats_games:      {{ t.g20_stats_games|tojson }},
+  stats_winrate:    {{ t.g20_stats_winrate|tojson }},
+  stats_streak:     {{ t.g20_stats_streak|tojson }},
+  stats_best:       {{ t.g20_stats_best|tojson }},
+  stats_reset:      {{ t.g20_stats_reset|tojson }},
+  stats_empty:      {{ t.g20_stats_empty|tojson }},
+  resume:           {{ t.g20_resume|tojson }},
+  ai_thinking:      {{ t.g20_ai_thinking|tojson }},
+  ai_choosing_trump:{{ t.g20_ai_choosing_trump|tojson }},
+  ai_exchanging:    {{ t.g20_ai_exchanging|tojson }},
+  ai_playing:       {{ t.g20_ai_playing|tojson }},
+};
+
+const SUIT_SYM = {h:'♥', d:'♦', s:'♠', c:'♣'};
+const SUIT_NAME = {h:G.suit_h, d:G.suit_d, s:G.suit_s, c:G.suit_c};
+const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
+const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
+const ALL_RANKS = ['7','8','9','T','J','Q','K','A'];
+function startsText(p){ return NAMES[p] + ' ' + (p === 'p' ? G.starts_you : G.starts) + '!'; }
+function cardName(c){ return RANK_DISP[c[1]] + ' ' + SUIT_SYM[c[0]]; }
+const NAMES = {p:G.player, a1:G.ai1, a2:G.ai2};
+
+const $ = id => document.getElementById(id);
+
+/* ── State ─────────────────────────────────── */
+let gameState = null;
+let aiRunning = false;
+let canUndo = false;
+let lastHandCount = 0;
+let exchangeSelected = new Set();
+let gameLog = [];
+
+/* ── Einstellungen (localStorage) ──────────── */
+function clampInt(v, lo, hi, def){ const n = parseInt(v); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); }
+const FLY_DEFAULT = 380, LINGER_DEFAULT = 1250, TOAST_DEFAULT = 2200, AISPEED_DEFAULT = 700;
+let aiDelay    = clampInt(localStorage.getItem('g20_ai_speed'), 200, 2000, AISPEED_DEFAULT);
+let flyMs      = clampInt(localStorage.getItem('g20_fly'), 120, 1000, FLY_DEFAULT);
+let lingerMs   = clampInt(localStorage.getItem('g20_linger'), 300, 10000, LINGER_DEFAULT);
+let toastMs    = clampInt(localStorage.getItem('g20_toast'), 1500, 5000, TOAST_DEFAULT);
+let soundOn    = localStorage.getItem('g20_sound') !== '0';
+let showLastTrick = localStorage.getItem('g20_show_lasttrick') !== '0';
+let showPlayed = localStorage.getItem('g20_show_played') === '1';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const fmtSec = ms => (ms/1000).toFixed(2).replace('.',',') + 's';
+
+function initSettings(){
+  const bind = (id, varGet, varSet, fmt) => {
+    const el = $(id);
+    el.value = varGet();
+    const valEl = $('val-' + id.replace('set-',''));
+    if(valEl) valEl.textContent = fmt(varGet());
+    el.oninput = () => { varSet(parseInt(el.value)); if(valEl) valEl.textContent = fmt(varGet()); };
+  };
+  bind('set-ai-speed', ()=>aiDelay, v=>{aiDelay=v;localStorage.setItem('g20_ai_speed',v)}, fmtSec);
+  bind('set-fly', ()=>flyMs, v=>{flyMs=v;localStorage.setItem('g20_fly',v)}, fmtSec);
+  bind('set-linger', ()=>lingerMs, v=>{lingerMs=v;localStorage.setItem('g20_linger',v)}, fmtSec);
+  bind('set-toast', ()=>toastMs, v=>{toastMs=v;localStorage.setItem('g20_toast',v)}, fmtSec);
+
+  const snd = $('set-sound');
+  snd.checked = soundOn;
+  snd.onchange = () => { soundOn = snd.checked; localStorage.setItem('g20_sound', soundOn?'1':'0'); if(soundOn) SFX.cardPlay(); };
+
+  const lt = $('set-lasttrick');
+  lt.checked = showLastTrick;
+  lt.onchange = () => { showLastTrick = lt.checked; localStorage.setItem('g20_show_lasttrick', showLastTrick?'1':'0'); if(!showLastTrick) $('last-trick').style.display='none'; };
+
+  const pl = $('set-played');
+  pl.checked = showPlayed;
+  pl.onchange = () => { showPlayed = pl.checked; localStorage.setItem('g20_show_played', showPlayed?'1':'0'); applyPlayedVisibility(); };
+
+  $('btn-settings-reset').onclick = () => {
+    aiDelay=AISPEED_DEFAULT; flyMs=FLY_DEFAULT; lingerMs=LINGER_DEFAULT; toastMs=TOAST_DEFAULT;
+    soundOn=true; showLastTrick=true; showPlayed=false;
+    ['g20_ai_speed','g20_fly','g20_linger','g20_toast','g20_sound','g20_show_lasttrick','g20_show_played'].forEach(k=>localStorage.removeItem(k));
+    applyPlayedVisibility(); initSettings();
+  };
+
+  applyPlayedVisibility();
+}
+
+function applyPlayedVisibility(){ $('btn-played').style.display = showPlayed ? '' : 'none'; }
+function openSettings(){ initSettings(); $('settings-modal').classList.add('show'); }
+function closeSettings(){ $('settings-modal').classList.remove('show'); }
+
+/* ── Sound (Web Audio) ─────────────────────── */
+let audioCtx = null;
+function getAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, dur, type, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = vol || 0.1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e){}
+}
+function playNoise(dur, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (vol||0.1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(gain); gain.connect(ctx.destination);
+    src.start();
+  } catch(e){}
+}
+const SFX = {
+  cardPlay: () => playNoise(0.08, 0.15),
+  cardDraw: () => playNoise(0.06, 0.10),
+  trick:    () => { playNoise(0.05, 0.12); setTimeout(()=>playNoise(0.04, 0.08), 60); },
+  bid:      () => playTone(520, 0.08, 'triangle', 0.08),
+  trump:    () => { playTone(523, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.12), 100); },
+  win:      () => { [523,659,784,1047].forEach((f,i) => setTimeout(()=>playTone(f, 0.2, 'triangle', 0.18), i*120)); },
+  lose:     () => { [392,330,262].forEach((f,i) => setTimeout(()=>playTone(f, 0.25, 'sine', 0.10), i*150)); },
+  undo:     () => playTone(370, 0.15, 'sine', 0.08),
+  herzBlind:() => { [262,330,392,523].forEach((f,i) => setTimeout(()=>playTone(f, 0.18, 'sawtooth', 0.06), i*80)); },
+  bounce:   () => { playTone(440, 0.12, 'square', 0.06); setTimeout(()=>playTone(330, 0.15, 'square', 0.06), 100); setTimeout(()=>playTone(523, 0.12, 'triangle', 0.08), 220); },
+  penalty:  () => { playTone(220, 0.3, 'sawtooth', 0.05); setTimeout(()=>playTone(185, 0.35, 'sawtooth', 0.04), 200); },
+  exchange: () => { playNoise(0.04, 0.08); setTimeout(()=>playNoise(0.05, 0.10), 80); setTimeout(()=>playNoise(0.04, 0.08), 160); },
+  nextCard: () => { playTone(392, 0.15, 'triangle', 0.12); setTimeout(()=>playTone(523, 0.18, 'triangle', 0.15), 130); setTimeout(()=>playTone(659, 0.2, 'triangle', 0.12), 260); },
+};
+
+/* ── Spielverlauf (Log) ───────────────────── */
+function addLog(text, cls){
+  gameLog.push({text, cls: cls||''});
+  renderLog();
+}
+function addLogRound(nr){
+  addLog('── Runde ' + nr + ' ──', 'log-round');
+}
+function renderLog(){
+  const el = $('game-log');
+  el.innerHTML = '';
+  gameLog.slice(-40).forEach(e => {
+    const d = document.createElement('div');
+    if(e.cls) d.className = e.cls;
+    d.textContent = e.text;
+    el.appendChild(d);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+function toggleLog(){
+  $('game-log').classList.toggle('show');
+}
+function clearLog(){
+  gameLog = [];
+  $('game-log').innerHTML = '';
+}
+
+/* ── Session-Schutz (Cross-Device) ─────────── */
+let sessionToken = null;
+let heartbeatTimer = null;
+let tabActive = true;
+
+async function claimSession(force){
+  try {
+    const r = await fetch('/api/20ab/session', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: force ? 'force' : 'claim'})
+    });
+    const d = await r.json();
+    if (d.locked){
+      $('device-modal').classList.add('show');
+      return false;
+    }
+    if (d.token){
+      sessionToken = d.token;
+      $('device-modal').classList.remove('show');
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (!sessionToken) return;
+        fetch('/api/20ab/session', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'heartbeat', token: sessionToken})
+        }).catch(() => {});
+      }, 15000);
+      return true;
+    }
+  } catch(e){}
+  return true;
+}
+
+window.addEventListener('beforeunload', () => {
+  if (!sessionToken) return;
+  navigator.sendBeacon('/api/20ab/session',
+    new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+      {type: 'application/json'}));
+});
+
+$('device-takeover').onclick = async () => {
+  await claimSession(true);
+  checkResume();
+};
+
+/* ── Mehr-Tab-Schutz (BroadcastChannel) ───── */
+const TAB_ID = Math.random().toString(36).slice(2);
+let bc = null, myClaimTs = 0;
+function tabClaim(){
+  myClaimTs = Date.now();
+  if (bc) try { bc.postMessage({type: 'claim', id: TAB_ID, ts: myClaimTs}); } catch(e){}
+}
+function becomePassive(){
+  if (!tabActive) return;
+  tabActive = false;
+  $('tab-modal').classList.add('show');
+}
+function becomeActive(){
+  tabActive = true;
+  $('tab-modal').classList.remove('show');
+  tabClaim();
+  checkResume();
+}
+try {
+  bc = new BroadcastChannel('mypage-g20');
+  bc.onmessage = e => {
+    const m = e.data;
+    if (!m || m.id === TAB_ID || m.type !== 'claim') return;
+    if (m.ts > myClaimTs || (m.ts === myClaimTs && m.id > TAB_ID)) becomePassive();
+  };
+} catch(e){ bc = null; }
+$('tab-resume').onclick = becomeActive;
+tabClaim();
+
+/* ── API ───────────────────────────────────── */
+async function api(url, data){
+  if (data && sessionToken) data.token = sessionToken;
+  const opts = data
+    ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}
+    : {};
+  try {
+    const r = await fetch(url, opts);
+    if (r.status === 423){
+      $('device-modal').classList.add('show');
+      return null;
+    }
+    return r.ok ? await r.json() : null;
+  } catch(e){ return null; }
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function detectDealExtra(st){
+  const count = Array.isArray(st.hands?.p) ? st.hands.p.length : 0;
+  const grew = lastHandCount > 0 && count > lastHandCount;
+  lastHandCount = count;
+  return grew;
+}
+
+/* ── Kartenanzeige ─────────────────────────── */
+function cardSvgUrl(c){
+  return '/cards/knoll/' + c[1] + c[0] + '.svg';
+}
+
+function cardHtml(c, playable, isLegal){
+  if(CARD_DECK === 'knoll'){
+    let cls = 'card knoll-card';
+    if(playable && isLegal) cls += ' playable';
+    else if(playable && !isLegal) cls += ' dimmed';
+    return '<div class="' + cls + '" data-card="' + c + '">' +
+      '<img src="' + cardSvgUrl(c) + '" draggable="false"></div>';
+  }
+  const s = c[0], r = c[1];
+  const color = SUIT_COLOR[s];
+  const sym = SUIT_SYM[s];
+  const disp = RANK_DISP[r];
+  let cls = 'card ' + color;
+  if(playable && isLegal) cls += ' playable';
+  else if(playable && !isLegal) cls += ' dimmed';
+  return '<div class="' + cls + '" data-card="' + c + '">' +
+    '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
+    '<span class="c-mid">' + sym + '</span>' +
+    '<span class="c-br">' + disp + '<br>' + sym + '</span></div>';
+}
+
+function cardBackHtml(){
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card back"><img src="/cards/knoll/back.svg" draggable="false"></div>';
+  }
+  return '<div class="card back"></div>';
+}
+
+/* ── Toasts ────────────────────────────────── */
+function showToast(text, cls){
+  const t = document.createElement('div');
+  t.className = 'toast' + (cls ? ' '+cls : '');
+  t.textContent = text;
+  $('toast-container').appendChild(t);
+  const fadeStart = Math.max(toastMs - 400, 200);
+  setTimeout(() => { t.style.opacity = '0'; }, fadeStart);
+  setTimeout(() => t.remove(), toastMs);
+}
+
+/* ══════════════════════════════════════════════
+   ANIMATIONEN
+   ══════════════════════════════════════════════ */
+
+function flyCard(card){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const el = document.querySelector('#player-hand .card[data-card="' + card + '"]');
+    const tableEl = $('table-cards');
+    if(!el || !tableEl){ resolve(); return; }
+    const s = el.getBoundingClientRect();
+    const t = tableEl.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const clone = el.cloneNode(true);
+    clone.classList.remove('playable','dimmed');
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'transition:transform ' + (flyMs/1000) + 's cubic-bezier(.4,.8,.3,1);'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(clone);
+    el.style.visibility = 'hidden';
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
+    let done = false;
+    const fin = () => { if(done) return; done = true; clone.remove(); resolve(); };
+    clone.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 60);
+  });
+}
+
+function flyAiCard(who, card){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const handEl = $('hand-' + who);
+    const back = handEl && handEl.querySelector('.card.back');
+    const tableEl = $('table-cards');
+    if(!back || !tableEl){ resolve(); return; }
+    const s = back.getBoundingClientRect();
+    const t = tableEl.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cardHtml(card, false, false);
+    const clone = tmp.firstChild;
+    const dur = flyMs / 1000;
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);'
+      + 'box-shadow:0 0 0 3px #00e5ff,0 10px 22px rgba(0,0,0,.55),0 0 18px rgba(0,229,255,0.6)';
+    document.body.appendChild(clone);
+    back.style.visibility = 'hidden';
+    clone.getBoundingClientRect();
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1.45)';
+    $('table-cards').classList.add('no-fade');
+    let done = false;
+    const fin = () => {
+      if(done) return; done = true; clone.remove();
+      setTimeout(() => $('table-cards').classList.remove('no-fade'), 80);
+      resolve();
+    };
+    clone.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 80);
+  });
+}
+
+function flyTrickTo(winner){
+  return new Promise(resolve => {
+    if(reduceMotion || !winner){ resolve(); return; }
+    const cards = Array.from(document.querySelectorAll('#table-cards .card'));
+    if(!cards.length){ resolve(); return; }
+    const targetEl = $('sv-' + winner);
+    if(!targetEl){ resolve(); return; }
+    const t = targetEl.getBoundingClientRect();
+    let pending = cards.length;
+    const allDone = () => { if(--pending <= 0) resolve(); };
+    cards.forEach(srcEl => {
+      const s = srcEl.getBoundingClientRect();
+      if(!s.width){ allDone(); return; }
+      const clone = srcEl.cloneNode(true);
+      clone.style.cssText = 'position:fixed;margin:0;pointer-events:none;z-index:62;'
+        + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+        + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+        + 'transition:transform ' + (flyMs/1000) + 's cubic-bezier(.4,.8,.3,1),'
+        + 'opacity ' + (flyMs/1000) + 's ease;'
+        + 'box-shadow:0 10px 22px rgba(0,0,0,.5)';
+      document.body.appendChild(clone);
+      srcEl.style.visibility = 'hidden';
+      const dx = (t.left + t.width/2) - (s.left + s.width/2);
+      const dy = (t.top + t.height/2) - (s.top + s.height/2);
+      let done = false;
+      const fin = () => { if(done) return; done = true; clone.remove(); allDone(); };
+      requestAnimationFrame(() => {
+        clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(0.35)';
+        clone.style.opacity = '0.25';
+      });
+      clone.addEventListener('transitionend', fin, {once:true});
+      setTimeout(fin, flyMs + 80);
+    });
+  });
+}
+
+async function dealCards(){
+  if(reduceMotion) return;
+  const a1Cards = Array.from($('hand-a1').querySelectorAll('.card'));
+  const a2Cards = Array.from($('hand-a2').querySelectorAll('.card'));
+  const pCards  = Array.from($('player-hand').querySelectorAll('.card'));
+  const all = [...a1Cards, ...a2Cards, ...pCards];
+  if(!all.length) return;
+
+  all.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
+
+  const fadeDur = flyMs / 1000;
+  const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
+  const pause = Math.max(60, Math.round(flyMs * 0.25));
+
+  const max = Math.max(a1Cards.length, a2Cards.length, pCards.length);
+  for(let i = 0; i < max; i++){
+    if(a1Cards[i]){ fadeIn(a1Cards[i]); await sleep(pause); }
+    if(a2Cards[i]){ fadeIn(a2Cards[i]); await sleep(pause); }
+    if(pCards[i]){ fadeIn(pCards[i]); await sleep(pause); }
+  }
+  await sleep(pause * 2);
+
+  all.forEach(c => { c.style.opacity = ''; c.style.transition = ''; });
+}
+
+async function animateExchangeOut(selectedCards){
+  if(reduceMotion) return;
+  const els = Array.from($('player-hand').querySelectorAll('.card')).filter(el =>
+    selectedCards.includes(el.dataset.card)
+  );
+  if(!els.length) return;
+  const dur = flyMs / 1000;
+  const clones = els.map(el => {
+    const r = el.getBoundingClientRect();
+    const clone = el.cloneNode(true);
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;' +
+      'left:'+r.left+'px;top:'+r.top+'px;width:'+r.width+'px;height:'+r.height+'px;' +
+      'transition:transform '+dur+'s ease-in,opacity '+dur+'s ease;';
+    document.body.appendChild(clone);
+    el.style.visibility = 'hidden';
+    return clone;
+  });
+  await sleep(30);
+  clones.forEach(cl => { cl.style.transform = 'translateY(-140px) scale(0.6)'; cl.style.opacity = '0'; });
+  await sleep(flyMs + 50);
+  clones.forEach(c => c.remove());
+}
+
+async function animateExchangeIn(){
+  const cards = Array.from($('player-hand').querySelectorAll('.card'));
+  if(!cards.length || reduceMotion) return;
+  cards.forEach(c => { c.style.opacity = '0'; c.style.transform = 'translateY(-30px)'; c.style.transition = 'none'; });
+  void cards[0].offsetWidth;
+  await sleep(50);
+  const dur = flyMs / 1000;
+  for(const card of cards){
+    card.style.transition = 'opacity '+dur+'s ease, transform '+dur+'s ease';
+    card.style.opacity = '1';
+    card.style.transform = 'none';
+    SFX.cardDraw();
+    await sleep(Math.max(80, Math.round(flyMs * 0.3)));
+  }
+  await sleep(200);
+  cards.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.style.transition = ''; });
+}
+
+async function showTrumpCardReveal(card){
+  if(reduceMotion) return;
+  const s = card[0], r = card[1];
+  const color = SUIT_COLOR[s];
+  const sym = SUIT_SYM[s];
+  const disp = RANK_DISP[r];
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:90;' +
+    'display:flex;align-items:center;justify-content:center;flex-direction:column;' +
+    'opacity:0;transition:opacity 0.3s ease';
+
+  const cardEl = document.createElement('div');
+  cardEl.className = 'card ' + color;
+  cardEl.style.cssText = 'width:120px;height:176px;border-color:var(--gold);' +
+    'box-shadow:0 0 30px rgba(241,196,15,0.6),0 8px 32px rgba(0,0,0,0.5);' +
+    'transform:scale(0) rotateY(180deg);transition:transform 0.5s cubic-bezier(.2,.8,.3,1.2);' +
+    'font-size:inherit';
+  cardEl.innerHTML = '<span class="c-tl" style="font-size:22px">' + disp + '<br>' + sym + '</span>' +
+    '<span class="c-mid" style="font-size:48px">' + sym + '</span>' +
+    '<span class="c-br" style="font-size:22px">' + disp + '<br>' + sym + '</span>';
+
+  const label = document.createElement('div');
+  label.style.cssText = 'color:var(--gold);font-size:18px;font-weight:bold;margin-top:16px;' +
+    'opacity:0;transition:opacity 0.4s ease 0.3s';
+  label.textContent = '🎲 ' + SUIT_NAME[s];
+
+  overlay.appendChild(cardEl);
+  overlay.appendChild(label);
+  document.body.appendChild(overlay);
+
+  await sleep(30);
+  overlay.style.opacity = '1';
+  cardEl.style.transform = 'scale(1) rotateY(0deg)';
+  label.style.opacity = '1';
+  SFX.cardDraw();
+
+  await sleep(1800);
+
+  overlay.style.opacity = '0';
+  await sleep(350);
+  overlay.remove();
+}
+
+/* ══════════════════════════════════════════════
+   RENDERING
+   ══════════════════════════════════════════════ */
+
+function render(st){
+  if(!st) return;
+  renderScores(st);
+  renderTrump(st);
+  renderOpponents(st);
+  renderTable(st);
+  renderLastTrick(st);
+  renderPlayerHand(st);
+  renderActions(st);
+  renderInfo(st);
+  updateUndo();
+}
+
+function renderScores(st){
+  const scores = st.scores || {};
+  const tricks = st.tricks || {};
+  const showTricks = st.status === 'playing' || st.status === 'trick_done';
+  for(const p of ['p','a1','a2']){
+    const el = $('sv-'+p);
+    if(el) el.textContent = scores[p] ?? '?';
+    const si = $('si-'+p);
+    if(si){
+      si.classList.toggle('dealer', st.starter === p);
+      si.classList.toggle('active-player',
+        st.status === 'playing' && st.turn === p);
+    }
+    const te = $('st-'+p);
+    if(te){
+      if(showTricks && (st.active || []).includes(p)){
+        te.textContent = (tricks[p] || 0) + ' ' + G.tricks;
+        te.classList.add('visible');
+      } else {
+        te.classList.remove('visible');
+      }
+    }
+  }
+}
+
+function renderTrump(st){
+  const bar = $('trump-bar');
+  if(!st.trump){
+    bar.textContent = '';
+    bar.className = '';
+    return;
+  }
+  const sym = SUIT_SYM[st.trump];
+  const name = SUIT_NAME[st.trump];
+  let extra = '';
+  if(st.herz_blind) extra = ' <b>BLIND ×4!</b>';
+  else if(st.trump === 'h') extra = ' <b>×2!</b>';
+  if(st.trump === 'c') extra = ' <b>Alle spielen!</b>';
+  const chooser = st.trump_chooser ? ' <small>(' + NAMES[st.trump_chooser] + ')</small>' : '';
+  bar.innerHTML = '<span class="suit-icon">' + sym + '</span> ' + name + extra + chooser;
+  bar.className = (st.trump === 'h') ? 'hearts' : '';
+}
+
+function renderOpponents(st){
+  for(const ai of ['a1','a2']){
+    const handEl = $('hand-'+ai);
+    const count = typeof st.hands?.[ai] === 'number' ? st.hands[ai] : 0;
+    let html = '';
+    for(let i = 0; i < count; i++) html += cardBackHtml();
+    handEl.innerHTML = html;
+
+    const label = $('label-'+ai);
+    let lbl = NAMES[ai];
+    const bid = st.bids?.[ai];
+    if(bid){
+      const cls = bid === 'play' ? 'play' : 'pass';
+      const txt = bid === 'play' ? G.active : G.passed;
+      lbl += ' <span class="bid-badge ' + cls + '">' + txt + '</span>';
+    }
+    label.innerHTML = lbl;
+  }
+}
+
+function renderTable(st){
+  if(st.status === 'cutting'){
+    let html = '';
+    for(const p of ['a1','p','a2']){
+      html += '<div class="table-slot" data-who="' + p + '">' +
+        '<div class="table-label">' + NAMES[p] + '</div>' +
+        cardBackHtml() + '</div>';
+    }
+    $('table-cards').innerHTML = html;
+    return;
+  }
+
+  const table = st.table || [];
+  const trickResult = st.trick_result;
+  let html = '';
+  for(const t of table){
+    const isWinner = st.status === 'trick_done' && trickResult === t.who;
+    html += '<div class="table-slot' + (isWinner ? ' winner' : '') + '" data-who="' + t.who + '">' +
+      '<div class="table-label">' + NAMES[t.who] + '</div>' +
+      cardHtml(t.card, false, false) + '</div>';
+  }
+  $('table-cards').innerHTML = html;
+}
+
+function renderLastTrick(st){
+  const ltEl = $('last-trick');
+  const lt = st.last_trick;
+  if(!showLastTrick || !lt || !lt.length || (st.table && st.table.length)){
+    ltEl.style.display = 'none';
+    return;
+  }
+  let html = '';
+  for(const entry of lt){
+    const aiClass = entry.who !== 'p' ? ' by-ai' : '';
+    html += '<div class="lt-slot"><div class="lt-label">' + NAMES[entry.who] + '</div>' +
+      '<div class="card ' + SUIT_COLOR[entry.card[0]] + aiClass + '" style="display:inline-block">' +
+      '<span class="c-tl">' + RANK_DISP[entry.card[1]] + '<br>' + SUIT_SYM[entry.card[0]] + '</span>' +
+      '<span class="c-mid">' + SUIT_SYM[entry.card[0]] + '</span>' +
+      '<span class="c-br">' + RANK_DISP[entry.card[1]] + '<br>' + SUIT_SYM[entry.card[0]] + '</span>' +
+      '</div></div>';
+  }
+  ltEl.innerHTML = html;
+  ltEl.style.display = 'flex';
+}
+
+function playerCardHtml(c, extraCls){
+  extraCls = extraCls || '';
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card' + extraCls + '" data-card="' + c + '">' +
+      '<img src="' + cardSvgUrl(c) + '" draggable="false"></div>';
+  }
+  const s = c[0], r = c[1];
+  const color = SUIT_COLOR[s];
+  const sym = SUIT_SYM[s];
+  const disp = RANK_DISP[r];
+  return '<div class="card ' + color + extraCls + '" data-card="' + c + '">' +
+    '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
+    '<span class="c-mid">' + sym + '</span>' +
+    '<span class="c-br">' + disp + '<br>' + sym + '</span></div>';
+}
+
+function renderPlayerHand(st){
+  if(st.status === 'herz_blind_ask'){
+    let html = '';
+    for(let i = 0; i < 2; i++) html += cardBackHtml();
+    $('player-hand').innerHTML = html;
+    return;
+  }
+  const hand = st.hands?.p;
+  if(!hand || !Array.isArray(hand)){
+    $('player-hand').innerHTML = '';
+    return;
+  }
+  const canPlay = st.status === 'playing' && st.turn === 'p';
+  const canExchange = st.status === 'exchanging' && st.exchange_turn === 'p';
+  const legal = st.legal || [];
+  let html = '';
+  for(const c of hand){
+    const isTrump = st.trump && c[0] === st.trump;
+    const trumpCls = isTrump ? ' trump-suit' : '';
+    if(canExchange){
+      const sel = exchangeSelected.has(c);
+      html += playerCardHtml(c, ' playable' + trumpCls + (sel ? ' exchange-sel' : ''));
+    } else if(canPlay){
+      const isLegal = legal.includes(c);
+      html += playerCardHtml(c, trumpCls + (isLegal ? ' playable' : ' dimmed'));
+    } else {
+      html += playerCardHtml(c, trumpCls);
+    }
+  }
+  $('player-hand').innerHTML = html;
+
+  if(canPlay){
+    document.querySelectorAll('#player-hand .card.playable').forEach(el => {
+      el.onclick = () => playCard(el.dataset.card);
+    });
+  }
+  if(canExchange){
+    document.querySelectorAll('#player-hand .card').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.onclick = () => toggleExchangeCard(el.dataset.card);
+    });
+  }
+}
+
+function renderActions(st){
+  const el = $('actions');
+  el.innerHTML = '';
+
+  if(st.status === 'cutting'){
+    return;
+  }
+  else if(st.status === 'herz_blind_ask' && st.trump_chooser === 'p'){
+    el.innerHTML =
+      '<button class="btn btn-red" style="font-size:18px;padding:14px 28px" onclick="doHerzBlind(\'yes\')">' +
+      '♥ ' + G.herz_blind_yes + '</button>' +
+      '<button class="btn btn-ghost" onclick="doHerzBlind(\'no\')">' + G.herz_blind_no + '</button>';
+  }
+  else if(st.status === 'trump_sel' && st.trump_chooser === 'p'){
+    el.innerHTML =
+      '<button class="btn-suit red" onclick="chooseTrump(\'h\')"><span>♥</span><span class="suit-label">' + G.suit_h + '</span></button>' +
+      '<button class="btn-suit red" onclick="chooseTrump(\'d\')"><span>♦</span><span class="suit-label">' + G.suit_d + '</span></button>' +
+      '<button class="btn-suit black" onclick="chooseTrump(\'s\')"><span>♠</span><span class="suit-label">' + G.suit_s + '</span></button>' +
+      '<button class="btn-suit black" onclick="chooseTrump(\'c\')"><span>♣</span><span class="suit-label">' + G.suit_c + '</span></button>' +
+      '<button class="btn-next" onclick="chooseTrump(\'next\')"><span>🎲</span><span>' + G.next_card + '</span></button>';
+  }
+  else if(st.status === 'bidding' && st.bid_turn === 'p'){
+    el.innerHTML =
+      '<button class="btn btn-gold" onclick="doBid(\'play\')">' + G.play + '</button>' +
+      '<button class="btn btn-red" onclick="doBid(\'pass\')">' + G.pass_bid + '</button>';
+  }
+  else if(st.status === 'exchanging' && st.exchange_turn === 'p'){
+    const count = exchangeSelected.size;
+    const label = count > 0 ? G.exchange + ' (' + count + ')' : G.exchange;
+    el.innerHTML =
+      '<button class="btn btn-gold" onclick="doExchange()" ' + (count === 0 ? 'disabled style="opacity:0.4"' : '') + '>' + label + '</button>' +
+      '<button class="btn btn-ghost" onclick="skipExchange()">' + G.exchange_skip + '</button>';
+  }
+}
+
+function renderInfo(st){
+  const el = $('info-text');
+  if(st.status === 'cutting'){
+    el.textContent = G.who_starts;
+  } else if(st.status === 'herz_blind_ask'){
+    if(st.trump_chooser === 'p'){
+      el.textContent = G.herz_blind + ' ' + G.herz_blind_desc;
+    } else {
+      el.textContent = NAMES[st.trump_chooser] + ' ' + G.ai_thinking;
+    }
+  } else if(st.status === 'trump_sel'){
+    if(st.trump_chooser === 'p'){
+      el.textContent = G.your_trump;
+    } else {
+      el.textContent = NAMES[st.trump_chooser] + ' ' + G.ai_choosing_trump;
+    }
+  } else if(st.status === 'bidding'){
+    if(st.bid_turn === 'p'){
+      el.textContent = G.your_bid;
+    } else {
+      el.textContent = NAMES[st.bid_turn] + ' ' + G.ai_thinking;
+    }
+  } else if(st.status === 'exchanging'){
+    if(st.exchange_turn === 'p'){
+      el.textContent = G.exchange_info;
+    } else {
+      el.textContent = NAMES[st.exchange_turn] + ' ' + G.ai_exchanging;
+    }
+  } else if(st.status === 'playing'){
+    if(st.turn === 'p'){
+      el.textContent = G.your_turn;
+    } else {
+      el.textContent = NAMES[st.turn] + ' ' + G.ai_playing;
+    }
+  } else if(st.status === 'trick_done'){
+    el.textContent = NAMES[st.trick_result] + ' ' + G.wins_trick;
+  } else {
+    el.textContent = '';
+  }
+}
+
+/* ── Undo ──────────────────────────────────── */
+function updateUndo(){
+  $('btn-undo').style.display = canUndo ? '' : 'none';
+}
+async function doUndo(){
+  if(aiRunning || !canUndo) return;
+  const v = await api('/api/20ab/undo', {});
+  canUndo = false;
+  updateUndo();
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    showToast(G.undo_toast);
+    SFX.undo();
+  }
+}
+$('btn-undo').onclick = doUndo;
+
+/* ── Gespielte Karten Modal ───────────────── */
+function openPlayed(){
+  if(!gameState) return;
+  const grid = $('played-grid'); grid.innerHTML = '';
+  const st = gameState;
+  const gone = new Set(st.played || []);
+  const hand = new Set((st.hands && Array.isArray(st.hands.p)) ? st.hands.p : []);
+  const onTable = new Set((st.table || []).map(t => t.card));
+
+  for(const s of ['h','d','s','c']){
+    const row = document.createElement('div'); row.className = 'played-row';
+    const sh = document.createElement('span');
+    sh.className = 'ps' + (SUIT_COLOR[s] === 'red' ? ' red' : '');
+    sh.textContent = SUIT_SYM[s];
+    row.appendChild(sh);
+    for(const r of ALL_RANKS){
+      const card = s + r;
+      const ci = document.createElement('img');
+      ci.className = 'pcard';
+      ci.src = cardSvgUrl(card);
+      ci.alt = card;
+      ci.title = RANK_DISP[r] + ' ' + SUIT_SYM[s];
+      if(onTable.has(card)) ci.classList.add('on-table');
+      else if(hand.has(card)) ci.classList.add('in-hand');
+      else if(gone.has(card)) ci.classList.add('used');
+      row.appendChild(ci);
+    }
+    grid.appendChild(row);
+  }
+  $('played-modal').classList.add('show');
+}
+function closePlayed(){ $('played-modal').classList.remove('show'); }
+$('btn-played').onclick = openPlayed;
+
+/* ── Regeln-Modal ─────────────────────────── */
+let rulesLoaded = false;
+async function openRules(){
+  $('rules-modal').classList.add('show');
+  if(rulesLoaded) return;
+  try {
+    const r = await fetch('/api/20ab/rules');
+    const d = await r.json();
+    if(d && d.html){ $('rules-body').innerHTML = d.html; rulesLoaded = true; }
+  } catch(e){ $('rules-body').textContent = 'Fehler beim Laden der Regeln.'; }
+}
+function closeRules(){ $('rules-modal').classList.remove('show'); }
+$('btn-rules').onclick = openRules;
+
+/* ══════════════════════════════════════════════
+   SPIELER-AKTIONEN
+   ══════════════════════════════════════════════ */
+
+function toggleExchangeCard(card){
+  if(exchangeSelected.has(card)){
+    exchangeSelected.delete(card);
+  } else {
+    if(exchangeSelected.size >= 3){
+      showToast('Maximal 3 Karten!', '');
+      return;
+    }
+    exchangeSelected.add(card);
+  }
+  render(gameState);
+}
+
+async function doExchange(){
+  const cards = Array.from(exchangeSelected);
+  if(cards.length === 0) return;
+  SFX.exchange();
+  addLog('Du tauschst ' + cards.length + ' Karten');
+  await animateExchangeOut(cards);
+  exchangeSelected.clear();
+  const v = await api('/api/20ab/move', {type:'exchange', cards});
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    try { await animateExchangeIn(); } catch(e){}
+    await advanceAI();
+  } else {
+    render(gameState);
+  }
+}
+
+async function skipExchange(){
+  exchangeSelected.clear();
+  addLog('Du tauschst nicht');
+  const v = await api('/api/20ab/move', {type:'exchange', cards:[]});
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    await advanceAI();
+  }
+}
+
+async function playCard(card){
+  SFX.cardPlay();
+  addLog('Du spielst ' + cardName(card));
+  await flyCard(card);
+  canUndo = true; updateUndo();
+  const v = await api('/api/20ab/move', {type:'play', card});
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    await advanceAI();
+  }
+}
+
+async function doHerzBlind(value){
+  if(value === 'yes') SFX.herzBlind(); else SFX.bid();
+  if(value === 'yes') addLog('Du wählst Herz Blind!');
+  else addLog('Du: kein Herz Blind');
+  const v = await api('/api/20ab/move', {type:'herz_blind', value});
+  if(v && v.state){
+    gameState = v.state;
+    if(value === 'yes'){
+      showToast(G.herz_blind_toast, 'gold');
+    }
+    render(gameState);
+    lastHandCount = 0;
+    await dealCards();
+    await advanceAI();
+  }
+}
+
+async function doBid(value){
+  SFX.bid();
+  addLog('Du ' + (value === 'play' ? 'spielst' : 'passt'));
+  const v = await api('/api/20ab/move', {type:'bid', value});
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    if(value === 'pass' && gameState.forced){
+      const fp = gameState.bid_order?.[2];
+      if(fp) showToast(NAMES[fp] + ': ' + G.forced, 'gold');
+    }
+    if(detectDealExtra(gameState)) await dealCards();
+    await advanceAI();
+  }
+}
+
+async function chooseTrump(suit){
+  if(suit === 'next') SFX.nextCard(); else SFX.trump();
+  if(suit === 'next') addLog('Du wählst: Nächste Karte');
+  else addLog('Du wählst ' + (SUIT_SYM[suit]||'') + ' ' + (SUIT_NAME[suit]||'') + ' als Trumpf');
+  const v = await api('/api/20ab/move', {type:'choose_trump', suit});
+  if(v && v.state){
+    if(suit === 'next' && v.state.trump_card){
+      await showTrumpCardReveal(v.state.trump_card);
+      addLog('Nächste Karte → ' + (SUIT_SYM[v.state.trump]||'') + ' ' + (SUIT_NAME[v.state.trump]||''));
+    }
+    gameState = v.state;
+    render(gameState);
+    if(v.state.trump === 'h') showToast(G.hearts_double, 'gold');
+    if(suit === 'c') showToast(G.kreuz_forced, 'gold');
+    if(detectDealExtra(gameState)) await dealCards();
+    await advanceAI();
+  }
+}
+
+async function doProceed(){
+  const v = await api('/api/20ab/move', {type:'proceed'});
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    lastHandCount = Array.isArray(v.state.hands?.p) ? v.state.hands.p.length : 0;
+    await dealCards();
+    await advanceAI();
+  }
+}
+
+async function animateCutting(){
+  const st = gameState;
+  if(!st || !st.cut_cards) return;
+
+  const order = ['a1','p','a2'];
+  const slots = Array.from($('table-cards').querySelectorAll('.table-slot'));
+
+  if(reduceMotion){
+    for(let i = 0; i < slots.length; i++){
+      const p = order[i];
+      const c = st.cut_cards[p];
+      const slot = slots[i];
+      const tmp = document.createElement('div');
+      tmp.innerHTML = cardHtml(c, false, false);
+      slot.querySelector('.card').replaceWith(tmp.firstChild);
+      if(p === st.starter) slot.classList.add('winner');
+    }
+    $('info-text').textContent = startsText(st.starter);
+    $('actions').innerHTML = '<button class="btn btn-gold" onclick="doProceed()">' + G.next_round + '</button>';
+    return;
+  }
+
+  await sleep(600);
+
+  for(let i = 0; i < slots.length; i++){
+    const p = order[i];
+    const c = st.cut_cards[p];
+    const slot = slots[i];
+    const backCard = slot.querySelector('.card');
+
+    backCard.style.transition = 'opacity 0.2s, transform 0.3s';
+    backCard.style.opacity = '0';
+    backCard.style.transform = 'rotateY(90deg)';
+    await sleep(300);
+
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cardHtml(c, false, false);
+    const face = tmp.firstChild;
+    face.style.opacity = '0';
+    face.style.transform = 'rotateY(-90deg)';
+    face.style.transition = 'opacity 0.3s ease, transform 0.35s ease';
+    backCard.replaceWith(face);
+
+    await sleep(50);
+    face.style.opacity = '1';
+    face.style.transform = 'rotateY(0deg)';
+    SFX.cardDraw();
+
+    await sleep(700);
+  }
+
+  await sleep(500);
+
+  const winnerSlot = $('table-cards').querySelector('[data-who="' + st.starter + '"]');
+  if(winnerSlot) winnerSlot.classList.add('winner');
+
+  SFX.trump();
+  $('info-text').textContent = startsText(st.starter);
+  showToast(startsText(st.starter), 'gold');
+
+  await sleep(1500);
+
+  $('actions').innerHTML = '<button class="btn btn-gold" onclick="doProceed()">' + G.next_round + '</button>';
+}
+
+async function nextRound(){
+  $('modal-round').classList.remove('show');
+  canUndo = false; updateUndo();
+  lastHandCount = 0;
+  exchangeSelected = new Set();
+  const v = await api('/api/20ab/move', {type:'next_round'});
+  if(v && v.state){
+    gameState = v.state;
+    addLogRound(gameState.round_nr);
+    render(gameState);
+    lastHandCount = Array.isArray(v.state.hands?.p) ? v.state.hands.p.length : 0;
+    await dealCards();
+    await advanceAI();
+  }
+}
+
+/* ══════════════════════════════════════════════
+   KI-STEUERUNG
+   ══════════════════════════════════════════════ */
+
+function needsAI(st){
+  if(!st) return false;
+  if(st.status === 'herz_blind_ask' && st.trump_chooser !== 'p') return true;
+  if(st.status === 'trump_sel' && st.trump_chooser !== 'p') return true;
+  if(st.status === 'bidding' && st.bid_turn !== 'p') return true;
+  if(st.status === 'exchanging' && st.exchange_turn !== 'p') return true;
+  if(st.status === 'playing' && st.turn !== 'p') return true;
+  if(st.status === 'trick_done') return true;
+  return false;
+}
+
+async function advanceAI(){
+  if(aiRunning) return;
+  aiRunning = true;
+  let fails = 0;
+  try {
+    while(gameState && needsAI(gameState) && fails < 5){
+      const isTrickDone = gameState.status === 'trick_done';
+      const delay = isTrickDone ? lingerMs : aiDelay;
+      await sleep(delay);
+
+      const v = await api('/api/20ab/ai', {});
+      if(!v || !v.state){ fails++; continue; }
+      fails = 0;
+
+      if(v.event) await handleEvent(v.event);
+      gameState = v.state;
+      render(gameState);
+      if(detectDealExtra(gameState)) await dealCards();
+    }
+    if(gameState){
+      if(gameState.status === 'round_over') showRoundResult();
+      if(gameState.status === 'game_over') showGameOver();
+    }
+  } finally {
+    aiRunning = false;
+  }
+}
+
+async function handleEvent(evt){
+  if(!evt) return;
+  if(evt.type === 'herz_blind'){
+    if(evt.value === 'yes') SFX.herzBlind(); else SFX.bid();
+    if(evt.value === 'yes'){
+      showToast(evt.name + ' ' + G.herz_blind_ai, 'gold');
+      showToast(G.herz_blind_toast, 'gold');
+      addLog(evt.name + ' wählt Herz Blind!');
+    } else {
+      showToast(evt.name + ': ' + G.herz_blind_skip, '');
+      addLog(evt.name + ': kein Herz Blind');
+    }
+  }
+  else if(evt.type === 'trump'){
+    if(evt.was_next) SFX.nextCard(); else SFX.trump();
+    if(evt.was_next && evt.trump_card){
+      showToast(evt.name + ': ' + G.next_card + '!', 'info');
+      await showTrumpCardReveal(evt.trump_card);
+      addLog(evt.name + ': Nächste Karte → ' + (SUIT_SYM[evt.suit]||'') + ' ' + (SUIT_NAME[evt.suit]||''));
+    } else {
+      const sym = SUIT_SYM[evt.suit] || '';
+      const name = SUIT_NAME[evt.suit] || '';
+      showToast(evt.name + ' ' + G.chooses + ' ' + sym + ' ' + name + ' ' + G.as_trump, 'info');
+      addLog(evt.name + ' wählt ' + sym + ' ' + name + ' als Trumpf');
+    }
+    if(evt.suit === 'h') showToast(G.hearts_double, 'gold');
+    if(evt.suit === 'c') showToast(G.kreuz_forced, 'gold');
+  }
+  else if(evt.type === 'bid'){
+    SFX.bid();
+    const verb = evt.value === 'play' ? G.plays : G.passes;
+    showToast(evt.name + ' ' + verb, evt.value === 'play' ? 'info' : '');
+    addLog(evt.name + ' ' + verb);
+    if(evt.forced_name){
+      showToast(evt.forced_name + ': ' + G.forced, 'gold');
+      addLog(evt.forced_name + ': muss mitspielen!');
+    }
+  }
+  else if(evt.type === 'play'){
+    SFX.cardPlay();
+    addLog(evt.name + ' spielt ' + evt.card_name);
+    await flyAiCard(evt.who, evt.card);
+  }
+  else if(evt.type === 'exchange'){
+    SFX.cardDraw();
+    if(evt.count > 0){
+      showToast(evt.name + ' ' + G.exchanges_n + ' ' + evt.count + ' ' + G.cards, 'info');
+      addLog(evt.name + ' tauscht ' + evt.count + ' Karten');
+    } else {
+      showToast(evt.name + ' ' + G.no_exchange, '');
+      addLog(evt.name + ' tauscht nicht');
+    }
+  }
+  else if(evt.type === 'collect'){
+    SFX.trick();
+    addLog(evt.name + (evt.winner === 'p' ? ' gewinnst' : ' gewinnt') + ' den Stich');
+    await flyTrickTo(evt.winner);
+  }
+}
+
+/* ── Rundenergebnis ────────────────────────── */
+function showRoundResult(){
+  if(!gameState || !gameState.round_result) return;
+  const rr = gameState.round_result;
+  const isHearts = rr.hearts;
+
+  $('round-title').textContent = G.round_result + ' — ' + G.round + ' ' + gameState.round_nr;
+
+  const trumpSym = SUIT_SYM[rr.trump] || '';
+  const trumpName = SUIT_NAME[rr.trump] || '';
+  const isBlind = rr.herz_blind;
+  $('round-trump-info').innerHTML = isBlind
+    ? '<p style="color:#ff6666;font-weight:bold">' + trumpSym + ' ' + trumpName + ' — BLIND ×4!</p>'
+    : isHearts
+    ? '<p style="color:#ff6666;font-weight:bold">' + trumpSym + ' ' + trumpName + ' — alles ×2!</p>'
+    : '<p>' + trumpSym + ' ' + trumpName + '</p>';
+
+  const tbody = $('result-body');
+  tbody.innerHTML = '';
+  for(const p of ['p','a1','a2']){
+    const r = rr[p];
+    if(!r) continue;
+    const tr = document.createElement('tr');
+    const name = NAMES[p];
+    const changeStr = r.active
+      ? (r.change > 0 ? '+'+r.change : ''+r.change)
+      : '—';
+    let changeCls = '';
+    if(r.bounced) changeCls = 'bounced';
+    else if(r.change > 0) changeCls = 'positive';
+    else if(r.change < 0) changeCls = 'negative';
+    else changeCls = 'zero';
+
+    tr.innerHTML =
+      '<td>' + name + (r.active ? '' : ' <small>(' + G.passed + ')</small>') + '</td>' +
+      '<td>' + r.tricks + '</td>' +
+      '<td class="' + changeCls + '">' + changeStr + (r.bounced ? ' ↩' : '') + '</td>' +
+      '<td><b>' + r.new + '</b></td>';
+    tbody.appendChild(tr);
+  }
+
+  for(const p of ['p','a1','a2']){
+    const r = rr[p];
+    if(!r || !r.active) continue;
+    const ch = r.change > 0 ? '+'+r.change : ''+r.change;
+    addLog(NAMES[p] + ': ' + r.tricks + ' Stiche → ' + ch + (r.bounced ? ' ↩' : '') + ' (=' + r.new + ')');
+  }
+
+  let extras = '';
+  const hasBounce = Object.values(rr).some(v => v && v.bounced);
+  const hasPenalty = Object.values(rr).some(v => v && v.active && v.tricks === 0);
+  if(hasBounce){
+    extras += '<p style="color:#ffaa44;font-size:12px">↩ ' + G.bounce + '</p>';
+  }
+  $('round-extras').innerHTML = extras;
+
+  if(hasBounce) SFX.bounce();
+  else if(hasPenalty) SFX.penalty();
+
+  $('modal-round').classList.add('show');
+}
+
+/* ── Spielende ─────────────────────────────── */
+function showGameOver(){
+  if(!gameState) return;
+
+  showRoundResult();
+
+  setTimeout(() => {
+    $('modal-round').classList.remove('show');
+
+    const winner = gameState.winner;
+    const isPlayerWin = winner === 'p';
+    $('go-emoji').textContent = isPlayerWin ? '🏆' : '😔';
+    $('go-title').textContent = G.game_over;
+    $('go-text').textContent = isPlayerWin
+      ? G.you_win
+      : NAMES[winner] + ' ' + G.you_lose;
+
+    if(isPlayerWin) SFX.win(); else SFX.lose();
+
+    let scoresHtml = '<p style="margin-top:10px;font-size:13px;opacity:0.7">' + G.end_scores + ':</p><p>';
+    for(const p of ['p','a1','a2']){
+      scoresHtml += NAMES[p] + ': <b>' + gameState.scores[p] + '</b> &nbsp; ';
+    }
+    scoresHtml += '</p>';
+    $('go-scores').innerHTML = scoresHtml;
+
+    $('modal-gameover').classList.add('show');
+  }, 2000);
+}
+
+function showStart(){
+  $('modal-gameover').classList.remove('show');
+  $('modal-round').classList.remove('show');
+  $('game-log').classList.remove('show');
+  gameState = null;
+  canUndo = false; updateUndo();
+  renderStats();
+  checkResume();
+  $('start-screen').classList.remove('hidden');
+}
+
+function confirmNewGame(){
+  if(!gameState || gameState.status === 'game_over'){ showStart(); return; }
+  if(confirm('Laufendes Spiel beenden?')) showStart();
+}
+
+function closeGame(){
+  releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
+  if(window.parent !== window) window.parent.postMessage('close-20ab', location.origin);
+  else location.href = '/bereich';
+}
+
+function releaseSession(){
+  if(!sessionToken) return;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  try {
+    navigator.sendBeacon('/api/20ab/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  } catch(e){}
+  sessionToken = null;
+}
+
+/* ── Statistik (serverseitig) ──────────────── */
+function calcStats(games){
+  let wins=0, losses=0, streak=0, best=0;
+  games.forEach(g => {
+    if(g.winner === 'p'){ wins++; streak = Math.max(0,streak)+1; }
+    else { losses++; streak = Math.min(0,streak)-1; }
+    best = Math.max(best, streak);
+  });
+  return {wins, losses, total: wins+losses, streak, best_streak: best};
+}
+
+function fmtWhen(ts){
+  const d = new Date(ts * 1000);
+  const pad = n => String(n).padStart(2,'0');
+  return pad(d.getDate()) + '.' + pad(d.getMonth()+1) + '.' + d.getFullYear()
+    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+async function renderStats(){
+  const box = $('stats-box');
+  if(!box) return;
+  const r = await api('/api/20ab/history');
+  const games = (r && r.games) || [];
+  if(!games.length){
+    box.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>';
+    return;
+  }
+  const s = calcStats(games);
+  const rate = Math.round(s.wins / s.total * 100);
+  const streakText = s.streak > 0 ? s.streak + 'W' : (s.streak < 0 ? Math.abs(s.streak) + 'L' : '—');
+  box.innerHTML =
+    '<div class="stats-title">📊 ' + G.stats + '</div>' +
+    '<div class="stats-grid">' +
+      '<div class="stat"><div class="stat-val">' + s.total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#4caf50">' + s.wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#e57373">' + s.losses + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + streakText + '</div><div class="stat-label">' + G.stats_streak + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + s.best_streak + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+    '</div>';
+}
+
+async function openStats(){
+  const list = $('stats-modal-content');
+  list.innerHTML = '';
+  $('stats-modal').classList.add('show');
+  const r = await api('/api/20ab/history');
+  const games = (r && r.games) || [];
+  if(!games.length){
+    list.innerHTML = '<p style="opacity:0.5;margin:20px 0">' + G.stats_empty + '</p>';
+    return;
+  }
+  const s = calcStats(games);
+  const rate = Math.round(s.wins / s.total * 100);
+  const streakText = s.streak > 0 ? s.streak + 'W' : (s.streak < 0 ? Math.abs(s.streak) + 'L' : '—');
+  let html =
+    '<div class="stats-grid" style="margin:16px 0">' +
+      '<div class="stat"><div class="stat-val">' + s.total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#4caf50">' + s.wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+      '<div class="stat"><div class="stat-val" style="color:#e57373">' + s.losses + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + streakText + '</div><div class="stat-label">' + G.stats_streak + '</div></div>' +
+      '<div class="stat"><div class="stat-val">' + s.best_streak + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+    '</div>';
+  html += '<div class="stats-history">';
+  const recent = games.slice().reverse().slice(0, 20);
+  recent.forEach(g => {
+    const win = g.winner === 'p';
+    const ico = win ? '🏆' : '😔';
+    const scores = g.scores || {};
+    const sc = NAMES['p'] + ':' + (scores.p ?? '?') + ' ' + NAMES['a1'] + ':' + (scores.a1 ?? '?') + ' ' + NAMES['a2'] + ':' + (scores.a2 ?? '?');
+    html += '<div class="hist-row' + (win ? ' win' : '') + '">' +
+      '<span class="hist-ico">' + ico + '</span>' +
+      '<span class="hist-meta">' + fmtWhen(g.ts) + ' · ' + (g.rounds||'?') + ' ' + G.round + '</span>' +
+      '<span class="hist-score">' + sc + '</span>' +
+    '</div>';
+  });
+  html += '</div>';
+  list.innerHTML = html;
+}
+
+function closeStats(){
+  $('stats-modal').classList.remove('show');
+}
+
+async function resetStatsConfirm(){
+  await api('/api/20ab/history/reset', {});
+  $('stats-modal-content').innerHTML = '<p style="opacity:0.5;margin:20px 0">' + G.stats_empty + '</p>';
+  renderStats();
+}
+
+/* ── Spiel starten ─────────────────────────── */
+async function startGame(level){
+  $('start-screen').classList.add('hidden');
+  canUndo = false; updateUndo();
+  lastHandCount = 0;
+  exchangeSelected = new Set();
+  clearLog();
+  const v = await api('/api/20ab/new', {level});
+  if(v && v.state){
+    gameState = v.state;
+    addLogRound(1);
+    render(gameState);
+    if(gameState.status === 'cutting') await animateCutting();
+  }
+}
+
+async function resumeGame(){
+  const v = await api('/api/20ab/state');
+  if(v && v.state && v.state.status !== 'game_over'){
+    $('start-screen').classList.add('hidden');
+    canUndo = false; updateUndo();
+    lastHandCount = 0;
+    exchangeSelected = new Set();
+    gameState = v.state;
+    render(gameState);
+  }
+}
+
+async function checkResume(){
+  const v = await api('/api/20ab/state');
+  if(v && v.state && v.state.status && v.state.status !== 'game_over'){
+    $('resume-box').style.display = '';
+  } else {
+    $('resume-box').style.display = 'none';
+  }
+}
+
+/* ── Init ──────────────────────────────────── */
+function init(){
+  initSettings();
+  renderStats();
+  checkResume();
+}
+
+/* ── Tastatur ──────────────────────────────── */
+document.addEventListener('keydown', e => {
+  const anyModal = ['settings-modal','played-modal','rules-modal','stats-modal'].some(id => $(id).classList.contains('show'));
+
+  if(e.key === 'Escape'){
+    if($('game-log').classList.contains('show')){ $('game-log').classList.remove('show'); return; }
+    if($('stats-modal').classList.contains('show')){ closeStats(); return; }
+    if($('rules-modal').classList.contains('show')){ closeRules(); return; }
+    if($('played-modal').classList.contains('show')){ closePlayed(); return; }
+    if($('settings-modal').classList.contains('show')){ closeSettings(); return; }
+    if(gameState && gameState.status === 'bidding' && gameState.bid_turn === 'p'){ doBid('pass'); return; }
+    return;
+  }
+  if(anyModal) return;
+
+  if(!gameState) return;
+  const st = gameState;
+
+  if(e.key === 'Enter' && $('modal-round').classList.contains('show')){
+    nextRound(); return;
+  }
+
+  if(st.status === 'cutting'){
+    if(e.key === 'Enter' || e.key === ' ') doProceed();
+    return;
+  }
+  if(st.status === 'trump_sel' && st.trump_chooser === 'p'){
+    if(e.key === '1') chooseTrump('h');
+    if(e.key === '2') chooseTrump('d');
+    if(e.key === '3') chooseTrump('s');
+    if(e.key === '4') chooseTrump('c');
+    return;
+  }
+  if(st.status === 'bidding' && st.bid_turn === 'p'){
+    if(e.key === 's' || e.key === 'S' || e.key === 'Enter') doBid('play');
+    if(e.key === 'p' || e.key === 'P') doBid('pass');
+    return;
+  }
+  if(st.status === 'exchanging' && st.exchange_turn === 'p'){
+    const hand = st.hands?.p || [];
+    const num = parseInt(e.key);
+    if(num >= 1 && num <= hand.length){ toggleExchangeCard(hand[num-1]); return; }
+    if(e.key === 'Enter'){ if(exchangeSelected.size > 0) doExchange(); else skipExchange(); return; }
+    if(e.key === 'p' || e.key === 'P' || e.key === 'Escape'){ skipExchange(); return; }
+    return;
+  }
+  if(st.status === 'playing' && st.turn === 'p'){
+    const legal = st.legal || [];
+    const num = parseInt(e.key);
+    if(num >= 1 && num <= legal.length){
+      playCard(legal[num - 1]);
+      return;
+    }
+  }
+
+  if((e.key === 'u' || e.key === 'U') && canUndo){ doUndo(); return; }
+  if((e.key === 'k' || e.key === 'K') && showPlayed){ openPlayed(); return; }
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+  const ok = await claimSession(false);
+  if (ok) init();
+});
+</script>
+</body>
+</html>

@@ -75,6 +75,16 @@
     .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
     .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+    /* Live-Spielstatus: grün = spielt gerade, grau = inaktiv */
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.off { background: #9aa3af; }
+    .status-dot.on { background: #22c55e; animation: pulse-dot 1.8s infinite; }
+    @keyframes pulse-dot {
+      0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+      70% { box-shadow: 0 0 0 7px rgba(34,197,94,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+    .playing-tag { color: #22c55e; font-weight: 500; font-size: 0.78rem; }
     .badge-draft { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
     .badge-scheduled { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
 
@@ -943,6 +953,29 @@
     </div>
   </div>
 
+  <!-- Spiele-Modal -->
+  <div class="modal-bg" id="games-modal">
+    <div class="modal">
+      <h3 id="g-title"></h3>
+      <div id="g-status" style="margin:12px 0;font-size:0.9rem;display:flex;align-items:center;gap:8px"></div>
+      <h4 style="margin:16px 0 6px;font-size:0.85rem">{{ t.games_stats }}</h4>
+      <table class="vtable">
+        <thead><tr><th>{{ t.games_col_game }}</th><th>{{ t.games_col_played }}</th><th>{{ t.games_col_wins }}</th><th>{{ t.games_col_last }}</th></tr></thead>
+        <tbody id="g-stats"></tbody>
+      </table>
+      <h4 style="margin:18px 0 6px;font-size:0.85rem">{{ t.games_sessions }}</h4>
+      <div style="max-height:300px;overflow-y:auto">
+        <table class="vtable">
+          <thead><tr><th>{{ t.games_col_game }}</th><th>{{ t.games_col_start }}</th><th>{{ t.games_col_end }}</th><th>{{ t.games_col_dur }}</th><th>{{ t.games_col_status }}</th></tr></thead>
+          <tbody id="g-sessions"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('games-modal').classList.remove('open')">{{ t.cancel }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Benutzer-Dateien-Modal -->
   <div class="modal-bg" id="ufiles-modal">
     <div class="modal">
@@ -1098,6 +1131,7 @@
 
   <script>
     const T = {{ t|tojson }};
+    const GAME_NAMES = { '66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen' };
     let SITE = null;
     let editingId = null;
     let uploadCb = null;
@@ -1348,9 +1382,10 @@
         document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
         btn.classList.add('active');
         el('tab-' + btn.dataset.tab).classList.add('active');
+        stopUsersPolling();  // beim Verlassen des Benutzer-Tabs Polling stoppen
         if (btn.dataset.tab === 'stats') loadStats();
         if (btn.dataset.tab === 'messages') loadMessages();
-        if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); }
+        if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') initPreview();
       });
     });
@@ -2159,26 +2194,41 @@
       data.users.forEach(u => {
         const div = document.createElement('div');
         div.className = 'proj-item';
+        div.dataset.uid = u.id;
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
             <button class="btn secondary small">📁 ${T.user_files_btn}</button>
             <button class="btn secondary small">💬 ${T.user_msg_btn}${u.login_message ? ' •' : ''}</button>
-            <button class="btn secondary small">📜 ${T.user_journal_btn}</button>
+            <button class="btn secondary small" title="${T.user_journal_btn}">📜</button>
+            <button class="btn secondary small" title="${T.user_games_btn}">🎮</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
             <button class="btn secondary small">${T.user_quota_btn}</button>
             <button class="btn danger small">✕</button>
           </div>`;
-        div.querySelector('.proj-name').textContent = u.email;
+        const nameEl = div.querySelector('.proj-name');
+        const dot = document.createElement('span');
+        dot.className = 'status-dot ' + (u.playing ? 'on' : 'off');
+        dot.title = u.playing ? T.user_playing_now : T.user_idle;
+        nameEl.appendChild(dot);
+        nameEl.appendChild(document.createTextNode(u.email));
+        if (u.playing) {
+          const tag = document.createElement('span');
+          tag.className = 'playing-tag';
+          const since = new Date(u.playing.since * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          tag.textContent = `· ${T.user_playing}: ${GAME_NAMES[u.playing.game] || u.playing.game} (${T.user_since_time} ${since})`;
+          nameEl.appendChild(tag);
+        }
         const lastLogin = u.last_login
           ? `${T.user_last_login}: ${new Date(u.last_login.ts * 1000).toLocaleString()} (${u.last_login.ip})`
           : `${T.user_last_login}: ${T.user_never}`;
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [filesBtn, msgBtn, journalBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [filesBtn, msgBtn, journalBtn, gamesBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         filesBtn.onclick = () => openUserFiles(u);
         msgBtn.onclick = () => openLoginMsg(u);
         journalBtn.onclick = () => openJournal(u);
+        gamesBtn.onclick = () => openGames(u);
         resendBtn.onclick = async () => {
           if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
           const r2 = await fetch('api/users/' + u.id + '/resend', { method: 'POST', credentials: 'same-origin' });
@@ -2289,6 +2339,97 @@
         tr.children[2].title = e.detail || '';
         tr.children[3].textContent = e.ip || '–';
         tbody.appendChild(tr);
+      });
+    }
+
+    // ── Live-Spielstatus aktualisieren (Polling, nur Bubbles patchen) ──
+    let usersPollTimer = null;
+    async function refreshPlaying() {
+      const r = await api('api/users/playing');
+      if (!r.ok) return;
+      const map = (await r.json()).playing || {};
+      document.querySelectorAll('#user-list .proj-item').forEach(item => {
+        const uid = item.dataset.uid;
+        if (!uid) return;
+        const playing = map[uid] || null;
+        const dot = item.querySelector('.status-dot');
+        if (dot) {
+          dot.className = 'status-dot ' + (playing ? 'on' : 'off');
+          dot.title = playing ? T.user_playing_now : T.user_idle;
+        }
+        const nameEl = item.querySelector('.proj-name');
+        let tag = nameEl ? nameEl.querySelector('.playing-tag') : null;
+        if (playing) {
+          if (!tag) { tag = document.createElement('span'); tag.className = 'playing-tag'; nameEl.appendChild(tag); }
+          const since = new Date(playing.since * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          tag.textContent = `· ${T.user_playing}: ${GAME_NAMES[playing.game] || playing.game} (${T.user_since_time} ${since})`;
+        } else if (tag) {
+          tag.remove();
+        }
+      });
+    }
+    function startUsersPolling() {
+      stopUsersPolling();
+      usersPollTimer = setInterval(() => { if (!document.hidden) refreshPlaying(); }, 10000);
+    }
+    function stopUsersPolling() {
+      if (usersPollTimer) { clearInterval(usersPollTimer); usersPollTimer = null; }
+    }
+
+    // ── Spiele-Statistik & Sitzungs-Log ──
+    function fmtDur(sec) {
+      sec = Math.max(0, sec | 0);
+      const m = Math.floor(sec / 60), h = Math.floor(m / 60);
+      if (h) return h + ' h ' + (m % 60) + ' min';
+      if (m) return m + ' min';
+      return sec + ' s';
+    }
+
+    async function openGames(u) {
+      el('g-title').textContent = T.games_title.replace('{email}', u.email);
+      el('games-modal').classList.add('open');
+      const statusEl = el('g-status'), stb = el('g-stats'), seb = el('g-sessions');
+      statusEl.textContent = '…'; stb.innerHTML = ''; seb.innerHTML = '';
+      const r = await api('api/users/' + u.id + '/games');
+      if (!r.ok) { statusEl.textContent = T.error_load; return; }
+      const d = await r.json();
+      // Live-Status
+      statusEl.innerHTML = '';
+      const dot = document.createElement('span');
+      dot.className = 'status-dot ' + (d.playing ? 'on' : 'off');
+      statusEl.appendChild(dot);
+      const txt = document.createElement('span');
+      if (d.playing) {
+        const since = new Date(d.playing.since * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        txt.innerHTML = `${T.user_playing}: <b>${GAME_NAMES[d.playing.game] || d.playing.game}</b> (${T.user_since_time} ${since})`;
+      } else {
+        txt.textContent = T.user_idle;
+      }
+      statusEl.appendChild(txt);
+      // Statistik
+      d.stats.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td></td><td></td><td></td><td></td>';
+        const rate = s.played ? Math.round(s.wins / s.played * 100) : 0;
+        tr.children[0].textContent = GAME_NAMES[s.game] || s.game;
+        tr.children[1].textContent = s.played;
+        tr.children[2].textContent = s.played ? `${s.wins} (${rate}%)` : '0';
+        tr.children[3].textContent = s.last ? new Date(s.last * 1000).toLocaleDateString() : '–';
+        stb.appendChild(tr);
+      });
+      // Sitzungen
+      if (!d.sessions.length) {
+        seb.innerHTML = `<tr><td colspan="5" class="hint">${T.no_data}</td></tr>`;
+      } else d.sessions.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
+        const open = s.end === null || s.end === undefined;
+        tr.children[0].textContent = GAME_NAMES[s.game] || s.game;
+        tr.children[1].textContent = new Date(s.start * 1000).toLocaleString();
+        tr.children[2].textContent = open ? '–' : new Date(s.end * 1000).toLocaleString();
+        tr.children[3].textContent = open ? T.games_running : fmtDur(s.end - s.start);
+        tr.children[4].textContent = open ? T.games_running : (T['games_reason_' + (s.reason || '')] || s.reason || '–');
+        seb.appendChild(tr);
       });
     }
 
