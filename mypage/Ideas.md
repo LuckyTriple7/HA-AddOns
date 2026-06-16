@@ -60,8 +60,58 @@ Alles, was damit auskommt, braucht **keine neuen Karten-Assets**. 36-Karten-Spie
 - **Jass / Schieber** — braucht 36 Karten (4 neue Sechser-SVGs) + komplexe KI.
 - **Hearts / Herzeln** — 52-Karten-Deck → komplett neue Assets.
 
-## Empfehlung
+## Empfehlung (Kartenspiele)
 
 Wenn als Nächstes eins gebaut wird: **Mau-Mau** zuerst (höchster Spaß-pro-Aufwand,
 kein neues Material), optional **Sedma** als schnelle Ergänzung, weil es das
 vorhandene Stich-Template fast unverändert wiederverwendet.
+
+---
+
+# Würfelspiele
+
+Sind ebenfalls gut machbar — eher **einfacher** als Kartenspiele:
+
+- Dasselbe Gerüst ist wiederverwendbar (server-autoritativ pro Mitglied,
+  Startbildschirm, Resume, Session-Schutz, Verlauf/Statistik, HA-Sensoren,
+  DE/EN, Dockerfile).
+- **Kein Asset-Aufwand:** Würfelaugen als reine CSS-Punkte oder Unicode
+  (⚀⚁⚂⚃⚄⚅) darstellbar — kein Bildmaterial nötig.
+- Neu pro Spiel: eigenes Template (Würfel + Wertungsblock statt Hand/Tisch) und
+  die Regel-/KI-Logik. Würfel-KI ist meist simpler als Karten-KI (nur eine
+  Strategie „behalten / neu würfeln / stoppen", kein Gegnerhand-Tracking).
+
+## Kandidaten nach Aufwand
+
+### 🟢 Schnellschüsse
+
+- **Schwein (Pig)** — 1 Würfel, „weiter oder sichern", trivial. Ideales Mini-Spiel.
+- **Zehntausend / Farkle** — 6 Würfel, Kombi-Wertung, Push-your-luck. Einfache
+  KI (Risiko-Schwelle), wenig Code, hoher Suchtfaktor.
+
+### 🟢/🟡 Top-Empfehlung
+
+- **Kniffel (Yahtzee)** — *der Klassiker in DE.* 5 Würfel, 3 Würfe,
+  Wertungsblock. Wertungslogik deterministisch, KI heuristisch machbar
+  (optimal bräuchte Erwartungswerte). Hauptarbeit = Wertungsblock im UI.
+  Klar abgegrenzter Umfang, sehr bekannt.
+
+### 🟡 Mit Reiz: versteckte Information
+
+- **Mäxchen / Mia (Meiern)** — Bluff-Spiel, 2 Würfel, Lügen-Mechanik. Passt
+  perfekt zum server-autoritativen Modell (Server kennt den echten Wurf,
+  Spieler blufft). KI-Bluff moderat.
+- **Schocken** — beliebtes Kneipenspiel, 3 Würfel, eigene Rangfolge, etwas
+  mehr Regel-Edgecases.
+
+## Einordnung
+
+- Template-Wiederverwendung etwas geringer als bei Kartenspielen (Würfel-UI
+  statt Hand/Tisch), dafür **kein Asset-Aufwand**.
+- Statistik/HA-Sensoren funktionieren unverändert (Sieg/Niederlage vs. KI). Bei
+  einem reinen Solo-Highscore-Spiel müsste „Sieg" anders definiert werden — bei
+  „vs. KI" bleibt alles wie gehabt.
+
+## Empfehlung (Würfelspiele)
+
+**Kniffel** als Flaggschiff, **Schwein** oder **Farkle** als schnelle Ergänzung.
