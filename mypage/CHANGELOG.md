@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.84
+
+- 🃏 **20 AB: Spielerhand zeigt jetzt die Knoll-Karten** — die eigene Hand wurde fälschlich als einfache Text-Karten gerendert (`playerCardHtml` ignorierte das Kartendeck), während die KI-Karten korrekt als Knoll-SVGs erschienen. Jetzt nutzt die Spielerhand dasselbe Knoll-Deck.
+- 🚫 **20 AB & Schwimmen: „Nein" am Spielende** — das Spielende-Fenster bot nur „Neues Spiel". Wie bei 66 gibt es jetzt zusätzlich „Nein", das das Fenster nur schließt, sodass der Endstand sichtbar bleibt.
+
 ## 0.6.83
 
 - 🎬 **Startbildschirm für alle drei Spiele vereinheitlicht** — auch 66 zeigt jetzt beim Öffnen einen Startbildschirm mit Schwierigkeitswahl (Leicht/Mittel/Schwer/Adaptiv) und Regelvariante (Standard/Oma) statt sofort eine Partie zu starten. Ein laufendes Spiel lässt sich über „Fortsetzen" weiterspielen. `/api/66/state` legt nicht mehr automatisch ein Spiel an.

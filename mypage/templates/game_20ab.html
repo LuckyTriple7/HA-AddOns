@@ -516,6 +516,7 @@ body{
     <p id="go-text"></p>
     <div id="go-scores"></div>
     <button class="btn btn-gold" onclick="showStart()" style="margin-top:14px">{{ t.g20_new_game }}</button>
+    <button class="btn" onclick="document.getElementById('modal-gameover').classList.remove('show')" style="margin-top:14px;margin-left:8px">{{ t.g20_banner_no }}</button>
   </div>
 </div>
 
@@ -1333,11 +1334,16 @@ function renderLastTrick(st){
 }
 
 function playerCardHtml(c, extraCls){
+  extraCls = extraCls || '';
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card' + extraCls + '" data-card="' + c + '">' +
+      '<img src="' + cardSvgUrl(c) + '" draggable="false"></div>';
+  }
   const s = c[0], r = c[1];
   const color = SUIT_COLOR[s];
   const sym = SUIT_SYM[s];
   const disp = RANK_DISP[r];
-  return '<div class="card ' + color + (extraCls||'') + '" data-card="' + c + '">' +
+  return '<div class="card ' + color + extraCls + '" data-card="' + c + '">' +
     '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
     '<span class="c-mid">' + sym + '</span>' +
     '<span class="c-br">' + disp + '<br>' + sym + '</span></div>';

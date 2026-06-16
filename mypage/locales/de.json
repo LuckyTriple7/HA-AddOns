@@ -781,5 +781,7 @@
   "g66_resume": "Fortsetzen",
   "g66_back": "Zum Mitgliederbereich",
   "g20_back": "Zum Mitgliederbereich",
-  "gs_back": "Zum Mitgliederbereich"
+  "gs_back": "Zum Mitgliederbereich",
+  "g20_banner_no": "Nein",
+  "gs_banner_no": "Nein"
 }
