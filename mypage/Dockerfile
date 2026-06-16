@@ -13,8 +13,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
-COPY game66.py .
+COPY game_66.py .
+COPY game_20ab.py .
+COPY game_schwimmen.py .
 COPY 66_REGELN.md .
+COPY game_20ab_rules_de.md game_20ab_rules_en.md ./
+COPY game_schwimmen_rules_de.md game_schwimmen_rules_en.md ./
 COPY icon.png .
 COPY fonts/ fonts/
 COPY templates/ templates/
