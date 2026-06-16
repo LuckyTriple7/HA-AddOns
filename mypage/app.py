@@ -2951,11 +2951,16 @@ def api_game66_move():
         st = load_game66(member['id'])
         if st is None:
             abort(409)  # kein laufendes Spiel → Client soll /state holen
+        # Undo nur für leichte Stufen (wie im Client: Button auf 'hard' verborgen)
+        snapshot = (copy.deepcopy(st)
+                    if st.get('level') in ('easy', 'medium') else None)
         try:
             frames = game_66.apply_player_frames(st, act)
         except game_66.IllegalMove:
             # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
             return jsonify({'frames': [game_66.public_view(st)]})
+        if snapshot is not None:
+            _ng_undo[('66', member['id'])] = snapshot
         _record_match_if_over(member['id'], st)
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
@@ -2974,8 +2979,23 @@ def api_game66_new():
     with _game_lock:
         st = game_66.new_match(rules=rules, level=level)
         frames = game_66.deal_frames(st)  # KI-Eröffnung animierbar
+        _ng_undo.pop(('66', member['id']), None)  # alten Undo-Stand verwerfen
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
+
+
+@public_app.route('/api/66/undo', methods=['POST'])
+def api_game66_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('66', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('66', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        save_game66(member['id'], snap)  # auf den Stand vor dem letzten Zug zurück
+    return jsonify(game_66.public_view(snap))
 
 
 @public_app.route('/api/66/history')

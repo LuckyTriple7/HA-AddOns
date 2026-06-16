@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.85
+
+- ↶ **66: Zug zurücknehmen funktioniert jetzt** — der Undo-Button (und die Taste „U") war im Client vorhanden, aber die Server-Route fehlte, sodass nichts passierte. Jetzt wird vor jedem Spielerzug ein Schnappschuss abgelegt und `/api/66/undo` stellt den Stand vor dem letzten Zug wieder her — analog zu 20 AB und Schwimmen. Undo ist (wie bisher im Client vorgesehen) nur auf den Stufen Leicht/Mittel verfügbar.
+
 ## 0.6.84
 
 - 🃏 **20 AB: Spielerhand zeigt jetzt die Knoll-Karten** — die eigene Hand wurde fälschlich als einfache Text-Karten gerendert (`playerCardHtml` ignorierte das Kartendeck), während die KI-Karten korrekt als Knoll-SVGs erschienen. Jetzt nutzt die Spielerhand dasselbe Knoll-Deck.
