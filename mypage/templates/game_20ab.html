@@ -261,17 +261,12 @@ body{
 .played-row .ps{font-size:1.6rem;width:32px;text-align:center}
 .played-row .ps.red{color:#cc0000}
 .played-row .pcard{
-  width:54px;height:76px;border-radius:6px;border:1.5px solid #666;
-  background:#fff;color:#1a1a1a;position:relative;display:inline-block;font-size:10px;
-  text-align:center;line-height:1;vertical-align:middle;
-  box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  height:76px;width:auto;border-radius:6px;display:block;vertical-align:middle;
+  box-shadow:0 2px 5px rgba(0,0,0,0.4);
 }
-.played-row .pcard .pr{font-weight:bold;position:absolute;top:3px;left:5px;font-size:13px}
-.played-row .pcard .ps2{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:20px}
-.played-row .pcard.red{color:#cc0000}
-.played-row .pcard.used{background:#a0a0a0;border-color:#888}
-.played-row .pcard.in-hand{box-shadow:0 0 0 2px var(--gold),0 1px 3px rgba(0,0,0,0.3)}
-.played-row .pcard.on-table{box-shadow:0 0 0 2px rgba(130,255,150,0.8),0 1px 3px rgba(0,0,0,0.3)}
+.played-row .pcard.used{opacity:0.22;filter:grayscale(0.8)}
+.played-row .pcard.in-hand{box-shadow:0 0 0 2.5px var(--gold),0 2px 5px rgba(0,0,0,0.4)}
+.played-row .pcard.on-table{box-shadow:0 0 0 2.5px rgba(130,255,150,0.8),0 2px 5px rgba(0,0,0,0.4)}
 .played-legend{display:flex;gap:16px;justify-content:center;font-size:0.74rem;margin:2px 0 8px;opacity:0.75}
 .played-legend span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 .played-legend .pl-hand::before{background:var(--gold)}
@@ -368,9 +363,7 @@ body{
   .top-btn{width:32px;height:32px;font-size:16px;padding:2px}
   .btn{min-width:44px;min-height:44px;padding:10px 18px}
   #last-trick .card{width:clamp(28px,6vw,42px);height:clamp(42px,8vh,62px)}
-  .played-row .pcard{width:40px;height:58px}
-  .played-row .pcard .pr{font-size:11px}
-  .played-row .pcard .ps2{font-size:16px}
+  .played-row .pcard{height:58px;width:auto}
 }
 @media(max-width:400px){
   #scorebar{gap:8px;padding:4px 6px}
@@ -1504,14 +1497,15 @@ function openPlayed(){
     row.appendChild(sh);
     for(const r of ALL_RANKS){
       const card = s + r;
-      const el = document.createElement('div');
-      el.className = 'pcard' + (SUIT_COLOR[s] === 'red' ? ' red' : '');
-      el.title = RANK_DISP[r] + ' ' + SUIT_SYM[s];
-      el.innerHTML = '<span class="pr">' + RANK_DISP[r] + '</span><span class="ps2">' + SUIT_SYM[s] + '</span>';
-      if(onTable.has(card)) el.classList.add('on-table');
-      else if(hand.has(card)) el.classList.add('in-hand');
-      else if(gone.has(card)) el.classList.add('used');
-      row.appendChild(el);
+      const ci = document.createElement('img');
+      ci.className = 'pcard';
+      ci.src = cardSvgUrl(card);
+      ci.alt = card;
+      ci.title = RANK_DISP[r] + ' ' + SUIT_SYM[s];
+      if(onTable.has(card)) ci.classList.add('on-table');
+      else if(hand.has(card)) ci.classList.add('in-hand');
+      else if(gone.has(card)) ci.classList.add('used');
+      row.appendChild(ci);
     }
     grid.appendChild(row);
   }
@@ -1949,8 +1943,20 @@ function confirmNewGame(){
 }
 
 function closeGame(){
+  releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
   if(window.parent !== window) window.parent.postMessage('close-20ab', location.origin);
   else location.href = '/bereich';
+}
+
+function releaseSession(){
+  if(!sessionToken) return;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  try {
+    navigator.sendBeacon('/api/20ab/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  } catch(e){}
+  sessionToken = null;
 }
 
 /* ── Statistik (serverseitig) ──────────────── */

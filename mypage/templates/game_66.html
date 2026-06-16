@@ -1712,7 +1712,19 @@
   function openSettings(){ refreshSettings(); $('settings-modal').classList.add('show'); }
   function closeSettings(){ $('settings-modal').classList.remove('show'); }
 
+  function releaseSession(){
+    if (!sessionToken) return;
+    if (heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+    try {
+      navigator.sendBeacon('/api/66/session',
+        new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+          {type: 'application/json'}));
+    } catch(e){}
+    sessionToken = null;
+  }
+
   function closeGame(){
+    releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
     if (window.parent !== window) window.parent.postMessage('close-66', location.origin);
     else location.href = '/bereich';
   }

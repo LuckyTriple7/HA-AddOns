@@ -1863,8 +1863,20 @@ function confirmNewGame(){
 }
 
 function closeGame(){
+  releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
   if(window.parent !== window) window.parent.postMessage('close-schwimmen', location.origin);
   else location.href = '/bereich';
+}
+
+function releaseSession(){
+  if(!sessionToken) return;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  try {
+    navigator.sendBeacon('/api/schwimmen/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  } catch(e){}
+  sessionToken = null;
 }
 
 /* ── Statistik (serverseitig) ──────────────── */
