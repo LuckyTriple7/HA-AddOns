@@ -633,6 +633,7 @@
   const SFX = {
     cardPlay:  () => playNoise(0.08, 0.15),
     cardDraw:  () => playNoise(0.06, 0.10),
+    shuffle:   () => { for(let i = 0; i < 15; i++) setTimeout(() => playNoise(0.05, 0.07 + Math.random()*0.05), i*60); },
     trick:     () => { playNoise(0.05, 0.10); setTimeout(()=>playNoise(0.04, 0.08), 60); },
     meld:      () => { playTone(523, 0.12, 'triangle', 0.14); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.14), 100); },
     close:     () => playTone(330, 0.25, 'square', 0.08),
@@ -1252,6 +1253,9 @@
     if (trumpEl) { trumpEl.style.opacity = '0'; trumpEl.style.transition = 'none'; }
     if (stockEl) { stockEl.style.opacity = '0'; stockEl.style.transition = 'none'; }
     if (countLine) { countLine.style.opacity = '0'; countLine.style.transition = 'none'; }
+
+    // Kartenmischsound vor dem Aufbau (nur bei aktivem Ton)
+    if (soundOn){ SFX.shuffle(); await sleep(900); }
 
     const fadeDur = flyMs / 1000;
     const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };

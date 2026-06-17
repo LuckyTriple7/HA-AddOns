@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.99
+
+- 🔊 **Kartenmisch-Sound jetzt auch bei 66, 20 AB & Schwimmen** — vor dem Aufbau der Hand ertönt der ~1 s lange Misch-Sound (bei 66 zusätzlich zum bestehenden Auslosen-Drumroll, direkt vor dem Austeilen). Damit haben alle fünf Kartenspiele denselben Sound beim Spielstart und jeder neuen Runde. Nur bei aktiviertem Ton.
+
 ## 0.6.98
 
 - 🔊 **Mau Mau & Präsident: Kartenmisch-Sound beim Austeilen** — bei jedem neuen Spiel und jeder neuen Runde ertönt jetzt erst ein ~1 s langer Misch-Sound, bevor sich der Kartenstapel aufbaut. Nur bei aktiviertem Ton; bei reduzierter Bewegung/abgeschaltetem Ton ohne Verzögerung.
