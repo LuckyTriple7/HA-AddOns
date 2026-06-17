@@ -860,6 +860,8 @@
   "gmm_must_draw": "cards to draw",
   "gmm_wins_round": "wins the round",
   "gmm_you_win_round": "You win the round!",
+  "game_rotate_title": "Please rotate your device",
+  "game_rotate_hint": "This game is played in landscape. Turn your device sideways.",
   "gmm_ai_playing": "is playing...",
   "gmm_settings": "Settings",
   "gmm_speed_label": "AI speed",

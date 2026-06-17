@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.106
+
+- 📱 **Mau Mau: Handy-Optimierung (Pilot)** — auf dem Smartphone wird das Spiel jetzt im Querformat gespielt: Im Hochformat erscheint ein „Bitte Gerät drehen"-Hinweis (DE/EN), im Querformat ist das Layout kompakt und passt ohne Überlappen aufs Display (kleinere Karten, Top-Leiste/Stapel an die Höhe gekoppelt, große Hand bleibt in einer scrollbaren Reihe). Die anderen vier Spiele folgen nach Freigabe.
+
 ## 0.6.105
 
 - 🐛 **Mau Mau: Grammatik im Runden-/Spielende-Dialog** — „Du gewinnt die Runde!" war falsch; für den Spieler heißt es jetzt korrekt „Du gewinnst die Runde!" (2. Person), für die KI weiterhin „KI 1 gewinnt die Runde!". Gilt für Rundenende und Spielende, DE und EN.
