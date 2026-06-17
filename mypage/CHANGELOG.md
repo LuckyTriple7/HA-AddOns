@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.104
+
+- 🔊 **Mau Mau: Mischsound auch beim Neumischen** — wenn der Nachziehstapel leer ist und die abgelegten Karten neu gemischt werden, ertönt jetzt zuerst der Mischsound, bevor der Stapel neu aufgebaut wird.
+
 ## 0.6.103
 
 - 🔊 **Mau Mau: Reihenfolge beim Austeilen korrigiert** — der Stapel in der Mitte (Nachzieh-/Ablagestapel) erschien vor dem Mischsound. Jetzt stimmt die Reihenfolge: erst Mischsound, dann baut sich der Stapel in der Mitte auf, danach werden die Handkarten verteilt.

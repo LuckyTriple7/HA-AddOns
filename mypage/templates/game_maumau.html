@@ -1110,6 +1110,8 @@ async function checkReshuffle(prevDrawCount){
   if(prevDrawCount > 0 || !gameState) return;
   if(gameState.draw_count > 0){
     showToast(G.reshuffled, 'info');
+    // Stapel war leer → erst Mischsound, dann den Stapel neu aufbauen
+    if(soundOn){ SFX.shuffle(); await sleep(900); }
     await animateReshuffle();
     render(gameState);
   }
