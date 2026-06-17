@@ -836,6 +836,7 @@ const SFX = {
   draw7:     () => { playTone(220, 0.3, 'sawtooth', 0.05); setTimeout(()=>playTone(185, 0.35, 'sawtooth', 0.04), 200); },
   reverse:   () => { playTone(523, 0.1, 'sine', 0.1); setTimeout(()=>playTone(392, 0.1, 'sine', 0.1), 100); },
   skip:      () => { playTone(440, 0.1, 'square', 0.06); setTimeout(()=>playTone(330, 0.12, 'square', 0.06), 80); },
+  shuffle:   () => { for(let i = 0; i < 15; i++) setTimeout(() => playNoise(0.05, 0.07 + Math.random()*0.05), i*60); },
 };
 
 /* ── Spielverlauf (Log) ───────────────────── */
@@ -1161,6 +1162,9 @@ async function dealCards(){
   if(!all.length) return;
 
   all.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
+
+  // Kartenmischsound vor dem Aufbau (nur bei aktivem Ton)
+  if(soundOn){ SFX.shuffle(); await sleep(900); }
 
   const fadeDur = flyMs / 1000;
   const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
