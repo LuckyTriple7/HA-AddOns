@@ -378,9 +378,85 @@ body{
   .card.playable:active{transform:translateY(-14px) scale(1.05)}
   .top-btn{width:40px;height:40px}
 }
+
+/* ── Mobil: Querformat-Hinweis (Rotier-Overlay) ───────────────── */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:600px) and (pointer:coarse){
+  #rotate-overlay{
+    display:flex;position:fixed;inset:0;z-index:1000;
+    background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+    align-items:center;justify-content:center;text-align:center;padding:24px;
+  }
+  .rotate-inner{max-width:300px}
+  .rotate-icon{font-size:72px;margin-bottom:18px;display:inline-block;
+    animation:rotateHint 2.2s ease-in-out infinite}
+  .rotate-title{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+  .rotate-hint{font-size:15px;opacity:0.8;line-height:1.45}
+}
+@keyframes rotateHint{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
+
+/* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
+@media (max-height:500px){
+  /* Startbildschirm: oben ausrichten + scrollbar, damit nichts oben/unten abgeschnitten wird */
+  #start-screen{align-items:flex-start;overflow-y:auto;padding:12px}
+  .start-box h1{font-size:28px;margin-bottom:2px}
+  .start-box .sub{font-size:13px;margin-bottom:10px}
+  .start-box .level-btn{padding:9px 18px;font-size:14px}
+  #resume-box{margin-bottom:8px !important}
+  #resume-box .level-btn{font-size:14px !important;padding:9px 22px !important}
+  #stats-box{margin-top:10px}
+  .start-box > div:last-child{margin-top:12px !important}
+  .modal-box{max-height:94vh}
+
+  #topbar{padding:3px 10px}
+  #scorebar{gap:14px}
+  .score-name{font-size:9px}
+  .score-val{font-size:18px}
+  .top-btn{width:30px;height:30px;font-size:0.95rem}
+  #topbar-btns{gap:3px;right:8px}
+  .btn-suit{width:46px;height:46px;font-size:20px}
+  .btn-next{height:46px;font-size:10px}
+
+  #game-area{padding:1px 10px}
+  #opponents{gap:8px;padding:0 6px}
+  .opp-label{font-size:10px;margin-bottom:1px}
+  .opp-hand .card{width:clamp(28px,7vw,42px);height:clamp(40px,13vh,54px)}
+
+  #play-area{min-height:0}
+  #table-cards{min-height:clamp(50px,15vh,72px);gap:clamp(10px,3vw,20px)}
+  .table-label{font-size:9px;margin-bottom:1px}
+  #info-text{margin-top:2px;font-size:12px;min-height:14px}
+  #last-trick .card{width:clamp(24px,5vw,36px);height:clamp(36px,7vh,52px)}
+
+  #player-area{padding-bottom:2px}
+  #player-label{font-size:10px;margin-bottom:1px}
+  #player-hand{
+    min-height:0;gap:3px;flex-wrap:nowrap;
+    overflow-x:auto;overflow-y:hidden;padding-bottom:3px;
+    -webkit-overflow-scrolling:touch;
+  }
+  #actions{margin-top:4px;min-height:0;gap:8px}
+
+  /* Mobil: ausgewählte/aktive Karten NICHT hochschieben → goldener Ring statt Anheben */
+  .card.playable:hover,.card.playable:active,.card.exchange-sel{transform:none !important}
+  .card.playable:active{box-shadow:inset 0 0 0 3px rgba(241,196,15,0.85) !important}
+  .card.exchange-sel{box-shadow:inset 0 0 0 3px #ff4444 !important}
+
+  /* gemeinsame Kartengröße (Hand + Tisch) an die Höhe koppeln */
+  .card{width:clamp(44px,15vh,60px);height:clamp(60px,19vh,80px)}
+}
 </style>
 </head>
 <body>
+
+<!-- ── Mobil: Querformat-Hinweis (nur im Hochformat auf kleinen Touch-Screens) ── -->
+<div id="rotate-overlay">
+  <div class="rotate-inner">
+    <div class="rotate-icon">📱</div>
+    <div class="rotate-title">{{ t.game_rotate_title }}</div>
+    <div class="rotate-hint">{{ t.game_rotate_hint }}</div>
+  </div>
+</div>
 
 <!-- ── Startbildschirm ─────────────────────── -->
 <div id="start-screen">
@@ -2160,6 +2236,8 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Best-effort: auf Mobilgeräten Querformat anfordern (nur in PWA/Fullscreen wirksam, sonst harmlos)
+  try { if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); } catch(e){}
   const ok = await claimSession(false);
   if (ok) init();
 });

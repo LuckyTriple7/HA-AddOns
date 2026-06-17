@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.109
+
+- 📱 **Schwimmen & 20 AB: Handy-Optimierung (Querformat)** — wie Mau Mau/Präsident: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (Karten an die Höhe gekoppelt, schlanke Top-/Scorebar, Gegner-/Tischkarten verkleinert), Startbildschirm oben ausgerichtet + scrollbar (nichts mehr abgeschnitten), und ausgewählte/angetippte Karten werden nicht mehr angehoben (kein Abschneiden), sondern mit Ring markiert. Damit sind alle fünf Kartenspiele fürs Smartphone optimiert.
+
 ## 0.6.108
 
 - 📱 **Handy (Mau Mau & Präsident): Startbildschirm & Kartenauswahl gefixt** — im Querformat wurde der Startbildschirm oben/unten abgeschnitten; er ist jetzt oben ausgerichtet und bei Bedarf scrollbar (nichts mehr abgeschnitten). Außerdem klappten ausgewählte/angetippte Karten nach oben und wurden im niedrigen Hand-Streifen abgeschnitten — auf dem Handy werden sie jetzt nicht mehr angehoben, sondern mit einem goldenen Ring markiert.
