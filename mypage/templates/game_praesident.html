@@ -395,9 +395,78 @@ body{
   .card.playable:active{transform:translateY(-14px) scale(1.05)}
   .top-btn{width:40px;height:40px}
 }
+
+/* ── Mobil: Querformat-Hinweis (Rotier-Overlay) ───────────────── */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:600px) and (pointer:coarse){
+  #rotate-overlay{
+    display:flex;position:fixed;inset:0;z-index:1000;
+    background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+    align-items:center;justify-content:center;text-align:center;padding:24px;
+  }
+  .rotate-inner{max-width:300px}
+  .rotate-icon{font-size:72px;margin-bottom:18px;display:inline-block;
+    animation:rotateHint 2.2s ease-in-out infinite}
+  .rotate-title{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+  .rotate-hint{font-size:15px;opacity:0.8;line-height:1.45}
+}
+@keyframes rotateHint{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
+
+/* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
+@media (max-height:500px){
+  .start-box h1{font-size:30px;margin-bottom:2px}
+  .start-box .sub{font-size:13px;margin-bottom:14px}
+  .start-box .level-btn{padding:9px 18px;font-size:14px}
+  #stats-box{margin-top:12px}
+  .modal-box{max-height:94vh;overflow-y:auto}
+
+  #topbar{padding:3px 10px}
+  #scorebar{gap:14px}
+  .score-item{min-width:54px}
+  .score-name{font-size:9px}
+  .score-val{font-size:18px}
+  .score-role{font-size:9px}
+  .top-btn{width:30px;height:30px;font-size:0.95rem}
+  #topbar-btns{gap:3px;right:8px}
+
+  #game-area{padding:1px 10px}
+  #opponents{gap:8px;padding:0 6px}
+  .opp-label{font-size:10px;margin-bottom:1px}
+  .opp-fan{height:clamp(38px,13vh,54px)}
+  .opp-fan .card{width:clamp(28px,7vw,42px);height:clamp(40px,13vh,54px)}
+
+  #play-area{min-height:0}
+  #trick-display{min-height:clamp(46px,14vh,66px);gap:clamp(8px,3vw,18px)}
+  .trick-group .tg-who{font-size:9px}
+  .trick-group .tg-cards .card{width:clamp(38px,12vh,52px);height:clamp(54px,17vh,74px)}
+  #info-text{margin-top:2px;font-size:12px;min-height:14px}
+
+  #player-area{padding-bottom:2px}
+  #player-label{font-size:10px;margin-bottom:1px}
+  #player-hand{
+    min-height:0;gap:3px;flex-wrap:nowrap;
+    overflow-x:auto;overflow-y:hidden;padding-bottom:3px;
+    -webkit-overflow-scrolling:touch;
+  }
+  #actions{margin-top:4px;min-height:0;gap:8px}
+
+  #swap-hand{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;margin:6px 0;padding-bottom:3px}
+
+  /* gemeinsame Kartengröße (Hand + Stapel) an die Höhe koppeln */
+  .card{width:clamp(42px,14vh,58px);height:clamp(58px,19vh,80px)}
+}
 </style>
 </head>
 <body>
+
+<!-- ── Mobil: Querformat-Hinweis (nur im Hochformat auf kleinen Touch-Screens) ── -->
+<div id="rotate-overlay">
+  <div class="rotate-inner">
+    <div class="rotate-icon">📱</div>
+    <div class="rotate-title">{{ t.game_rotate_title }}</div>
+    <div class="rotate-hint">{{ t.game_rotate_hint }}</div>
+  </div>
+</div>
 
 <!-- ── Startbildschirm ─────────────────────── -->
 <div id="start-screen">
@@ -1859,6 +1928,8 @@ async function checkResume(){
 }
 
 (async () => {
+  // Best-effort: auf Mobilgeräten Querformat anfordern (nur in PWA/Fullscreen wirksam, sonst harmlos)
+  try { if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); } catch(e){}
   applyStacked();
   applyPlayedVisibility();
   const claimed = await claimSession();

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.107
+
+- 📱 **Präsident: Handy-Optimierung (Querformat)** — wie Mau Mau: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (kleinere Karten an die Höhe gekoppelt, schlanke Top-/Scorebar mit Rollen, Stich-Bereich verkleinert, Hand und Tausch-Ansicht als einreihiger scrollbarer Streifen) — passt ohne Überlappen auch mit 10 Handkarten aufs Display.
+
 ## 0.6.106
 
 - 📱 **Mau Mau: Handy-Optimierung (Pilot)** — auf dem Smartphone wird das Spiel jetzt im Querformat gespielt: Im Hochformat erscheint ein „Bitte Gerät drehen"-Hinweis (DE/EN), im Querformat ist das Layout kompakt und passt ohne Überlappen aufs Display (kleinere Karten, Top-Leiste/Stapel an die Höhe gekoppelt, große Hand bleibt in einer scrollbaren Reihe). Die anderen vier Spiele folgen nach Freigabe.
