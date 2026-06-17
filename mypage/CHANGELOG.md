@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.110
+
+- 📱 **66: Handy-Optimierung (Querformat)** — als letztes der fünf Kartenspiele auch 66 fürs Smartphone optimiert: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (Karten an die Höhe gekoppelt, schlanke Top-Leiste, kompaktes Auslosen-Modal), Startbildschirm oben ausgerichtet + scrollbar, angetippte Karten ohne Hochklappen (Ring statt Anheben). Damit sind alle fünf Spiele (66, 20 AB, Schwimmen, Mau Mau, Präsident) im Querformat handytauglich.
+
 ## 0.6.109
 
 - 📱 **Schwimmen & 20 AB: Handy-Optimierung (Querformat)** — wie Mau Mau/Präsident: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (Karten an die Höhe gekoppelt, schlanke Top-/Scorebar, Gegner-/Tischkarten verkleinert), Startbildschirm oben ausgerichtet + scrollbar (nichts mehr abgeschnitten), und ausgewählte/angetippte Karten werden nicht mehr angehoben (kein Abschneiden), sondern mit Ring markiert. Damit sind alle fünf Kartenspiele fürs Smartphone optimiert.
