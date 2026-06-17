@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>{{ t.gp_title }}</title>
+<style>
+/* ── Reset & Body ─────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--gold:#f1c40f;--felt1:#1a4a2a;--felt2:#0e3318}
+body{
+  font-family:'Segoe UI',Tahoma,sans-serif;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  color:#f0f0f0;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  overflow-x:hidden;
+  user-select:none;
+}
+
+/* ── Topbar ───────────────────────────────── */
+#topbar{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  padding:6px 16px;
+  background:rgba(0,0,0,0.4);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  flex-shrink:0;
+}
+#scorebar{display:flex;gap:28px;justify-content:center}
+.score-item{text-align:center;min-width:80px}
+.score-name{font-size:11px;opacity:0.6;display:block;margin-bottom:2px}
+.score-val{font-size:26px;font-weight:bold;transition:color 0.3s}
+.score-cards{font-size:11px;opacity:0.5}
+.score-role{font-size:11px;display:block;margin-top:1px}
+.score-role.praesident{color:var(--gold)}
+.score-role.buerger{color:#aaa}
+.score-role.bettler{color:#ff6666}
+.score-item.active-player .score-val{color:var(--gold)}
+#topbar-btns{display:flex;gap:6px;position:absolute;right:16px;top:50%;transform:translateY(-50%)}
+.top-btn{
+  background:rgba(255,255,255,0.12);border:none;color:#fff;
+  font-size:1.1rem;cursor:pointer;border-radius:8px;
+  width:34px;height:34px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color 0.2s,background 0.2s;
+}
+.top-btn:hover{color:#fff;background:rgba(255,255,255,0.22)}
+
+/* ── Statusleiste ────────────────────────────── */
+#status-bar{
+  text-align:center;padding:4px 0;font-size:14px;
+  background:rgba(0,0,0,0.18);
+  min-height:26px;
+}
+.revolution-badge{
+  display:inline-block;padding:2px 10px;border-radius:6px;
+  background:rgba(255,60,60,0.25);color:#ff6666;font-weight:bold;
+  margin-left:8px;
+}
+
+/* ── Spielbereich ─────────────────────────── */
+#game-area{
+  flex:1;display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:10px 16px;
+  max-width:800px;width:100%;margin:0 auto;
+}
+
+/* ── Gegner (Kartenfächer) ───────────────── */
+#opponents{display:flex;justify-content:space-between;gap:16px;padding:0 12px}
+.opponent{text-align:center;flex:1}
+.opp-label{font-size:13px;margin-bottom:6px;opacity:0.7}
+.opp-fan{
+  display:flex;justify-content:center;position:relative;
+  height:clamp(68px,14vh,105px);
+}
+.opp-fan .card{
+  position:absolute;
+  width:clamp(40px,8vw,65px);height:clamp(58px,12vh,95px);
+  transform-origin:bottom center;
+  transition:transform 0.3s;
+}
+.card-count-badge{
+  position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);
+  background:var(--gold);color:#1a1a1a;font-weight:bold;
+  font-size:12px;padding:1px 8px;border-radius:10px;
+  z-index:5;min-width:22px;text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* ── Tisch (Stich-Anzeige) ─────────────── */
+#play-area{
+  display:flex;flex-direction:column;align-items:center;
+  min-height:200px;justify-content:center;
+  position:relative;
+}
+#trick-display{
+  display:flex;justify-content:center;gap:clamp(10px, 3vw, 24px);
+  align-items:center;position:relative;
+  min-height:clamp(100px, 22vh, 160px);
+}
+.trick-group{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  opacity:0;animation:trickFadeIn 0.3s ease forwards;
+}
+@keyframes trickFadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.trick-group .tg-who{font-size:11px;opacity:0.6}
+.trick-group .tg-cards{display:flex;gap:2px}
+.trick-group .tg-cards .card{
+  width:clamp(44px, 10vw, 72px);height:clamp(64px, 15vh, 106px);
+}
+.trick-empty{opacity:0.3;font-size:14px}
+
+#info-text{
+  margin-top:10px;font-size:15px;text-align:center;
+  min-height:24px;opacity:0.8;
+}
+
+/* ── Spielerhand ──────────────────────────── */
+#player-area{text-align:center;padding-bottom:10px}
+#player-label{font-size:13px;margin-bottom:5px;opacity:0.7}
+#player-hand{
+  display:flex;justify-content:center;gap:clamp(4px, 1vw, 10px);
+  min-height:clamp(90px, 20vh, 150px);align-items:flex-end;
+  flex-wrap:wrap;
+}
+#player-hand.stacked{
+  gap:0;flex-wrap:nowrap;
+}
+#player-hand.stacked .card{
+  margin-left:clamp(-36px, -6vw, -20px);
+  transition:transform 0.15s,box-shadow 0.15s,opacity 0.2s,margin 0.15s;
+}
+#player-hand.stacked .card:first-child{margin-left:0}
+#player-hand.stacked .card.playable:hover{
+  transform:translateY(-14px);
+  z-index:10;
+}
+#player-hand.stacked .card.selected{
+  transform:translateY(-18px);
+  z-index:11;
+}
+#actions{margin-top:12px;min-height:44px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+
+/* ── Karten ───────────────────────────────── */
+.card{
+  width:clamp(56px, 13vw, 95px);height:clamp(82px, 19vh, 140px);border-radius:10px;
+  position:relative;display:inline-block;
+  border:2px solid #555;background:#fff;
+  box-shadow:2px 3px 8px rgba(0,0,0,0.22);
+  transition:transform 0.15s,box-shadow 0.15s,opacity 0.2s;
+  vertical-align:bottom;flex-shrink:0;
+}
+.card.knoll-card{background:transparent;border:none;box-shadow:none;overflow:hidden;padding:0}
+.card.knoll-card img{width:100%;height:100%;object-fit:contain;pointer-events:none;border-radius:10px}
+.card.knoll-card.back{background:transparent}
+.card.knoll-card.back::after{display:none}
+.card .c-tl{position:absolute;top:5px;left:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15}
+.card .c-br{position:absolute;bottom:5px;right:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15;transform:rotate(180deg)}
+.card .c-mid{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:clamp(24px, 5vw, 38px)}
+.card.red{color:#cc0000}
+.card.black{color:#1a1a1a}
+.card.playable{cursor:pointer}
+.card.playable:hover{transform:translateY(-14px);box-shadow:0 0 16px rgba(255,215,0,0.7)}
+.card.selected{transform:translateY(-18px);box-shadow:0 0 18px rgba(255,215,0,0.9);border-color:var(--gold) !important}
+.card.knoll-card.selected{box-shadow:0 0 0 3px var(--gold),0 0 18px rgba(255,215,0,0.6);transform:translateY(-18px)}
+.card.dimmed{opacity:0.4;cursor:default}
+.card.back{
+  background:linear-gradient(135deg,#1a3c5c 0%,#2a5c8c 50%,#1a3c5c 100%);
+  border-color:#0a2a4c;cursor:default;overflow:hidden;
+}
+.card.back::before{
+  content:'';position:absolute;
+  top:5px;left:5px;right:5px;bottom:5px;
+  border:1.5px solid rgba(255,255,255,0.15);
+  border-radius:6px;
+}
+.card.back::after{
+  content:'♠♥♦♣';position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:13px;color:rgba(255,255,255,0.2);letter-spacing:2px;
+}
+
+/* ── Hint-Glow ───────────────────────────── */
+@keyframes hintGlow{
+  0%,100%{box-shadow:0 0 8px rgba(76,175,80,0.5)}
+  50%{box-shadow:0 0 20px rgba(76,175,80,0.9)}
+}
+.card.hint-glow{animation:hintGlow 1s ease-in-out infinite !important;border-color:#4caf50 !important}
+.card.knoll-card.hint-glow{box-shadow:0 0 0 3px #4caf50,0 0 16px rgba(76,175,80,0.7);animation:hintGlow 1s ease-in-out infinite !important}
+
+/* ── Buttons ──────────────────────────────── */
+.btn{
+  padding:10px 24px;border:none;border-radius:8px;
+  font-size:15px;cursor:pointer;
+  transition:background 0.2s,transform 0.1s;
+  font-family:inherit;
+}
+.btn:active{transform:scale(0.96)}
+.btn:disabled{opacity:0.4;cursor:default}
+.btn-gold{background:#d4a017;color:#1a1a1a;font-weight:bold}
+.btn-gold:hover:not(:disabled){background:#e8b82a}
+.btn-red{background:#8b3030;color:#f0f0f0}
+.btn-red:hover{background:#a04040}
+.btn-ghost{background:rgba(255,255,255,0.14);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:0.86rem;cursor:pointer}
+.btn-ghost:hover{background:rgba(255,255,255,0.22)}
+
+/* ── Modals ───────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.65);z-index:100;
+  justify-content:center;align-items:center;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  background:#1e3a1e;border:1px solid rgba(255,255,255,0.15);
+  border-radius:14px;padding:24px 32px;
+  text-align:center;max-width:440px;width:92%;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  max-height:90vh;overflow-y:auto;
+}
+.modal-box.wide{max-width:750px}
+.scrollbox{max-height:62vh;overflow-y:auto;text-align:left;margin:6px 0 14px;padding-right:6px}
+.scrollbox.md{font-size:0.86rem;line-height:1.5}
+.scrollbox.md h1{font-size:1.2rem;margin:12px 0 6px}
+.scrollbox.md h2{font-size:1.05rem;margin:14px 0 6px;border:0}
+.scrollbox.md h3{font-size:0.95rem;margin:10px 0 4px}
+.scrollbox.md p{opacity:0.92;margin:6px 0}
+.scrollbox.md ul,.scrollbox.md ol{margin:6px 0 6px 18px}
+.scrollbox.md li{margin:3px 0}
+.scrollbox.md hr{border:0;border-top:1px solid rgba(255,255,255,0.15);margin:14px 0}
+.scrollbox.md table{border-collapse:collapse;width:100%;margin:8px 0;font-size:0.8rem}
+.scrollbox.md th,.scrollbox.md td{border:1px solid rgba(255,255,255,0.18);padding:5px 8px;text-align:left}
+.scrollbox.md th{background:rgba(255,255,255,0.08)}
+.scrollbox.md strong{color:#f1c40f}
+.modal-box h2{font-size:22px;margin-bottom:12px}
+.modal-box p{font-size:14px;margin:6px 0;opacity:0.85}
+.modal-box .emoji{font-size:44px;margin:8px 0}
+
+/* ── Rundenergebnis ───────────────────────── */
+.result-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+.result-table th,.result-table td{padding:6px 10px;text-align:center}
+.result-table th{opacity:0.6;font-weight:normal;border-bottom:1px solid rgba(255,255,255,0.1)}
+.result-table td.winner{color:var(--gold);font-weight:bold}
+
+/* ── Settings ─────────────────────────────── */
+.setting{text-align:left;margin:12px 0;width:min(340px,80vw)}
+.setting label{display:block;font-size:0.86rem;margin-bottom:7px}
+.setting label b{color:var(--gold);font-variant-numeric:tabular-nums}
+.setting input[type=range]{width:100%;accent-color:var(--gold)}
+.setting-hint{font-size:0.74rem;opacity:0.7;margin:4px 0 16px;max-width:340px}
+.setting-check{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.86rem}
+.setting-check input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold)}
+
+/* ── Gespielte Karten ─────────────────────── */
+.played-grid{display:flex;flex-direction:column;gap:10px;margin:10px auto;align-items:center}
+.played-row{display:flex;align-items:center;gap:5px}
+.played-row .ps{font-size:1.6rem;width:32px;text-align:center}
+.played-row .ps.red{color:#cc0000}
+.played-row .pcard{
+  height:76px;width:auto;border-radius:6px;display:block;vertical-align:middle;
+  box-shadow:0 2px 5px rgba(0,0,0,0.4);
+}
+.played-row .pcard.used{opacity:0.22;filter:grayscale(0.8)}
+.played-row .pcard.in-hand{box-shadow:0 0 0 2.5px var(--gold),0 2px 5px rgba(0,0,0,0.4)}
+.played-legend{display:flex;gap:16px;justify-content:center;font-size:0.74rem;margin:2px 0 8px;opacity:0.75}
+.played-legend span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.played-legend .pl-hand::before{background:var(--gold)}
+.played-legend .pl-gone::before{background:rgba(255,255,255,0.18)}
+
+/* ── Toasts ───────────────────────────────── */
+#toast-container{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  z-index:200;display:flex;flex-direction:column;gap:6px;
+  align-items:center;pointer-events:none;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.toast{
+  background:rgba(0,0,0,0.82);color:#fff;
+  padding:7px 18px;border-radius:8px;font-size:14px;
+  font-weight:600;white-space:nowrap;
+  animation:toastIn 0.3s ease;
+  transition:opacity 0.4s;
+  pointer-events:none;
+}
+.toast.gold{background:rgba(241,196,15,0.92);color:#20160a}
+.toast.info{background:rgba(0,80,160,0.85)}
+
+/* ── Startscreen ──────────────────────────── */
+#start-screen{
+  display:flex;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  z-index:300;
+  justify-content:center;align-items:center;
+}
+#start-screen.hidden{display:none}
+.start-box{text-align:center}
+.start-box h1{font-size:52px;margin-bottom:6px;color:var(--gold)}
+.start-box .sub{font-size:17px;opacity:0.7;margin-bottom:32px}
+.start-box .levels{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.start-box .level-btn{
+  padding:14px 28px;border:2px solid rgba(255,255,255,0.2);
+  border-radius:10px;background:rgba(255,255,255,0.06);
+  color:#f0f0f0;font-size:17px;cursor:pointer;
+  transition:background 0.2s,border-color 0.2s;
+  font-family:inherit;
+}
+.start-box .level-btn:hover{background:rgba(255,255,255,0.15);border-color:var(--gold)}
+.start-settings{margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;font-size:14px}
+.start-settings select{
+  background:rgba(255,255,255,0.1);color:#f0f0f0;border:1px solid rgba(255,255,255,0.2);
+  border-radius:6px;padding:6px 10px;font-size:14px;font-family:inherit;cursor:pointer;
+}
+.start-settings select option{background:#1e3a1e;color:#f0f0f0}
+
+#stats-box{margin-top:28px;text-align:center}
+#stats-box .stats-title{font-size:15px;opacity:0.6;margin-bottom:10px;letter-spacing:1px;text-transform:uppercase}
+.stats-grid{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.stat{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:10px 18px;min-width:80px;
+}
+.stat-val{font-size:26px;font-weight:700;color:var(--gold)}
+.stat-label{font-size:11px;opacity:0.55;margin-top:2px}
+#stats-box .stats-empty{font-size:13px;opacity:0.4;padding:8px 0}
+.stats-history{margin-top:14px;max-height:240px;overflow-y:auto;text-align:left}
+.hist-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px}
+.hist-row.win{background:rgba(76,175,80,0.08)}
+.hist-ico{font-size:16px;flex-shrink:0}
+.hist-meta{opacity:0.55;flex:1;white-space:nowrap}
+.hist-score{font-size:11px;opacity:0.7;white-space:nowrap}
+
+.game-log{
+  position:fixed;left:10px;bottom:10px;width:min(280px,70vw);max-height:34vh;
+  overflow-y:auto;background:rgba(0,0,0,0.85);border-radius:10px;padding:8px 12px;
+  font-size:12px;display:none;z-index:80;border:1px solid rgba(255,255,255,0.12);
+}
+.game-log.show{display:block}
+.game-log div{padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);opacity:0.8}
+.game-log div:last-child{border-bottom:none}
+.game-log .log-round{color:var(--gold);font-weight:700;opacity:1;margin-top:6px}
+.game-log .log-round:first-child{margin-top:0}
+
+/* ── Revolution-Ansage ────────────────────── */
+@keyframes revPulse{
+  0%{transform:translate(-50%,-50%) scale(0.5);opacity:0}
+  50%{transform:translate(-50%,-50%) scale(1.1);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0}
+}
+.rev-announce{
+  position:fixed;top:50%;left:50%;
+  font-size:52px;font-weight:900;color:#ff4444;
+  text-shadow:0 0 30px rgba(255,60,60,0.8),0 4px 12px rgba(0,0,0,0.5);
+  z-index:90;pointer-events:none;
+  animation:revPulse 1.4s ease forwards;
+}
+
+/* ── Kartentausch-Hand ───────────────────── */
+#swap-hand{
+  display:flex;justify-content:center;gap:clamp(4px, 1vw, 10px);
+  flex-wrap:wrap;margin:12px 0;
+}
+#swap-hand .card{cursor:pointer}
+#swap-hand .card:hover{transform:translateY(-10px)}
+
+/* ── prefers-reduced-motion ───────────────── */
+@media(prefers-reduced-motion:reduce){
+  .toast{animation:none}
+  .rev-announce{animation:none;opacity:0}
+  .trick-group{animation:none;opacity:1}
+}
+
+/* ── Mobile / Touch ───────────────────────── */
+@media(max-width:600px){
+  #scorebar{gap:14px}
+  .score-val{font-size:20px}
+  .score-name{font-size:10px}
+  #player-hand{gap:4px}
+  .opp-fan .card{width:clamp(32px,7vw,50px);height:clamp(48px,10vh,76px)}
+  #game-area{padding:6px 8px}
+  #topbar{padding:6px 8px}
+  #topbar-btns{gap:2px}
+  .top-btn{width:32px;height:32px;font-size:16px;padding:2px}
+  .btn{min-width:44px;min-height:44px;padding:10px 18px}
+  .played-row .pcard{height:58px;width:auto}
+  .trick-group .tg-cards .card{width:clamp(36px,8vw,56px);height:clamp(52px,12vh,82px)}
+}
+@media(max-width:400px){
+  #scorebar{gap:8px;padding:4px 6px}
+  .score-val{font-size:18px}
+  .modal-box{padding:16px 18px}
+}
+@media(pointer:coarse){
+  .card.playable:active{transform:translateY(-14px) scale(1.05)}
+  .top-btn{width:40px;height:40px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Startbildschirm ─────────────────────── -->
+<div id="start-screen">
+  <div class="start-box">
+    <h1>{{ t.gp_title }}</h1>
+    <div class="sub">{{ t.gp_subtitle }}</div>
+    <div id="resume-box" style="display:none;margin-bottom:18px">
+      <button class="level-btn" style="border-color:var(--gold);color:var(--gold);font-size:18px;padding:16px 36px" onclick="resumeGame()">▶ {{ t.gp_resume }}</button>
+    </div>
+    <div class="start-settings">
+      <span>{{ t.gp_wins_target }}:</span>
+      <select id="wins-target-sel">
+        <option value="3">3</option>
+        <option value="5">5</option>
+        <option value="7">7</option>
+      </select>
+    </div>
+    <div class="levels" style="margin-top:16px">
+      <button class="level-btn" onclick="startGame('easy')">{{ t.gp_level_easy }}</button>
+      <button class="level-btn" onclick="startGame('medium')">{{ t.gp_level_medium }}</button>
+      <button class="level-btn" onclick="startGame('hard')">{{ t.gp_level_hard }}</button>
+    </div>
+    <div id="stats-box"></div>
+    <div style="margin-top:28px">
+      <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.gp_back }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Topbar mit Scores + Buttons ─────────── -->
+<div id="topbar">
+  <div id="scorebar">
+    <div class="score-item" id="si-a1">
+      <span class="score-name" id="sn-a1">{{ t.gp_ai1 }}</span>
+      <span class="score-val" id="sv-a1">0</span>
+      <span class="score-role" id="sr-a1"></span>
+      <span class="score-cards" id="sc-a1"></span>
+    </div>
+    <div class="score-item" id="si-p">
+      <span class="score-name" id="sn-p">{{ t.gp_player }}</span>
+      <span class="score-val" id="sv-p">0</span>
+      <span class="score-role" id="sr-p"></span>
+      <span class="score-cards" id="sc-p"></span>
+    </div>
+    <div class="score-item" id="si-a2">
+      <span class="score-name" id="sn-a2">{{ t.gp_ai2 }}</span>
+      <span class="score-val" id="sv-a2">0</span>
+      <span class="score-role" id="sr-a2"></span>
+      <span class="score-cards" id="sc-a2"></span>
+    </div>
+  </div>
+  <div id="topbar-btns">
+    <button class="top-btn" id="btn-rules" title="{{ t.gp_rulesdoc }}">⚖</button>
+    <button class="top-btn" id="btn-stats" title="{{ t.gp_stats }}" onclick="openStats()">🏅</button>
+    <button class="top-btn" id="btn-played" title="{{ t.gp_played }}" style="display:none">📋</button>
+    <button class="top-btn" onclick="openSettings()" title="{{ t.gp_settings }}">⚙</button>
+    <button class="top-btn" id="btn-undo" title="{{ t.gp_undo }}" style="display:none">↶</button>
+    <button class="top-btn" id="btn-log" title="Verlauf" onclick="toggleLog()">≡</button>
+    <button class="top-btn" onclick="confirmNewGame()" title="{{ t.gp_new_game }}">↻</button>
+    <button class="top-btn" onclick="closeGame()" title="Schließen">✕</button>
+  </div>
+</div>
+
+<!-- ── Statusleiste ──────────────────────────── -->
+<div id="status-bar"></div>
+
+<!-- ── Spielbereich ────────────────────────── -->
+<div id="game-area">
+  <div id="opponents">
+    <div class="opponent">
+      <div class="opp-label" id="label-a1">{{ t.gp_ai1 }}</div>
+      <div class="opp-fan" id="fan-a1"></div>
+    </div>
+    <div class="opponent">
+      <div class="opp-label" id="label-a2">{{ t.gp_ai2 }}</div>
+      <div class="opp-fan" id="fan-a2"></div>
+    </div>
+  </div>
+
+  <div id="play-area">
+    <div id="trick-display"></div>
+    <div id="info-text"></div>
+  </div>
+
+  <div id="player-area">
+    <div id="player-label">{{ t.gp_player }}</div>
+    <div id="player-hand"></div>
+    <div id="actions"></div>
+  </div>
+</div>
+
+<!-- ── Spielverlauf ────────────────────────── -->
+<div class="game-log" id="game-log"></div>
+
+<!-- ── Toasts ──────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── Modal: Tab-Schutz ───────────────────── -->
+<div class="modal-overlay" id="tab-modal" style="z-index:310">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">🔀</div>
+    <h2>{{ t.gp_tab_title }}</h2>
+    <p>{{ t.gp_tab_text }}</p>
+    <button class="btn btn-gold" id="tab-resume">{{ t.gp_tab_resume }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Device-Schutz ───────────────── -->
+<div class="modal-overlay" id="device-modal" style="z-index:320">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">📱</div>
+    <h2>{{ t.gp_device_title }}</h2>
+    <p>{{ t.gp_device_text }}</p>
+    <button class="btn btn-gold" id="device-takeover">{{ t.gp_device_takeover }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Rundenergebnis ──────────────── -->
+<div class="modal-overlay" id="modal-round">
+  <div class="modal-box">
+    <h2 id="round-title">{{ t.gp_round_result }}</h2>
+    <table class="result-table" id="result-table">
+      <thead><tr><th>{{ t.gp_player_col }}</th><th>{{ t.gp_role_col }}</th><th>{{ t.gp_cards_left }}</th><th>{{ t.gp_wins_col }}</th></tr></thead>
+      <tbody id="result-body"></tbody>
+    </table>
+    <button class="btn btn-gold" id="btn-next-round" onclick="nextRound()" style="margin-top:12px">{{ t.gp_next_round }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielende ───────────────────── -->
+<div class="modal-overlay" id="modal-gameover">
+  <div class="modal-box">
+    <div class="emoji" id="go-emoji">🏆</div>
+    <h2 id="go-title">{{ t.gp_game_over }}</h2>
+    <p id="go-text"></p>
+    <div id="go-scores"></div>
+    <button class="btn btn-gold" onclick="showStart()" style="margin-top:14px">{{ t.gp_new_game }}</button>
+    <button class="btn" onclick="document.getElementById('modal-gameover').classList.remove('show')" style="margin-top:14px;margin-left:8px">{{ t.gp_banner_no }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Statistik ──────────────────── -->
+<div class="modal-overlay" id="stats-modal">
+  <div class="modal-box">
+    <h2>📊 {{ t.gp_stats }}</h2>
+    <div id="stats-modal-content"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-ghost" onclick="resetStatsConfirm()" style="font-size:12px;opacity:0.5">{{ t.gp_stats_reset }}</button>
+      <button class="btn btn-gold" onclick="closeStats()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Einstellungen ───────────────── -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-box">
+    <h2>⚙ {{ t.gp_settings }}</h2>
+    <div class="setting">
+      <label>{{ t.gp_speed_label }}: <b id="val-ai-speed">0,7s</b></label>
+      <input type="range" id="set-ai-speed" min="200" max="2000" step="100" value="700">
+    </div>
+    <div class="setting">
+      <label>{{ t.gp_speed_fly }}: <b id="val-fly">0,38s</b></label>
+      <input type="range" id="set-fly" min="120" max="1000" step="20" value="380">
+    </div>
+    <div class="setting">
+      <label>{{ t.gp_speed_toast }}: <b id="val-toast">2,2s</b></label>
+      <input type="range" id="set-toast" min="1500" max="5000" step="100" value="2200">
+    </div>
+    <p class="setting-hint">{{ t.gp_settings_hint }}</p>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-sound" checked>
+        {{ t.gp_sound_label }}
+      </label>
+    </div>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-played">
+        {{ t.gp_played_opt }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.gp_played_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-stacked">
+        {{ t.gp_stacked_opt }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.gp_stacked_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:16px">
+      <label style="font-size:0.86rem;font-weight:700">{{ t.gp_keyboard }}</label>
+      <p class="setting-hint" style="margin-top:4px">
+        <b>1-9</b> Karte auswählen &nbsp; <b>A</b> Alle gleichen Rang<br>
+        <b>Enter</b> Spielen &nbsp; <b>P</b> {{ t.gp_pass }}<br>
+        <b>H</b> {{ t.gp_hint }} &nbsp; <b>U</b> {{ t.gp_undo }} &nbsp; <b>K</b> {{ t.gp_played }}<br>
+        <b>Esc</b> Schließen
+      </p>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn-ghost" id="btn-settings-reset">{{ t.gp_reset }}</button>
+      <button class="btn btn-gold" onclick="closeSettings()">✕</button>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-gold" onclick="showStart();closeSettings();" style="width:100%">{{ t.gp_new_game }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Gespielte Karten ────────────── -->
+<div class="modal-overlay" id="played-modal">
+  <div class="modal-box wide">
+    <h2>📋 {{ t.gp_played }}</h2>
+    <div class="played-legend">
+      <span class="pl-hand">{{ t.gp_played_hand }}</span>
+      <span class="pl-gone">{{ t.gp_played_gone }}</span>
+    </div>
+    <div id="played-grid" class="played-grid"></div>
+    <button class="btn btn-gold" onclick="closePlayed()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielregeln ─────────────────── -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal-box wide">
+    <h2>📖 {{ t.gp_rulesdoc }}</h2>
+    <div class="scrollbox md" id="rules-body">Lade Regeln…</div>
+    <button class="btn btn-gold" onclick="closeRules()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<!-- ── Modal: Kartentausch ───────────────── -->
+<div class="modal-overlay" id="swap-modal">
+  <div class="modal-box wide">
+    <h2 id="swap-title">{{ t.gp_swap_title }}</h2>
+    <p id="swap-text"></p>
+    <div id="swap-hand"></div>
+    <button class="btn btn-gold" id="swap-confirm-btn" disabled>{{ t.gp_swap_confirm }} (0/2)</button>
+    <button class="btn btn-ghost" onclick="doHint()" style="margin-left:8px">💡 {{ t.gp_hint }}</button>
+  </div>
+</div>
+
+<script>
+/* ── Konstanten ────────────────────────────── */
+const CARD_DECK = {{ card_deck|tojson }};
+const G = {
+  title:         {{ t.gp_title|tojson }},
+  player:        {{ t.gp_player|tojson }},
+  ai1:           {{ t.gp_ai1|tojson }},
+  ai2:           {{ t.gp_ai2|tojson }},
+  your_turn:     {{ t.gp_your_turn|tojson }},
+  pass:          {{ t.gp_pass|tojson }},
+  play_cards:    {{ t.gp_play_cards|tojson }},
+  round:         {{ t.gp_round|tojson }},
+  game_over:     {{ t.gp_game_over|tojson }},
+  you_win:       {{ t.gp_you_win|tojson }},
+  you_lose:      {{ t.gp_you_lose|tojson }},
+  undo:          {{ t.gp_undo|tojson }},
+  undo_toast:    {{ t.gp_undo_toast|tojson }},
+  round_result:  {{ t.gp_round_result|tojson }},
+  settings:      {{ t.gp_settings|tojson }},
+  played:        {{ t.gp_played|tojson }},
+  played_hand:   {{ t.gp_played_hand|tojson }},
+  played_gone:   {{ t.gp_played_gone|tojson }},
+  reset:         {{ t.gp_reset|tojson }},
+  rulesdoc:      {{ t.gp_rulesdoc|tojson }},
+  stats:         {{ t.gp_stats|tojson }},
+  stats_wins:    {{ t.gp_stats_wins|tojson }},
+  stats_losses:  {{ t.gp_stats_losses|tojson }},
+  stats_games:   {{ t.gp_stats_games|tojson }},
+  stats_winrate: {{ t.gp_stats_winrate|tojson }},
+  stats_reset:   {{ t.gp_stats_reset|tojson }},
+  stats_empty:   {{ t.gp_stats_empty|tojson }},
+  resume:        {{ t.gp_resume|tojson }},
+  ai_playing:    {{ t.gp_ai_playing|tojson }},
+  new_game:      {{ t.gp_new_game|tojson }},
+  next_round:    {{ t.gp_next_round|tojson }},
+  plays_cards:   {{ t.gp_plays_cards|tojson }},
+  passes:        {{ t.gp_passes|tojson }},
+  all_passed:    {{ t.gp_all_passed|tojson }},
+  new_trick:     {{ t.gp_new_trick|tojson }},
+  trick_cleared: {{ t.gp_trick_cleared|tojson }},
+  trick_cleared_you: {{ t.gp_trick_cleared_you|tojson }},
+  trick:         {{ t.gp_trick|tojson }},
+  finished:      {{ t.gp_finished|tojson }},
+  wins_round:    {{ t.gp_wins_round|tojson }},
+  wins_round_you:{{ t.gp_wins_round_you|tojson }},
+  back:          {{ t.gp_back|tojson }},
+  revolution:    {{ t.gp_revolution|tojson }},
+  rev_active:    {{ t.gp_revolution_active|tojson }},
+  rev_off:       {{ t.gp_revolution_off|tojson }},
+  swap_title:    {{ t.gp_swap_title|tojson }},
+  swap_give:     {{ t.gp_swap_give|tojson }},
+  swap_receive:  {{ t.gp_swap_receive|tojson }},
+  swap_choose:   {{ t.gp_swap_choose|tojson }},
+  swap_confirm:  {{ t.gp_swap_confirm|tojson }},
+  swap_auto:     {{ t.gp_swap_auto|tojson }},
+  select_hint:   {{ t.gp_select_hint|tojson }},
+  role_praesident: {{ t.gp_role_praesident|tojson }},
+  role_buerger:  {{ t.gp_role_buerger|tojson }},
+  role_bettler:{{ t.gp_role_bettler|tojson }},
+  opens_trick:   {{ t.gp_opens_trick|tojson }},
+  hint:          {{ t.gp_hint|tojson }},
+  hint_play:     {{ t.gp_hint_play|tojson }},
+  hint_pass:     {{ t.gp_hint_pass|tojson }},
+  hint_swap:     {{ t.gp_hint_swap|tojson }},
+};
+
+const SUIT_SYM = {h:'♥', d:'♦', s:'♠', c:'♣'};
+const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
+const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
+const ALL_RANKS = ['7','8','9','T','J','Q','K','A'];
+const ROLE_ICONS = {praesident:'👑', buerger:'👤', bettler:'💀'};
+const ROLE_NAMES = {praesident:G.role_praesident, buerger:G.role_buerger, bettler:G.role_bettler};
+function cardName(c){ return RANK_DISP[c[1]] + ' ' + SUIT_SYM[c[0]]; }
+const NAMES = {p:G.player, a1:G.ai1, a2:G.ai2};
+
+const $ = id => document.getElementById(id);
+
+/* ── State ─────────────────────────────────── */
+let gameState = null;
+let aiRunning = false;
+let canUndo = false;
+let gameLog = [];
+let selectedCards = [];
+
+/* ── Einstellungen (localStorage) ──────────── */
+function clampInt(v, lo, hi, def){ const n = parseInt(v); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); }
+const FLY_DEFAULT = 380, TOAST_DEFAULT = 2200, AISPEED_DEFAULT = 700;
+let aiDelay    = clampInt(localStorage.getItem('gp_ai_speed'), 200, 2000, AISPEED_DEFAULT);
+let flyMs      = clampInt(localStorage.getItem('gp_fly'), 120, 1000, FLY_DEFAULT);
+let toastMs    = clampInt(localStorage.getItem('gp_toast'), 1500, 5000, TOAST_DEFAULT);
+let soundOn    = localStorage.getItem('gp_sound') !== '0';
+let showPlayed = localStorage.getItem('gp_show_played') === '1';
+let stackCards = localStorage.getItem('gp_stack_cards') === '1';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const fmtSec = ms => (ms/1000).toFixed(2).replace('.',',') + 's';
+
+function initSettings(){
+  const bind = (id, varGet, varSet, fmt) => {
+    const el = $(id);
+    el.value = varGet();
+    const valEl = $('val-' + id.replace('set-',''));
+    if(valEl) valEl.textContent = fmt(varGet());
+    el.oninput = () => { varSet(parseInt(el.value)); if(valEl) valEl.textContent = fmt(varGet()); };
+  };
+  bind('set-ai-speed', ()=>aiDelay, v=>{aiDelay=v;localStorage.setItem('gp_ai_speed',v)}, fmtSec);
+  bind('set-fly', ()=>flyMs, v=>{flyMs=v;localStorage.setItem('gp_fly',v)}, fmtSec);
+  bind('set-toast', ()=>toastMs, v=>{toastMs=v;localStorage.setItem('gp_toast',v)}, fmtSec);
+
+  const snd = $('set-sound');
+  snd.checked = soundOn;
+  snd.onchange = () => { soundOn = snd.checked; localStorage.setItem('gp_sound', soundOn?'1':'0'); if(soundOn) SFX.cardPlay(); };
+
+  const pl = $('set-played');
+  pl.checked = showPlayed;
+  pl.onchange = () => { showPlayed = pl.checked; localStorage.setItem('gp_show_played', showPlayed?'1':'0'); applyPlayedVisibility(); };
+
+  const stk = $('set-stacked');
+  stk.checked = stackCards;
+  stk.onchange = () => { stackCards = stk.checked; localStorage.setItem('gp_stack_cards', stackCards?'1':'0'); applyStacked(); };
+
+  $('btn-settings-reset').onclick = () => {
+    aiDelay=AISPEED_DEFAULT; flyMs=FLY_DEFAULT; toastMs=TOAST_DEFAULT;
+    soundOn=true; showPlayed=false; stackCards=false;
+    ['gp_ai_speed','gp_fly','gp_toast','gp_sound','gp_show_played','gp_stack_cards'].forEach(k=>localStorage.removeItem(k));
+    applyPlayedVisibility(); applyStacked(); initSettings();
+  };
+
+  applyPlayedVisibility();
+  applyStacked();
+}
+
+function applyPlayedVisibility(){ $('btn-played').style.display = showPlayed ? '' : 'none'; }
+function applyStacked(){ $('player-hand').classList.toggle('stacked', stackCards); }
+function openSettings(){ initSettings(); $('settings-modal').classList.add('show'); }
+function closeSettings(){ $('settings-modal').classList.remove('show'); }
+
+/* ── Sound (Web Audio) ─────────────────────── */
+let audioCtx = null;
+function getAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, dur, type, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = vol || 0.1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e){}
+}
+function playNoise(dur, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (vol||0.1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(gain); gain.connect(ctx.destination);
+    src.start();
+  } catch(e){}
+}
+const SFX = {
+  cardPlay:  () => playNoise(0.08, 0.15),
+  cardDraw:  () => playNoise(0.06, 0.10),
+  special:   () => { playTone(523, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.12), 100); },
+  win:       () => { [523,659,784,1047].forEach((f,i) => setTimeout(()=>playTone(f, 0.2, 'triangle', 0.18), i*120)); },
+  lose:      () => { [392,330,262].forEach((f,i) => setTimeout(()=>playTone(f, 0.25, 'sine', 0.10), i*150)); },
+  undo:      () => playTone(370, 0.15, 'sine', 0.08),
+  pass:      () => playTone(300, 0.12, 'sine', 0.06),
+  revolution:() => { [220,330,440,660,880].forEach((f,i) => setTimeout(()=>playTone(f, 0.15, 'sawtooth', 0.12), i*60)); },
+  collect:   () => playNoise(0.12, 0.08),
+  hint:      () => { playTone(660, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(880, 0.15, 'triangle', 0.10), 100); },
+};
+
+/* ── Spielverlauf (Log) ───────────────────── */
+function addLog(text, cls){
+  gameLog.push({text, cls: cls||''});
+  renderLog();
+}
+function addLogRound(nr){ addLog('── Runde ' + nr + ' ──', 'log-round'); }
+function renderLog(){
+  const el = $('game-log');
+  el.innerHTML = '';
+  gameLog.slice(-60).forEach(e => {
+    const d = document.createElement('div');
+    if(e.cls) d.className = e.cls;
+    d.textContent = e.text;
+    el.appendChild(d);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+function toggleLog(){ $('game-log').classList.toggle('show'); }
+function clearLog(){ gameLog = []; $('game-log').innerHTML = ''; }
+
+/* ── Session-Schutz (Cross-Device) ─────────── */
+let sessionToken = null;
+let heartbeatTimer = null;
+let tabActive = true;
+
+async function claimSession(force){
+  try {
+    const r = await fetch('/api/praesident/session', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: force ? 'force' : 'claim'})
+    });
+    const d = await r.json();
+    if (d.locked){ $('device-modal').classList.add('show'); return false; }
+    if (d.token){
+      sessionToken = d.token;
+      $('device-modal').classList.remove('show');
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (!sessionToken) return;
+        fetch('/api/praesident/session', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'heartbeat', token: sessionToken})
+        }).catch(() => {});
+      }, 15000);
+      return true;
+    }
+  } catch(e){}
+  return true;
+}
+
+window.addEventListener('beforeunload', () => {
+  if (!sessionToken) return;
+  navigator.sendBeacon('/api/praesident/session',
+    new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+      {type: 'application/json'}));
+});
+
+$('device-takeover').onclick = async () => { await claimSession(true); checkResume(); };
+
+/* ── Mehr-Tab-Schutz (BroadcastChannel) ───── */
+const TAB_ID = Math.random().toString(36).slice(2);
+let bc = null, myClaimTs = 0;
+function tabClaim(){
+  myClaimTs = Date.now();
+  if (bc) try { bc.postMessage({type: 'claim', id: TAB_ID, ts: myClaimTs}); } catch(e){}
+}
+function becomePassive(){
+  if (!tabActive) return;
+  tabActive = false;
+  $('tab-modal').classList.add('show');
+}
+function becomeActive(){
+  tabActive = true;
+  $('tab-modal').classList.remove('show');
+  tabClaim();
+  checkResume();
+}
+try {
+  bc = new BroadcastChannel('mypage-gp');
+  bc.onmessage = e => {
+    const m = e.data;
+    if (!m || m.id === TAB_ID || m.type !== 'claim') return;
+    if (m.ts > myClaimTs || (m.ts === myClaimTs && m.id > TAB_ID)) becomePassive();
+  };
+} catch(e){ bc = null; }
+$('tab-resume').onclick = becomeActive;
+tabClaim();
+
+/* ── API ───────────────────────────────────── */
+async function api(url, data){
+  if (data && sessionToken) data.token = sessionToken;
+  const opts = data
+    ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}
+    : {};
+  try {
+    const r = await fetch(url, opts);
+    if (r.status === 423){ $('device-modal').classList.add('show'); return null; }
+    return r.ok ? await r.json() : null;
+  } catch(e){ return null; }
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* ── Kartenanzeige ─────────────────────────── */
+function cardSvgUrl(c){ return '/cards/knoll/' + c[1] + c[0] + '.svg'; }
+
+function cardHtml(c, extra){
+  extra = extra || '';
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card ' + extra + '" data-card="' + c + '">' +
+      '<img src="' + cardSvgUrl(c) + '" draggable="false"></div>';
+  }
+  const s = c[0], r = c[1];
+  const color = SUIT_COLOR[s];
+  const sym = SUIT_SYM[s];
+  const disp = RANK_DISP[r];
+  return '<div class="card ' + color + ' ' + extra + '" data-card="' + c + '">' +
+    '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
+    '<span class="c-mid">' + sym + '</span>' +
+    '<span class="c-br">' + disp + '<br>' + sym + '</span></div>';
+}
+
+function cardBackHtml(){
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card back"><img src="/cards/knoll/back.svg" draggable="false"></div>';
+  }
+  return '<div class="card back"></div>';
+}
+
+/* ── Toasts ────────────────────────────────── */
+function showToast(text, cls){
+  const t = document.createElement('div');
+  t.className = 'toast' + (cls ? ' '+cls : '');
+  t.textContent = text;
+  $('toast-container').appendChild(t);
+  const fadeStart = Math.max(toastMs - 400, 200);
+  setTimeout(() => { t.style.opacity = '0'; }, fadeStart);
+  setTimeout(() => t.remove(), toastMs);
+}
+
+/* ── Revolution-Ansage ───────────────────── */
+function showRevolutionAnnounce(){
+  const el = document.createElement('div');
+  el.className = 'rev-announce';
+  el.textContent = G.revolution;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1500);
+}
+
+/* ══════════════════════════════════════════════
+   ANIMATIONEN
+   ══════════════════════════════════════════════ */
+
+function flyCardToTrick(card){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const el = document.querySelector('#player-hand .card[data-card="' + card + '"]');
+    const target = $('trick-display');
+    if(!el || !target){ resolve(); return; }
+    const s = el.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const clone = el.cloneNode(true);
+    clone.classList.remove('playable','dimmed','selected');
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(clone);
+    el.style.visibility = 'hidden';
+    void clone.offsetWidth;
+    clone.style.transition = 'transform ' + (flyMs/1000) + 's cubic-bezier(.4,.8,.3,1)';
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    void clone.offsetWidth;
+    clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    let done = false;
+    const fin = () => { if(done) return; done = true; clone.remove(); resolve(); };
+    clone.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 60);
+  });
+}
+
+function flyAiCardToTrick(who, card){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const fanEl = $('fan-' + who);
+    const backs = fanEl && fanEl.querySelectorAll('.card.back, .card.knoll-card.back');
+    const back = backs && backs.length > 0 ? backs[backs.length - 1] : null;
+    const target = $('trick-display');
+    if(!back || !target){ resolve(); return; }
+    const s = back.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cardHtml(card);
+    const clone = tmp.firstChild;
+    const dur = flyMs / 1000;
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(clone);
+    back.style.visibility = 'hidden';
+    void clone.offsetWidth;
+    clone.style.transition = 'transform ' + dur + 's cubic-bezier(.4,.8,.3,1)';
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    void clone.offsetWidth;
+    clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1.3)';
+    let done = false;
+    const fin = () => { if(done) return; done = true; clone.remove(); resolve(); };
+    clone.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 80);
+  });
+}
+
+let skipNextTrickRender = false;
+
+function fadeTrickOut(){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const groups = $('trick-display').querySelectorAll('.trick-group');
+    if(!groups.length){ resolve(); return; }
+    const dur = Math.max(flyMs * 0.8, 250);
+    groups.forEach(g => {
+      g.style.animation = 'none';
+      g.style.opacity = '1';
+      void g.offsetWidth;
+      g.style.transition = 'opacity ' + (dur/1000) + 's ease-out, transform ' + (dur/1000) + 's ease-out';
+      g.style.opacity = '0';
+      g.style.transform = 'scale(0.85) translateY(-10px)';
+    });
+    skipNextTrickRender = true;
+    setTimeout(resolve, dur + 30);
+  });
+}
+
+async function dealCards(){
+  if(reduceMotion) return;
+  const a1Cards = Array.from($('fan-a1').querySelectorAll('.card'));
+  const a2Cards = Array.from($('fan-a2').querySelectorAll('.card'));
+  const pCards  = Array.from($('player-hand').querySelectorAll('.card'));
+  const all = [...a1Cards, ...a2Cards, ...pCards];
+  if(!all.length) return;
+  all.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
+  const fadeDur = flyMs / 1000;
+  const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
+  const pause = Math.max(60, Math.round(flyMs * 0.25));
+  const max = Math.max(a1Cards.length, a2Cards.length, pCards.length);
+  for(let i = 0; i < max; i++){
+    if(a1Cards[i]){ fadeIn(a1Cards[i]); await sleep(pause); }
+    if(a2Cards[i]){ fadeIn(a2Cards[i]); await sleep(pause); }
+    if(pCards[i]){ fadeIn(pCards[i]); await sleep(pause); }
+  }
+  await sleep(pause * 2);
+  all.forEach(c => { c.style.opacity = ''; c.style.transition = ''; });
+}
+
+/* ══════════════════════════════════════════════
+   RENDERING
+   ══════════════════════════════════════════════ */
+
+function render(st){
+  if(!st) return;
+  renderScores(st);
+  renderStatusBar(st);
+  renderOpponents(st);
+  renderTrick(st);
+  renderPlayerHand(st);
+  renderActions(st);
+  renderInfo(st);
+  updateUndo();
+}
+
+function renderScores(st){
+  const wins = st.wins || {};
+  const roles = st.roles || {};
+  for(const p of ['p','a1','a2']){
+    const el = $('sv-'+p);
+    if(el) el.textContent = wins[p] ?? 0;
+    const si = $('si-'+p);
+    if(si) si.classList.toggle('active-player', st.status === 'playing' && st.turn === p);
+    const sc = $('sc-'+p);
+    if(sc){
+      const count = p === 'p'
+        ? (Array.isArray(st.hands?.p) ? st.hands.p.length : 0)
+        : (typeof st.hands?.[p] === 'number' ? st.hands[p] : 0);
+      sc.textContent = count + ' ♠';
+    }
+    const sr = $('sr-'+p);
+    if(sr){
+      const role = roles[p];
+      if(role && ROLE_ICONS[role]){
+        sr.textContent = ROLE_ICONS[role] + ' ' + ROLE_NAMES[role];
+        sr.className = 'score-role ' + role;
+      } else {
+        sr.textContent = '';
+        sr.className = 'score-role';
+      }
+    }
+  }
+}
+
+function renderStatusBar(st){
+  const bar = $('status-bar');
+  if(!st || st.status === 'game_over'){ bar.innerHTML = ''; return; }
+  let html = G.round + ' ' + (st.round_nr || 1);
+  if(st.trick_rank){
+    html += ' — ' + G.trick + ': ' + RANK_DISP[st.trick_rank] + ' ×' + (st.trick_count || 1);
+  }
+  if(st.revolution){
+    html += '<span class="revolution-badge">' + G.revolution + '</span>';
+  }
+  bar.innerHTML = html;
+}
+
+function renderFan(who, count){
+  const el = $('fan-' + who);
+  if(!el) return;
+  let html = '';
+  if(count <= 0){ el.innerHTML = ''; return; }
+  const angleStep = count > 1 ? Math.min(24 * 2 / (count - 1), 12) : 0;
+  const startAngle = -(angleStep * (count - 1)) / 2;
+  for(let i = 0; i < count; i++){
+    const angle = startAngle + angleStep * i;
+    const translateX = (i - (count-1)/2) * Math.max(8, 40 - count * 3);
+    if(CARD_DECK === 'knoll'){
+      html += '<div class="card knoll-card back" style="transform:translateX(' + translateX + 'px) rotate(' + angle + 'deg)">' +
+        '<img src="/cards/knoll/back.svg" draggable="false"></div>';
+    } else {
+      html += '<div class="card back" style="transform:translateX(' + translateX + 'px) rotate(' + angle + 'deg)"></div>';
+    }
+  }
+  html += '<span class="card-count-badge">' + count + '</span>';
+  el.innerHTML = html;
+}
+
+function renderOpponents(st){
+  for(const ai of ['a1','a2']){
+    const count = typeof st.hands?.[ai] === 'number' ? st.hands[ai] : 0;
+    renderFan(ai, count);
+    const label = $('label-'+ai);
+    let lbl = NAMES[ai];
+    if(st.turn === ai && st.status === 'playing') lbl += ' ⏳';
+    if(st.finished && st.finished.includes(ai)) lbl += ' ✓';
+    label.innerHTML = lbl;
+  }
+}
+
+function renderTrick(st){
+  if(skipNextTrickRender){ skipNextTrickRender = false; return; }
+  const el = $('trick-display');
+  const tricks = st.trick_cards || [];
+  if(!tricks.length){
+    el.innerHTML = '<div class="trick-empty">' + G.select_hint + '</div>';
+    return;
+  }
+  let html = '';
+  for(const tg of tricks){
+    html += '<div class="trick-group" data-who="' + tg.who + '"><span class="tg-who">' + NAMES[tg.who] + '</span><div class="tg-cards">';
+    for(const c of tg.cards){
+      html += cardHtml(c);
+    }
+    html += '</div></div>';
+  }
+  el.innerHTML = html;
+}
+
+function appendCardToTrick(who, card){
+  const el = $('trick-display');
+  const empty = el.querySelector('.trick-empty');
+  if(empty) empty.remove();
+  let group = el.querySelector('.trick-group[data-who="' + who + '"]:last-child');
+  if(!group || group.dataset.who !== who){
+    group = document.createElement('div');
+    group.className = 'trick-group';
+    group.dataset.who = who;
+    group.innerHTML = '<span class="tg-who">' + NAMES[who] + '</span><div class="tg-cards"></div>';
+    el.appendChild(group);
+  }
+  const cardsDiv = group.querySelector('.tg-cards');
+  const tmp = document.createElement('div');
+  tmp.innerHTML = cardHtml(card);
+  cardsDiv.appendChild(tmp.firstChild);
+}
+
+function renderPlayerHand(st){
+  const hand = st.hands?.p;
+  if(!hand || !Array.isArray(hand)){
+    $('player-hand').innerHTML = '';
+    return;
+  }
+  const canPlay = st.status === 'playing' && st.turn === 'p';
+  const legalPlays = st.legal_plays || [];
+  const legalCards = new Set();
+  for(const play of legalPlays){
+    for(const c of play) legalCards.add(c);
+  }
+
+  let html = '';
+  for(const c of hand){
+    let extra = '';
+    if(canPlay){
+      if(legalCards.has(c)) extra = 'playable';
+      else extra = 'dimmed';
+    }
+    if(selectedCards.includes(c)) extra += ' selected';
+    html += cardHtml(c, extra);
+  }
+  $('player-hand').innerHTML = html;
+
+  if(canPlay){
+    document.querySelectorAll('#player-hand .card').forEach(el => {
+      if(!el.classList.contains('dimmed')){
+        el.onclick = () => toggleSelect(el.dataset.card);
+      }
+    });
+  }
+}
+
+function renderActions(st){
+  const el = $('actions');
+  el.innerHTML = '';
+  if(st.status === 'playing' && st.turn === 'p'){
+    const playBtn = document.createElement('button');
+    playBtn.className = 'btn btn-gold';
+    playBtn.textContent = G.play_cards + (selectedCards.length ? ' (' + selectedCards.length + ')' : '');
+    playBtn.disabled = !isValidSelection();
+    playBtn.onclick = () => doPlay();
+    el.appendChild(playBtn);
+
+    if(st.can_pass){
+      const passBtn = document.createElement('button');
+      passBtn.className = 'btn btn-red';
+      passBtn.textContent = G.pass;
+      passBtn.onclick = () => doPass();
+      el.appendChild(passBtn);
+    }
+
+    const hintBtn = document.createElement('button');
+    hintBtn.className = 'btn btn-ghost';
+    hintBtn.textContent = '💡 ' + G.hint;
+    hintBtn.title = G.hint + ' (H)';
+    hintBtn.onclick = () => doHint();
+    el.appendChild(hintBtn);
+  }
+}
+
+function renderInfo(st){
+  const el = $('info-text');
+  if(st.status === 'playing'){
+    if(st.turn === 'p') el.textContent = G.your_turn;
+    else el.textContent = NAMES[st.turn] + ' ' + G.ai_playing;
+  } else if(st.status === 'swap_show' || st.status === 'swap_choose'){
+    el.textContent = G.swap_title + '...';
+  } else if(st.status === 'trick_done'){
+    el.textContent = NAMES[st.turn] + ' ' + (st.turn === 'p' ? G.trick_cleared_you : G.trick_cleared);
+  } else if(st.status === 'round_over' || st.status === 'game_over'){
+    el.textContent = '';
+  } else {
+    el.textContent = '';
+  }
+}
+
+/* ── Kartenauswahl ────────────────────────── */
+function toggleSelect(card){
+  if(!gameState || gameState.turn !== 'p' || gameState.status !== 'playing') return;
+  const r = card[1];
+  if(selectedCards.includes(card)){
+    selectedCards = selectedCards.filter(c => c !== card);
+  } else {
+    if(selectedCards.length > 0 && selectedCards[0][1] !== r){
+      selectedCards = [];
+    }
+    selectedCards.push(card);
+  }
+  renderPlayerHand(gameState);
+  renderActions(gameState);
+}
+
+function autoSelectRank(card){
+  if(!gameState) return;
+  const r = card[1];
+  const hand = gameState.hands?.p || [];
+  const legalPlays = gameState.legal_plays || [];
+  const legalCards = new Set();
+  for(const play of legalPlays) for(const c of play) legalCards.add(c);
+  selectedCards = hand.filter(c => c[1] === r && legalCards.has(c));
+  renderPlayerHand(gameState);
+  renderActions(gameState);
+}
+
+function isValidSelection(){
+  if(!selectedCards.length || !gameState) return false;
+  const legalPlays = gameState.legal_plays || [];
+  const selSet = new Set(selectedCards);
+  for(const play of legalPlays){
+    if(play.length === selectedCards.length && play.every(c => selSet.has(c))) return true;
+  }
+  return false;
+}
+
+/* ── Undo ──────────────────────────────────── */
+function updateUndo(){ $('btn-undo').style.display = canUndo ? '' : 'none'; }
+async function doUndo(){
+  if(aiRunning || !canUndo) return;
+  const v = await api('/api/praesident/undo', {});
+  canUndo = false;
+  updateUndo();
+  if(v && v.state){
+    gameState = v.state;
+    selectedCards = [];
+    render(gameState);
+    showToast(G.undo_toast);
+    SFX.undo();
+  }
+}
+$('btn-undo').onclick = doUndo;
+
+/* ── Gespielte Karten Modal ───────────────── */
+function openPlayed(){
+  if(!gameState) return;
+  const grid = $('played-grid'); grid.innerHTML = '';
+  const st = gameState;
+  const hand = new Set((st.hands && Array.isArray(st.hands.p)) ? st.hands.p : []);
+  const played = new Set();
+  for(const tg of (st.trick_cards || [])){
+    for(const c of tg.cards) played.add(c);
+  }
+  for(const s of ['h','d','s','c']){
+    const row = document.createElement('div'); row.className = 'played-row';
+    const sh = document.createElement('span');
+    sh.className = 'ps' + (SUIT_COLOR[s] === 'red' ? ' red' : '');
+    sh.textContent = SUIT_SYM[s];
+    row.appendChild(sh);
+    for(const r of ALL_RANKS){
+      const code = s + r;
+      const svgCode = r + s;
+      if(CARD_DECK === 'knoll'){
+        const img = document.createElement('img');
+        img.className = 'pcard';
+        img.src = '/cards/knoll/' + svgCode + '.svg';
+        img.draggable = false;
+        if(hand.has(code)) img.classList.add('in-hand');
+        else if(!hand.has(code) && !played.has(code)) img.classList.add('used');
+        row.appendChild(img);
+      } else {
+        const d = document.createElement('div');
+        d.className = 'card ' + SUIT_COLOR[s];
+        d.style.cssText = 'width:48px;height:70px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0';
+        d.textContent = RANK_DISP[r] + SUIT_SYM[s];
+        if(hand.has(code)) d.classList.add('in-hand');
+        else if(!hand.has(code) && !played.has(code)) d.classList.add('used');
+        row.appendChild(d);
+      }
+    }
+    grid.appendChild(row);
+  }
+  $('played-modal').classList.add('show');
+}
+function closePlayed(){ $('played-modal').classList.remove('show'); }
+$('btn-played').onclick = openPlayed;
+
+/* ── Regeln Modal ─────────────────────────── */
+let rulesLoaded = false;
+async function openRules(){
+  $('rules-modal').classList.add('show');
+  if(!rulesLoaded){
+    const v = await api('/api/praesident/rules');
+    if(v && v.html){ $('rules-body').innerHTML = v.html; rulesLoaded = true; }
+  }
+}
+function closeRules(){ $('rules-modal').classList.remove('show'); }
+$('btn-rules').onclick = openRules;
+
+/* ── Statistik ────────────────────────────── */
+async function loadStats(){
+  const v = await api('/api/praesident/history');
+  return v ? (v.games || []) : [];
+}
+
+function renderStatsContent(games, target){
+  if(!games.length){
+    target.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>';
+    return;
+  }
+  const wins = games.filter(g => g.winner === 'p').length;
+  const total = games.length;
+  const rate = total > 0 ? Math.round(wins / total * 100) : 0;
+  target.innerHTML =
+    '<div class="stats-grid">' +
+    '<div class="stat"><div class="stat-val">' + wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + (total - wins) + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+    '</div>';
+  let hist = '<div class="stats-history">';
+  for(const g of games.slice().reverse().slice(0, 30)){
+    const isWin = g.winner === 'p';
+    const d = new Date(g.ts * 1000);
+    const date = d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'});
+    const time = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    hist += '<div class="hist-row' + (isWin ? ' win' : '') + '">' +
+      '<span class="hist-ico">' + (isWin ? '🏆' : '💀') + '</span>' +
+      '<span class="hist-meta">' + date + ' ' + time + ' (' + g.level + ')</span>' +
+      '<span class="hist-score">R' + g.rounds + ' ' + NAMES[g.winner] + '</span></div>';
+  }
+  hist += '</div>';
+  target.innerHTML += hist;
+}
+
+async function openStats(){
+  const games = await loadStats();
+  renderStatsContent(games, $('stats-modal-content'));
+  $('stats-modal').classList.add('show');
+}
+function closeStats(){ $('stats-modal').classList.remove('show'); }
+
+async function resetStatsConfirm(){
+  if(!confirm(G.stats_reset + '?')) return;
+  await api('/api/praesident/history/reset', {});
+  closeStats();
+}
+
+async function renderStartStats(){
+  const games = await loadStats();
+  renderStatsContent(games, $('stats-box'));
+}
+
+/* ── Kartentausch-Modal ──────────────────── */
+let swapSelected = [];
+
+function openSwapModal(st){
+  swapSelected = [];
+  $('swap-title').textContent = G.swap_choose;
+  $('swap-text').textContent = G.swap_choose;
+  const hand = st.hands?.p || [];
+  const el = $('swap-hand');
+  el.innerHTML = '';
+  for(const c of hand){
+    const div = document.createElement('div');
+    div.innerHTML = cardHtml(c, 'playable');
+    const cardEl = div.firstChild;
+    cardEl.onclick = () => {
+      if(swapSelected.includes(c)){
+        swapSelected = swapSelected.filter(x => x !== c);
+      } else if(swapSelected.length < 2){
+        swapSelected.push(c);
+      }
+      renderSwapHand(hand);
+    };
+    el.appendChild(cardEl);
+  }
+  updateSwapBtn();
+  $('swap-modal').classList.add('show');
+}
+
+function renderSwapHand(hand){
+  const el = $('swap-hand');
+  el.innerHTML = '';
+  for(const c of hand){
+    const extra = swapSelected.includes(c) ? 'playable selected' : 'playable';
+    const div = document.createElement('div');
+    div.innerHTML = cardHtml(c, extra);
+    const cardEl = div.firstChild;
+    cardEl.onclick = () => {
+      if(swapSelected.includes(c)){
+        swapSelected = swapSelected.filter(x => x !== c);
+      } else if(swapSelected.length < 2){
+        swapSelected.push(c);
+      }
+      renderSwapHand(hand);
+    };
+    el.appendChild(cardEl);
+  }
+  updateSwapBtn();
+}
+
+function updateSwapBtn(){
+  const btn = $('swap-confirm-btn');
+  btn.textContent = G.swap_confirm + ' (' + swapSelected.length + '/2)';
+  btn.disabled = swapSelected.length !== 2;
+  btn.onclick = () => doSwapChoose();
+}
+
+async function doSwapChoose(){
+  if(swapSelected.length !== 2) return;
+  $('swap-modal').classList.remove('show');
+  const v = await api('/api/praesident/move', {type:'swap_choose', cards: swapSelected});
+  if(!v) return;
+  gameState = v.state;
+  swapSelected = [];
+  render(gameState);
+  if(!isPlayerTurn()) aiLoop();
+}
+
+/* ── Tipp (Hint) ──────────────────────────── */
+let hintTimer = null;
+
+async function doHint(){
+  if(aiRunning || !gameState) return;
+  clearHintGlow();
+  const v = await api('/api/praesident/hint');
+  if(!v || !v.hint) return;
+  SFX.hint();
+  const h = v.hint;
+  if(h.type === 'play'){
+    const names = (h.cards||[]).map(cardName).join(', ');
+    showToast('💡 ' + G.hint_play + ': ' + names, 'info');
+    highlightHintCards(h.cards || []);
+  } else if(h.type === 'pass'){
+    showToast('💡 ' + G.hint_pass, 'info');
+  } else if(h.type === 'swap_choose'){
+    const names = (h.cards||[]).map(cardName).join(', ');
+    showToast('💡 ' + G.hint_swap + ': ' + names, 'info');
+    highlightHintCards(h.cards || []);
+  }
+}
+
+function highlightHintCards(cards){
+  clearHintGlow();
+  for(const c of cards){
+    const el = document.querySelector('#player-hand .card[data-card="' + c + '"]')
+            || document.querySelector('#swap-hand .card[data-card="' + c + '"]');
+    if(el) el.classList.add('hint-glow');
+  }
+  hintTimer = setTimeout(clearHintGlow, 4000);
+}
+
+function clearHintGlow(){
+  if(hintTimer){ clearTimeout(hintTimer); hintTimer = null; }
+  document.querySelectorAll('.hint-glow').forEach(el => el.classList.remove('hint-glow'));
+}
+
+/* ══════════════════════════════════════════════
+   SPIELAKTIONEN
+   ══════════════════════════════════════════════ */
+
+async function doPlay(){
+  if(aiRunning || !isValidSelection()) return;
+  clearHintGlow();
+  const cards = [...selectedCards];
+  canUndo = true;
+  SFX.cardPlay();
+  for(const c of cards){
+    await flyCardToTrick(c);
+    appendCardToTrick('p', c);
+  }
+  selectedCards = [];
+
+  const v = await api('/api/praesident/move', {type:'play', cards});
+  if(!v) return;
+  gameState = v.state;
+  addLog(G.player + ' ' + G.plays_cards + ': ' + cards.map(cardName).join(', '));
+
+  render(gameState);
+  checkEndState();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function doPass(){
+  if(aiRunning) return;
+  clearHintGlow();
+  const st = gameState;
+  if(!st || st.turn !== 'p' || st.status !== 'playing') return;
+  if(!st.can_pass) return;
+
+  canUndo = true;
+  SFX.pass();
+  selectedCards = [];
+  const v = await api('/api/praesident/move', {type:'pass'});
+  if(!v) return;
+  gameState = v.state;
+  addLog(G.player + ' ' + G.passes);
+  showToast(G.player + ' ' + G.passes, 'info');
+
+  render(gameState);
+  checkEndState();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function nextRound(){
+  $('modal-round').classList.remove('show');
+  const v = await api('/api/praesident/move', {type:'next_round'});
+  if(!v) return;
+  gameState = v.state;
+  selectedCards = [];
+  addLogRound(gameState.round_nr);
+  render(gameState);
+  await dealCards();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+function isPlayerTurn(){
+  if(!gameState) return false;
+  const st = gameState;
+  if(st.status === 'round_over' || st.status === 'game_over') return true;
+  if(st.status === 'swap_choose' && st.swap_receiving === 'p') return true;
+  if(st.status === 'playing' && st.turn === 'p') return true;
+  return false;
+}
+
+function checkEndState(){
+  const st = gameState;
+  if(!st) return;
+  if(st.status === 'round_over') showRoundResult(st);
+  else if(st.status === 'game_over') showGameOver(st);
+}
+
+function showRoundResult(st){
+  const r = st.round_result;
+  if(!r) return;
+  const body = $('result-body');
+  body.innerHTML = '';
+  const fin = r.finished || [];
+  const roles = r.roles || {};
+
+  for(const p of fin){
+    const cards = r.hands[p] || [];
+    const role = roles[p] || '';
+    const isWinner = role === 'praesident';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td' + (isWinner ? ' class="winner"' : '') + '>' + NAMES[p] + (isWinner ? ' 🏆' : '') + '</td>' +
+      '<td>' + (ROLE_ICONS[role]||'') + ' ' + (ROLE_NAMES[role]||'') + '</td>' +
+      '<td>' + cards.length + '</td>' +
+      '<td>' + (st.wins[p] || 0) + '</td>';
+    body.appendChild(tr);
+  }
+
+  const winner = fin[0];
+  $('round-title').textContent = NAMES[winner] + ' ' + (winner === 'p' ? G.wins_round_you : G.wins_round);
+  if(winner === 'p') SFX.win(); else SFX.lose();
+  $('modal-round').classList.add('show');
+}
+
+function showGameOver(st){
+  const winner = st.winner;
+  const isWin = winner === 'p';
+  $('go-emoji').textContent = isWin ? '🏆' : '💀';
+  $('go-title').textContent = isWin ? G.you_win : G.you_lose;
+  $('go-text').textContent = NAMES[winner] + ' ' + (winner === 'p' ? G.wins_round_you : G.wins_round);
+  let scoresHtml = '<div style="margin-top:12px">';
+  for(const p of ['p','a1','a2']){
+    scoresHtml += '<span style="margin:0 12px">' + NAMES[p] + ': <b>' + (st.wins[p]||0) + '</b></span>';
+  }
+  scoresHtml += '</div>';
+  $('go-scores').innerHTML = scoresHtml;
+  if(isWin) SFX.win(); else SFX.lose();
+  $('modal-gameover').classList.add('show');
+}
+
+/* ── KI-Schleife ──────────────────────────── */
+async function aiLoop(){
+  if(aiRunning) return;
+  aiRunning = true;
+
+  while(gameState && !isPlayerTurn()){
+    render(gameState);
+    await sleep(aiDelay);
+
+    const v = await api('/api/praesident/ai', {});
+    if(!v || !v.state) break;
+
+    const evt = v.event;
+    gameState = v.state;
+
+    if(evt){
+      if(evt.type === 'play'){
+        SFX.cardPlay();
+        for(const c of (evt.cards || [])){
+          await flyAiCardToTrick(evt.who, c);
+          appendCardToTrick(evt.who, c);
+        }
+        addLog(evt.name + ' ' + G.plays_cards + ': ' + (evt.card_names||[]).join(', '));
+        if(evt.revolution){
+          showRevolutionAnnounce();
+          SFX.revolution();
+          showToast(G.rev_active, 'gold');
+          await sleep(800);
+        }
+        if(evt.finished){
+          showToast(evt.name + ' ' + G.finished, 'gold');
+        }
+      }
+      else if(evt.type === 'pass'){
+        addLog(evt.name + ' ' + G.passes);
+        showToast(evt.name + ' ' + G.passes, 'info');
+      }
+      else if(evt.type === 'collect'){
+        SFX.collect();
+        const trickWinText = evt.who === 'p' ? G.trick_cleared_you : G.trick_cleared;
+        addLog(evt.name + ' ' + trickWinText + ' — ' + G.opens_trick);
+        showToast(evt.name + ' ' + trickWinText, 'info');
+        await fadeTrickOut();
+        $('trick-display').innerHTML = '<div class="trick-empty">' + G.select_hint + '</div>';
+      }
+      else if(evt.type === 'swap_give'){
+        const cardNames = (evt.cards||[]).map(cardName).join(', ');
+        showToast(evt.name + ' → ' + evt.to_name + ': ' + cardNames, 'gold');
+        addLog(evt.name + ' ' + G.swap_give + ' ' + evt.to_name);
+        await sleep(600);
+      }
+      else if(evt.type === 'swap_choose'){
+        showToast(evt.name + ' → ' + evt.to_name + ': ' + G.swap_auto, 'info');
+        addLog(evt.name + ' ' + G.swap_receive + ' ' + evt.to_name);
+      }
+    }
+
+    render(gameState);
+  }
+
+  aiRunning = false;
+
+  if(gameState && gameState.status === 'swap_choose' && gameState.swap_receiving === 'p'){
+    openSwapModal(gameState);
+    return;
+  }
+
+  checkEndState();
+}
+
+/* ── Spielstart & Resume ──────────────────── */
+async function startGame(level){
+  const winsTarget = parseInt($('wins-target-sel').value) || 3;
+  const v = await api('/api/praesident/new', {level, wins_target: winsTarget});
+  if(!v) return;
+  gameState = v.state;
+  canUndo = false;
+  selectedCards = [];
+  clearLog();
+  addLogRound(gameState.round_nr);
+  $('start-screen').classList.add('hidden');
+  render(gameState);
+  await dealCards();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function resumeGame(){
+  const v = await api('/api/praesident/state');
+  if(!v || !v.state) return;
+  gameState = v.state;
+  canUndo = false;
+  selectedCards = [];
+  $('start-screen').classList.add('hidden');
+  render(gameState);
+  if(!isPlayerTurn()) aiLoop();
+}
+
+function showStart(){
+  $('modal-gameover').classList.remove('show');
+  $('modal-round').classList.remove('show');
+  $('start-screen').classList.remove('hidden');
+  renderStartStats();
+}
+
+function closeGame(){
+  releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
+  if(window.parent !== window) window.parent.postMessage('close-praesident', location.origin);
+  else location.href = '/bereich';
+}
+
+function releaseSession(){
+  if(!sessionToken) return;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  try {
+    navigator.sendBeacon('/api/praesident/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  } catch(e){}
+  sessionToken = null;
+}
+
+function confirmNewGame(){
+  if(gameState && gameState.status !== 'game_over'){
+    if(!confirm(G.new_game + '?')) return;
+  }
+  showStart();
+}
+
+/* ── Tastatur ─────────────────────────────── */
+document.addEventListener('keydown', e => {
+  const k = e.key;
+  if(k === 'Escape'){
+    document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show'));
+    return;
+  }
+  if(!gameState || aiRunning) return;
+
+  if(k === 'u' || k === 'U'){ doUndo(); return; }
+  if(k === 'h' || k === 'H'){ doHint(); return; }
+  if(k === 'k' || k === 'K'){ if(showPlayed) openPlayed(); return; }
+
+  if(gameState.status === 'playing' && gameState.turn === 'p'){
+    if(k >= '1' && k <= '9'){
+      const hand = gameState.hands?.p || [];
+      const idx = parseInt(k) - 1;
+      if(idx < hand.length) toggleSelect(hand[idx]);
+      return;
+    }
+    if(k === 'a' || k === 'A'){
+      if(selectedCards.length > 0) autoSelectRank(selectedCards[0]);
+      return;
+    }
+    if(k === 'Enter'){
+      e.preventDefault();
+      doPlay();
+      return;
+    }
+    if(k === 'p' || k === 'P'){
+      doPass();
+      return;
+    }
+  }
+
+  if(k === 'Enter' && (gameState.status === 'round_over')){
+    e.preventDefault();
+    nextRound();
+  }
+});
+
+/* ── Init ─────────────────────────────────── */
+async function checkResume(){
+  const v = await api('/api/praesident/state');
+  if(v && v.state){
+    $('resume-box').style.display = '';
+  }
+}
+
+(async () => {
+  applyStacked();
+  applyPlayedVisibility();
+  const claimed = await claimSession();
+  if(!claimed) return;
+  tabClaim();
+  checkResume();
+  renderStartStats();
+})();
+</script>
+</body>
+</html>

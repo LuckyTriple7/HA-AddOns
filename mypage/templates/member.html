@@ -150,6 +150,16 @@
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gs_intro }}</p>
       <button class="btn" type="button" onclick="openGame('schwimmen')">▶ {{ t.gs_play }}</button>
     </div>
+    <div class="card" style="margin-top:18px">
+      <h1>🎲 {{ t.gmm_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gmm_intro }}</p>
+      <button class="btn" type="button" onclick="openGame('maumau')">▶ {{ t.gmm_play }}</button>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h1>👑 {{ t.gp_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gp_intro }}</p>
+      <button class="btn" type="button" onclick="openGame('praesident')">▶ {{ t.gp_play }}</button>
+    </div>
     {% endif %}
   </main>
   <footer>
@@ -175,7 +185,7 @@
     }
     window.addEventListener('message', function(e){
       if (e.origin !== location.origin) return;
-      const m = /^close-(66|20ab|schwimmen)$/.exec(e.data);
+      const m = /^close-(66|20ab|schwimmen|maumau|praesident)$/.exec(e.data);
       if (!m) return;
       const f = document.getElementById('game-frame-' + m[1]);
       if (f){ f.remove(); document.body.style.overflow = ''; }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.97
+
+- 🎲 **Zwei neue Mitglieder-Kartenspiele: Mau Mau & Präsident** — beide gegen zwei KI-Gegner, mit drei Schwierigkeitsgraden, Spielstand-Speicherung pro Mitglied, Cross-Device-Session-Schutz, Undo, Regeln (DE/EN) und Statistik. Mau Mau mit Sonderkarten (7 ziehen, 8 aussetzen, Bube Farbwunsch, Ass Richtungswechsel); Präsident mit Rängen, Überbieten, Revolution und Kartentausch.
+- 📊 **Admin & HA-Sensoren erweitert** — die neuen Spiele erscheinen im Admin-Panel (Live-Status, Statistik, Sitzungs-Log) und in den Home-Assistant-Spiel-Sensoren (`sensor.mypage_aktiv_maumau`, `sensor.mypage_aktiv_praesident`).
+
 ## 0.6.96
 
 - 🧩 **66-Startbildschirm: Layout korrigiert** — die Statistik wird jetzt komplett in einer Reihe dargestellt (die feste Maximalbreite der Startbox hatte das 6er-Raster auf 5+1 umgebrochen), und der „Zum Mitgliederbereich"-Button sitzt nun immer unten, unterhalb der Statistik (wie bei 20 AB/Schwimmen).
