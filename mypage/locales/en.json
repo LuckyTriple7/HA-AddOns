@@ -859,6 +859,7 @@
   "gmm_reshuffled": "Draw pile reshuffled!",
   "gmm_must_draw": "cards to draw",
   "gmm_wins_round": "wins the round",
+  "gmm_you_win_round": "You win the round!",
   "gmm_ai_playing": "is playing...",
   "gmm_settings": "Settings",
   "gmm_speed_label": "AI speed",

@@ -708,6 +708,7 @@ const G = {
   reshuffled:   {{ t.gmm_reshuffled|tojson }},
   must_draw:    {{ t.gmm_must_draw|tojson }},
   wins_round:   {{ t.gmm_wins_round|tojson }},
+  you_win_round:{{ t.gmm_you_win_round|tojson }},
   back:         {{ t.gmm_back|tojson }},
 };
 
@@ -1681,7 +1682,8 @@ function showRoundResult(st){
     body.appendChild(tr);
   }
 
-  $('round-title').textContent = NAMES[r.winner] + ' ' + G.wins_round + '!';
+  $('round-title').textContent = (r.winner === 'p')
+    ? G.you_win_round : (NAMES[r.winner] + ' ' + G.wins_round + '!');
   if(r.winner === 'p') SFX.win(); else SFX.lose();
   $('modal-round').classList.add('show');
 }
@@ -1691,7 +1693,8 @@ function showGameOver(st){
   const isWin = winner === 'p';
   $('go-emoji').textContent = isWin ? '🏆' : '💀';
   $('go-title').textContent = isWin ? G.you_win : G.you_lose;
-  $('go-text').textContent = NAMES[winner] + ' ' + G.wins_round + '!';
+  $('go-text').textContent = (winner === 'p')
+    ? G.you_win_round : (NAMES[winner] + ' ' + G.wins_round + '!');
 
   let scoresHtml = '<div style="margin-top:12px">';
   for(const p of ['p','a1','a2']){

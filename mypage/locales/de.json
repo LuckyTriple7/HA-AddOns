@@ -859,6 +859,7 @@
   "gmm_reshuffled": "Nachziehstapel neu gemischt!",
   "gmm_must_draw": "Karten ziehen",
   "gmm_wins_round": "gewinnt die Runde",
+  "gmm_you_win_round": "Du gewinnst die Runde!",
   "gmm_ai_playing": "spielt...",
   "gmm_settings": "Einstellungen",
   "gmm_speed_label": "KI-Geschwindigkeit",

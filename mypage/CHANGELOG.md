@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.105
+
+- 🐛 **Mau Mau: Grammatik im Runden-/Spielende-Dialog** — „Du gewinnt die Runde!" war falsch; für den Spieler heißt es jetzt korrekt „Du gewinnst die Runde!" (2. Person), für die KI weiterhin „KI 1 gewinnt die Runde!". Gilt für Rundenende und Spielende, DE und EN.
+
 ## 0.6.104
 
 - 🔊 **Mau Mau: Mischsound auch beim Neumischen** — wenn der Nachziehstapel leer ist und die abgelegten Karten neu gemischt werden, ertönt jetzt zuerst der Mischsound, bevor der Stapel neu aufgebaut wird.
