@@ -420,10 +420,17 @@ body{
 
 /* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
 @media (max-height:500px){
-  .start-box h1{font-size:30px;margin-bottom:2px}
-  .start-box .sub{font-size:13px;margin-bottom:14px}
+  /* Startbildschirm: oben ausrichten + scrollbar, damit nichts oben/unten abgeschnitten wird */
+  #start-screen{align-items:flex-start;overflow-y:auto;padding:12px}
+  .start-box h1{font-size:28px;margin-bottom:2px}
+  .start-box .sub{font-size:13px;margin-bottom:10px}
   .start-box .level-btn{padding:9px 18px;font-size:14px}
-  #stats-box{margin-top:12px}
+  #resume-box{margin-bottom:8px !important}
+  #resume-box .level-btn{font-size:14px !important;padding:9px 22px !important}
+  .start-settings{margin-top:10px}
+  .start-box .levels{margin-top:10px !important}
+  #stats-box{margin-top:10px}
+  .start-box > div:last-child{margin-top:12px !important}
   .modal-box{max-height:94vh;overflow-y:auto}
 
   #topbar{padding:3px 10px}
@@ -455,6 +462,14 @@ body{
     -webkit-overflow-scrolling:touch;
   }
   #actions{margin-top:4px;min-height:0;gap:8px}
+
+  /* Mobil: angetippte Handkarten NICHT hochschieben (würde im niedrigen
+     Hand-Streifen oben abgeschnitten) → stattdessen goldener Ring im Inneren */
+  #player-hand .card.playable:hover,
+  #player-hand .card.playable:active{
+    transform:none !important;
+    box-shadow:inset 0 0 0 3px rgba(241,196,15,0.85) !important;
+  }
 
   /* gemeinsame Kartengröße (Hand + Stapel) an die Höhe koppeln */
   .card{width:clamp(44px,15vh,60px);height:clamp(62px,21vh,86px)}
