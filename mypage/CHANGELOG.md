@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.103
+
+- 🔊 **Mau Mau: Reihenfolge beim Austeilen korrigiert** — der Stapel in der Mitte (Nachzieh-/Ablagestapel) erschien vor dem Mischsound. Jetzt stimmt die Reihenfolge: erst Mischsound, dann baut sich der Stapel in der Mitte auf, danach werden die Handkarten verteilt.
+
 ## 0.6.102
 
 - 🐛 **Mau Mau: Button „gespielte Karten" beim Laden sichtbar** — bei aktivierter Option war der Button (📋) erst sichtbar, nachdem man die Optionen einmal geöffnet und geschlossen hatte. Die Sichtbarkeit wird jetzt schon beim Spielstart aus der gespeicherten Einstellung übernommen (Präsident war bereits korrekt).

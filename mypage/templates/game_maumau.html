@@ -1163,12 +1163,18 @@ async function dealCards(){
 
   all.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
 
-  // Kartenmischsound vor dem Aufbau (nur bei aktivem Ton)
-  if(soundOn){ SFX.shuffle(); await sleep(900); }
+  // Mitte (Nachzieh-/Ablagestapel) ebenfalls zunächst verstecken,
+  // damit die Reihenfolge stimmt: Mischsound → Stapel → Handkarten
+  const center = $('table-center');
+  if(center){ center.style.opacity = '0'; center.style.transition = 'none'; }
 
   const fadeDur = flyMs / 1000;
   const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
   const pause = Math.max(60, Math.round(flyMs * 0.25));
+
+  // Kartenmischsound zuerst, danach den Stapel in der Mitte einblenden
+  if(soundOn){ SFX.shuffle(); await sleep(900); }
+  if(center){ fadeIn(center); await sleep(pause * 2); }
 
   const max = Math.max(a1Cards.length, a2Cards.length, pCards.length);
   for(let i = 0; i < max; i++){
@@ -1179,6 +1185,7 @@ async function dealCards(){
   await sleep(pause * 2);
 
   all.forEach(c => { c.style.opacity = ''; c.style.transition = ''; });
+  if(center){ center.style.opacity = ''; center.style.transition = ''; }
 }
 
 /* ══════════════════════════════════════════════
