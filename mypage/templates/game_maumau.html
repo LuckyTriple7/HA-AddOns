@@ -1879,6 +1879,7 @@ document.addEventListener('keydown', e => {
 
 /* ── Init ─────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
+  applyPlayedVisibility();  // Button für gespielte Karten anhand der gespeicherten Option anzeigen
   const ok = await claimSession(false);
   if(ok){
     checkResume();
