@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.100
+
+- 🐛 **Mau Mau: Undo nach Bube + Farbwunsch korrigiert** — wer einen Buben spielt und eine Farbe wünscht, konnte den Zug zwar rückgängig machen, aber der Bube blieb in der Mitte liegen und der „wünscht…"-Zustand hing fest. Jetzt legt Undo den Buben wieder auf die Hand und hebt den Farbwunsch komplett auf (der Wunsch-Schritt überschreibt den Undo-Stand des Buben-Zugs nicht mehr).
+
 ## 0.6.99
 
 - 🔊 **Kartenmisch-Sound jetzt auch bei 66, 20 AB & Schwimmen** — vor dem Aufbau der Hand ertönt der ~1 s lange Misch-Sound (bei 66 zusätzlich zum bestehenden Auslosen-Drumroll, direkt vor dem Austeilen). Damit haben alle fünf Kartenspiele denselben Sound beim Spielstart und jeder neuen Runde. Nur bei aktiviertem Ton.

@@ -3843,7 +3843,11 @@ def api_maumau_move():
             game_maumau.apply_action(st, 'p', act)
         except game_maumau.IllegalMove:
             return jsonify({'state': game_maumau.public_view(st)})
-        _ng_undo[('maumau', member['id'])] = snapshot
+        # 'wish' ist die Fortsetzung des Buben-Zugs (gleiche Spielerrunde) →
+        # den Undo-Snapshot vom Buben-Spielen NICHT überschreiben, damit Undo den
+        # Buben wieder auf die Hand legt und den Wunsch komplett aufhebt.
+        if act['type'] != 'wish':
+            _ng_undo[('maumau', member['id'])] = snapshot
         _record_maumau_if_over(member['id'], st)
         _ng_save('maumau', member['id'], st)
     return jsonify({'state': game_maumau.public_view(st)})
