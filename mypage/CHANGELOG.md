@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.101
+
+- 🐛 **66: Undo nach Trumpf-Bube-Tausch / Zudrehen korrigiert** — wer den Trumpf-Buben tauscht (oder den Talon zudreht) und danach eine Karte spielt, bekam beim Undo nur das Kartenspielen zurück; Tausch bzw. Zudrehen blieben bestehen. Jetzt nimmt Undo die ganze Spielerrunde zurück (Bube/Talon wieder im Ausgangszustand). Gleiche Ursachenklasse wie der Mau-Mau-Buben-Bug (Folgeschritt überschrieb den Undo-Stand). 20 AB, Schwimmen und Präsident wurden mitgeprüft — dort tritt das Muster nicht auf (Undo nur für einzelne, zugbeendende Aktionen).
+
 ## 0.6.100
 
 - 🐛 **Mau Mau: Undo nach Bube + Farbwunsch korrigiert** — wer einen Buben spielt und eine Farbe wünscht, konnte den Zug zwar rückgängig machen, aber der Bube blieb in der Mitte liegen und der „wünscht…"-Zustand hing fest. Jetzt legt Undo den Buben wieder auf die Hand und hebt den Farbwunsch komplett auf (der Wunsch-Schritt überschreibt den Undo-Stand des Buben-Zugs nicht mehr).

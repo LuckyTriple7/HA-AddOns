@@ -3178,13 +3178,19 @@ def api_game66_move():
         # Undo nur für leichte Stufen (wie im Client: Button auf 'hard' verborgen)
         snapshot = (copy.deepcopy(st)
                     if st.get('level') in ('easy', 'medium') else None)
+        # 'exchange' (Trumpf-Bube tauschen) und 'close' (zudrehen) lassen den Zug
+        # beim Spieler — der folgende 'play'-Zug gehört zur selben Spielerrunde und
+        # darf den Undo-Stand NICHT überschreiben (sonst nimmt Undo nur das Spielen,
+        # nicht den Tausch/das Zudrehen zurück).
+        prev_lock = bool(st.get('_undo_lock'))
         try:
             frames = game_66.apply_player_frames(st, act)
         except game_66.IllegalMove:
             # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
             return jsonify({'frames': [game_66.public_view(st)]})
-        if snapshot is not None:
+        if snapshot is not None and not prev_lock:
             _ng_undo[('66', member['id'])] = snapshot
+        st['_undo_lock'] = act['type'] in ('exchange', 'close')
         _record_match_if_over(member['id'], st)
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
