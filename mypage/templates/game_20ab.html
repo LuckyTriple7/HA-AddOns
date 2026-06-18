@@ -1877,8 +1877,8 @@ async function advanceAI(){
       gameState = v.state;
       render(gameState);
       if(detectDealExtra(gameState)) await dealCards();
-      // Extra-Liegezeit, damit Trumpfansage / Kartentausch der KI länger sichtbar bleibt
-      if(v.event && (v.event.type === 'trump' || v.event.type === 'exchange')) await sleep(lingerMs);
+      // Extra-Liegezeit, damit Trumpfansage / Reizentscheidung / Kartentausch der KI länger sichtbar bleibt
+      if(v.event && (v.event.type === 'trump' || v.event.type === 'bid' || v.event.type === 'exchange')) await sleep(lingerMs);
     }
     if(gameState){
       if(gameState.status === 'round_over') showRoundResult();
