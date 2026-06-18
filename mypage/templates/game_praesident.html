@@ -1947,8 +1947,10 @@ document.addEventListener('keydown', e => {
 /* ── Init ─────────────────────────────────── */
 async function checkResume(){
   const v = await api('/api/praesident/state');
-  if(v && v.state){
+  if(v && v.state && v.state.status && v.state.status !== 'game_over'){
     $('resume-box').style.display = '';
+  } else {
+    $('resume-box').style.display = 'none';
   }
 }
 

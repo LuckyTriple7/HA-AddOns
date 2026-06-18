@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.112
+
+- 🐛 **Mau Mau & Präsident: „Spiel fortsetzen" nach Spielende ausblenden** — war eine Partie beendet (und es wurde keine neue gestartet), erschien auf dem Startbildschirm fälschlich noch der „Spiel fortsetzen"-Button. Jetzt wird er bei beendetem Spiel ausgeblendet — wie bereits bei 66, 20 AB und Schwimmen.
+
 ## 0.6.111
 
 - 🧠 **66: stärkere KI, dreht jetzt sinnvoll zu** — die KI drehte den Talon praktisch nie zu (alte Bedingung zu streng). Neu: bei „Schwer" dreht sie zu, sobald sie den Partie-Sieg **erzwingen** kann (Suche mit perfekter Information, nutzt ihre starke Endspiel-Logik); bei „Mittel" eine verbesserte Heuristik. Zusätzlich schont die KI jetzt König/Dame einer noch nicht angesagten Hochzeit, und „Mittel" spielt etwas weniger zufällig. Gilt für beide Varianten (Standard & Andys Oma). In Simulationen (je 150–200 Matches, neue vs. alte KI) gewinnt die neue KI deutlich: Schwer 58 %/66 % (Standard/Oma), Mittel 55 %/53 % — und dreht ~3× häufiger zu.

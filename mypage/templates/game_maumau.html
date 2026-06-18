@@ -1914,7 +1914,7 @@ function confirmNewGame(){
 
 async function checkResume(){
   const v = await api('/api/maumau/state');
-  if(v && v.state){
+  if(v && v.state && v.state.status && v.state.status !== 'game_over'){
     $('resume-box').style.display = 'block';
   } else {
     $('resume-box').style.display = 'none';
