@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.116
+
+- 🐛 **20 AB: Fortsetzen hängt bei „KI überlegt…"** — verließ man eine Partie, während die KI am Zug war, blieb sie nach dem Wiedereinstieg stehen, weil die KI-Schleife nicht neu gestartet wurde. `resumeGame()` stößt jetzt `advanceAI()` an (bzw. zeigt das Rundenergebnis / die Auslosung, falls man dort fortsetzt) — wie bei Schwimmen, Mau Mau und Präsident.
+
 ## 0.6.115
 
 - 🃏 **20 AB: Verbesserungen** — (1) Kein Sound mehr beim Rundenergebnis. (2) Mehr Pause nach KI-Trumpfansage und (3) nach KI-Kartentausch — jeweils mit der eingestellten Liegezeit aus den Optionen, damit man die Ansage/den Tausch in Ruhe sieht. (4) Handsortierung wie bei 66: zuerst nach Farbe, dann nach Wert, und der Trumpf liegt immer ganz rechts an.

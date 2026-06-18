@@ -2166,10 +2166,14 @@ async function resumeGame(){
   if(v && v.state && v.state.status !== 'game_over'){
     $('start-screen').classList.add('hidden');
     canUndo = false; updateUndo();
-    lastHandCount = 0;
+    lastHandCount = Array.isArray(v.state.hands?.p) ? v.state.hands.p.length : 0;
     exchangeSelected = new Set();
     gameState = v.state;
     render(gameState);
+    // KI-Schleife nach dem Fortsetzen wieder anstoßen, sonst bleibt es bei "KI überlegt…" hängen
+    if(gameState.status === 'round_over') showRoundResult();
+    else if(gameState.status === 'cutting') await animateCutting();
+    else await advanceAI();
   }
 }
 
