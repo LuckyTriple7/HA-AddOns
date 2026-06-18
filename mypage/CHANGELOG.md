@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.124
+
+- 🎵 **Jeopardy: Musik nur auf dem Board + kräftigerer Buzzer-Sound** — Die Hintergrundmusik spielt jetzt nur noch auf dem Auswahl-Board (und Startbildschirm) und **pausiert automatisch, sobald ein Clue offen ist**, damit Buzzer-Ticker und Antwort-Sounds nicht übertönt werden; danach läuft sie weiter. Der Buzzer hat einen neuen, deutlich hörbaren „Lock-in"-Sound (aufsteigender Sweep + heller Bestätigungs-Ping) statt des bisher zu leisen Zweitons.
+
 ## 0.6.123
 
 - 🐛 **Jeopardy: Reveal zeigt jetzt die echte Punkteänderung** — Bei einer falschen Antwort, die sonst niemand übernahm, stand fälschlich „Niemand bekommt Punkte", obwohl der Punktwert sehr wohl abgezogen wurde. Das Reveal zeigt nun pro Clue die tatsächliche Differenz (z. B. „❌ Du −400" bzw. „🤖 KI −600"); „Niemand bekommt Punkte" erscheint nur noch, wenn sich wirklich nichts ändert (alle haben verstreichen lassen).

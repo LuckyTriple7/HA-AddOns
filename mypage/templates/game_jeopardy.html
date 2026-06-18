@@ -300,7 +300,28 @@ const AI_PAUSE = 850;
 /* ── Sound ─────────────────────────────────── */
 let ac=null;
 function beep(freqs,dur,type){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); let t=ac.currentTime; (freqs||[]).forEach(f=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type||'triangle';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.16,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.13));o.connect(g).connect(ac.destination);o.start(t);o.stop(t+(dur||0.13)+0.02);t+=(dur||0.13);});}catch(e){} }
-const SFX={correct:()=>beep([523,784,1047],0.12),wrong:()=>beep([220,165],0.12,'sine'),buzz:()=>beep([880,1320],0.07,'square'),win:()=>beep([523,659,784,1047],0.16),lose:()=>beep([392,330,262],0.2,'sine'),pick:()=>beep([660],0.06)};
+// „Lock-in"-Buzzer: schneller aufsteigender Sweep + heller Bestätigungs-Ping
+function buzzPress(){
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const t=ac.currentTime;
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(300,t);
+    o.frequency.exponentialRampToValueAtTime(1200,t+0.12);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.20,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.17);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.19);
+    const o2=ac.createOscillator(),g2=ac.createGain();
+    o2.type='triangle'; o2.frequency.value=1320;
+    g2.gain.setValueAtTime(0.0001,t+0.08);
+    g2.gain.exponentialRampToValueAtTime(0.16,t+0.10);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+0.26);
+    o2.connect(g2).connect(ac.destination); o2.start(t+0.08); o2.stop(t+0.28);
+  }catch(e){}
+}
+const SFX={correct:()=>beep([523,784,1047],0.12),wrong:()=>beep([220,165],0.12,'sine'),buzz:()=>buzzPress(),win:()=>beep([523,659,784,1047],0.16),lose:()=>beep([392,330,262],0.2,'sine'),pick:()=>beep([660],0.06)};
 
 /* ── Buzzer-Ticker (beschleunigt mit dem Countdown) ─ */
 let tickTimer=null;
@@ -329,10 +350,18 @@ function initMusic(){
   updateMusicBtn();
 }
 function updateMusicBtn(){ $('btn-music').textContent=musicOn?'🔊':'🔇'; }
-function startMusicIfOn(){ if(musicOn){ theme.play().catch(()=>{}); } }
+// Musik nur auf dem Board (Auswahl) / Startbildschirm — während eines Clues
+// pausiert, damit Ticker, Buzzer und Antwort-Sounds nicht übertönt werden.
+function refreshMusic(){
+  if(!musicOn){ theme.pause(); return; }
+  const startVisible=!$('start-screen').classList.contains('hidden');
+  const onBoard=startVisible || (gameState && gameState.status==='select');
+  if(onBoard) theme.play().catch(()=>{}); else theme.pause();
+}
+function startMusicIfOn(){ refreshMusic(); }   // beim Spielstart (User-Geste)
 function toggleMusic(){
   musicOn=!musicOn; localStorage.setItem('gj_music',musicOn?'1':'0'); updateMusicBtn();
-  if(musicOn) theme.play().catch(()=>{}); else theme.pause();
+  refreshMusic();
 }
 
 /* ── Session-Schutz ────────────────────────── */
@@ -417,6 +446,7 @@ function render(st){
   else if(s==='final_wager'){ setTurnBar(''); showFinalWager(st); }
   else if(s==='final_answer'){ setTurnBar(''); showFinalAnswer(st); }
   else if(s==='game_over'){ setTurnBar(''); showGameOver(st); }
+  refreshMusic();
   lastStatus=s;
 }
 
@@ -665,7 +695,7 @@ async function resumeGame(){
   $('start-screen').classList.add('hidden');
   render(v.state);
 }
-function showStart(){ ['modal-gameover','clue-modal','final-modal'].forEach(id=>$(id).classList.remove('show')); $('start-screen').classList.remove('hidden'); renderStartStats(); checkResume(); }
+function showStart(){ ['modal-gameover','clue-modal','final-modal'].forEach(id=>$(id).classList.remove('show')); $('start-screen').classList.remove('hidden'); renderStartStats(); checkResume(); refreshMusic(); }
 function closeGame(){ releaseSession(); if(window.parent!==window) window.parent.postMessage('close-jeopardy',location.origin); else location.href='/bereich'; }
 function confirmNewGame(){ if(gameState && gameState.status!=='game_over'){ if(!confirm(G.new_game+'?'))return; } showStart(); }
 async function checkResume(){ const v=await api('/api/jeopardy/state'); $('resume-box').style.display=(v&&v.state&&v.state.status&&v.state.status!=='game_over')?'block':'none'; }
