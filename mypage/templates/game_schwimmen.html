@@ -745,6 +745,12 @@ const G = {
   you_lose:     {{ t.gs_you_lose|tojson }},
   swimming:     {{ t.gs_swimming|tojson }},
   eliminated:   {{ t.gs_eliminated|tojson }},
+  swims:        {{ t.gs_swims|tojson }},
+  you_swim:     {{ t.gs_you_swim|tojson }},
+  swim_plural:  {{ t.gs_swim_plural|tojson }},
+  is_elim:      {{ t.gs_is_elim|tojson }},
+  you_elim:     {{ t.gs_you_elim|tojson }},
+  elim_plural:  {{ t.gs_elim_plural|tojson }},
   feuer:        {{ t.gs_feuer|tojson }},
   thirty_one:   {{ t.gs_thirty_one|tojson }},
   knocked:      {{ t.gs_knocked|tojson }},
@@ -1365,7 +1371,7 @@ async function doKnock(){
   clearHintGlow();
   selectedHandCard = null;
   SFX.knock();
-  addLog('Klopft! Letzte Runde!', '', 'p', 'knock');
+  addLog('Klopfst! Letzte Runde!', '', 'p', 'knock');
   showToast('✊ Du klopfst!', 'gold');
   canUndo = true; updateUndo();
   const v = await api('/api/schwimmen/move', {type:'knock'});
@@ -1835,13 +1841,19 @@ function showRoundResult(){
   }
 
   let extras = '';
-  if((rr.newly_swimming || []).length > 0){
-    const names = rr.newly_swimming.map(p => NAMES[p]).join(', ');
-    extras += '<p style="color:#4fc3f7;font-size:12px">🏊 ' + names + ' schwimmt!</p>';
+  const sw = rr.newly_swimming || [];
+  if(sw.length > 0){
+    let txt;
+    if(sw.length === 1) txt = sw[0] === 'p' ? G.you_swim : NAMES[sw[0]] + ' ' + G.swims;
+    else txt = sw.map(p => NAMES[p]).join(', ') + ' ' + G.swim_plural;
+    extras += '<p style="color:#4fc3f7;font-size:12px">🏊 ' + txt + '</p>';
   }
-  if((rr.newly_eliminated || []).length > 0){
-    const names = rr.newly_eliminated.map(p => NAMES[p]).join(', ');
-    extras += '<p style="color:#888;font-size:12px">💀 ' + names + ' ausgeschieden!</p>';
+  const elim = rr.newly_eliminated || [];
+  if(elim.length > 0){
+    let txt;
+    if(elim.length === 1) txt = elim[0] === 'p' ? G.you_elim : NAMES[elim[0]] + ' ' + G.is_elim;
+    else txt = elim.map(p => NAMES[p]).join(', ') + ' ' + G.elim_plural;
+    extras += '<p style="color:#888;font-size:12px">💀 ' + txt + '</p>';
   }
   $('round-extras').innerHTML = extras;
 

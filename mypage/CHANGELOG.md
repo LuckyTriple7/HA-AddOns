@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.114
+
+- 🐛 **Schwimmen: weitere „Du"-Grammatikfehler korrigiert** — „Du schwimmt!" → „Du schwimmst!", „Du ausgeschieden!" → „Du bist ausgeschieden!" und im Log „Du Klopft!" → „Du Klopfst!". Schwimmt/ausgeschieden jetzt korrekt für Spieler, KI (Einzahl) und Mehrzahl, zudem lokalisiert (vorher fest deutsch). Komplette „Du"-Durchsicht: alle übrigen Stellen (Sieg, Turnier, KI-Anzeigen, Klopf-Status aus v0.6.113) waren bereits korrekt.
+
 ## 0.6.113
 
 - 🐛 **Schwimmen: Grammatikfehler „Du hat geklopft!" korrigiert** — wenn der Spieler selbst klopfte, zeigte die Status-Anzeige „Du hat geklopft!". Jetzt korrekt „Du hast geklopft!" (eigene `_you`-Variante; KI bleibt „… hat geklopft!"). Alle übrigen „Du"-Stellen geprüft — Sieg-/Turnier-Texte und KI-Anzeigen waren bereits korrekt.
