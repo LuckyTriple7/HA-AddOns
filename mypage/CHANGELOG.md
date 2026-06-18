@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.122
+
+- 🎵 **Jeopardy: Buzzer-Ticker & optionale Theme-Musik** — Beim Erscheinen eines Clues läuft jetzt ein **Ticker, der mit dem Countdown immer schneller (und höher) wird** (rein per Web-Audio, kein Asset) und beim Buzzern/Verstreichen stoppt. Außerdem kann eine **Hintergrundmelodie** abgespielt werden, umschaltbar über den 🔊-Button (gemerkt). Aus urheberrechtlichen Gründen wird **keine** Musik mitgeliefert: Wer mag, legt eine eigene Datei `jeopardy_theme.m4a` in den Add-on-Konfigurationsordner (Details in der Doku) – fehlt sie, läuft das Spiel ohne Musik weiter.
+
 ## 0.6.121
 
 - 🎯 **Neues Mitglieder-Spiel „Jeopardy"** — ein Wissens-Quiz-Duell gegen die KI auf einem klassischen Board (6 Kategorien × 5 Werte 200–1000). Highlights: **Buzzer-Rennen** (schneller drücken als die KI, deren Reaktionszeit & Trefferquote vom Schwierigkeitsgrad abhängt), **Daily Double** (verstecktes Feld mit Einsatz) und **Final Jeopardy** (beide setzen geheim auf den letzten Clue). Server-autoritativ: der Server kennt die Antworten, der Client nie. Inklusive Statistik, HA-Sensor (Live „wer spielt"), Fortsetzen über Geräte hinweg und DE/EN. Erreichbar als Kachel im Mitgliederbereich. Der Fragen-Pool (zweisprachig) basiert teilweise auf der Open Trivia Database (CC BY-SA 4.0), übersetzt und kuratiert.

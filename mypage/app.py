@@ -2655,6 +2655,18 @@ def public_cards(deck: str, filename: str):
     return send_from_directory(base, safe, max_age=2592000)  # 30 Tage
 
 
+@public_app.route('/bereich/jeopardy/theme.m4a')
+def jeopardy_theme():
+    """Optionale Jeopardy-Hintergrundmusik. NICHT mitgeliefert (Urheberrecht):
+    Datei `jeopardy_theme.m4a` im Add-on-Config-Ordner ablegen, dann spielt sie.
+    Fester Dateiname → kein Path-Traversal."""
+    _require_member()
+    path = Path(_DATA) / 'jeopardy_theme.m4a'
+    if not path.is_file():
+        abort(404)
+    return send_from_directory(path.parent, path.name, max_age=86400)
+
+
 def effective_watermark() -> str:
     """Wasserzeichen-Text: eigener Text > © + Domain > © MyPage."""
     site = load_site()

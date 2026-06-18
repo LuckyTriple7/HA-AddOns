@@ -184,6 +184,7 @@ body{
     </div>
   </div>
   <div id="topbar-btns">
+    <button class="top-btn" id="btn-music" title="{{ t.gj_music }}" onclick="toggleMusic()">🔊</button>
     <button class="top-btn" id="btn-rules" title="{{ t.gj_rulesdoc }}" onclick="openRules()">📖</button>
     <button class="top-btn" title="{{ t.gj_stats }}" onclick="openStats()">🏅</button>
     <button class="top-btn" title="{{ t.gj_new_game }}" onclick="confirmNewGame()">↻</button>
@@ -196,6 +197,9 @@ body{
 <div id="board-wrap"><div id="board"></div></div>
 
 <div id="toast-container"></div>
+
+<!-- Optionale Hintergrundmusik (Datei im Add-on-Config-Ordner; sonst still) -->
+<audio id="jp-theme" loop preload="none"></audio>
 
 <!-- Clue-Modal -->
 <div class="modal-overlay" id="clue-modal">
@@ -298,6 +302,39 @@ let ac=null;
 function beep(freqs,dur,type){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); let t=ac.currentTime; (freqs||[]).forEach(f=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type||'triangle';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.16,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.13));o.connect(g).connect(ac.destination);o.start(t);o.stop(t+(dur||0.13)+0.02);t+=(dur||0.13);});}catch(e){} }
 const SFX={correct:()=>beep([523,784,1047],0.12),wrong:()=>beep([220,165],0.12,'sine'),buzz:()=>beep([880,1320],0.07,'square'),win:()=>beep([523,659,784,1047],0.16),lose:()=>beep([392,330,262],0.2,'sine'),pick:()=>beep([660],0.06)};
 
+/* ── Buzzer-Ticker (beschleunigt mit dem Countdown) ─ */
+let tickTimer=null;
+function tickSound(freq){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); const o=ac.createOscillator(),g=ac.createGain(); o.type='square'; o.frequency.value=freq; const t=ac.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.07,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+0.06); o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.07);}catch(e){} }
+function startTicker(windowMs){
+  stopTicker();
+  const start=Date.now();
+  (function schedule(){
+    const frac=Math.min((Date.now()-start)/windowMs,1);
+    tickSound(680+frac*620);                     // Tonhöhe steigt
+    const interval=520-(520-110)*frac;           // 520ms → 110ms
+    tickTimer=setTimeout(schedule, Math.max(90,interval));
+  })();
+}
+function stopTicker(){ if(tickTimer){clearTimeout(tickTimer);tickTimer=null;} }
+
+/* ── Hintergrundmusik (optional, Datei im Config-Ordner) ─ */
+const theme=$('jp-theme');
+let musicOn=localStorage.getItem('gj_music')!=='0';
+let themeReady=false;
+function initMusic(){
+  theme.volume=0.32;
+  theme.src='/bereich/jeopardy/theme.m4a';
+  theme.addEventListener('canplay',()=>{ themeReady=true; });
+  theme.addEventListener('error',()=>{ themeReady=false; $('btn-music').style.opacity='0.4'; });
+  updateMusicBtn();
+}
+function updateMusicBtn(){ $('btn-music').textContent=musicOn?'🔊':'🔇'; }
+function startMusicIfOn(){ if(musicOn){ theme.play().catch(()=>{}); } }
+function toggleMusic(){
+  musicOn=!musicOn; localStorage.setItem('gj_music',musicOn?'1':'0'); updateMusicBtn();
+  if(musicOn) theme.play().catch(()=>{}); else theme.pause();
+}
+
 /* ── Session-Schutz ────────────────────────── */
 let sessionToken=null, heartbeatTimer=null;
 async function claimSession(force){
@@ -364,6 +401,7 @@ function render(st){
 
   if(s!=='clue' && s!=='answer' && s!=='daily_double') $('clue-modal').classList.remove('show');
   if(s!=='final_wager' && s!=='final_answer') $('final-modal').classList.remove('show');
+  if(s!=='clue') stopTicker();
 
   if(s==='select'){
     if(st.control==='p'){ setTurnBar('🎯 '+G.your_pick); }
@@ -404,12 +442,14 @@ function showClue(st){
   const fill=$('buzz-fill');
   fill.style.transition='none'; fill.style.width='100%';
   requestAnimationFrame(()=>{ fill.style.transition='width '+(win/1000)+'s linear'; fill.style.width='0%'; });
+  startTicker(win);
   if(buzzTimer) clearTimeout(buzzTimer);
   buzzTimer=setTimeout(doPass, win+80);
 }
 async function doBuzz(){
   if(!gameState||gameState.status!=='clue')return;
   if(buzzTimer){clearTimeout(buzzTimer);buzzTimer=null;}
+  stopTicker();
   SFX.buzz();
   const elapsed=Date.now()-buzzStart;
   const v=await api('/api/jeopardy/move',{type:'buzz',elapsed_ms:elapsed});
@@ -421,6 +461,7 @@ async function doBuzz(){
 async function doPass(){
   if(!gameState||gameState.status!=='clue')return;
   if(buzzTimer){clearTimeout(buzzTimer);buzzTimer=null;}
+  stopTicker();
   const v=await api('/api/jeopardy/move',{type:'pass'});
   if(v) render(v.state);
 }
@@ -605,12 +646,14 @@ async function pickCell(ci,vi){
   if(v) render(v.state);
 }
 async function startGame(level){
+  startMusicIfOn();
   const v=await api('/api/jeopardy/new',{level});
   if(!v)return;
   $('start-screen').classList.add('hidden');
   render(v.state);
 }
 async function resumeGame(){
+  startMusicIfOn();
   const v=await api('/api/jeopardy/state');
   if(!v||!v.state)return;
   $('start-screen').classList.add('hidden');
@@ -629,6 +672,7 @@ document.addEventListener('keydown',e=>{
 
 window.addEventListener('DOMContentLoaded',async()=>{
   try{ if(screen.orientation&&screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
+  initMusic();
   const ok=await claimSession(false);
   if(ok){ checkResume(); renderStartStats(); }
 });
