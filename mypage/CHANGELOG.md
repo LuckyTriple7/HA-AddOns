@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.127
+
+- 🎲 **Jeopardy: beliebig viele Kategorien möglich** — Das Board zieht jetzt pro Spiel **6 zufällige** Kategorien aus allen im Fragen-Pool vorhandenen (statt aus einer fest verdrahteten 6er-Liste). Neue Kategorien lassen sich damit **rein über `data/quiz_pool.json`** ergänzen, ganz ohne Code-Änderung — mehr Kategorien = mehr Abwechslung pro Partie. Dazu eine Pflege-Anleitung unter `data/QUIZ_POOL_GUIDE.md`.
+
 ## 0.6.126
 
 - 🔔 **Jeopardy: Buzzer-Hinweis größer & für beide gleich** — Der „wer hat gebuzzert"-Hinweis ist jetzt ein großer, gut sichtbarer Banner (deutlich größere Schrift, breiter) — und gilt nun auch für den **Spieler** („🔔 Du warst zuerst dran!", grün), nicht nur für die KI (gold). Anzeigedauer einheitlich **2 Sekunden** (zentrale Konstante `BUZZ_BANNER_MS`). Der Spieler-Banner ist klick-durchlässig, du kannst also sofort antworten.

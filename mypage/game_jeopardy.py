@@ -25,6 +25,9 @@ from pathlib import Path
 
 VALUES = (200, 400, 600, 800, 1000)
 VALUE_DIFF = {200: 'easy', 400: 'easy', 600: 'medium', 800: 'hard', 1000: 'hard'}
+BOARD_COLS = 6   # so viele Kategorie-Spalten pro Board (zufällig aus dem Pool)
+# Fallback-Reihenfolge; die tatsächlichen Kategorien kommen aus quiz_pool.json
+# ("categories"). Mehr Kategorien im Pool ⇒ mehr Abwechslung pro Spiel.
 CATEGORIES = ('general', 'history', 'geo', 'science', 'sport', 'film')
 
 # KI-Trefferquote je Level, plus Aufschlag/Abschlag nach Clue-Schwierigkeit.
@@ -82,8 +85,15 @@ def _pick_clues(level: str) -> tuple[dict, dict]:
         random.shuffle(v)
 
     cats_meta = pool['categories']
-    board_cats = list(CATEGORIES)
-    random.shuffle(board_cats)
+    # Nutzbare Kategorien: genug Fragen für eine volle Spalte (>= 5). Das Board
+    # zieht BOARD_COLS davon zufällig — neue Kategorien im Pool wirken sofort.
+    counts: dict = {}
+    for q in pool['questions']:
+        counts[q['cat']] = counts.get(q['cat'], 0) + 1
+    usable = [c for c in cats_meta if counts.get(c, 0) >= len(VALUES)]
+    if len(usable) < BOARD_COLS:
+        usable = list(cats_meta)            # Fallback: alle Kategorien nehmen
+    board_cats = random.sample(usable, min(BOARD_COLS, len(usable)))
 
     board = []        # sichtbare Struktur
     clues = {}        # cellId -> geheime Clue-Daten (inkl. korrektem Index)
@@ -150,7 +160,7 @@ def new_game(level: str = 'medium') -> dict:
         'turn': None,            # wer gerade antwortet ('p'/'a')
         'rebuttal': False,       # zweite Chance nach falscher Antwort
         'ki_buzz_ms': None,      # geheim: Buzzer-Zeit der KI (oder None)
-        'remaining': len(VALUES) * len(CATEGORIES),
+        'remaining': len(VALUES) * BOARD_COLS,
         'last_result': None,     # für die reveal-Anzeige
         'final': None,
         'winner': None,
