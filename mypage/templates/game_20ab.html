@@ -1269,6 +1269,40 @@ async function animateExchangeIn(){
   cards.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.style.transition = ''; });
 }
 
+async function animateAiExchange(who, count){
+  if(reduceMotion || count <= 0) return;
+  const handEl = $('hand-'+who);
+  if(!handEl) return;
+  const cards = Array.from(handEl.querySelectorAll('.card'));
+  if(!cards.length) return;
+  const out = cards.slice(-count);          // die getauschten = letzte N verdeckte Karten
+  const outDur = Math.max(0.45, flyMs / 1000);   // bewusst etwas langsamer
+  const inDur  = Math.max(0.40, flyMs / 1000);
+
+  // 1) langsam ausblenden (leicht nach oben)
+  SFX.exchange();
+  out.forEach(c => {
+    c.style.transition = 'opacity '+outDur+'s ease, transform '+outDur+'s ease';
+    c.style.transform = 'translateY(-26px) scale(0.82)';
+    c.style.opacity = '0';
+  });
+  await sleep(outDur * 1000 + 120);
+
+  // 2) als „neue" Karten an gleicher Stelle wieder langsam einblenden
+  out.forEach(c => { c.style.transition = 'none'; c.style.transform = 'translateY(-26px) scale(0.82)'; });
+  void handEl.offsetWidth;
+  await sleep(40);
+  for(const c of out){
+    c.style.transition = 'opacity '+inDur+'s ease, transform '+inDur+'s ease';
+    c.style.opacity = '1';
+    c.style.transform = 'none';
+    SFX.cardDraw();
+    await sleep(Math.max(110, Math.round(inDur * 1000 * 0.45)));
+  }
+  await sleep(150);
+  out.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.style.transition = ''; });
+}
+
 async function showTrumpCardReveal(card){
   if(reduceMotion) return;
   const s = card[0], r = card[1];
@@ -1933,11 +1967,12 @@ async function handleEvent(evt){
     await flyAiCard(evt.who, evt.card);
   }
   else if(evt.type === 'exchange'){
-    SFX.cardDraw();
     if(evt.count > 0){
       showToast(evt.name + ' ' + G.exchanges_n + ' ' + evt.count + ' ' + G.cards, 'info');
       addLog(evt.name + ' tauscht ' + evt.count + ' Karten');
+      await animateAiExchange(evt.who, evt.count);
     } else {
+      SFX.cardDraw();
       showToast(evt.name + ' ' + G.no_exchange, '');
       addLog(evt.name + ' tauscht nicht');
     }

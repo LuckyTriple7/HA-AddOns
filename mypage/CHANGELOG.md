@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.120
+
+- 🃏 **20 AB: Animation beim KI-Kartentausch** — tauscht eine KI Karten, blenden die getauschten Karten jetzt langsam aus und neue blenden langsam wieder ein (mit Sound), statt nur einer Textmeldung. Berücksichtigt „Reduzierte Bewegung".
+
 ## 0.6.119
 
 - 🤔 **Fangfragen: 20 weitere Fragen (jetzt 50) + bessere Lesbarkeit** — der Fragenpool ist von 30 auf 50 Scherz- und Fangfragen gewachsen (u. a. „Was hat ein Auge, kann aber nicht sehen?", „Was ist voller Löcher, hält aber trotzdem Wasser?"), alle DE/EN. Außerdem behoben: Die Antwort-Buttons waren im Dark Mode kaum lesbar (heller Text auf hellem Grund), weil nicht vorhandene CSS-Variablen genutzt wurden. Sie verwenden jetzt die echten Theme-Farben (`--surf2`/`--border`/`--text`); richtige Antwort wird grün, falsche rot hervorgehoben — bei gut lesbarem Text in beiden Themes.
