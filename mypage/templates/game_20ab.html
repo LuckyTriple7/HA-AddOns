@@ -889,6 +889,20 @@ function playNoise(dur, vol){
     src.start();
   } catch(e){}
 }
+function playSlide(f1, f2, dur, type, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio(); const t = ctx.currentTime;
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.type = type || 'sawtooth';
+    osc.frequency.setValueAtTime(f1, t);
+    osc.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    gain.gain.setValueAtTime(vol || 0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur);
+  } catch(e){}
+}
 const SFX = {
   cardPlay: () => playNoise(0.08, 0.15),
   cardDraw: () => playNoise(0.06, 0.10),
@@ -904,6 +918,11 @@ const SFX = {
   penalty:  () => { playTone(220, 0.3, 'sawtooth', 0.05); setTimeout(()=>playTone(185, 0.35, 'sawtooth', 0.04), 200); },
   exchange: () => { playNoise(0.04, 0.08); setTimeout(()=>playNoise(0.05, 0.10), 80); setTimeout(()=>playNoise(0.04, 0.08), 160); },
   nextCard: () => { playTone(392, 0.15, 'triangle', 0.12); setTimeout(()=>playTone(523, 0.18, 'triangle', 0.15), 130); setTimeout(()=>playTone(659, 0.2, 'triangle', 0.12), 260); },
+  // Rundenergebnis (nur Zwischenrunden): Punkte runter = gut, Punkte rauf = schlecht, Bounce = Abpraller
+  roundWon:  () => { [523,659,784].forEach((f,i)=>setTimeout(()=>playTone(f, 0.2, 'triangle', 0.16), i*120)); },
+  roundLost: () => { playSlide(330, 247, 0.28, 'sawtooth', 0.10); setTimeout(()=>playSlide(294, 196, 0.45, 'sawtooth', 0.11), 260); },
+  roundBounce: () => { playSlide(196, 392, 0.16, 'triangle', 0.12); setTimeout(()=>playSlide(392, 262, 0.30, 'triangle', 0.10), 160); },
+  roundPass: () => playTone(440, 0.18, 'sine', 0.05),
 };
 
 /* ── Spielverlauf (Log) ───────────────────── */
@@ -1986,7 +2005,14 @@ function showRoundResult(){
   }
   $('round-extras').innerHTML = extras;
 
-  // Kein Sound beim Rundenergebnis (auf Wunsch).
+  // Ergebnisabhängiger Sound (nur Zwischenrunden; am Spielende übernimmt win/lose).
+  if(gameState.status === 'round_over'){
+    const pr = rr.p;
+    if(!pr || !pr.active) SFX.roundPass();      // gepasst / nicht aktiv → neutral
+    else if(pr.bounced)   SFX.roundBounce();    // Überschuss prallt zurück
+    else if(pr.change < 0) SFX.roundWon();      // Punkte runter → gewonnen
+    else if(pr.change > 0) SFX.roundLost();     // Punkte rauf (+5) → verloren
+  }
 
   $('modal-round').classList.add('show');
 }

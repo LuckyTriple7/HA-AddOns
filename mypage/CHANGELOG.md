@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.117
+
+- 🔊 **20 AB: ergebnisabhängiger Rundensound** — beim Rundenergebnis (Zwischenrunden) klingt es jetzt je nach deinem Ausgang unterschiedlich: gewonnen (Stiche geholt, Punkte runter) = aufsteigend positiv, „Überschuss prallt zurück" = „Boing"-Abpraller, verloren (0 Stiche, +5) = Sad Trombone, gepasst = dezenter neutraler Ton. Am Spielende übernimmt weiterhin der Sieg-/Niederlage-Sound.
+
 ## 0.6.116
 
 - 🐛 **20 AB: Fortsetzen hängt bei „KI überlegt…"** — verließ man eine Partie, während die KI am Zug war, blieb sie nach dem Wiedereinstieg stehen, weil die KI-Schleife nicht neu gestartet wurde. `resumeGame()` stößt jetzt `advanceAI()` an (bzw. zeigt das Rundenergebnis / die Auslosung, falls man dort fortsetzt) — wie bei Schwimmen, Mau Mau und Präsident.
