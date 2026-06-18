@@ -775,6 +775,17 @@ const SUIT_NAME = {h:G.suit_h, d:G.suit_d, s:G.suit_s, c:G.suit_c};
 const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
 const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
 const ALL_RANKS = ['7','8','9','T','J','Q','K','A'];
+// Handsortierung wie bei 66: zuerst nach Farbe, dann nach Wert; Trumpf immer ganz rechts.
+// Kartenformat hier: c[0]=Farbe, c[1]=Rang.
+const SUIT_ORD = {c:0, d:1, h:2, s:3};
+const RANK_ORD = {'7':0,'8':1,'9':2,'J':3,'Q':4,'K':5,'T':6,'A':7};
+function sortedHand(hand, trump){
+  return hand.slice().sort((a, b) => {
+    const at = a[0] === trump, bt = b[0] === trump;
+    if(at !== bt) return at ? 1 : -1;            // Trumpf nach rechts
+    return (SUIT_ORD[a[0]] - SUIT_ORD[b[0]]) || (RANK_ORD[a[1]] - RANK_ORD[b[1]]);
+  });
+}
 function startsText(p){ return NAMES[p] + ' ' + (p === 'p' ? G.starts_you : G.starts) + '!'; }
 function cardName(c){ return RANK_DISP[c[1]] + ' ' + SUIT_SYM[c[0]]; }
 const NAMES = {p:G.player, a1:G.ai1, a2:G.ai2};
@@ -1431,11 +1442,12 @@ function renderPlayerHand(st){
     $('player-hand').innerHTML = html;
     return;
   }
-  const hand = st.hands?.p;
-  if(!hand || !Array.isArray(hand)){
+  const rawHand = st.hands?.p;
+  if(!rawHand || !Array.isArray(rawHand)){
     $('player-hand').innerHTML = '';
     return;
   }
+  const hand = sortedHand(rawHand, st.trump);
   const canPlay = st.status === 'playing' && st.turn === 'p';
   const canExchange = st.status === 'exchanging' && st.exchange_turn === 'p';
   const legal = st.legal || [];
@@ -1846,6 +1858,8 @@ async function advanceAI(){
       gameState = v.state;
       render(gameState);
       if(detectDealExtra(gameState)) await dealCards();
+      // Extra-Liegezeit, damit Trumpfansage / Kartentausch der KI länger sichtbar bleibt
+      if(v.event && (v.event.type === 'trump' || v.event.type === 'exchange')) await sleep(lingerMs);
     }
     if(gameState){
       if(gameState.status === 'round_over') showRoundResult();
@@ -1972,8 +1986,7 @@ function showRoundResult(){
   }
   $('round-extras').innerHTML = extras;
 
-  if(hasBounce) SFX.bounce();
-  else if(hasPenalty) SFX.penalty();
+  // Kein Sound beim Rundenergebnis (auf Wunsch).
 
   $('modal-round').classList.add('show');
 }

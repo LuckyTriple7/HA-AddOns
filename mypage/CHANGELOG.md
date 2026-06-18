@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.115
+
+- 🃏 **20 AB: Verbesserungen** — (1) Kein Sound mehr beim Rundenergebnis. (2) Mehr Pause nach KI-Trumpfansage und (3) nach KI-Kartentausch — jeweils mit der eingestellten Liegezeit aus den Optionen, damit man die Ansage/den Tausch in Ruhe sieht. (4) Handsortierung wie bei 66: zuerst nach Farbe, dann nach Wert, und der Trumpf liegt immer ganz rechts an.
+
 ## 0.6.114
 
 - 🐛 **Schwimmen: weitere „Du"-Grammatikfehler korrigiert** — „Du schwimmt!" → „Du schwimmst!", „Du ausgeschieden!" → „Du bist ausgeschieden!" und im Log „Du Klopft!" → „Du Klopfst!". Schwimmt/ausgeschieden jetzt korrekt für Spieler, KI (Einzahl) und Mehrzahl, zudem lokalisiert (vorher fest deutsch). Komplette „Du"-Durchsicht: alle übrigen Stellen (Sieg, Turnier, KI-Anzeigen, Klopf-Status aus v0.6.113) waren bereits korrekt.
