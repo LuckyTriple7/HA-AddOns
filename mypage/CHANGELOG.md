@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.113
+
+- 🐛 **Schwimmen: Grammatikfehler „Du hat geklopft!" korrigiert** — wenn der Spieler selbst klopfte, zeigte die Status-Anzeige „Du hat geklopft!". Jetzt korrekt „Du hast geklopft!" (eigene `_you`-Variante; KI bleibt „… hat geklopft!"). Alle übrigen „Du"-Stellen geprüft — Sieg-/Turnier-Texte und KI-Anzeigen waren bereits korrekt.
+
 ## 0.6.112
 
 - 🐛 **Mau Mau & Präsident: „Spiel fortsetzen" nach Spielende ausblenden** — war eine Partie beendet (und es wurde keine neue gestartet), erschien auf dem Startbildschirm fälschlich noch der „Spiel fortsetzen"-Button. Jetzt wird er bei beendetem Spiel ausgeblendet — wie bereits bei 66, 20 AB und Schwimmen.

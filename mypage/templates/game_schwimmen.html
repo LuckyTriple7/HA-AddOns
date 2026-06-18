@@ -748,6 +748,7 @@ const G = {
   feuer:        {{ t.gs_feuer|tojson }},
   thirty_one:   {{ t.gs_thirty_one|tojson }},
   knocked:      {{ t.gs_knocked|tojson }},
+  knocked_you:  {{ t.gs_knocked_you|tojson }},
   all_passed:   {{ t.gs_all_passed|tojson }},
   loses_life:   {{ t.gs_loses_life|tojson }},
   loses_two:    {{ t.gs_loses_two|tojson }},
@@ -1239,7 +1240,7 @@ function renderInfo(st){
       el.textContent = NAMES[st.turn] + ' ' + G.ai_thinking;
     }
     if(st.knocked_by){
-      ki.textContent = '✊ ' + NAMES[st.knocked_by] + ' ' + G.knocked;
+      ki.textContent = '✊ ' + NAMES[st.knocked_by] + ' ' + (st.knocked_by === 'p' ? G.knocked_you : G.knocked);
       ki.style.display = 'block';
     }
   } else if(st.status === 'round_over' || st.status === 'game_over'){
