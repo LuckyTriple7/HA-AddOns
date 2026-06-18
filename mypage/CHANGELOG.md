@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.126
+
+- 🔔 **Jeopardy: Buzzer-Hinweis größer & für beide gleich** — Der „wer hat gebuzzert"-Hinweis ist jetzt ein großer, gut sichtbarer Banner (deutlich größere Schrift, breiter) — und gilt nun auch für den **Spieler** („🔔 Du warst zuerst dran!", grün), nicht nur für die KI (gold). Anzeigedauer einheitlich **2 Sekunden** (zentrale Konstante `BUZZ_BANNER_MS`). Der Spieler-Banner ist klick-durchlässig, du kannst also sofort antworten.
+
 ## 0.6.125
 
 - 🤖 **Jeopardy: KI-Buzzer mit eigenem Sound & deutlichem Hinweis** — Buzzert die KI schneller (oder schnappt sich einen verstrichenen Clue), ertönt jetzt ein tiefer Game-Show-Doppel-Honk (statt des Spieler-Sounds), und ein gut sichtbarer Hinweis „🤖 Die KI war schneller!" blendet sich für 2 Sekunden ein, **bevor** die KI antwortet — vorher ging das zu schnell vorbei. Der Spieler-Buzzer (heller „Lock-in"-Sound) bleibt unverändert.

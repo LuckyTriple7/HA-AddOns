@@ -127,10 +127,12 @@ body{
 .spin{display:inline-block;width:34px;height:34px;border:4px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:sp 0.9s linear infinite;margin:8px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .ai-banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:260;
-  background:rgba(232,178,42,0.96);color:#1a1206;font-weight:800;font-size:clamp(20px,4vw,34px);
-  padding:18px 34px;border-radius:16px;box-shadow:0 12px 44px rgba(0,0,0,0.55);
+  width:min(90vw,760px);box-sizing:border-box;line-height:1.15;
+  background:rgba(232,178,42,0.98);color:#1a1206;font-weight:900;font-size:clamp(32px,7vw,60px);
+  padding:38px 44px;border-radius:22px;box-shadow:0 20px 64px rgba(0,0,0,0.7),0 0 0 4px rgba(255,255,255,0.18) inset;
   text-align:center;pointer-events:none;opacity:0;animation:aiBannerIn 2s ease forwards}
-@keyframes aiBannerIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}14%{opacity:1;transform:translate(-50%,-50%) scale(1)}86%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
+.ai-banner.you{background:rgba(46,160,67,0.98);color:#06230f}
+@keyframes aiBannerIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.78)}8%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}16%{opacity:1;transform:translate(-50%,-50%) scale(1)}90%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
 @media(prefers-reduced-motion:reduce){.ai-banner{animation:none;opacity:1}}
 
 /* Rotier-Overlay (Hochformat klein) */
@@ -503,20 +505,23 @@ async function doBuzz(){
   const v=await api('/api/jeopardy/move',{type:'buzz',elapsed_ms:elapsed});
   if(!v)return;
   if(v.state.turn==='a' && v.state.status==='answer'){ aiBuzzedThenAnswer(v.state); return; }
-  if(v.state.turn==='p') showToast('🔔 '+G.you_buzzed);
+  if(v.state.turn==='p') showBuzzBanner('🔔 '+G.you_buzzed,'you');
   render(v.state);
 }
 
-// KI hat das Buzzer-Rennen gewonnen: Honk + 2s-Hinweis, dann erst antwortet sie.
-function showAiBuzzBanner(){
-  const el=document.createElement('div'); el.className='ai-banner'; el.textContent='🤖 '+G.ai_buzzed;
-  document.body.appendChild(el); setTimeout(()=>el.remove(),2000);
+// Anzeigedauer des "wer hat gebuzzert"-Hinweises (gilt für Spieler UND KI)
+const BUZZ_BANNER_MS = 2000;   // ms
+function showBuzzBanner(text, cls){
+  const el=document.createElement('div'); el.className='ai-banner'+(cls?(' '+cls):''); el.textContent=text;
+  el.style.animationDuration=(BUZZ_BANNER_MS/1000)+'s';
+  document.body.appendChild(el); setTimeout(()=>el.remove(), BUZZ_BANNER_MS);
 }
+// KI hat das Buzzer-Rennen gewonnen: Honk + Hinweis, dann erst antwortet sie.
 async function aiBuzzedThenAnswer(state){
   SFX.aiBuzz();
-  showAiBuzzBanner();
+  showBuzzBanner('🤖 '+G.ai_buzzed);
   $('clue-area').innerHTML='<p class="result-line lose">🤖 '+G.ai_buzzed+'</p>';
-  await sleep(2000);
+  await sleep(BUZZ_BANNER_MS);
   render(state);
 }
 async function doPass(){
