@@ -522,10 +522,16 @@ function showReveal(st){
   let html='<div class="opts">';
   opts.forEach((o,i)=>{ let cls='opt'; if(i===r.correct)cls+=' ok'; else if(i===r.picked)cls+=' no'; html+='<button class="'+cls+'" disabled>'+esc(o)+'</button>'; });
   html+='</div>';
+  const d=r.delta||{p:0,a:0};
+  const parts=[];
+  if(d.p>0) parts.push('✅ '+G.you_scored+' +'+d.p);
+  else if(d.p<0) parts.push('❌ '+G.player+' −'+Math.abs(d.p));
+  if(d.a>0) parts.push('🤖 '+G.ai_scored+' +'+d.a);
+  else if(d.a<0) parts.push('🤖 '+G.ai+' −'+Math.abs(d.a));
   let line,cls;
-  if(r.winner==='p'){ line='✅ '+G.you_scored+' +'+r.value; cls='win'; SFX.correct(); }
-  else if(r.winner==='a'){ line='🤖 '+G.ai_scored+' +'+r.value; cls='lose'; SFX.wrong(); }
+  if(parts.length){ line=parts.join('  ·  '); cls=(d.p>0?'win':(d.p<0?'lose':'neutral')); }
   else { line='— '+G.nobody; cls='neutral'; }
+  if(d.p>0) SFX.correct(); else if(d.p<0) SFX.wrong();
   html+='<p class="result-line '+cls+'">'+line+'</p>';
   html+='<button class="btn btn-gold" onclick="continueGame()" style="margin-top:6px">'+G.continue+' ▶</button>';
   $('clue-area').innerHTML=html;

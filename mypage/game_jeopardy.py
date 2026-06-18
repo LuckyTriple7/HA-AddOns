@@ -199,12 +199,15 @@ def _to_reveal(st: dict, winner: str | None, player_picked: int | None = None) -
     cell = _cell(st, st['current'])
     if cell:
         cell['used'] = True
+    before = st.get('_score_before') or {'p': 0, 'a': 0}
+    delta = {'p': st['scores']['p'] - before.get('p', 0),
+             'a': st['scores']['a'] - before.get('a', 0)}
     st['last_result'] = {
         'cat': clue['cat'], 'value': clue['value'], 'dd': st.get('_dd', False),
         'q_de': clue['q_de'], 'q_en': clue['q_en'],
         'opts_de': clue['opts_de'], 'opts_en': clue['opts_en'],
         'correct': clue['c'], 'picked': player_picked, 'winner': winner,
-        'scores': dict(st['scores']),
+        'delta': delta, 'scores': dict(st['scores']),
     }
     st['status'] = 'reveal'
     st['turn'] = None
@@ -321,6 +324,7 @@ def _open_cell(st: dict, cell_id: str) -> None:
     st['current'] = cell_id
     cell = _cell(st, cell_id)
     clue = st['clues'][cell_id]
+    st['_score_before'] = dict(st['scores'])   # für die Punkte-Differenz im Reveal
     st['_dd'] = bool(cell and cell['dd'])
     st['active'] = _active_public(st, clue)
     if st['_dd'] and st['control'] == 'p':
@@ -351,6 +355,7 @@ def _advance(st: dict) -> None:
         st['last_result'] = None
         st.pop('_wager', None)
         st.pop('_player_picked', None)
+        st.pop('_score_before', None)
     else:
         _start_final(st)
 

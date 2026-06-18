@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.123
+
+- 🐛 **Jeopardy: Reveal zeigt jetzt die echte Punkteänderung** — Bei einer falschen Antwort, die sonst niemand übernahm, stand fälschlich „Niemand bekommt Punkte", obwohl der Punktwert sehr wohl abgezogen wurde. Das Reveal zeigt nun pro Clue die tatsächliche Differenz (z. B. „❌ Du −400" bzw. „🤖 KI −600"); „Niemand bekommt Punkte" erscheint nur noch, wenn sich wirklich nichts ändert (alle haben verstreichen lassen).
+
 ## 0.6.122
 
 - 🎵 **Jeopardy: Buzzer-Ticker & optionale Theme-Musik** — Beim Erscheinen eines Clues läuft jetzt ein **Ticker, der mit dem Countdown immer schneller (und höher) wird** (rein per Web-Audio, kein Asset) und beim Buzzern/Verstreichen stoppt. Außerdem kann eine **Hintergrundmelodie** abgespielt werden, umschaltbar über den 🔊-Button (gemerkt). Aus urheberrechtlichen Gründen wird **keine** Musik mitgeliefert: Wer mag, legt eine eigene Datei `jeopardy_theme.m4a` in den Add-on-Konfigurationsordner (Details in der Doku) – fehlt sie, läuft das Spiel ohne Musik weiter.
