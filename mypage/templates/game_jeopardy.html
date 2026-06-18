@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>{{ t.gj_title }}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--blue1:#0b1e6e;--blue2:#060f3a;--gold:#e8b22a;--cell:#0a1f8c;--cell2:#13299e}
+body{
+  font-family:'Segoe UI',Tahoma,sans-serif;
+  background:radial-gradient(ellipse at center,var(--blue1),var(--blue2));
+  color:#f3f4ff;min-height:100vh;display:flex;flex-direction:column;
+  overflow-x:hidden;user-select:none;
+}
+
+/* Topbar */
+#topbar{position:relative;display:flex;align-items:center;justify-content:center;
+  padding:6px 16px;background:rgba(0,0,0,0.35);border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0}
+#scorebar{display:flex;gap:30px;justify-content:center}
+.score-item{text-align:center;min-width:90px;padding:2px 8px;border-radius:8px}
+.score-item.control{box-shadow:inset 0 0 0 2px var(--gold)}
+.score-name{font-size:11px;opacity:0.65;display:block}
+.score-val{font-size:26px;font-weight:bold;font-variant-numeric:tabular-nums}
+.score-val.neg{color:#ff7676}
+#topbar-btns{display:flex;gap:6px;position:absolute;right:14px;top:50%;transform:translateY(-50%)}
+.top-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:1.05rem;cursor:pointer;
+  border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.top-btn:hover{background:rgba(255,255,255,0.22)}
+#turn-bar{text-align:center;padding:5px 0;font-size:14px;background:rgba(0,0,0,0.18);min-height:28px;color:var(--gold)}
+
+/* Board */
+#board-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:10px}
+#board{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;width:100%;max-width:1000px}
+.col-head{background:#04114a;border:1px solid rgba(255,255,255,0.12);border-radius:6px;
+  padding:8px 4px;text-align:center;font-weight:700;font-size:clamp(11px,1.5vw,15px);
+  text-transform:uppercase;letter-spacing:.5px;min-height:48px;display:flex;align-items:center;justify-content:center}
+.cell{background:linear-gradient(180deg,var(--cell2),var(--cell));border:1px solid rgba(255,255,255,0.1);
+  border-radius:6px;color:var(--gold);font-weight:800;font-size:clamp(16px,2.6vw,30px);
+  font-variant-numeric:tabular-nums;text-shadow:0 2px 4px rgba(0,0,0,.5);
+  aspect-ratio:5/3;display:flex;align-items:center;justify-content:center;cursor:default;transition:filter .15s,transform .1s}
+.cell.pickable{cursor:pointer}
+.cell.pickable:hover{filter:brightness(1.25);transform:scale(1.03)}
+.cell.used{background:rgba(255,255,255,0.03);color:transparent;border-color:rgba(255,255,255,0.04);cursor:default}
+
+/* Modals */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;
+  justify-content:center;align-items:center;padding:14px}
+.modal-overlay.show{display:flex}
+.modal-box{background:#0c1c66;border:1px solid rgba(255,255,255,0.16);border-radius:14px;
+  padding:22px 26px;text-align:center;max-width:620px;width:96%;box-shadow:0 10px 40px rgba(0,0,0,0.6);max-height:94vh;overflow-y:auto}
+.modal-box.wide{max-width:760px}
+.clue-head{font-size:14px;opacity:0.8;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.clue-value{color:var(--gold);font-weight:800}
+.clue-q{font-size:clamp(18px,3vw,26px);font-weight:700;margin:16px auto 22px;max-width:560px;line-height:1.35}
+.dd-banner{color:var(--gold);font-weight:800;font-size:20px;letter-spacing:1px;margin-bottom:6px}
+
+/* Buzzer */
+#buzz-btn{background:radial-gradient(circle at 38% 32%,#ff5a5a,#b81111);color:#fff;border:none;
+  width:150px;height:150px;border-radius:50%;font-size:24px;font-weight:800;cursor:pointer;
+  box-shadow:0 8px 22px rgba(0,0,0,.5),inset 0 -6px 14px rgba(0,0,0,.35);transition:transform .08s}
+#buzz-btn:active{transform:scale(0.93)}
+.buzz-track{height:10px;border-radius:6px;background:rgba(255,255,255,0.14);margin:18px auto 0;max-width:420px;overflow:hidden}
+.buzz-fill{height:100%;background:var(--gold);width:100%;transition:width linear}
+
+/* Optionen */
+.opts{display:flex;flex-direction:column;gap:9px;max-width:460px;margin:0 auto;width:100%}
+.opt{padding:13px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);
+  background:rgba(255,255,255,0.06);color:#f3f4ff;font-size:1rem;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
+.opt:hover:not(:disabled){border-color:var(--gold);background:rgba(255,255,255,0.12)}
+.opt:disabled{cursor:default}
+.opt.ok{background:rgba(46,160,67,0.4);border-color:#2ea043}
+.opt.no{background:rgba(248,81,73,0.35);border-color:#f85149}
+.result-line{margin:14px 0 4px;font-size:1.05rem;font-weight:700}
+.result-line.win{color:#5fd07a}.result-line.lose{color:#ff8585}.result-line.neutral{color:#cdd2ff}
+
+/* Wager */
+.wager-row{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;margin:14px 0}
+.wager-row input{width:140px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.25);
+  border-radius:8px;padding:10px;font-size:1.1rem;text-align:center;font-variant-numeric:tabular-nums}
+.wager-hint{font-size:0.8rem;opacity:0.7;margin-top:4px}
+
+/* Buttons */
+.btn{padding:11px 24px;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-family:inherit;transition:background .2s,transform .1s}
+.btn:active{transform:scale(0.96)}
+.btn-gold{background:var(--gold);color:#1a1206;font-weight:bold}
+.btn-gold:hover{background:#f5c542}
+.btn-ghost{background:rgba(255,255,255,0.14);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,0.22)}
+
+/* Startscreen */
+#start-screen{display:flex;position:fixed;inset:0;background:radial-gradient(ellipse at center,var(--blue1),var(--blue2));
+  z-index:300;justify-content:center;align-items:center;overflow-y:auto;padding:16px}
+#start-screen.hidden{display:none}
+.start-box{text-align:center}
+.start-box h1{font-size:clamp(34px,6vw,56px);margin-bottom:6px;color:var(--gold);letter-spacing:1px}
+.start-box .sub{font-size:16px;opacity:0.72;margin-bottom:26px}
+.levels{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.level-btn{padding:14px 28px;border:2px solid rgba(255,255,255,0.2);border-radius:10px;background:rgba(255,255,255,0.06);
+  color:#f3f4ff;font-size:17px;cursor:pointer;transition:background .2s,border-color .2s;font-family:inherit}
+.level-btn:hover{background:rgba(255,255,255,0.15);border-color:var(--gold)}
+#stats-box{margin-top:26px}
+.stats-grid{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.stat{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px 18px;min-width:80px}
+.stat-val{font-size:24px;font-weight:700;color:var(--gold)}
+.stat-label{font-size:11px;opacity:0.55;margin-top:2px}
+.stats-empty{font-size:13px;opacity:0.45;padding:8px 0}
+.stats-history{margin-top:14px;max-height:210px;overflow-y:auto;text-align:left}
+.hist-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px}
+.hist-row.win{background:rgba(76,175,80,0.08)}
+.hist-ico{font-size:15px}.hist-meta{opacity:0.6;flex:1;white-space:nowrap}.hist-score{opacity:0.75;white-space:nowrap}
+
+/* Regeln-Markdown */
+.scrollbox{max-height:62vh;overflow-y:auto;text-align:left;margin:6px 0 14px;font-size:0.88rem;line-height:1.5}
+.scrollbox h1{font-size:1.2rem;margin:12px 0 6px}.scrollbox h2{font-size:1.05rem;margin:14px 0 6px}
+.scrollbox h3{font-size:0.95rem;margin:10px 0 4px}.scrollbox p{opacity:0.92;margin:6px 0}
+.scrollbox ul,.scrollbox ol{margin:6px 0 6px 18px}.scrollbox li{margin:3px 0}
+.scrollbox table{border-collapse:collapse;width:100%;margin:8px 0;font-size:0.8rem}
+.scrollbox th,.scrollbox td{border:1px solid rgba(255,255,255,0.18);padding:5px 8px;text-align:left}
+.scrollbox strong{color:var(--gold)}
+
+/* Toast */
+#toast-container{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.toast{background:rgba(0,0,0,0.82);color:#fff;padding:7px 18px;border-radius:8px;font-size:14px;font-weight:600;animation:tin .3s ease}
+.toast.gold{background:rgba(232,178,42,0.92);color:#20160a}
+@keyframes tin{from{opacity:0;transform:translateY(-8px)}to{opacity:1}}
+.spin{display:inline-block;width:34px;height:34px;border:4px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:sp 0.9s linear infinite;margin:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Rotier-Overlay (Hochformat klein) */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:680px) and (pointer:coarse){
+  #rotate-overlay{display:flex;position:fixed;inset:0;z-index:1000;background:radial-gradient(ellipse at center,var(--blue1),var(--blue2));align-items:center;justify-content:center;text-align:center;padding:24px}
+  .rotate-icon{font-size:72px;margin-bottom:18px;display:inline-block;animation:rot 2.2s ease-in-out infinite}
+  .rotate-title{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+  .rotate-hint{font-size:15px;opacity:0.8;line-height:1.45;max-width:300px}
+}
+@keyframes rot{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
+@media (max-height:500px){
+  #start-screen{align-items:flex-start}
+  .start-box h1{font-size:28px}.start-box .sub{margin-bottom:12px}
+  #board{gap:4px}.col-head{min-height:34px;padding:4px}
+  #buzz-btn{width:104px;height:104px;font-size:18px}
+  .clue-q{margin:8px auto 12px}
+}
+</style>
+</head>
+<body>
+
+<div id="rotate-overlay"><div><div class="rotate-icon">📱</div>
+  <div class="rotate-title">{{ t.game_rotate_title }}</div>
+  <div class="rotate-hint">{{ t.game_rotate_hint }}</div></div></div>
+
+<!-- Startbildschirm -->
+<div id="start-screen">
+  <div class="start-box">
+    <h1>{{ t.gj_title }}</h1>
+    <div class="sub">{{ t.gj_subtitle }}</div>
+    <div id="resume-box" style="display:none;margin-bottom:18px">
+      <button class="level-btn" style="border-color:var(--gold);color:var(--gold)" onclick="resumeGame()">▶ {{ t.gj_resume }}</button>
+    </div>
+    <div class="levels">
+      <button class="level-btn" onclick="startGame('easy')">{{ t.gj_level_easy }}</button>
+      <button class="level-btn" onclick="startGame('medium')">{{ t.gj_level_medium }}</button>
+      <button class="level-btn" onclick="startGame('hard')">{{ t.gj_level_hard }}</button>
+    </div>
+    <div id="stats-box"></div>
+    <div style="margin-top:26px">
+      <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.gj_back }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Topbar -->
+<div id="topbar">
+  <div id="scorebar">
+    <div class="score-item" id="si-p">
+      <span class="score-name">{{ t.gj_player }}</span>
+      <span class="score-val" id="sv-p">0</span>
+    </div>
+    <div class="score-item" id="si-a">
+      <span class="score-name">{{ t.gj_ai }}</span>
+      <span class="score-val" id="sv-a">0</span>
+    </div>
+  </div>
+  <div id="topbar-btns">
+    <button class="top-btn" id="btn-rules" title="{{ t.gj_rulesdoc }}" onclick="openRules()">📖</button>
+    <button class="top-btn" title="{{ t.gj_stats }}" onclick="openStats()">🏅</button>
+    <button class="top-btn" title="{{ t.gj_new_game }}" onclick="confirmNewGame()">↻</button>
+    <button class="top-btn" title="{{ t.gj_close }}" onclick="closeGame()">✕</button>
+  </div>
+</div>
+<div id="turn-bar"></div>
+
+<!-- Board -->
+<div id="board-wrap"><div id="board"></div></div>
+
+<div id="toast-container"></div>
+
+<!-- Clue-Modal -->
+<div class="modal-overlay" id="clue-modal">
+  <div class="modal-box wide">
+    <div id="dd-banner" class="dd-banner" style="display:none">⭐ {{ t.gj_daily_double }} ⭐</div>
+    <div class="clue-head"><span id="clue-cat"></span> · <span class="clue-value" id="clue-value"></span></div>
+    <div class="clue-q" id="clue-q"></div>
+    <div id="clue-area"></div>
+  </div>
+</div>
+
+<!-- Final-Modal -->
+<div class="modal-overlay" id="final-modal">
+  <div class="modal-box wide">
+    <div class="dd-banner">🏁 {{ t.gj_final_title }}</div>
+    <div class="clue-head">{{ t.gj_final_cat }}: <span class="clue-value" id="final-cat"></span></div>
+    <div class="clue-q" id="final-q"></div>
+    <div id="final-area"></div>
+  </div>
+</div>
+
+<!-- Spielende -->
+<div class="modal-overlay" id="modal-gameover">
+  <div class="modal-box">
+    <div style="font-size:44px" id="go-emoji">🏆</div>
+    <h2 id="go-title" style="margin:8px 0"></h2>
+    <p id="go-text" style="opacity:0.85"></p>
+    <div style="margin-top:16px">
+      <button class="btn btn-gold" onclick="showStart()">{{ t.gj_new_game }}</button>
+      <button class="btn btn-ghost" onclick="closeGame()" style="margin-left:8px">{{ t.gj_back }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Statistik -->
+<div class="modal-overlay" id="stats-modal">
+  <div class="modal-box">
+    <h2 style="margin-bottom:12px">📊 {{ t.gj_stats }}</h2>
+    <div id="stats-modal-content"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-ghost" onclick="resetStatsConfirm()" style="font-size:12px;opacity:0.6">{{ t.gj_stats_reset }}</button>
+      <button class="btn btn-gold" onclick="closeStats()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Regeln -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal-box wide">
+    <h2 style="margin-bottom:8px">📖 {{ t.gj_rulesdoc }}</h2>
+    <div class="scrollbox" id="rules-body">…</div>
+    <button class="btn btn-gold" onclick="closeRules()">✕</button>
+  </div>
+</div>
+
+<!-- Tab-/Device-Schutz -->
+<div class="modal-overlay" id="device-modal" style="z-index:320">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.4rem">📱</div>
+    <h2 style="margin:8px 0">{{ t.gj_device_title }}</h2>
+    <p style="opacity:0.85">{{ t.gj_device_text }}</p>
+    <button class="btn btn-gold" id="device-takeover" style="margin-top:12px">{{ t.gj_device_takeover }}</button>
+  </div>
+</div>
+
+<script>
+const LANG = {{ lang|tojson }};
+const G = {
+  player:{{ t.gj_player|tojson }}, ai:{{ t.gj_ai|tojson }},
+  your_pick:{{ t.gj_your_pick|tojson }}, ai_picks:{{ t.gj_ai_picks|tojson }},
+  ai_thinking:{{ t.gj_ai_thinking|tojson }},
+  buzz:{{ t.gj_buzz|tojson }}, buzz_hint:{{ t.gj_buzz_hint|tojson }}, pass:{{ t.gj_pass|tojson }},
+  you_buzzed:{{ t.gj_you_buzzed|tojson }}, ai_buzzed:{{ t.gj_ai_buzzed|tojson }},
+  answer_prompt:{{ t.gj_answer_prompt|tojson }}, rebuttal:{{ t.gj_rebuttal|tojson }},
+  correct:{{ t.gj_correct|tojson }}, wrong:{{ t.gj_wrong|tojson }},
+  daily_double:{{ t.gj_daily_double|tojson }}, dd_hint:{{ t.gj_dd_hint|tojson }},
+  place_wager:{{ t.gj_place_wager|tojson }}, wager:{{ t.gj_wager|tojson }},
+  you_scored:{{ t.gj_you_scored|tojson }}, ai_scored:{{ t.gj_ai_scored|tojson }}, nobody:{{ t.gj_nobody|tojson }},
+  continue:{{ t.gj_continue|tojson }},
+  final_wager_prompt:{{ t.gj_final_wager_prompt|tojson }}, final_answer_prompt:{{ t.gj_final_answer_prompt|tojson }},
+  final_your_answer:{{ t.gj_final_your_answer|tojson }},
+  you_win:{{ t.gj_you_win|tojson }}, you_lose:{{ t.gj_you_lose|tojson }}, tie:{{ t.gj_tie|tojson }},
+  stats_wins:{{ t.gj_stats_wins|tojson }}, stats_losses:{{ t.gj_stats_losses|tojson }},
+  stats_games:{{ t.gj_stats_games|tojson }}, stats_winrate:{{ t.gj_stats_winrate|tojson }},
+  stats_empty:{{ t.gj_stats_empty|tojson }}, stats_reset:{{ t.gj_stats_reset|tojson }},
+  new_game:{{ t.gj_new_game|tojson }},
+};
+const $ = id => document.getElementById(id);
+const NAMES = {p:G.player, a:G.ai};
+function qText(o){ return o['q_'+LANG] || o['q_de']; }
+function optsOf(o){ return o['opts_'+LANG] || o['opts_de']; }
+function catLabel(col){ return col['label_'+LANG] || col['label_de']; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+let gameState=null, aiRunning=false, buzzTimer=null, buzzStart=0, lastStatus=null;
+const AI_PAUSE = 850;
+
+/* ── Sound ─────────────────────────────────── */
+let ac=null;
+function beep(freqs,dur,type){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); let t=ac.currentTime; (freqs||[]).forEach(f=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type||'triangle';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.16,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.13));o.connect(g).connect(ac.destination);o.start(t);o.stop(t+(dur||0.13)+0.02);t+=(dur||0.13);});}catch(e){} }
+const SFX={correct:()=>beep([523,784,1047],0.12),wrong:()=>beep([220,165],0.12,'sine'),buzz:()=>beep([880,1320],0.07,'square'),win:()=>beep([523,659,784,1047],0.16),lose:()=>beep([392,330,262],0.2,'sine'),pick:()=>beep([660],0.06)};
+
+/* ── Session-Schutz ────────────────────────── */
+let sessionToken=null, heartbeatTimer=null;
+async function claimSession(force){
+  try{
+    const r=await fetch('/api/jeopardy/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:force?'force':'claim'})});
+    const d=await r.json();
+    if(d.locked){ $('device-modal').classList.add('show'); return false; }
+    if(d.token){ sessionToken=d.token; $('device-modal').classList.remove('show');
+      if(heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer=setInterval(()=>{ if(!sessionToken)return; fetch('/api/jeopardy/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'heartbeat',token:sessionToken})}).catch(()=>{}); },15000);
+      return true; }
+  }catch(e){}
+  return true;
+}
+function releaseSession(){ if(!sessionToken)return; if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
+  try{ navigator.sendBeacon('/api/jeopardy/session',new Blob([JSON.stringify({action:'release',token:sessionToken})],{type:'application/json'})); }catch(e){} sessionToken=null; }
+window.addEventListener('beforeunload',releaseSession);
+$('device-takeover').onclick=async()=>{ await claimSession(true); checkResume(); };
+
+/* ── API ───────────────────────────────────── */
+async function api(url,data){
+  if(data && sessionToken) data.token=sessionToken;
+  const opts=data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{};
+  try{ const r=await fetch(url,opts); if(r.status===423){ $('device-modal').classList.add('show'); return null; } return r.ok?await r.json():null; }
+  catch(e){ return null; }
+}
+
+/* ── Toast ─────────────────────────────────── */
+function showToast(text,cls){ const t=document.createElement('div'); t.className='toast'+(cls?' '+cls:''); t.textContent=text; $('toast-container').appendChild(t); setTimeout(()=>{t.style.opacity='0';},1600); setTimeout(()=>t.remove(),2100); }
+
+/* ── Board ─────────────────────────────────── */
+function renderBoard(st){
+  const b=$('board'); b.innerHTML='';
+  // 6 Kopfzellen
+  st.board.forEach(col=>{ const h=document.createElement('div'); h.className='col-head'; h.textContent=catLabel(col); b.appendChild(h); });
+  // 5 Reihen x 6 Spalten
+  for(let vi=0; vi<5; vi++){
+    st.board.forEach((col,ci)=>{
+      const cell=col.cells[vi];
+      const d=document.createElement('div');
+      const pickable = st.status==='select' && st.control==='p' && !cell.used;
+      d.className='cell'+(cell.used?' used':'')+(pickable?' pickable':'');
+      d.textContent=cell.used?'':cell.value;
+      if(pickable) d.onclick=()=>pickCell(ci,vi);
+      b.appendChild(d);
+    });
+  }
+}
+function updateScores(st){
+  const p=st.scores.p, a=st.scores.a;
+  $('sv-p').textContent=p; $('sv-a').textContent=a;
+  $('sv-p').className='score-val'+(p<0?' neg':''); $('sv-a').className='score-val'+(a<0?' neg':'');
+  $('si-p').className='score-item'+(st.control==='p'?' control':'');
+  $('si-a').className='score-item'+(st.control==='a'?' control':'');
+}
+function setTurnBar(text){ $('turn-bar').textContent=text||''; }
+
+/* ── Haupt-Render (reagiert auf Status) ────── */
+function render(st){
+  gameState=st;
+  updateScores(st);
+  renderBoard(st);
+  const s=st.status;
+
+  if(s!=='clue' && s!=='answer' && s!=='daily_double') $('clue-modal').classList.remove('show');
+  if(s!=='final_wager' && s!=='final_answer') $('final-modal').classList.remove('show');
+
+  if(s==='select'){
+    if(st.control==='p'){ setTurnBar('🎯 '+G.your_pick); }
+    else { setTurnBar('🤖 '+G.ai_picks); aiLoop(); }
+  }
+  else if(s==='clue'){ setTurnBar(''); showClue(st); }
+  else if(s==='daily_double'){ setTurnBar(''); showDailyDouble(st); }
+  else if(s==='answer'){
+    if(st.turn==='p'){ setTurnBar(''); showAnswer(st); }
+    else { setTurnBar('🤖 '+G.ai_thinking); showAiThinking(st); aiLoop(); }
+  }
+  else if(s==='reveal'){ setTurnBar(''); showReveal(st); }
+  else if(s==='final_wager'){ setTurnBar(''); showFinalWager(st); }
+  else if(s==='final_answer'){ setTurnBar(''); showFinalAnswer(st); }
+  else if(s==='game_over'){ setTurnBar(''); showGameOver(st); }
+  lastStatus=s;
+}
+
+/* ── Clue / Buzzer ─────────────────────────── */
+function clueHead(st){
+  const col=st.board.find(c=>c.cat===st.active.cat);
+  $('clue-cat').textContent=col?catLabel(col):st.active.cat;
+  $('clue-value').textContent=st.active.value;
+  $('clue-q').textContent=qText(st.active);
+  $('dd-banner').style.display=st.active.dd?'':'none';
+}
+function showClue(st){
+  clueHead(st);
+  const area=$('clue-area');
+  area.innerHTML='<button id="buzz-btn">'+G.buzz+'!</button>'+
+    '<div class="buzz-track"><div class="buzz-fill" id="buzz-fill"></div></div>'+
+    '<p class="wager-hint">'+G.buzz_hint+'</p>';
+  $('clue-modal').classList.add('show');
+  $('buzz-btn').onclick=doBuzz;
+  // Countdown
+  const win=st.buzz_window_ms||6000;
+  buzzStart=Date.now();
+  const fill=$('buzz-fill');
+  fill.style.transition='none'; fill.style.width='100%';
+  requestAnimationFrame(()=>{ fill.style.transition='width '+(win/1000)+'s linear'; fill.style.width='0%'; });
+  if(buzzTimer) clearTimeout(buzzTimer);
+  buzzTimer=setTimeout(doPass, win+80);
+}
+async function doBuzz(){
+  if(!gameState||gameState.status!=='clue')return;
+  if(buzzTimer){clearTimeout(buzzTimer);buzzTimer=null;}
+  SFX.buzz();
+  const elapsed=Date.now()-buzzStart;
+  const v=await api('/api/jeopardy/move',{type:'buzz',elapsed_ms:elapsed});
+  if(!v)return;
+  if(v.state.turn==='a' && v.state.status==='answer') showToast('🤖 '+G.ai_buzzed,'gold');
+  else if(v.state.turn==='p') showToast('🔔 '+G.you_buzzed);
+  render(v.state);
+}
+async function doPass(){
+  if(!gameState||gameState.status!=='clue')return;
+  if(buzzTimer){clearTimeout(buzzTimer);buzzTimer=null;}
+  const v=await api('/api/jeopardy/move',{type:'pass'});
+  if(v) render(v.state);
+}
+
+/* ── Daily Double ──────────────────────────── */
+function showDailyDouble(st){
+  clueHead(st);
+  $('clue-q').textContent='';  // Frage erst nach Einsatz
+  const cap=st.wager_cap||1000;
+  $('clue-area').innerHTML=
+    '<p class="dd-banner">⭐ '+G.daily_double+' ⭐</p>'+
+    '<p class="wager-hint">'+G.dd_hint+'</p>'+
+    '<div class="wager-row"><input type="number" id="dd-wager" min="5" max="'+cap+'" value="'+Math.min(cap, Math.max(5, st.active.value))+'">'+
+    '<button class="btn btn-gold" onclick="submitWager()">'+G.place_wager+'</button></div>'+
+    '<p class="wager-hint">'+G.wager+': 5 – '+cap+'</p>';
+  $('clue-modal').classList.add('show');
+}
+async function submitWager(){
+  const amt=parseInt($('dd-wager').value)||5;
+  const v=await api('/api/jeopardy/move',{type:'wager',amount:amt});
+  if(v) render(v.state);
+}
+
+/* ── Antwort (Multiple Choice) ─────────────── */
+function showAnswer(st){
+  clueHead(st);
+  if(st.active.dd) $('clue-q').textContent=qText(st.active);
+  const opts=optsOf(st.active);
+  let html='';
+  if(st.active.rebuttal) html+='<p class="result-line neutral">↩ '+G.rebuttal+'</p>';
+  html+='<p class="wager-hint" style="margin-bottom:10px">'+G.answer_prompt+'</p><div class="opts">';
+  opts.forEach((o,i)=>{ html+='<button class="opt" onclick="submitAnswer('+i+')">'+esc(o)+'</button>'; });
+  html+='</div>';
+  $('clue-area').innerHTML=html;
+  $('clue-modal').classList.add('show');
+}
+async function submitAnswer(idx){
+  document.querySelectorAll('#clue-area .opt').forEach(b=>b.disabled=true);
+  const v=await api('/api/jeopardy/move',{type:'answer',idx});
+  if(v) render(v.state);
+}
+function showAiThinking(st){
+  clueHead(st);
+  if(st.active.dd) $('clue-q').textContent=qText(st.active);
+  $('clue-area').innerHTML='<div class="spin"></div><p class="wager-hint">'+G.ai_thinking+'</p>';
+  $('clue-modal').classList.add('show');
+}
+
+/* ── Reveal ────────────────────────────────── */
+function showReveal(st){
+  const r=st.result; if(!r){ continueGame(); return; }
+  const col=st.board.find(c=>c.cat===r.cat);
+  $('clue-cat').textContent=col?catLabel(col):r.cat;
+  $('clue-value').textContent=r.value;
+  $('clue-q').textContent=(LANG==='en'?r.q_en:r.q_de);
+  $('dd-banner').style.display=r.dd?'':'none';
+  const opts=(LANG==='en'?r.opts_en:r.opts_de);
+  let html='<div class="opts">';
+  opts.forEach((o,i)=>{ let cls='opt'; if(i===r.correct)cls+=' ok'; else if(i===r.picked)cls+=' no'; html+='<button class="'+cls+'" disabled>'+esc(o)+'</button>'; });
+  html+='</div>';
+  let line,cls;
+  if(r.winner==='p'){ line='✅ '+G.you_scored+' +'+r.value; cls='win'; SFX.correct(); }
+  else if(r.winner==='a'){ line='🤖 '+G.ai_scored+' +'+r.value; cls='lose'; SFX.wrong(); }
+  else { line='— '+G.nobody; cls='neutral'; }
+  html+='<p class="result-line '+cls+'">'+line+'</p>';
+  html+='<button class="btn btn-gold" onclick="continueGame()" style="margin-top:6px">'+G.continue+' ▶</button>';
+  $('clue-area').innerHTML=html;
+  $('clue-modal').classList.add('show');
+}
+async function continueGame(){
+  const v=await api('/api/jeopardy/move',{type:'continue'});
+  if(v) render(v.state);
+}
+
+/* ── Final Jeopardy ────────────────────────── */
+function showFinalWager(st){
+  const f=st.final; const cap=f.wager_cap||0;
+  $('final-cat').textContent=(LANG==='en'?f.label_en:f.label_de);
+  $('final-q').textContent='';
+  $('final-area').innerHTML=
+    '<p class="wager-hint">'+G.final_wager_prompt+'</p>'+
+    '<div class="wager-row"><input type="number" id="final-wager" min="0" max="'+cap+'" value="'+cap+'">'+
+    '<button class="btn btn-gold" onclick="submitFinalWager()">'+G.place_wager+'</button></div>'+
+    '<p class="wager-hint">'+G.wager+': 0 – '+cap+'</p>';
+  $('final-modal').classList.add('show');
+}
+async function submitFinalWager(){
+  const amt=parseInt($('final-wager').value)||0;
+  const v=await api('/api/jeopardy/move',{type:'final_wager',amount:amt});
+  if(v) render(v.state);
+}
+function showFinalAnswer(st){
+  const f=st.final;
+  $('final-cat').textContent=(LANG==='en'?f.label_en:f.label_de);
+  $('final-q').textContent=(LANG==='en'?f.q_en:f.q_de);
+  const opts=(LANG==='en'?f.opts_en:f.opts_de);
+  let html='<p class="wager-hint" style="margin-bottom:10px">'+G.final_answer_prompt+' ('+G.wager+': '+f.wager_p+')</p><div class="opts">';
+  opts.forEach((o,i)=>{ html+='<button class="opt" onclick="submitFinalAnswer('+i+')">'+esc(o)+'</button>'; });
+  html+='</div>';
+  $('final-area').innerHTML=html;
+  $('final-modal').classList.add('show');
+}
+async function submitFinalAnswer(idx){
+  document.querySelectorAll('#final-area .opt').forEach(b=>b.disabled=true);
+  const v=await api('/api/jeopardy/move',{type:'final_answer',idx});
+  if(v) render(v.state);
+}
+
+/* ── Spielende ─────────────────────────────── */
+function showGameOver(st){
+  $('final-modal').classList.remove('show');
+  const f=st.final;
+  if(f && f.correct!=null){
+    // kurze Final-Auflösung als Toast
+    const pOk=f.picked_p===f.correct;
+    showToast((pOk?'✅':'❌')+' '+G.final_your_answer+(f.wager_p?(' ('+(pOk?'+':'−')+f.wager_p+')'):''), pOk?'gold':'');
+  }
+  const w=st.winner;
+  $('go-emoji').textContent=w==='p'?'🏆':(w==='a'?'🤖':'🤝');
+  $('go-title').textContent=w==='p'?G.you_win:(w==='a'?G.you_lose:G.tie);
+  $('go-text').textContent=G.player+' '+st.scores.p+'  ·  '+G.ai+' '+st.scores.a;
+  if(w==='p') SFX.win(); else if(w==='a') SFX.lose();
+  $('modal-gameover').classList.add('show');
+}
+
+/* ── KI-Schleife ───────────────────────────── */
+async function aiLoop(){
+  if(aiRunning) return;
+  aiRunning=true;
+  try{
+    let guard=0;
+    while(gameState && guard++<40){
+      const s=gameState.status;
+      const aiActs = (s==='select'&&gameState.control==='a') || (s==='answer'&&gameState.turn==='a');
+      if(!aiActs) break;
+      await sleep(AI_PAUSE);
+      const v=await api('/api/jeopardy/ai',{});
+      if(!v) break;
+      if(v.event && v.event.type==='pick') showToast('🤖 '+labelOfCat(v.state,v.event.cat)+' '+v.event.value);
+      if(v.event && v.event.type==='answer'){ showToast('🤖 '+(v.event.correct?'✅ '+G.correct:'❌ '+G.wrong), v.event.correct?'gold':''); }
+      render(v.state);
+      if(v.event && (v.event.type==='answer'||v.event.type==='final_start')) await sleep(AI_PAUSE);
+    }
+  } finally { aiRunning=false; }
+}
+function labelOfCat(st,cat){ const col=st.board.find(c=>c.cat===cat); return col?catLabel(col):cat; }
+
+/* ── Statistik ─────────────────────────────── */
+async function loadStats(){ const v=await api('/api/jeopardy/history'); return v?(v.games||[]):[]; }
+function renderStatsContent(games,target){
+  if(!games.length){ target.innerHTML='<div class="stats-empty">'+G.stats_empty+'</div>'; return; }
+  const wins=games.filter(g=>g.winner==='p').length, total=games.length, rate=total?Math.round(wins/total*100):0;
+  target.innerHTML='<div class="stats-grid">'+
+    '<div class="stat"><div class="stat-val">'+wins+'</div><div class="stat-label">'+G.stats_wins+'</div></div>'+
+    '<div class="stat"><div class="stat-val">'+(total-wins)+'</div><div class="stat-label">'+G.stats_losses+'</div></div>'+
+    '<div class="stat"><div class="stat-val">'+total+'</div><div class="stat-label">'+G.stats_games+'</div></div>'+
+    '<div class="stat"><div class="stat-val">'+rate+'%</div><div class="stat-label">'+G.stats_winrate+'</div></div></div>';
+  let hist='<div class="stats-history">';
+  for(const g of games.slice().reverse().slice(0,30)){
+    const isWin=g.winner==='p'; const d=new Date(g.ts*1000);
+    const date=d.toLocaleDateString(LANG==='en'?'en-GB':'de-DE',{day:'2-digit',month:'2-digit'});
+    const sc=(g.scores?(g.scores.p+':'+g.scores.a):'');
+    hist+='<div class="hist-row'+(isWin?' win':'')+'"><span class="hist-ico">'+(isWin?'🏆':(g.winner==='tie'?'🤝':'🤖'))+'</span>'+
+      '<span class="hist-meta">'+date+' ('+g.level+')</span><span class="hist-score">'+sc+'</span></div>';
+  }
+  hist+='</div>'; target.innerHTML+=hist;
+}
+async function openStats(){ renderStatsContent(await loadStats(),$('stats-modal-content')); $('stats-modal').classList.add('show'); }
+function closeStats(){ $('stats-modal').classList.remove('show'); }
+async function resetStatsConfirm(){ if(!confirm(G.stats_reset+'?'))return; await api('/api/jeopardy/history/reset',{}); closeStats(); }
+async function renderStartStats(){ renderStatsContent(await loadStats(),$('stats-box')); }
+
+/* ── Regeln ────────────────────────────────── */
+async function openRules(){ const v=await api('/api/jeopardy/rules'); $('rules-body').innerHTML=v?v.html:'—'; $('rules-modal').classList.add('show'); }
+function closeRules(){ $('rules-modal').classList.remove('show'); }
+
+/* ── Steuerung ─────────────────────────────── */
+async function pickCell(ci,vi){
+  if(!gameState||gameState.status!=='select'||gameState.control!=='p')return;
+  SFX.pick();
+  const v=await api('/api/jeopardy/move',{type:'pick',cell:ci+'-'+vi});
+  if(v) render(v.state);
+}
+async function startGame(level){
+  const v=await api('/api/jeopardy/new',{level});
+  if(!v)return;
+  $('start-screen').classList.add('hidden');
+  render(v.state);
+}
+async function resumeGame(){
+  const v=await api('/api/jeopardy/state');
+  if(!v||!v.state)return;
+  $('start-screen').classList.add('hidden');
+  render(v.state);
+}
+function showStart(){ ['modal-gameover','clue-modal','final-modal'].forEach(id=>$(id).classList.remove('show')); $('start-screen').classList.remove('hidden'); renderStartStats(); checkResume(); }
+function closeGame(){ releaseSession(); if(window.parent!==window) window.parent.postMessage('close-jeopardy',location.origin); else location.href='/bereich'; }
+function confirmNewGame(){ if(gameState && gameState.status!=='game_over'){ if(!confirm(G.new_game+'?'))return; } showStart(); }
+async function checkResume(){ const v=await api('/api/jeopardy/state'); $('resume-box').style.display=(v&&v.state&&v.state.status&&v.state.status!=='game_over')?'block':'none'; }
+
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ for(const id of ['stats-modal','rules-modal']){ if($(id).classList.contains('show')){$(id).classList.remove('show');return;} } }
+});
+
+window.addEventListener('DOMContentLoaded',async()=>{
+  try{ if(screen.orientation&&screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
+  const ok=await claimSession(false);
+  if(ok){ checkResume(); renderStartStats(); }
+});
+</script>
+</body>
+</html>

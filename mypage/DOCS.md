@@ -164,3 +164,7 @@ Im Tunnel nur `http://<host>:17760` als Ziel eintragen. Das Admin-Panel auf 1776
 ## Daten
 
 Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
+
+## Credits / Lizenzhinweise
+
+- **Jeopardy-Quizfragen:** Der Fragen-Pool des Mitglieder-Spiels „Jeopardy" basiert teilweise auf der [Open Trivia Database](https://opentdb.com) und steht unter **CC BY-SA 4.0**. Die Fragen wurden ins Deutsche übersetzt, kuratiert und gefiltert.

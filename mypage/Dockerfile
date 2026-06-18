@@ -18,11 +18,14 @@ COPY game_20ab.py .
 COPY game_schwimmen.py .
 COPY game_maumau.py .
 COPY game_praesident.py .
+COPY game_jeopardy.py .
 COPY game_66_rules_de.md game_66_rules_en.md ./
 COPY game_20ab_rules_de.md game_20ab_rules_en.md ./
 COPY game_schwimmen_rules_de.md game_schwimmen_rules_en.md ./
 COPY game_maumau_rules_de.md game_maumau_rules_en.md ./
 COPY game_praesident_rules_de.md game_praesident_rules_en.md ./
+COPY game_jeopardy_rules_de.md game_jeopardy_rules_en.md ./
+COPY data/ data/
 COPY icon.png .
 COPY fonts/ fonts/
 COPY templates/ templates/

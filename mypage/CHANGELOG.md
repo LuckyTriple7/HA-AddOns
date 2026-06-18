@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.121
+
+- 🎯 **Neues Mitglieder-Spiel „Jeopardy"** — ein Wissens-Quiz-Duell gegen die KI auf einem klassischen Board (6 Kategorien × 5 Werte 200–1000). Highlights: **Buzzer-Rennen** (schneller drücken als die KI, deren Reaktionszeit & Trefferquote vom Schwierigkeitsgrad abhängt), **Daily Double** (verstecktes Feld mit Einsatz) und **Final Jeopardy** (beide setzen geheim auf den letzten Clue). Server-autoritativ: der Server kennt die Antworten, der Client nie. Inklusive Statistik, HA-Sensor (Live „wer spielt"), Fortsetzen über Geräte hinweg und DE/EN. Erreichbar als Kachel im Mitgliederbereich. Der Fragen-Pool (zweisprachig) basiert teilweise auf der Open Trivia Database (CC BY-SA 4.0), übersetzt und kuratiert.
+
 ## 0.6.120
 
 - 🃏 **20 AB: Animation beim KI-Kartentausch** — tauscht eine KI Karten, blenden die getauschten Karten jetzt langsam aus und neue blenden langsam wieder ein (mit Sound), statt nur einer Textmeldung. Berücksichtigt „Reduzierte Bewegung".
