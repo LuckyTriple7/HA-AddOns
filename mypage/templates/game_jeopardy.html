@@ -126,6 +126,12 @@ body{
 @keyframes tin{from{opacity:0;transform:translateY(-8px)}to{opacity:1}}
 .spin{display:inline-block;width:34px;height:34px;border:4px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:sp 0.9s linear infinite;margin:8px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.ai-banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:260;
+  background:rgba(232,178,42,0.96);color:#1a1206;font-weight:800;font-size:clamp(20px,4vw,34px);
+  padding:18px 34px;border-radius:16px;box-shadow:0 12px 44px rgba(0,0,0,0.55);
+  text-align:center;pointer-events:none;opacity:0;animation:aiBannerIn 2s ease forwards}
+@keyframes aiBannerIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}14%{opacity:1;transform:translate(-50%,-50%) scale(1)}86%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
+@media(prefers-reduced-motion:reduce){.ai-banner{animation:none;opacity:1}}
 
 /* Rotier-Overlay (Hochformat klein) */
 #rotate-overlay{display:none}
@@ -321,7 +327,19 @@ function buzzPress(){
     o2.connect(g2).connect(ac.destination); o2.start(t+0.08); o2.stop(t+0.28);
   }catch(e){}
 }
-const SFX={correct:()=>beep([523,784,1047],0.12),wrong:()=>beep([220,165],0.12,'sine'),buzz:()=>buzzPress(),win:()=>beep([523,659,784,1047],0.16),lose:()=>beep([392,330,262],0.2,'sine'),pick:()=>beep([660],0.06)};
+// KI-Buzzer: tiefer Game-Show-Doppel-Honk
+function aiBuzzSound(){
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const t=ac.currentTime;
+    function honk(f,start,dur){ const o=ac.createOscillator(),g=ac.createGain(),tt=t+start;
+      o.type='sawtooth'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,tt); g.gain.exponentialRampToValueAtTime(0.19,tt+0.015); g.gain.exponentialRampToValueAtTime(0.0001,tt+dur);
+      o.connect(g).connect(ac.destination); o.start(tt); o.stop(tt+dur+0.03); }
+    honk(330,0,0.12); honk(247,0.13,0.17);
+  }catch(e){}
+}
+const SFX={correct:()=>beep([523,784,1047],0.12),wrong:()=>beep([220,165],0.12,'sine'),buzz:()=>buzzPress(),aiBuzz:()=>aiBuzzSound(),win:()=>beep([523,659,784,1047],0.16),lose:()=>beep([392,330,262],0.2,'sine'),pick:()=>beep([660],0.06)};
 
 /* ── Buzzer-Ticker (beschleunigt mit dem Countdown) ─ */
 let tickTimer=null;
@@ -484,16 +502,31 @@ async function doBuzz(){
   const elapsed=Date.now()-buzzStart;
   const v=await api('/api/jeopardy/move',{type:'buzz',elapsed_ms:elapsed});
   if(!v)return;
-  if(v.state.turn==='a' && v.state.status==='answer') showToast('🤖 '+G.ai_buzzed,'gold');
-  else if(v.state.turn==='p') showToast('🔔 '+G.you_buzzed);
+  if(v.state.turn==='a' && v.state.status==='answer'){ aiBuzzedThenAnswer(v.state); return; }
+  if(v.state.turn==='p') showToast('🔔 '+G.you_buzzed);
   render(v.state);
+}
+
+// KI hat das Buzzer-Rennen gewonnen: Honk + 2s-Hinweis, dann erst antwortet sie.
+function showAiBuzzBanner(){
+  const el=document.createElement('div'); el.className='ai-banner'; el.textContent='🤖 '+G.ai_buzzed;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),2000);
+}
+async function aiBuzzedThenAnswer(state){
+  SFX.aiBuzz();
+  showAiBuzzBanner();
+  $('clue-area').innerHTML='<p class="result-line lose">🤖 '+G.ai_buzzed+'</p>';
+  await sleep(2000);
+  render(state);
 }
 async function doPass(){
   if(!gameState||gameState.status!=='clue')return;
   if(buzzTimer){clearTimeout(buzzTimer);buzzTimer=null;}
   stopTicker();
   const v=await api('/api/jeopardy/move',{type:'pass'});
-  if(v) render(v.state);
+  if(!v) return;
+  if(v.state.turn==='a' && v.state.status==='answer'){ aiBuzzedThenAnswer(v.state); return; }
+  render(v.state);
 }
 
 /* ── Daily Double ──────────────────────────── */

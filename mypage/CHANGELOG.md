@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.125
+
+- 🤖 **Jeopardy: KI-Buzzer mit eigenem Sound & deutlichem Hinweis** — Buzzert die KI schneller (oder schnappt sich einen verstrichenen Clue), ertönt jetzt ein tiefer Game-Show-Doppel-Honk (statt des Spieler-Sounds), und ein gut sichtbarer Hinweis „🤖 Die KI war schneller!" blendet sich für 2 Sekunden ein, **bevor** die KI antwortet — vorher ging das zu schnell vorbei. Der Spieler-Buzzer (heller „Lock-in"-Sound) bleibt unverändert.
+
 ## 0.6.124
 
 - 🎵 **Jeopardy: Musik nur auf dem Board + kräftigerer Buzzer-Sound** — Die Hintergrundmusik spielt jetzt nur noch auf dem Auswahl-Board (und Startbildschirm) und **pausiert automatisch, sobald ein Clue offen ist**, damit Buzzer-Ticker und Antwort-Sounds nicht übertönt werden; danach läuft sie weiter. Der Buzzer hat einen neuen, deutlich hörbaren „Lock-in"-Sound (aufsteigender Sweep + heller Bestätigungs-Ping) statt des bisher zu leisen Zweitons.
