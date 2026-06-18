@@ -181,3 +181,61 @@ Klein: **Wahr oder Falsch** (Streak ist sofort befriedigend). Groß:
 **Quiz-Duell gegen die KI** (maximaler Wiederverwendungsgrad der Infrastruktur)
 oder, als cleverer Low-Maintenance-Hit, das **automatisch generierte
 Seiten-Quiz**.
+
+---
+
+# Multiplayer (Mensch gegen Mensch, live)
+
+Idee: die bestehenden Kartenspiele (und Jeopardy) live gegen andere **menschliche
+Mitglieder** spielbar machen. Ehrliche Einordnung: **machbar, aber ein eigenes
+Projekt** – das aktuelle Modell ist fundamental Einzelspieler (server-autoritativ
+**pro Mitglied** vs. KI).
+
+## Was schon trägt (wiederverwendbar)
+
+- Engines sind **server-autoritativ und mehrsitzig** (MauMau/Präsident = 3 Spieler,
+  nur eben 1 Mensch + KI) → ~70 % der Spiellogik steht.
+- Mitglieder-Auth, Karten-Rendering, Statistik/HA-Sensoren, Regeln, Persistenz-
+  und Session-Muster.
+
+## Die eigentlichen Kostentreiber (neu)
+
+1. **Geteilter Spielzustand** statt pro Mitglied. Heute hat jedes Mitglied seine
+   eigene `<spiel>_<uid>.json`; Multiplayer braucht **einen** geteilten Tisch →
+   Raum-/Tisch-Verwaltung (anlegen, beitreten, Sitze, Lebenszyklus).
+2. **Echtzeit-Übertragung.** Heute „ich ziehe → ich pulle die KI-Schritte". Gegen
+   Menschen müssen **fremde Züge zu dir gepusht** werden. Optionen:
+   - **Short-Polling (alle 1–2 s)** – *Empfehlung*: keine neue Abhängigkeit, läuft
+     über HA-Ingress **und** Cloudflare-Tunnel ([[project_pwa_cloudflare]]); für
+     rundenbasierte Kartenspiele ist 1–2 s Latenz völlig ok.
+   - SSE/Long-Polling – flüssiger, mehr Plumbing.
+   - WebSockets – am saubersten, aber neue Abhängigkeit und über HA-Ingress fummelig.
+3. **Per-Spieler-Sicht.** `public_view` redigiert heute für *einen* Zuschauer
+   ('p'); für N Menschen braucht es einen `viewer`-Parameter pro Engine (jeder
+   sieht nur seine Hand) – moderater Umbau je Spiel.
+4. **Sitz↔Mitglied + Zug-Autorisierung.** Jeder Zug prüft: ist dieses Mitglied am
+   Zug auf diesem Sitz?
+5. **Disconnect/Timeout – der eigentliche Brocken.** Ein Mensch verschwindet
+   mitten im Spiel: Timeout, KI-Übernahme oder Pause, Reconnect, Abbruch. Macht
+   Multiplayer *deutlich* schwerer als Singleplayer.
+6. **Client-Schleife & UI** pro Template: Lobby, „warte auf Spieler X", echte
+   Gegnernamen, Reconnect-Zustand. Die KI-Pull-Schleife entfällt.
+
+## Aufwand
+
+| Umfang | Was | Aufwand |
+|---|---|---|
+| 🟡 **Pilot** | **1 Spiel** (MauMau – simpelste, schon 3-Sitz-Engine), Short-Polling, einfache Lobby, Zug-Auth, Per-Spieler-Sicht, Disconnect grob (Timeout → KI übernimmt) | mittel-groß |
+| 🟠 **Voll** | Alle 5 Spiele, sauberes Reconnect/Disconnect, Matchmaking/Einladungen, evtl. SSE/WS, Chat | groß (mehrere Bauabschnitte) |
+
+Die **Raum-/Lobby-/Polling-Schicht baut man einmal generisch** und hängt die
+Spiele dann nacheinander rein (wie beim Spiele-Import-Rezept). Der Pilot ist die
+eigentliche Investition, Spiel 2–5 danach sind günstig.
+
+## Empfehlung (Multiplayer)
+
+**MauMau als Pilot mit Short-Polling.** Beweist die ganze Architektur (Raum,
+geteilter State, Per-Spieler-Sicht, Zug-Auth, Disconnect-Grundfall) mit dem
+geringsten Spiel-Risiko und ist robust gegenüber Ingress/Cloudflare. Der ehrliche
+Mehraufwand steckt nicht im „Zug machen", sondern in **Lobby + Disconnect-
+Robustheit**.
