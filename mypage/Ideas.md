@@ -115,3 +115,69 @@ Sind ebenfalls gut machbar — eher **einfacher** als Kartenspiele:
 ## Empfehlung (Würfelspiele)
 
 **Kniffel** als Flaggschiff, **Schwein** oder **Farkle** als schnelle Ergänzung.
+
+---
+
+# Quizspiele
+
+Bereits umgesetzt: **Fangfragen** (Mini-Game, 50 Scherz-/Fangfragen, Multiple
+Choice, DE/EN). Quizspiele sind code-seitig meist günstig — **der eigentliche
+Aufwand ist der Fragen-Pool**: Pflege, Kategorien, saubere DE/EN-Trennung und
+das Vermeiden veraltender „richtiger" Antworten. Das ist das entscheidende
+Kriterium für die Einordnung unten.
+
+## 🟢 Mini-Game-Liga (clientseitig, über Footer-Link — wie Fangfragen)
+
+- **Wahr oder Falsch** — *Top-Empfehlung für klein.* Eine Aussage, zwei Buttons,
+  Streak-Zähler („7 in Folge!"). Schnell gebaut, hoher Suchtfaktor, Pool trivial
+  erweiterbar.
+- **Schätzfragen** — „Wie hoch ist der Eiffelturm?" → je näher dran, desto mehr
+  Punkte. Charmant, weil nie „falsch", nur „knapp". Kein Multiple-Choice nötig.
+- **Flaggen-/Hauptstädte-Quiz** — Flaggen als Emoji (🇫🇷🇯🇵 → **kein
+  Asset-Aufwand**), Antworten als Multiple Choice. Zeitloser, riesiger Pool.
+- **Emoji-Rätsel** — 🦁👑 → „König der Löwen". Sehr lustig, aber DE/EN-Antworten
+  müssen sauber getrennt sein (Filmtitel etc. unterscheiden sich).
+
+## 🟡 Mittlerer Aufwand, eigener Modus
+
+- **„Wer wird Millionär"-Style** (Solo-Highscore) — 15 Fragen mit steigender
+  Schwierigkeit, Joker (50:50, Publikum, Zufall), Sicherheitsstufen,
+  Gewinnstufe = Score. In DE extrem bekannt, klar abgegrenzter Umfang. Braucht
+  einen **geschichteten** Fragen-Pool (leicht → schwer).
+
+## 🟠 Die „großen" — passen in die Mitglieder-Spielarchitektur
+
+Höchster Wiederverwendungsgrad: server-autoritativ, Persistenz pro Mitglied,
+Verlauf/Statistik, HA-Sensoren, Fortsetzen, DE/EN — alles vorhanden.
+
+- **🏆 Quiz-Duell gegen die KI** — *Top-Empfehlung für „größer".* Exakt das
+  Muster der Kartenspiele, nur mit Wissensfragen: Runden, Kategorie-Wahl, die KI
+  „antwortet" mit schwierigkeitsabhängiger Trefferquote (Level easy/mittel/
+  schwer). Sieg/Niederlage vs. KI → **Statistik & HA-Sensoren ohne
+  Zusatzarbeit**. Server kennt die richtige Antwort (kein clientseitiges
+  Cheating) — passt perfekt zum server-autoritativen Modell.
+- **📅 Tägliches Quiz / Daily Challenge** — jeden Tag dieselben Fragen für alle,
+  Mitglieder-Bestenliste, HA-Sensor „Heutiger Tagessieger". Bindung an die Seite,
+  wenig Code, lebt vom Pool.
+- **🤓 Personalisiertes „Über mich/diese Seite"-Quiz** — *origineller Sonderweg
+  mit nahezu null Pflegeaufwand:* Fragen werden **automatisch aus den eigenen
+  Inhalten generiert** (Projekte, importierte GitHub-Repos, Sprachen, Sterne),
+  z. B. „Welches Projekt ist in Python?", „Wie viele Repos hat …?". Einzigartig
+  für die jeweilige Seite, weil es bestehende Daten wiederverwendet.
+
+## Einordnung (Pool-Pflege)
+
+- **Niedrigster Pflegeaufwand:** Seiten-Quiz (generiert sich selbst) und
+  Fangfragen/Schätzfragen (zeitlose Antworten).
+- **Höchster Pflegeaufwand:** Quiz-Duell, „Millionär", Daily Challenge — leben
+  von einem großen, korrekten, zweisprachigen Pool, der altern kann.
+- HA-Sensoren/Statistik passen unverändert bei allem „vs. KI". Bei reinen
+  Solo-Highscore-Varianten muss „Sieg" anders definiert werden (wie bei den
+  Würfelspielen).
+
+## Empfehlung (Quizspiele)
+
+Klein: **Wahr oder Falsch** (Streak ist sofort befriedigend). Groß:
+**Quiz-Duell gegen die KI** (maximaler Wiederverwendungsgrad der Infrastruktur)
+oder, als cleverer Low-Maintenance-Hit, das **automatisch generierte
+Seiten-Quiz**.
