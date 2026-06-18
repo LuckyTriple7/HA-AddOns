@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.118
+
+- 🤔 **Neues Mini-Game „Fangfragen"** — ein Quiz mit 30 klassischen Scherz- und Fangfragen (Welche Monate haben 28 Tage? Welche Enten laufen auf zwei Beinen? …) als Multiple Choice mit 4 Antworten. Richtige Antwort = ein Punkt, Bestwert wird lokal gespeichert. Fragen und Antworten sind komplett DE/EN lokalisiert, Reihenfolge der Fragen und Antwortoptionen werden bei jedem Durchgang neu gemischt. Erreichbar über den Footer-Link „🎮 Mini Games" (muss in den Design-Optionen aktiviert sein).
+
 ## 0.6.117
 
 - 🔊 **20 AB: ergebnisabhängiger Rundensound** — beim Rundenergebnis (Zwischenrunden) klingt es jetzt je nach deinem Ausgang unterschiedlich: gewonnen (Stiche geholt, Punkte runter) = aufsteigend positiv, „Überschuss prallt zurück" = „Boing"-Abpraller, verloren (0 Stiche, +5) = Sad Trombone, gepasst = dezenter neutraler Ton. Am Spielende übernimmt weiterhin der Sieg-/Niederlage-Sound.

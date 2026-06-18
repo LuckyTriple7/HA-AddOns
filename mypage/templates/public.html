@@ -1261,7 +1261,7 @@
     function openGameMenu() {
       openGame('🎮 Mini Games', mount => {
         const m = document.createElement('div'); m.className = 'game-menu';
-        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory], ['🎰 Slot', gameSlot], ['🃏 17+4', gameCards], ['🎴 Poker', gamePoker]]
+        [['🐍 Snake', gameSnake], ['🦖 Dino', gameDino], ['🏓 Pong', gamePong], ['🧠 Memory', gameMemory], ['🎰 Slot', gameSlot], ['🃏 17+4', gameCards], ['🎴 Poker', gamePoker], ['🤔 ' + G.quizTitle, gameQuiz]]
           .forEach(([label, fn]) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => openGame(label, fn); m.appendChild(b); });
         mount.appendChild(m);
         return null;
@@ -1319,7 +1319,10 @@
       pk_royal: {{ t.g_pk_royal|tojson }}, pk_sflush: {{ t.g_pk_sflush|tojson }}, pk_quads: {{ t.g_pk_quads|tojson }},
       pk_full: {{ t.g_pk_full|tojson }}, pk_flush: {{ t.g_pk_flush|tojson }}, pk_straight: {{ t.g_pk_straight|tojson }},
       pk_trips: {{ t.g_pk_trips|tojson }}, pk_twopair: {{ t.g_pk_twopair|tojson }}, pk_jacks: {{ t.g_pk_jacks|tojson }},
-      sim: {{ t.g_sim|tojson }}
+      sim: {{ t.g_sim|tojson }},
+      quizTitle: {{ t.g_quiz_title|tojson }}, quizLabel: {{ t.g_quiz_label|tojson }}, quizRight: {{ t.g_quiz_right|tojson }},
+      quizWrong: {{ t.g_quiz_wrong|tojson }}, quizNext: {{ t.g_quiz_next|tojson }}, quizDone: {{ t.g_quiz_done|tojson }},
+      quizFinal: {{ t.g_quiz_final|tojson }}, quizData: {{ t.g_quiz_q|tojson }}
     };
 
     function gameSnake(mount) {
@@ -1718,6 +1721,59 @@
       bDeal.onclick = deal; bDraw.onclick = draw;
       refill.onclick = () => { credits = 100; localStorage.setItem('mg-poker-cr', credits); upd(); msg.textContent = '🔄 ' + G.refilled; };
       render(); msg.textContent = G.pk_goal;
+      return () => {};
+    }
+
+    // 🤔 Fangfragen-Quiz: Multiple Choice, eine Antwort richtig, Punkte + Bestwert
+    function gameQuiz(mount) {
+      const ALL = (G.quizData || []);
+      let hi = +(localStorage.getItem('mg-quiz-hi') || 0);
+      const head = document.createElement('div'); head.className = 'game-info';
+      const q = document.createElement('div');
+      q.style.cssText = 'font-size:1.15em;font-weight:600;text-align:center;margin:14px auto 16px;min-height:2.6em;max-width:360px;display:flex;align-items:center;justify-content:center';
+      const opts = document.createElement('div'); opts.style.cssText = 'display:flex;flex-direction:column;gap:8px;max-width:360px;margin:0 auto;width:100%';
+      const msg = document.createElement('div'); msg.className = 'game-info'; msg.style.minHeight = '1.4em';
+      const next = document.createElement('button'); next.className = 'btn-spin';
+      const nextWrap = document.createElement('div'); nextWrap.style.cssText = 'text-align:center;margin-top:12px'; nextWrap.appendChild(next);
+      mount.append(head, q, opts, msg, nextWrap);
+      let order, idx, score;
+      function updHead() { head.textContent = G.quizLabel + ' ' + (idx + 1) + '/' + order.length + ' · ' + G.score + ': ' + score + ' · ' + G.best + ': ' + hi; }
+      function advance() { idx++; show(); }
+      function start() {
+        order = ALL.map((_, i) => i);
+        for (let i = order.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [order[i], order[j]] = [order[j], order[i]]; }
+        idx = 0; score = 0; show();
+      }
+      function show() {
+        if (idx >= order.length) return finish();
+        const item = ALL[order[idx]];
+        updHead(); q.textContent = item.q; msg.textContent = '';
+        next.onclick = advance; next.style.display = 'none';
+        opts.innerHTML = '';
+        const oi = item.opts.map((_, i) => i);
+        for (let i = oi.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [oi[i], oi[j]] = [oi[j], oi[i]]; }
+        oi.forEach(o => {
+          const b = document.createElement('button'); b.textContent = item.opts[o];
+          b.style.cssText = 'padding:11px 14px;border-radius:10px;border:1px solid var(--line,#bbb);background:var(--card,#fff);color:inherit;cursor:pointer;font-size:1em;text-align:left;transition:background .15s';
+          b.onclick = () => choose(b, o, item, oi);
+          opts.appendChild(b);
+        });
+      }
+      function choose(btn, picked, item, oi) {
+        audioReady();
+        [...opts.children].forEach((b, i) => { b.disabled = true; b.onclick = null; if (oi[i] === item.c) b.style.background = 'rgba(31,157,85,.22)'; });
+        if (picked === item.c) { btn.style.background = 'rgba(31,157,85,.45)'; score++; if (score > hi) { hi = score; localStorage.setItem('mg-quiz-hi', hi); } msg.textContent = '✅ ' + G.quizRight; beep([523, 784, 1047], 0.12); }
+        else { btn.style.background = 'rgba(224,70,70,.30)'; msg.textContent = '❌ ' + G.quizWrong + ' ' + item.opts[item.c]; beep([220, 165], 0.1, 'sine'); }
+        updHead();
+        next.textContent = (idx + 1 >= order.length ? G.quizDone : G.quizNext) + ' ▶'; next.style.display = '';
+      }
+      function finish() {
+        q.textContent = '🏁 ' + score + ' / ' + order.length;
+        head.textContent = G.score + ': ' + score + ' · ' + G.best + ': ' + hi;
+        opts.innerHTML = ''; msg.textContent = G.quizFinal;
+        next.textContent = '🔄 ' + G.restart; next.onclick = start; next.style.display = '';
+      }
+      start();
       return () => {};
     }
   </script>
