@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.133
+
+- 🐛 **Glücksrad: Hänger, wenn die KI eine Runde gewinnt** — Der „Weiter"-Button erschien nur, wenn der Mensch am Zug war; gewann die KI die Runde, blieb das Spiel stehen. Der Button wird jetzt bei jedem Rundenende angezeigt, sodass es immer weitergeht.
+
 ## 0.6.132
 
 - 🎭 **Glücksrad: Spannung beim Aufdecken** — Bei mehreren Treffern (z. B. 5× derselbe Buchstabe) erschien der Gewinn (5×5000 = 25000 €) sofort im Spielerpanel, noch bevor die Buchstaben nacheinander auf der Tafel auftauchten. Jetzt wird das Rundenkonto **erst nach dem Aufdecken** aktualisiert — für Spieler und KI gleichermaßen.

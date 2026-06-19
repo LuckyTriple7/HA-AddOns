@@ -1072,7 +1072,8 @@ function renderActions() {
     h += `<button class="btn btn-vowel" onclick="doBuyVowel()" ${S.can_buy_vowel?'':'disabled'}>${G.buy_vowel}</button>`;
     h += `<button class="btn btn-solve" onclick="showSolve()">${G.solve}</button>`;
     c.innerHTML = h;
-  } else if(st==='round_over' && isHuman) {
+  } else if(st==='round_over') {
+    // Immer anzeigen — auch wenn die KI die Runde gewann, treibt der Mensch das Weiter
     c.innerHTML = `<button class="btn btn-spin" onclick="doContinue()">${G.continue_btn}</button>`;
   } else if(st==='finale_solve' && isHuman) {
     c.innerHTML = '';
