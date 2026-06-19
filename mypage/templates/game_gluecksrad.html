@@ -513,6 +513,23 @@ let gamePaused = false;
 let _pauseResolve = null;
 const SPIN_DURATION_BASE = 4000;
 
+// Echte Pause: laufende Wartezeiten/Animationen EINFRIEREN und später genau dort
+// fortsetzen (kein Springen zum Ergebnis).
+let _sleepers = new Set();
+let _wheelResume = null;
+function pauseSleepers() {
+  _sleepers.forEach(o => {
+    if(o.id != null) {
+      clearTimeout(o.id); o.id = null;
+      o.remaining -= (performance.now() - o.startTs);
+      if(o.remaining < 0) o.remaining = 0;
+    }
+  });
+}
+function resumeSleepers() {
+  _sleepers.forEach(o => { if(o.id == null) o.arm(); });
+}
+
 const VOWELS = new Set('AEIOU');
 
 // ── Settings (localStorage) ──────────────────
@@ -550,10 +567,17 @@ function togglePause() {
   btn.innerHTML = gamePaused
     ? '<svg viewBox="0 0 24 24"><polygon points="6,4 20,12 6,20"/></svg>'
     : '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+  const coin = document.getElementById('coin');
   if(gamePaused) {
     ov.classList.add('visible');
+    // Echte Pause: laufende Wartezeiten + Rad + Münze einfrieren.
+    pauseSleepers();
+    if(coin) coin.style.animationPlayState = 'paused';
   } else {
     ov.classList.remove('visible');
+    resumeSleepers();
+    if(coin) coin.style.animationPlayState = 'running';
+    if(_wheelResume) _wheelResume();
     if(_pauseResolve) { _pauseResolve(); _pauseResolve = null; }
   }
 }
@@ -587,7 +611,7 @@ const CONSONANTS = new Set('BCDFGHJKLMNPQRSTVWXYZ');
 let audioCtx;
 function getAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); return audioCtx; }
 // Im Hintergrund-Tab keinerlei Geräusche — das Spiel ist dort ohnehin pausiert.
-function audioBlocked() { return !soundOn || document.hidden || tabHidden; }
+function audioBlocked() { return !soundOn || document.hidden || tabHidden || gamePaused; }
 
 function playTick() {
   if(audioBlocked()) return;
@@ -898,20 +922,43 @@ function animateWheel(targetIdx, segments, callback) {
   const totalRot = wheelRotation + extraSpins * 360 + delta;
   const duration = SPIN_DURATION_BASE + Math.random()*2000;
 
-  svg.style.transition = `transform ${duration}ms cubic-bezier(0.17,0.67,0.12,0.99)`;
-  svg.style.transform = `rotate(${totalRot}deg)`;
+  const startRot = wheelRotation;
   wheelRotation = totalRot;
   lights.classList.add('animate');
+  svg.style.transition = 'none';
 
-  let elapsed=0, tickDelay=50;
-  function doTicks(){
-    if(elapsed>duration-200){lights.classList.remove('animate');return;}
-    playTick(); elapsed+=tickDelay;
-    tickDelay=50+(elapsed/duration)**2*400;
-    setTimeout(doTicks,tickDelay);
+  // requestAnimationFrame statt CSS-Transition, damit die Drehung bei Pause
+  // exakt einfrieren und später fortgesetzt werden kann.
+  let done=false, rafId=null, elapsed=0, lastTs=null, nextTickAt=0;
+  const easeOut = t => 1 - Math.pow(1 - t, 3.5);
+  function frame(ts){
+    rafId = null;
+    if(done) return;
+    if(gamePaused){
+      // einfrieren: nicht weiterrechnen, beim Fortsetzen neu anstoßen
+      lastTs = null;
+      _wheelResume = () => { if(!done && rafId == null) rafId = requestAnimationFrame(frame); };
+      return;
+    }
+    if(lastTs == null) lastTs = ts;
+    elapsed += ts - lastTs; lastTs = ts;
+    if(elapsed >= nextTickAt && elapsed < duration - 150){
+      playTick(); const p = elapsed / duration; nextTickAt = elapsed + (50 + p*p*400);
+    }
+    const t = Math.min(elapsed / duration, 1);
+    svg.style.transform = `rotate(${startRot + (totalRot - startRot) * easeOut(t)}deg)`;
+    if(t < 1) rafId = requestAnimationFrame(frame);
+    else finish();
   }
-  doTicks();
-  setTimeout(()=>{isSpinning=false;lights.classList.remove('animate');callback();},duration+150);
+  function finish(){
+    if(done) return; done=true; _wheelResume=null;
+    if(rafId) cancelAnimationFrame(rafId);
+    lights.classList.remove('animate');
+    svg.style.transform = `rotate(${totalRot}deg)`;
+    isSpinning=false;
+    callback();
+  }
+  rafId = requestAnimationFrame(frame);
 }
 function animateWheelAsync(targetIdx, segments) {
   return new Promise(resolve => animateWheel(targetIdx, segments, ()=>{
@@ -1475,6 +1522,7 @@ function startFinaleTimer() {
   const ring = document.getElementById('ftRing');
   const txt = document.getElementById('ftText');
   function updateTimer() {
+    if(gamePaused) return;   // Finale-Countdown bei Pause anhalten
     sec--;
     const frac = sec / totalSec;
     ring.setAttribute('stroke-dashoffset', C * (1 - frac));
@@ -1675,37 +1723,39 @@ async function maybeRunAI() {
   render();
 }
 
-function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function sleep(ms) {
+  return new Promise(resolve => {
+    const o = { resolve, remaining: ms };
+    o.arm = () => { o.startTs = performance.now(); o.id = setTimeout(() => { _sleepers.delete(o); resolve(); }, o.remaining); };
+    _sleepers.add(o);
+    if(!gamePaused) o.arm(); else o.id = null;   // bei Pause später fortsetzen
+  });
+}
 
 // ═══════════════════════════════════════════════════════
 // Münzwurf
 // ═══════════════════════════════════════════════════════
-function showCoinFlip(win) {
-  return new Promise(resolve => {
-    const overlay = document.getElementById('coinOverlay');
-    const coin = document.getElementById('coin');
-    const result = document.getElementById('coinResult');
-    const endDeg = win ? 2520 : 2700;
-    coin.style.setProperty('--coin-end', endDeg + 'deg');
-    coin.classList.remove('flip');
-    result.classList.remove('show','win','lose');
-    result.textContent = '';
-    void coin.offsetWidth;
-    overlay.classList.add('show');
-    coin.classList.add('flip');
-    playSound('risk_flip');
-    setTimeout(()=>{
-      if(win) { playSound('jackpot'); result.classList.add('win'); }
-      else { playSound('bankrupt'); result.classList.add('lose'); }
-      result.textContent = win ? G.risk_win : G.risk_lose;
-      result.classList.add('show');
-    }, 1900);
-    setTimeout(()=>{
-      overlay.classList.remove('show');
-      coin.classList.remove('flip');
-      resolve();
-    }, 3200);
-  });
+async function showCoinFlip(win) {
+  const overlay = document.getElementById('coinOverlay');
+  const coin = document.getElementById('coin');
+  const result = document.getElementById('coinResult');
+  const endDeg = win ? 2520 : 2700;
+  coin.style.setProperty('--coin-end', endDeg + 'deg');
+  coin.classList.remove('flip');
+  result.classList.remove('show','win','lose');
+  result.textContent = '';
+  void coin.offsetWidth;
+  overlay.classList.add('show');
+  coin.classList.add('flip');
+  playSound('risk_flip');
+  await sleep(1900);
+  if(win) { playSound('jackpot'); result.classList.add('win'); }
+  else { playSound('bankrupt'); result.classList.add('lose'); }
+  result.textContent = win ? G.risk_win : G.risk_lose;
+  result.classList.add('show');
+  await sleep(1300);
+  overlay.classList.remove('show');
+  coin.classList.remove('flip');
 }
 
 // ═══════════════════════════════════════════════════════

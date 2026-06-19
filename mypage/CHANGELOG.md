@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.140
+
+- ⏸️ **Glücksrad: echte Pause (friert sofort ein)** — Bisher lief der gerade laufende Zug (Rad drehen, Buchstaben aufdecken) noch komplett zu Ende, bevor die Pause griff. Jetzt wird **sofort an Ort und Stelle eingefroren**: Das Rad hält mitten im Dreh an, die Buchstaben-Aufdeckung stoppt, Wartezeiten merken sich ihre Restzeit. Beim Fortsetzen läuft alles **genau dort** weiter (kein Springen zum Ergebnis). Gilt für Pause-Button, Leertaste und Auto-Pause beim Tab-Wechsel; auch Münzwurf und Finale-Countdown pausieren mit.
+
 ## 0.6.139
 
 - ⏸️ **Glücksrad: Auto-Pause im Hintergrund** — Verlässt man den Tab/das Fenster, geht das Spiel jetzt automatisch in die normale Pause (Overlay) und ist stumm. Fortgesetzt wird **nur manuell** über den Pause-Button bzw. die Leertaste — kein automatisches Weiterlaufen mehr. Ein ReSync ist dabei nicht nötig, weil im Pausenzustand serverseitig nichts passiert.
