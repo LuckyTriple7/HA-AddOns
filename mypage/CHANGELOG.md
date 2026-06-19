@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.137
+
+- 🐛 **Glücksrad: Rad zeigt kein irreführendes Sonderfeld mehr** — Das Rad blieb nach einem RISIKO-/BANKROTT-/AUSSETZEN-Dreh auf diesem Sonderfeld stehen. Löste danach ein Spieler das Rätsel (ohne zu drehen!), sah es aus wie „dreht RISK/Bankrott → löst → gewinnt". Jetzt wird das Dreh-Ergebnis nur noch angezeigt, **solange der Spieler darauf reagiert** (Konsonant/Vokal wählen, Risiko, Extraleben); danach ruht das Rad auf einer neutralen Geldzahl. Ein altes Sonderfeld kann nie mehr so wirken, als hätte es den Zug oder das Lösen entschieden.
+- 🔇 **Glücksrad: kein Ton im Hintergrund-Tab** — Wechselt man in einen anderen Tab/Fenster, ist das Spiel jetzt wirklich pausiert und **komplett stumm** (vorher liefen Sounds weiter). Beim Zurückkehren geht es synchron weiter.
+
 ## 0.6.136
 
 - 🐛 **Glücksrad: Desync im Hintergrund-Tab behoben** — Lief das Spielfenster im Hintergrund (anderes Fenster/Tab im Vordergrund), drosselte der Browser die Animations-Timer so stark, dass das Rad auf einem alten Frame hängenblieb (z. B. BANKROTT), während Tafel und Punkte schon weiter waren — es sah aus, als würde die KI „auf Bankrott drehen und trotzdem gewinnen". Jetzt **pausiert die KI, solange der Tab verborgen ist** (man verpasst nichts), und beim Zurückkehren wird der Zustand **hart vom Server synchronisiert** und das Rad auf die echte Position gesetzt. Das Rad spiegelt zudem immer den tatsächlichen Spielzustand und kann nicht mehr auf einem Geister-Frame hängen.

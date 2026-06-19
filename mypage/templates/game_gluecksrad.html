@@ -604,9 +604,11 @@ const CONSONANTS = new Set('BCDFGHJKLMNPQRSTVWXYZ');
 // ═══════════════════════════════════════════════════════
 let audioCtx;
 function getAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); return audioCtx; }
+// Im Hintergrund-Tab keinerlei Geräusche — das Spiel ist dort ohnehin pausiert.
+function audioBlocked() { return !soundOn || document.hidden || tabHidden; }
 
 function playTick() {
-  if(!soundOn) return;
+  if(audioBlocked()) return;
   const ctx = getAudio(), osc = ctx.createOscillator(), g = ctx.createGain();
   osc.connect(g); g.connect(ctx.destination);
   osc.frequency.value = 1200 + Math.random()*400; osc.type='sine';
@@ -616,7 +618,7 @@ function playTick() {
 }
 
 function playSound(type) {
-  if(!soundOn) return;
+  if(audioBlocked()) return;
   const ctx = getAudio();
   if(type==='hit') { tone(ctx, 880, 'sine', 0.12, 0.2); }
   else if(type==='miss') { tone(ctx, 250, 'sawtooth', 0.1, 0.4); }
@@ -652,12 +654,12 @@ function tone(ctx, freq, type, vol, dur, delay=0) {
   osc.start(t); osc.stop(t+dur);
 }
 function playBing(idx) {
-  if(!soundOn) return;
+  if(audioBlocked()) return;
   const ctx=getAudio();
   tone(ctx, 880+idx*90, 'sine', 0.22, 0.3);
 }
 function playZonk() {
-  if(!soundOn) return;
+  if(audioBlocked()) return;
   const ctx=getAudio(), osc=ctx.createOscillator(), g=ctx.createGain();
   osc.connect(g); g.connect(ctx.destination);
   osc.type='square';
@@ -900,19 +902,29 @@ function buildWheel(segments) {
 // ═══════════════════════════════════════════════════════
 // Wheel spin animation
 // ═══════════════════════════════════════════════════════
-// Rad ohne Animation auf die im Zustand hinterlegte Position setzen, damit es
-// nach abgebrochenen/gedrosselten Animationen nie auf einem Geister-Frame hängt.
+// Rad ohne Animation positionieren. Das Dreh-Ergebnis wird nur gezeigt, solange
+// der Spieler darauf reagiert (Konsonant/Vokal wählen, Risiko, Extraleben). In
+// allen anderen Zuständen (pre_spin, round_over, game_over …) ruht das Rad auf
+// einer neutralen Geldzahl — so kann ein altes Sonderfeld (BANKROTT/RISIKO/
+// AUSSETZEN) nie so aussehen, als hätte es den Zug/das Lösen entschieden.
 function snapWheel() {
-  if(!S || S.wheel_index == null) return;
+  const svg = document.getElementById('wheelSvg');
+  if(!svg || !S) return;
   const segs = S.wheel_segments;
   if(!segs || !segs.length) return;
   const N = segs.length, ARC = 360/N;
-  const segCenter = (S.wheel_index + 0.5) * ARC;
+  const live = (S.status==='pick_consonant' || S.status==='pick_vowel' ||
+                S.status==='risk_choice'   || S.status==='use_life');
+  let idx = (live && S.wheel_index != null)
+    ? S.wheel_index
+    : segs.findIndex(s => typeof s === 'number');
+  if(idx < 0) idx = 0;
+  const segCenter = (idx + 0.5) * ARC;
   const desiredFinal = (360 - segCenter + 360) % 360;
   const turns = Math.max(0, Math.floor(wheelRotation/360));
   const rot = turns*360 + desiredFinal;
-  const svg = document.getElementById('wheelSvg');
-  if(svg) { svg.style.transition = 'none'; svg.style.transform = `rotate(${rot}deg)`; }
+  svg.style.transition = 'none';
+  svg.style.transform = `rotate(${rot}deg)`;
   wheelRotation = rot;
 }
 
