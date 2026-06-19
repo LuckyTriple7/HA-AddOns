@@ -2317,7 +2317,7 @@ def _game_stats(uid: str) -> list:
     out = []
     for game, hist in srcs:
         out.append({'game': game, 'played': len(hist),
-                    'wins': sum(1 for h in hist if h.get('winner') == 'p'),
+                    'wins': sum(1 for h in hist if h.get('winner') in ('p', 0)),
                     'last': max((h.get('ts', 0) for h in hist), default=0)})
     return out
 
@@ -4318,7 +4318,8 @@ def _record_gluecksrad_if_over(uid: str, st: dict) -> None:
     games = _ng_history('gluecksrad', uid)
     games.append({
         'ts': int(datetime.now(timezone.utc).timestamp()),
-        'winner': 'p' if win_idx == 0 else 'a',
+        # numerischer Sieger-Index (0 = Mensch) — so erwartet es das Spiel-Frontend
+        'winner': win_idx,
         'players': [{'name': p['name'], 'total': p['total']} for p in st['players']],
         'level': st.get('level', 'medium'),
     })

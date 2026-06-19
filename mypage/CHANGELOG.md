@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.130
+
+- 🐛 **Glücksrad: gewonnene Spiele wurden als Niederlage gezählt** — Der Sieger wurde im Verlauf falsch gespeichert (`'p'`/`'a'` statt des numerischen Index), wodurch die Statistik trotz Sieg „0 Siege" und im Verlauf „💀 ? (0 €)" zeigte. Der Sieger wird nun korrekt als Index abgelegt; Sieg-/Niederlagezählung und Verlauf (🏆/💀 + Name/Betrag) stimmen wieder. Bereits gespeicherte Alt-Einträge werden dank Abwärtskompatibilität ebenfalls richtig angezeigt.
+- 🎯 **Glücksrad: keine Kategorie doppelt pro Spiel** — War eine Kategorie (z. B. „Essen & Trinken") schon dran, kommt sie im selben Spiel nicht noch einmal — auch die Finalrunde zieht eine eigene, neue Kategorie.
+
 ## 0.6.129
 
 - 📖 **Glücksrad: Regeln-Button im Spiel** — Die Spielregeln lassen sich jetzt direkt aus dem Spiel öffnen: über einen 📖-Button in der Lobby (neben Statistik/Einstellungen) und ein 📖-Symbol oben im Spielbereich. Sie erscheinen in einem Modal (DE/EN, per Esc/✕ schließbar).

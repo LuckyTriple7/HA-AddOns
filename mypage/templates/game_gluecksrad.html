@@ -720,7 +720,9 @@ function renderStatsContent(games, target) {
     target.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>';
     return;
   }
-  const humanWins = games.filter(g => g.winner === 0).length;
+  // Sieger-Index normalisieren (ältere Einträge speicherten 'p'/'a')
+  const widx = g => g.winner === 'p' ? 0 : (g.winner === 'a' ? 1 : g.winner);
+  const humanWins = games.filter(g => widx(g) === 0).length;
   const total = games.length;
   const rate = Math.round(humanWins / total * 100);
   const bestGame = games.reduce((best, g) => {
@@ -739,12 +741,13 @@ function renderStatsContent(games, target) {
 
   let hist = '<div class="stats-history">';
   for(const g of games.slice().reverse().slice(0, 30)) {
-    const isWin = g.winner === 0;
+    const wi = widx(g);
+    const isWin = wi === 0;
     const d = new Date(g.ts * 1000);
     const date = d.toLocaleDateString(undefined, {day:'2-digit', month:'2-digit'});
     const time = d.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
-    const wName = g.players[g.winner] ? g.players[g.winner].name : '?';
-    const total = g.players[g.winner] ? g.players[g.winner].total : 0;
+    const wName = g.players[wi] ? g.players[wi].name : '?';
+    const total = g.players[wi] ? g.players[wi].total : 0;
     hist += '<div class="hist-row' + (isWin ? ' win' : '') + '">' +
       '<span class="hist-ico">' + (isWin ? '\u{1F3C6}' : '\u{1F480}') + '</span>' +
       '<span class="hist-meta">' + date + ' ' + time + '</span>' +

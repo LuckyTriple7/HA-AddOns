@@ -44,12 +44,21 @@ def _load_pool():
     return _pool_cache
 
 
-def _pick_puzzle(lang, used_indices):
+def _pick_puzzle(lang, used_indices, used_cats=None):
     pool = _load_pool()
+    used_cats = used_cats if used_cats is not None else set()
+    # Bevorzugt: noch nicht benutztes Rätsel UND noch nicht gespielte Kategorie,
+    # damit pro Spiel keine Kategorie doppelt erscheint.
     available = [
         (i, p) for i, p in enumerate(pool["puzzles"])
-        if i not in used_indices and p.get(lang)
+        if i not in used_indices and p.get(lang) and p["cat"] not in used_cats
     ]
+    if not available:
+        # Keine frische Kategorie mehr (oder Pool erschöpft) → nur Rätsel-Dubletten meiden.
+        available = [
+            (i, p) for i, p in enumerate(pool["puzzles"])
+            if i not in used_indices and p.get(lang)
+        ]
     if not available:
         used_indices.clear()
         available = [(i, p) for i, p in enumerate(pool["puzzles"]) if p.get(lang)]
@@ -131,6 +140,7 @@ def new_game(level="medium", lang="de"):
         "wheel_index": None,
         "event": None,
         "used_puzzles": [],
+        "used_categories": [],
         "finale": None,
         "qualify_spins": [],
         "seed": random.randint(0, 2**31),
@@ -141,8 +151,11 @@ def new_game(level="medium", lang="de"):
 def _start_round(state):
     lang = state["lang"]
     used_set = set(state["used_puzzles"])
-    pz = _pick_puzzle(lang, used_set)
+    used_cats = set(state.get("used_categories", []))
+    pz = _pick_puzzle(lang, used_set, used_cats)
     state["used_puzzles"] = list(used_set)
+    used_cats.add(pz["category_key"])
+    state["used_categories"] = list(used_cats)
     state["puzzle"] = {
         "phrase": pz["phrase"],
         "category_key": pz["category_key"],
