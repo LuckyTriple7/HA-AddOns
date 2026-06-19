@@ -1650,5 +1650,6 @@
   "ggr_pause_hint": "Drücke P oder den Button zum Fortsetzen",
   "ggr_resume_game": "Weiter",
   "ggr_intro": "Drehe das Glücksrad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner.",
-  "ggr_play": "Spielen"
+  "ggr_play": "Spielen",
+  "ggr_rules": "Regeln"
 }

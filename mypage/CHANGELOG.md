@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.129
+
+- 📖 **Glücksrad: Regeln-Button im Spiel** — Die Spielregeln lassen sich jetzt direkt aus dem Spiel öffnen: über einen 📖-Button in der Lobby (neben Statistik/Einstellungen) und ein 📖-Symbol oben im Spielbereich. Sie erscheinen in einem Modal (DE/EN, per Esc/✕ schließbar).
+- 🔤 **Glücksrad: Buchstabenleiste in 2 gleichmäßigen Zeilen** — Statt A–Y in einer Zeile mit einsam umbrechendem „Z" liegt das Alphabet nun sauber als 13 + 13 (A–M / N–Z) vor.
+
 ## 0.6.128
 
 - 🎡 **Neues Mitglieder-Spiel: Glücksrad** — Dreh das Rad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner (Lisa & Max). Mit Qualifikationsdrehung, Spezialfeldern (Bankrott, Aussetzen, Risiko 50:50, Extraleben), Vokal-Kauf, 3 Runden und großem Finale (R S T L N E gratis, Bonus verdoppelt das Konto). 300 zweisprachige Rätsel (DE/EN) in 10 Kategorien, drei Schwierigkeitsgrade, Statistik/Verlauf, Cross-Device-Schutz und Handy-Querformat wie die übrigen Spiele.

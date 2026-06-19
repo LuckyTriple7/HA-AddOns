@@ -1650,5 +1650,6 @@
   "ggr_pause_hint": "Press P or click the button to resume",
   "ggr_resume_game": "Resume",
   "ggr_intro": "Spin the wheel, guess letters and solve the word puzzle against two AI rivals.",
-  "ggr_play": "Play"
+  "ggr_play": "Play",
+  "ggr_rules": "Rules"
 }

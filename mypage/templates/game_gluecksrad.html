@@ -72,7 +72,7 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
 /* ── Buchstaben-Tafel ───────────────── */
 .letter-panel{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px}
 .letter-panel h3{font-size:0.8rem;color:#aaa;text-align:center;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
-.letter-grid{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.letter-grid{display:grid;grid-template-columns:repeat(13,auto);gap:6px;justify-content:center}
 .letter-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:bold;border-radius:6px;border:none;cursor:pointer;transition:transform 0.1s,opacity 0.2s}
 .letter-btn.consonant{background:#445;color:#fff}
 .letter-btn.vowel{background:#446;color:#6cf}
@@ -239,6 +239,18 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
 .rs-player .rs-name{color:#aaa}.rs-player .rs-earned{color:#8f8}.rs-player .rs-total{color:#fff;font-weight:bold}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
+/* ── Regeln-Inhalt ────────────────── */
+.rules-body{text-align:left;line-height:1.5;font-size:0.92rem;color:#eee}
+.rules-body h1,.rules-body h2,.rules-body h3{color:#ffd700;margin:14px 0 6px}
+.rules-body h1{font-size:1.25rem}.rules-body h2{font-size:1.1rem}.rules-body h3{font-size:1rem}
+.rules-body ul{margin:6px 0 6px 18px}.rules-body li{margin:3px 0}
+.rules-body p{margin:6px 0}
+.rules-body strong{color:#fff}
+.rules-body hr{border:none;border-top:1px solid rgba(255,255,255,0.15);margin:12px 0}
+.rules-body table{border-collapse:collapse;margin:8px 0;width:100%}
+.rules-body th,.rules-body td{border:1px solid rgba(255,255,255,0.2);padding:5px 8px;text-align:left}
+.rules-body th{background:rgba(255,215,0,0.12);color:#ffd700}
+
 /* ── Rotate-Hinweis (nur Handy-Hochformat) ── */
 #rotate-overlay{display:none}
 @media (orientation:portrait) and (max-width:680px) and (pointer:coarse){
@@ -268,7 +280,8 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
   </div>
   <button class="resume-btn" id="resumeBtn" style="display:none" onclick="resumeGame()">{{ t.ggr_resume }}</button>
   <div id="stats-box"></div>
-  <div style="display:flex;gap:12px;margin-top:4px">
+  <div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap;justify-content:center">
+    <button class="stats-btn" onclick="openRules()">📖 {{ t.ggr_rules }}</button>
     <button class="stats-btn" onclick="openStats()">{{ t.ggr_statistics }}</button>
     <button class="stats-btn" onclick="openSettings()">{{ t.ggr_settings }}</button>
   </div>
@@ -284,6 +297,15 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
     <h2>{{ t.ggr_statistics }}</h2>
     <div id="statsModalContent"></div>
     <button class="reset-btn" onclick="resetStatsConfirm()">{{ t.ggr_reset }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Regeln ──────────────────── -->
+<div class="stats-modal-overlay" id="rulesModal">
+  <div class="stats-modal">
+    <button class="close-btn" onclick="closeRules()">&times;</button>
+    <h2>📖 {{ t.ggr_rules }}</h2>
+    <div class="rules-body" id="rulesModalContent">…</div>
   </div>
 </div>
 
@@ -322,6 +344,7 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
 <div id="gameArea" style="display:none">
   <div class="top-icons">
     <button class="top-icon" id="pauseBtn" onclick="togglePause()" title="{{ t.ggr_pause }}"><svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
+    <button class="top-icon" onclick="openRules()" title="{{ t.ggr_rules }}"><svg viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zm-2 2v8l-2.5-1.5L11 12V4h5zM6 20V4h3v12l2-1.2 2 1.2V4h5v16H6z"/></svg></button>
     <button class="top-icon" onclick="openSettings()" title="{{ t.ggr_settings }}"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.04 7.04 0 00-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg></button>
     <button class="top-icon" onclick="closeGame()" title="{{ t.ggr_close }}"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
   </div>
@@ -738,6 +761,21 @@ async function openStats() {
   document.getElementById('statsModal').classList.add('show');
 }
 function closeStats() { document.getElementById('statsModal').classList.remove('show'); }
+
+let rulesLoaded = false;
+async function openRules() {
+  const box = document.getElementById('rulesModalContent');
+  document.getElementById('rulesModal').classList.add('show');
+  if(!rulesLoaded) {
+    try {
+      const r = await fetch('/api/gluecksrad/rules');
+      const d = r.ok ? await r.json() : null;
+      box.innerHTML = (d && d.html) ? d.html : '—';
+      rulesLoaded = true;
+    } catch(e) { box.innerHTML = '—'; }
+  }
+}
+function closeRules() { document.getElementById('rulesModal').classList.remove('show'); }
 
 async function resetStatsConfirm() {
   if(!confirm(G.stats_reset_confirm)) return;
@@ -1229,6 +1267,7 @@ document.addEventListener('keydown', (e)=>{
   // Escape -> close overlays
   if(e.key==='Escape') {
     if(solveVisible) { cancelSolve(); return; }
+    if(document.getElementById('rulesModal').classList.contains('show')) { closeRules(); return; }
     if(document.getElementById('settingsModal').classList.contains('show')) { closeSettings(); return; }
     if(document.getElementById('statsModal').classList.contains('show')) { closeStats(); return; }
     return;
