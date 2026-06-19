@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.139
+
+- ⏸️ **Glücksrad: Auto-Pause im Hintergrund** — Verlässt man den Tab/das Fenster, geht das Spiel jetzt automatisch in die normale Pause (Overlay) und ist stumm. Fortgesetzt wird **nur manuell** über den Pause-Button bzw. die Leertaste — kein automatisches Weiterlaufen mehr. Ein ReSync ist dabei nicht nötig, weil im Pausenzustand serverseitig nichts passiert.
+- 💬 **Glücksrad: Hinweis beim Vokalkauf der KI** — Kauft Lisa oder Max einen Vokal, erscheint jetzt der Hinweis „… kauft einen Vokal (−250 €)" (vorher wurde er vom Treffer/Fehlversuch sofort überschrieben).
+- 🔁 **Glücksrad: Rundensieger fängt die nächste Runde an** — Bisher rotierte der Startspieler stur. Jetzt beginnt die nächste Runde immer der, der die letzte gewonnen hat.
+
 ## 0.6.138
 
 - ↩️ **Glücksrad: „neutrale Geldzahl"-Rad zurückgenommen** — Das in 0.6.137 eingeführte Verhalten, das Rad zwischen Aktionen auf eine Geldzahl springen zu lassen, war Murks und ist wieder raus. Das Rad verhält sich wie zuvor. (Der Ton-/Hintergrund-Fix aus 0.6.137 bleibt erhalten.)

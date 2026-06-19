@@ -568,32 +568,14 @@ function waitIfPaused() {
 // (z.B. Rad bleibt auf einem alten Dreh stehen). Lösung: KI pausieren solange
 // der Tab verborgen ist und beim Zurückkehren hart vom Server synchronisieren.
 let tabHidden = document.hidden;
-let _hiddenResolve = null;
-function waitIfHidden() {
-  if(!tabHidden) return Promise.resolve();
-  return new Promise(r => { _hiddenResolve = r; });
-}
-async function hardResync() {
-  try {
-    const r = await fetch('/api/gluecksrad/state');
-    if(!r.ok) return;
-    const d = await r.json();
-    if(!d || !d.state) return;
-    S = d.state;
-  } catch(e) { return; }
-  isSpinning = false;
-  if(sessionToken) api('/api/gluecksrad/session', {action:'heartbeat', token:sessionToken});
-  snapWheel();
-  render();
-}
+// Tab im Hintergrund -> automatisch Pause (wie der Pause-Button). Das Spiel
+// läuft dann nicht weiter und ist stumm. Fortsetzen passiert NICHT automatisch,
+// sondern nur manuell über den Pause-Button / die Leertaste.
 document.addEventListener('visibilitychange', () => {
-  if(document.hidden) {
-    tabHidden = true;
-  } else {
-    tabHidden = false;
-    hardResync().then(() => {
-      if(_hiddenResolve) { _hiddenResolve(); _hiddenResolve = null; }
-    });
+  tabHidden = document.hidden;
+  if(document.hidden && S && !gamePaused && S.status !== 'game_over'
+     && document.getElementById('gameArea').style.display !== 'none') {
+    togglePause();
   }
 });
 
@@ -902,23 +884,6 @@ function buildWheel(segments) {
 // ═══════════════════════════════════════════════════════
 // Wheel spin animation
 // ═══════════════════════════════════════════════════════
-// Rad ohne Animation auf die tatsächlich gedrehte Position setzen — nur für die
-// harte Resynchronisation nach Rückkehr aus dem Hintergrund-Tab.
-function snapWheel() {
-  const svg = document.getElementById('wheelSvg');
-  if(!svg || !S || S.wheel_index == null) return;
-  const segs = S.wheel_segments;
-  if(!segs || !segs.length) return;
-  const N = segs.length, ARC = 360/N;
-  const segCenter = (S.wheel_index + 0.5) * ARC;
-  const desiredFinal = (360 - segCenter + 360) % 360;
-  const turns = Math.max(0, Math.floor(wheelRotation/360));
-  const rot = turns*360 + desiredFinal;
-  svg.style.transition = 'none';
-  svg.style.transform = `rotate(${rot}deg)`;
-  wheelRotation = rot;
-}
-
 function animateWheel(targetIdx, segments, callback) {
   isSpinning = true;
   const svg = document.getElementById('wheelSvg');
@@ -1534,12 +1499,9 @@ async function maybeRunAI() {
   aiRunning = true;
   while(S && S.players[S.current].type==='ai' && S.status!=='round_over' && S.status!=='game_over') {
     await waitIfPaused();
-    await waitIfHidden();
-    // Nach Rückkehr aus dem Hintergrund kann sich der Zustand geändert haben
     if(!S || S.players[S.current].type!=='ai' || S.status==='round_over' || S.status==='game_over') break;
     await sleep(aiDelay);
     await waitIfPaused();
-    await waitIfHidden();
     if(!S || S.players[S.current].type!=='ai' || S.status==='round_over' || S.status==='game_over') break;
     const oldDisp = S.display;
 

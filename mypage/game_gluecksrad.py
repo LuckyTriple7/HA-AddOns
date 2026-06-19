@@ -511,9 +511,12 @@ def _end_round(state):
 def _do_next_round(state):
     if state["round"] >= ROUNDS:
         return _start_finale(state)
+    # Der Gewinner der gerade beendeten Runde ist noch state["current"]
+    # (von _end_round gesetzt) und fängt die nächste Runde an.
+    winner = state["current"]
     state["round"] += 1
     _start_round(state)
-    state["current"] = (state["round"] - 1) % len(state["players"])
+    state["current"] = winner
     state["event"] = {"type": "new_round", "round": state["round"]}
     return {"ok": True}
 
@@ -682,10 +685,9 @@ def ai_step(state):
         # Keine Konsonanten mehr offen → drehen bringt nichts: Vokal kaufen oder lösen.
         if not _available_consonants(used):
             if cp["round"] >= VOWEL_COST and _available_vowels(used):
-                res = _do_buy_vowel(state)
-                if "ok" in res:
-                    return _do_pick_vowel(state, _ai_pick_vowel(state, cfg))
-                return res
+                # Nur kaufen; den Vokal wählt der nächste ai_step, damit der
+                # "kauft einen Vokal"-Hinweis sichtbar wird (Event bleibt erhalten).
+                return _do_buy_vowel(state)
             if random.random() > cfg["solve_accuracy"]:
                 return _do_solve(state, phrase + "X")
             return _do_solve(state, phrase)
@@ -702,11 +704,9 @@ def ai_step(state):
         if (cp["round"] >= VOWEL_COST
                 and _available_vowels(used)
                 and random.random() < cfg["vowel_prob"]):
-            res = _do_buy_vowel(state)
-            if "ok" in res:
-                letter = _ai_pick_vowel(state, cfg)
-                return _do_pick_vowel(state, letter)
-            return res
+            # Nur kaufen; den Vokal wählt der nächste ai_step, damit der
+            # "kauft einen Vokal"-Hinweis sichtbar wird (Event bleibt erhalten).
+            return _do_buy_vowel(state)
 
         return _do_spin(state)
 
