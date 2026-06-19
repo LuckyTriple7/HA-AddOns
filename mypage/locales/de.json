@@ -1651,5 +1651,6 @@
   "ggr_resume_game": "Weiter",
   "ggr_intro": "Drehe das Glücksrad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner.",
   "ggr_play": "Spielen",
-  "ggr_rules": "Regeln"
+  "ggr_rules": "Regeln",
+  "ggr_solving": "🧠 {player} versucht zu lösen …"
 }

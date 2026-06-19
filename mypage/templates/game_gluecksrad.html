@@ -462,6 +462,7 @@ const G = {
   evt_vowel_miss:     {{ t.ggr_evt_vowel_miss|tojson }},
   evt_buy_vowel:      {{ t.ggr_evt_buy_vowel|tojson }},
   evt_solved:         {{ t.ggr_evt_solved|tojson }},
+  solving:            {{ t.ggr_solving|tojson }},
   evt_auto_solved:    {{ t.ggr_evt_auto_solved|tojson }},
   evt_solve_wrong:    {{ t.ggr_evt_solve_wrong|tojson }},
   evt_new_round:      {{ t.ggr_evt_new_round|tojson }},
@@ -1114,6 +1115,34 @@ async function revealAndNotify(oldDisplay) {
   renderPuzzle();
 }
 
+// Einblendung "X versucht zu lösen …" (mit echtem Namen: Du / Lisa / Max)
+async function announceSolving(name) {
+  showToast(L(G.solving, {player: name}), 'info');
+  playSound('round');
+  await sleep(1400);
+}
+
+// Komplette Lösung langsam aufdecken (alle offenen Felder, leicht beschleunigend)
+async function revealSolution(oldDisplay) {
+  const newDisplay = S.display;
+  renderPuzzle(oldDisplay);
+  const positions = [];
+  if(oldDisplay && newDisplay) {
+    for(let i=0;i<newDisplay.length;i++)
+      if(oldDisplay[i]==='_' && newDisplay[i]!=='_') positions.push(i);
+  }
+  const board = document.getElementById('puzzleBoard');
+  for(let k=0;k<positions.length;k++) {
+    const tile = board.children[positions[k]];
+    if(!tile) continue;
+    playBing(k);
+    tile.textContent = newDisplay[positions[k]];
+    tile.className = 'puzzle-char letter reveal';
+    await sleep(Math.max(140, 340 - k*14));
+  }
+  renderPuzzle();
+}
+
 // ═══════════════════════════════════════════════════════
 // Player actions
 // ═══════════════════════════════════════════════════════
@@ -1235,10 +1264,16 @@ async function submitSolve() {
   if(!answer) return;
   document.getElementById('solveArea').classList.remove('visible');
   const type = S.status==='finale_solve' ? 'finale_solve' : 'solve';
+  const oldDisp = S.display;
   const r = await api('/api/gluecksrad/move', {type, answer});
   if(!r) return;
+  const ev = r.state.event;
   S = r.state;
   isSpinning = false;
+  // Richtig geraten → erst die ganze Lösung langsam aufdecken, dann jubeln
+  if(ev && (ev.type==='solved' || ev.type==='auto_solved')) {
+    await revealSolution(oldDisp);
+  }
   handleEvent(S.event);
   render();
 }
@@ -1537,10 +1572,24 @@ async function maybeRunAI() {
           render();
         }
       } else if(newAiState.event && (newAiState.event.type==='solved' || newAiState.event.type==='auto_solved')) {
+        const ev = newAiState.event;
+        const solver = S.players[ev.player !== undefined ? ev.player : S.current].name;
         S = newAiState;
-        handleEvent(S.event);
+        // Rateversuch ankündigen (Vokal-Komplettierung 'auto_solved' braucht das nicht)
+        if(ev.type==='solved') await announceSolving(solver);
+        try { await revealSolution(oldDisp); } catch(e) { renderPuzzle(); }
+        handleEvent(ev);
         render();
         break;
+      } else if(newAiState.event && newAiState.event.type==='solve_wrong') {
+        const ev = newAiState.event;
+        const solver = S.players[ev.player !== undefined ? ev.player : S.current].name;
+        S = newAiState;
+        await announceSolving(solver);
+        handleEvent(ev);   // "falsch" / nächster Spieler
+        renderScores();
+        await sleep(700);
+        render();
       } else {
         S = newAiState;
         renderLetters();   // Score erst nach dem Aufdecken (render() am Ende)

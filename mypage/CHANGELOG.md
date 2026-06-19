@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.134
+
+- 🎭 **Glücksrad: Spannung beim Lösen** — Versucht ein KI-Gegner (Lisa/Max) zu lösen, blendet sich jetzt „🧠 {Name} versucht zu lösen …" ein; bei richtiger Lösung gehen anschließend **alle Buchstaben langsam nacheinander auf** (statt sofort), dann Jubel/Konfetti. Bei falschem Versuch erscheint die Einblendung mit der Auflösung. Löst der Mensch korrekt, wird die Lösung ebenfalls Buchstabe für Buchstabe aufgedeckt.
+
 ## 0.6.133
 
 - 🐛 **Glücksrad: Hänger, wenn die KI eine Runde gewinnt** — Der „Weiter"-Button erschien nur, wenn der Mensch am Zug war; gewann die KI die Runde, blieb das Spiel stehen. Der Button wird jetzt bei jedem Rundenende angezeigt, sodass es immer weitergeht.
