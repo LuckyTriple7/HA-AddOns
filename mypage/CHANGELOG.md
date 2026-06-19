@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.136
+
+- 🐛 **Glücksrad: Desync im Hintergrund-Tab behoben** — Lief das Spielfenster im Hintergrund (anderes Fenster/Tab im Vordergrund), drosselte der Browser die Animations-Timer so stark, dass das Rad auf einem alten Frame hängenblieb (z. B. BANKROTT), während Tafel und Punkte schon weiter waren — es sah aus, als würde die KI „auf Bankrott drehen und trotzdem gewinnen". Jetzt **pausiert die KI, solange der Tab verborgen ist** (man verpasst nichts), und beim Zurückkehren wird der Zustand **hart vom Server synchronisiert** und das Rad auf die echte Position gesetzt. Das Rad spiegelt zudem immer den tatsächlichen Spielzustand und kann nicht mehr auf einem Geister-Frame hängen.
+
 ## 0.6.135
 
 - 🎭 **Glücksrad: Spannung beim KI-Lösen wirklich überall** — Der Hinweis „🧠 {Name} versucht zu lösen …" erscheint jetzt zuverlässig, egal wie ein KI-Gegner (Lisa/Max) die Runde gewinnt (geraten oder durch Komplettieren), inkl. langsamem Aufdecken. Die KI rät außerdem etwas früher, sodass mehrere Buchstaben spannend nacheinander aufgehen. Auch das **Finale der KI** wird jetzt mit Einblendung und langsamem Aufdecken gezeigt (vorher sprang es sofort zum Ergebnis).
