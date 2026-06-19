@@ -4177,6 +4177,46 @@ def _clean_jeopardy_move(raw: dict) -> dict:
     return act
 
 
+_JEO_SEEN_Q_MAX = 150      # so viele zuletzt gesehene Fragen meiden (~5 Spiele)
+_JEO_SEEN_CATS_MAX = 6      # = ein ganzes Board: keine Kategorie zwei Spiele in Folge
+                           # (bei >12 Kategorien im Pool wird die Auswahl wieder zufälliger)
+
+
+def _jeopardy_seen_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'jeopardyseen_{uid}.json'
+
+
+def _jeopardy_seen_load(uid: str) -> dict:
+    p = _jeopardy_seen_path(uid)
+    if p is not None:
+        try:
+            with open(p, encoding='utf-8') as f:
+                d = json.load(f)
+            if isinstance(d, dict):
+                return {'questions': list(d.get('questions', []))[-_JEO_SEEN_Q_MAX:],
+                        'categories': list(d.get('categories', []))[-_JEO_SEEN_CATS_MAX:]}
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+    return {'questions': [], 'categories': []}
+
+
+def _jeopardy_seen_update(uid: str, st: dict) -> None:
+    """Board-Fragen + Kategorien dieses Spiels merken, damit Folge-Spiele sie meiden."""
+    p = _jeopardy_seen_path(uid)
+    if p is None:
+        return
+    seen = _jeopardy_seen_load(uid)
+    q = seen['questions'] + [c['q_de'] for c in st.get('clues', {}).values()]
+    cats = seen['categories'] + [col['cat'] for col in st.get('board', [])]
+    data = {'questions': q[-_JEO_SEEN_Q_MAX:], 'categories': cats[-_JEO_SEEN_CATS_MAX:]}
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
 def _record_jeopardy_if_over(uid: str, st: dict) -> None:
     if st.get('status') != 'game_over' or st.get('recorded'):
         return
@@ -4219,7 +4259,10 @@ def api_jeopardy_new():
     level = data.get('level')
     level = level if level in ('easy', 'medium', 'hard') else 'medium'
     with _game_lock:
-        st = game_jeopardy.new_game(level)
+        seen = _jeopardy_seen_load(member['id'])
+        st = game_jeopardy.new_game(level, recent_q=seen['questions'],
+                                    recent_cats=seen['categories'])
+        _jeopardy_seen_update(member['id'], st)
         _ng_save('jeopardy', member['id'], st)
     return jsonify({'state': game_jeopardy.public_view(st)})
 

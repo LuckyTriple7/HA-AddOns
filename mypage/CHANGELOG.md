@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.131
+
+- 🎲 **Jeopardy: frische Spiele statt Wiederholungen** — Aufeinanderfolgende Partien meiden jetzt die zuletzt gesehenen Inhalte (pro Mitglied gespeichert): **keine Kategorie kommt zwei Spiele in Folge** vor, und zuletzt gezeigte **Fragen werden ~5 Spiele lang nicht wiederholt** (auch das Final-Jeopardy meidet sie). Ist der Pool erschöpft, wird sauber zurückgefallen. Je mehr Kategorien der Pool hat (aktuell 12), desto abwechslungsreicher wird zusätzlich die Auswahl.
+
 ## 0.6.130
 
 - 🐛 **Glücksrad: gewonnene Spiele wurden als Niederlage gezählt** — Der Sieger wurde im Verlauf falsch gespeichert (`'p'`/`'a'` statt des numerischen Index), wodurch die Statistik trotz Sieg „0 Siege" und im Verlauf „💀 ? (0 €)" zeigte. Der Sieger wird nun korrekt als Index abgelegt; Sieg-/Niederlagezählung und Verlauf (🏆/💀 + Name/Betrag) stimmen wieder. Bereits gespeicherte Alt-Einträge werden dank Abwärtskompatibilität ebenfalls richtig angezeigt.

@@ -75,14 +75,22 @@ def _shuffle_clue(q: dict) -> dict:
             'opts_de': de, 'opts_en': en, 'c': correct}
 
 
-def _pick_clues(level: str) -> tuple[dict, dict]:
-    """Baut die Board-Struktur (sichtbar) und die Clue-Daten (geheim) auf."""
+def _pick_clues(level: str, recent_q: set | None = None,
+                recent_cats: set | None = None) -> tuple[dict, dict]:
+    """Baut die Board-Struktur (sichtbar) und die Clue-Daten (geheim) auf.
+    `recent_q` (q_de) und `recent_cats` werden — wenn möglich — gemieden, damit
+    aufeinanderfolgende Spiele frische Fragen/Kategorien zeigen."""
+    recent_q = recent_q or set()
+    recent_cats = recent_cats or set()
     pool = _load_pool()
     by_cd: dict = {}
     for q in pool['questions']:
         by_cd.setdefault((q['cat'], q['diff']), []).append(q)
     for v in by_cd.values():
         random.shuffle(v)
+        if recent_q:
+            # stabile Sortierung: noch nicht gesehene Fragen nach vorn
+            v.sort(key=lambda q: q['q_de'] in recent_q)
 
     cats_meta = pool['categories']
     # Nutzbare Kategorien: genug Fragen für eine volle Spalte (>= 5). Das Board
@@ -93,7 +101,16 @@ def _pick_clues(level: str) -> tuple[dict, dict]:
     usable = [c for c in cats_meta if counts.get(c, 0) >= len(VALUES)]
     if len(usable) < BOARD_COLS:
         usable = list(cats_meta)            # Fallback: alle Kategorien nehmen
-    board_cats = random.sample(usable, min(BOARD_COLS, len(usable)))
+    need = min(BOARD_COLS, len(usable))
+    fresh = [c for c in usable if c not in recent_cats]
+    if len(fresh) >= need:
+        board_cats = random.sample(fresh, need)
+    else:
+        # zu wenige frische Kategorien → mit zufälligen „gesehenen" auffüllen
+        rest = [c for c in usable if c not in fresh]
+        random.shuffle(rest)
+        board_cats = fresh + rest[:need - len(fresh)]
+        random.shuffle(board_cats)
 
     board = []        # sichtbare Struktur
     clues = {}        # cellId -> geheime Clue-Daten (inkl. korrektem Index)
@@ -134,8 +151,11 @@ def _final_clue(st: dict) -> dict:
     """Wählt einen Clue für Final Jeopardy, der nicht im Board war."""
     pool = _load_pool()
     used_text = {c['q_de'] for c in st['clues'].values()}
+    recent = set(st.get('recent_q', ())) | used_text
     cands = [q for q in pool['questions']
-             if q['diff'] in ('medium', 'hard') and q['q_de'] not in used_text]
+             if q['diff'] in ('medium', 'hard') and q['q_de'] not in recent]
+    if not cands:    # nichts Frisches mehr → wenigstens nicht aus diesem Board
+        cands = [q for q in pool['questions'] if q['q_de'] not in used_text]
     if not cands:
         cands = pool['questions']
     q = random.choice(cands)
@@ -145,14 +165,18 @@ def _final_clue(st: dict) -> dict:
             'label_de': meta['de'], 'label_en': meta['en']}
 
 
-def new_game(level: str = 'medium') -> dict:
+def new_game(level: str = 'medium', recent_q=None, recent_cats=None) -> dict:
     level = level if level in ('easy', 'medium', 'hard') else 'medium'
-    board, clues = _pick_clues(level)
+    recent_q = set(recent_q or ())
+    recent_cats = set(recent_cats or ())
+    board, clues = _pick_clues(level, recent_q, recent_cats)
     return {
         'status': 'select',
         'level': level,
         'board': board,
         'clues': clues,
+        'recent_q': list(recent_q),   # Schnappschuss, damit auch das Finale meidet
+
         'scores': {'p': 0, 'a': 0},
         'control': 'p',          # wer wählt
         'current': None,         # cellId des offenen Clues
