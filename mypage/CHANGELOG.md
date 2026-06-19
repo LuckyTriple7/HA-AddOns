@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.135
+
+- 🎭 **Glücksrad: Spannung beim KI-Lösen wirklich überall** — Der Hinweis „🧠 {Name} versucht zu lösen …" erscheint jetzt zuverlässig, egal wie ein KI-Gegner (Lisa/Max) die Runde gewinnt (geraten oder durch Komplettieren), inkl. langsamem Aufdecken. Die KI rät außerdem etwas früher, sodass mehrere Buchstaben spannend nacheinander aufgehen. Auch das **Finale der KI** wird jetzt mit Einblendung und langsamem Aufdecken gezeigt (vorher sprang es sofort zum Ergebnis).
+- 🎉 **Konfetti nur noch beim eigenen Sieg** — Gewinnt ein KI-Gegner eine Runde, das Finale oder das Spiel, gibt es kein Konfetti/Jubel mehr — das bleibt jetzt dem Spieler vorbehalten.
+
 ## 0.6.134
 
 - 🎭 **Glücksrad: Spannung beim Lösen** — Versucht ein KI-Gegner (Lisa/Max) zu lösen, blendet sich jetzt „🧠 {Name} versucht zu lösen …" ein; bei richtiger Lösung gehen anschließend **alle Buchstaben langsam nacheinander auf** (statt sofort), dann Jubel/Konfetti. Bei falschem Versuch erscheint die Einblendung mit der Auflösung. Löst der Mensch korrekt, wird die Lösung ebenfalls Buchstabe für Buchstabe aufgedeckt.

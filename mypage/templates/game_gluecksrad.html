@@ -1273,6 +1273,8 @@ async function submitSolve() {
   // Richtig geraten → erst die ganze Lösung langsam aufdecken, dann jubeln
   if(ev && (ev.type==='solved' || ev.type==='auto_solved')) {
     await revealSolution(oldDisp);
+  } else if(ev && ev.type==='finale_solved') {
+    if(S.phrase) { S.display = S.phrase; await revealSolution(oldDisp); }
   }
   handleEvent(S.event);
   render();
@@ -1345,10 +1347,35 @@ async function doContinue() {
   if(!r) return;
   S = r.state;
   isSpinning = false;
+  // KI-Finale wird serverseitig sofort aufgelöst -> Spannung im Frontend nachholen
+  if(S.status==='game_over' && S.event && S.event.ai &&
+     (S.event.type==='finale_solved' || S.event.type==='finale_wrong')) {
+    await playAiFinale(S.event);
+    render();
+    return;
+  }
   buildWheel(S.wheel_segments);
   handleEvent(S.event);
   await revealRoundIntro();
   render();
+}
+
+// KI-Finale mit Spannung zeigen: Tafel, "versucht zu lösen", langsames Aufdecken
+async function playAiFinale(ev) {
+  const fi = (S.finale && S.finale.player_idx != null) ? S.finale.player_idx : S.current;
+  const name = S.players[fi] ? S.players[fi].name : 'KI';
+  document.getElementById('gameOver').classList.remove('visible');
+  renderRoundInfo(); renderCategory(); renderPuzzle();
+  await sleep(700);
+  await announceSolving(name);
+  if(S.phrase) {
+    const oldDisp = S.display;
+    S.display = S.phrase;          // volle Lösung als Ziel
+    try { await revealSolution(oldDisp); } catch(e) { renderPuzzle(); }
+  }
+  showToast(ev.type==='finale_solved' ? L(G.evt_finale_solved, {bonus:ev.bonus}) : G.evt_finale_wrong,
+            ev.type==='finale_solved' ? 'solve' : 'bankrupt');
+  await sleep(1000);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1564,9 +1591,18 @@ async function maybeRunAI() {
           const oldDisp2 = S.display;
           const r2 = await api('/api/gluecksrad/ai', {});
           if(!r2) break;
+          const ev2 = r2.state.event;
           S = r2.state;
           renderLetters();   // Score erst nach dem Aufdecken (render() am Ende)
-          try { await revealAndNotify(oldDisp2); } catch(e) { renderPuzzle(); }
+          if(ev2 && ev2.type==='auto_solved') {
+            // KI komplettiert das Wort -> wie ein Lösen behandeln (Hinweis + Reveal)
+            const solver = S.players[ev2.player !== undefined ? ev2.player : S.current].name;
+            await announceSolving(solver);
+            try { await revealSolution(oldDisp2); } catch(e) { renderPuzzle(); }
+            handleEvent(ev2);
+          } else {
+            try { await revealAndNotify(oldDisp2); } catch(e) { renderPuzzle(); }
+          }
           render();
         } else {
           render();
@@ -1575,8 +1611,7 @@ async function maybeRunAI() {
         const ev = newAiState.event;
         const solver = S.players[ev.player !== undefined ? ev.player : S.current].name;
         S = newAiState;
-        // Rateversuch ankündigen (Vokal-Komplettierung 'auto_solved' braucht das nicht)
-        if(ev.type==='solved') await announceSolving(solver);
+        await announceSolving(solver);
         try { await revealSolution(oldDisp); } catch(e) { renderPuzzle(); }
         handleEvent(ev);
         render();
@@ -1599,9 +1634,17 @@ async function maybeRunAI() {
     } else {
       const r = await api('/api/gluecksrad/ai', {});
       if(!r) break;
+      const evO = r.state.event;
       S = r.state;
       renderLetters();   // Score erst nach dem Aufdecken (render() am Ende)
-      try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); }
+      if(evO && (evO.type==='solved' || evO.type==='auto_solved')) {
+        const solver = S.players[evO.player !== undefined ? evO.player : S.current].name;
+        await announceSolving(solver);
+        try { await revealSolution(oldDisp); } catch(e) { renderPuzzle(); }
+        handleEvent(evO);
+      } else {
+        try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); }
+      }
       render();
     }
     await sleep(600);
@@ -1662,13 +1705,13 @@ function handleEvent(ev) {
   else if(t==='vowel_hit') { showToast(L(G.evt_vowel_hit, {player:pname, letter:ev.letter, count:ev.count}), 'info'); }
   else if(t==='vowel_miss') { showToast(L(G.evt_vowel_miss, {player:pname, letter:ev.letter}), 'skip'); }
   else if(t==='buy_vowel') showToast(L(G.evt_buy_vowel, {player:pname, cost:ev.cost}), 'info');
-  else if(t==='solved') { showToast(L(G.evt_solved, {player:pname}), 'solve'); playSound('solve'); launchConfetti(); showRoundSummary(); }
-  else if(t==='auto_solved') { showToast(G.evt_auto_solved, 'solve'); playSound('solve'); launchConfetti(); showRoundSummary(); }
+  else if(t==='solved') { showToast(L(G.evt_solved, {player:pname}), 'solve'); playSound('solve'); if(ev.player===0) launchConfetti(); showRoundSummary(); }
+  else if(t==='auto_solved') { showToast(G.evt_auto_solved, 'solve'); playSound('solve'); if(ev.player===0) launchConfetti(); showRoundSummary(); }
   else if(t==='solve_wrong') showToast(L(G.evt_solve_wrong, {player:pname}), 'bankrupt');
   else if(t==='new_round') { showToast(L(G.evt_new_round, {round:ev.round}), 'info'); playSound('round'); }
   else if(t==='finale_start') showToast(G.finale, 'solve');
   else if(t==='finale_reveal') showToast(L(G.evt_finale_reveal, {hits:ev.hits}), 'info');
-  else if(t==='finale_solved') { showToast(L(G.evt_finale_solved, {bonus:ev.bonus}), 'solve'); playSound('jackpot'); launchConfetti(); }
+  else if(t==='finale_solved') { showToast(L(G.evt_finale_solved, {bonus:ev.bonus}), 'solve'); playSound('jackpot'); if(!ev.ai) launchConfetti(); }
   else if(t==='finale_wrong') showToast(G.evt_finale_wrong, 'bankrupt');
   else if(t==='finale_timeout') showToast(G.evt_finale_timeout, 'bankrupt');
   else if(t==='risk_choice') showToast(L(G.risk_question, {amount:ev.amount}), 'risk');
@@ -1707,8 +1750,9 @@ function showGameOver() {
   });
   document.getElementById('goScores').innerHTML=html;
   ov.classList.add('visible');
-  playSound('solve');
-  launchConfetti();
+  // Jubel/Konfetti nur, wenn der Mensch (Index 0) gewinnt
+  const humanWon = Array.isArray(winner) ? winner.includes(0) : winner===0;
+  if(humanWon) { playSound('solve'); launchConfetti(); }
 }
 
 // ═══════════════════════════════════════════════════════

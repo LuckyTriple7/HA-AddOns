@@ -646,11 +646,11 @@ def _determine_winner(state):
 # ---------------------------------------------------------------------------
 
 _LEVEL_CFG = {
-    "easy":   {"solve_thresh": 0.85, "freq_noise": 8, "solve_chance": 0.3,
+    "easy":   {"solve_thresh": 0.60, "freq_noise": 8, "solve_chance": 0.45,
                "vowel_prob": 0.15, "solve_accuracy": 0.5},
-    "medium": {"freq_noise": 4, "solve_thresh": 0.65, "solve_chance": 0.5,
+    "medium": {"freq_noise": 4, "solve_thresh": 0.55, "solve_chance": 0.6,
                "vowel_prob": 0.25, "solve_accuracy": 0.75},
-    "hard":   {"freq_noise": 1, "solve_thresh": 0.45, "solve_chance": 0.7,
+    "hard":   {"freq_noise": 1, "solve_thresh": 0.45, "solve_chance": 0.8,
                "vowel_prob": 0.35, "solve_accuracy": 0.95},
 }
 
@@ -732,7 +732,9 @@ def _revealed_ratio(phrase, revealed):
 def _ai_can_guess(phrase, revealed, cfg):
     unrevealed = sum(1 for ch in phrase
                      if ch.isalpha() and _base_letter(ch) not in revealed)
-    return unrevealed <= 5 or random.random() < 0.2
+    # Großzügiger: die KI rät auch mit mehreren offenen Buchstaben (spannenderes
+    # Aufdecken), statt das Wort erst per letztem Buchstaben zu komplettieren.
+    return unrevealed <= 10 or random.random() < 0.45
 
 
 def _ai_pick_consonant(state, cfg):
