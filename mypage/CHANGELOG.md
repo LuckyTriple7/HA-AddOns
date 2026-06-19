@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.132
+
+- 🎭 **Glücksrad: Spannung beim Aufdecken** — Bei mehreren Treffern (z. B. 5× derselbe Buchstabe) erschien der Gewinn (5×5000 = 25000 €) sofort im Spielerpanel, noch bevor die Buchstaben nacheinander auf der Tafel auftauchten. Jetzt wird das Rundenkonto **erst nach dem Aufdecken** aktualisiert — für Spieler und KI gleichermaßen.
+
 ## 0.6.131
 
 - 🎲 **Jeopardy: frische Spiele statt Wiederholungen** — Aufeinanderfolgende Partien meiden jetzt die zuletzt gesehenen Inhalte (pro Mitglied gespeichert): **keine Kategorie kommt zwei Spiele in Folge** vor, und zuletzt gezeigte **Fragen werden ~5 Spiele lang nicht wiederholt** (auch das Final-Jeopardy meidet sie). Ist der Pool erschöpft, wird sauber zurückgefallen. Je mehr Kategorien der Pool hat (aktuell 12), desto abwechslungsreicher wird zusätzlich die Auswahl.

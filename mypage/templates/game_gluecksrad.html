@@ -1197,7 +1197,9 @@ async function pickLetter(letter) {
   if(!r) return;
   S = r.state;
   isSpinning = false;
-  renderScores(); renderRoundInfo(); renderCategory(); renderLetters();
+  // Punktestand NICHT vorab rendern — sonst sieht man den Betrag, bevor die
+  // Buchstaben aufgedeckt sind. render() am Ende aktualisiert ihn nach dem Reveal.
+  renderRoundInfo(); renderCategory(); renderLetters();
   try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); handleEvent(S.event); }
   render();
 }
@@ -1527,7 +1529,7 @@ async function maybeRunAI() {
           const r2 = await api('/api/gluecksrad/ai', {});
           if(!r2) break;
           S = r2.state;
-          renderScores(); renderLetters();
+          renderLetters();   // Score erst nach dem Aufdecken (render() am Ende)
           try { await revealAndNotify(oldDisp2); } catch(e) { renderPuzzle(); }
           render();
         } else {
@@ -1540,7 +1542,7 @@ async function maybeRunAI() {
         break;
       } else {
         S = newAiState;
-        renderScores(); renderLetters();
+        renderLetters();   // Score erst nach dem Aufdecken (render() am Ende)
         try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); }
         render();
       }
@@ -1548,7 +1550,7 @@ async function maybeRunAI() {
       const r = await api('/api/gluecksrad/ai', {});
       if(!r) break;
       S = r.state;
-      renderScores(); renderLetters();
+      renderLetters();   // Score erst nach dem Aufdecken (render() am Ende)
       try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); }
       render();
     }
