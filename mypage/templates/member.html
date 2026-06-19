@@ -165,6 +165,11 @@
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gj_intro }}</p>
       <button class="btn" type="button" onclick="openGame('jeopardy')">▶ {{ t.gj_play }}</button>
     </div>
+    <div class="card" style="margin-top:18px">
+      <h1>🎡 {{ t.ggr_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.ggr_intro }}</p>
+      <button class="btn" type="button" onclick="openGame('gluecksrad')">▶ {{ t.ggr_play }}</button>
+    </div>
     {% endif %}
   </main>
   <footer>
@@ -190,7 +195,7 @@
     }
     window.addEventListener('message', function(e){
       if (e.origin !== location.origin) return;
-      const m = /^close-(66|20ab|schwimmen|maumau|praesident|jeopardy)$/.exec(e.data);
+      const m = /^close-(66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad)$/.exec(e.data);
       if (!m) return;
       const f = document.getElementById('game-frame-' + m[1]);
       if (f){ f.remove(); document.body.style.overflow = ''; }

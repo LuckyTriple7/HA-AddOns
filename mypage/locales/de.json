@@ -236,56 +236,506 @@
   "g_quiz_done": "Ergebnis",
   "g_quiz_final": "Tipp: Die naheliegende Antwort ist selten die richtige. 😉",
   "g_quiz_q": [
-    {"q": "Welche Monate haben 28 Tage?", "opts": ["Alle zwölf", "Nur der Februar", "Nur Februar im Schaltjahr", "Vier kurze Monate"], "c": 0},
-    {"q": "Welche Enten laufen auf zwei Beinen?", "opts": ["Alle Enten", "Nur die Erpel", "Nur Stockenten", "Keine"], "c": 0},
-    {"q": "Was ist schwerer: ein Kilo Federn oder ein Kilo Blei?", "opts": ["Gleich schwer", "Das Blei", "Die Federn", "Kommt auf die Federn an"], "c": 0},
-    {"q": "Ein Bauer hat 17 Schafe. Alle bis auf 9 laufen weg. Wie viele bleiben?", "opts": ["9", "8", "17", "0"], "c": 0},
-    {"q": "Wie viele Tiere jeder Art nahm Mose mit auf die Arche?", "opts": ["Keine – das war Noah", "Zwei", "Sieben", "Je ein Paar"], "c": 0},
-    {"q": "Du überholst beim Rennen den Zweiten. Auf welchem Platz bist du?", "opts": ["Auf dem zweiten", "Auf dem ersten", "Auf dem dritten", "Im Ziel"], "c": 0},
-    {"q": "Ein rotes Haus ist aus roten Steinen, ein blaues aus blauen. Woraus ist ein Gewächshaus?", "opts": ["Aus Glas", "Aus grünen Steinen", "Aus Holz", "Aus Pflanzen"], "c": 0},
-    {"q": "Was wird nasser, je mehr es trocknet?", "opts": ["Das Handtuch", "Der Schwamm", "Die Sonne", "Der Föhn"], "c": 0},
-    {"q": "Was hat einen Hals, aber keinen Kopf?", "opts": ["Die Flasche", "Die Gitarre", "Der Pullover", "Der Schwan"], "c": 0},
-    {"q": "Wie weit kann ein Hund in den Wald hineinlaufen?", "opts": ["Bis zur Mitte", "Bis ans Ende", "So weit er will", "Einen Kilometer"], "c": 0},
-    {"q": "Du bekommst 3 Tabletten, alle halbe Stunde eine. Wie lange reichen sie?", "opts": ["Eine Stunde", "Anderthalb Stunden", "Eine halbe Stunde", "Drei Stunden"], "c": 0},
-    {"q": "Welche Zahl wird größer, wenn man sie auf den Kopf stellt?", "opts": ["Die 6", "Die 8", "Die 1", "Die 0"], "c": 0},
-    {"q": "Was geht hoch und runter, bewegt sich aber nie vom Fleck?", "opts": ["Die Treppe", "Der Aufzug", "Der Ball", "Die Schaukel"], "c": 0},
-    {"q": "Was hat viele Zähne, beißt aber nie?", "opts": ["Der Kamm", "Der Wachhund", "Das Krokodil", "Der Wolf"], "c": 0},
-    {"q": "Was wird größer, je mehr man wegnimmt?", "opts": ["Das Loch", "Der Berg", "Der Vorrat", "Der Stapel"], "c": 0},
-    {"q": "Was hat Hände, kann aber nicht klatschen?", "opts": ["Die Uhr", "Der Handschuh", "Der Affe", "Der Roboter"], "c": 0},
-    {"q": "Was hat Städte ohne Häuser, Wälder ohne Bäume und Wasser ohne Fische?", "opts": ["Die Landkarte", "Die Wüste", "Der Mond", "Das Modell"], "c": 0},
-    {"q": "Was kann man sich fangen, aber nicht werfen?", "opts": ["Eine Erkältung", "Einen Ball", "Einen Fisch", "Einen Stein"], "c": 0},
-    {"q": "Was hat vier Räder und fliegt?", "opts": ["Die Mülltonne", "Das Flugzeug", "Ein fliegender Teppich", "Das Auto"], "c": 0},
-    {"q": "Was gehört dir, wird aber von anderen viel öfter benutzt als von dir selbst?", "opts": ["Dein Name", "Dein Auto", "Dein Handy", "Dein Geld"], "c": 0},
-    {"q": "Wie viele Erbsen gehen in ein leeres Glas?", "opts": ["Eine – dann ist es nicht mehr leer", "Hundert", "Keine", "So viele wie reinpassen"], "c": 0},
-    {"q": "Was hat einen Kopf und einen Fuß, aber keine Beine?", "opts": ["Das Bett", "Der Tisch", "Der Pilz", "Der Berg"], "c": 0},
-    {"q": "Was läuft und läuft, hat aber keine Beine?", "opts": ["Der Fluss", "Der Sportler", "Der Hund", "Die Ameise"], "c": 0},
-    {"q": "Was hat viele Augen, kann aber nichts sehen?", "opts": ["Die Kartoffel", "Die Eule", "Der Adler", "Die Kamera"], "c": 0},
-    {"q": "Was liegt immer vor dir, du kannst es aber nie erreichen?", "opts": ["Die Zukunft", "Die Wand", "Dein Spiegelbild", "Der Mond"], "c": 0},
-    {"q": "Eine elektrische Lok fährt nach Osten, der Wind weht aus Westen. Wohin zieht der Rauch?", "opts": ["Es gibt keinen Rauch", "Nach Osten", "Nach Westen", "Nach oben"], "c": 0},
-    {"q": "Was führt durch jede Stadt, bewegt sich aber selbst nie?", "opts": ["Die Straße", "Der Wind", "Der Verkehr", "Die Bahn"], "c": 0},
-    {"q": "Was muss man zerbrechen, bevor man es benutzen kann?", "opts": ["Das Ei", "Die Vase", "Das Fenster", "Der Teller"], "c": 0},
-    {"q": "Ein Hahn legt auf einem spitzen Dach ein Ei. Auf welche Seite rollt es hinunter?", "opts": ["Gar nicht – Hähne legen keine Eier", "Nach links", "Nach rechts", "Auf die steilere Seite"], "c": 0},
-    {"q": "Was wird im Winter immer länger und im Sommer immer kürzer?", "opts": ["Die Nacht", "Der Tag", "Der Schnee", "Der Bart"], "c": 0},
-    {"q": "Was hat ein Auge, kann aber nicht sehen?", "opts": ["Die Nadel", "Der Maulwurf", "Der Knopf", "Der Stein"], "c": 0},
-    {"q": "Was hat einen Daumen und vier Finger, lebt aber nicht?", "opts": ["Der Handschuh", "Die Statue", "Die Hand", "Der Roboter"], "c": 0},
-    {"q": "Was hat einen Ring, aber keinen Finger?", "opts": ["Das Telefon", "Die Tür", "Das Fenster", "Der Tisch"], "c": 0},
-    {"q": "Was hat Blätter, ist aber kein Baum?", "opts": ["Das Buch", "Der Stein", "Das Auto", "Die Lampe"], "c": 0},
-    {"q": "Was trägt einen Hut, hat aber keinen Kopf?", "opts": ["Der Pilz", "Der Cowboy", "Der König", "Der Clown"], "c": 0},
-    {"q": "Was hat Zähne, kann aber nichts essen?", "opts": ["Die Säge", "Das Baby", "Der Hai", "Das Krokodil"], "c": 0},
-    {"q": "Was kommt immer, aber kommt nie an?", "opts": ["Der morgige Tag", "Der Bus", "Die Post", "Der Sommer"], "c": 0},
-    {"q": "Was kann man halten, ohne es je anzufassen?", "opts": ["Den Atem", "Den Ball", "Die Hand", "Das Seil"], "c": 0},
-    {"q": "Was geht immer rauf, kommt aber nie wieder runter?", "opts": ["Dein Alter", "Der Aufzug", "Der Ballon", "Die Sonne"], "c": 0},
-    {"q": "Was kann fliegen, hat aber keine Flügel?", "opts": ["Die Zeit", "Der Vogel", "Das Flugzeug", "Der Drache"], "c": 0},
-    {"q": "Was wird kürzer, je länger es brennt?", "opts": ["Die Kerze", "Das Feuer", "Die Glühbirne", "Der Ofen"], "c": 0},
-    {"q": "Was steht in der Ecke, reist aber um die ganze Welt?", "opts": ["Die Briefmarke", "Der Globus", "Der Tourist", "Die Lampe"], "c": 0},
-    {"q": "Was hat eine Krone und einen Hals, aber ist kein König?", "opts": ["Der Zahn", "Die Giraffe", "Die Königin", "Die Flasche"], "c": 0},
-    {"q": "Was ist voller Löcher, hält aber trotzdem Wasser?", "opts": ["Der Schwamm", "Das Sieb", "Das Netz", "Der Eimer"], "c": 0},
-    {"q": "Was spricht jede Sprache, ohne sie je gelernt zu haben?", "opts": ["Das Echo", "Das Radio", "Der Papagei", "Der Übersetzer"], "c": 0},
-    {"q": "Was kommt einmal in einer Minute, zweimal in einem Moment, aber nie in tausend Jahren?", "opts": ["Der Buchstabe M", "Der Vollmond", "Ein Wimpernschlag", "Der Jahreswechsel"], "c": 0},
-    {"q": "Was hat einen Kopf, kann aber nicht denken?", "opts": ["Das Streichholz", "Der Professor", "Der Schüler", "Der Papagei"], "c": 0},
-    {"q": "Was läuft um den Garten herum, bewegt sich aber nie?", "opts": ["Der Zaun", "Der Hund", "Der Gärtner", "Der Rasenmäher"], "c": 0},
-    {"q": "Was kann man weitergeben und trotzdem behalten?", "opts": ["Sein Wort", "Sein Geld", "Sein Auto", "Seinen Kuchen"], "c": 0},
-    {"q": "Was wird mehr, je mehr man es teilt?", "opts": ["Die Freude", "Der Kuchen", "Das Geld", "Die Pizza"], "c": 0}
+    {
+      "q": "Welche Monate haben 28 Tage?",
+      "opts": [
+        "Alle zwölf",
+        "Nur der Februar",
+        "Nur Februar im Schaltjahr",
+        "Vier kurze Monate"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Welche Enten laufen auf zwei Beinen?",
+      "opts": [
+        "Alle Enten",
+        "Nur die Erpel",
+        "Nur Stockenten",
+        "Keine"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was ist schwerer: ein Kilo Federn oder ein Kilo Blei?",
+      "opts": [
+        "Gleich schwer",
+        "Das Blei",
+        "Die Federn",
+        "Kommt auf die Federn an"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Ein Bauer hat 17 Schafe. Alle bis auf 9 laufen weg. Wie viele bleiben?",
+      "opts": [
+        "9",
+        "8",
+        "17",
+        "0"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Wie viele Tiere jeder Art nahm Mose mit auf die Arche?",
+      "opts": [
+        "Keine – das war Noah",
+        "Zwei",
+        "Sieben",
+        "Je ein Paar"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Du überholst beim Rennen den Zweiten. Auf welchem Platz bist du?",
+      "opts": [
+        "Auf dem zweiten",
+        "Auf dem ersten",
+        "Auf dem dritten",
+        "Im Ziel"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Ein rotes Haus ist aus roten Steinen, ein blaues aus blauen. Woraus ist ein Gewächshaus?",
+      "opts": [
+        "Aus Glas",
+        "Aus grünen Steinen",
+        "Aus Holz",
+        "Aus Pflanzen"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was wird nasser, je mehr es trocknet?",
+      "opts": [
+        "Das Handtuch",
+        "Der Schwamm",
+        "Die Sonne",
+        "Der Föhn"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat einen Hals, aber keinen Kopf?",
+      "opts": [
+        "Die Flasche",
+        "Die Gitarre",
+        "Der Pullover",
+        "Der Schwan"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Wie weit kann ein Hund in den Wald hineinlaufen?",
+      "opts": [
+        "Bis zur Mitte",
+        "Bis ans Ende",
+        "So weit er will",
+        "Einen Kilometer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Du bekommst 3 Tabletten, alle halbe Stunde eine. Wie lange reichen sie?",
+      "opts": [
+        "Eine Stunde",
+        "Anderthalb Stunden",
+        "Eine halbe Stunde",
+        "Drei Stunden"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Welche Zahl wird größer, wenn man sie auf den Kopf stellt?",
+      "opts": [
+        "Die 6",
+        "Die 8",
+        "Die 1",
+        "Die 0"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was geht hoch und runter, bewegt sich aber nie vom Fleck?",
+      "opts": [
+        "Die Treppe",
+        "Der Aufzug",
+        "Der Ball",
+        "Die Schaukel"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat viele Zähne, beißt aber nie?",
+      "opts": [
+        "Der Kamm",
+        "Der Wachhund",
+        "Das Krokodil",
+        "Der Wolf"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was wird größer, je mehr man wegnimmt?",
+      "opts": [
+        "Das Loch",
+        "Der Berg",
+        "Der Vorrat",
+        "Der Stapel"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat Hände, kann aber nicht klatschen?",
+      "opts": [
+        "Die Uhr",
+        "Der Handschuh",
+        "Der Affe",
+        "Der Roboter"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat Städte ohne Häuser, Wälder ohne Bäume und Wasser ohne Fische?",
+      "opts": [
+        "Die Landkarte",
+        "Die Wüste",
+        "Der Mond",
+        "Das Modell"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was kann man sich fangen, aber nicht werfen?",
+      "opts": [
+        "Eine Erkältung",
+        "Einen Ball",
+        "Einen Fisch",
+        "Einen Stein"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat vier Räder und fliegt?",
+      "opts": [
+        "Die Mülltonne",
+        "Das Flugzeug",
+        "Ein fliegender Teppich",
+        "Das Auto"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was gehört dir, wird aber von anderen viel öfter benutzt als von dir selbst?",
+      "opts": [
+        "Dein Name",
+        "Dein Auto",
+        "Dein Handy",
+        "Dein Geld"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Wie viele Erbsen gehen in ein leeres Glas?",
+      "opts": [
+        "Eine – dann ist es nicht mehr leer",
+        "Hundert",
+        "Keine",
+        "So viele wie reinpassen"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat einen Kopf und einen Fuß, aber keine Beine?",
+      "opts": [
+        "Das Bett",
+        "Der Tisch",
+        "Der Pilz",
+        "Der Berg"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was läuft und läuft, hat aber keine Beine?",
+      "opts": [
+        "Der Fluss",
+        "Der Sportler",
+        "Der Hund",
+        "Die Ameise"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat viele Augen, kann aber nichts sehen?",
+      "opts": [
+        "Die Kartoffel",
+        "Die Eule",
+        "Der Adler",
+        "Die Kamera"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was liegt immer vor dir, du kannst es aber nie erreichen?",
+      "opts": [
+        "Die Zukunft",
+        "Die Wand",
+        "Dein Spiegelbild",
+        "Der Mond"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Eine elektrische Lok fährt nach Osten, der Wind weht aus Westen. Wohin zieht der Rauch?",
+      "opts": [
+        "Es gibt keinen Rauch",
+        "Nach Osten",
+        "Nach Westen",
+        "Nach oben"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was führt durch jede Stadt, bewegt sich aber selbst nie?",
+      "opts": [
+        "Die Straße",
+        "Der Wind",
+        "Der Verkehr",
+        "Die Bahn"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was muss man zerbrechen, bevor man es benutzen kann?",
+      "opts": [
+        "Das Ei",
+        "Die Vase",
+        "Das Fenster",
+        "Der Teller"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Ein Hahn legt auf einem spitzen Dach ein Ei. Auf welche Seite rollt es hinunter?",
+      "opts": [
+        "Gar nicht – Hähne legen keine Eier",
+        "Nach links",
+        "Nach rechts",
+        "Auf die steilere Seite"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was wird im Winter immer länger und im Sommer immer kürzer?",
+      "opts": [
+        "Die Nacht",
+        "Der Tag",
+        "Der Schnee",
+        "Der Bart"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat ein Auge, kann aber nicht sehen?",
+      "opts": [
+        "Die Nadel",
+        "Der Maulwurf",
+        "Der Knopf",
+        "Der Stein"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat einen Daumen und vier Finger, lebt aber nicht?",
+      "opts": [
+        "Der Handschuh",
+        "Die Statue",
+        "Die Hand",
+        "Der Roboter"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat einen Ring, aber keinen Finger?",
+      "opts": [
+        "Das Telefon",
+        "Die Tür",
+        "Das Fenster",
+        "Der Tisch"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat Blätter, ist aber kein Baum?",
+      "opts": [
+        "Das Buch",
+        "Der Stein",
+        "Das Auto",
+        "Die Lampe"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was trägt einen Hut, hat aber keinen Kopf?",
+      "opts": [
+        "Der Pilz",
+        "Der Cowboy",
+        "Der König",
+        "Der Clown"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat Zähne, kann aber nichts essen?",
+      "opts": [
+        "Die Säge",
+        "Das Baby",
+        "Der Hai",
+        "Das Krokodil"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was kommt immer, aber kommt nie an?",
+      "opts": [
+        "Der morgige Tag",
+        "Der Bus",
+        "Die Post",
+        "Der Sommer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was kann man halten, ohne es je anzufassen?",
+      "opts": [
+        "Den Atem",
+        "Den Ball",
+        "Die Hand",
+        "Das Seil"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was geht immer rauf, kommt aber nie wieder runter?",
+      "opts": [
+        "Dein Alter",
+        "Der Aufzug",
+        "Der Ballon",
+        "Die Sonne"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was kann fliegen, hat aber keine Flügel?",
+      "opts": [
+        "Die Zeit",
+        "Der Vogel",
+        "Das Flugzeug",
+        "Der Drache"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was wird kürzer, je länger es brennt?",
+      "opts": [
+        "Die Kerze",
+        "Das Feuer",
+        "Die Glühbirne",
+        "Der Ofen"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was steht in der Ecke, reist aber um die ganze Welt?",
+      "opts": [
+        "Die Briefmarke",
+        "Der Globus",
+        "Der Tourist",
+        "Die Lampe"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat eine Krone und einen Hals, aber ist kein König?",
+      "opts": [
+        "Der Zahn",
+        "Die Giraffe",
+        "Die Königin",
+        "Die Flasche"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was ist voller Löcher, hält aber trotzdem Wasser?",
+      "opts": [
+        "Der Schwamm",
+        "Das Sieb",
+        "Das Netz",
+        "Der Eimer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was spricht jede Sprache, ohne sie je gelernt zu haben?",
+      "opts": [
+        "Das Echo",
+        "Das Radio",
+        "Der Papagei",
+        "Der Übersetzer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was kommt einmal in einer Minute, zweimal in einem Moment, aber nie in tausend Jahren?",
+      "opts": [
+        "Der Buchstabe M",
+        "Der Vollmond",
+        "Ein Wimpernschlag",
+        "Der Jahreswechsel"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was hat einen Kopf, kann aber nicht denken?",
+      "opts": [
+        "Das Streichholz",
+        "Der Professor",
+        "Der Schüler",
+        "Der Papagei"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was läuft um den Garten herum, bewegt sich aber nie?",
+      "opts": [
+        "Der Zaun",
+        "Der Hund",
+        "Der Gärtner",
+        "Der Rasenmäher"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was kann man weitergeben und trotzdem behalten?",
+      "opts": [
+        "Sein Wort",
+        "Sein Geld",
+        "Sein Auto",
+        "Seinen Kuchen"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Was wird mehr, je mehr man es teilt?",
+      "opts": [
+        "Die Freude",
+        "Der Kuchen",
+        "Das Geld",
+        "Die Pizza"
+      ],
+      "c": 0
+    }
   ],
   "g66_title": "66 (Sechsundsechzig)",
   "g66_intro": "Das klassische Stichspiel gegen die KI — 20 Karten, Hochzeiten, zudrehen, ausmelden. Spielstand wird gespeichert und ist auf jedem Gerät fortsetzbar.",
@@ -1109,5 +1559,96 @@
   "gj_stats_reset": "Statistik zurücksetzen",
   "gj_device_title": "Auf anderem Gerät aktiv",
   "gj_device_text": "Dieses Spiel läuft gerade auf einem anderen Gerät. Hier übernehmen?",
-  "gj_device_takeover": "Hier übernehmen"
+  "gj_device_takeover": "Hier übernehmen",
+  "ggr_title": "Glücksrad",
+  "ggr_heading": "GLÜCKSRAD",
+  "ggr_subtitle": "Drehe das Rad, rate die Buchstaben, löse das Rätsel!",
+  "ggr_level_easy": "Leicht",
+  "ggr_level_medium": "Mittel",
+  "ggr_level_hard": "Schwer",
+  "ggr_resume": "Spiel fortsetzen",
+  "ggr_new_game": "Neues Spiel",
+  "ggr_statistics": "Statistik",
+  "ggr_settings": "Einstellungen",
+  "ggr_close": "Schließen",
+  "ggr_back": "Zum Mitgliederbereich",
+  "ggr_reset": "Zurücksetzen",
+  "ggr_category": "Kategorie",
+  "ggr_letters": "Buchstaben",
+  "ggr_solve": "Lösen",
+  "ggr_solve_placeholder": "Lösung eingeben...",
+  "ggr_cancel": "Abbrechen",
+  "ggr_confirm": "Bestätigen",
+  "ggr_spin": "Drehen!",
+  "ggr_buy_vowel": "Vokal (250€)",
+  "ggr_continue": "Weiter",
+  "ggr_game_over": "Spiel vorbei!",
+  "ggr_finale": "★ FINALE ★",
+  "ggr_finale_pick_title": "Finale — Wähle 3 Konsonanten und 1 Vokal",
+  "ggr_round_of": "Runde {round} von {max}",
+  "ggr_round_score": "Runde: {amount} €",
+  "ggr_currency": "€",
+  "ggr_session_takeover": "Anderes Gerät aktiv. Übernehmen?",
+  "ggr_ai_delay_label": "KI-Verzögerung:",
+  "ggr_sound_label": "Sound aktiviert",
+  "ggr_stats_empty": "Noch keine Spiele gespielt.",
+  "ggr_stats_wins": "Siege",
+  "ggr_stats_losses": "Niederlagen",
+  "ggr_stats_games": "Spiele",
+  "ggr_stats_winrate": "Siegquote",
+  "ggr_stats_best": "Bestwert",
+  "ggr_stats_reset_confirm": "Statistik wirklich zurücksetzen?",
+  "ggr_wheel_pass": "PASS",
+  "ggr_wheel_risk": "RISK",
+  "ggr_evt_spin_money": "{player} — Drehen... {amount} €!",
+  "ggr_evt_bankrupt": "{player} — BANKROTT! 💀",
+  "ggr_evt_skip": "{player} — Aussetzen!",
+  "ggr_evt_risk_win": "{player} — RISIKO gewonnen! {old}→{new} €",
+  "ggr_evt_risk_lose": "{player} — RISIKO verloren! {old}→0 €",
+  "ggr_evt_letter_hit": "{player} — \"{letter}\" {count}× getroffen! +{earned} €",
+  "ggr_evt_letter_miss": "{player} — \"{letter}\" nicht dabei!",
+  "ggr_evt_vowel_hit": "{player} — \"{letter}\" {count}× vorhanden!",
+  "ggr_evt_vowel_miss": "{player} — \"{letter}\" nicht dabei!",
+  "ggr_evt_buy_vowel": "{player} — Vokal kaufen ({cost} €)",
+  "ggr_evt_solved": "{player} — Gelöst! 🎉",
+  "ggr_evt_auto_solved": "Alle Buchstaben aufgedeckt!",
+  "ggr_evt_solve_wrong": "{player} — Falsch gelöst!",
+  "ggr_evt_new_round": "Runde {round}!",
+  "ggr_evt_finale_reveal": "{hits} Treffer aufgedeckt!",
+  "ggr_evt_finale_solved": "Gelöst! Bonus: {bonus} € 🎉",
+  "ggr_evt_finale_wrong": "Leider falsch!",
+  "ggr_evt_finale_timeout": "Zeit abgelaufen!",
+  "ggr_player_wins": "{player} — Gewonnen!",
+  "ggr_solution": "Lösung: {phrase}",
+  "ggr_risk_win": "VERDOPPELT!",
+  "ggr_risk_lose": "VERLOREN!",
+  "ggr_qualify_title": "Wer fängt an?",
+  "ggr_qualify_spin": "{player} — Drehen...",
+  "ggr_qualify_result": "{player}: {amount} €",
+  "ggr_qualify_special": "{player}: 0 € (Spezialfeld)",
+  "ggr_qualify_winner": "{player} — Spielstart!",
+  "ggr_qualify_tie": "Gleichstand! Nochmal drehen...",
+  "ggr_finale_time_up": "Zeit abgelaufen!",
+  "ggr_round_complete": "Runde {round} abgeschlossen",
+  "ggr_round_earned": "Runde: +{amount} €",
+  "ggr_risk_question": "RISIKO! {amount} € riskieren — alles oder nichts?",
+  "ggr_risk_accept": "Riskieren!",
+  "ggr_risk_decline": "Nein danke",
+  "ggr_evt_risk_decline": "{player} — Kein Risiko!",
+  "ggr_evt_risk_skip": "{player} — Risiko ohne Einsatz, nochmal drehen!",
+  "ggr_extra_life": "Extra Leben",
+  "ggr_wheel_extralife": "EXTRA LEBEN",
+  "ggr_evt_extra_life": "{player} — Extra Leben erhalten! ❤️",
+  "ggr_evt_extra_life_skip": "{player} — Hat schon ein Extra Leben, nochmal drehen!",
+  "ggr_evt_bankrupt_save": "{player} — BANKROTT! Extra Leben einsetzen?",
+  "ggr_evt_skip_save": "{player} — Aussetzen! Extra Leben einsetzen?",
+  "ggr_evt_life_used": "{player} — Extra Leben eingesetzt! Gerettet! ❤️",
+  "ggr_use_life": "Extra Leben einsetzen",
+  "ggr_decline_life": "Nein",
+  "ggr_pause": "Pause",
+  "ggr_paused": "Pausiert",
+  "ggr_pause_hint": "Drücke P oder den Button zum Fortsetzen",
+  "ggr_resume_game": "Weiter",
+  "ggr_intro": "Drehe das Glücksrad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner.",
+  "ggr_play": "Spielen"
 }

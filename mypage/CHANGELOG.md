@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.128
+
+- 🎡 **Neues Mitglieder-Spiel: Glücksrad** — Dreh das Rad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner (Lisa & Max). Mit Qualifikationsdrehung, Spezialfeldern (Bankrott, Aussetzen, Risiko 50:50, Extraleben), Vokal-Kauf, 3 Runden und großem Finale (R S T L N E gratis, Bonus verdoppelt das Konto). 300 zweisprachige Rätsel (DE/EN) in 10 Kategorien, drei Schwierigkeitsgrade, Statistik/Verlauf, Cross-Device-Schutz und Handy-Querformat wie die übrigen Spiele.
+- 🎯 **Jeopardy: Fragen-Pool stark erweitert** — von 87 auf **359 zweisprachige Clues** und von 6 auf **12 Kategorien** (neu: Musik, Serien & TV, Tierwelt, Mythologie, Computer & IT, Kunst), jeweils sauber über easy/medium/hard verteilt. Dank des Zufalls-Boards (v0.6.127) sorgt das für deutlich mehr Abwechslung pro Partie.
+
 ## 0.6.127
 
 - 🎲 **Jeopardy: beliebig viele Kategorien möglich** — Das Board zieht jetzt pro Spiel **6 zufällige** Kategorien aus allen im Fragen-Pool vorhandenen (statt aus einer fest verdrahteten 6er-Liste). Neue Kategorien lassen sich damit **rein über `data/quiz_pool.json`** ergänzen, ganz ohne Code-Änderung — mehr Kategorien = mehr Abwechslung pro Partie. Dazu eine Pflege-Anleitung unter `data/QUIZ_POOL_GUIDE.md`.

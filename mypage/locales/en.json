@@ -236,56 +236,506 @@
   "g_quiz_done": "Result",
   "g_quiz_final": "Tip: the obvious answer is rarely the right one. 😉",
   "g_quiz_q": [
-    {"q": "Which months have 28 days?", "opts": ["All twelve", "Only February", "Only February in leap years", "Four short months"], "c": 0},
-    {"q": "Which ducks walk on two legs?", "opts": ["All of them", "Only the drakes", "Only mallards", "None"], "c": 0},
-    {"q": "Which is heavier: a kilo of feathers or a kilo of lead?", "opts": ["They weigh the same", "The lead", "The feathers", "Depends on the feathers"], "c": 0},
-    {"q": "A farmer has 17 sheep. All but 9 run away. How many are left?", "opts": ["9", "8", "17", "0"], "c": 0},
-    {"q": "How many animals of each kind did Moses take on the ark?", "opts": ["None – that was Noah", "Two", "Seven", "One pair each"], "c": 0},
-    {"q": "In a race you overtake the runner in second place. What position are you in now?", "opts": ["Second", "First", "Third", "At the finish"], "c": 0},
-    {"q": "A red house is made of red bricks, a blue house of blue bricks. What is a greenhouse made of?", "opts": ["Glass", "Green bricks", "Wood", "Plants"], "c": 0},
-    {"q": "What gets wetter the more it dries?", "opts": ["A towel", "A sponge", "The sun", "A hairdryer"], "c": 0},
-    {"q": "What has a neck but no head?", "opts": ["A bottle", "A guitar", "A sweater", "A swan"], "c": 0},
-    {"q": "How far can a dog run into the woods?", "opts": ["Halfway", "All the way", "As far as it likes", "One kilometre"], "c": 0},
-    {"q": "You get 3 pills, one every half hour. How long do they last?", "opts": ["One hour", "One and a half hours", "Half an hour", "Three hours"], "c": 0},
-    {"q": "Which number gets bigger when you turn it upside down?", "opts": ["The 6", "The 8", "The 1", "The 0"], "c": 0},
-    {"q": "What goes up and down but never moves from the spot?", "opts": ["A staircase", "A lift", "A ball", "A swing"], "c": 0},
-    {"q": "What has many teeth but never bites?", "opts": ["A comb", "A guard dog", "A crocodile", "A wolf"], "c": 0},
-    {"q": "What gets bigger the more you take away?", "opts": ["A hole", "A mountain", "A supply", "A stack"], "c": 0},
-    {"q": "What has hands but cannot clap?", "opts": ["A clock", "A glove", "A monkey", "A robot"], "c": 0},
-    {"q": "What has cities but no houses, forests but no trees, water but no fish?", "opts": ["A map", "A desert", "The moon", "A model"], "c": 0},
-    {"q": "What can you catch but not throw?", "opts": ["A cold", "A ball", "A fish", "A stone"], "c": 0},
-    {"q": "What has four wheels and flies?", "opts": ["A garbage truck", "An airplane", "A flying carpet", "A car"], "c": 0},
-    {"q": "What belongs to you but is used more by others than by you?", "opts": ["Your name", "Your car", "Your phone", "Your money"], "c": 0},
-    {"q": "How many peas fit into an empty glass?", "opts": ["One – then it's no longer empty", "A hundred", "None", "As many as fit"], "c": 0},
-    {"q": "What has a head and a foot but no legs?", "opts": ["A bed", "A table", "A mushroom", "A mountain"], "c": 0},
-    {"q": "What runs and runs but has no legs?", "opts": ["A river", "A runner", "A dog", "An ant"], "c": 0},
-    {"q": "What has many eyes but cannot see?", "opts": ["A potato", "An owl", "An eagle", "A camera"], "c": 0},
-    {"q": "What is always in front of you but can never be reached?", "opts": ["The future", "A wall", "Your reflection", "The moon"], "c": 0},
-    {"q": "An electric train heads east, the wind blows from the west. Which way does the smoke drift?", "opts": ["There is no smoke", "East", "West", "Upward"], "c": 0},
-    {"q": "What runs through every town but never moves itself?", "opts": ["The road", "The wind", "The traffic", "The train"], "c": 0},
-    {"q": "What must you break before you can use it?", "opts": ["An egg", "A vase", "A window", "A plate"], "c": 0},
-    {"q": "A rooster lays an egg on a pointed roof. Which side does it roll down?", "opts": ["Neither – roosters don't lay eggs", "Left", "Right", "The steeper side"], "c": 0},
-    {"q": "What gets longer in winter and shorter in summer?", "opts": ["The night", "The day", "The snow", "A beard"], "c": 0},
-    {"q": "What has one eye but cannot see?", "opts": ["A needle", "A mole", "A button", "A stone"], "c": 0},
-    {"q": "What has a thumb and four fingers but is not alive?", "opts": ["A glove", "A statue", "A hand", "A robot"], "c": 0},
-    {"q": "What has a ring but no finger?", "opts": ["A telephone", "A door", "A window", "A table"], "c": 0},
-    {"q": "What has leaves but is not a tree?", "opts": ["A book", "A stone", "A car", "A lamp"], "c": 0},
-    {"q": "What wears a hat but has no head?", "opts": ["A mushroom", "A cowboy", "A king", "A clown"], "c": 0},
-    {"q": "What has teeth but cannot eat anything?", "opts": ["A saw", "A baby", "A shark", "A crocodile"], "c": 0},
-    {"q": "What always comes but never arrives?", "opts": ["Tomorrow", "The bus", "The mail", "Summer"], "c": 0},
-    {"q": "What can you hold without ever touching it?", "opts": ["Your breath", "A ball", "A hand", "A rope"], "c": 0},
-    {"q": "What always goes up but never comes back down?", "opts": ["Your age", "An elevator", "A balloon", "The sun"], "c": 0},
-    {"q": "What can fly without wings?", "opts": ["Time", "A bird", "An airplane", "A kite"], "c": 0},
-    {"q": "What gets shorter the longer it burns?", "opts": ["A candle", "A fire", "A light bulb", "An oven"], "c": 0},
-    {"q": "What stands in the corner yet travels all around the world?", "opts": ["A stamp", "A globe", "A tourist", "A lamp"], "c": 0},
-    {"q": "What has a crown and a neck but is no king?", "opts": ["A tooth", "A giraffe", "A queen", "A bottle"], "c": 0},
-    {"q": "What is full of holes but still holds water?", "opts": ["A sponge", "A sieve", "A net", "A bucket"], "c": 0},
-    {"q": "What speaks every language without ever having learned one?", "opts": ["An echo", "A radio", "A parrot", "A translator"], "c": 0},
-    {"q": "What comes once in a minute, twice in a moment, but never in a thousand years?", "opts": ["The letter M", "A full moon", "A blink", "New Year"], "c": 0},
-    {"q": "What has a head but cannot think?", "opts": ["A match", "A professor", "A student", "A parrot"], "c": 0},
-    {"q": "What runs around the garden but never moves?", "opts": ["A fence", "A dog", "The gardener", "A lawnmower"], "c": 0},
-    {"q": "What can you give away and still keep?", "opts": ["Your word", "Your money", "Your car", "Your cake"], "c": 0},
-    {"q": "What grows the more you share it?", "opts": ["Joy", "A cake", "Money", "A pizza"], "c": 0}
+    {
+      "q": "Which months have 28 days?",
+      "opts": [
+        "All twelve",
+        "Only February",
+        "Only February in leap years",
+        "Four short months"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Which ducks walk on two legs?",
+      "opts": [
+        "All of them",
+        "Only the drakes",
+        "Only mallards",
+        "None"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Which is heavier: a kilo of feathers or a kilo of lead?",
+      "opts": [
+        "They weigh the same",
+        "The lead",
+        "The feathers",
+        "Depends on the feathers"
+      ],
+      "c": 0
+    },
+    {
+      "q": "A farmer has 17 sheep. All but 9 run away. How many are left?",
+      "opts": [
+        "9",
+        "8",
+        "17",
+        "0"
+      ],
+      "c": 0
+    },
+    {
+      "q": "How many animals of each kind did Moses take on the ark?",
+      "opts": [
+        "None – that was Noah",
+        "Two",
+        "Seven",
+        "One pair each"
+      ],
+      "c": 0
+    },
+    {
+      "q": "In a race you overtake the runner in second place. What position are you in now?",
+      "opts": [
+        "Second",
+        "First",
+        "Third",
+        "At the finish"
+      ],
+      "c": 0
+    },
+    {
+      "q": "A red house is made of red bricks, a blue house of blue bricks. What is a greenhouse made of?",
+      "opts": [
+        "Glass",
+        "Green bricks",
+        "Wood",
+        "Plants"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets wetter the more it dries?",
+      "opts": [
+        "A towel",
+        "A sponge",
+        "The sun",
+        "A hairdryer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a neck but no head?",
+      "opts": [
+        "A bottle",
+        "A guitar",
+        "A sweater",
+        "A swan"
+      ],
+      "c": 0
+    },
+    {
+      "q": "How far can a dog run into the woods?",
+      "opts": [
+        "Halfway",
+        "All the way",
+        "As far as it likes",
+        "One kilometre"
+      ],
+      "c": 0
+    },
+    {
+      "q": "You get 3 pills, one every half hour. How long do they last?",
+      "opts": [
+        "One hour",
+        "One and a half hours",
+        "Half an hour",
+        "Three hours"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Which number gets bigger when you turn it upside down?",
+      "opts": [
+        "The 6",
+        "The 8",
+        "The 1",
+        "The 0"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What goes up and down but never moves from the spot?",
+      "opts": [
+        "A staircase",
+        "A lift",
+        "A ball",
+        "A swing"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has many teeth but never bites?",
+      "opts": [
+        "A comb",
+        "A guard dog",
+        "A crocodile",
+        "A wolf"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets bigger the more you take away?",
+      "opts": [
+        "A hole",
+        "A mountain",
+        "A supply",
+        "A stack"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has hands but cannot clap?",
+      "opts": [
+        "A clock",
+        "A glove",
+        "A monkey",
+        "A robot"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has cities but no houses, forests but no trees, water but no fish?",
+      "opts": [
+        "A map",
+        "A desert",
+        "The moon",
+        "A model"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can you catch but not throw?",
+      "opts": [
+        "A cold",
+        "A ball",
+        "A fish",
+        "A stone"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has four wheels and flies?",
+      "opts": [
+        "A garbage truck",
+        "An airplane",
+        "A flying carpet",
+        "A car"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What belongs to you but is used more by others than by you?",
+      "opts": [
+        "Your name",
+        "Your car",
+        "Your phone",
+        "Your money"
+      ],
+      "c": 0
+    },
+    {
+      "q": "How many peas fit into an empty glass?",
+      "opts": [
+        "One – then it's no longer empty",
+        "A hundred",
+        "None",
+        "As many as fit"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a head and a foot but no legs?",
+      "opts": [
+        "A bed",
+        "A table",
+        "A mushroom",
+        "A mountain"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What runs and runs but has no legs?",
+      "opts": [
+        "A river",
+        "A runner",
+        "A dog",
+        "An ant"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has many eyes but cannot see?",
+      "opts": [
+        "A potato",
+        "An owl",
+        "An eagle",
+        "A camera"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What is always in front of you but can never be reached?",
+      "opts": [
+        "The future",
+        "A wall",
+        "Your reflection",
+        "The moon"
+      ],
+      "c": 0
+    },
+    {
+      "q": "An electric train heads east, the wind blows from the west. Which way does the smoke drift?",
+      "opts": [
+        "There is no smoke",
+        "East",
+        "West",
+        "Upward"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What runs through every town but never moves itself?",
+      "opts": [
+        "The road",
+        "The wind",
+        "The traffic",
+        "The train"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What must you break before you can use it?",
+      "opts": [
+        "An egg",
+        "A vase",
+        "A window",
+        "A plate"
+      ],
+      "c": 0
+    },
+    {
+      "q": "A rooster lays an egg on a pointed roof. Which side does it roll down?",
+      "opts": [
+        "Neither – roosters don't lay eggs",
+        "Left",
+        "Right",
+        "The steeper side"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets longer in winter and shorter in summer?",
+      "opts": [
+        "The night",
+        "The day",
+        "The snow",
+        "A beard"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has one eye but cannot see?",
+      "opts": [
+        "A needle",
+        "A mole",
+        "A button",
+        "A stone"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a thumb and four fingers but is not alive?",
+      "opts": [
+        "A glove",
+        "A statue",
+        "A hand",
+        "A robot"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a ring but no finger?",
+      "opts": [
+        "A telephone",
+        "A door",
+        "A window",
+        "A table"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has leaves but is not a tree?",
+      "opts": [
+        "A book",
+        "A stone",
+        "A car",
+        "A lamp"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What wears a hat but has no head?",
+      "opts": [
+        "A mushroom",
+        "A cowboy",
+        "A king",
+        "A clown"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has teeth but cannot eat anything?",
+      "opts": [
+        "A saw",
+        "A baby",
+        "A shark",
+        "A crocodile"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What always comes but never arrives?",
+      "opts": [
+        "Tomorrow",
+        "The bus",
+        "The mail",
+        "Summer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can you hold without ever touching it?",
+      "opts": [
+        "Your breath",
+        "A ball",
+        "A hand",
+        "A rope"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What always goes up but never comes back down?",
+      "opts": [
+        "Your age",
+        "An elevator",
+        "A balloon",
+        "The sun"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can fly without wings?",
+      "opts": [
+        "Time",
+        "A bird",
+        "An airplane",
+        "A kite"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets shorter the longer it burns?",
+      "opts": [
+        "A candle",
+        "A fire",
+        "A light bulb",
+        "An oven"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What stands in the corner yet travels all around the world?",
+      "opts": [
+        "A stamp",
+        "A globe",
+        "A tourist",
+        "A lamp"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a crown and a neck but is no king?",
+      "opts": [
+        "A tooth",
+        "A giraffe",
+        "A queen",
+        "A bottle"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What is full of holes but still holds water?",
+      "opts": [
+        "A sponge",
+        "A sieve",
+        "A net",
+        "A bucket"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What speaks every language without ever having learned one?",
+      "opts": [
+        "An echo",
+        "A radio",
+        "A parrot",
+        "A translator"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What comes once in a minute, twice in a moment, but never in a thousand years?",
+      "opts": [
+        "The letter M",
+        "A full moon",
+        "A blink",
+        "New Year"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a head but cannot think?",
+      "opts": [
+        "A match",
+        "A professor",
+        "A student",
+        "A parrot"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What runs around the garden but never moves?",
+      "opts": [
+        "A fence",
+        "A dog",
+        "The gardener",
+        "A lawnmower"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can you give away and still keep?",
+      "opts": [
+        "Your word",
+        "Your money",
+        "Your car",
+        "Your cake"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What grows the more you share it?",
+      "opts": [
+        "Joy",
+        "A cake",
+        "Money",
+        "A pizza"
+      ],
+      "c": 0
+    }
   ],
   "g66_title": "66 (Sixty-Six)",
   "g66_intro": "The classic trick-taking game against the AI — 20 cards, marriages, closing, going out. Your game is saved and can be continued on any device.",
@@ -1109,5 +1559,96 @@
   "gj_stats_reset": "Reset statistics",
   "gj_device_title": "Active on another device",
   "gj_device_text": "This game is currently running on another device. Take over here?",
-  "gj_device_takeover": "Take over here"
+  "gj_device_takeover": "Take over here",
+  "ggr_title": "Wheel of Fortune",
+  "ggr_heading": "WHEEL OF FORTUNE",
+  "ggr_subtitle": "Spin the wheel, guess the letters, solve the puzzle!",
+  "ggr_level_easy": "Easy",
+  "ggr_level_medium": "Medium",
+  "ggr_level_hard": "Hard",
+  "ggr_resume": "Resume game",
+  "ggr_new_game": "New Game",
+  "ggr_statistics": "Statistics",
+  "ggr_settings": "Settings",
+  "ggr_close": "Close",
+  "ggr_back": "To members area",
+  "ggr_reset": "Reset",
+  "ggr_category": "Category",
+  "ggr_letters": "Letters",
+  "ggr_solve": "Solve",
+  "ggr_solve_placeholder": "Enter solution...",
+  "ggr_cancel": "Cancel",
+  "ggr_confirm": "Confirm",
+  "ggr_spin": "Spin!",
+  "ggr_buy_vowel": "Vowel (250€)",
+  "ggr_continue": "Continue",
+  "ggr_game_over": "Game Over!",
+  "ggr_finale": "★ FINALE ★",
+  "ggr_finale_pick_title": "Finale — Choose 3 consonants and 1 vowel",
+  "ggr_round_of": "Round {round} of {max}",
+  "ggr_round_score": "Round: {amount} €",
+  "ggr_currency": "€",
+  "ggr_session_takeover": "Active on another device. Take over?",
+  "ggr_ai_delay_label": "AI delay:",
+  "ggr_sound_label": "Sound enabled",
+  "ggr_stats_empty": "No games played yet.",
+  "ggr_stats_wins": "Wins",
+  "ggr_stats_losses": "Losses",
+  "ggr_stats_games": "Games",
+  "ggr_stats_winrate": "Win rate",
+  "ggr_stats_best": "Best",
+  "ggr_stats_reset_confirm": "Really reset statistics?",
+  "ggr_wheel_pass": "PASS",
+  "ggr_wheel_risk": "RISK",
+  "ggr_evt_spin_money": "{player} — Spin... {amount} €!",
+  "ggr_evt_bankrupt": "{player} — BANKRUPT! 💀",
+  "ggr_evt_skip": "{player} — Skip turn!",
+  "ggr_evt_risk_win": "{player} — RISK won! {old}→{new} €",
+  "ggr_evt_risk_lose": "{player} — RISK lost! {old}→0 €",
+  "ggr_evt_letter_hit": "{player} — \"{letter}\" {count}× hit! +{earned} €",
+  "ggr_evt_letter_miss": "{player} — \"{letter}\" not found!",
+  "ggr_evt_vowel_hit": "{player} — \"{letter}\" {count}× found!",
+  "ggr_evt_vowel_miss": "{player} — \"{letter}\" not found!",
+  "ggr_evt_buy_vowel": "{player} — Buy vowel ({cost} €)",
+  "ggr_evt_solved": "{player} — Solved! 🎉",
+  "ggr_evt_auto_solved": "All letters revealed!",
+  "ggr_evt_solve_wrong": "{player} — Wrong solution!",
+  "ggr_evt_new_round": "Round {round}!",
+  "ggr_evt_finale_reveal": "{hits} hits revealed!",
+  "ggr_evt_finale_solved": "Solved! Bonus: {bonus} € 🎉",
+  "ggr_evt_finale_wrong": "Wrong answer!",
+  "ggr_evt_finale_timeout": "Time's up!",
+  "ggr_player_wins": "{player} — Won!",
+  "ggr_solution": "Solution: {phrase}",
+  "ggr_risk_win": "DOUBLED!",
+  "ggr_risk_lose": "LOST!",
+  "ggr_qualify_title": "Who goes first?",
+  "ggr_qualify_spin": "{player} spins...",
+  "ggr_qualify_result": "{player}: {amount} €",
+  "ggr_qualify_special": "{player}: 0 € (special field)",
+  "ggr_qualify_winner": "{player} starts!",
+  "ggr_qualify_tie": "It's a tie! Spin again...",
+  "ggr_finale_time_up": "Time's up!",
+  "ggr_round_complete": "Round {round} complete",
+  "ggr_round_earned": "Round: +{amount} €",
+  "ggr_risk_question": "RISK! Gamble {amount} € — double or nothing?",
+  "ggr_risk_accept": "Risk it!",
+  "ggr_risk_decline": "No thanks",
+  "ggr_evt_risk_decline": "{player} — No risk!",
+  "ggr_evt_risk_skip": "{player} — Risk with nothing to lose, spin again!",
+  "ggr_extra_life": "Extra Life",
+  "ggr_wheel_extralife": "EXTRA LIFE",
+  "ggr_evt_extra_life": "{player} — Extra life earned! ❤️",
+  "ggr_evt_extra_life_skip": "{player} — Already has an extra life, spin again!",
+  "ggr_evt_bankrupt_save": "{player} — BANKRUPT! Use extra life?",
+  "ggr_evt_skip_save": "{player} — Skip! Use extra life?",
+  "ggr_evt_life_used": "{player} — Extra life used! Saved! ❤️",
+  "ggr_use_life": "Use extra life",
+  "ggr_decline_life": "No",
+  "ggr_pause": "Pause",
+  "ggr_paused": "Paused",
+  "ggr_pause_hint": "Press P or click the button to resume",
+  "ggr_resume_game": "Resume",
+  "ggr_intro": "Spin the wheel, guess letters and solve the word puzzle against two AI rivals.",
+  "ggr_play": "Play"
 }

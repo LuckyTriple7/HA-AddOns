@@ -51,6 +51,7 @@ import game_20ab
 import game_schwimmen
 import game_maumau
 import game_jeopardy
+import game_gluecksrad
 import game_praesident
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -92,7 +93,7 @@ GAMES_DIR.mkdir(parents=True, exist_ok=True)
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
-    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
+    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -1247,13 +1248,14 @@ def _sensor_worker() -> None:
 
 # ── Spiel-Sensoren (Live: wer spielt gerade was) ──────────────────────────────
 _HA_GAME_LABELS = {'66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen',
-                   'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy'}
+                   'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy',
+                   'gluecksrad': 'Glücksrad'}
 
 
 def _playing_overview() -> tuple[list, dict]:
     """Liefert (spieler, pro_spiel): wer spielt gerade welches Spiel."""
     players: list = []
-    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': []}
+    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': [], 'gluecksrad': []}
     for u in load_users():
         p = _user_playing(u['id'])
         if not p:
@@ -1281,7 +1283,7 @@ def push_ha_games() -> None:
                                        'spieler': players,
                                        'pro_spiel': {_HA_GAME_LABELS[g]: len(v)
                                                      for g, v in per_game.items()}}})
-        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy'):
+        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad'):
             http.post(f'{base}/sensor.mypage_aktiv_{g}', headers=headers, timeout=10,
                       json={'state': len(per_game.get(g, [])),
                             'attributes': {'friendly_name': f'MyPage aktiv {_HA_GAME_LABELS[g]}',
@@ -2291,7 +2293,7 @@ def api_user_journal(uid: str):
     return jsonify({'journal': list(reversed(user.get('journal', [])))})
 
 
-_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy')
+_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad')
 
 
 def _user_playing(uid: str):
@@ -2310,7 +2312,8 @@ def _game_stats(uid: str) -> list:
             ('schwimmen', _ng_history('schwimmen', uid)),
             ('maumau', _ng_history('maumau', uid)),
             ('praesident', _ng_history('praesident', uid)),
-            ('jeopardy', _ng_history('jeopardy', uid)))
+            ('jeopardy', _ng_history('jeopardy', uid)),
+            ('gluecksrad', _ng_history('gluecksrad', uid)))
     out = []
     for game, hist in srcs:
         out.append({'game': game, 'played': len(hist),
@@ -3274,7 +3277,7 @@ _schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
 
 
 def _ng_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
         return None
     return GAMES_DIR / f'{game}_{uid}.json'
 
@@ -3305,7 +3308,7 @@ def _ng_save(game: str, uid: str, st: dict) -> None:
 
 
 def _ng_hist_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
         return None
     return GAMES_DIR / f'{game}hist_{uid}.json'
 
@@ -4283,6 +4286,138 @@ def api_jeopardy_session():
     member = _require_member()
     data = request.get_json(silent=True) or {}
     return _sess_dispatch('jeopardy', member['id'], data)
+
+
+# ── Glücksrad ────────────────────────────────────────────────────────────────
+
+def _clean_gluecksrad_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input).
+    Die Engine validiert Buchstaben/Status zusätzlich."""
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if raw.get('letter') is not None:
+        act['letter'] = str(raw.get('letter'))[:1].upper()
+    if raw.get('answer') is not None:
+        act['answer'] = str(raw.get('answer'))[:80]
+    if 'accept' in raw:
+        act['accept'] = bool(raw.get('accept'))
+    if 'use' in raw:
+        act['use'] = bool(raw.get('use'))
+    if isinstance(raw.get('consonants'), list):
+        act['consonants'] = [str(c)[:1].upper() for c in raw['consonants'][:5]]
+    if raw.get('vowel') is not None:
+        act['vowel'] = str(raw.get('vowel'))[:1].upper()
+    return act
+
+
+def _record_gluecksrad_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    win = game_gluecksrad._determine_winner(st)
+    win_idx = win if isinstance(win, int) else (win[0] if win else 0)
+    games = _ng_history('gluecksrad', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': 'p' if win_idx == 0 else 'a',
+        'players': [{'name': p['name'], 'total': p['total']} for p in st['players']],
+        'level': st.get('level', 'medium'),
+    })
+    _ng_history_write('gluecksrad', uid, games)
+
+
+@public_app.route('/bereich/gluecksrad')
+def gluecksrad_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_gluecksrad.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/gluecksrad/state')
+def api_gluecksrad_state():
+    member = _require_member()
+    st = _ng_load('gluecksrad', member['id'])
+    return jsonify({'state': game_gluecksrad.public_view(st) if st else None})
+
+
+@public_app.route('/api/gluecksrad/new', methods=['POST'])
+def api_gluecksrad_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('gluecksrad', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    lang = detect_language(request)
+    with _game_lock:
+        st = game_gluecksrad.new_game(level, lang)
+        _ng_save('gluecksrad', member['id'], st)
+    return jsonify({'state': game_gluecksrad.public_view(st)})
+
+
+@public_app.route('/api/gluecksrad/move', methods=['POST'])
+def api_gluecksrad_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('gluecksrad', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_gluecksrad_move(data)
+    with _game_lock:
+        st = _ng_load('gluecksrad', member['id'])
+        if st is None:
+            abort(409)
+        game_gluecksrad.apply_action(st, act)
+        _record_gluecksrad_if_over(member['id'], st)
+        _ng_save('gluecksrad', member['id'], st)
+    return jsonify({'state': game_gluecksrad.public_view(st)})
+
+
+@public_app.route('/api/gluecksrad/ai', methods=['POST'])
+def api_gluecksrad_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('gluecksrad', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        st = _ng_load('gluecksrad', member['id'])
+        if st is None:
+            abort(409)
+        event = game_gluecksrad.ai_step(st)
+        _record_gluecksrad_if_over(member['id'], st)
+        _ng_save('gluecksrad', member['id'], st)
+    return jsonify({'state': game_gluecksrad.public_view(st), 'event': event})
+
+
+@public_app.route('/api/gluecksrad/rules')
+def api_gluecksrad_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('gluecksrad', detect_language(request))})
+
+
+@public_app.route('/api/gluecksrad/history')
+def api_gluecksrad_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('gluecksrad', member['id'])))})
+
+
+@public_app.route('/api/gluecksrad/history/reset', methods=['POST'])
+def api_gluecksrad_history_reset():
+    member = _require_member()
+    _ng_history_write('gluecksrad', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/gluecksrad/session', methods=['POST'])
+def api_gluecksrad_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('gluecksrad', member['id'], data)
 
 
 @public_app.route('/sitemap.xml')

@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ t.ggr_title }}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);height:100vh;font-family:'Segoe UI',Arial,sans-serif;color:#fff;overflow:hidden}
+
+/* ── Layout ─────────────────────────── */
+.game-header{text-align:center;padding:4px 0 2px}
+.game-header h1{font-size:1.3rem;color:#ffd700;text-shadow:0 0 15px rgba(255,215,0,0.5);letter-spacing:2px}
+.main-area{display:flex;gap:15px;padding:0 15px;height:calc(100vh - 36px)}
+.left-col{flex:0 0 auto;width:min(38vw,calc(100vh - 320px));display:flex;flex-direction:column;align-items:center;gap:6px}
+.right-col{flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding-top:4px}
+
+/* ── Spieler-Scores ─────────────────── */
+.scores{display:flex;gap:8px;width:100%}
+.score-card{flex:1;background:rgba(255,255,255,0.08);border-radius:10px;padding:8px 10px;text-align:center;border:2px solid transparent;transition:border-color 0.3s,box-shadow 0.3s}
+.score-card.active{border-color:#ffd700;border-width:3px;animation:activeGlow 1.5s ease-in-out infinite}
+@keyframes activeGlow{0%,100%{box-shadow:0 0 10px rgba(255,215,0,0.3)}50%{box-shadow:0 0 25px rgba(255,215,0,0.7),0 0 40px rgba(255,215,0,0.3)}}
+.score-card .name{font-size:0.85rem;color:#aaa;margin-bottom:2px}
+.score-card .name.human{color:#6cf}
+.score-card .total{font-size:1.3rem;font-weight:bold;color:#fff}
+.score-card .round-score{font-size:0.8rem;color:#8f8}
+.score-card .extra-lives{font-size:0.75rem;margin:1px 0;letter-spacing:2px}
+
+/* ── Rad ────────────────────────────── */
+.wheel-area{position:relative;width:100%;aspect-ratio:1;margin:5% auto 0}
+.wheel-outer{position:absolute;top:-2.2%;left:-2.2%;width:104.4%;height:104.4%;border-radius:50%;pointer-events:none;background:conic-gradient(from 0deg,#ffd700 0deg 15deg,#b8860b 15deg 30deg,#ffd700 30deg 45deg,#b8860b 45deg 60deg,#ffd700 60deg 75deg,#b8860b 75deg 90deg,#ffd700 90deg 105deg,#b8860b 105deg 120deg,#ffd700 120deg 135deg,#b8860b 135deg 150deg,#ffd700 150deg 165deg,#b8860b 165deg 180deg,#ffd700 180deg 195deg,#b8860b 195deg 210deg,#ffd700 210deg 225deg,#b8860b 225deg 240deg,#ffd700 240deg 255deg,#b8860b 255deg 270deg,#ffd700 270deg 285deg,#b8860b 285deg 300deg,#ffd700 300deg 315deg,#b8860b 315deg 330deg,#ffd700 330deg 345deg,#b8860b 345deg 360deg);box-shadow:0 0 20px rgba(255,215,0,0.3);z-index:0}
+.wheel-svg{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.4))}
+.wheel-pointer{position:absolute;top:-5.5%;left:50%;transform:translateX(-50%);z-index:10;width:7%;height:auto}
+.wheel-hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:15%;height:15%;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff 0%,#ddd 40%,#aaa 100%);box-shadow:0 3px 10px rgba(0,0,0,0.4);z-index:5;display:flex;align-items:center;justify-content:center;font-size:clamp(0.8rem,2vw,1.4rem)}
+.wheel-lights{position:absolute;top:-3.3%;left:-3.3%;width:106.7%;height:106.7%;z-index:2;pointer-events:none}
+.light-dot{position:absolute;width:1.6%;height:1.6%;border-radius:50%;background:#ffd700;box-shadow:0 0 4px #ffd700;transition:opacity 0.3s;transform:translate(-50%,-50%)}
+@keyframes pulse-lights{0%,100%{opacity:1}50%{opacity:0.2}}
+.wheel-lights.animate .light-dot:nth-child(odd){animation:pulse-lights 0.4s infinite}
+.wheel-lights.animate .light-dot:nth-child(even){animation:pulse-lights 0.4s infinite 0.2s}
+
+/* ── Aktions-Buttons ────────────────── */
+.actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%;margin-top:35px}
+.btn{padding:10px 20px;font-size:1rem;font-weight:bold;border:none;border-radius:8px;cursor:pointer;transition:transform 0.1s,opacity 0.2s;text-transform:uppercase;letter-spacing:1px}
+.btn:hover:not(:disabled){transform:translateY(-1px)}
+.btn:disabled{opacity:0.35;cursor:not-allowed}
+.btn-spin{background:linear-gradient(180deg,#ffd700,#f0a500);color:#1a1a4e}
+.btn-vowel{background:linear-gradient(180deg,#6cf,#38a);color:#fff}
+.btn-solve{background:linear-gradient(180deg,#8f8,#4a4);color:#1a1a4e}
+
+/* ── Kategorie ──────────────────────── */
+.category-bar{background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.3);border-radius:10px;padding:8px 15px;text-align:center}
+.category-label{font-size:0.8rem;color:#aaa;text-transform:uppercase;letter-spacing:1px}
+.category-name{font-size:1.2rem;color:#ffd700;font-weight:bold;margin-top:2px}
+
+/* ── Runden-Info ────────────────────── */
+.round-info{text-align:center;font-size:0.85rem;color:#888}
+
+/* ── Puzzle-Board ───────────────────── */
+.puzzle-board{background:rgba(0,80,180,0.25);border:2px solid rgba(0,120,255,0.3);border-radius:12px;padding:15px;min-height:120px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px}
+.puzzle-char{width:36px;height:46px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:bold;border-radius:4px;transition:background 0.3s,transform 0.3s}
+.puzzle-char.letter{background:rgba(255,255,255,0.95);color:#1a1a4e}
+.puzzle-char.blank{background:rgba(255,255,255,0.15);color:transparent;border:1px solid rgba(255,255,255,0.2)}
+.puzzle-char.space{width:16px;background:transparent;border:none}
+.puzzle-char.punct{background:rgba(255,255,255,0.6);color:#1a1a4e}
+.puzzle-char.reveal{animation:bing-reveal 1s ease}
+@keyframes bing-reveal{0%{transform:rotateX(90deg);box-shadow:none}30%{transform:rotateX(0);box-shadow:0 0 25px rgba(255,215,0,1)}70%{box-shadow:0 0 15px rgba(255,215,0,0.6)}100%{transform:rotateX(0);box-shadow:none}}
+.category-bar.intro{opacity:0;animation:fadeInUp 1.2s ease forwards}
+@keyframes fadeInUp{0%{opacity:0;transform:translateY(15px)}100%{opacity:1;transform:translateY(0)}}
+.puzzle-char.pop-in{opacity:0;transform:scale(0.3);animation:popIn 0.3s ease forwards}
+@keyframes popIn{0%{opacity:0;transform:scale(0.3)}70%{transform:scale(1.1)}100%{opacity:1;transform:scale(1)}}
+
+/* ── Buchstaben-Tafel ───────────────── */
+.letter-panel{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px}
+.letter-panel h3{font-size:0.8rem;color:#aaa;text-align:center;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.letter-grid{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.letter-btn{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:bold;border-radius:6px;border:none;cursor:pointer;transition:transform 0.1s,opacity 0.2s}
+.letter-btn.consonant{background:#445;color:#fff}
+.letter-btn.vowel{background:#446;color:#6cf}
+.letter-btn:hover:not(:disabled){transform:scale(1.1)}
+.letter-btn:disabled{opacity:0.2;cursor:not-allowed}
+.letter-btn.used{opacity:0.15;text-decoration:line-through}
+.letter-btn.hit{background:#2a5;color:#fff;opacity:0.5}
+.letter-btn.miss{background:#822;color:#fff;opacity:0.3}
+
+/* ── Message / Toast ────────────────── */
+.message-area{min-height:50px;display:flex;align-items:center;justify-content:center;text-align:center}
+.toast{padding:8px 20px;border-radius:8px;font-size:1.1rem;font-weight:bold;opacity:0;transform:translateY(10px);transition:opacity 0.3s,transform 0.3s}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.money{background:rgba(0,255,100,0.2);color:#0f8}
+.toast.bankrupt{background:rgba(255,0,0,0.2);color:#f44}
+.toast.skip{background:rgba(255,170,0,0.2);color:#fa0}
+.toast.risk{background:rgba(255,100,255,0.2);color:#f6f}
+.toast.info{background:rgba(100,200,255,0.15);color:#6cf}
+.toast.solve{background:rgba(255,215,0,0.2);color:#ffd700}
+
+/* ── Solve Input ────────────────────── */
+.solve-input-area{display:none;flex-direction:column;align-items:center;gap:8px;margin-top:5px}
+.solve-input-area.visible{display:flex}
+.solve-input{width:80%;max-width:400px;padding:10px;font-size:1.1rem;border-radius:8px;border:2px solid #ffd700;background:rgba(0,0,0,0.5);color:#fff;text-align:center;text-transform:uppercase}
+.solve-input::placeholder{color:#666;text-transform:none}
+.solve-btns{display:flex;gap:8px}
+.btn-sm{padding:8px 16px;font-size:0.9rem}
+
+/* ── Finale ─────────────────────────── */
+.finale-pick{display:none;flex-direction:column;align-items:center;gap:10px}
+.finale-pick.visible{display:flex}
+.finale-pick h3{color:#ffd700}
+.finale-selected{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.finale-selected .slot{width:36px;height:36px;border:2px dashed #ffd700;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#ffd700}
+.finale-timer{font-size:2rem;color:#f44;font-weight:bold}
+
+/* ── Wheel Flyout ──────────────────── */
+.wheel-flyout{position:absolute;z-index:20;pointer-events:none;font-weight:900;white-space:nowrap;text-shadow:0 0 25px rgba(0,0,0,0.9),0 3px 6px rgba(0,0,0,0.7);will-change:transform,opacity}
+
+/* ── Lobby / Start ──────────────────── */
+.lobby{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:20px}
+.lobby h1{font-size:3rem;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5)}
+.lobby .subtitle{color:#aaa;font-size:1.1rem}
+.level-btns{display:flex;gap:12px}
+.level-btn{padding:14px 30px;font-size:1.1rem;font-weight:bold;border:2px solid;border-radius:12px;cursor:pointer;background:transparent;transition:background 0.2s,transform 0.15s}
+.level-btn:hover{transform:translateY(-2px)}
+.level-btn.easy{color:#4f4;border-color:#4f4}.level-btn.easy:hover{background:rgba(68,255,68,0.15)}
+.level-btn.medium{color:#fc0;border-color:#fc0}.level-btn.medium:hover{background:rgba(255,204,0,0.15)}
+.level-btn.hard{color:#f44;border-color:#f44}.level-btn.hard:hover{background:rgba(255,68,68,0.15)}
+.resume-btn{padding:10px 24px;font-size:0.95rem;color:#6cf;border:1px solid #6cf;border-radius:8px;background:transparent;cursor:pointer}
+/* ── Statistik ─────────────────────────── */
+#stats-box{margin-top:28px;text-align:center}
+#stats-box .stats-title{font-size:15px;opacity:0.6;margin-bottom:10px;letter-spacing:1px;text-transform:uppercase}
+.stats-grid{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.stat{background:rgba(255,255,255,0.06);border-radius:10px;padding:10px 18px;min-width:70px}
+.stat-val{font-size:1.5rem;font-weight:bold;color:#ffd700}
+.stat-label{font-size:0.75rem;opacity:0.5;margin-top:2px}
+.stats-empty{font-size:13px;opacity:0.4;padding:8px 0}
+.stats-history{margin-top:14px;max-height:240px;overflow-y:auto;text-align:left}
+.hist-row{display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;font-size:0.85rem;opacity:0.7}
+.hist-row.win{opacity:1}
+.hist-ico{font-size:1.1rem}
+.hist-meta{flex:1;color:#aaa}
+.hist-score{font-weight:bold}
+.stats-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:999}
+.stats-modal-overlay.show{display:flex}
+.stats-modal{background:#1a1a4e;border-radius:16px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;border:2px solid #ffd700;position:relative}
+.stats-modal h2{color:#ffd700;margin-bottom:16px;text-align:center}
+.stats-modal .close-btn{position:absolute;top:10px;right:14px;font-size:1.4rem;color:#aaa;cursor:pointer;background:none;border:none}
+.stats-modal .close-btn:hover{color:#fff}
+.stats-modal .reset-btn{display:block;margin:16px auto 0;padding:6px 18px;font-size:0.8rem;color:#f66;border:1px solid #f66;border-radius:6px;background:transparent;cursor:pointer}
+.stats-modal .reset-btn:hover{background:rgba(255,68,68,0.15)}
+.stats-btn{margin-top:12px;padding:8px 20px;font-size:0.9rem;color:#ffd700;border:1px solid #ffd700;border-radius:8px;background:transparent;cursor:pointer}
+.stats-btn:hover{background:rgba(255,215,0,0.1)}
+/* ── Settings ─────────────────────────── */
+.top-icons{position:fixed;top:8px;right:14px;z-index:100;display:flex;align-items:center;gap:4px}
+.top-icon{background:none;border:none;color:#aaa;cursor:pointer;opacity:0.7;transition:opacity 0.2s,color 0.2s;padding:4px;display:flex;align-items:center;justify-content:center}
+.top-icon:hover{opacity:1;color:#ffd700}
+.top-icon svg{width:20px;height:20px;fill:currentColor}
+.settings-btn:hover{opacity:1;color:#ffd700}
+.setting{text-align:left;margin:12px 0;width:min(340px,80vw)}
+.setting label{display:block;font-size:0.86rem;margin-bottom:7px}
+.setting label b{color:#ffd700;font-variant-numeric:tabular-nums}
+.setting input[type=range]{width:100%;accent-color:#ffd700}
+.setting-check{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.86rem;margin:12px 0}
+.setting-check input[type=checkbox]{width:18px;height:18px;accent-color:#ffd700}
+/* ── Pause ─────────────────────────────── */
+.top-icon.pause-active{color:#f44;opacity:1;animation:pausePulse 1s ease-in-out infinite}
+@keyframes pausePulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.pause-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:95;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+.pause-overlay.visible{display:flex}
+.pause-overlay h2{font-size:2.5rem;color:#ffd700;text-shadow:0 0 20px rgba(255,215,0,0.4)}
+.pause-overlay .pause-hint{color:#aaa;font-size:1rem}
+
+/* ── Münzwurf-Animation ────────────────── */
+.coin-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;z-index:1000;flex-direction:column;gap:18px}
+.coin-overlay.show{display:flex}
+.coin-scene{width:140px;height:140px;perspective:600px}
+.coin{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform 0.1s}
+.coin.flip{animation:coinFlip 1.8s ease-out forwards}
+.coin-face{position:absolute;inset:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:3.5rem;font-weight:bold;backface-visibility:hidden;border:4px solid rgba(255,255,255,0.3);box-shadow:0 0 30px rgba(0,0,0,0.5)}
+.coin-front{background:radial-gradient(circle at 35% 35%,#ffe066,#daa520,#b8860b);color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.4)}
+.coin-back{background:radial-gradient(circle at 35% 35%,#ff6666,#cc2222,#991111);color:#fff;transform:rotateY(180deg);text-shadow:0 2px 4px rgba(0,0,0,0.4)}
+.coin-result{font-size:1.4rem;font-weight:bold;text-align:center;opacity:0;transition:opacity 0.4s}
+.coin-result.show{opacity:1}
+.coin-result.win{color:#4f4;text-shadow:0 0 15px rgba(68,255,68,0.5)}
+.coin-result.lose{color:#f44;text-shadow:0 0 15px rgba(255,68,68,0.5)}
+@keyframes coinFlip{
+  0%{transform:rotateY(0) scale(0.6)}
+  15%{transform:rotateY(540deg) scale(1.1)}
+  40%{transform:rotateY(1260deg) scale(1)}
+  70%{transform:rotateY(1800deg) scale(1.05)}
+  85%{transform:rotateY(2160deg) scale(1)}
+  100%{transform:rotateY(var(--coin-end)) scale(1)}
+}
+
+/* ── Game Over ──────────────────────── */
+.game-over-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:15px}
+.game-over-overlay.visible{display:flex}
+.game-over-overlay h2{font-size:2.5rem;color:#ffd700}
+.game-over-overlay .final-scores{display:flex;gap:15px}
+.game-over-overlay .fs{background:rgba(255,255,255,0.1);padding:15px 25px;border-radius:10px;text-align:center}
+.game-over-overlay .fs.winner{border:2px solid #ffd700;box-shadow:0 0 20px rgba(255,215,0,0.3)}
+.game-over-overlay .fs .n{color:#aaa;font-size:0.9rem}.game-over-overlay .fs .s{font-size:2rem;font-weight:bold}
+
+/* ── Responsive ─────────────────────── */
+@media(max-width:900px){
+  body{height:auto;overflow:auto}
+  .main-area{flex-direction:column;align-items:center;height:auto;padding:0 10px}
+  .left-col{flex:none;width:min(65vw,300px);height:auto}
+  .right-col{width:100%;max-width:600px;overflow-y:visible}
+  .actions{margin-top:15px}
+  .lobby h1{font-size:2rem}
+}
+@media(max-width:500px){
+  .game-header h1{font-size:1rem}
+  .score-card{padding:5px 6px}
+  .score-card .total{font-size:1rem}
+  .score-card .round-score{font-size:0.7rem}
+  .puzzle-char{width:28px;height:36px;font-size:1.2rem}
+  .letter-btn{width:30px;height:30px;font-size:0.8rem}
+  .btn{padding:8px 14px;font-size:0.85rem}
+  .category-name{font-size:1rem}
+  .actions{margin-top:15px}
+}
+
+/* ── Finale Timer (SVG ring) ──────── */
+.finale-timer-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:6px}
+.finale-timer-wrap svg{transform:rotate(-90deg)}
+.finale-timer-wrap svg text{transform:rotate(90deg);transform-origin:50% 50%}
+.finale-timer-wrap .ft-label{font-size:0.85rem;color:#aaa}
+@keyframes pulse-ft{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+/* ── Confetti ─────────────────────── */
+.confetti-piece{position:fixed;width:10px;height:10px;z-index:200;pointer-events:none;animation:confettiFall 3s ease-out forwards}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+/* ── Round Summary ────────────────── */
+.round-summary-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:90;align-items:center;justify-content:center}
+.round-summary-overlay.visible{display:flex;animation:fadeIn 0.3s ease}
+.round-summary-box{background:rgba(26,26,78,0.95);border:2px solid #ffd700;border-radius:16px;padding:24px 32px;text-align:center}
+.round-summary-box h3{color:#ffd700;margin-bottom:16px;font-size:1.3rem}
+.rs-player{display:flex;justify-content:space-between;gap:30px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1)}
+.rs-player .rs-name{color:#aaa}.rs-player .rs-earned{color:#8f8}.rs-player .rs-total{color:#fff;font-weight:bold}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ── Rotate-Hinweis (nur Handy-Hochformat) ── */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:680px) and (pointer:coarse){
+  #rotate-overlay{display:flex;position:fixed;inset:0;z-index:1000;background:radial-gradient(ellipse at center,#1a1a4e,#0a0a2e);align-items:center;justify-content:center;text-align:center;padding:24px;color:#fff}
+  .rotate-icon{font-size:3rem;animation:rot 1.6s ease-in-out infinite}
+  .rotate-title{font-size:1.3rem;font-weight:bold;margin:14px 0 6px;color:#ffd700}
+  .rotate-hint{font-size:0.95rem;color:#ccc}
+}
+@keyframes rot{0%,100%{transform:rotate(0)}50%{transform:rotate(90deg)}}
+</style>
+</head>
+<body>
+
+<!-- ══ ROTATE-HINWEIS (Hochformat auf Handy) ══════ -->
+<div id="rotate-overlay"><div><div class="rotate-icon">📱</div>
+  <div class="rotate-title">{{ t.game_rotate_title }}</div>
+  <div class="rotate-hint">{{ t.game_rotate_hint }}</div></div></div>
+
+<!-- ══ LOBBY ══════════════════════════════════════ -->
+<div class="lobby" id="lobby">
+  <h1>{{ t.ggr_heading }}</h1>
+  <p class="subtitle">{{ t.ggr_subtitle }}</p>
+  <div class="level-btns">
+    <button class="level-btn easy" onclick="startGame('easy')">{{ t.ggr_level_easy }}</button>
+    <button class="level-btn medium" onclick="startGame('medium')">{{ t.ggr_level_medium }}</button>
+    <button class="level-btn hard" onclick="startGame('hard')">{{ t.ggr_level_hard }}</button>
+  </div>
+  <button class="resume-btn" id="resumeBtn" style="display:none" onclick="resumeGame()">{{ t.ggr_resume }}</button>
+  <div id="stats-box"></div>
+  <div style="display:flex;gap:12px;margin-top:4px">
+    <button class="stats-btn" onclick="openStats()">{{ t.ggr_statistics }}</button>
+    <button class="stats-btn" onclick="openSettings()">{{ t.ggr_settings }}</button>
+  </div>
+  <div style="margin-top:28px">
+    <button class="stats-btn" style="font-size:0.85rem;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.ggr_back }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Statistik ──────────────────── -->
+<div class="stats-modal-overlay" id="statsModal">
+  <div class="stats-modal">
+    <button class="close-btn" onclick="closeStats()">&times;</button>
+    <h2>{{ t.ggr_statistics }}</h2>
+    <div id="statsModalContent"></div>
+    <button class="reset-btn" onclick="resetStatsConfirm()">{{ t.ggr_reset }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Einstellungen ──────────────────── -->
+<div class="stats-modal-overlay" id="settingsModal">
+  <div class="stats-modal">
+    <button class="close-btn" onclick="closeSettings()">&times;</button>
+    <h2>{{ t.ggr_settings }}</h2>
+    <div class="setting">
+      <label>{{ t.ggr_ai_delay_label }} <b id="val-ai-speed">2,0s</b></label>
+      <input type="range" id="set-ai-speed" min="0" max="5000" step="250" value="2000">
+    </div>
+    <div class="setting-check">
+      <input type="checkbox" id="set-sound" checked>
+      {{ t.ggr_sound_label }}
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:20px">
+      <button class="reset-btn" id="btn-settings-reset">{{ t.ggr_reset }}</button>
+      <button class="stats-btn" onclick="closeSettings()">{{ t.ggr_close }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Münzwurf Overlay ──────────────────── -->
+<div class="coin-overlay" id="coinOverlay">
+  <div class="coin-scene">
+    <div class="coin" id="coin">
+      <div class="coin-face coin-front">✓</div>
+      <div class="coin-face coin-back">✗</div>
+    </div>
+  </div>
+  <div class="coin-result" id="coinResult"></div>
+</div>
+
+<!-- ══ GAME AREA ═════════════════════════════════ -->
+<div id="gameArea" style="display:none">
+  <div class="top-icons">
+    <button class="top-icon" id="pauseBtn" onclick="togglePause()" title="{{ t.ggr_pause }}"><svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
+    <button class="top-icon" onclick="openSettings()" title="{{ t.ggr_settings }}"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.04 7.04 0 00-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84a.48.48 0 00-.48.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87a.48.48 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg></button>
+    <button class="top-icon" onclick="closeGame()" title="{{ t.ggr_close }}"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+  </div>
+  <div class="game-header"><h1>{{ t.ggr_heading }}</h1></div>
+
+  <div class="main-area">
+    <!-- Left: Wheel + Actions -->
+    <div class="left-col">
+      <div class="scores" id="scores"></div>
+
+      <div class="wheel-area" id="wheelArea">
+        <div class="wheel-outer"></div>
+        <div class="wheel-lights" id="wheelLights"></div>
+        <svg class="wheel-svg" id="wheelSvg" viewBox="0 0 360 360"></svg>
+        <svg class="wheel-pointer" viewBox="0 0 40 50">
+          <polygon points="20,50 5,8 20,0 35,8" fill="#ff2222" stroke="#cc0000" stroke-width="1.5"/>
+          <circle cx="20" cy="10" r="4" fill="#fff" stroke="#cc0000" stroke-width="1"/>
+        </svg>
+        <div class="wheel-hub">&#9733;</div>
+      </div>
+
+      <div class="actions" id="actions"></div>
+    </div>
+
+    <!-- Right: Puzzle + Letters -->
+    <div class="right-col">
+      <div class="round-info" id="roundInfo"></div>
+      <div class="category-bar">
+        <div class="category-label">{{ t.ggr_category }}</div>
+        <div class="category-name" id="categoryName">—</div>
+      </div>
+
+      <div class="puzzle-board" id="puzzleBoard"></div>
+
+      <div class="message-area"><div class="toast" id="toast"></div></div>
+
+      <div class="solve-input-area" id="solveArea">
+        <input class="solve-input" id="solveInput" type="text" placeholder="{{ t.ggr_solve_placeholder }}" autocomplete="off">
+        <div class="solve-btns">
+          <button class="btn btn-solve btn-sm" onclick="submitSolve()">{{ t.ggr_solve }}</button>
+          <button class="btn btn-sm" style="background:#555;color:#fff" onclick="cancelSolve()">{{ t.ggr_cancel }}</button>
+        </div>
+      </div>
+
+      <div class="finale-pick" id="finalePick">
+        <h3>{{ t.ggr_finale_pick_title }}</h3>
+        <div class="finale-selected" id="finaleSelected"></div>
+        <div class="letter-grid" id="finaleGrid"></div>
+        <button class="btn btn-solve" id="finaleConfirm" disabled onclick="submitFinalePick()">{{ t.ggr_confirm }}</button>
+      </div>
+
+      <div class="letter-panel" id="letterPanel">
+        <h3>{{ t.ggr_letters }}</h3>
+        <div class="letter-grid" id="letterGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GAME OVER ═════════════════════════════════ -->
+<div class="game-over-overlay" id="gameOver">
+  <h2 id="goTitle">{{ t.ggr_game_over }}</h2>
+  <div class="final-scores" id="goScores"></div>
+  <div id="goPhrase" style="color:#ffd700;font-size:1.2rem;margin-top:10px"></div>
+  <button class="btn btn-spin" onclick="backToLobby()">{{ t.ggr_new_game }}</button>
+</div>
+
+<!-- ══ ROUND SUMMARY ═══════════════════════════════ -->
+<div class="round-summary-overlay" id="roundSummary">
+  <div class="round-summary-box">
+    <h3 id="rsSummaryTitle"></h3>
+    <div id="rsSummaryScores"></div>
+  </div>
+</div>
+
+<!-- ── Pause Overlay ─────────────────────── -->
+<div class="pause-overlay" id="pauseOverlay">
+  <h2>⏸ {{ t.ggr_paused }}</h2>
+  <p class="pause-hint">{{ t.ggr_pause_hint }}</p>
+  <button class="btn btn-spin" onclick="togglePause()">{{ t.ggr_resume_game }}</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// Locale
+// ═══════════════════════════════════════════════════════
+const G = {
+  spin:               {{ t.ggr_spin|tojson }},
+  buy_vowel:          {{ t.ggr_buy_vowel|tojson }},
+  solve:              {{ t.ggr_solve|tojson }},
+  continue_btn:       {{ t.ggr_continue|tojson }},
+  game_over:          {{ t.ggr_game_over|tojson }},
+  finale:             {{ t.ggr_finale|tojson }},
+  round_of:           {{ t.ggr_round_of|tojson }},
+  round_score:        {{ t.ggr_round_score|tojson }},
+  currency:           {{ t.ggr_currency|tojson }},
+  session_takeover:   {{ t.ggr_session_takeover|tojson }},
+  stats_empty:        {{ t.ggr_stats_empty|tojson }},
+  stats_wins:         {{ t.ggr_stats_wins|tojson }},
+  stats_losses:       {{ t.ggr_stats_losses|tojson }},
+  stats_games:        {{ t.ggr_stats_games|tojson }},
+  stats_winrate:      {{ t.ggr_stats_winrate|tojson }},
+  stats_best:         {{ t.ggr_stats_best|tojson }},
+  stats_reset_confirm:{{ t.ggr_stats_reset_confirm|tojson }},
+  wheel_pass:         {{ t.ggr_wheel_pass|tojson }},
+  wheel_risk:         {{ t.ggr_wheel_risk|tojson }},
+  evt_spin_money:     {{ t.ggr_evt_spin_money|tojson }},
+  evt_bankrupt:       {{ t.ggr_evt_bankrupt|tojson }},
+  evt_skip:           {{ t.ggr_evt_skip|tojson }},
+  evt_risk_win:       {{ t.ggr_evt_risk_win|tojson }},
+  evt_risk_lose:      {{ t.ggr_evt_risk_lose|tojson }},
+  evt_letter_hit:     {{ t.ggr_evt_letter_hit|tojson }},
+  evt_letter_miss:    {{ t.ggr_evt_letter_miss|tojson }},
+  evt_vowel_hit:      {{ t.ggr_evt_vowel_hit|tojson }},
+  evt_vowel_miss:     {{ t.ggr_evt_vowel_miss|tojson }},
+  evt_buy_vowel:      {{ t.ggr_evt_buy_vowel|tojson }},
+  evt_solved:         {{ t.ggr_evt_solved|tojson }},
+  evt_auto_solved:    {{ t.ggr_evt_auto_solved|tojson }},
+  evt_solve_wrong:    {{ t.ggr_evt_solve_wrong|tojson }},
+  evt_new_round:      {{ t.ggr_evt_new_round|tojson }},
+  evt_finale_reveal:  {{ t.ggr_evt_finale_reveal|tojson }},
+  evt_finale_solved:  {{ t.ggr_evt_finale_solved|tojson }},
+  evt_finale_wrong:   {{ t.ggr_evt_finale_wrong|tojson }},
+  evt_finale_timeout: {{ t.ggr_evt_finale_timeout|tojson }},
+  player_wins:        {{ t.ggr_player_wins|tojson }},
+  solution:           {{ t.ggr_solution|tojson }},
+  risk_win:           {{ t.ggr_risk_win|tojson }},
+  risk_lose:          {{ t.ggr_risk_lose|tojson }},
+  qualify_title:      {{ t.ggr_qualify_title|tojson }},
+  qualify_spin:       {{ t.ggr_qualify_spin|tojson }},
+  qualify_result:     {{ t.ggr_qualify_result|tojson }},
+  qualify_special:    {{ t.ggr_qualify_special|tojson }},
+  qualify_winner:     {{ t.ggr_qualify_winner|tojson }},
+  qualify_tie:        {{ t.ggr_qualify_tie|tojson }},
+  paused:             {{ t.ggr_paused|tojson }},
+  risk_question:      {{ t.ggr_risk_question|tojson }},
+  risk_accept:        {{ t.ggr_risk_accept|tojson }},
+  risk_decline_btn:   {{ t.ggr_risk_decline|tojson }},
+  evt_risk_decline:   {{ t.ggr_evt_risk_decline|tojson }},
+  evt_risk_skip:      {{ t.ggr_evt_risk_skip|tojson }},
+  extra_life:         {{ t.ggr_extra_life|tojson }},
+  wheel_extralife:    {{ t.ggr_wheel_extralife|tojson }},
+  evt_extra_life:     {{ t.ggr_evt_extra_life|tojson }},
+  evt_extra_life_skip:{{ t.ggr_evt_extra_life_skip|tojson }},
+  evt_bankrupt_save:  {{ t.ggr_evt_bankrupt_save|tojson }},
+  evt_skip_save:      {{ t.ggr_evt_skip_save|tojson }},
+  evt_life_used:      {{ t.ggr_evt_life_used|tojson }},
+  use_life:           {{ t.ggr_use_life|tojson }},
+  decline_life:       {{ t.ggr_decline_life|tojson }},
+  finale_time_up:     {{ t.ggr_finale_time_up|tojson }},
+  round_complete:     {{ t.ggr_round_complete|tojson }},
+  round_earned:       {{ t.ggr_round_earned|tojson }},
+};
+function L(tpl, vars) { return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] !== undefined ? vars[k] : '{'+k+'}'); }
+
+// ═══════════════════════════════════════════════════════
+// Globals
+// ═══════════════════════════════════════════════════════
+let sessionToken = null;
+let S = null; // current state
+let wheelRotation = 0;
+let isSpinning = false;
+let aiRunning = false;
+let gamePaused = false;
+let _pauseResolve = null;
+const SPIN_DURATION_BASE = 4000;
+
+const VOWELS = new Set('AEIOU');
+
+// ── Settings (localStorage) ──────────────────
+function clampInt(v, lo, hi, def) { const n = parseInt(v); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); }
+const AI_PAUSE_DEFAULT = 2000;
+let aiDelay = clampInt(localStorage.getItem('ggr_ai_speed'), 0, 5000, AI_PAUSE_DEFAULT);
+let soundOn = localStorage.getItem('ggr_sound') !== '0';
+const fmtSec = ms => (ms/1000).toFixed(1).replace('.',',') + 's';
+
+function initSettings() {
+  const el = document.getElementById('set-ai-speed');
+  const valEl = document.getElementById('val-ai-speed');
+  el.value = aiDelay;
+  valEl.textContent = fmtSec(aiDelay);
+  el.oninput = () => { aiDelay = parseInt(el.value); valEl.textContent = fmtSec(aiDelay); localStorage.setItem('ggr_ai_speed', aiDelay); };
+
+  const snd = document.getElementById('set-sound');
+  snd.checked = soundOn;
+  snd.onchange = () => { soundOn = snd.checked; localStorage.setItem('ggr_sound', soundOn ? '1' : '0'); if(soundOn) playBing(0); };
+
+  document.getElementById('btn-settings-reset').onclick = () => {
+    aiDelay = AI_PAUSE_DEFAULT; soundOn = true;
+    ['ggr_ai_speed','ggr_sound'].forEach(k => localStorage.removeItem(k));
+    initSettings();
+  };
+}
+function openSettings() { initSettings(); document.getElementById('settingsModal').classList.add('show'); }
+function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+
+function togglePause() {
+  gamePaused = !gamePaused;
+  const btn = document.getElementById('pauseBtn');
+  const ov = document.getElementById('pauseOverlay');
+  btn.classList.toggle('pause-active', gamePaused);
+  btn.innerHTML = gamePaused
+    ? '<svg viewBox="0 0 24 24"><polygon points="6,4 20,12 6,20"/></svg>'
+    : '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
+  if(gamePaused) {
+    ov.classList.add('visible');
+  } else {
+    ov.classList.remove('visible');
+    if(_pauseResolve) { _pauseResolve(); _pauseResolve = null; }
+  }
+}
+function waitIfPaused() {
+  if(!gamePaused) return Promise.resolve();
+  return new Promise(r => { _pauseResolve = r; });
+}
+
+const CONSONANTS = new Set('BCDFGHJKLMNPQRSTVWXYZ');
+
+// ═══════════════════════════════════════════════════════
+// Audio
+// ═══════════════════════════════════════════════════════
+let audioCtx;
+function getAudio() { if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); return audioCtx; }
+
+function playTick() {
+  if(!soundOn) return;
+  const ctx = getAudio(), osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.frequency.value = 1200 + Math.random()*400; osc.type='sine';
+  g.gain.setValueAtTime(0.12, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.05);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.05);
+}
+
+function playSound(type) {
+  if(!soundOn) return;
+  const ctx = getAudio();
+  if(type==='hit') { tone(ctx, 880, 'sine', 0.12, 0.2); }
+  else if(type==='miss') { tone(ctx, 250, 'sawtooth', 0.1, 0.4); }
+  else if(type==='bankrupt') { tone(ctx, 180, 'sawtooth', 0.18, 0.7); }
+  else if(type==='bankrupt_dramatic') {
+    [300,250,200,150,110,80].forEach((f,i)=>tone(ctx,f,'sawtooth',0.2-i*0.025,0.35,i*0.15));
+    tone(ctx, 60, 'square', 0.15, 0.8, 0.9);
+  }
+  else if(type==='solve') { [523,659,784,1047].forEach((f,i)=>tone(ctx,f,'sine',0.12,0.25,i*0.1)); }
+  else if(type==='jackpot') { [523,659,784,1047,1318].forEach((f,i)=>tone(ctx,f,'sine',0.15,0.3,i*0.1)); }
+  else if(type==='round') { tone(ctx, 660, 'sine', 0.1, 0.3); setTimeout(()=>tone(ctx,880,'sine',0.1,0.3),150); }
+  else if(type==='risk_flip') { for(let i=0;i<6;i++) tone(ctx, 800+i*80, 'sine', 0.08, 0.08, i*0.3); }
+  else if(type==='confetti') { [523,659,784,988,1175].forEach((f,i)=>tone(ctx,f,'sine',0.1,0.15,i*0.07)); }
+  else if(type==='timer_warn') { tone(ctx, 1200, 'square', 0.15, 0.12); tone(ctx, 1200, 'square', 0.15, 0.12, 0.15); }
+  else if(type==='skip') {
+    const osc=ctx.createOscillator(), g=ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type='triangle';
+    osc.frequency.setValueAtTime(500, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(250, ctx.currentTime+0.3);
+    osc.frequency.linearRampToValueAtTime(180, ctx.currentTime+0.5);
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.5);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.5);
+  }
+}
+function tone(ctx, freq, type, vol, dur, delay=0) {
+  const osc=ctx.createOscillator(), g=ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.frequency.value=freq; osc.type=type;
+  const t=ctx.currentTime+delay;
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  osc.start(t); osc.stop(t+dur);
+}
+function playBing(idx) {
+  if(!soundOn) return;
+  const ctx=getAudio();
+  tone(ctx, 880+idx*90, 'sine', 0.22, 0.3);
+}
+function playZonk() {
+  if(!soundOn) return;
+  const ctx=getAudio(), osc=ctx.createOscillator(), g=ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.type='square';
+  osc.frequency.setValueAtTime(450, ctx.currentTime);
+  osc.frequency.linearRampToValueAtTime(180, ctx.currentTime+0.45);
+  g.gain.setValueAtTime(0.18, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.45);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.45);
+}
+
+// ═══════════════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════════════
+async function api(url, data) {
+  if(data && sessionToken) data.token = sessionToken;
+  const opts = data ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)} : {};
+  const r = await fetch(url, opts);
+  if(r.status===423) return null;
+  return r.ok ? await r.json() : null;
+}
+
+// ═══════════════════════════════════════════════════════
+// Session
+// ═══════════════════════════════════════════════════════
+async function claimSession() {
+  const r = await api('/api/gluecksrad/session', {action:'claim'});
+  if(r && r.token) { sessionToken = r.token; startHeartbeat(); return true; }
+  if(r && r.locked) {
+    if(confirm(G.session_takeover)) {
+      const r2 = await api('/api/gluecksrad/session', {action:'force'});
+      if(r2 && r2.token) { sessionToken = r2.token; startHeartbeat(); return true; }
+    }
+    return false;
+  }
+  return false;
+}
+let hbInterval;
+function startHeartbeat() {
+  clearInterval(hbInterval);
+  hbInterval = setInterval(()=>{ if(sessionToken) api('/api/gluecksrad/session',{action:'heartbeat',token:sessionToken}); }, 15000);
+}
+function releaseSession(){
+  if(!sessionToken) return;
+  clearInterval(hbInterval);
+  try{ navigator.sendBeacon('/api/gluecksrad/session', new Blob([JSON.stringify({action:'release',token:sessionToken})],{type:'application/json'})); }catch(e){}
+  sessionToken = null;
+}
+window.addEventListener('beforeunload', releaseSession);
+
+// ═══════════════════════════════════════════════════════
+// Game start
+// ═══════════════════════════════════════════════════════
+async function startGame(level) {
+  if(!(await claimSession())) return;
+  const r = await api('/api/gluecksrad/new', {level});
+  if(r && r.state) { S = r.state; showGame(); render(); }
+}
+
+async function resumeGame() {
+  if(!(await claimSession())) return;
+  const r = await api('/api/gluecksrad/state');
+  if(r && r.state) { S = r.state; showGame(); render(); }
+}
+
+function showGame() {
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('gameArea').style.display='block';
+}
+
+function backToLobby() {
+  document.getElementById('gameOver').classList.remove('visible');
+  document.getElementById('gameArea').style.display='none';
+  document.getElementById('lobby').style.display='flex';
+  S = null;
+  renderLobbyStats();
+}
+
+function closeGame() {
+  releaseSession();
+  if(window.parent !== window) window.parent.postMessage('close-gluecksrad', location.origin);
+  else location.href = '/bereich';
+}
+
+// ═══════════════════════════════════════════════════════
+// Statistik
+// ═══════════════════════════════════════════════════════
+async function loadStats() {
+  const r = await fetch('/api/gluecksrad/history');
+  if(!r.ok) return [];
+  const d = await r.json();
+  return d.games || [];
+}
+
+function renderStatsContent(games, target) {
+  if(!games.length) {
+    target.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>';
+    return;
+  }
+  const humanWins = games.filter(g => g.winner === 0).length;
+  const total = games.length;
+  const rate = Math.round(humanWins / total * 100);
+  const bestGame = games.reduce((best, g) => {
+    const ht = g.players[0] ? g.players[0].total : 0;
+    return ht > best ? ht : best;
+  }, 0);
+
+  target.innerHTML =
+    '<div class="stats-grid">' +
+    '<div class="stat"><div class="stat-val">' + humanWins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + (total - humanWins) + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + bestGame + ' ' + G.currency + '</div><div class="stat-label">' + G.stats_best + '</div></div>' +
+    '</div>';
+
+  let hist = '<div class="stats-history">';
+  for(const g of games.slice().reverse().slice(0, 30)) {
+    const isWin = g.winner === 0;
+    const d = new Date(g.ts * 1000);
+    const date = d.toLocaleDateString(undefined, {day:'2-digit', month:'2-digit'});
+    const time = d.toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+    const wName = g.players[g.winner] ? g.players[g.winner].name : '?';
+    const total = g.players[g.winner] ? g.players[g.winner].total : 0;
+    hist += '<div class="hist-row' + (isWin ? ' win' : '') + '">' +
+      '<span class="hist-ico">' + (isWin ? '\u{1F3C6}' : '\u{1F480}') + '</span>' +
+      '<span class="hist-meta">' + date + ' ' + time + '</span>' +
+      '<span class="hist-score">' + wName + ' (' + total + ' ' + G.currency + ')</span>' +
+      '</div>';
+  }
+  hist += '</div>';
+  target.innerHTML += hist;
+}
+
+async function openStats() {
+  const games = await loadStats();
+  renderStatsContent(games, document.getElementById('statsModalContent'));
+  document.getElementById('statsModal').classList.add('show');
+}
+function closeStats() { document.getElementById('statsModal').classList.remove('show'); }
+
+async function resetStatsConfirm() {
+  if(!confirm(G.stats_reset_confirm)) return;
+  await fetch('/api/gluecksrad/history/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+  closeStats();
+  renderLobbyStats();
+}
+
+async function renderLobbyStats() {
+  const games = await loadStats();
+  renderStatsContent(games, document.getElementById('stats-box'));
+}
+
+// ═══════════════════════════════════════════════════════
+// Init check for resume
+// ═══════════════════════════════════════════════════════
+(async function() {
+  try{ if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); }catch(e){}
+  const r = await fetch('/api/gluecksrad/state');
+  if(r.ok) {
+    const d = await r.json();
+    if(d.state && d.state.status !== 'game_over')
+      document.getElementById('resumeBtn').style.display='';
+  }
+  renderLobbyStats();
+})();
+
+// ═══════════════════════════════════════════════════════
+// Wheel build
+// ═══════════════════════════════════════════════════════
+function buildWheel(segments) {
+  if(!segments || !segments.length) return;
+  const svg = document.getElementById('wheelSvg');
+  const N = segments.length, ARC = 360/N, CX=180, CY=180, R=172, IR=35;
+  const COLORS = ['#e74c3c','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#f39c12','#c0392b','#8e44ad','#16a085'];
+  let html = '';
+  for(let i=0;i<N;i++){
+    const seg = segments[i];
+    const isSpecial = typeof seg === 'string';
+    const sa = i*ARC-90, ea = sa+ARC;
+    const sr=sa*Math.PI/180, er=ea*Math.PI/180;
+    const x1=CX+R*Math.cos(sr),y1=CY+R*Math.sin(sr);
+    const x2=CX+R*Math.cos(er),y2=CY+R*Math.sin(er);
+    const ix1=CX+IR*Math.cos(sr),iy1=CY+IR*Math.sin(sr);
+    const ix2=CX+IR*Math.cos(er),iy2=CY+IR*Math.sin(er);
+    const large=ARC>180?1:0;
+    const color = seg==='EXTRALEBEN' ? '#c0392b' : (isSpecial ? '#111' : (seg>=2500 ? '#8e44ad' : COLORS[i%COLORS.length]));
+    const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${IR} ${IR} 0 ${large} 0 ${ix1} ${iy1} Z`;
+    html+=`<path d="${path}" fill="${color}" stroke="#222" stroke-width="1"/>`;
+
+    const midAngle = sa + ARC/2;
+    const midRad = midAngle * Math.PI / 180;
+    const label = seg==='BANKROTT'?'☠':seg==='AUSSETZEN'?G.wheel_pass:seg==='RISIKO'?G.wheel_risk:seg==='EXTRALEBEN'?'❤️':(''+seg);
+    let tc = '#fff';
+    if(seg==='BANKROTT') tc='#f44'; else if(seg==='AUSSETZEN') tc='#fa0'; else if(seg==='RISIKO') tc='#f6f'; else if(seg==='EXTRALEBEN') tc='#f4a'; else if(seg>=2500) tc='#ffd700';
+
+    const chars = label.split('');
+    const charCount = chars.length;
+    const startR = R - 16;
+    const spacing = charCount > 1 ? Math.min(18, (R - IR - 40) / (charCount - 1)) : 0;
+    const fs = isSpecial ? (charCount===1 ? 18 : 12) : (charCount > 3 ? 11 : 13);
+
+    for(let j=0;j<charCount;j++){
+      const cr = startR - j * spacing;
+      const cx = CX + cr * Math.cos(midRad);
+      const cy = CY + cr * Math.sin(midRad);
+      const charRot = midAngle + 90;
+      html+=`<text x="${cx}" y="${cy}" fill="${tc}" font-size="${fs}" font-weight="bold" font-family="'Segoe UI',Arial" text-anchor="middle" dominant-baseline="central" transform="rotate(${charRot},${cx},${cy})">${chars[j]}</text>`;
+    }
+  }
+  svg.innerHTML = html;
+
+  // Lights (percentage-based for responsive scaling)
+  const lc = document.getElementById('wheelLights');
+  let lhtml='';
+  for(let i=0;i<30;i++){
+    const a=(i*360/30-90)*Math.PI/180;
+    lhtml+=`<div class="light-dot" style="left:${50+48.4*Math.cos(a)}%;top:${50+48.4*Math.sin(a)}%"></div>`;
+  }
+  lc.innerHTML=lhtml;
+}
+
+// ═══════════════════════════════════════════════════════
+// Wheel spin animation
+// ═══════════════════════════════════════════════════════
+function animateWheel(targetIdx, segments, callback) {
+  isSpinning = true;
+  const svg = document.getElementById('wheelSvg');
+  const lights = document.getElementById('wheelLights');
+  const N = segments.length, ARC = 360/N;
+  const segCenter = (targetIdx + 0.5) * ARC;
+  const desiredFinal = (360 - segCenter + 360) % 360;
+  const currentMod = ((wheelRotation % 360) + 360) % 360;
+  let delta = desiredFinal - currentMod;
+  if(delta <= 0) delta += 360;
+  const extraSpins = 5 + Math.floor(Math.random()*3);
+  const totalRot = wheelRotation + extraSpins * 360 + delta;
+  const duration = SPIN_DURATION_BASE + Math.random()*2000;
+
+  svg.style.transition = `transform ${duration}ms cubic-bezier(0.17,0.67,0.12,0.99)`;
+  svg.style.transform = `rotate(${totalRot}deg)`;
+  wheelRotation = totalRot;
+  lights.classList.add('animate');
+
+  let elapsed=0, tickDelay=50;
+  function doTicks(){
+    if(elapsed>duration-200){lights.classList.remove('animate');return;}
+    playTick(); elapsed+=tickDelay;
+    tickDelay=50+(elapsed/duration)**2*400;
+    setTimeout(doTicks,tickDelay);
+  }
+  doTicks();
+  setTimeout(()=>{isSpinning=false;lights.classList.remove('animate');callback();},duration+150);
+}
+function animateWheelAsync(targetIdx, segments) {
+  return new Promise(resolve => animateWheel(targetIdx, segments, ()=>{
+    wheelFlyout(targetIdx, segments);
+    resolve();
+  }));
+}
+
+function wheelFlyout(idx, segments) {
+  const seg = segments[idx];
+  const isSpecial = typeof seg === 'string';
+  let label, color;
+  if(seg==='BANKROTT')      { label='☠ BANKROTT'; color='#f44'; }
+  else if(seg==='AUSSETZEN'){ label=G.wheel_pass; color='#fa0'; }
+  else if(seg==='RISIKO')   { label='⚡ RISIKO'; color='#f6f'; }
+  else if(seg==='EXTRALEBEN'){ label='❤️ '+G.extra_life; color='#f4a'; }
+  else                      { label=seg+'€'; color=seg>=2500?'#ffd700':'#0f8'; }
+
+  const area = document.getElementById('wheelArea');
+  const w = area.offsetWidth;
+  const fontSize = w * 0.12;
+  const el = document.createElement('div');
+  el.className = 'wheel-flyout';
+  el.textContent = label;
+  el.style.cssText = `color:${color};font-size:${fontSize}px;left:${w/2}px;top:${w/2}px;transform:translate(-50%,-50%) scale(0)`;
+  area.appendChild(el);
+
+  const dur = 1400;
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / dur, 1);
+    let s, y, o;
+    if(t < 0.15) {
+      const p = t / 0.15;
+      s = p * p * (3 - 2 * p);
+      y = 0; o = 1;
+    } else if(t < 0.5) {
+      s = 1; y = 0; o = 1;
+    } else {
+      const p = (t - 0.5) / 0.5;
+      const ease = p * p * (3 - 2 * p);
+      s = 1 - ease * 0.5;
+      y = -ease * w * 0.6;
+      o = 1 - ease;
+    }
+    el.style.transform = `translate(-50%,${-50 + (y / (w/2)) * 50}%) scale(${s})`;
+    el.style.opacity = o;
+    if(t < 1) requestAnimationFrame(tick);
+    else el.remove();
+  }
+  requestAnimationFrame(tick);
+}
+
+// ═══════════════════════════════════════════════════════
+// Render
+// ═══════════════════════════════════════════════════════
+function render() {
+  if(!S) return;
+  if(S.status==='pre_spin'||S.status==='qualify_spin'||S.status==='round_over'||S.status==='game_over'||S.status==='use_life'||S.status==='risk_choice') isSpinning=false;
+  renderScores();
+  renderRoundInfo();
+  renderCategory();
+  renderPuzzle();
+  renderLetters();
+  renderActions();
+
+  if(S.status==='game_over') showGameOver();
+  else document.getElementById('gameOver').classList.remove('visible');
+
+  if(S.status==='finale_pick') showFinalePick();
+  else document.getElementById('finalePick').classList.remove('visible');
+
+  // Drive AI
+  if(!aiRunning) maybeRunAI();
+}
+
+function renderScores(activeOverride) {
+  const act = activeOverride !== undefined ? activeOverride : S.current;
+  const c = document.getElementById('scores');
+  c.innerHTML = S.players.map((p,i)=>`
+    <div class="score-card ${i===act?'active':''}">
+      <div class="name ${p.type==='human'?'human':''}">${p.name}</div>
+      ${p.extra_lives > 0 ? `<div class="extra-lives">${'❤️'.repeat(p.extra_lives)}</div>` : ''}
+      <div class="total">${p.total} ${G.currency}</div>
+      <div class="round-score">${L(G.round_score, {amount:p.round})}</div>
+    </div>`).join('');
+}
+
+function renderRoundInfo() {
+  const el = document.getElementById('roundInfo');
+  if(S.status==='qualify_spin') el.textContent = G.qualify_title;
+  else if(S.round <= S.max_rounds) el.textContent = L(G.round_of, {round:S.round, max:S.max_rounds});
+  else el.textContent = G.finale;
+}
+
+function renderCategory() {
+  document.getElementById('categoryName').textContent = S.category || '—';
+}
+
+function renderPuzzle(display) {
+  const d = display || (S && S.display);
+  const board = document.getElementById('puzzleBoard');
+  if(!d) { board.innerHTML=''; return; }
+  let html = '';
+  for(const ch of d) {
+    if(ch===' ') html+='<div class="puzzle-char space"></div>';
+    else if(ch==='_') html+='<div class="puzzle-char blank">_</div>';
+    else if(!isLetter(ch)) html+=`<div class="puzzle-char punct">${ch}</div>`;
+    else html+=`<div class="puzzle-char letter">${ch}</div>`;
+  }
+  board.innerHTML = html;
+}
+function isLetter(c){return/^[A-ZÄÖÜß]$/i.test(c);}
+
+async function revealRoundIntro() {
+  const catBar = document.querySelector('.category-bar');
+  const board = document.getElementById('puzzleBoard');
+  board.innerHTML = '';
+  catBar.classList.add('intro');
+  renderCategory();
+  await sleep(2000);
+  catBar.classList.remove('intro');
+  const d = S && S.display;
+  if(!d) return;
+  const chars = [];
+  for(const ch of d) {
+    let div = document.createElement('div');
+    div.className = 'puzzle-char';
+    if(ch===' ') { div.classList.add('space'); }
+    else if(ch==='_') { div.classList.add('blank','pop-in'); div.textContent='_'; }
+    else if(!isLetter(ch)) { div.classList.add('punct','pop-in'); div.textContent=ch; }
+    else { div.classList.add('letter','pop-in'); div.textContent=ch; }
+    div.style.animationPlayState = 'paused';
+    board.appendChild(div);
+    if(ch!==' ') chars.push(div);
+  }
+  for(let i=0; i<chars.length; i++) {
+    chars[i].style.animationPlayState = 'running';
+    playSound('tick');
+    await sleep(80);
+  }
+  await sleep(300);
+}
+
+function renderLetters() {
+  const grid = document.getElementById('letterGrid');
+  const used = new Set(S.used_letters||[]);
+  const status = S.status;
+  const pickingCons = status==='pick_consonant' && S.players[S.current].type==='human';
+  const pickingVow = status==='pick_vowel' && S.players[S.current].type==='human';
+  let html = '';
+  for(const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    const isVowel = VOWELS.has(ch);
+    const isUsed = used.has(ch);
+    let cls = isVowel ? 'vowel' : 'consonant';
+    if(isUsed) cls += ' used';
+    const canClick = !isUsed && ((pickingCons && !isVowel) || (pickingVow && isVowel));
+    html+=`<button class="letter-btn ${cls}" ${canClick?`onclick="pickLetter('${ch}')"`:'disabled'}>${ch}</button>`;
+  }
+  grid.innerHTML = html;
+}
+
+function renderActions() {
+  const c = document.getElementById('actions');
+  const isHuman = S.players[S.current].type==='human';
+  const st = S.status;
+
+  if(st==='risk_choice' && isHuman) {
+    c.innerHTML = `<button class="btn btn-spin" style="background:linear-gradient(180deg,#f6f,#a3a)" onclick="doRiskChoice(true)">${G.risk_accept}</button>`
+      + `<button class="btn btn-sm" style="background:#555;color:#fff" onclick="doRiskChoice(false)">${G.risk_decline_btn}</button>`;
+  } else if(st==='use_life' && isHuman) {
+    c.innerHTML = `<button class="btn btn-solve" onclick="doUseLife(true)">${G.use_life} ❤️</button>`
+      + `<button class="btn btn-sm" style="background:#555;color:#fff" onclick="doUseLife(false)">${G.decline_life}</button>`;
+  } else if(st==='qualify_spin' && isHuman) {
+    c.innerHTML = `<button class="btn btn-spin" onclick="doQualifySpin()">${G.spin}</button>`;
+  } else if(st==='pre_spin' && isHuman) {
+    let h = `<button class="btn btn-spin" onclick="doSpin()">${G.spin}</button>`;
+    h += `<button class="btn btn-vowel" onclick="doBuyVowel()" ${S.can_buy_vowel?'':'disabled'}>${G.buy_vowel}</button>`;
+    h += `<button class="btn btn-solve" onclick="showSolve()">${G.solve}</button>`;
+    c.innerHTML = h;
+  } else if(st==='round_over' && isHuman) {
+    c.innerHTML = `<button class="btn btn-spin" onclick="doContinue()">${G.continue_btn}</button>`;
+  } else if(st==='finale_solve' && isHuman) {
+    c.innerHTML = '';
+    showSolveForFinale();
+  } else {
+    c.innerHTML = '';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Letter reveal animation
+// ═══════════════════════════════════════════════════════
+async function revealAndNotify(oldDisplay) {
+  const newDisplay = S.display;
+  const ev = S.event;
+  renderPuzzle(oldDisplay);
+  const positions = [];
+  if(oldDisplay && newDisplay) {
+    for(let i=0;i<newDisplay.length;i++) {
+      if(oldDisplay[i]==='_' && newDisplay[i]!=='_') positions.push(i);
+    }
+  }
+  if(positions.length > 0) {
+    const board = document.getElementById('puzzleBoard');
+    for(let k=0;k<positions.length;k++) {
+      const tile = board.children[positions[k]];
+      if(!tile) continue;
+      playBing(k);
+      tile.textContent = newDisplay[positions[k]];
+      tile.className = 'puzzle-char letter reveal';
+      await sleep(2000);
+    }
+  } else if(ev && (ev.type==='letter_miss'||ev.type==='vowel_miss')) {
+    playZonk();
+    await sleep(350);
+  }
+  handleEvent(ev);
+  renderPuzzle();
+}
+
+// ═══════════════════════════════════════════════════════
+// Player actions
+// ═══════════════════════════════════════════════════════
+async function doQualifySpin() {
+  if(isSpinning) return;
+  isSpinning = true;
+  getAudio();
+  const spinner = S.current;
+  const r = await api('/api/gluecksrad/move', {type:'spin'});
+  if(!r) { isSpinning = false; return; }
+  S = r.state;
+  const idx = S.wheel_index;
+  const segs = S.wheel_segments;
+  if(idx!==null && idx!==undefined) {
+    renderScores(spinner);
+    await animateWheelAsync(idx, segs);
+    const ev = S.event;
+    if(ev && ev.type==='qualify_spin') {
+      const pname = S.players[ev.player].name;
+      const amt = ev.amount;
+      const msg = amt > 0
+        ? L(G.qualify_result, {player:pname, amount:amt})
+        : L(G.qualify_special, {player:pname});
+      showToast(msg, amt > 0 ? 'money' : 'skip');
+    } else if(ev && ev.type==='qualify_done') {
+      const starter = S.players[ev.starter].name;
+      const lastSpin = ev.spins[ev.spins.length-1];
+      const lastName = S.players[lastSpin.player].name;
+      const lastAmt = lastSpin.amount;
+      const lastMsg = lastAmt > 0
+        ? L(G.qualify_result, {player:lastName, amount:lastAmt})
+        : L(G.qualify_special, {player:lastName});
+      showToast(lastMsg, lastAmt > 0 ? 'money' : 'skip');
+      await sleep(1500);
+      showToast(L(G.qualify_winner, {player:starter}), 'solve');
+      playSound('round');
+      await sleep(1500);
+      buildWheel(S.wheel_segments);
+      await revealRoundIntro();
+    } else if(ev && ev.type==='qualify_tie') {
+      showToast(G.qualify_tie, 'info');
+      await sleep(2000);
+    }
+  }
+  isSpinning = false;
+  render();
+  maybeRunAI();
+}
+
+async function doSpin() {
+  if(isSpinning) return;
+  isSpinning = true;
+  getAudio();
+  const spinner = S.current;
+  const oldState = S;
+  const r = await api('/api/gluecksrad/move', {type:'spin'});
+  if(!r) { isSpinning = false; return; }
+  const newState = r.state;
+  const idx = newState.wheel_index;
+  const segs = newState.wheel_segments || oldState.wheel_segments;
+  if(idx!==null && idx!==undefined) {
+    renderScores(spinner);
+    await animateWheelAsync(idx, segs);
+    S = newState;
+    if(S.event && (S.event.type==='risk_win'||S.event.type==='risk_lose')) {
+      await showCoinFlip(S.event.type==='risk_win');
+    }
+    handleEvent(S.event);
+    render();
+    maybeRunAI();
+  } else {
+    S = newState;
+    isSpinning = false;
+    render();
+  }
+}
+
+async function pickLetter(letter) {
+  const type = S.status==='pick_vowel' ? 'pick_vowel' : 'pick_consonant';
+  const oldDisp = S.display;
+  const r = await api('/api/gluecksrad/move', {type, letter});
+  if(!r) return;
+  S = r.state;
+  isSpinning = false;
+  renderScores(); renderRoundInfo(); renderCategory(); renderLetters();
+  try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); handleEvent(S.event); }
+  render();
+}
+
+async function doBuyVowel() {
+  const r = await api('/api/gluecksrad/move', {type:'buy_vowel'});
+  if(!r) return;
+  S = r.state;
+  isSpinning = false;
+  render();
+}
+
+function showSolve() {
+  document.getElementById('solveArea').classList.add('visible');
+  document.getElementById('solveInput').value='';
+  document.getElementById('solveInput').focus();
+}
+function cancelSolve() {
+  document.getElementById('solveArea').classList.remove('visible');
+}
+function showSolveForFinale() {
+  document.getElementById('solveArea').classList.add('visible');
+  const inp = document.getElementById('solveInput');
+  inp.value=''; inp.focus();
+  // Start countdown
+  startFinaleTimer();
+}
+
+async function submitSolve() {
+  const inp = document.getElementById('solveInput');
+  const answer = inp.value.trim();
+  if(!answer) return;
+  document.getElementById('solveArea').classList.remove('visible');
+  const type = S.status==='finale_solve' ? 'finale_solve' : 'solve';
+  const r = await api('/api/gluecksrad/move', {type, answer});
+  if(!r) return;
+  S = r.state;
+  isSpinning = false;
+  handleEvent(S.event);
+  render();
+}
+
+async function doRiskChoice(accept) {
+  const r = await api('/api/gluecksrad/move', {type:'risk_choice', accept});
+  if(!r) return;
+  S = r.state;
+  if(accept && S.event && (S.event.type==='risk_win'||S.event.type==='risk_lose')) {
+    await showCoinFlip(S.event.type==='risk_win');
+  }
+  handleEvent(S.event);
+  render();
+}
+
+async function doUseLife(use) {
+  const r = await api('/api/gluecksrad/move', {type:'use_life', use});
+  if(!r) return;
+  S = r.state;
+  handleEvent(S.event);
+  render();
+}
+
+document.addEventListener('keydown', (e)=>{
+  const tag = document.activeElement && document.activeElement.tagName;
+  const inInput = (tag === 'INPUT' || tag === 'TEXTAREA');
+  const solveVisible = document.getElementById('solveArea').classList.contains('visible');
+
+  // Enter in solve input -> submit
+  if(e.key==='Enter' && solveVisible && inInput) { submitSolve(); return; }
+
+  // Escape -> close overlays
+  if(e.key==='Escape') {
+    if(solveVisible) { cancelSolve(); return; }
+    if(document.getElementById('settingsModal').classList.contains('show')) { closeSettings(); return; }
+    if(document.getElementById('statsModal').classList.contains('show')) { closeStats(); return; }
+    return;
+  }
+
+  // Don't trigger shortcuts when focused in input
+  if(inInput) return;
+  if(!S) return;
+
+  // P -> toggle pause
+  if(e.key==='p'||e.key==='P') { togglePause(); return; }
+
+  if(gamePaused) return;
+  const isHuman = S.players[S.current] && S.players[S.current].type==='human';
+  if(!isHuman) return;
+
+  // Space/Enter -> spin
+  if((e.key===' '||e.key==='Enter') && !isSpinning) {
+    if(S.status==='pre_spin') { e.preventDefault(); doSpin(); return; }
+    if(S.status==='qualify_spin') { e.preventDefault(); doQualifySpin(); return; }
+  }
+
+  // Letter keys -> pick letter
+  const letter = e.key.toUpperCase();
+  if(/^[A-Z]$/.test(letter)) {
+    const used = new Set(S.used_letters||[]);
+    if(S.status==='pick_consonant' && CONSONANTS.has(letter) && !used.has(letter)) { pickLetter(letter); return; }
+    if(S.status==='pick_vowel' && VOWELS.has(letter) && !used.has(letter)) { pickLetter(letter); return; }
+  }
+});
+
+async function doContinue() {
+  const r = await api('/api/gluecksrad/move', {type:'continue'});
+  if(!r) return;
+  S = r.state;
+  isSpinning = false;
+  buildWheel(S.wheel_segments);
+  handleEvent(S.event);
+  await revealRoundIntro();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+// Finale pick
+// ═══════════════════════════════════════════════════════
+let finaleChoices = {consonants:[], vowel:null};
+
+function showFinalePick() {
+  finaleChoices = {consonants:[], vowel:null};
+  const fp = document.getElementById('finalePick');
+  fp.classList.add('visible');
+  document.getElementById('letterPanel').style.display='none';
+  renderFinaleGrid();
+  renderFinaleSlots();
+}
+
+function renderFinaleGrid() {
+  const grid = document.getElementById('finaleGrid');
+  const used = new Set(S.used_letters||[]);
+  let html='';
+  for(const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'){
+    if(used.has(ch)){html+=`<button class="letter-btn used" disabled>${ch}</button>`;continue;}
+    const isV = VOWELS.has(ch);
+    const canPick = isV ? !finaleChoices.vowel : finaleChoices.consonants.length < 3;
+    const selected = finaleChoices.consonants.includes(ch) || finaleChoices.vowel===ch;
+    html+=`<button class="letter-btn ${isV?'vowel':'consonant'} ${selected?'hit':''}" ${canPick||selected?`onclick="finaleToggle('${ch}')"`:'disabled'}>${ch}</button>`;
+  }
+  grid.innerHTML=html;
+  document.getElementById('finaleConfirm').disabled = !(finaleChoices.consonants.length===3 && finaleChoices.vowel);
+}
+
+function renderFinaleSlots() {
+  const c = document.getElementById('finaleSelected');
+  let html = '';
+  for(let i=0;i<3;i++) html+=`<div class="slot">${finaleChoices.consonants[i]||''}</div>`;
+  html+=`<div class="slot" style="border-color:#6cf">${finaleChoices.vowel||''}</div>`;
+  c.innerHTML=html;
+}
+
+function finaleToggle(ch) {
+  const isV = VOWELS.has(ch);
+  if(isV) { finaleChoices.vowel = finaleChoices.vowel===ch ? null : ch; }
+  else {
+    const idx = finaleChoices.consonants.indexOf(ch);
+    if(idx>=0) finaleChoices.consonants.splice(idx,1);
+    else if(finaleChoices.consonants.length<3) finaleChoices.consonants.push(ch);
+  }
+  renderFinaleGrid();
+  renderFinaleSlots();
+}
+
+async function submitFinalePick() {
+  const r = await api('/api/gluecksrad/move', {type:'finale_pick', consonants:finaleChoices.consonants, vowel:finaleChoices.vowel});
+  if(!r) return;
+  S = r.state;
+  document.getElementById('finalePick').classList.remove('visible');
+  document.getElementById('letterPanel').style.display='';
+  handleEvent(S.event);
+  render();
+}
+
+let finaleTimerInterval;
+function startFinaleTimer() {
+  const totalSec = S.finale ? S.finale.timer_sec : 15;
+  let sec = totalSec;
+  const R = 40, C = 2 * Math.PI * R;
+  const wrap = document.createElement('div');
+  wrap.className = 'finale-timer-wrap';
+  wrap.id = 'finaleTimer';
+  wrap.innerHTML =
+    `<svg width="100" height="100" viewBox="0 0 100 100">` +
+    `<circle cx="50" cy="50" r="${R}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>` +
+    `<circle id="ftRing" cx="50" cy="50" r="${R}" fill="none" stroke="#4f4" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="0"/>` +
+    `<text id="ftText" x="50" y="54" text-anchor="middle" fill="#fff" font-size="24" font-weight="bold">${sec}</text>` +
+    `</svg>` +
+    `<div class="ft-label">${G.finale_time_up.replace('!','')}</div>`;
+  document.getElementById('solveArea').prepend(wrap);
+  const ring = document.getElementById('ftRing');
+  const txt = document.getElementById('ftText');
+  function updateTimer() {
+    sec--;
+    const frac = sec / totalSec;
+    ring.setAttribute('stroke-dashoffset', C * (1 - frac));
+    txt.textContent = sec;
+    if(sec <= 2) { ring.setAttribute('stroke', '#f44'); wrap.style.animation = 'pulse-ft 0.5s infinite'; }
+    else if(sec <= 5) { ring.setAttribute('stroke', '#fc0'); }
+    if(sec <= 3) playSound('timer_warn');
+    if(sec <= 0) { clearInterval(finaleTimerInterval); txt.textContent = '0'; submitSolve(); }
+  }
+  finaleTimerInterval = setInterval(updateTimer, 1000);
+}
+
+// ═══════════════════════════════════════════════════════
+// AI loop
+// ═══════════════════════════════════════════════════════
+async function maybeRunAI() {
+  if(!S || aiRunning) return;
+  const cp = S.players[S.current];
+  if(!cp || cp.type!=='ai') return;
+  if(S.status==='round_over' || S.status==='game_over') return;
+
+  aiRunning = true;
+  while(S && S.players[S.current].type==='ai' && S.status!=='round_over' && S.status!=='game_over') {
+    await waitIfPaused();
+    await sleep(aiDelay);
+    await waitIfPaused();
+    const oldDisp = S.display;
+
+    if(S.status==='qualify_spin') {
+      const aiSpinner = S.current;
+      const r = await api('/api/gluecksrad/ai', {});
+      if(!r) break;
+      S = r.state;
+      if(S.wheel_index!==null && S.wheel_index!==undefined) {
+        renderScores(aiSpinner);
+        await animateWheelAsync(S.wheel_index, S.wheel_segments);
+        const ev = S.event;
+        if(ev && ev.type==='qualify_spin') {
+          const pname = S.players[ev.player].name;
+          const amt = ev.amount;
+          showToast(amt > 0
+            ? L(G.qualify_result, {player:pname, amount:amt})
+            : L(G.qualify_special, {player:pname}),
+            amt > 0 ? 'money' : 'skip');
+        } else if(ev && ev.type==='qualify_done') {
+          const lastSpin = ev.spins[ev.spins.length-1];
+          const lastName = S.players[lastSpin.player].name;
+          const lastAmt = lastSpin.amount;
+          showToast(lastAmt > 0
+            ? L(G.qualify_result, {player:lastName, amount:lastAmt})
+            : L(G.qualify_special, {player:lastName}),
+            lastAmt > 0 ? 'money' : 'skip');
+          await sleep(1500);
+          showToast(L(G.qualify_winner, {player:S.players[ev.starter].name}), 'solve');
+          playSound('round');
+          await sleep(1500);
+          buildWheel(S.wheel_segments);
+          await revealRoundIntro();
+        } else if(ev && ev.type==='qualify_tie') {
+          showToast(G.qualify_tie, 'info');
+          await sleep(2000);
+        }
+      }
+      render();
+      continue;
+    }
+
+    if(S.status==='risk_choice') {
+      await sleep(800);
+      const r = await api('/api/gluecksrad/ai', {});
+      if(!r) break;
+      S = r.state;
+      if(S.event && (S.event.type==='risk_win'||S.event.type==='risk_lose')) {
+        await showCoinFlip(S.event.type==='risk_win');
+      }
+      handleEvent(S.event);
+      renderScores();
+      await sleep(800);
+      render();
+      continue;
+    }
+
+    if(S.status==='use_life') {
+      const r = await api('/api/gluecksrad/ai', {});
+      if(!r) break;
+      S = r.state;
+      handleEvent(S.event);
+      renderScores();
+      await sleep(1000);
+      render();
+      continue;
+    }
+
+    if(S.status==='pre_spin') {
+      const aiSpinner2 = S.current;
+      const r = await api('/api/gluecksrad/ai', {});
+      if(!r) break;
+      const newAiState = r.state;
+
+      if(newAiState.wheel_index!==null && newAiState.wheel_index!==undefined) {
+        renderScores(aiSpinner2);
+        await animateWheelAsync(newAiState.wheel_index, newAiState.wheel_segments || S.wheel_segments);
+        S = newAiState;
+        handleEvent(S.event);
+        renderScores();
+        await sleep(800);
+        if(S.status==='risk_choice') {
+          await sleep(500);
+          const rRisk = await api('/api/gluecksrad/ai', {});
+          if(!rRisk) break;
+          S = rRisk.state;
+          if(S.event && (S.event.type==='risk_win'||S.event.type==='risk_lose')) {
+            await showCoinFlip(S.event.type==='risk_win');
+          }
+          handleEvent(S.event);
+          renderScores();
+          await sleep(800);
+          render();
+          continue;
+        }
+        if(S.status==='use_life') {
+          await sleep(500);
+          const rLife = await api('/api/gluecksrad/ai', {});
+          if(!rLife) break;
+          S = rLife.state;
+          handleEvent(S.event);
+          renderScores();
+          await sleep(1000);
+          render();
+          continue;
+        }
+        if(S.status==='pick_consonant') {
+          const oldDisp2 = S.display;
+          const r2 = await api('/api/gluecksrad/ai', {});
+          if(!r2) break;
+          S = r2.state;
+          renderScores(); renderLetters();
+          try { await revealAndNotify(oldDisp2); } catch(e) { renderPuzzle(); }
+          render();
+        } else {
+          render();
+        }
+      } else if(newAiState.event && (newAiState.event.type==='solved' || newAiState.event.type==='auto_solved')) {
+        S = newAiState;
+        handleEvent(S.event);
+        render();
+        break;
+      } else {
+        S = newAiState;
+        renderScores(); renderLetters();
+        try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); }
+        render();
+      }
+    } else {
+      const r = await api('/api/gluecksrad/ai', {});
+      if(!r) break;
+      S = r.state;
+      renderScores(); renderLetters();
+      try { await revealAndNotify(oldDisp); } catch(e) { renderPuzzle(); }
+      render();
+    }
+    await sleep(600);
+  }
+  aiRunning = false;
+  isSpinning = false;
+  render();
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ═══════════════════════════════════════════════════════
+// Münzwurf
+// ═══════════════════════════════════════════════════════
+function showCoinFlip(win) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('coinOverlay');
+    const coin = document.getElementById('coin');
+    const result = document.getElementById('coinResult');
+    const endDeg = win ? 2520 : 2700;
+    coin.style.setProperty('--coin-end', endDeg + 'deg');
+    coin.classList.remove('flip');
+    result.classList.remove('show','win','lose');
+    result.textContent = '';
+    void coin.offsetWidth;
+    overlay.classList.add('show');
+    coin.classList.add('flip');
+    playSound('risk_flip');
+    setTimeout(()=>{
+      if(win) { playSound('jackpot'); result.classList.add('win'); }
+      else { playSound('bankrupt'); result.classList.add('lose'); }
+      result.textContent = win ? G.risk_win : G.risk_lose;
+      result.classList.add('show');
+    }, 1900);
+    setTimeout(()=>{
+      overlay.classList.remove('show');
+      coin.classList.remove('flip');
+      resolve();
+    }, 3200);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// Events / Toasts
+// ═══════════════════════════════════════════════════════
+function handleEvent(ev) {
+  if(!ev) return;
+  const t = ev.type;
+  const pname = ev.player!==undefined ? S.players[ev.player].name : '';
+
+  if(t==='spin_money') showToast(L(G.evt_spin_money, {player:pname, amount:ev.amount}), 'money');
+  else if(t==='bankrupt') { showToast(L(G.evt_bankrupt, {player:pname}), 'bankrupt'); playSound('bankrupt_dramatic'); }
+  else if(t==='skip') { showToast(L(G.evt_skip, {player:pname}), 'skip'); playSound('skip'); }
+  else if(t==='risk_win') { showToast(L(G.evt_risk_win, {player:pname, old:ev.old, new:ev.new}), 'money'); }
+  else if(t==='risk_lose') { showToast(L(G.evt_risk_lose, {player:pname, old:ev.old}), 'bankrupt'); }
+  else if(t==='letter_hit') { showToast(L(G.evt_letter_hit, {player:pname, letter:ev.letter, count:ev.count, earned:ev.earned}), 'money'); }
+  else if(t==='letter_miss') { showToast(L(G.evt_letter_miss, {player:pname, letter:ev.letter}), 'skip'); }
+  else if(t==='vowel_hit') { showToast(L(G.evt_vowel_hit, {player:pname, letter:ev.letter, count:ev.count}), 'info'); }
+  else if(t==='vowel_miss') { showToast(L(G.evt_vowel_miss, {player:pname, letter:ev.letter}), 'skip'); }
+  else if(t==='buy_vowel') showToast(L(G.evt_buy_vowel, {player:pname, cost:ev.cost}), 'info');
+  else if(t==='solved') { showToast(L(G.evt_solved, {player:pname}), 'solve'); playSound('solve'); launchConfetti(); showRoundSummary(); }
+  else if(t==='auto_solved') { showToast(G.evt_auto_solved, 'solve'); playSound('solve'); launchConfetti(); showRoundSummary(); }
+  else if(t==='solve_wrong') showToast(L(G.evt_solve_wrong, {player:pname}), 'bankrupt');
+  else if(t==='new_round') { showToast(L(G.evt_new_round, {round:ev.round}), 'info'); playSound('round'); }
+  else if(t==='finale_start') showToast(G.finale, 'solve');
+  else if(t==='finale_reveal') showToast(L(G.evt_finale_reveal, {hits:ev.hits}), 'info');
+  else if(t==='finale_solved') { showToast(L(G.evt_finale_solved, {bonus:ev.bonus}), 'solve'); playSound('jackpot'); launchConfetti(); }
+  else if(t==='finale_wrong') showToast(G.evt_finale_wrong, 'bankrupt');
+  else if(t==='finale_timeout') showToast(G.evt_finale_timeout, 'bankrupt');
+  else if(t==='risk_choice') showToast(L(G.risk_question, {amount:ev.amount}), 'risk');
+  else if(t==='risk_decline') showToast(L(G.evt_risk_decline, {player:pname}), 'info');
+  else if(t==='risk_skip') showToast(L(G.evt_risk_skip, {player:pname}), 'info');
+  else if(t==='extra_life') { showToast(L(G.evt_extra_life, {player:pname}), 'solve'); playSound('confetti'); }
+  else if(t==='extra_life_skip') showToast(L(G.evt_extra_life_skip, {player:pname}), 'info');
+  else if(t==='bankrupt_can_save') showToast(L(G.evt_bankrupt_save, {player:pname}), 'bankrupt');
+  else if(t==='skip_can_save') showToast(L(G.evt_skip_save, {player:pname}), 'skip');
+  else if(t==='life_used') { showToast(L(G.evt_life_used, {player:pname}), 'solve'); playSound('hit'); }
+}
+
+function showToast(text, cls) {
+  const el = document.getElementById('toast');
+  el.textContent = text;
+  el.className = 'toast ' + cls;
+  requestAnimationFrame(()=>el.classList.add('show'));
+  clearTimeout(el._timer);
+  el._timer = setTimeout(()=>el.classList.remove('show'), 4000);
+}
+
+// ═══════════════════════════════════════════════════════
+// Game Over
+// ═══════════════════════════════════════════════════════
+function showGameOver() {
+  const ov = document.getElementById('gameOver');
+  const winner = S.winner;
+  const winIdx = Array.isArray(winner) ? winner[0] : winner;
+  document.getElementById('goTitle').textContent = L(G.player_wins, {player:S.players[winIdx].name});
+  document.getElementById('goPhrase').textContent = S.phrase ? L(G.solution, {phrase:S.phrase}) : '';
+
+  let html='';
+  S.players.forEach((p,i)=>{
+    const w = (Array.isArray(winner) ? winner.includes(i) : winner===i);
+    html+=`<div class="fs ${w?'winner':''}"><div class="n">${p.name}</div><div class="s">${p.total} ${G.currency}</div></div>`;
+  });
+  document.getElementById('goScores').innerHTML=html;
+  ov.classList.add('visible');
+  playSound('solve');
+  launchConfetti();
+}
+
+// ═══════════════════════════════════════════════════════
+// Confetti
+// ═══════════════════════════════════════════════════════
+function launchConfetti() {
+  playSound('confetti');
+  const colors = ['#ffd700','#ff4444','#44ff44','#4488ff','#ff44ff','#ff8800','#00ffcc','#ff6699'];
+  const count = 80;
+  for(let i=0;i<count;i++){
+    const el = document.createElement('div');
+    el.className='confetti-piece';
+    el.style.left = (30 + Math.random()*40) + 'vw';
+    el.style.top = (-5 - Math.random()*10) + 'vh';
+    el.style.background = colors[Math.floor(Math.random()*colors.length)];
+    el.style.borderRadius = Math.random()>0.5 ? '50%' : '0';
+    el.style.width = (6+Math.random()*8)+'px';
+    el.style.height = (6+Math.random()*8)+'px';
+    el.style.animationDuration = (2+Math.random()*2)+'s';
+    el.style.animationDelay = (Math.random()*0.5)+'s';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 4000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Round Summary
+// ═══════════════════════════════════════════════════════
+function showRoundSummary() {
+  if(!S || !S.event) return;
+  const ov = document.getElementById('roundSummary');
+  const title = document.getElementById('rsSummaryTitle');
+  const scores = document.getElementById('rsSummaryScores');
+  title.textContent = L(G.round_complete, {round: S.round});
+  let html = '';
+  S.players.forEach(p => {
+    html += '<div class="rs-player">' +
+      '<span class="rs-name">' + p.name + '</span>' +
+      '<span class="rs-earned">' + L(G.round_earned, {amount: p.round}) + '</span>' +
+      '<span class="rs-total">' + p.total + ' ' + G.currency + '</span>' +
+      '</div>';
+  });
+  scores.innerHTML = html;
+  ov.classList.add('visible');
+  setTimeout(()=>{ ov.classList.remove('visible'); }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// Init wheel on first state
+// ═══════════════════════════════════════════════════════
+const _initWheel = setInterval(()=>{
+  if(S && S.wheel_segments) { buildWheel(S.wheel_segments); clearInterval(_initWheel); }
+}, 200);
+
+</script>
+</body>
+</html>
