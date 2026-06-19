@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.138
+
+- ↩️ **Glücksrad: „neutrale Geldzahl"-Rad zurückgenommen** — Das in 0.6.137 eingeführte Verhalten, das Rad zwischen Aktionen auf eine Geldzahl springen zu lassen, war Murks und ist wieder raus. Das Rad verhält sich wie zuvor. (Der Ton-/Hintergrund-Fix aus 0.6.137 bleibt erhalten.)
+
 ## 0.6.137
 
 - 🐛 **Glücksrad: Rad zeigt kein irreführendes Sonderfeld mehr** — Das Rad blieb nach einem RISIKO-/BANKROTT-/AUSSETZEN-Dreh auf diesem Sonderfeld stehen. Löste danach ein Spieler das Rätsel (ohne zu drehen!), sah es aus wie „dreht RISK/Bankrott → löst → gewinnt". Jetzt wird das Dreh-Ergebnis nur noch angezeigt, **solange der Spieler darauf reagiert** (Konsonant/Vokal wählen, Risiko, Extraleben); danach ruht das Rad auf einer neutralen Geldzahl. Ein altes Sonderfeld kann nie mehr so wirken, als hätte es den Zug oder das Lösen entschieden.

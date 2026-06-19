@@ -902,24 +902,15 @@ function buildWheel(segments) {
 // ═══════════════════════════════════════════════════════
 // Wheel spin animation
 // ═══════════════════════════════════════════════════════
-// Rad ohne Animation positionieren. Das Dreh-Ergebnis wird nur gezeigt, solange
-// der Spieler darauf reagiert (Konsonant/Vokal wählen, Risiko, Extraleben). In
-// allen anderen Zuständen (pre_spin, round_over, game_over …) ruht das Rad auf
-// einer neutralen Geldzahl — so kann ein altes Sonderfeld (BANKROTT/RISIKO/
-// AUSSETZEN) nie so aussehen, als hätte es den Zug/das Lösen entschieden.
+// Rad ohne Animation auf die tatsächlich gedrehte Position setzen — nur für die
+// harte Resynchronisation nach Rückkehr aus dem Hintergrund-Tab.
 function snapWheel() {
   const svg = document.getElementById('wheelSvg');
-  if(!svg || !S) return;
+  if(!svg || !S || S.wheel_index == null) return;
   const segs = S.wheel_segments;
   if(!segs || !segs.length) return;
   const N = segs.length, ARC = 360/N;
-  const live = (S.status==='pick_consonant' || S.status==='pick_vowel' ||
-                S.status==='risk_choice'   || S.status==='use_life');
-  let idx = (live && S.wheel_index != null)
-    ? S.wheel_index
-    : segs.findIndex(s => typeof s === 'number');
-  if(idx < 0) idx = 0;
-  const segCenter = (idx + 0.5) * ARC;
+  const segCenter = (S.wheel_index + 0.5) * ARC;
   const desiredFinal = (360 - segCenter + 360) % 360;
   const turns = Math.max(0, Math.floor(wheelRotation/360));
   const rot = turns*360 + desiredFinal;
@@ -1015,7 +1006,6 @@ function wheelFlyout(idx, segments) {
 function render() {
   if(!S) return;
   if(S.status==='pre_spin'||S.status==='qualify_spin'||S.status==='round_over'||S.status==='game_over'||S.status==='use_life'||S.status==='risk_choice') isSpinning=false;
-  if(!isSpinning) snapWheel();
   renderScores();
   renderRoundInfo();
   renderCategory();
