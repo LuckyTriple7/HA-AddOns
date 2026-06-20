@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.152
+
+- 🆕 **Selbst-Registrierung für Mitglieder** — Besucher können sich (wenn aktiviert) über „Konto erstellen" auf der Login-Seite selbst anmelden. Zweistufig: erst **E-Mail-Bestätigung** (Link, 24 h gültig), dann **Admin-Freigabe** (Button „Freigeben" in der Benutzerliste). Selbst-registrierte Konten starten ohne Spielezugang und mit einstellbarer Standard-Quota. Schutz: Captcha, Honeypot, Rate-Limit, keine E-Mail-Enumeration; HA-Benachrichtigung bei jeder Registrierung. Aktivierbar im Design-Tab (Standard aus); benötigt SMTP + öffentliche URL.
+
 ## 0.6.151
 
 - 📖 **Dokumentation erweitert (DE/EN)** — DOCS.md und beide READMEs (DE/EN) dokumentieren jetzt die neuen Funktionen: Blog-Suche & Tags, Kommentare/Reaktionen, Self-Service-Passwort-Reset, abschaltbare Spiele pro Mitglied, Top-Seiten-Statistik, Spiel-Sensoren und Home-Assistant-Benachrichtigungen (inkl. neuer Option `ha_notify`).

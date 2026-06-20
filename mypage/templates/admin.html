@@ -584,6 +584,20 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_registration_enabled }}</label>
+            <select id="d-registration_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.registration_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_registration_quota }}</label>
+            <input type="number" id="d-registration_quota_mb" min="1" max="100000" step="1">
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_font }}</label>
             <select id="d-font">
               <optgroup label="{{ t.font_group_system }}">
@@ -2261,6 +2275,7 @@
         div.dataset.uid = u.id;
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
+            <button class="btn small" title="${T.user_approve_title}" style="${(u.self_registered && u.verified && !u.approved) ? 'background:var(--green);border-color:var(--green-h);color:#fff' : 'display:none'}">✅ ${T.user_approve}</button>
             <button class="btn secondary small" title="${T.user_files_btn}">📁</button>
             <button class="btn secondary small" title="${T.user_msg_btn}">💬${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small" title="${T.user_journal_btn}">📜</button>
@@ -2287,9 +2302,19 @@
         const lastLogin = u.last_login
           ? `${T.user_last_login}: ${new Date(u.last_login.ts * 1000).toLocaleString()} (${u.last_login.ip})`
           : `${T.user_last_login}: ${T.user_never}`;
+        let regStatus = '';
+        if (u.self_registered) {
+          const state = !u.verified ? T.user_reg_unverified : (!u.approved ? T.user_reg_pending : T.user_reg_active);
+          regStatus = ` · 🆕 ${T.user_reg_self} (${state})`;
+        }
         div.querySelector('.proj-meta').textContent =
-          `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+          `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}${regStatus}`;
+        const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        approveBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { approved: true });
+          toast(r2.ok ? T.user_approved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
         filesBtn.onclick = () => openUserFiles(u);
         msgBtn.onclick = () => openLoginMsg(u);
         journalBtn.onclick = () => openJournal(u);
@@ -2701,6 +2726,8 @@
       el('d-show_nav').value = (d.show_nav === false) ? '0' : '1';
       el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
       el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
+      el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
+      el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
@@ -2760,6 +2787,8 @@
         show_nav:        el('d-show_nav').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',
         comments_enabled: el('d-comments_enabled').value === '1',
+        registration_enabled: el('d-registration_enabled').value === '1',
+        registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
       });

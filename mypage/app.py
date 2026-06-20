@@ -245,6 +245,8 @@ DEFAULT_SITE = {
         'welcome_from': '',
         'contact_enabled': False,
         'comments_enabled': False,
+        'registration_enabled': False,
+        'registration_quota_mb': 500,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'font': 'system', 'custom_css': '',
@@ -1293,6 +1295,105 @@ def _find_reset_user(users: list, uid: str, token: str) -> dict | None:
     return user
 
 
+# ── Self-Service-Registrierung ─────────────────────────────────────────────
+REGISTER_TTL = 86400                              # Bestätigungslink 24 h gültig
+REGISTER_MAX_PER_HOUR = 5
+_register_times: dict[str, list[float]] = defaultdict(list)
+
+
+def registration_open() -> bool:
+    """Registrierung möglich: aktiviert UND E-Mail-Versand + öffentliche URL vorhanden
+    (E-Mail-Bestätigung ist Pflicht)."""
+    site = load_site()
+    return (bool(site['design'].get('registration_enabled'))
+            and smtp_configured()
+            and bool((site['design'].get('public_url') or '').strip()))
+
+
+def register_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _register_times[ip] = [t for t in _register_times[ip] if now - t < 3600]
+    return len(_register_times[ip]) >= REGISTER_MAX_PER_HOUR
+
+
+def record_register_attempt(ip: str) -> None:
+    _register_times[ip].append(time.time())
+
+
+def _find_verify_user(users: list, uid: str, token: str) -> dict | None:
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return None
+    v = user.get('verify')
+    if not v or time.time() > v.get('exp', 0):
+        return None
+    if not check_password_hash(v.get('hash', ''), token):
+        return None
+    return user
+
+
+def _member_login_blocked(user: dict) -> str | None:
+    """Grund, warum ein selbst-registriertes Konto noch nicht anmelden darf — sonst None."""
+    if user.get('self_registered'):
+        if not user.get('verified'):
+            return 'unverified'
+        if not user.get('approved'):
+            return 'pending'
+    return None
+
+
+def _reg_from():
+    return (load_site()['design'].get('welcome_from') or '').strip() or None
+
+
+def _site_title() -> str:
+    site = load_site()
+    return site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+
+
+def send_verify_email(user: dict, token: str) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    link = f"{base}/bereich/verify/{user['id']}/{token}"
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'Willkommen bei <b>{esc(title)}</b>! Bitte bestätige deine E-Mail-Adresse, um die Registrierung abzuschließen (Link 24 Stunden gültig):',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Danach schaltet der Betreiber dein Konto frei — du bekommst dann eine weitere E-Mail.',
+             'Wenn du dich nicht registriert hast, ignoriere diese E-Mail einfach.']
+    send_email(f'E-Mail bestätigen – {title}',
+               _email_html(f'✅ E-Mail bestätigen – {esc(title)}', lines),
+               to=user['email'], from_addr=_reg_from())
+
+
+def send_already_registered_email(user: dict) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'Für diese E-Mail-Adresse besteht bei <b>{esc(title)}</b> bereits ein Konto.',
+             (f'Du kannst dich hier anmelden: <a href="{esc(base)}/bereich">{esc(base)}/bereich</a>'
+              if base else 'Du kannst dich im Mitgliederbereich anmelden.'),
+             'Passwort vergessen? Nutze den „Passwort vergessen?"-Link auf der Login-Seite.',
+             'Wenn du das nicht warst, kannst du diese E-Mail ignorieren.']
+    send_email(f'Konto besteht bereits – {title}',
+               _email_html(f'ℹ️ Konto besteht bereits – {esc(title)}', lines),
+               to=user['email'], from_addr=_reg_from())
+
+
+def send_activated_email(user: dict) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    title, esc = _site_title(), html_mod.escape
+    url = (base + '/bereich') if base else ''
+    lines = [f'Dein Konto bei <b>{esc(title)}</b> wurde freigeschaltet — du kannst dich jetzt anmelden.',
+             (f'<a href="{esc(url)}">{esc(url)}</a>' if url else ''),
+             f'<b>Benutzername:</b> {esc(user["email"])}']
+    send_email(f'Konto freigeschaltet – {title}',
+               _email_html(f'🎉 Konto freigeschaltet – {esc(title)}', [l for l in lines if l]),
+               to=user['email'], from_addr=_reg_from())
+
+
 def _smb_watchdog() -> None:
     """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
     if not os.environ.get('MYPAGE_USERFILES', ''):
@@ -1922,10 +2023,12 @@ def api_design():
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
-                 'maintenance', 'indexnow',
+                 'registration_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
         if flag in raw:
             d[flag] = bool(raw[flag])
+    if 'registration_quota_mb' in raw:
+        d['registration_quota_mb'] = max(1, min(100000, int(raw.get('registration_quota_mb') or 500)))
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
                       ('maintenance_text_de', 1000), ('maintenance_text_en', 1000),
                       ('egg_message', 200), ('egg_tagline', 200),
@@ -2381,6 +2484,9 @@ def api_users():
                     'last_login': u.get('last_login'),
                     'playing': _user_playing(u['id']),
                     'games_enabled': u.get('games_enabled', True),
+                    'self_registered': bool(u.get('self_registered')),
+                    'verified': u.get('verified', True),
+                    'approved': u.get('approved', True),
                     'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
@@ -2459,6 +2565,12 @@ def api_user_edit(uid: str):
         user['login_message'] = _clean_str(raw.get('login_message'), 2000)
     if 'games_enabled' in raw:
         user['games_enabled'] = bool(raw['games_enabled'])
+    if 'approved' in raw:
+        was = user.get('approved', True)
+        user['approved'] = bool(raw['approved'])
+        # Freigabe eines selbst-registrierten Kontos → Aktivierungs-Mail
+        if user['approved'] and not was and user.get('verified') and smtp_configured():
+            threading.Thread(target=send_activated_email, args=(dict(user),), daemon=True).start()
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
@@ -5149,19 +5261,20 @@ def _member_page(member: dict | None, msg: str = ''):
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down, login_msg_html=login_msg_html,
                            can_reset=reset_enabled() if member is None else False,
+                           can_register=registration_open() if member is None else False,
                            games_on=bool(member and member.get('games_enabled', True)),
                            year=datetime.now(timezone.utc).year)
 
 
 def _member_auth_page(view: str, **extra):
-    """Login-/Forgot-/Reset-Karte (immer ohne eingeloggtes Mitglied)."""
+    """Login-/Forgot-/Reset-/Register-Karte (immer ohne eingeloggtes Mitglied)."""
     lang = detect_language(request)
     t = load_translations(lang)
     site = load_site()
     return render_template('member.html', t=t, lang=lang, site=site, member=None,
                            files=[], used=0, quota=0, msg=extra.pop('msg', ''),
                            storage_down=False, login_msg_html='', view=view,
-                           can_reset=reset_enabled(),
+                           can_reset=reset_enabled(), can_register=registration_open(),
                            year=datetime.now(timezone.utc).year, **extra)
 
 
@@ -5188,6 +5301,10 @@ def member_login():
         log.warning("Mitglieder-Login FEHLGESCHLAGEN: '%s' von %s", email or '?', ip)
         return redirect('/bereich?msg=credentials')
     clear_failed_attempts(ip)
+    blocked = _member_login_blocked(user)
+    if blocked:
+        log.info("Mitglieder-Login abgewiesen ('%s'): %s", email, blocked)
+        return redirect('/bereich?msg=' + blocked)  # unverified | pending
     token = secrets.token_hex(32)
     user_sessions[token] = [user['id'], time.time() + USER_SESSION_HOURS * 3600]
     save_user_sessions()
@@ -5250,6 +5367,86 @@ def member_reset(uid: str, token: str):
     log_user_event(uid, 'pw_reset_self', '', get_client_ip(request))
     log.info("Passwort per Self-Service zurückgesetzt für '%s'", user['email'])
     return redirect('/bereich?msg=pwchanged')
+
+
+@public_app.route('/bereich/register', methods=['GET', 'POST'])
+def member_register():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    if not registration_open():
+        return redirect('/bereich')
+    if request.method == 'GET':
+        return _member_auth_page('register', captcha=make_captcha())
+    ip = get_client_ip(request)
+    # Honeypot (Bots füllen das versteckte Feld) + Rate-Limit → generische Antwort
+    if (request.form.get('website') or '').strip() or register_rate_limited(ip):
+        return _member_auth_page('register', msg='register_sent')
+    if not check_captcha(request.form.get('captcha_token'), request.form.get('captcha_answer')):
+        return _member_auth_page('register', msg='register_captcha', captcha=make_captcha(),
+                                 reg_email=_clean_str(request.form.get('email'), 150),
+                                 reg_name=_clean_str(request.form.get('name'), 60))
+    email = _clean_str(request.form.get('email'), 150).lower()
+    pw = request.form.get('password') or ''
+    pw2 = request.form.get('password2') or ''
+    name = _clean_str(request.form.get('name'), 60)
+    if not _EMAIL_RE.match(email):
+        return _member_auth_page('register', msg='register_email', captcha=make_captcha(), reg_name=name)
+    if len(pw) < 8:
+        return _member_auth_page('register', msg='reset_short', captcha=make_captcha(),
+                                 reg_email=email, reg_name=name)
+    if pw != pw2:
+        return _member_auth_page('register', msg='reset_mismatch', captcha=make_captcha(),
+                                 reg_email=email, reg_name=name)
+    record_register_attempt(ip)
+    users = load_users()
+    existing = next((u for u in users if u['email'] == email), None)
+    token = secrets.token_urlsafe(32)
+    if existing is None:
+        quota = max(1, min(100000, int(site['design'].get('registration_quota_mb') or 500)))
+        user = {'id': uuid.uuid4().hex[:12], 'email': email,
+                'pw_hash': generate_password_hash(pw),
+                'quota_mb': quota, 'created': date.today().isoformat(),
+                'self_registered': True, 'verified': False, 'approved': False,
+                'games_enabled': False,
+                'verify': {'hash': generate_password_hash(token), 'exp': int(time.time()) + REGISTER_TTL}}
+        if name:
+            user['name'] = name
+        users.append(user)
+        save_users(users)
+        threading.Thread(target=send_verify_email, args=(dict(user), token), daemon=True).start()
+        notify_ha_async('🆕 MyPage: Neue Registrierung',
+                        f'{email} hat ein Konto angelegt (wartet auf E-Mail-Bestätigung & Freigabe).',
+                        notification_id=f'mypage_register_{user["id"]}')
+        log.info("Selbst-Registrierung: '%s' von %s", email, ip)
+    elif existing.get('self_registered') and not existing.get('verified'):
+        # Konto besteht, aber noch unbestätigt → Bestätigungslink neu schicken
+        existing['verify'] = {'hash': generate_password_hash(token), 'exp': int(time.time()) + REGISTER_TTL}
+        save_users(users)
+        threading.Thread(target=send_verify_email, args=(dict(existing), token), daemon=True).start()
+    else:
+        # E-Mail existiert bereits → keine Enumeration, stattdessen Hinweis-Mail
+        threading.Thread(target=send_already_registered_email, args=(dict(existing),), daemon=True).start()
+    return _member_auth_page('register', msg='register_sent')
+
+
+@public_app.route('/bereich/verify/<uid>/<token>')
+def member_verify(uid: str, token: str):
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    users = load_users()
+    user = _find_verify_user(users, uid, token)
+    if user is None:
+        return _member_auth_page('verify', verify_ok=False)
+    user['verified'] = True
+    user.pop('verify', None)
+    save_users(users)
+    notify_ha_async('✅ MyPage: Registrierung bestätigt',
+                    f'{user["email"]} hat die E-Mail bestätigt und wartet auf Freigabe.',
+                    notification_id=f'mypage_register_{uid}')
+    log.info("Registrierung bestätigt: '%s'", user['email'])
+    return _member_auth_page('verify', verify_ok=True)
 
 
 @public_app.route('/bereich/logout')
