@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.161
+
+- 🔐 **Bild-Uploads: EXIF-Orientierung + Metadaten entfernt** — Hochgeladene Bilder werden jetzt vor dem Speichern korrekt nach ihrer EXIF-Orientierung gedreht (Handy-Hochkant-Fotos erscheinen richtig herum), und beim WebP-Re-Encode werden sämtliche Metadaten verworfen — inklusive eines evtl. eingebetteten **GPS-Standorts**. (GIFs bleiben für die Animation unverändert.)
+
 ## 0.6.160
 
 - 👁 **Aufrufe je Blog-Beitrag** — Jeder Beitrag zählt jetzt seine Aufrufe (ohne Bots). Die Zahl steht im Admin in der Beitragsliste und erscheint dezent neben dem Datum auf der Beitragsseite. Zähler in `stats.json` (im Backup).

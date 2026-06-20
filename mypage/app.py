@@ -34,7 +34,7 @@ from urllib.parse import urlparse
 
 import markdown as md_lib
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -3134,6 +3134,9 @@ def api_upload():
     if _HAS_PIL and ext != '.gif':
         try:
             img = Image.open(f.stream)
+            # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
+            # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
+            img = ImageOps.exif_transpose(img)
             img.thumbnail((1600, 1600))
             if img.mode not in ('RGB', 'RGBA'):
                 img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
@@ -3141,6 +3144,7 @@ def api_upload():
             target = safe_under(UPLOADS_DIR, name)
             if target is None:
                 abort(400)
+            # ohne exif=... → das neu kodierte WebP enthält keine Metadaten mehr
             img.save(target, 'WEBP', quality=82)
             return jsonify({'ok': True, 'url': '/uploads/' + name})
         except Exception as e:
