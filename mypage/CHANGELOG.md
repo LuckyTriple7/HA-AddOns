@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.145
+
+- 🔑 **Mitglieder: Passwort selbst zurücksetzen** — Auf der Login-Seite gibt es jetzt „Passwort vergessen?". Das Mitglied gibt seine E-Mail ein und bekommt einen zeitlich begrenzten Link (1 Stunde gültig), über den es ein neues Passwort setzen kann — ganz ohne Admin. Aus Sicherheitsgründen: immer dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Token nur einmal verwendbar, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet. Der Link erscheint nur, wenn E-Mail-Versand (SMTP) und die öffentliche URL konfiguriert sind.
+
 ## 0.6.144
 
 - ⏱️ **Glücksrad-Finale: Zeitablauf wird sauber aufgelöst** — Läuft im Finale die Zeit ab, ohne dass gelöst wurde, passierte bisher nichts (die leere Eingabe wurde verschluckt, der Timeout nie festgeschrieben). Jetzt ertönt ein negativer Sound, anschließend deckt sich die Lösung langsam auf, und das Spiel wird beendet.

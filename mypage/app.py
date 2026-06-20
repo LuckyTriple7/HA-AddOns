@@ -1165,6 +1165,59 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
 
+# ── Self-Service-Passwort-Reset ────────────────────────────────────────────
+RESET_TTL = 3600                                  # Token 1 Stunde gültig
+RESET_MAX_PER_HOUR = 5                            # Anfragen pro IP/Stunde
+_reset_times: dict[str, list[float]] = defaultdict(list)
+
+
+def reset_enabled() -> bool:
+    """Reset nur möglich, wenn E-Mail-Versand UND öffentliche URL konfiguriert sind."""
+    return smtp_configured() and bool((load_site()['design'].get('public_url') or '').strip())
+
+
+def reset_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _reset_times[ip] = [t for t in _reset_times[ip] if now - t < 3600]
+    return len(_reset_times[ip]) >= RESET_MAX_PER_HOUR
+
+
+def record_reset_attempt(ip: str) -> None:
+    _reset_times[ip].append(time.time())
+
+
+def send_reset_email(user: dict, token: str) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    link = f"{base}/bereich/reset/{user['id']}/{token}"
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    lines = [f'Für dein Konto bei <b>{esc(title)}</b> wurde ein Zurücksetzen des Passworts angefordert.',
+             'Klicke auf den folgenden Link, um ein neues Passwort zu setzen (1 Stunde gültig):',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Wenn du das nicht warst, ignoriere diese E-Mail einfach — dein Passwort bleibt unverändert.']
+    send_email(f'Passwort zurücksetzen – {title}',
+               _email_html(f'🔑 Passwort zurücksetzen – {esc(title)}', lines),
+               to=user['email'],
+               from_addr=(site['design'].get('welcome_from') or '').strip() or None)
+
+
+def _find_reset_user(users: list, uid: str, token: str) -> dict | None:
+    """Liefert den Benutzer, wenn uid+Token zu einem gültigen, nicht abgelaufenen
+    Reset-Eintrag passen — sonst None."""
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return None
+    r = user.get('reset')
+    if not r or time.time() > r.get('exp', 0):
+        return None
+    if not check_password_hash(r.get('hash', ''), token):
+        return None
+    return user
+
+
 def _smb_watchdog() -> None:
     """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
     if not os.environ.get('MYPAGE_USERFILES', ''):
@@ -4846,7 +4899,20 @@ def _member_page(member: dict | None, msg: str = ''):
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down, login_msg_html=login_msg_html,
+                           can_reset=reset_enabled() if member is None else False,
                            year=datetime.now(timezone.utc).year)
+
+
+def _member_auth_page(view: str, **extra):
+    """Login-/Forgot-/Reset-Karte (immer ohne eingeloggtes Mitglied)."""
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('member.html', t=t, lang=lang, site=site, member=None,
+                           files=[], used=0, quota=0, msg=extra.pop('msg', ''),
+                           storage_down=False, login_msg_html='', view=view,
+                           can_reset=reset_enabled(),
+                           year=datetime.now(timezone.utc).year, **extra)
 
 
 @public_app.route('/bereich')
@@ -4881,6 +4947,59 @@ def member_login():
                     max_age=USER_SESSION_HOURS * 3600)
     log.info("Mitglieder-Login ERFOLGREICH: '%s' von %s", email, ip)
     return resp
+
+
+@public_app.route('/bereich/forgot', methods=['GET', 'POST'])
+def member_forgot():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    if not reset_enabled():
+        return redirect('/bereich')
+    if request.method == 'GET':
+        return _member_auth_page('forgot')
+    ip = get_client_ip(request)
+    # Immer dieselbe, generische Antwort → keine Rückschlüsse, ob die E-Mail existiert.
+    if reset_rate_limited(ip):
+        log.warning("Passwort-Reset RATELIMIT von %s", ip)
+        return _member_auth_page('forgot', msg='reset_sent')
+    record_reset_attempt(ip)
+    email = (request.form.get('email') or '').strip().lower()
+    users = load_users()
+    user = next((u for u in users if u['email'] == email), None) if _EMAIL_RE.match(email) else None
+    if user is not None:
+        token = secrets.token_urlsafe(32)
+        user['reset'] = {'hash': generate_password_hash(token), 'exp': int(time.time()) + RESET_TTL}
+        save_users(users)
+        threading.Thread(target=send_reset_email, args=(dict(user), token), daemon=True).start()
+        log.info("Passwort-Reset angefordert für '%s' von %s", email, ip)
+    return _member_auth_page('forgot', msg='reset_sent')
+
+
+@public_app.route('/bereich/reset/<uid>/<token>', methods=['GET', 'POST'])
+def member_reset(uid: str, token: str):
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    users = load_users()
+    user = _find_reset_user(users, uid, token)
+    if user is None:
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=False)
+    if request.method == 'GET':
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=True)
+    pw = request.form.get('password') or ''
+    pw2 = request.form.get('password2') or ''
+    if len(pw) < 8:
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=True, msg='reset_short')
+    if pw != pw2:
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=True, msg='reset_mismatch')
+    user['pw_hash'] = generate_password_hash(pw)
+    user.pop('reset', None)
+    save_users(users)
+    invalidate_user_sessions(uid)  # alle alten Sitzungen kappen
+    log_user_event(uid, 'pw_reset_self', '', get_client_ip(request))
+    log.info("Passwort per Self-Service zurückgesetzt für '%s'", user['email'])
+    return redirect('/bereich?msg=pwchanged')
 
 
 @public_app.route('/bereich/logout')
