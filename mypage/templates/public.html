@@ -11,6 +11,8 @@
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
+  {% if site.design.google_verify %}<meta name="google-site-verification" content="{{ site.design.google_verify }}">{% endif %}
+  {% if site.design.bing_verify %}<meta name="msvalidate.01" content="{{ site.design.bing_verify }}">{% endif %}
   <meta name="theme-color" content="#0d1117">
   {% if not static_export %}
   <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">

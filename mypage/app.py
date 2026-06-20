@@ -263,6 +263,7 @@ DEFAULT_SITE = {
         'booking_url': '', 'booking_label': '',
         'indexnow': False,
         'allow_indexing': True,
+        'google_verify': '', 'bing_verify': '',
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
         'mini_games': False,
         'reveal_effect': 'off', 'reveal_stagger': True,
@@ -2434,6 +2435,13 @@ def api_design():
                       ('meta_description_de', 300), ('meta_description_en', 300)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
+    for k in ('google_verify', 'bing_verify'):
+        if k in raw:
+            v = _clean_str(raw[k], 300)
+            m = re.search(r'content=["\']([^"\']+)["\']', v)  # ganzes Meta-Tag erlaubt
+            if m:
+                v = m.group(1)
+            d[k] = re.sub(r'[^A-Za-z0-9_\-]', '', v)[:120]   # nur unbedenkliche Zeichen
     if d.get('indexnow'):
         _indexnow_key(site)   # Schlüssel beim Aktivieren bereitstellen (speichert ggf.)
     save_site(site)

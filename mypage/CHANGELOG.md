@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.9
+
+- 🔎 **Search-Console-Verifizierung** — Im Design-Tab zwei neue (optionale) Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. MyPage setzt daraus das passende Meta-Tag in den Kopf der Startseite (HTML-Tag-Methode). Man kann auch das ganze Meta-Tag einfügen — der Code wird herausgelesen und auf unbedenkliche Zeichen gefiltert. Leer = nichts passiert.
+
 ## 0.7.8
 
 - 🔒 **Fotoalben nur für Mitglieder** — Wie bei Blog/Seiten gibt es jetzt je Album einen Schalter „🔒 Nur für Mitglieder". Gäste sehen statt der Fotos eine Schloss-Karte (Titel + Anzahl + Login-Link); die Bild-Adressen des Albums werden für sie nicht ausgeliefert. Eingeloggte Mitglieder sehen das Album normal. Im statischen Export bleiben gesperrte Alben außen vor.

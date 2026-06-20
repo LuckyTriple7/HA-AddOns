@@ -201,6 +201,8 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 
 `sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain). Strukturierte Daten (JSON-LD) für Person und Blog-Beiträge sind eingebaut.
 
+**Search-Console-Verifizierung (optional):** Im Design-Tab gibt es Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. Trägst du dort den Bestätigungs-Code ein (oder fügst das komplette Meta-Tag ein — der Code wird automatisch herausgelesen), setzt MyPage das passende `<meta>`-Tag in den Kopf der Startseite, sodass du die Seite per „HTML-Tag"-Methode bestätigen kannst. Leer lassen, wenn deine Seite dort bereits bestätigt ist.
+
 Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
 
 ## Bilder

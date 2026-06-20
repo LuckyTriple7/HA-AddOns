@@ -663,6 +663,17 @@
         <p class="hint">{{ t.indexnow_hint }}</p>
         <div class="row">
           <div>
+            <label>{{ t.verify_google }}</label>
+            <input type="text" id="d-google_verify" placeholder="google-site-verification …">
+          </div>
+          <div>
+            <label>{{ t.verify_bing }}</label>
+            <input type="text" id="d-bing_verify" placeholder="msvalidate.01 …">
+          </div>
+        </div>
+        <p class="hint">{{ t.verify_hint }}</p>
+        <div class="row">
+          <div>
             <label>{{ t.field_favicon }}</label>
             <div class="upload-row">
               <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
@@ -3335,6 +3346,8 @@
       el('d-meta_description_en').value = d.meta_description_en || '';
       el('d-allow_indexing').value = (d.allow_indexing === false) ? '0' : '1';
       el('d-indexnow').value = d.indexnow ? '1' : '0';
+      el('d-google_verify').value = d.google_verify || '';
+      el('d-bing_verify').value = d.bing_verify || '';
       el('d-support_url').value = d.support_url || '';
       el('d-support_label').value = d.support_label || '';
       el('d-booking_url').value = d.booking_url || '';
@@ -3443,6 +3456,8 @@
         meta_description_en: el('d-meta_description_en').value,
         allow_indexing:  el('d-allow_indexing').value === '1',
         indexnow:        el('d-indexnow').value === '1',
+        google_verify:   el('d-google_verify').value,
+        bing_verify:     el('d-bing_verify').value,
         support_url:     el('d-support_url').value,
         support_label:   el('d-support_label').value,
         booking_url:     el('d-booking_url').value,
