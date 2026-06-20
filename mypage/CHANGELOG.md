@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.13
+
+- 🐳 **Standalone-Betrieb dokumentiert** — MyPage lässt sich auch ohne Home Assistant als reiner Docker-Container betreiben. Neu im Repo: `docker-compose.yml`, `options.example.json` und eine Schritt-für-Schritt-Anleitung **[STANDALONE.md](STANDALONE.md)** / **[STANDALONE.en.md](STANDALONE.en.md)** (inkl. Konfigurations-Tabelle, HTTPS via Caddy, Updates/Backup, Sicherheitshinweise). Keine Code-Änderung — die HA-Funktionen (Sensoren/Notifications/Ingress) waren schon immer optional und werden ohne `SUPERVISOR_TOKEN` übersprungen.
+
 ## 0.7.12
 
 - 🔗 **Teilen-Buttons auch auf Projekt-Detailseiten** — Die im Design-Tab aktivierbaren Teilen-Buttons erscheinen jetzt nicht nur unter Blog-Beiträgen, sondern auch am Ende von Projekt-Detailseiten (`/p/<id>`).

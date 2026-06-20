@@ -1,0 +1,30 @@
+{
+  "username": "admin",
+  "password": "BITTE-AENDERN",
+  "session_hours": 24,
+
+  "smtp_host": "",
+  "smtp_port": 587,
+  "smtp_user": "",
+  "smtp_password": "",
+  "smtp_from": "",
+  "smtp_to": "",
+  "smtp_tls": true,
+
+  "telegram_bot_token": "",
+  "telegram_chat_id": "",
+
+  "github_token": "",
+  "translate_email": "",
+
+  "user_upload_max_mb": 200,
+  "visit_log_max": 500,
+  "user_journal_max": 100,
+  "geoip_lookup": false,
+  "geoip_api_key": "",
+
+  "smb_server": "",
+  "smb_share": "",
+  "smb_user": "",
+  "smb_password": ""
+}

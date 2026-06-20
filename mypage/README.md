@@ -39,6 +39,8 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 
 Die vollständige Dokumentation aller Optionen und Funktionen steht in [DOCS.md](DOCS.md).
 
+> **Ohne Home Assistant?** MyPage läuft auch als reiner Docker-Container (mit `docker compose`) — Anleitung: [STANDALONE.md](STANDALONE.md).
+
 ## Inhaltsbereiche anordnen & ausblenden
 
 Im Admin-Panel unter **Inhalt** liegt jeder Bereich als einklappbare Karte vor:

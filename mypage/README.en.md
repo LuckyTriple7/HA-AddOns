@@ -39,6 +39,8 @@ Run your own homepage straight from Home Assistant — no design skills required
 
 Full documentation of all options and features is in [DOCS.md](DOCS.md).
 
+> **No Home Assistant?** MyPage also runs as a plain Docker container (via `docker compose`) — guide: [STANDALONE.en.md](STANDALONE.en.md).
+
 ## Ordering & hiding sections
 
 In the admin panel under **Content** every section is a collapsible card:
