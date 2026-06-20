@@ -17,10 +17,11 @@ Run your own homepage straight from Home Assistant — no design skills required
 - 🌍 **Bilingual** (DE/EN) with optional auto-translation; visitors can switch
 - 👁 **Visitor counter & stats**: views, unique visitors, countries, browsers, referrers
 - 📷 **Photo albums** with slideshow, watermark and image zoom; **image galleries** in blog posts
-- 🔒 **Members area**: password-protected file area per user (optionally on an SMB share)
-- 📨 **Contact form** with spam protection (honeypot + captcha + rate limit) and Telegram/email notification
+- 📝 **Blog** with full-text search, tags and — optionally — **comments & emoji reactions** for members (moderatable)
+- 🔒 **Members area**: password-protected file area per user (optionally on an SMB share), **self-service password reset** and **per-member games toggle**
+- 📨 **Contact form** with spam protection (honeypot + captcha + rate limit) and notifications via Telegram/email and **Home Assistant**
 - 🧭 **Navigation bar** in the header with jump links to the sections that exist
-- 📈 **Home Assistant sensors**, RSS, PWA, SEO (sitemap/robots.txt), backup & static export
+- 📈 **Home Assistant sensors & notifications**, RSS, PWA, SEO (sitemap/robots.txt), backup & static export
 
 ## Quick start
 

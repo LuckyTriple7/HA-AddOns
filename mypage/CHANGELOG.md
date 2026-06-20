@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.151
+
+- 📖 **Dokumentation erweitert (DE/EN)** — DOCS.md und beide READMEs (DE/EN) dokumentieren jetzt die neuen Funktionen: Blog-Suche & Tags, Kommentare/Reaktionen, Self-Service-Passwort-Reset, abschaltbare Spiele pro Mitglied, Top-Seiten-Statistik, Spiel-Sensoren und Home-Assistant-Benachrichtigungen (inkl. neuer Option `ha_notify`).
+
 ## 0.6.150
 
 - 🎮 **Spiele pro Mitglied abschaltbar** — In der Benutzerverwaltung gibt es jetzt pro Mitglied einen Schalter (🕹️/🚫), mit dem sich die Spiele für dieses Konto sperren lassen. Gesperrte Mitglieder sehen im Bereich keine Spiel-Kacheln mehr, und Spiel-Seiten/-APIs sind serverseitig blockiert (der Dateibereich bleibt normal nutzbar).

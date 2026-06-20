@@ -15,6 +15,7 @@
 | `geoip_api_key` | Optional: ipapi.is-Key — ohne Key ca. 1.000 Lookups/Tag frei |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
 | `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
+| `ha_notify` | Persistente Home-Assistant-Benachrichtigungen bei neuer Kontaktnachricht, neuem Blog-Kommentar und gesperrter IP (Brute-Force). Standard: an |
 | `smtp_host` | Optional: SMTP-Server — neue Kontaktnachrichten werden per E-Mail gemeldet |
 | `smtp_port` | SMTP-Port, meist 587 (STARTTLS) oder 465 (SSL) |
 | `smtp_user` / `smtp_password` | Zugangsdaten für den Mailversand (App-Passwort empfohlen) |
@@ -68,14 +69,20 @@ Verfügbare Bereiche:
 - Reihenfolge per ↑/↓-Buttons ändern.
 
 ### Nachrichten
-Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz dreifach: unsichtbares Honeypot-Feld, ein einfaches Rechen-Captcha („7 + 3 = ?", selbst gehostet, kein externer Dienst) und Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID) und/oder **E-Mail** (SMTP-Optionen) — beides in den Add-on-Optionen, wie bei GitPulse.
+Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz dreifach: unsichtbares Honeypot-Feld, ein einfaches Rechen-Captcha („7 + 3 = ?", selbst gehostet, kein externer Dienst) und Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID), **E-Mail** (SMTP-Optionen) und/oder als **Home-Assistant-Benachrichtigung** (`ha_notify`).
+
+Im selben Tab werden unter **„Blog-Kommentare"** alle Mitglieder-Kommentare zur Moderation gelistet (mit Beitragstitel, verlinkt zur Vorschau). Einzelne Kommentare lassen sich per ✕ entfernen.
 
 ### Blog
 Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einzelne Beiträge unter `/blog/<id>`, die neuesten drei erscheinen auf der Startseite. Optional je Beitrag ein Titelbild, ein Video-Embed (YouTube/Vimeo, datenschutzfreundlich erst auf Klick) und eine **Bild-Galerie** (horizontal scrollbar mit Pfeilen). Ein Klick auf ein Bild öffnet es groß, ein weiterer in voller Auflösung.
 
+- **Schlagwörter (Tags)**: Pro Beitrag bis zu 8 Tags (komma-getrennt). Auf der Blog-Seite gibt es **Tag-Filter-Chips**; auf jeder Beitragsseite verlinken die Tags zur gefilterten Ansicht.
+- **Suche**: Ein Suchfeld auf `/blog` durchsucht Titel, Text und Tags (DE+EN). Suche und Tag-Filter lassen sich kombinieren. Entwürfe und geplante Beiträge bleiben außen vor.
+- **Kommentare & Reaktionen** (im Design-Tab über „Kommentare & Reaktionen" aktivierbar, Standard aus): **Angemeldete Mitglieder** können Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏 — eine Reaktion pro Person, per Klick umschaltbar). Gäste sehen die Reaktionsleiste ausgegraut mit einem Hinweis zum Anmelden. Moderiert wird im Tab **Nachrichten** (siehe unten); bei neuen Kommentaren kommt zusätzlich eine Home-Assistant-Benachrichtigung. Kommentare/Reaktionen liegen in `comments.json` und werden im Backup mitgesichert.
+
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
-- **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
+- **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 
 ## Persönlicher Bereich (Mitglieder)
@@ -83,6 +90,8 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Dateibereich pro Benutzer — praktisch zum einfachen Teilen von Dateien mit Familie und Freunden.
 
 - **Benutzer anlegen** im Admin-Tab „Benutzer": E-Mail (= Benutzername), Passwort (min. 8 Zeichen), Speicher-Quota. Ist ein Mailserver konfiguriert, bekommt der Benutzer die Zugangsdaten **automatisch per E-Mail** (ebenso bei Passwort-Reset).
+- **Passwort vergessen (Self-Service)**: Sind ein Mailserver (`smtp_host`) **und** die öffentliche URL gesetzt, erscheint auf der Login-Seite ein „Passwort vergessen?"-Link. Das Mitglied erhält einen zeitlich begrenzten Link (1 Stunde gültig) und setzt selbst ein neues Passwort — ohne Admin. Aus Sicherheitsgründen: stets dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Einmal-Token, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet.
+- **Spiele pro Mitglied abschaltbar**: In der Benutzerliste schaltet ein Button (🕹️/🚫) die Mitglieder-Spiele für ein Konto frei oder sperrt sie. Gesperrte Mitglieder sehen keine Spiel-Kacheln mehr, und die Spiel-Seiten/-APIs sind serverseitig blockiert — der Dateibereich bleibt normal nutzbar.
 - **Sicherheit**: Passwörter werden ausschließlich als scrypt-Hash gespeichert; Brute-Force-Schutz (5 Fehlversuche → 15 Min. Sperre); jeder Benutzer sieht nur den eigenen Bereich; Downloads werden immer als Datei-Anhang ausgeliefert, hochgeladene HTML-Dateien können also nie im Browser ausgeführt werden.
 - **Limits**: `user_upload_max_mb` begrenzt die Größe pro Datei (Standard 200 MB), die Quota pro Benutzer ist im Admin einstellbar.
 
@@ -116,7 +125,19 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `binary_sensor.mypage_storage_online` | SMB-/Dateispeicher erreichbar (on/off) |
 | `binary_sensor.mypage_maintenance` | Wartungsmodus aktiv (on/off) |
 
+Zusätzlich gibt es **Live-Spiel-Sensoren** (alle 30 s aktualisiert): `sensor.mypage_spieler_aktiv` (Anzahl gerade Spielender, mit Detail-Attributen), je Spiel `sensor.mypage_aktiv_<spiel>` und `binary_sensor.mypage_spielt_jemand` (on/off).
+
 Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei Besucherrekord).
+
+### Benachrichtigungen
+
+Ist `ha_notify` aktiv (Standard), erzeugt MyPage **persistente Benachrichtigungen** direkt in Home Assistant bei:
+
+- **neuer Kontaktnachricht** (mit Absender und Vorschau),
+- **neuem Blog-Kommentar** (mit Beitragstitel und Vorschau),
+- **verdächtigen Anmeldeversuchen** — wenn eine IP wegen zu vieler Fehllogins gesperrt wird.
+
+Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu vervielfachen. So siehst du wichtige Ereignisse direkt im HA-Dashboard bzw. auf dem Handy (HA-App), zusätzlich zu den optionalen Telegram-/E-Mail-Hinweisen.
 
 ## SEO
 
@@ -129,7 +150,7 @@ Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitema
 Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben).
 
 ### Design
-Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Footer-Text, eigenes CSS.
+Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Kontaktformular ein/aus, **Kommentare & Reaktionen** ein/aus, Footer-Text, eigenes CSS.
 
 - **Unterstützen-Button**: Frei konfigurierbarer Link (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …). Das passende Icon wird automatisch anhand der URL gewählt; eine eigene Beschriftung ist möglich.
 - **Termin-/Buchungs-Button**: Link zu einem externen Buchungsdienst (z. B. Calendly, Cal.com). Erscheint mit Kalender-Symbol im Kopfbereich neben dem Unterstützen-Button und öffnet beim Klick einen neuen Tab. Ist kein Link gesetzt, erscheint kein Button. Details siehe [README](README.md#-buchungskalender--termin-button).
@@ -140,6 +161,8 @@ Impressum und Datenschutzerklärung als Freitext (DE/EN). Sobald Text eingetrage
 
 ### Statistik
 Aufrufe gesamt, Aufrufe und eindeutige Besucher heute, Verlauf der letzten 30 Tage. Eindeutige Besucher werden über gesalzene Tages-Hashes erkannt; bekannte Bots und Monitoring-Tools zählen nicht in die Statistik.
+
+Zusätzlich gibt es **Top-Seiten** (meistbesuchte Seiten aus den letzten Aufrufen, ohne Bots — für Blog-Beiträge und Projekt-Detailseiten mit Titel statt nur Pfad) sowie Verteilungen nach **Referrern, Browsern und Ländern**.
 
 Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, IP-Adresse, Browser/User-Agent, Sprache und Referrer (Bots werden markiert). Hinweis: Wer die Seite öffentlich betreibt, sollte die IP-Speicherung ggf. in seiner Datenschutzerklärung erwähnen.
 
