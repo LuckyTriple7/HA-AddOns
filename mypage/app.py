@@ -268,6 +268,7 @@ DEFAULT_SITE = {
     },
     'posts': [],
     'pages': [],
+    'forms': [],
     'legal': {
         'impressum_de': '', 'impressum_en': '',
         'privacy_de': '', 'privacy_en': '',
@@ -2057,6 +2058,76 @@ def _nav_pages(site: dict, loc) -> list:
     return out
 
 
+# ── Formular-Baukasten ────────────────────────────────────────────────────────
+
+FORM_FIELD_TYPES = {'text', 'textarea', 'email', 'tel', 'number', 'date',
+                    'select', 'radio', 'checkbox'}
+
+
+def _normalize_field(raw: dict) -> dict:
+    f = {'id': _clean_str(raw.get('id'), 20) or uuid.uuid4().hex[:8]}
+    ftype = raw.get('type')
+    f['type'] = ftype if ftype in FORM_FIELD_TYPES else 'text'
+    f['label_de'] = _clean_str(raw.get('label_de'), 120)
+    f['label_en'] = _clean_str(raw.get('label_en'), 120)
+    f['placeholder_de'] = _clean_str(raw.get('placeholder_de'), 120)
+    f['placeholder_en'] = _clean_str(raw.get('placeholder_en'), 120)
+    f['required'] = bool(raw.get('required'))
+    opts = raw.get('options') or []
+    if isinstance(opts, str):
+        opts = opts.split('\n')
+    f['options'] = [_clean_str(o, 100) for o in opts if _clean_str(o, 100)][:40]
+    return f
+
+
+def _normalize_form(raw: dict, existing: dict | None = None) -> dict:
+    fm = existing or {'id': uuid.uuid4().hex[:12]}
+    fm['title_de']   = _clean_str(raw.get('title_de'), 120)
+    fm['title_en']   = _clean_str(raw.get('title_en'), 120)
+    fm['intro_de']   = _clean_str(raw.get('intro_de'), 5000)
+    fm['intro_en']   = _clean_str(raw.get('intro_en'), 5000)
+    fm['success_de'] = _clean_str(raw.get('success_de'), 1000)
+    fm['success_en'] = _clean_str(raw.get('success_en'), 1000)
+    fm['enabled']    = bool(raw.get('enabled', True))
+    fm['nav']        = bool(raw.get('nav', False))
+    fm['notify']     = bool(raw.get('notify', True))
+    fields = raw.get('fields') or []
+    fm['fields'] = [_normalize_field(x) for x in fields if isinstance(x, dict)][:40]
+    return fm
+
+
+def _form_slug(site: dict, raw: dict, form_id: str) -> str:
+    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
+    if not slug:
+        slug = 'formular-' + form_id[:6]
+    base, n = slug, 2
+    taken = {f['slug'] for f in site.get('forms', []) if f.get('id') != form_id}
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _find_form(site: dict, slug: str) -> dict | None:
+    return next((f for f in site.get('forms', []) if f.get('slug') == slug), None)
+
+
+def _nav_forms(site: dict, loc) -> list:
+    """Aktive Formulare mit gesetztem Navi-Schalter."""
+    out = []
+    for f in site.get('forms', []):
+        if f.get('enabled') and f.get('nav'):
+            label = loc(f, 'title')
+            if label:
+                out.append({'href': '/formular/' + f['slug'], 'label': label})
+    return out
+
+
+def _nav_links(site: dict, loc) -> list:
+    """Navi-Einträge für eigene Seiten und Formulare."""
+    return _nav_pages(site, loc) + _nav_forms(site, loc)
+
+
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
 
 def _is_ingress() -> bool:
@@ -2855,6 +2926,61 @@ def api_pages_reorder():
     pages = site.get('pages', [])
     pos = {pid: i for i, pid in enumerate(order)}
     pages.sort(key=lambda p: pos.get(p.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/forms', methods=['POST'])
+def api_form_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    form = _normalize_form(raw)
+    form['slug'] = _form_slug(site, raw, form['id'])
+    site.setdefault('forms', []).append(form)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': form['slug']})
+
+
+@admin_app.route('/api/forms/<fid>', methods=['PUT', 'DELETE'])
+def api_form_edit(fid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    forms = site.setdefault('forms', [])
+    idx = next((i for i, f in enumerate(forms) if f.get('id') == fid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        forms.pop(idx)
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    forms[idx] = _normalize_form(raw, forms[idx])
+    forms[idx]['slug'] = _form_slug(site, raw, fid)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': forms[idx]['slug']})
+
+
+@admin_app.route('/api/forms/reorder', methods=['POST'])
+def api_forms_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    forms = site.get('forms', [])
+    pos = {fid: i for i, fid in enumerate(order)}
+    forms.sort(key=lambda f: pos.get(f.get('id'), len(pos)))
     save_site(site)
     return jsonify({'ok': True})
 
@@ -5513,8 +5639,8 @@ def public_index():
                 nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
-        # Eigene Seiten als echte Links (mit Navi-Schalter) hinten anhängen
-        nav_items += _nav_pages(site, loc)
+        # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen
+        nav_items += _nav_links(site, loc)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -5787,11 +5913,25 @@ def admin_page_preview(pid: str):
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=(loc(page, 'title') or t.get('page_untitled', '')),
-                           body_html=body_html, nav_items=_nav_pages(site, loc),
+                           body_html=body_html, nav_items=_nav_links(site, loc),
                            page_slug=page.get('slug', ''),
                            font_family=font_family, font_faces=font_faces,
                            meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
+
+
+@admin_app.route('/preview/form/<fid>')
+def admin_form_preview(fid: str):
+    """Formular-Vorschau im Admin — rendert form.html (auch unveröffentlicht)."""
+    err = _auth_required()
+    if err:
+        return err
+    lang = detect_language(request)
+    site = load_site()
+    form = next((f for f in site.get('forms', []) if f.get('id') == fid), None)
+    if form is None:
+        abort(404)
+    return _render_form(form, site, lang)
 
 
 @public_app.route('/p/<pid>')
@@ -6235,6 +6375,105 @@ def contact():
     return jsonify({'ok': True})
 
 
+def _render_form(form: dict, site: dict, lang: str, *, error: str = '', ok: bool = False):
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    fields = []
+    for f in form.get('fields', []):
+        fields.append({
+            'id': f['id'], 'type': f['type'], 'required': f.get('required'),
+            'label': loc(f, 'label') or f['id'],
+            'placeholder': loc(f, 'placeholder'),
+            'options': f.get('options', []),
+        })
+    return render_template('form.html', t=t, lang=lang, site=site, loc=loc,
+                           form=form, title=loc(form, 'title'),
+                           intro_html=render_md(loc(form, 'intro')),
+                           success_html=render_md(loc(form, 'success')) if ok else '',
+                           fields=fields, captcha=make_captcha(),
+                           nav_items=_nav_links(site, loc),
+                           font_family=font_css(site['design'])[0],
+                           font_faces=font_css(site['design'])[1],
+                           error=error, ok=ok, form_slug=form['slug'],
+                           meta_desc=(_plain_excerpt(render_md(loc(form, 'intro'))) or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/formular/<slug>')
+def custom_form(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    form = _find_form(site, slug)
+    if form is None or not form.get('enabled'):
+        abort(404)
+    count_visit(request)
+    return _render_form(form, site, lang, ok=bool(request.args.get('ok')))
+
+
+@public_app.route('/formular/<slug>', methods=['POST'])
+def custom_form_submit(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    form = _find_form(site, slug)
+    if form is None or not form.get('enabled'):
+        abort(404)
+    t = load_translations(lang)
+    # Honeypot: Bots füllen das versteckte Feld aus → still „erfolgreich"
+    if (request.form.get('website') or '').strip():
+        return redirect('/formular/' + slug + '?ok=1')
+    if not check_captcha(request.form.get('captcha_token'), request.form.get('captcha_answer')):
+        return _render_form(form, site, lang, error=t.get('form_err_captcha', ''))
+    ip = get_client_ip(request)
+    now = time.time()
+    _contact_times[ip] = [x for x in _contact_times[ip] if now - x < 3600]
+    if len(_contact_times[ip]) >= CONTACT_MAX_PER_HOUR:
+        return _render_form(form, site, lang, error=t.get('form_err_rate', ''))
+
+    loc = _loc_factory(lang)
+    entries, sub_name, sub_email = [], '', ''
+    for f in form.get('fields', []):
+        label = loc(f, 'label') or f['id']
+        if f['type'] == 'checkbox':
+            val = t.get('form_yes', 'Ja') if request.form.get('f_' + f['id']) else t.get('form_no', 'Nein')
+        else:
+            val = _clean_str(request.form.get('f_' + f['id']), 3000)
+        if f.get('required') and not (request.form.get('f_' + f['id']) or '').strip():
+            return _render_form(form, site, lang, error=t.get('form_err_required', ''))
+        entries.append({'label': label, 'value': val})
+        if not sub_email and f['type'] == 'email' and val:
+            sub_email = val[:150]
+        if not sub_name and f['type'] == 'text' and val:
+            sub_name = val[:80]
+
+    _contact_times[ip].append(now)
+    msg_id = uuid.uuid4().hex[:12]
+    form_title = loc(form, 'title') or t.get('form_untitled', 'Formular')
+    summary = '\n'.join(f"{e['label']}: {e['value']}" for e in entries)
+    msgs = load_messages()
+    msgs.append({
+        'id': msg_id, 'ts': int(now),
+        'name': sub_name or form_title, 'email': sub_email,
+        'text': summary, 'form': form_title, 'fields': entries,
+    })
+    save_messages(msgs)
+
+    if form.get('notify', True):
+        def _notify():
+            send_telegram(f"📋 MyPage — {form_title}:\n\n{summary[:800]}")
+            esc = html_mod.escape
+            lines = [f'<b>{esc(e["label"])}:</b> {esc(e["value"]).replace(chr(10), "<br>")}' for e in entries]
+            send_email(f'MyPage — {form_title}', _email_html(f'📋 {esc(form_title)}', lines))
+            notify_ha(f'📋 MyPage: {form_title}', summary[:400],
+                      notification_id=f'mypage_form_{msg_id}')
+        threading.Thread(target=_notify, daemon=True).start()
+    log.info("Formular-Einsendung '%s' gespeichert", form_title)
+    return redirect('/formular/' + slug + '?ok=1')
+
+
 def _legal_page(kind: str):
     lang = detect_language(request)
     site = load_site()
@@ -6274,7 +6513,7 @@ def custom_page(slug: str):
     loc = _loc_factory(lang)
     title = loc(page, 'title') or t.get('page_untitled', '')
     body_html = render_md(loc(page, 'body'))
-    nav_items = _nav_pages(site, loc) if site['design'].get('show_nav', True) else []
+    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=title, body_html=body_html, nav_items=nav_items,

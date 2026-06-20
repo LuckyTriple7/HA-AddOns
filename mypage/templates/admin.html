@@ -200,6 +200,14 @@
     .preset-body { padding: 7px 10px 9px; }
     .preset-name { font-weight: 600; font-size: 0.88rem; }
     .preset-meta { font-size: 0.71rem; color: var(--muted); margin-top: 2px; }
+    .fm-field-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--bg); }
+    .fm-field-top { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .fm-field-top .fm-drag { cursor: grab; color: var(--muted); user-select: none; }
+    .fm-field-top select { flex: 0 0 auto; width: auto; min-width: 130px; }
+    .fm-field-top .fm-req { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; white-space: nowrap; }
+    .fm-field-top .fm-del { margin-left: auto; }
+    .fm-field-row.dragging { opacity: .5; }
+    .fm-opts { margin-top: 8px; }
     @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .link-row input { flex: 1; }
@@ -219,6 +227,7 @@
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
+        <button class="tab-btn" data-tab="forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
@@ -510,6 +519,18 @@
         </h3>
         <p class="hint">{{ t.pages_hint }}</p>
         <div class="proj-list" id="page-list"></div>
+      </div>
+    </section>
+
+    <!-- Formulare -->
+    <section class="tab" id="tab-forms">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.forms_heading }}
+          <button class="btn small" onclick="openFormModal()">+ {{ t.new_form }}</button>
+        </h3>
+        <p class="hint">{{ t.forms_hint }}</p>
+        <div class="proj-list" id="form-list"></div>
       </div>
     </section>
 
@@ -1221,6 +1242,68 @@
     </div>
   </div>
 
+  <!-- Formular-Modal -->
+  <div class="modal-bg" id="form-modal">
+    <div class="modal md-modal-box">
+      <h3 id="fm-title">{{ t.new_form }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.page_slug }}</label>
+          <input type="text" id="fm-slug" placeholder="z. B. anmeldung" maxlength="60">
+          <p class="hint" id="fm-url-hint"></p>
+        </div>
+        <div>
+          <label>{{ t.field_status }}</label>
+          <select id="fm-enabled">
+            <option value="1">{{ t.status_published }}</option>
+            <option value="0">{{ t.status_draft }}</option>
+          </select>
+          <label class="checkbox" style="margin-top:8px"><input type="checkbox" id="fm-nav"> {{ t.page_in_nav }}</label>
+          <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="fm-notify" checked> {{ t.form_notify }}</label>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="fm-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="fm-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.form_intro }} (DE)</label>
+          <textarea id="fm-intro_de" rows="3"></textarea>
+        </div>
+        <div>
+          <label>{{ t.form_intro }} (EN)</label>
+          <textarea id="fm-intro_en" rows="3"></textarea>
+        </div>
+      </div>
+      <h4 style="margin:18px 0 6px">{{ t.form_fields_heading }}</h4>
+      <p class="hint">{{ t.form_fields_hint }}</p>
+      <div id="fm-fields"></div>
+      <button type="button" class="btn secondary small" onclick="addFieldRow()">+ {{ t.form_add_field }}</button>
+      <div class="row" style="margin-top:18px">
+        <div>
+          <label>{{ t.form_success }} (DE)</label>
+          <textarea id="fm-success_de" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
+        </div>
+        <div>
+          <label>{{ t.form_success }} (EN)</label>
+          <textarea id="fm-success_en" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('form-modal').classList.remove('open')">{{ t.cancel }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateForm(this)">🌐 {{ t.tr_btn }}</button>{% endif %}
+        <button class="btn" style="margin-top:16px" onclick="saveForm()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Seiten-Modal -->
   <div class="modal-bg" id="page-modal">
     <div class="modal">
@@ -1527,7 +1610,7 @@
       ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
     function initMdEditors() {
-      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body'].forEach(id => attachMd(el(id)));
+      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -1613,6 +1696,7 @@
       renderProjects();
       renderPosts();
       renderPages();
+      renderForms();
       // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
       if (!el('gh-user').value && SITE.profile.github) {
         el('gh-user').value = SITE.profile.github;
@@ -1822,6 +1906,155 @@
         : await apiJson('api/pages', 'POST', body);
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { el('page-modal').classList.remove('open'); loadSite(); }
+    }
+
+    // ── Formulare ──
+    let editingFormId = null;
+    let formDragFrom = null;
+    const FIELD_TYPES = ['text', 'textarea', 'email', 'tel', 'number', 'date', 'select', 'radio', 'checkbox'];
+    function renderForms() {
+      const list = el('form-list');
+      list.innerHTML = '';
+      const forms = SITE.forms || [];
+      if (!forms.length) { list.innerHTML = `<div class="empty-note">${T.no_forms}</div>`; return; }
+      forms.forEach((f, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.draggable = true;
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = f.title_de || f.title_en;
+        let badge = '';
+        if (!f.enabled) badge += ` <span class="badge-draft">${T.status_draft}</span>`;
+        if (!f.nav) badge += ` <span class="badge-reg">${T.page_hidden_nav}</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', badge);
+        div.querySelector('.proj-meta').textContent = '/formular/' + f.slug + ' · ' + (f.fields || []).length + ' ' + T.form_fields_count;
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/form/' + f.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openFormModal(f.id);
+        div.querySelector('.btn-del').onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await fetch('api/forms/' + f.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        div.addEventListener('dragstart', () => { formDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { formDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          if (formDragFrom === null || formDragFrom === i) return;
+          const arr = SITE.forms; const [m] = arr.splice(formDragFrom, 1); arr.splice(i, 0, m);
+          renderForms();
+          await apiJson('api/forms/reorder', 'POST', { order: arr.map(x => x.id) });
+        });
+        list.appendChild(div);
+      });
+    }
+    function formSlugHint() {
+      const slug = (el('fm-slug').value || '').trim();
+      el('fm-url-hint').textContent = slug ? (publicUrl() + 'formular/' + slug) : T.page_slug_auto;
+    }
+    function fieldTypeNeedsOptions(t) { return t === 'select' || t === 'radio'; }
+    function addFieldRow(f) {
+      f = f || { type: 'text', required: false, options: [] };
+      const box = el('fm-fields');
+      const row = document.createElement('div');
+      row.className = 'fm-field-row';
+      row.draggable = true;
+      const typeOpts = FIELD_TYPES.map(tp => `<option value="${tp}"${f.type === tp ? ' selected' : ''}>${T['ftype_' + tp] || tp}</option>`).join('');
+      row.innerHTML =
+        `<div class="fm-field-top">
+           <span class="fm-drag" title="${T.album_drag_hint || ''}">⠿</span>
+           <select class="ff-type">${typeOpts}</select>
+           <label class="fm-req"><input type="checkbox" class="ff-required"${f.required ? ' checked' : ''}> ${T.form_required}</label>
+           <button type="button" class="btn danger small fm-del">✕</button>
+         </div>
+         <div class="row">
+           <div><label>${T.field_label} (DE)</label><input type="text" class="ff-label_de"></div>
+           <div><label>${T.field_label} (EN)</label><input type="text" class="ff-label_en"></div>
+         </div>
+         <div class="row">
+           <div><label>${T.form_placeholder} (DE)</label><input type="text" class="ff-ph_de"></div>
+           <div><label>${T.form_placeholder} (EN)</label><input type="text" class="ff-ph_en"></div>
+         </div>
+         <div class="fm-opts"><label>${T.form_options}</label><textarea class="ff-options" rows="3" placeholder="${T.form_options_ph}"></textarea></div>`;
+      row.querySelector('.ff-label_de').value = f.label_de || '';
+      row.querySelector('.ff-label_en').value = f.label_en || '';
+      row.querySelector('.ff-ph_de').value = f.placeholder_de || '';
+      row.querySelector('.ff-ph_en').value = f.placeholder_en || '';
+      row.querySelector('.ff-options').value = (f.options || []).join('\n');
+      const optBox = row.querySelector('.fm-opts');
+      const sync = () => { optBox.style.display = fieldTypeNeedsOptions(row.querySelector('.ff-type').value) ? '' : 'none'; };
+      row.querySelector('.ff-type').addEventListener('change', sync); sync();
+      row.querySelector('.fm-del').onclick = () => row.remove();
+      row.addEventListener('dragstart', e => { if (e.target !== row) return; row.classList.add('dragging'); window._ffDrag = row; });
+      row.addEventListener('dragend', () => { row.classList.remove('dragging'); window._ffDrag = null; });
+      row.addEventListener('dragover', e => {
+        e.preventDefault();
+        const d = window._ffDrag; if (!d || d === row) return;
+        const r = row.getBoundingClientRect();
+        box.insertBefore(d, (e.clientY - r.top) / r.height < 0.5 ? row : row.nextSibling);
+      });
+      box.appendChild(row);
+    }
+    function collectFields() {
+      return [...el('fm-fields').children].map(row => ({
+        type: row.querySelector('.ff-type').value,
+        required: row.querySelector('.ff-required').checked,
+        label_de: row.querySelector('.ff-label_de').value,
+        label_en: row.querySelector('.ff-label_en').value,
+        placeholder_de: row.querySelector('.ff-ph_de').value,
+        placeholder_en: row.querySelector('.ff-ph_en').value,
+        options: row.querySelector('.ff-options').value.split('\n').map(s => s.trim()).filter(Boolean),
+      })).filter(f => f.label_de.trim() || f.label_en.trim());
+    }
+    function openFormModal(id) {
+      editingFormId = id || null;
+      const f = id ? (SITE.forms || []).find(x => x.id === id) : {};
+      el('fm-title').textContent = id ? T.edit_form : T.new_form;
+      el('fm-slug').value = f.slug || '';
+      el('fm-enabled').value = (id && f.enabled === false) ? '0' : '1';
+      el('fm-nav').checked = !!f.nav;
+      el('fm-notify').checked = (id ? f.notify !== false : true);
+      el('fm-title_de').value = f.title_de || '';
+      el('fm-title_en').value = f.title_en || '';
+      el('fm-intro_de').value = f.intro_de || '';
+      el('fm-intro_en').value = f.intro_en || '';
+      el('fm-success_de').value = f.success_de || '';
+      el('fm-success_en').value = f.success_en || '';
+      el('fm-fields').innerHTML = '';
+      (f.fields || []).forEach(addFieldRow);
+      formSlugHint();
+      el('form-modal').classList.add('open');
+    }
+    async function saveForm() {
+      const body = {
+        slug: el('fm-slug').value, enabled: el('fm-enabled').value === '1',
+        nav: el('fm-nav').checked, notify: el('fm-notify').checked,
+        title_de: el('fm-title_de').value, title_en: el('fm-title_en').value,
+        intro_de: el('fm-intro_de').value, intro_en: el('fm-intro_en').value,
+        success_de: el('fm-success_de').value, success_en: el('fm-success_en').value,
+        fields: collectFields(),
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingFormId
+        ? await apiJson('api/forms/' + editingFormId, 'PUT', body)
+        : await apiJson('api/forms', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('form-modal').classList.remove('open'); loadSite(); }
+    }
+    function translateForm(btn) {
+      const pairs = [['fm-title_de', 'fm-title_en'], ['fm-intro_de', 'fm-intro_en'], ['fm-success_de', 'fm-success_en']];
+      [...el('fm-fields').children].forEach(row => {
+        // Feld-Labels mitübersetzen über temporäre IDs
+        const de = row.querySelector('.ff-label_de'), en = row.querySelector('.ff-label_en');
+        if (!de.id) { de.id = 'ff-tmp-' + Math.random().toString(36).slice(2); en.id = de.id + 'x'; }
+        pairs.push([de.id, en.id]);
+      });
+      translateFields(btn, pairs);
     }
 
     // ── Live-Vorschau ──
@@ -2437,7 +2670,12 @@
             </span>
           </div><div class="msg-text"></div>`;
         const from = div.querySelector('.msg-from');
-        from.textContent = m.name;
+        if (m.form) {
+          const b = document.createElement('span');
+          b.className = 'badge-reg'; b.textContent = '📋 ' + m.form;
+          from.appendChild(b); from.appendChild(document.createTextNode(' '));
+        }
+        from.appendChild(document.createTextNode(m.name || ''));
         if (m.email) {
           const a = document.createElement('a');
           a.href = 'mailto:' + m.email;
@@ -2445,7 +2683,17 @@
           from.appendChild(a);
         }
         div.querySelector('.msg-time').textContent = new Date(m.ts * 1000).toLocaleString();
-        div.querySelector('.msg-text').textContent = m.text;
+        const txt = div.querySelector('.msg-text');
+        if (m.fields && m.fields.length) {
+          m.fields.forEach(e => {
+            const line = document.createElement('div');
+            const lbl = document.createElement('b'); lbl.textContent = e.label + ': ';
+            line.appendChild(lbl); line.appendChild(document.createTextNode(e.value));
+            txt.appendChild(line);
+          });
+        } else {
+          txt.textContent = m.text;
+        }
         div.querySelector('button').onclick = async () => {
           if (!confirm(T.confirm_delete_msg)) return;
           const r2 = await fetch('api/messages/' + m.id, { method: 'DELETE', credentials: 'same-origin' });
@@ -3571,6 +3819,7 @@
 
     initMdEditors();
     el('pg-slug').addEventListener('input', pageSlugHint);
+    el('fm-slug').addEventListener('input', formSlugHint);
     loadSite();
   </script>
 </body>

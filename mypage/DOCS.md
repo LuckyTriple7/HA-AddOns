@@ -94,6 +94,16 @@ Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**
 - **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
 - **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
 
+### Formulare
+Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. **Veranstaltungs-Anmeldung, Umfrage oder Anfrage**. Jedes Formular ist unter `/formular/<slug>` erreichbar (optional als Navi-Eintrag).
+
+- **Felder**: beliebig viele, per Drag sortierbar. Typen: Text, mehrzeiliges Textfeld, E-Mail, Telefon, Zahl, Datum, Auswahl (Dropdown), Auswahl (Radio) und Kontrollkästchen. Je Feld DE/EN-Bezeichnung, optionaler Platzhalter, **Pflicht**-Schalter und (für Auswahl/Radio) Optionen (eine je Zeile).
+- **Einleitung & Danke-Text** (DE/EN, Markdown) lassen sich frei texten.
+- **Einsendungen** landen im Tab **„Nachrichten"** — mit Formularnamen als Markierung (📋) und allen Feldern aufgelistet. Sie zählen in den Nachrichten-Badge und werden im Backup mitgesichert.
+- **Benachrichtigung**: Je Formular abschaltbar. Ist sie an, wird bei jeder Einsendung dieselbe Benachrichtigung wie beim Kontaktformular ausgelöst (E-Mail, Telegram und Home-Assistant-Notification).
+- **Spam-Schutz**: wie beim Kontaktformular — verstecktes Honeypot-Feld, Rechen-Captcha und Rate-Limit.
+- **Status**: „Veröffentlicht" oder „Entwurf"; Entwürfe sind öffentlich 404, im Admin aber über **Vorschau** sichtbar. Formulare liegen in `site.json` (im Backup).
+
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
