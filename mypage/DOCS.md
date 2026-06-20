@@ -109,6 +109,7 @@ Einzelne Inhalte lassen sich auf **angemeldete Mitglieder** beschränken (nutzt 
 
 - **Blog-Beiträge**: Schalter **„🔒 Nur für Mitglieder"** im Beitrags-Editor. Gäste sehen den Beitrag in der Liste mit Schloss-Symbol; öffnen sie ihn, erscheinen nur Titel + ein kurzer Anriss und ein **„Zum Mitglieder-Login"**-Button (Kommentare, Galerie und Video bleiben verborgen). Eingeloggte Mitglieder sehen alles.
 - **Eigene Seiten**: derselbe Schalter im Seiten-Editor — gleiches Verhalten (Anriss + Login-Aufforderung für Gäste).
+- **Fotoalben**: Schalter **„🔒 Nur für Mitglieder"** im Album-Editor. Gäste sehen statt der Bilder eine **Schloss-Karte** (Titel + Foto-Anzahl + Link zum Login); es werden keine Bild-Adressen des Albums ausgeliefert. Eingeloggte Mitglieder sehen das Album normal mit Diashow.
 - **Startseiten-Sektionen**: Im Tab **Inhalt** hat jeder Abschnitt neben dem Auge ein **Schloss-Symbol**. Aktiviert, ist der ganze Abschnitt nur für eingeloggte Mitglieder sichtbar (für Gäste komplett ausgeblendet, auch in der Navigation).
 
 Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass auch bei kurzen Inhalten stets ein Teil verborgen bleibt. Statischer Export und Suchmaschinen laufen als „Gast" — geschützte Inhalte landen nicht im Export.

@@ -1870,17 +1870,22 @@ def sorted_posts(site: dict, public_only: bool = False) -> list:
     return [p for p in posts if post_visible(p)] if public_only else posts
 
 
-def _albums_for_public(site: dict) -> list:
+def _albums_for_public(site: dict, viewer_member: bool = False) -> list:
     """Alben mit Bildern; Bild-URLs auf die /album-img/-Route umgeschrieben
-    (liefert je nach Einstellung Original oder Wasserzeichen-Version)."""
+    (liefert je nach Einstellung Original oder Wasserzeichen-Version).
+    Mitglieder-only-Alben werden für Gäste gesperrt (ohne Bild-URLs)."""
     out = []
     for a in site.get('albums', []):
         imgs = a.get('images') or []
         if not imgs:
             continue
+        if a.get('members_only') and not viewer_member:
+            # gesperrt: keine Bild-URLs ausliefern, nur Titel + Anzahl
+            out.append({**a, 'images': [], 'locked': True, 'photo_count': len(imgs)})
+            continue
         mapped = [('/album-img/' + u.removeprefix('/uploads/')) if u.startswith('/uploads/') else u
                   for u in imgs]
-        out.append({**a, 'images': mapped})
+        out.append({**a, 'images': mapped, 'locked': False, 'photo_count': len(imgs)})
     return out
 
 
@@ -1890,6 +1895,7 @@ def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
     a['title_en'] = _clean_str(raw.get('title_en'), 120)
     a['desc_de']  = _clean_str(raw.get('desc_de'), 1000)
     a['desc_en']  = _clean_str(raw.get('desc_en'), 1000)
+    a['members_only'] = bool(raw.get('members_only'))
     images = raw.get('images') or []
     if isinstance(images, list):
         a['images'] = [_clean_str(g, 500) for g in images if _clean_str(g, 500)][:200]
@@ -5623,9 +5629,12 @@ def public_index():
     email_parts = email.split('@', 1) if '@' in email else None
     projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
     static_export = bool(request.args.get('static'))
+    viewer_member = is_member(request) and not static_export
     font_family, font_faces = font_css(site['design'])
     sections = site.get('sections', {})
-    albums = _albums_for_public(site)
+    albums = _albums_for_public(site, viewer_member)
+    if static_export:
+        albums = [a for a in albums if not a.get('locked')]
     latest_posts = sorted_posts(site, public_only=True)[:3]
     contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
 
@@ -5678,7 +5687,6 @@ def public_index():
     hidden = set(site.get('hidden_sections') or [])
     section_order = [k for k in section_order if k not in hidden]
     # Mitglieder-only-Sektionen: Gäste sehen sie nicht, eingeloggte Mitglieder schon
-    viewer_member = is_member(request) and not static_export
     member_secs = set(site.get('members_sections') or [])
     if not viewer_member:
         section_order = [k for k in section_order if k not in member_secs]

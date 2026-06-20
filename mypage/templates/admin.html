@@ -1176,7 +1176,8 @@
           <textarea id="am-desc_en" rows="2"></textarea>
         </div>
       </div>
-      <label>{{ t.album_images }}</label>
+      <label class="checkbox" style="margin-top:4px"><input type="checkbox" id="am-members_only"> 🔒 {{ t.members_only_label }}</label>
+      <label style="margin-top:12px">{{ t.album_images }}</label>
       <div class="gallery-list" id="am-images"></div>
       <button class="btn secondary small" onclick="el('am-file').click()">+ {{ t.add_images }}</button>
       <input type="file" id="am-file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple style="display:none">
@@ -2627,6 +2628,7 @@
              <button class="btn danger small" onclick="deleteAlbum('${a.id}')">✕</button>
            </div>`;
         div.querySelector('.proj-name').textContent = a.title_de || a.title_en;
+        if (a.members_only) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ` <span class="badge-reg">🔒 ${T.members_only_badge}</span>`);
         div.querySelector('.proj-meta').textContent = `${(a.images || []).length} ${T.album_image_count}`;
         list.appendChild(div);
       });
@@ -2670,6 +2672,7 @@
       el('am-title_en').value = a.title_en || '';
       el('am-desc_de').value = a.desc_de || '';
       el('am-desc_en').value = a.desc_en || '';
+      el('am-members_only').checked = !!a.members_only;
       albumImages = [...(a.images || [])];
       el('am-progress').textContent = '';
       renderAlbumImages();
@@ -2693,6 +2696,7 @@
       const body = {
         title_de: el('am-title_de').value, title_en: el('am-title_en').value,
         desc_de: el('am-desc_de').value, desc_en: el('am-desc_en').value,
+        members_only: el('am-members_only').checked,
         images: albumImages,
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }

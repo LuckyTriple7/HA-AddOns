@@ -11,7 +11,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 - 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, events, link collection, FAQ, location & opening hours
 - 📄 **Custom pages**: standalone subpages (e.g. “About”, “Directions”) in Markdown (DE/EN) with their own address `/seite/<slug>`, optional nav entry and draft status
 - 🧾 **Form builder**: freely configurable forms (sign-up, survey, request) with arbitrary fields; submissions in the messages tab + notification (email/Telegram/HA), honeypot + captcha
-- 🔒 **Members-only content**: blog posts, custom pages or entire homepage sections restricted to logged-in members (guests see a teaser + login prompt)
+- 🔒 **Members-only content**: blog posts, custom pages, photo albums or entire homepage sections restricted to logged-in members (guests see a teaser/lock + login prompt)
 - 🔀 **Free ordering & visibility**: reorder sections by drag & drop and hide/show them individually (header stays on top, contact stays at the bottom)
 - 🐙 **GitHub import**: enter a username, pick repos, done — description, stars, language and topics are imported, stars refreshed hourly
 - 📅 **Appointment / booking button** (e.g. Calendly) — see [below](#-booking-calendar--appointment-button)

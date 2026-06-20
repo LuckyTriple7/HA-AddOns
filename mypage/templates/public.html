@@ -182,6 +182,10 @@
     .album-body { padding: 12px 14px; }
     .album-title { font-weight: 600; font-size: 0.98rem; }
     .album-desc { color: var(--muted); font-size: 0.83rem; margin-top: 3px; }
+    .album-locked { text-decoration: none; color: inherit; }
+    .album-locked:hover { text-decoration: none; }
+    .album-cover-locked { display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(45deg, var(--surf2), var(--surf2) 10px, var(--surf) 10px, var(--surf) 20px); }
+    .album-lock { font-size: 2rem; opacity: .7; }
 
     /* Diashow */
     .slideshow { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.94); flex-direction: column; }
@@ -727,6 +731,18 @@
       <button class="album-arrow ar-prev" onclick="railScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="album-rail" id="album-rail">
         {% for a in albums %}
+        {% if a.locked %}
+        <a class="album-card album-locked" href="/bereich" title="{{ t.members_only_badge }}">
+          <div class="album-cover album-cover-locked">
+            <span class="album-lock">🔒</span>
+            <span class="album-count">{{ a.photo_count }} 📷</span>
+          </div>
+          <div class="album-body">
+            <div class="album-title">{{ loc(a, 'title') }}</div>
+            <p class="album-desc">🔒 {{ t.members_only_badge }}</p>
+          </div>
+        </a>
+        {% else %}
         <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
           <div class="album-cover">
             <img src="{{ a.images[0] }}" alt="{{ loc(a, 'title') }}" loading="lazy">
@@ -737,6 +753,7 @@
             {% if loc(a, 'desc') %}<p class="album-desc">{{ loc(a, 'desc') }}</p>{% endif %}
           </div>
         </article>
+        {% endif %}
         {% endfor %}
       </div>
       <button class="album-arrow ar-next" onclick="railScroll(1)" aria-label="{{ t.aria_next }}">›</button>

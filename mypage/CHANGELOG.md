@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.8
+
+- 🔒 **Fotoalben nur für Mitglieder** — Wie bei Blog/Seiten gibt es jetzt je Album einen Schalter „🔒 Nur für Mitglieder". Gäste sehen statt der Fotos eine Schloss-Karte (Titel + Anzahl + Login-Link); die Bild-Adressen des Albums werden für sie nicht ausgeliefert. Eingeloggte Mitglieder sehen das Album normal. Im statischen Export bleiben gesperrte Alben außen vor.
+
 ## 0.7.7
 
 - 💅 **Admin-Tableiste einzeilig** — Durch die neuen Tabs (Seiten, Formulare) brach die Navigationsleiste im Admin-Panel auf zwei Zeilen um. Sie bleibt jetzt auf einer Linie und wird bei Platzmangel horizontal scrollbar.
