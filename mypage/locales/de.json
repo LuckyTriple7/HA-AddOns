@@ -181,6 +181,7 @@
   "blog_all_tags": "Alle",
   "blog_no_results": "Keine passenden Beiträge gefunden.",
   "post_tags_hint": "Schlagwörter, durch Komma getrennt (max. 8) — zum Filtern und Durchsuchen im Blog.",
+  "post_views": "Aufrufe",
   "blog_hint": "Beiträge erscheinen unter /blog, die neuesten drei auch auf der Startseite. Markdown wird unterstützt.",
   "new_post": "Neuer Beitrag",
   "edit_post": "Beitrag bearbeiten",

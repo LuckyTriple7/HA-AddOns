@@ -82,10 +82,11 @@
     /* Reaktionen & Kommentare */
     .engage { margin-top: 40px; border-top: 1px solid var(--border); padding-top: 24px; }
     .react-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-    .react-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surf); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 0.95rem; color: var(--text); cursor: pointer; transition: border-color .15s, background .15s; }
+    .react-btn { display: inline-flex; align-items: center; justify-content: center; background: var(--surf); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-size: 0.95rem; line-height: 1; color: var(--text); cursor: pointer; transition: border-color .15s, background .15s; }
     .react-btn:hover { border-color: var(--accent); }
     .react-btn.mine { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
-    .react-btn .cnt { font-size: 0.8rem; color: var(--muted); min-width: 8px; }
+    .react-btn .cnt { font-size: 0.8rem; color: var(--muted); margin-left: 6px; }
+    .react-btn .cnt:empty { display: none; }
     .react-btn.mine .cnt { color: var(--accent); }
     .react-hint, .comment-hint { font-size: 0.82rem; color: var(--muted); margin: 4px 0 0; }
     .comments { margin-top: 30px; }
@@ -118,7 +119,7 @@
     </div>
   </header>
   <main class="wrap">
-    {% if p.date %}<div class="post-date">{{ p.date }}</div>{% endif %}
+    {% if p.date or (views and not preview) %}<div class="post-date">{{ p.date }}{% if views and not preview %}{% if p.date %} · {% endif %}👁 {{ views }}{% endif %}</div>{% endif %}
     <h1>{{ loc(p, 'title') }}</h1>
     {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ loc(p, 'title') }}" onclick="openLightbox(this.src)">{% endif %}
     {% set vp = parse_video(p.video) %}

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.160
+
+- 👁 **Aufrufe je Blog-Beitrag** — Jeder Beitrag zählt jetzt seine Aufrufe (ohne Bots). Die Zahl steht im Admin in der Beitragsliste und erscheint dezent neben dem Datum auf der Beitragsseite. Zähler in `stats.json` (im Backup).
+- 💅 **Reaktions-Buttons: Emoji zentriert** — Ohne Zähler (0 Reaktionen) saßen die Emojis durch das leere Zähler-Feld leicht links; jetzt sind sie sauber mittig, das Zähler-Feld erscheint erst ab der ersten Reaktion.
+
 ## 0.6.159
 
 - 💬 **Kommentar-Antworten & Autor-Benachrichtigung** — Mitglieder können jetzt auf Blog-Kommentare antworten (Antwort-Threads, eine Ebene eingerückt). Antwortet jemand auf einen Kommentar, erhält dessen Autor – sofern ein Mailserver konfiguriert ist – eine E-Mail mit Vorschau und Link zur Diskussion (nicht bei Antwort auf den eigenen Kommentar).

@@ -1510,7 +1510,8 @@
         if (p.published === false) badge = `<span class="badge-draft">${T.status_draft}</span>`;
         else if ((p.date || '') > today) badge = `<span class="badge-scheduled">${T.status_scheduled}</span>`;
         if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
-        div.querySelector('.proj-meta').textContent = p.date || '';
+        div.querySelector('.proj-meta').textContent =
+          (p.date || '') + (p.date ? ' · ' : '') + '👁 ' + (p.views || 0) + ' ' + T.post_views;
         div.querySelector('.btn-preview').onclick = () => window.open('preview/blog/' + p.id, '_blank');
         div.querySelector('.btn-edit').onclick = () => openPostModal(p.id);
         div.querySelector('.btn-del').onclick = async () => {

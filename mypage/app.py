@@ -979,6 +979,21 @@ def _geoip_worker() -> None:
             log.warning("GeoIP-Worker-Fehler: %s", e)
 
 
+def bump_post_view(pid: str, req) -> int:
+    """Zählt einen Aufruf eines Blog-Beitrags (ohne Bots/Export); liefert den neuen Stand."""
+    cur = load_stats().get('posts', {}).get(pid, 0)
+    if req.headers.get('X-MyPage-Export'):
+        return cur
+    ua = req.headers.get('User-Agent') or ''
+    if (not ua) or any(b in ua.lower() for b in _BOT_UA):
+        return cur
+    stats = load_stats()
+    posts = stats.setdefault('posts', {})
+    posts[pid] = posts.get(pid, 0) + 1
+    save_stats(stats)
+    return posts[pid]
+
+
 def count_visit(req) -> None:
     global _seen_today, _seen_day
     if req.headers.get('X-MyPage-Export'):
@@ -2078,7 +2093,11 @@ def api_site():
     err = _api_auth()
     if err:
         return err
-    return jsonify(load_site())
+    site = load_site()
+    pv = load_stats().get('posts', {})
+    for p in site.get('posts', []):
+        p['views'] = pv.get(p.get('id'), 0)
+    return jsonify(site)
 
 
 def _mymemory_translate(text: str, src: str, dst: str) -> str:
@@ -5447,6 +5466,7 @@ def blog_post(pid: str):
     if post is None or not post_visible(post):
         abort(404)
     count_visit(request)
+    views = bump_post_view(pid, request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
     text_html = render_md(loc(post, 'text'))
@@ -5465,6 +5485,7 @@ def blog_post(pid: str):
                            reaction_emojis=COMMENT_REACTIONS,
                            reaction_counts=_reaction_counts(reactions),
                            my_reaction=(reactions.get(member['id']) if member else None),
+                           views=views,
                            year=datetime.now(timezone.utc).year)
 
 

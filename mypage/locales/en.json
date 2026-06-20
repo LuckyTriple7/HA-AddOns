@@ -181,6 +181,7 @@
   "blog_all_tags": "All",
   "blog_no_results": "No matching posts found.",
   "post_tags_hint": "Keywords, comma-separated (max. 8) — used for filtering and search in the blog.",
+  "post_views": "views",
   "blog_hint": "Posts appear under /blog, the latest three also on the homepage. Markdown is supported.",
   "new_post": "New post",
   "edit_post": "Edit post",
