@@ -164,3 +164,12 @@ Im Tunnel nur `http://<host>:17760` als Ziel eintragen. Das Admin-Panel auf 1776
 ## Daten
 
 Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
+
+## Jeopardy-Hintergrundmusik (optional)
+
+Das Spiel „Jeopardy" kann eine Hintergrundmelodie abspielen. Aus urheberrechtlichen Gründen wird **keine** Musik mitgeliefert. Wer eine eigene Datei nutzen möchte, legt sie als **`jeopardy_theme.m4a`** direkt in den Add-on-Konfigurationsordner (`\\<host>\addon_configs\XXX_mypage\jeopardy_theme.m4a`). Sie wird dann automatisch ausgeliefert und kann im Spiel über den 🔊-Button an-/ausgeschaltet werden. Fehlt die Datei, läuft das Spiel einfach ohne Musik (der Buzzer-Ticker ist davon unabhängig und immer aktiv).
+
+## Credits / Lizenzhinweise
+
+- **Jeopardy-Quizfragen:** Der Fragen-Pool des Mitglieder-Spiels „Jeopardy" basiert teilweise auf der [Open Trivia Database](https://opentdb.com) und steht unter **CC BY-SA 4.0**. Die Fragen wurden ins Deutsche übersetzt, kuratiert und gefiltert.
+- **Hintergrundmusik:** nicht enthalten; nutzerseitig bereitgestellt (siehe oben). Bitte nur Material verwenden, für das du die Rechte hast.

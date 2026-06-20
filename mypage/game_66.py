@@ -55,7 +55,7 @@ RULESETS = ('standard', 'oma')
 # KI-Schwierigkeitsgrade. "epsilon" = Wahrscheinlichkeit, statt der Heuristik eine
 # zufällige (schwächere) Karte zu spielen. 0 = perfekt heuristisch (stärkste KI).
 LEVELS = ('easy', 'medium', 'hard', 'adaptive')
-_BASE_EPS = {'easy': 0.55, 'medium': 0.22, 'hard': 0.0}
+_BASE_EPS = {'easy': 0.55, 'medium': 0.16, 'hard': 0.0}
 _ADAPT_START = 0.30      # Start-Epsilon im adaptiven Modus
 _ADAPT_STEP = 0.08       # Schrittweite pro gewonnener/verlorener Partie
 _ADAPT_MIN, _ADAPT_MAX = 0.0, 0.70
@@ -668,14 +668,60 @@ def _ai_lead(state: dict, caps: dict) -> dict:
         return {'type': 'play', 'card': 'Q' + s, 'marry': True}
 
     # 3) Zudrehen (nur wenn freigeschaltet)
-    if caps.get('close') and not state['phase2'] and state['stock'] and _ai_should_close(state):
+    if caps.get('close') and not state['phase2'] and state['stock'] and _ai_should_close(state, caps):
         return {'type': 'close'}
 
     # 4) Normal ausspielen
     return {'type': 'play', 'card': _ai_lead_card(state, caps)}
 
 
-def _ai_should_close(state: dict) -> bool:
+def _ai_should_close(state: dict, caps: dict) -> bool:
+    """Soll die KI zudrehen?
+
+    Hard (minimax): nur zudrehen, wenn ein Partie-Sieg **erzwingbar** ist
+    (And-Or-Suche mit perfekter Information; nutzt die ohnehin starke Phase-2-
+    Suche der KI). Schwächere Stufen: konservative Heuristik. Funktioniert in
+    beiden Varianten — die Suche spielt über apply_action die echten Regeln
+    durch (Standard: Ausmelden bei 66; Oma: bis alle Karten weg sind)."""
+    if caps.get('minimax'):
+        # Teure Suche nur, wenn Zudrehen überhaupt realistisch gewinnen kann.
+        if usable(state, 'a') < 33:
+            return False
+        return _close_forces_win(state)
+    return _close_heuristic(state)
+
+
+def _close_forces_win(state: dict) -> bool:
+    """True, wenn 'a' nach dem Zudrehen den Partie-Sieg erzwingen kann."""
+    child = copy.deepcopy(state)
+    child.pop('_cap', None)
+    child['log'] = []
+    _do_close(child, 'a')          # Talon zu → Phase 2, KI bleibt am Ausspielen
+    return _deal_win_search(child, True)
+
+
+def _deal_win_search(state: dict, maximizing: bool) -> bool:
+    """And-Or-Suche: kann 'a' bei optimalem Gegenspiel die Partie gewinnen?"""
+    if state['status'] != 'playing':
+        return state.get('result', {}).get('winner') == 'a'
+    who = 'a' if maximizing else 'p'
+    if state['turn'] != who:
+        return _deal_win_search(state, not maximizing)
+    for action in legal_actions(state, who):
+        child = copy.deepcopy(state)
+        child.pop('_cap', None)
+        child['log'] = []
+        apply_action(child, who, action)
+        nxt = child['turn'] == who
+        res = _deal_win_search(child, maximizing if nxt else not maximizing)
+        if maximizing and res:
+            return True            # eine Gewinnlinie genügt
+        if not maximizing and not res:
+            return False           # Gegner kann den Sieg verhindern
+    return not maximizing
+
+
+def _close_heuristic(state: dict) -> bool:
     hand = state['hands']['a']
     trump = state['trump']
     pts = usable(state, 'a')
@@ -714,6 +760,11 @@ def _ai_lead_card(state: dict, caps: dict) -> str:
     nontrump = [c for c in hand if suit(c) != trump]
     trumps = [c for c in hand if suit(c) == trump]
 
+    # K/Q einer noch nicht angesagten Hochzeit schonen (zum späteren Ansagen)
+    marriage_suits = [s for s in SUITS
+                      if ('K' + s) in hand and ('Q' + s) in hand and s not in state['melds']['a']]
+    protected = {r + s for s in marriage_suits for r in ('K', 'Q')}
+
     if state['phase2'] and caps.get('phase2_top'):
         if trumps:
             return max(trumps, key=val)
@@ -738,13 +789,17 @@ def _ai_lead_card(state: dict, caps: dict) -> str:
     if caps.get('hand_read') and not state['phase2']:
         opp = _opponent_possible(state)
         for c in sorted(nontrump, key=val, reverse=True):
+            if c in protected:
+                continue
             s = suit(c)
             opp_same = [o for o in opp if suit(o) == s]
             if opp_same and all(val(c) > val(o) for o in opp_same):
                 return c
 
     pool = nontrump or hand
-    return min(pool, key=val)
+    # Hochzeits-K/Q möglichst nicht abspielen, solange es Alternativen gibt
+    safe_pool = [c for c in pool if c not in protected] or pool
+    return min(safe_pool, key=val)
 
 
 def _ai_follow(state: dict, caps: dict) -> dict:

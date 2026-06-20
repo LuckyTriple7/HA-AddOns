@@ -426,9 +426,86 @@ body{
   #play-area{flex:1;min-height:100px}
   #player-area{flex:1}
 }
+
+/* ── Mobil: Querformat-Hinweis (Rotier-Overlay) ───────────────── */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:600px) and (pointer:coarse){
+  #rotate-overlay{
+    display:flex;position:fixed;inset:0;z-index:1000;
+    background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+    align-items:center;justify-content:center;text-align:center;padding:24px;
+  }
+  .rotate-inner{max-width:300px}
+  .rotate-icon{font-size:72px;margin-bottom:18px;display:inline-block;
+    animation:rotateHint 2.2s ease-in-out infinite}
+  .rotate-title{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+  .rotate-hint{font-size:15px;opacity:0.8;line-height:1.45}
+}
+@keyframes rotateHint{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
+
+/* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
+@media (max-height:500px){
+  /* Startbildschirm: oben ausrichten + scrollbar, damit nichts oben/unten abgeschnitten wird */
+  #start-screen{align-items:flex-start;overflow-y:auto;padding:12px}
+  .start-box h1{font-size:28px;margin-bottom:2px}
+  .start-box .sub{font-size:13px;margin-bottom:10px}
+  .start-box .level-btn{padding:9px 18px;font-size:14px}
+  #resume-box{margin-bottom:8px !important}
+  #resume-box .level-btn{font-size:14px !important;padding:9px 22px !important}
+  #stats-box{margin-top:10px}
+  .start-box > div:last-child{margin-top:12px !important}
+  .modal-box{max-height:94vh}
+
+  #topbar{padding:3px 10px}
+  #scorebar{gap:14px}
+  .score-name{font-size:9px}
+  .score-val{font-size:16px}
+  .top-btn{width:30px;height:30px;font-size:0.95rem}
+  #topbar-btns{gap:3px;right:8px}
+
+  #game-area{padding:1px 10px}
+  #opponents{gap:8px;padding:0 6px}
+  .opp-label{font-size:10px;margin-bottom:1px}
+  .opp-hand .card{width:clamp(28px,7vw,42px);height:clamp(40px,13vh,54px)}
+  .card-flip-container{height:clamp(40px,13vh,54px)}
+
+  #play-area{min-height:0}
+  #table-label{font-size:10px;margin-bottom:2px}
+  #table-cards{min-height:clamp(50px,15vh,72px);gap:clamp(10px,3vw,20px)}
+  #info-text{margin-top:2px;font-size:12px;min-height:14px}
+  #knock-info{margin-top:1px;font-size:11px}
+
+  #player-area{padding-bottom:2px}
+  #player-label{font-size:10px;margin-bottom:1px}
+  #player-hand{min-height:0;gap:clamp(6px,2vw,14px)}
+  #hand-value{font-size:11px;margin-top:2px}
+  #actions{margin-top:4px;min-height:0;gap:8px}
+
+  /* Mobil: ausgewählte/aktive Karten NICHT hochschieben → goldener Ring statt Anheben */
+  .card.playable:hover,.card.playable:active,.card.selected,
+  #table-cards .card.target:hover,#table-cards .card.target:active{transform:none !important}
+  .card.selected,.card.knoll-card.selected{
+    box-shadow:inset 0 0 0 3px var(--gold),0 0 9px rgba(241,196,15,0.45) !important;
+    border-color:var(--gold) !important;
+  }
+  .card.playable:active{box-shadow:inset 0 0 0 3px rgba(241,196,15,0.85) !important}
+  #table-cards .card.target:active{box-shadow:inset 0 0 0 3px rgba(76,175,80,0.85) !important}
+
+  /* gemeinsame Kartengröße (Hand + Tisch) an die Höhe koppeln */
+  .card{width:clamp(44px,15vh,60px);height:clamp(60px,19vh,80px)}
+}
 </style>
 </head>
 <body>
+
+<!-- ── Mobil: Querformat-Hinweis (nur im Hochformat auf kleinen Touch-Screens) ── -->
+<div id="rotate-overlay">
+  <div class="rotate-inner">
+    <div class="rotate-icon">📱</div>
+    <div class="rotate-title">{{ t.game_rotate_title }}</div>
+    <div class="rotate-hint">{{ t.game_rotate_hint }}</div>
+  </div>
+</div>
 
 <!-- ── Startbildschirm ─────────────────────── -->
 <div id="start-screen">
@@ -668,9 +745,16 @@ const G = {
   you_lose:     {{ t.gs_you_lose|tojson }},
   swimming:     {{ t.gs_swimming|tojson }},
   eliminated:   {{ t.gs_eliminated|tojson }},
+  swims:        {{ t.gs_swims|tojson }},
+  you_swim:     {{ t.gs_you_swim|tojson }},
+  swim_plural:  {{ t.gs_swim_plural|tojson }},
+  is_elim:      {{ t.gs_is_elim|tojson }},
+  you_elim:     {{ t.gs_you_elim|tojson }},
+  elim_plural:  {{ t.gs_elim_plural|tojson }},
   feuer:        {{ t.gs_feuer|tojson }},
   thirty_one:   {{ t.gs_thirty_one|tojson }},
   knocked:      {{ t.gs_knocked|tojson }},
+  knocked_you:  {{ t.gs_knocked_you|tojson }},
   all_passed:   {{ t.gs_all_passed|tojson }},
   loses_life:   {{ t.gs_loses_life|tojson }},
   loses_two:    {{ t.gs_loses_two|tojson }},
@@ -828,6 +912,7 @@ const SFX = {
   thirtyone:() => { playTone(523, 0.15, 'triangle', 0.15); setTimeout(()=>playTone(784, 0.2, 'triangle', 0.15), 130); },
   loseLife: () => { playTone(330, 0.2, 'sawtooth', 0.06); setTimeout(()=>playTone(262, 0.3, 'sawtooth', 0.05), 180); },
   deal:     () => playNoise(0.06, 0.10),
+  shuffle:  () => { for(let i = 0; i < 15; i++) setTimeout(() => playNoise(0.05, 0.07 + Math.random()*0.05), i*60); },
   hint:     () => { playTone(660, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(880, 0.15, 'triangle', 0.10), 100); },
   tournWin: () => { [523,659,784,880,1047].forEach((f,i) => setTimeout(()=>playTone(f, 0.22, 'triangle', 0.16), i*100)); },
 };
@@ -1161,7 +1246,7 @@ function renderInfo(st){
       el.textContent = NAMES[st.turn] + ' ' + G.ai_thinking;
     }
     if(st.knocked_by){
-      ki.textContent = '✊ ' + NAMES[st.knocked_by] + ' ' + G.knocked;
+      ki.textContent = '✊ ' + NAMES[st.knocked_by] + ' ' + (st.knocked_by === 'p' ? G.knocked_you : G.knocked);
       ki.style.display = 'block';
     }
   } else if(st.status === 'round_over' || st.status === 'game_over'){
@@ -1286,7 +1371,7 @@ async function doKnock(){
   clearHintGlow();
   selectedHandCard = null;
   SFX.knock();
-  addLog('Klopft! Letzte Runde!', '', 'p', 'knock');
+  addLog('Klopfst! Letzte Runde!', '', 'p', 'knock');
   showToast('✊ Du klopfst!', 'gold');
   canUndo = true; updateUndo();
   const v = await api('/api/schwimmen/move', {type:'knock'});
@@ -1589,6 +1674,9 @@ async function dealAnimation(){
   });
   order.forEach(c => { c.style.visibility = 'hidden'; });
 
+  // Kartenmischsound vor dem Aufbau (nur bei aktivem Ton)
+  if(soundOn){ SFX.shuffle(); await sleep(900); }
+
   const dur = flyMs / 1000;
   const pause = Math.max(40, Math.round(flyMs * 0.15));
 
@@ -1753,13 +1841,19 @@ function showRoundResult(){
   }
 
   let extras = '';
-  if((rr.newly_swimming || []).length > 0){
-    const names = rr.newly_swimming.map(p => NAMES[p]).join(', ');
-    extras += '<p style="color:#4fc3f7;font-size:12px">🏊 ' + names + ' schwimmt!</p>';
+  const sw = rr.newly_swimming || [];
+  if(sw.length > 0){
+    let txt;
+    if(sw.length === 1) txt = sw[0] === 'p' ? G.you_swim : NAMES[sw[0]] + ' ' + G.swims;
+    else txt = sw.map(p => NAMES[p]).join(', ') + ' ' + G.swim_plural;
+    extras += '<p style="color:#4fc3f7;font-size:12px">🏊 ' + txt + '</p>';
   }
-  if((rr.newly_eliminated || []).length > 0){
-    const names = rr.newly_eliminated.map(p => NAMES[p]).join(', ');
-    extras += '<p style="color:#888;font-size:12px">💀 ' + names + ' ausgeschieden!</p>';
+  const elim = rr.newly_eliminated || [];
+  if(elim.length > 0){
+    let txt;
+    if(elim.length === 1) txt = elim[0] === 'p' ? G.you_elim : NAMES[elim[0]] + ' ' + G.is_elim;
+    else txt = elim.map(p => NAMES[p]).join(', ') + ' ' + G.elim_plural;
+    extras += '<p style="color:#888;font-size:12px">💀 ' + txt + '</p>';
   }
   $('round-extras').innerHTML = extras;
 
@@ -2186,6 +2280,8 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Best-effort: auf Mobilgeräten Querformat anfordern (nur in PWA/Fullscreen wirksam, sonst harmlos)
+  try { if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); } catch(e){}
   const ok = await claimSession(false);
   if (ok) init();
 });

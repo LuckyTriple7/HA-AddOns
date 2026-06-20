@@ -1,5 +1,190 @@
 # Changelog
 
+## 0.6.140
+
+- ⏸️ **Glücksrad: echte Pause (friert sofort ein)** — Bisher lief der gerade laufende Zug (Rad drehen, Buchstaben aufdecken) noch komplett zu Ende, bevor die Pause griff. Jetzt wird **sofort an Ort und Stelle eingefroren**: Das Rad hält mitten im Dreh an, die Buchstaben-Aufdeckung stoppt, Wartezeiten merken sich ihre Restzeit. Beim Fortsetzen läuft alles **genau dort** weiter (kein Springen zum Ergebnis). Gilt für Pause-Button, Leertaste und Auto-Pause beim Tab-Wechsel; auch Münzwurf und Finale-Countdown pausieren mit.
+
+## 0.6.139
+
+- ⏸️ **Glücksrad: Auto-Pause im Hintergrund** — Verlässt man den Tab/das Fenster, geht das Spiel jetzt automatisch in die normale Pause (Overlay) und ist stumm. Fortgesetzt wird **nur manuell** über den Pause-Button bzw. die Leertaste — kein automatisches Weiterlaufen mehr. Ein ReSync ist dabei nicht nötig, weil im Pausenzustand serverseitig nichts passiert.
+- 💬 **Glücksrad: Hinweis beim Vokalkauf der KI** — Kauft Lisa oder Max einen Vokal, erscheint jetzt der Hinweis „… kauft einen Vokal (−250 €)" (vorher wurde er vom Treffer/Fehlversuch sofort überschrieben).
+- 🔁 **Glücksrad: Rundensieger fängt die nächste Runde an** — Bisher rotierte der Startspieler stur. Jetzt beginnt die nächste Runde immer der, der die letzte gewonnen hat.
+
+## 0.6.138
+
+- ↩️ **Glücksrad: „neutrale Geldzahl"-Rad zurückgenommen** — Das in 0.6.137 eingeführte Verhalten, das Rad zwischen Aktionen auf eine Geldzahl springen zu lassen, war Murks und ist wieder raus. Das Rad verhält sich wie zuvor. (Der Ton-/Hintergrund-Fix aus 0.6.137 bleibt erhalten.)
+
+## 0.6.137
+
+- 🐛 **Glücksrad: Rad zeigt kein irreführendes Sonderfeld mehr** — Das Rad blieb nach einem RISIKO-/BANKROTT-/AUSSETZEN-Dreh auf diesem Sonderfeld stehen. Löste danach ein Spieler das Rätsel (ohne zu drehen!), sah es aus wie „dreht RISK/Bankrott → löst → gewinnt". Jetzt wird das Dreh-Ergebnis nur noch angezeigt, **solange der Spieler darauf reagiert** (Konsonant/Vokal wählen, Risiko, Extraleben); danach ruht das Rad auf einer neutralen Geldzahl. Ein altes Sonderfeld kann nie mehr so wirken, als hätte es den Zug oder das Lösen entschieden.
+- 🔇 **Glücksrad: kein Ton im Hintergrund-Tab** — Wechselt man in einen anderen Tab/Fenster, ist das Spiel jetzt wirklich pausiert und **komplett stumm** (vorher liefen Sounds weiter). Beim Zurückkehren geht es synchron weiter.
+
+## 0.6.136
+
+- 🐛 **Glücksrad: Desync im Hintergrund-Tab behoben** — Lief das Spielfenster im Hintergrund (anderes Fenster/Tab im Vordergrund), drosselte der Browser die Animations-Timer so stark, dass das Rad auf einem alten Frame hängenblieb (z. B. BANKROTT), während Tafel und Punkte schon weiter waren — es sah aus, als würde die KI „auf Bankrott drehen und trotzdem gewinnen". Jetzt **pausiert die KI, solange der Tab verborgen ist** (man verpasst nichts), und beim Zurückkehren wird der Zustand **hart vom Server synchronisiert** und das Rad auf die echte Position gesetzt. Das Rad spiegelt zudem immer den tatsächlichen Spielzustand und kann nicht mehr auf einem Geister-Frame hängen.
+
+## 0.6.135
+
+- 🎭 **Glücksrad: Spannung beim KI-Lösen wirklich überall** — Der Hinweis „🧠 {Name} versucht zu lösen …" erscheint jetzt zuverlässig, egal wie ein KI-Gegner (Lisa/Max) die Runde gewinnt (geraten oder durch Komplettieren), inkl. langsamem Aufdecken. Die KI rät außerdem etwas früher, sodass mehrere Buchstaben spannend nacheinander aufgehen. Auch das **Finale der KI** wird jetzt mit Einblendung und langsamem Aufdecken gezeigt (vorher sprang es sofort zum Ergebnis).
+- 🎉 **Konfetti nur noch beim eigenen Sieg** — Gewinnt ein KI-Gegner eine Runde, das Finale oder das Spiel, gibt es kein Konfetti/Jubel mehr — das bleibt jetzt dem Spieler vorbehalten.
+
+## 0.6.134
+
+- 🎭 **Glücksrad: Spannung beim Lösen** — Versucht ein KI-Gegner (Lisa/Max) zu lösen, blendet sich jetzt „🧠 {Name} versucht zu lösen …" ein; bei richtiger Lösung gehen anschließend **alle Buchstaben langsam nacheinander auf** (statt sofort), dann Jubel/Konfetti. Bei falschem Versuch erscheint die Einblendung mit der Auflösung. Löst der Mensch korrekt, wird die Lösung ebenfalls Buchstabe für Buchstabe aufgedeckt.
+
+## 0.6.133
+
+- 🐛 **Glücksrad: Hänger, wenn die KI eine Runde gewinnt** — Der „Weiter"-Button erschien nur, wenn der Mensch am Zug war; gewann die KI die Runde, blieb das Spiel stehen. Der Button wird jetzt bei jedem Rundenende angezeigt, sodass es immer weitergeht.
+
+## 0.6.132
+
+- 🎭 **Glücksrad: Spannung beim Aufdecken** — Bei mehreren Treffern (z. B. 5× derselbe Buchstabe) erschien der Gewinn (5×5000 = 25000 €) sofort im Spielerpanel, noch bevor die Buchstaben nacheinander auf der Tafel auftauchten. Jetzt wird das Rundenkonto **erst nach dem Aufdecken** aktualisiert — für Spieler und KI gleichermaßen.
+
+## 0.6.131
+
+- 🎲 **Jeopardy: frische Spiele statt Wiederholungen** — Aufeinanderfolgende Partien meiden jetzt die zuletzt gesehenen Inhalte (pro Mitglied gespeichert): **keine Kategorie kommt zwei Spiele in Folge** vor, und zuletzt gezeigte **Fragen werden ~5 Spiele lang nicht wiederholt** (auch das Final-Jeopardy meidet sie). Ist der Pool erschöpft, wird sauber zurückgefallen. Je mehr Kategorien der Pool hat (aktuell 12), desto abwechslungsreicher wird zusätzlich die Auswahl.
+
+## 0.6.130
+
+- 🐛 **Glücksrad: gewonnene Spiele wurden als Niederlage gezählt** — Der Sieger wurde im Verlauf falsch gespeichert (`'p'`/`'a'` statt des numerischen Index), wodurch die Statistik trotz Sieg „0 Siege" und im Verlauf „💀 ? (0 €)" zeigte. Der Sieger wird nun korrekt als Index abgelegt; Sieg-/Niederlagezählung und Verlauf (🏆/💀 + Name/Betrag) stimmen wieder. Bereits gespeicherte Alt-Einträge werden dank Abwärtskompatibilität ebenfalls richtig angezeigt.
+- 🎯 **Glücksrad: keine Kategorie doppelt pro Spiel** — War eine Kategorie (z. B. „Essen & Trinken") schon dran, kommt sie im selben Spiel nicht noch einmal — auch die Finalrunde zieht eine eigene, neue Kategorie.
+
+## 0.6.129
+
+- 📖 **Glücksrad: Regeln-Button im Spiel** — Die Spielregeln lassen sich jetzt direkt aus dem Spiel öffnen: über einen 📖-Button in der Lobby (neben Statistik/Einstellungen) und ein 📖-Symbol oben im Spielbereich. Sie erscheinen in einem Modal (DE/EN, per Esc/✕ schließbar).
+- 🔤 **Glücksrad: Buchstabenleiste in 2 gleichmäßigen Zeilen** — Statt A–Y in einer Zeile mit einsam umbrechendem „Z" liegt das Alphabet nun sauber als 13 + 13 (A–M / N–Z) vor.
+
+## 0.6.128
+
+- 🎡 **Neues Mitglieder-Spiel: Glücksrad** — Dreh das Rad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner (Lisa & Max). Mit Qualifikationsdrehung, Spezialfeldern (Bankrott, Aussetzen, Risiko 50:50, Extraleben), Vokal-Kauf, 3 Runden und großem Finale (R S T L N E gratis, Bonus verdoppelt das Konto). 300 zweisprachige Rätsel (DE/EN) in 10 Kategorien, drei Schwierigkeitsgrade, Statistik/Verlauf, Cross-Device-Schutz und Handy-Querformat wie die übrigen Spiele.
+- 🎯 **Jeopardy: Fragen-Pool stark erweitert** — von 87 auf **359 zweisprachige Clues** und von 6 auf **12 Kategorien** (neu: Musik, Serien & TV, Tierwelt, Mythologie, Computer & IT, Kunst), jeweils sauber über easy/medium/hard verteilt. Dank des Zufalls-Boards (v0.6.127) sorgt das für deutlich mehr Abwechslung pro Partie.
+
+## 0.6.127
+
+- 🎲 **Jeopardy: beliebig viele Kategorien möglich** — Das Board zieht jetzt pro Spiel **6 zufällige** Kategorien aus allen im Fragen-Pool vorhandenen (statt aus einer fest verdrahteten 6er-Liste). Neue Kategorien lassen sich damit **rein über `data/quiz_pool.json`** ergänzen, ganz ohne Code-Änderung — mehr Kategorien = mehr Abwechslung pro Partie. Dazu eine Pflege-Anleitung unter `data/QUIZ_POOL_GUIDE.md`.
+
+## 0.6.126
+
+- 🔔 **Jeopardy: Buzzer-Hinweis größer & für beide gleich** — Der „wer hat gebuzzert"-Hinweis ist jetzt ein großer, gut sichtbarer Banner (deutlich größere Schrift, breiter) — und gilt nun auch für den **Spieler** („🔔 Du warst zuerst dran!", grün), nicht nur für die KI (gold). Anzeigedauer einheitlich **2 Sekunden** (zentrale Konstante `BUZZ_BANNER_MS`). Der Spieler-Banner ist klick-durchlässig, du kannst also sofort antworten.
+
+## 0.6.125
+
+- 🤖 **Jeopardy: KI-Buzzer mit eigenem Sound & deutlichem Hinweis** — Buzzert die KI schneller (oder schnappt sich einen verstrichenen Clue), ertönt jetzt ein tiefer Game-Show-Doppel-Honk (statt des Spieler-Sounds), und ein gut sichtbarer Hinweis „🤖 Die KI war schneller!" blendet sich für 2 Sekunden ein, **bevor** die KI antwortet — vorher ging das zu schnell vorbei. Der Spieler-Buzzer (heller „Lock-in"-Sound) bleibt unverändert.
+
+## 0.6.124
+
+- 🎵 **Jeopardy: Musik nur auf dem Board + kräftigerer Buzzer-Sound** — Die Hintergrundmusik spielt jetzt nur noch auf dem Auswahl-Board (und Startbildschirm) und **pausiert automatisch, sobald ein Clue offen ist**, damit Buzzer-Ticker und Antwort-Sounds nicht übertönt werden; danach läuft sie weiter. Der Buzzer hat einen neuen, deutlich hörbaren „Lock-in"-Sound (aufsteigender Sweep + heller Bestätigungs-Ping) statt des bisher zu leisen Zweitons.
+
+## 0.6.123
+
+- 🐛 **Jeopardy: Reveal zeigt jetzt die echte Punkteänderung** — Bei einer falschen Antwort, die sonst niemand übernahm, stand fälschlich „Niemand bekommt Punkte", obwohl der Punktwert sehr wohl abgezogen wurde. Das Reveal zeigt nun pro Clue die tatsächliche Differenz (z. B. „❌ Du −400" bzw. „🤖 KI −600"); „Niemand bekommt Punkte" erscheint nur noch, wenn sich wirklich nichts ändert (alle haben verstreichen lassen).
+
+## 0.6.122
+
+- 🎵 **Jeopardy: Buzzer-Ticker & optionale Theme-Musik** — Beim Erscheinen eines Clues läuft jetzt ein **Ticker, der mit dem Countdown immer schneller (und höher) wird** (rein per Web-Audio, kein Asset) und beim Buzzern/Verstreichen stoppt. Außerdem kann eine **Hintergrundmelodie** abgespielt werden, umschaltbar über den 🔊-Button (gemerkt). Aus urheberrechtlichen Gründen wird **keine** Musik mitgeliefert: Wer mag, legt eine eigene Datei `jeopardy_theme.m4a` in den Add-on-Konfigurationsordner (Details in der Doku) – fehlt sie, läuft das Spiel ohne Musik weiter.
+
+## 0.6.121
+
+- 🎯 **Neues Mitglieder-Spiel „Jeopardy"** — ein Wissens-Quiz-Duell gegen die KI auf einem klassischen Board (6 Kategorien × 5 Werte 200–1000). Highlights: **Buzzer-Rennen** (schneller drücken als die KI, deren Reaktionszeit & Trefferquote vom Schwierigkeitsgrad abhängt), **Daily Double** (verstecktes Feld mit Einsatz) und **Final Jeopardy** (beide setzen geheim auf den letzten Clue). Server-autoritativ: der Server kennt die Antworten, der Client nie. Inklusive Statistik, HA-Sensor (Live „wer spielt"), Fortsetzen über Geräte hinweg und DE/EN. Erreichbar als Kachel im Mitgliederbereich. Der Fragen-Pool (zweisprachig) basiert teilweise auf der Open Trivia Database (CC BY-SA 4.0), übersetzt und kuratiert.
+
+## 0.6.120
+
+- 🃏 **20 AB: Animation beim KI-Kartentausch** — tauscht eine KI Karten, blenden die getauschten Karten jetzt langsam aus und neue blenden langsam wieder ein (mit Sound), statt nur einer Textmeldung. Berücksichtigt „Reduzierte Bewegung".
+
+## 0.6.119
+
+- 🤔 **Fangfragen: 20 weitere Fragen (jetzt 50) + bessere Lesbarkeit** — der Fragenpool ist von 30 auf 50 Scherz- und Fangfragen gewachsen (u. a. „Was hat ein Auge, kann aber nicht sehen?", „Was ist voller Löcher, hält aber trotzdem Wasser?"), alle DE/EN. Außerdem behoben: Die Antwort-Buttons waren im Dark Mode kaum lesbar (heller Text auf hellem Grund), weil nicht vorhandene CSS-Variablen genutzt wurden. Sie verwenden jetzt die echten Theme-Farben (`--surf2`/`--border`/`--text`); richtige Antwort wird grün, falsche rot hervorgehoben — bei gut lesbarem Text in beiden Themes.
+
+## 0.6.118
+
+- 🤔 **Neues Mini-Game „Fangfragen"** — ein Quiz mit 30 klassischen Scherz- und Fangfragen (Welche Monate haben 28 Tage? Welche Enten laufen auf zwei Beinen? …) als Multiple Choice mit 4 Antworten. Richtige Antwort = ein Punkt, Bestwert wird lokal gespeichert. Fragen und Antworten sind komplett DE/EN lokalisiert, Reihenfolge der Fragen und Antwortoptionen werden bei jedem Durchgang neu gemischt. Erreichbar über den Footer-Link „🎮 Mini Games" (muss in den Design-Optionen aktiviert sein).
+- 🃏 **20 AB: mehr Pause nach KI-Reizentscheidung** — nach „KI Links/Rechts spielt/passt" kommt jetzt — wie schon bei Trumpfansage und Kartentausch — die eingestellte Liegezeit als Extra-Pause, damit man die Entscheidung in Ruhe sieht.
+
+## 0.6.117
+
+- 🔊 **20 AB: ergebnisabhängiger Rundensound** — beim Rundenergebnis (Zwischenrunden) klingt es jetzt je nach deinem Ausgang unterschiedlich: gewonnen (Stiche geholt, Punkte runter) = aufsteigend positiv, „Überschuss prallt zurück" = „Boing"-Abpraller, verloren (0 Stiche, +5) = Sad Trombone, gepasst = dezenter neutraler Ton. Am Spielende übernimmt weiterhin der Sieg-/Niederlage-Sound.
+
+## 0.6.116
+
+- 🐛 **20 AB: Fortsetzen hängt bei „KI überlegt…"** — verließ man eine Partie, während die KI am Zug war, blieb sie nach dem Wiedereinstieg stehen, weil die KI-Schleife nicht neu gestartet wurde. `resumeGame()` stößt jetzt `advanceAI()` an (bzw. zeigt das Rundenergebnis / die Auslosung, falls man dort fortsetzt) — wie bei Schwimmen, Mau Mau und Präsident.
+
+## 0.6.115
+
+- 🃏 **20 AB: Verbesserungen** — (1) Kein Sound mehr beim Rundenergebnis. (2) Mehr Pause nach KI-Trumpfansage und (3) nach KI-Kartentausch — jeweils mit der eingestellten Liegezeit aus den Optionen, damit man die Ansage/den Tausch in Ruhe sieht. (4) Handsortierung wie bei 66: zuerst nach Farbe, dann nach Wert, und der Trumpf liegt immer ganz rechts an.
+
+## 0.6.114
+
+- 🐛 **Schwimmen: weitere „Du"-Grammatikfehler korrigiert** — „Du schwimmt!" → „Du schwimmst!", „Du ausgeschieden!" → „Du bist ausgeschieden!" und im Log „Du Klopft!" → „Du Klopfst!". Schwimmt/ausgeschieden jetzt korrekt für Spieler, KI (Einzahl) und Mehrzahl, zudem lokalisiert (vorher fest deutsch). Komplette „Du"-Durchsicht: alle übrigen Stellen (Sieg, Turnier, KI-Anzeigen, Klopf-Status aus v0.6.113) waren bereits korrekt.
+
+## 0.6.113
+
+- 🐛 **Schwimmen: Grammatikfehler „Du hat geklopft!" korrigiert** — wenn der Spieler selbst klopfte, zeigte die Status-Anzeige „Du hat geklopft!". Jetzt korrekt „Du hast geklopft!" (eigene `_you`-Variante; KI bleibt „… hat geklopft!"). Alle übrigen „Du"-Stellen geprüft — Sieg-/Turnier-Texte und KI-Anzeigen waren bereits korrekt.
+
+## 0.6.112
+
+- 🐛 **Mau Mau & Präsident: „Spiel fortsetzen" nach Spielende ausblenden** — war eine Partie beendet (und es wurde keine neue gestartet), erschien auf dem Startbildschirm fälschlich noch der „Spiel fortsetzen"-Button. Jetzt wird er bei beendetem Spiel ausgeblendet — wie bereits bei 66, 20 AB und Schwimmen.
+
+## 0.6.111
+
+- 🧠 **66: stärkere KI, dreht jetzt sinnvoll zu** — die KI drehte den Talon praktisch nie zu (alte Bedingung zu streng). Neu: bei „Schwer" dreht sie zu, sobald sie den Partie-Sieg **erzwingen** kann (Suche mit perfekter Information, nutzt ihre starke Endspiel-Logik); bei „Mittel" eine verbesserte Heuristik. Zusätzlich schont die KI jetzt König/Dame einer noch nicht angesagten Hochzeit, und „Mittel" spielt etwas weniger zufällig. Gilt für beide Varianten (Standard & Andys Oma). In Simulationen (je 150–200 Matches, neue vs. alte KI) gewinnt die neue KI deutlich: Schwer 58 %/66 % (Standard/Oma), Mittel 55 %/53 % — und dreht ~3× häufiger zu.
+
+## 0.6.110
+
+- 📱 **66: Handy-Optimierung (Querformat)** — als letztes der fünf Kartenspiele auch 66 fürs Smartphone optimiert: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (Karten an die Höhe gekoppelt, schlanke Top-Leiste, kompaktes Auslosen-Modal), Startbildschirm oben ausgerichtet + scrollbar, angetippte Karten ohne Hochklappen (Ring statt Anheben). Damit sind alle fünf Spiele (66, 20 AB, Schwimmen, Mau Mau, Präsident) im Querformat handytauglich.
+
+## 0.6.109
+
+- 📱 **Schwimmen & 20 AB: Handy-Optimierung (Querformat)** — wie Mau Mau/Präsident: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (Karten an die Höhe gekoppelt, schlanke Top-/Scorebar, Gegner-/Tischkarten verkleinert), Startbildschirm oben ausgerichtet + scrollbar (nichts mehr abgeschnitten), und ausgewählte/angetippte Karten werden nicht mehr angehoben (kein Abschneiden), sondern mit Ring markiert. Damit sind alle fünf Kartenspiele fürs Smartphone optimiert.
+
+## 0.6.108
+
+- 📱 **Handy (Mau Mau & Präsident): Startbildschirm & Kartenauswahl gefixt** — im Querformat wurde der Startbildschirm oben/unten abgeschnitten; er ist jetzt oben ausgerichtet und bei Bedarf scrollbar (nichts mehr abgeschnitten). Außerdem klappten ausgewählte/angetippte Karten nach oben und wurden im niedrigen Hand-Streifen abgeschnitten — auf dem Handy werden sie jetzt nicht mehr angehoben, sondern mit einem goldenen Ring markiert.
+
+## 0.6.107
+
+- 📱 **Präsident: Handy-Optimierung (Querformat)** — wie Mau Mau: „Bitte Gerät drehen"-Hinweis im Hochformat, kompaktes Querformat-Layout (kleinere Karten an die Höhe gekoppelt, schlanke Top-/Scorebar mit Rollen, Stich-Bereich verkleinert, Hand und Tausch-Ansicht als einreihiger scrollbarer Streifen) — passt ohne Überlappen auch mit 10 Handkarten aufs Display.
+
+## 0.6.106
+
+- 📱 **Mau Mau: Handy-Optimierung (Pilot)** — auf dem Smartphone wird das Spiel jetzt im Querformat gespielt: Im Hochformat erscheint ein „Bitte Gerät drehen"-Hinweis (DE/EN), im Querformat ist das Layout kompakt und passt ohne Überlappen aufs Display (kleinere Karten, Top-Leiste/Stapel an die Höhe gekoppelt, große Hand bleibt in einer scrollbaren Reihe). Die anderen vier Spiele folgen nach Freigabe.
+
+## 0.6.105
+
+- 🐛 **Mau Mau: Grammatik im Runden-/Spielende-Dialog** — „Du gewinnt die Runde!" war falsch; für den Spieler heißt es jetzt korrekt „Du gewinnst die Runde!" (2. Person), für die KI weiterhin „KI 1 gewinnt die Runde!". Gilt für Rundenende und Spielende, DE und EN.
+
+## 0.6.104
+
+- 🔊 **Mau Mau: Mischsound auch beim Neumischen** — wenn der Nachziehstapel leer ist und die abgelegten Karten neu gemischt werden, ertönt jetzt zuerst der Mischsound, bevor der Stapel neu aufgebaut wird.
+
+## 0.6.103
+
+- 🔊 **Mau Mau: Reihenfolge beim Austeilen korrigiert** — der Stapel in der Mitte (Nachzieh-/Ablagestapel) erschien vor dem Mischsound. Jetzt stimmt die Reihenfolge: erst Mischsound, dann baut sich der Stapel in der Mitte auf, danach werden die Handkarten verteilt.
+
+## 0.6.102
+
+- 🐛 **Mau Mau: Button „gespielte Karten" beim Laden sichtbar** — bei aktivierter Option war der Button (📋) erst sichtbar, nachdem man die Optionen einmal geöffnet und geschlossen hatte. Die Sichtbarkeit wird jetzt schon beim Spielstart aus der gespeicherten Einstellung übernommen (Präsident war bereits korrekt).
+
+## 0.6.101
+
+- 🐛 **66: Undo nach Trumpf-Bube-Tausch / Zudrehen korrigiert** — wer den Trumpf-Buben tauscht (oder den Talon zudreht) und danach eine Karte spielt, bekam beim Undo nur das Kartenspielen zurück; Tausch bzw. Zudrehen blieben bestehen. Jetzt nimmt Undo die ganze Spielerrunde zurück (Bube/Talon wieder im Ausgangszustand). Gleiche Ursachenklasse wie der Mau-Mau-Buben-Bug (Folgeschritt überschrieb den Undo-Stand). 20 AB, Schwimmen und Präsident wurden mitgeprüft — dort tritt das Muster nicht auf (Undo nur für einzelne, zugbeendende Aktionen).
+
+## 0.6.100
+
+- 🐛 **Mau Mau: Undo nach Bube + Farbwunsch korrigiert** — wer einen Buben spielt und eine Farbe wünscht, konnte den Zug zwar rückgängig machen, aber der Bube blieb in der Mitte liegen und der „wünscht…"-Zustand hing fest. Jetzt legt Undo den Buben wieder auf die Hand und hebt den Farbwunsch komplett auf (der Wunsch-Schritt überschreibt den Undo-Stand des Buben-Zugs nicht mehr).
+
+## 0.6.99
+
+- 🔊 **Kartenmisch-Sound jetzt auch bei 66, 20 AB & Schwimmen** — vor dem Aufbau der Hand ertönt der ~1 s lange Misch-Sound (bei 66 zusätzlich zum bestehenden Auslosen-Drumroll, direkt vor dem Austeilen). Damit haben alle fünf Kartenspiele denselben Sound beim Spielstart und jeder neuen Runde. Nur bei aktiviertem Ton.
+
+## 0.6.98
+
+- 🔊 **Mau Mau & Präsident: Kartenmisch-Sound beim Austeilen** — bei jedem neuen Spiel und jeder neuen Runde ertönt jetzt erst ein ~1 s langer Misch-Sound, bevor sich der Kartenstapel aufbaut. Nur bei aktiviertem Ton; bei reduzierter Bewegung/abgeschaltetem Ton ohne Verzögerung.
+
+## 0.6.97
+
+- 🎲 **Zwei neue Mitglieder-Kartenspiele: Mau Mau & Präsident** — beide gegen zwei KI-Gegner, mit drei Schwierigkeitsgraden, Spielstand-Speicherung pro Mitglied, Cross-Device-Session-Schutz, Undo, Regeln (DE/EN) und Statistik. Mau Mau mit Sonderkarten (7 ziehen, 8 aussetzen, Bube Farbwunsch, Ass Richtungswechsel); Präsident mit Rängen, Überbieten, Revolution und Kartentausch.
+- 📊 **Admin & HA-Sensoren erweitert** — die neuen Spiele erscheinen im Admin-Panel (Live-Status, Statistik, Sitzungs-Log) und in den Home-Assistant-Spiel-Sensoren (`sensor.mypage_aktiv_maumau`, `sensor.mypage_aktiv_praesident`).
+
 ## 0.6.96
 
 - 🧩 **66-Startbildschirm: Layout korrigiert** — die Statistik wird jetzt komplett in einer Reihe dargestellt (die feste Maximalbreite der Startbox hatte das 6er-Raster auf 5+1 umgebrochen), und der „Zum Mitgliederbereich"-Button sitzt nun immer unten, unterhalb der Statistik (wie bei 20 AB/Schwimmen).

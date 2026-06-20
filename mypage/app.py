@@ -49,6 +49,10 @@ import requests as http
 import game_66
 import game_20ab
 import game_schwimmen
+import game_maumau
+import game_jeopardy
+import game_gluecksrad
+import game_praesident
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -89,7 +93,7 @@ GAMES_DIR.mkdir(parents=True, exist_ok=True)
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
-    r'^(?:(?:66|20ab|schwimmen)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
+    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -1243,13 +1247,15 @@ def _sensor_worker() -> None:
 
 
 # ── Spiel-Sensoren (Live: wer spielt gerade was) ──────────────────────────────
-_HA_GAME_LABELS = {'66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen'}
+_HA_GAME_LABELS = {'66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen',
+                   'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy',
+                   'gluecksrad': 'Glücksrad'}
 
 
 def _playing_overview() -> tuple[list, dict]:
     """Liefert (spieler, pro_spiel): wer spielt gerade welches Spiel."""
     players: list = []
-    per_game: dict = {'66': [], '20ab': [], 'schwimmen': []}
+    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': [], 'gluecksrad': []}
     for u in load_users():
         p = _user_playing(u['id'])
         if not p:
@@ -1277,7 +1283,7 @@ def push_ha_games() -> None:
                                        'spieler': players,
                                        'pro_spiel': {_HA_GAME_LABELS[g]: len(v)
                                                      for g, v in per_game.items()}}})
-        for g in ('66', '20ab', 'schwimmen'):
+        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad'):
             http.post(f'{base}/sensor.mypage_aktiv_{g}', headers=headers, timeout=10,
                       json={'state': len(per_game.get(g, [])),
                             'attributes': {'friendly_name': f'MyPage aktiv {_HA_GAME_LABELS[g]}',
@@ -2287,7 +2293,7 @@ def api_user_journal(uid: str):
     return jsonify({'journal': list(reversed(user.get('journal', [])))})
 
 
-_ADMIN_GAMES = ('66', '20ab', 'schwimmen')
+_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad')
 
 
 def _user_playing(uid: str):
@@ -2303,11 +2309,15 @@ def _game_stats(uid: str) -> list:
     """Pro Spiel: gespielte Partien, Siege (Spieler), zuletzt gespielt — aus dem Verlauf."""
     srcs = (('66', load_game66_history(uid)),
             ('20ab', _ng_history('20ab', uid)),
-            ('schwimmen', _ng_history('schwimmen', uid)))
+            ('schwimmen', _ng_history('schwimmen', uid)),
+            ('maumau', _ng_history('maumau', uid)),
+            ('praesident', _ng_history('praesident', uid)),
+            ('jeopardy', _ng_history('jeopardy', uid)),
+            ('gluecksrad', _ng_history('gluecksrad', uid)))
     out = []
     for game, hist in srcs:
         out.append({'game': game, 'played': len(hist),
-                    'wins': sum(1 for h in hist if h.get('winner') == 'p'),
+                    'wins': sum(1 for h in hist if h.get('winner') in ('p', 0)),
                     'last': max((h.get('ts', 0) for h in hist), default=0)})
     return out
 
@@ -2646,6 +2656,18 @@ def public_cards(deck: str, filename: str):
     if target is None or not target.is_file():
         abort(404)
     return send_from_directory(base, safe, max_age=2592000)  # 30 Tage
+
+
+@public_app.route('/bereich/jeopardy/theme.m4a')
+def jeopardy_theme():
+    """Optionale Jeopardy-Hintergrundmusik. NICHT mitgeliefert (Urheberrecht):
+    Datei `jeopardy_theme.m4a` im Add-on-Config-Ordner ablegen, dann spielt sie.
+    Fester Dateiname → kein Path-Traversal."""
+    _require_member()
+    path = Path(_DATA) / 'jeopardy_theme.m4a'
+    if not path.is_file():
+        abort(404)
+    return send_from_directory(path.parent, path.name, max_age=86400)
 
 
 def effective_watermark() -> str:
@@ -3173,13 +3195,19 @@ def api_game66_move():
         # Undo nur für leichte Stufen (wie im Client: Button auf 'hard' verborgen)
         snapshot = (copy.deepcopy(st)
                     if st.get('level') in ('easy', 'medium') else None)
+        # 'exchange' (Trumpf-Bube tauschen) und 'close' (zudrehen) lassen den Zug
+        # beim Spieler — der folgende 'play'-Zug gehört zur selben Spielerrunde und
+        # darf den Undo-Stand NICHT überschreiben (sonst nimmt Undo nur das Spielen,
+        # nicht den Tausch/das Zudrehen zurück).
+        prev_lock = bool(st.get('_undo_lock'))
         try:
             frames = game_66.apply_player_frames(st, act)
         except game_66.IllegalMove:
             # Ungültigen Zug ignorieren, aktuellen Stand zurückgeben (kein 500)
             return jsonify({'frames': [game_66.public_view(st)]})
-        if snapshot is not None:
+        if snapshot is not None and not prev_lock:
             _ng_undo[('66', member['id'])] = snapshot
+        st['_undo_lock'] = act['type'] in ('exchange', 'close')
         _record_match_if_over(member['id'], st)
         save_game66(member['id'], st)
     return jsonify({'frames': frames})
@@ -3249,7 +3277,7 @@ _schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
 
 
 def _ng_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
         return None
     return GAMES_DIR / f'{game}_{uid}.json'
 
@@ -3280,7 +3308,7 @@ def _ng_save(game: str, uid: str, st: dict) -> None:
 
 
 def _ng_hist_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
         return None
     return GAMES_DIR / f'{game}hist_{uid}.json'
 
@@ -3748,6 +3776,692 @@ def api_schwimmen_tour_next():
         _ng_save('schwimmen', member['id'], st)
     return jsonify({'state': game_schwimmen.public_view(st),
                     'tournament': _schwimmen_tour.get(member['id'])})
+
+
+# ── Mau Mau ────────────────────────────────────────────────────────────────────
+
+def _clean_maumau_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input)."""
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if raw.get('card') is not None:
+        act['card'] = str(raw.get('card'))[:2]
+    if raw.get('suit') is not None:
+        act['suit'] = str(raw.get('suit'))[:1]      # h/d/s/c
+    return act
+
+
+def _clean_wins_target(raw) -> int:
+    try:
+        return min(max(int(raw), 1), 9)
+    except (TypeError, ValueError):
+        return 3
+
+
+def _record_maumau_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    games = _ng_history('maumau', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'wins': st.get('wins', {}),
+        'rounds': st.get('round_nr', 0),
+        'level': st.get('level', 'medium'),
+    })
+    _ng_history_write('maumau', uid, games)
+
+
+@public_app.route('/bereich/maumau')
+def maumau_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_maumau.html', t=t, lang=lang, site=site,
+                           member=member, card_deck='knoll',
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/maumau/state')
+def api_maumau_state():
+    member = _require_member()
+    st = _ng_load('maumau', member['id'])
+    return jsonify({'state': game_maumau.public_view(st) if st else None})
+
+
+@public_app.route('/api/maumau/new', methods=['POST'])
+def api_maumau_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('maumau', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    wins_target = _clean_wins_target(data.get('wins_target'))
+    with _game_lock:
+        st = game_maumau.new_game(level, wins_target=wins_target)
+        _ng_undo.pop(('maumau', member['id']), None)
+        _ng_save('maumau', member['id'], st)
+    return jsonify({'state': game_maumau.public_view(st)})
+
+
+@public_app.route('/api/maumau/move', methods=['POST'])
+def api_maumau_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('maumau', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_maumau_move(data)
+    with _game_lock:
+        st = _ng_load('maumau', member['id'])
+        if st is None:
+            abort(409)
+        snapshot = copy.deepcopy(st)
+        try:
+            game_maumau.apply_action(st, 'p', act)
+        except game_maumau.IllegalMove:
+            return jsonify({'state': game_maumau.public_view(st)})
+        # 'wish' ist die Fortsetzung des Buben-Zugs (gleiche Spielerrunde) →
+        # den Undo-Snapshot vom Buben-Spielen NICHT überschreiben, damit Undo den
+        # Buben wieder auf die Hand legt und den Wunsch komplett aufhebt.
+        if act['type'] != 'wish':
+            _ng_undo[('maumau', member['id'])] = snapshot
+        _record_maumau_if_over(member['id'], st)
+        _ng_save('maumau', member['id'], st)
+    return jsonify({'state': game_maumau.public_view(st)})
+
+
+@public_app.route('/api/maumau/ai', methods=['POST'])
+def api_maumau_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('maumau', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gmm')
+    with _game_lock:
+        st = _ng_load('maumau', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        if st['status'] in ('playing', 'drawn', 'wish_suit') and st.get('turn') != 'p':
+            who = st['turn']
+            action = game_maumau.ai_step(st, who)
+            atype = action.get('type', '')
+            if atype == 'play':
+                card = action['card']
+                game_maumau.apply_action(st, who, action)
+                event = {'type': 'play', 'who': who, 'card': card,
+                         'name': names[who], 'card_name': game_maumau.card_name(card)}
+                if st['status'] == 'wish_suit':
+                    wish_action = game_maumau.ai_wish(st, who)
+                    game_maumau.apply_action(st, who, wish_action)
+                    event['wished_suit'] = wish_action['suit']
+            elif atype == 'draw':
+                game_maumau.apply_action(st, who, action)
+                event = {'type': 'draw', 'who': who, 'name': names[who],
+                         'count': st.get('last_play', {}).get('count', 1)}
+                if st['status'] == 'drawn':
+                    card = st.get('can_play_drawn')
+                    game_maumau.apply_action(st, who, game_maumau.ai_play_drawn(st, who))
+                    event['played_drawn'] = card
+                    event['card_name'] = game_maumau.card_name(card) if card else None
+                    if st['status'] == 'wish_suit':
+                        wish_action = game_maumau.ai_wish(st, who)
+                        game_maumau.apply_action(st, who, wish_action)
+                        event['wished_suit'] = wish_action['suit']
+            elif atype == 'wish':
+                game_maumau.apply_action(st, who, action)
+                event = {'type': 'wish', 'who': who, 'suit': action['suit'], 'name': names[who]}
+            elif atype == 'play_drawn':
+                card = st.get('can_play_drawn')
+                game_maumau.apply_action(st, who, action)
+                event = {'type': 'play_drawn', 'who': who, 'card': card,
+                         'name': names[who], 'card_name': game_maumau.card_name(card) if card else None}
+                if st['status'] == 'wish_suit':
+                    wish_action = game_maumau.ai_wish(st, who)
+                    game_maumau.apply_action(st, who, wish_action)
+                    event['wished_suit'] = wish_action['suit']
+            elif atype == 'pass_drawn':
+                game_maumau.apply_action(st, who, action)
+                event = {'type': 'pass_drawn', 'who': who, 'name': names[who]}
+        _record_maumau_if_over(member['id'], st)
+        _ng_save('maumau', member['id'], st)
+    return jsonify({'state': game_maumau.public_view(st), 'event': event})
+
+
+@public_app.route('/api/maumau/undo', methods=['POST'])
+def api_maumau_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('maumau', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('maumau', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        _ng_save('maumau', member['id'], snap)
+    return jsonify({'state': game_maumau.public_view(snap)})
+
+
+@public_app.route('/api/maumau/rules')
+def api_maumau_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('maumau', detect_language(request))})
+
+
+@public_app.route('/api/maumau/history')
+def api_maumau_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('maumau', member['id'])))})
+
+
+@public_app.route('/api/maumau/history/reset', methods=['POST'])
+def api_maumau_history_reset():
+    member = _require_member()
+    _ng_history_write('maumau', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/maumau/session', methods=['POST'])
+def api_maumau_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('maumau', member['id'], data)
+
+
+# ── Präsident ──────────────────────────────────────────────────────────────────
+
+def _clean_praesident_move(raw: dict) -> dict:
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if isinstance(raw.get('cards'), list):
+        act['cards'] = [str(c)[:2] for c in raw['cards'][:4]]
+    return act
+
+
+def _record_praesident_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    games = _ng_history('praesident', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'wins': st.get('wins', {}),
+        'rounds': st.get('round_nr', 0),
+        'level': st.get('level', 'medium'),
+    })
+    _ng_history_write('praesident', uid, games)
+
+
+@public_app.route('/bereich/praesident')
+def praesident_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_praesident.html', t=t, lang=lang, site=site,
+                           member=member, card_deck='knoll',
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/praesident/state')
+def api_praesident_state():
+    member = _require_member()
+    st = _ng_load('praesident', member['id'])
+    return jsonify({'state': game_praesident.public_view(st) if st else None})
+
+
+@public_app.route('/api/praesident/new', methods=['POST'])
+def api_praesident_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('praesident', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    wins_target = _clean_wins_target(data.get('wins_target'))
+    with _game_lock:
+        st = game_praesident.new_game(level, wins_target=wins_target)
+        _ng_undo.pop(('praesident', member['id']), None)
+        _ng_save('praesident', member['id'], st)
+    return jsonify({'state': game_praesident.public_view(st)})
+
+
+@public_app.route('/api/praesident/move', methods=['POST'])
+def api_praesident_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('praesident', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_praesident_move(data)
+    with _game_lock:
+        st = _ng_load('praesident', member['id'])
+        if st is None:
+            abort(409)
+        snapshot = copy.deepcopy(st)
+        try:
+            game_praesident.apply_action(st, 'p', act)
+        except game_praesident.IllegalMove:
+            return jsonify({'state': game_praesident.public_view(st)})
+        _ng_undo[('praesident', member['id'])] = snapshot
+        _record_praesident_if_over(member['id'], st)
+        _ng_save('praesident', member['id'], st)
+    return jsonify({'state': game_praesident.public_view(st)})
+
+
+@public_app.route('/api/praesident/ai', methods=['POST'])
+def api_praesident_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('praesident', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gp')
+    with _game_lock:
+        st = _ng_load('praesident', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        if st['status'] == 'swap_show':
+            action = game_praesident.ai_step(st, st.get('swap_giving', ''))
+            game_praesident.apply_action(st, st.get('swap_giving', ''), action)
+            lp = st.get('last_play', {})
+            event = {'type': 'swap_give', 'who': lp.get('who', ''), 'to': lp.get('to', ''),
+                     'cards': lp.get('cards', []), 'name': names.get(lp.get('who', ''), ''),
+                     'to_name': names.get(lp.get('to', ''), '')}
+        elif st['status'] == 'swap_choose' and st.get('swap_receiving') != 'p':
+            who = st['swap_receiving']
+            game_praesident.apply_action(st, who, game_praesident.ai_step(st, who))
+            lp = st.get('last_play', {})
+            event = {'type': 'swap_choose', 'who': lp.get('who', ''), 'to': lp.get('to', ''),
+                     'cards': lp.get('cards', []), 'name': names.get(lp.get('who', ''), ''),
+                     'to_name': names.get(lp.get('to', ''), '')}
+        elif st['status'] == 'trick_done':
+            game_praesident.apply_action(st, '', {'type': 'collect'})
+            lp = st.get('last_play', {})
+            event = {'type': 'collect', 'who': lp.get('who', ''),
+                     'name': names.get(lp.get('who', ''), '')}
+        elif st['status'] == 'playing' and st.get('turn') != 'p':
+            who = st['turn']
+            action = game_praesident.ai_step(st, who)
+            atype = action.get('type', '')
+            if atype == 'play':
+                cards = action['cards']
+                game_praesident.apply_action(st, who, action)
+                lp = st.get('last_play', {})
+                event = {'type': 'play', 'who': who, 'cards': cards, 'name': names[who],
+                         'card_names': [game_praesident.card_name(c) for c in cards],
+                         'revolution': lp.get('revolution', False),
+                         'finished': lp.get('finished', False),
+                         'trick_done': lp.get('trick_done', False)}
+            elif atype == 'pass':
+                game_praesident.apply_action(st, who, action)
+                lp = st.get('last_play', {})
+                event = {'type': 'pass', 'who': who, 'name': names[who],
+                         'trick_done': lp.get('trick_done', False)}
+        _record_praesident_if_over(member['id'], st)
+        _ng_save('praesident', member['id'], st)
+    return jsonify({'state': game_praesident.public_view(st), 'event': event})
+
+
+@public_app.route('/api/praesident/undo', methods=['POST'])
+def api_praesident_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('praesident', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('praesident', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        _ng_save('praesident', member['id'], snap)
+    return jsonify({'state': game_praesident.public_view(snap)})
+
+
+@public_app.route('/api/praesident/hint')
+def api_praesident_hint():
+    member = _require_member()
+    st = _ng_load('praesident', member['id'])
+    if st is None:
+        abort(409)
+    return jsonify({'hint': game_praesident.hint_for_player(st)})
+
+
+@public_app.route('/api/praesident/rules')
+def api_praesident_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('praesident', detect_language(request))})
+
+
+@public_app.route('/api/praesident/history')
+def api_praesident_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('praesident', member['id'])))})
+
+
+@public_app.route('/api/praesident/history/reset', methods=['POST'])
+def api_praesident_history_reset():
+    member = _require_member()
+    _ng_history_write('praesident', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/praesident/session', methods=['POST'])
+def api_praesident_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('praesident', member['id'], data)
+
+
+# ── Jeopardy ─────────────────────────────────────────────────────────────────
+
+def _clean_jeopardy_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input).
+    Zahlen werden in der Engine geklemmt (idx/elapsed_ms/amount)."""
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if raw.get('cell') is not None:
+        act['cell'] = str(raw.get('cell'))[:5]      # 'ci-vi'
+    for k in ('idx', 'elapsed_ms', 'amount'):
+        if raw.get(k) is not None:
+            act[k] = raw.get(k)
+    return act
+
+
+_JEO_SEEN_Q_MAX = 150      # so viele zuletzt gesehene Fragen meiden (~5 Spiele)
+_JEO_SEEN_CATS_MAX = 6      # = ein ganzes Board: keine Kategorie zwei Spiele in Folge
+                           # (bei >12 Kategorien im Pool wird die Auswahl wieder zufälliger)
+
+
+def _jeopardy_seen_path(uid: str) -> Path | None:
+    if not _UID_RE.match(uid or ''):
+        return None
+    return GAMES_DIR / f'jeopardyseen_{uid}.json'
+
+
+def _jeopardy_seen_load(uid: str) -> dict:
+    p = _jeopardy_seen_path(uid)
+    if p is not None:
+        try:
+            with open(p, encoding='utf-8') as f:
+                d = json.load(f)
+            if isinstance(d, dict):
+                return {'questions': list(d.get('questions', []))[-_JEO_SEEN_Q_MAX:],
+                        'categories': list(d.get('categories', []))[-_JEO_SEEN_CATS_MAX:]}
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+    return {'questions': [], 'categories': []}
+
+
+def _jeopardy_seen_update(uid: str, st: dict) -> None:
+    """Board-Fragen + Kategorien dieses Spiels merken, damit Folge-Spiele sie meiden."""
+    p = _jeopardy_seen_path(uid)
+    if p is None:
+        return
+    seen = _jeopardy_seen_load(uid)
+    q = seen['questions'] + [c['q_de'] for c in st.get('clues', {}).values()]
+    cats = seen['categories'] + [col['cat'] for col in st.get('board', [])]
+    data = {'questions': q[-_JEO_SEEN_Q_MAX:], 'categories': cats[-_JEO_SEEN_CATS_MAX:]}
+    tmp = p.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def _record_jeopardy_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    games = _ng_history('jeopardy', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'scores': st.get('scores', {}),
+        'level': st.get('level', 'medium'),
+    })
+    _ng_history_write('jeopardy', uid, games)
+
+
+@public_app.route('/bereich/jeopardy')
+def jeopardy_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_jeopardy.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/jeopardy/state')
+def api_jeopardy_state():
+    member = _require_member()
+    st = _ng_load('jeopardy', member['id'])
+    return jsonify({'state': game_jeopardy.public_view(st) if st else None})
+
+
+@public_app.route('/api/jeopardy/new', methods=['POST'])
+def api_jeopardy_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('jeopardy', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    with _game_lock:
+        seen = _jeopardy_seen_load(member['id'])
+        st = game_jeopardy.new_game(level, recent_q=seen['questions'],
+                                    recent_cats=seen['categories'])
+        _jeopardy_seen_update(member['id'], st)
+        _ng_save('jeopardy', member['id'], st)
+    return jsonify({'state': game_jeopardy.public_view(st)})
+
+
+@public_app.route('/api/jeopardy/move', methods=['POST'])
+def api_jeopardy_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('jeopardy', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_jeopardy_move(data)
+    with _game_lock:
+        st = _ng_load('jeopardy', member['id'])
+        if st is None:
+            abort(409)
+        try:
+            game_jeopardy.apply_action(st, 'p', act)
+        except game_jeopardy.IllegalMove:
+            return jsonify({'state': game_jeopardy.public_view(st)})
+        _record_jeopardy_if_over(member['id'], st)
+        _ng_save('jeopardy', member['id'], st)
+    return jsonify({'state': game_jeopardy.public_view(st)})
+
+
+@public_app.route('/api/jeopardy/ai', methods=['POST'])
+def api_jeopardy_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('jeopardy', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        st = _ng_load('jeopardy', member['id'])
+        if st is None:
+            abort(409)
+        event = game_jeopardy.ai_step(st)
+        _record_jeopardy_if_over(member['id'], st)
+        _ng_save('jeopardy', member['id'], st)
+    return jsonify({'state': game_jeopardy.public_view(st), 'event': event})
+
+
+@public_app.route('/api/jeopardy/rules')
+def api_jeopardy_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('jeopardy', detect_language(request))})
+
+
+@public_app.route('/api/jeopardy/history')
+def api_jeopardy_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('jeopardy', member['id'])))})
+
+
+@public_app.route('/api/jeopardy/history/reset', methods=['POST'])
+def api_jeopardy_history_reset():
+    member = _require_member()
+    _ng_history_write('jeopardy', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/jeopardy/session', methods=['POST'])
+def api_jeopardy_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('jeopardy', member['id'], data)
+
+
+# ── Glücksrad ────────────────────────────────────────────────────────────────
+
+def _clean_gluecksrad_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input).
+    Die Engine validiert Buchstaben/Status zusätzlich."""
+    act = {'type': str(raw.get('type', ''))[:16]}
+    if raw.get('letter') is not None:
+        act['letter'] = str(raw.get('letter'))[:1].upper()
+    if raw.get('answer') is not None:
+        act['answer'] = str(raw.get('answer'))[:80]
+    if 'accept' in raw:
+        act['accept'] = bool(raw.get('accept'))
+    if 'use' in raw:
+        act['use'] = bool(raw.get('use'))
+    if isinstance(raw.get('consonants'), list):
+        act['consonants'] = [str(c)[:1].upper() for c in raw['consonants'][:5]]
+    if raw.get('vowel') is not None:
+        act['vowel'] = str(raw.get('vowel'))[:1].upper()
+    return act
+
+
+def _record_gluecksrad_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    win = game_gluecksrad._determine_winner(st)
+    win_idx = win if isinstance(win, int) else (win[0] if win else 0)
+    games = _ng_history('gluecksrad', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        # numerischer Sieger-Index (0 = Mensch) — so erwartet es das Spiel-Frontend
+        'winner': win_idx,
+        'players': [{'name': p['name'], 'total': p['total']} for p in st['players']],
+        'level': st.get('level', 'medium'),
+    })
+    _ng_history_write('gluecksrad', uid, games)
+
+
+@public_app.route('/bereich/gluecksrad')
+def gluecksrad_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_gluecksrad.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/api/gluecksrad/state')
+def api_gluecksrad_state():
+    member = _require_member()
+    st = _ng_load('gluecksrad', member['id'])
+    return jsonify({'state': game_gluecksrad.public_view(st) if st else None})
+
+
+@public_app.route('/api/gluecksrad/new', methods=['POST'])
+def api_gluecksrad_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('gluecksrad', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    lang = detect_language(request)
+    with _game_lock:
+        st = game_gluecksrad.new_game(level, lang)
+        _ng_save('gluecksrad', member['id'], st)
+    return jsonify({'state': game_gluecksrad.public_view(st)})
+
+
+@public_app.route('/api/gluecksrad/move', methods=['POST'])
+def api_gluecksrad_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('gluecksrad', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_gluecksrad_move(data)
+    with _game_lock:
+        st = _ng_load('gluecksrad', member['id'])
+        if st is None:
+            abort(409)
+        game_gluecksrad.apply_action(st, act)
+        _record_gluecksrad_if_over(member['id'], st)
+        _ng_save('gluecksrad', member['id'], st)
+    return jsonify({'state': game_gluecksrad.public_view(st)})
+
+
+@public_app.route('/api/gluecksrad/ai', methods=['POST'])
+def api_gluecksrad_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('gluecksrad', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        st = _ng_load('gluecksrad', member['id'])
+        if st is None:
+            abort(409)
+        event = game_gluecksrad.ai_step(st)
+        _record_gluecksrad_if_over(member['id'], st)
+        _ng_save('gluecksrad', member['id'], st)
+    return jsonify({'state': game_gluecksrad.public_view(st), 'event': event})
+
+
+@public_app.route('/api/gluecksrad/rules')
+def api_gluecksrad_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('gluecksrad', detect_language(request))})
+
+
+@public_app.route('/api/gluecksrad/history')
+def api_gluecksrad_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('gluecksrad', member['id'])))})
+
+
+@public_app.route('/api/gluecksrad/history/reset', methods=['POST'])
+def api_gluecksrad_history_reset():
+    member = _require_member()
+    _ng_history_write('gluecksrad', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/gluecksrad/session', methods=['POST'])
+def api_gluecksrad_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('gluecksrad', member['id'], data)
 
 
 @public_app.route('/sitemap.xml')

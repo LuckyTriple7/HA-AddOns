@@ -1,0 +1,6893 @@
+{
+  "_meta": {
+    "source": "Open Trivia Database (https://opentdb.com)",
+    "license": "CC BY-SA 4.0",
+    "note": "Fragen aus OpenTDB ausgewählt, ins Deutsche übersetzt, kuratiert und gefiltert. Korrekte Antwort steht jeweils an Index c; Optionen werden zur Laufzeit gemischt. / Questions sourced from OpenTDB, translated to German, curated and filtered. Correct answer at index c; options shuffled at runtime.",
+    "diff_to_value": {
+      "easy": [
+        200,
+        400
+      ],
+      "medium": [
+        600
+      ],
+      "hard": [
+        800,
+        1000
+      ]
+    }
+  },
+  "categories": {
+    "general": {
+      "de": "Allgemeinwissen",
+      "en": "General Knowledge"
+    },
+    "history": {
+      "de": "Geschichte",
+      "en": "History"
+    },
+    "geo": {
+      "de": "Geografie",
+      "en": "Geography"
+    },
+    "science": {
+      "de": "Wissenschaft",
+      "en": "Science"
+    },
+    "sport": {
+      "de": "Sport",
+      "en": "Sports"
+    },
+    "film": {
+      "de": "Film",
+      "en": "Film"
+    },
+    "music": {
+      "de": "Musik",
+      "en": "Music"
+    },
+    "tv": {
+      "de": "Serien & TV",
+      "en": "Television"
+    },
+    "animals": {
+      "de": "Tierwelt",
+      "en": "Animals"
+    },
+    "mythology": {
+      "de": "Mythologie",
+      "en": "Mythology"
+    },
+    "computers": {
+      "de": "Computer & IT",
+      "en": "Computers & IT"
+    },
+    "art": {
+      "de": "Kunst",
+      "en": "Art"
+    }
+  },
+  "questions": [
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Welches kleine Land liegt zwischen Frankreich und Spanien?",
+      "q_en": "Which small country lies between France and Spain?",
+      "opts_de": [
+        "Andorra",
+        "San Marino",
+        "Vatikanstadt",
+        "Liechtenstein"
+      ],
+      "opts_en": [
+        "Andorra",
+        "San Marino",
+        "Vatican City",
+        "Liechtenstein"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Wie heißt die Hauptstadt Indonesiens?",
+      "q_en": "What is the capital of Indonesia?",
+      "opts_de": [
+        "Jakarta",
+        "Bandung",
+        "Medan",
+        "Palembang"
+      ],
+      "opts_en": [
+        "Jakarta",
+        "Bandung",
+        "Medan",
+        "Palembang"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Welches ist das größte Land der Erde (nach Fläche)?",
+      "q_en": "What is the largest country in the world by area?",
+      "opts_de": [
+        "Russland",
+        "China",
+        "Kanada",
+        "Brasilien"
+      ],
+      "opts_en": [
+        "Russia",
+        "China",
+        "Canada",
+        "Brazil"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Wie heißt die Hauptstadt Spaniens?",
+      "q_en": "What is the capital of Spain?",
+      "opts_de": [
+        "Madrid",
+        "Barcelona",
+        "Sevilla",
+        "Toledo"
+      ],
+      "opts_en": [
+        "Madrid",
+        "Barcelona",
+        "Seville",
+        "Toledo"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Was ist die Hauptstadt Schottlands?",
+      "q_en": "What is the capital of Scotland?",
+      "opts_de": [
+        "Edinburgh",
+        "Glasgow",
+        "Dundee",
+        "London"
+      ],
+      "opts_en": [
+        "Edinburgh",
+        "Glasgow",
+        "Dundee",
+        "London"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Welche Farbe hat der Kreis auf der japanischen Flagge?",
+      "q_en": "What colour is the circle on the Japanese flag?",
+      "opts_de": [
+        "Rot",
+        "Weiß",
+        "Gelb",
+        "Schwarz"
+      ],
+      "opts_en": [
+        "Red",
+        "White",
+        "Yellow",
+        "Black"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Welcher gilt als der längste Fluss der Welt?",
+      "q_en": "Which is considered the world's longest river?",
+      "opts_de": [
+        "Nil",
+        "Missouri",
+        "Amazonas",
+        "Jangtsekiang"
+      ],
+      "opts_en": [
+        "Nile",
+        "Missouri",
+        "Amazon",
+        "Yangtze"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "In welchem westafrikanischen Land liegt die historische Stadt Timbuktu?",
+      "q_en": "The historical city of Timbuktu is in which West African country?",
+      "opts_de": [
+        "Mali",
+        "Senegal",
+        "Niger",
+        "Burkina Faso"
+      ],
+      "opts_en": [
+        "Mali",
+        "Senegal",
+        "Niger",
+        "Burkina Faso"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Wie heißt die Hauptstadt Brasiliens?",
+      "q_en": "What is the capital of Brazil?",
+      "opts_de": [
+        "Brasília",
+        "Rio de Janeiro",
+        "São Paulo",
+        "Curitiba"
+      ],
+      "opts_en": [
+        "Brasília",
+        "Rio de Janeiro",
+        "São Paulo",
+        "Curitiba"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Welche deutsche Stadt liegt an der Isar?",
+      "q_en": "Which German city lies on the river Isar?",
+      "opts_de": [
+        "München",
+        "Berlin",
+        "Hamburg",
+        "Dortmund"
+      ],
+      "opts_en": [
+        "Munich",
+        "Berlin",
+        "Hamburg",
+        "Dortmund"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "In welchem Land liegt Tallinn?",
+      "q_en": "In which country is Tallinn located?",
+      "opts_de": [
+        "Estland",
+        "Finnland",
+        "Schweden",
+        "Polen"
+      ],
+      "opts_en": [
+        "Estonia",
+        "Finland",
+        "Sweden",
+        "Poland"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Wie heißt die Hauptstadt Grönlands?",
+      "q_en": "What is the capital of Greenland?",
+      "opts_de": [
+        "Nuuk",
+        "Sisimiut",
+        "Narsaq",
+        "Maniitsoq"
+      ],
+      "opts_en": [
+        "Nuuk",
+        "Sisimiut",
+        "Narsaq",
+        "Maniitsoq"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Der Khyberpass verbindet welche beiden Länder?",
+      "q_en": "The Khyber Pass connects which two countries?",
+      "opts_de": [
+        "Afghanistan und Pakistan",
+        "Indien und Nepal",
+        "Pakistan und Indien",
+        "Tadschikistan und Kirgisistan"
+      ],
+      "opts_en": [
+        "Afghanistan and Pakistan",
+        "India and Nepal",
+        "Pakistan and India",
+        "Tajikistan and Kyrgyzstan"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Wie viele Zeitzonen hat Russland?",
+      "q_en": "How many time zones does Russia have?",
+      "opts_de": [
+        "11",
+        "8",
+        "5",
+        "2"
+      ],
+      "opts_en": [
+        "11",
+        "8",
+        "5",
+        "2"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Wie heißt die Hauptstadt des Senegal?",
+      "q_en": "What is the capital of Senegal?",
+      "opts_de": [
+        "Dakar",
+        "Nouakchott",
+        "Conakry",
+        "Monrovia"
+      ],
+      "opts_en": [
+        "Dakar",
+        "Nouakchott",
+        "Conakry",
+        "Monrovia"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Wie viele Planeten hat unser Sonnensystem?",
+      "q_en": "How many planets are in our Solar System?",
+      "opts_de": [
+        "Acht",
+        "Neun",
+        "Sieben",
+        "Zehn"
+      ],
+      "opts_en": [
+        "Eight",
+        "Nine",
+        "Seven",
+        "Ten"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Trockeneis ist die feste Form welcher Substanz?",
+      "q_en": "Dry ice is the solid form of which substance?",
+      "opts_de": [
+        "Kohlendioxid",
+        "Stickstoff",
+        "Ammoniak",
+        "Sauerstoff"
+      ],
+      "opts_en": [
+        "Carbon dioxide",
+        "Nitrogen",
+        "Ammonia",
+        "Oxygen"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Welcher ist der heißeste Planet im Sonnensystem?",
+      "q_en": "What is the hottest planet in the Solar System?",
+      "opts_de": [
+        "Venus",
+        "Mars",
+        "Merkur",
+        "Jupiter"
+      ],
+      "opts_en": [
+        "Venus",
+        "Mars",
+        "Mercury",
+        "Jupiter"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Was ist das chemische Symbol für Helium?",
+      "q_en": "What is the chemical symbol for helium?",
+      "opts_de": [
+        "He",
+        "H",
+        "Hg",
+        "Hs"
+      ],
+      "opts_en": [
+        "He",
+        "H",
+        "Hg",
+        "Hs"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Was erzeugt die grüne Farbe der meisten Pflanzenblätter?",
+      "q_en": "What produces the green colour of most plant leaves?",
+      "opts_de": [
+        "Chlorophyll",
+        "Lichtbrechung",
+        "natürliche Pigmente",
+        "UV-Strahlung"
+      ],
+      "opts_en": [
+        "Chlorophyll",
+        "Light refraction",
+        "Natural pigments",
+        "UV radiation"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Welches ist das häufigste Element im Universum?",
+      "q_en": "Which is the most abundant element in the universe?",
+      "opts_de": [
+        "Wasserstoff",
+        "Helium",
+        "Lithium",
+        "Sauerstoff"
+      ],
+      "opts_en": [
+        "Hydrogen",
+        "Helium",
+        "Lithium",
+        "Oxygen"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Welches Element macht menschliches Blut rot?",
+      "q_en": "Which element makes human blood red?",
+      "opts_de": [
+        "Eisen",
+        "Kupfer",
+        "Iridium",
+        "Cobalt"
+      ],
+      "opts_en": [
+        "Iron",
+        "Copper",
+        "Iridium",
+        "Cobalt"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Welches Gas macht etwa 78 % der Erdatmosphäre aus?",
+      "q_en": "Which gas makes up about 78% of the Earth's atmosphere?",
+      "opts_de": [
+        "Stickstoff",
+        "Sauerstoff",
+        "Argon",
+        "Kohlendioxid"
+      ],
+      "opts_en": [
+        "Nitrogen",
+        "Oxygen",
+        "Argon",
+        "Carbon dioxide"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Wie lange braucht das Licht von der Sonne bis zur Erde (gerundet)?",
+      "q_en": "Roughly how long does light take to travel from the Sun to the Earth?",
+      "opts_de": [
+        "8 Minuten",
+        "6 Minuten",
+        "2 Minuten",
+        "12 Minuten"
+      ],
+      "opts_en": [
+        "8 minutes",
+        "6 minutes",
+        "2 minutes",
+        "12 minutes"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Was untersucht man in der Entomologie?",
+      "q_en": "What do you study in entomology?",
+      "opts_de": [
+        "Insekten",
+        "Menschen",
+        "das Gehirn",
+        "Fische"
+      ],
+      "opts_en": [
+        "Insects",
+        "Humans",
+        "The brain",
+        "Fish"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Ganymed ist der größte Mond welches Planeten?",
+      "q_en": "Ganymede is the largest moon of which planet?",
+      "opts_de": [
+        "Jupiter",
+        "Uranus",
+        "Neptun",
+        "Mars"
+      ],
+      "opts_en": [
+        "Jupiter",
+        "Uranus",
+        "Neptune",
+        "Mars"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Welcher Schweizer Psychologe steht für die Begriffe „introvertiert\" und „extrovertiert\"?",
+      "q_en": "Which Swiss psychologist is associated with the concepts of introversion and extraversion?",
+      "opts_de": [
+        "Carl Jung",
+        "Jean Piaget",
+        "Alice Miller",
+        "Hermann Rorschach"
+      ],
+      "opts_en": [
+        "Carl Jung",
+        "Jean Piaget",
+        "Alice Miller",
+        "Hermann Rorschach"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Deuterium ist ein Isotop welches Elements?",
+      "q_en": "Deuterium is an isotope of which element?",
+      "opts_de": [
+        "Wasserstoff",
+        "Stickstoff",
+        "Helium",
+        "Neon"
+      ],
+      "opts_en": [
+        "Hydrogen",
+        "Nitrogen",
+        "Helium",
+        "Neon"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Bei welcher Temperatur sind Celsius und Fahrenheit gleich?",
+      "q_en": "At what temperature are Celsius and Fahrenheit the same?",
+      "opts_de": [
+        "−40°",
+        "32°",
+        "−39°",
+        "−42°"
+      ],
+      "opts_en": [
+        "−40°",
+        "32°",
+        "−39°",
+        "−42°"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "In welchem Sternbild liegt das Zentrum der Milchstraße?",
+      "q_en": "Which constellation contains the centre of the Milky Way?",
+      "opts_de": [
+        "Schütze",
+        "Skorpion",
+        "Schlangenträger",
+        "Steinbock"
+      ],
+      "opts_en": [
+        "Sagittarius",
+        "Scorpius",
+        "Ophiuchus",
+        "Capricornus"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Welcher Wissenschaftler führte das Goldfolien-Experiment durch, das zeigte, dass Atome größtenteils aus leerem Raum bestehen?",
+      "q_en": "Which scientist conducted the gold foil experiment, concluding that atoms are mostly empty space?",
+      "opts_de": [
+        "Ernest Rutherford",
+        "J. J. Thomson",
+        "Archimedes",
+        "Niels Bohr"
+      ],
+      "opts_en": [
+        "Ernest Rutherford",
+        "J. J. Thomson",
+        "Archimedes",
+        "Niels Bohr"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "In welchem Krieg fielen die Atombomben auf Hiroshima und Nagasaki?",
+      "q_en": "In which war did the atomic bombings of Hiroshima and Nagasaki occur?",
+      "opts_de": [
+        "Zweiter Weltkrieg",
+        "Erster Weltkrieg",
+        "Russisch-Japanischer Krieg",
+        "Erster Chinesisch-Japanischer Krieg"
+      ],
+      "opts_en": [
+        "World War II",
+        "World War I",
+        "Russo-Japanese War",
+        "First Sino-Japanese War"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "1939 erklärten Großbritannien und Frankreich Deutschland den Krieg, nachdem es welches Land überfallen hatte?",
+      "q_en": "In 1939 Britain and France declared war on Germany after it invaded which country?",
+      "opts_de": [
+        "Polen",
+        "Tschechoslowakei",
+        "Österreich",
+        "Ungarn"
+      ],
+      "opts_en": [
+        "Poland",
+        "Czechoslovakia",
+        "Austria",
+        "Hungary"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "Pol Pot war der Diktator welches Landes?",
+      "q_en": "Pol Pot was the dictator of which country?",
+      "opts_de": [
+        "Kambodscha",
+        "Laos",
+        "Nordkorea",
+        "Vietnam"
+      ],
+      "opts_en": [
+        "Cambodia",
+        "Laos",
+        "North Korea",
+        "Vietnam"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "In welchem Jahr wurde Nelson Mandela aus dem Gefängnis entlassen?",
+      "q_en": "In which year was Nelson Mandela released from prison?",
+      "opts_de": [
+        "1990",
+        "1994",
+        "1992",
+        "1980"
+      ],
+      "opts_en": [
+        "1990",
+        "1994",
+        "1992",
+        "1980"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "Das Osmanische Reich wurde nach der Niederlage in welchem Krieg aufgelöst?",
+      "q_en": "The Ottoman Empire was dissolved after defeat in which war?",
+      "opts_de": [
+        "Erster Weltkrieg",
+        "Krimkrieg",
+        "Serbische Revolution",
+        "Zweiter Balkankrieg"
+      ],
+      "opts_en": [
+        "World War I",
+        "Crimean War",
+        "Serbian Revolution",
+        "Second Balkan War"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Nach seiner Niederlage bei Waterloo wurde Napoleon auf welche Insel verbannt?",
+      "q_en": "After his defeat at Waterloo, Napoleon was exiled to which island?",
+      "opts_de": [
+        "St. Helena",
+        "Elba",
+        "Korsika",
+        "Kanarische Inseln"
+      ],
+      "opts_en": [
+        "St. Helena",
+        "Elba",
+        "Corsica",
+        "Canary Islands"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wie hieß die Chemikalie, die im Vietnamkrieg großflächig versprüht wurde?",
+      "q_en": "What was the name of the chemical sprayed widely during the Vietnam War?",
+      "opts_de": [
+        "Agent Orange",
+        "Phosgen",
+        "Senfgas",
+        "Blausäure"
+      ],
+      "opts_en": [
+        "Agent Orange",
+        "Phosgene",
+        "Mustard gas",
+        "Hydrogen cyanide"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wann zerstörte der Vesuv die Stadt Pompeji?",
+      "q_en": "When did Vesuvius destroy the city of Pompeii?",
+      "opts_de": [
+        "79 n. Chr.",
+        "62 n. Chr.",
+        "31 v. Chr.",
+        "54 v. Chr."
+      ],
+      "opts_en": [
+        "79 AD",
+        "62 AD",
+        "31 BC",
+        "54 BC"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wer prägte den Satz „Ich denke, also bin ich\"?",
+      "q_en": "Who coined the phrase 'I think, therefore I am'?",
+      "opts_de": [
+        "René Descartes",
+        "Platon",
+        "Aristoteles",
+        "Shakespeare"
+      ],
+      "opts_en": [
+        "René Descartes",
+        "Plato",
+        "Aristotle",
+        "Shakespeare"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wer führte Frankreich während der „Schreckensherrschaft\"?",
+      "q_en": "Who led France during the 'Reign of Terror'?",
+      "opts_de": [
+        "Maximilien de Robespierre",
+        "Napoleon Bonaparte",
+        "Jean-Paul Marat",
+        "Ludwig XVI."
+      ],
+      "opts_en": [
+        "Maximilien de Robespierre",
+        "Napoleon Bonaparte",
+        "Jean-Paul Marat",
+        "Louis XVI"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wann übergab Großbritannien Hongkong zurück an China?",
+      "q_en": "When did Britain hand Hong Kong back to China?",
+      "opts_de": [
+        "1997",
+        "1999",
+        "1841",
+        "1900"
+      ],
+      "opts_en": [
+        "1997",
+        "1999",
+        "1841",
+        "1900"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Der Reaktorunfall 1986 in der Ukraine ereignete sich in welchem Kraftwerk?",
+      "q_en": "The 1986 nuclear disaster in Ukraine happened at which power plant?",
+      "opts_de": [
+        "Tschernobyl",
+        "Ignalina",
+        "Majak",
+        "Kursk"
+      ],
+      "opts_en": [
+        "Chernobyl",
+        "Ignalina",
+        "Mayak",
+        "Kursk"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Wer war der erste Mensch im Weltraum?",
+      "q_en": "Who was the first human in outer space?",
+      "opts_de": [
+        "Juri Gagarin",
+        "Gus Grissom",
+        "Neil Armstrong",
+        "Buzz Aldrin"
+      ],
+      "opts_en": [
+        "Yuri Gagarin",
+        "Gus Grissom",
+        "Neil Armstrong",
+        "Buzz Aldrin"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Wann wurde die Stadt Rom der Überlieferung nach gegründet?",
+      "q_en": "When was the city of Rome traditionally founded?",
+      "opts_de": [
+        "753 v. Chr.",
+        "902 v. Chr.",
+        "524 v. Chr.",
+        "697 v. Chr."
+      ],
+      "opts_en": [
+        "753 BC",
+        "902 BC",
+        "524 BC",
+        "697 BC"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Die antike Stadt Chichén Itzá wurde von welcher Zivilisation erbaut?",
+      "q_en": "The ancient city of Chichén Itzá was built by which civilization?",
+      "opts_de": [
+        "Maya",
+        "Azteken",
+        "Inka",
+        "Tolteken"
+      ],
+      "opts_en": [
+        "Maya",
+        "Aztecs",
+        "Inca",
+        "Toltecs"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Die Ermordung welches Thronfolgers löste den Ersten Weltkrieg aus?",
+      "q_en": "The assassination of which heir to the throne triggered World War I?",
+      "opts_de": [
+        "Erzherzog Franz Ferdinand",
+        "Louis Mountbatten",
+        "König Karl I.",
+        "Zar Nikolaus II."
+      ],
+      "opts_en": [
+        "Archduke Franz Ferdinand",
+        "Louis Mountbatten",
+        "King Charles I",
+        "Tsar Nicholas II"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Welche Sportart kennt die Begriffe „Einstand\" (Deuce), „Vorteil\" und „Volley\"?",
+      "q_en": "Which sport uses the terms 'love', 'deuce', 'match' and 'volley'?",
+      "opts_de": [
+        "Tennis",
+        "Cricket",
+        "Basketball",
+        "Curling"
+      ],
+      "opts_en": [
+        "Tennis",
+        "Cricket",
+        "Basketball",
+        "Curling"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Welche Mannschaft gewann die Fußball-WM 2014 in Brasilien?",
+      "q_en": "Which team won the 2014 FIFA World Cup in Brazil?",
+      "opts_de": [
+        "Deutschland",
+        "Argentinien",
+        "Brasilien",
+        "Niederlande"
+      ],
+      "opts_en": [
+        "Germany",
+        "Argentina",
+        "Brazil",
+        "Netherlands"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Wie viele Fußballspieler stehen gleichzeitig auf dem Feld (beide Teams zusammen)?",
+      "q_en": "How many football players are on the pitch at once (both teams)?",
+      "opts_de": [
+        "22",
+        "20",
+        "24",
+        "26"
+      ],
+      "opts_en": [
+        "22",
+        "20",
+        "24",
+        "26"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Wie endete bei der WM 2014 das Halbfinale Brasilien – Deutschland?",
+      "q_en": "What was the score of the 2014 World Cup semi-final Brazil vs Germany?",
+      "opts_de": [
+        "1:7",
+        "1:5",
+        "1:6",
+        "2:6"
+      ],
+      "opts_en": [
+        "1–7",
+        "1–5",
+        "1–6",
+        "2–6"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Welches Land war Gastgeber der Olympischen Sommerspiele 2020?",
+      "q_en": "Which country hosted the 2020 Summer Olympics?",
+      "opts_de": [
+        "Japan",
+        "China",
+        "Australien",
+        "Deutschland"
+      ],
+      "opts_en": [
+        "Japan",
+        "China",
+        "Australia",
+        "Germany"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Die UEFA Champions League ist ein Vereinswettbewerb aus welchem Kontinent?",
+      "q_en": "The UEFA Champions League features clubs from which continent?",
+      "opts_de": [
+        "Europa",
+        "Südamerika",
+        "Afrika",
+        "Asien"
+      ],
+      "opts_en": [
+        "Europe",
+        "South America",
+        "Africa",
+        "Asia"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "In welchem Land fand die Fußball-WM 2022 statt?",
+      "q_en": "Which country hosted the 2022 FIFA World Cup?",
+      "opts_de": [
+        "Katar",
+        "USA",
+        "Japan",
+        "Schweiz"
+      ],
+      "opts_en": [
+        "Qatar",
+        "USA",
+        "Japan",
+        "Switzerland"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Welcher Formel-1-Fahrer trug den Spitznamen „Der Professor\"?",
+      "q_en": "Which Formula One driver was nicknamed 'The Professor'?",
+      "opts_de": [
+        "Alain Prost",
+        "Ayrton Senna",
+        "Niki Lauda",
+        "Emerson Fittipaldi"
+      ],
+      "opts_en": [
+        "Alain Prost",
+        "Ayrton Senna",
+        "Niki Lauda",
+        "Emerson Fittipaldi"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Von welcher portugiesischen Insel stammt Cristiano Ronaldo?",
+      "q_en": "Which Portuguese island is Cristiano Ronaldo from?",
+      "opts_de": [
+        "Madeira",
+        "Terceira",
+        "Santa Maria",
+        "Porto Santo"
+      ],
+      "opts_en": [
+        "Madeira",
+        "Terceira",
+        "Santa Maria",
+        "Porto Santo"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Welcher Autohersteller gewann die 24 Stunden von Le Mans 2017?",
+      "q_en": "Which car manufacturer won the 2017 24 Hours of Le Mans?",
+      "opts_de": [
+        "Porsche",
+        "Toyota",
+        "Audi",
+        "Chevrolet"
+      ],
+      "opts_en": [
+        "Porsche",
+        "Toyota",
+        "Audi",
+        "Chevrolet"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Welche Nationalmannschaft gewann die Fußball-EM 2016?",
+      "q_en": "Which national team won UEFA Euro 2016?",
+      "opts_de": [
+        "Portugal",
+        "Frankreich",
+        "Deutschland",
+        "England"
+      ],
+      "opts_en": [
+        "Portugal",
+        "France",
+        "Germany",
+        "England"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Welcher ist der höchste Gürtel im Taekwondo?",
+      "q_en": "What is the highest belt in Taekwondo?",
+      "opts_de": [
+        "Schwarz",
+        "Weiß",
+        "Rot",
+        "Grün"
+      ],
+      "opts_en": [
+        "Black",
+        "White",
+        "Red",
+        "Green"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Wofür ist die Formel-1-Saison 1994 tragisch in Erinnerung?",
+      "q_en": "What tragic event is the 1994 Formula One season remembered for?",
+      "opts_de": [
+        "Tod von Ayrton Senna (San Marino)",
+        "Verstappens Feuerunfall (Deutschland)",
+        "Schumachers Sperre (Großbritannien)",
+        "Das Showdown-Finale (Australien)"
+      ],
+      "opts_en": [
+        "Death of Ayrton Senna (San Marino)",
+        "Verstappen on fire (Germany)",
+        "Schumacher's ban (Britain)",
+        "The showdown finale (Australia)"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Wer schoss im Champions-League-Finale 1999 (Manchester United – Bayern München) das Siegtor in der Nachspielzeit?",
+      "q_en": "Who scored the injury-time winner in the 1999 Champions League final (Man United vs Bayern Munich)?",
+      "opts_de": [
+        "Ole Gunnar Solskjær",
+        "Dwight Yorke",
+        "Andy Cole",
+        "David Beckham"
+      ],
+      "opts_en": [
+        "Ole Gunnar Solskjær",
+        "Dwight Yorke",
+        "Andy Cole",
+        "David Beckham"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Welche europäische Stadt war die erste, die dreimal die Olympischen Sommerspiele ausrichtete?",
+      "q_en": "Which European city was the first to host the Summer Olympics three times?",
+      "opts_de": [
+        "London",
+        "Paris",
+        "Athen",
+        "Rom"
+      ],
+      "opts_en": [
+        "London",
+        "Paris",
+        "Athens",
+        "Rome"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Wie heißen in „Blade Runner\" die menschenähnlichen Androiden?",
+      "q_en": "In 'Blade Runner', what are the human-like androids called?",
+      "opts_de": [
+        "Replikanten",
+        "Cylonen",
+        "Synthetics",
+        "Skinjobs"
+      ],
+      "opts_en": [
+        "Replicants",
+        "Cylons",
+        "Synthetics",
+        "Skinjobs"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Wie nannte Tom Hanks seinen Volleyball-Begleiter im Film „Cast Away\"?",
+      "q_en": "What did Tom Hanks name his volleyball companion in 'Cast Away'?",
+      "opts_de": [
+        "Wilson",
+        "Friday",
+        "Jones",
+        "Billy"
+      ],
+      "opts_en": [
+        "Wilson",
+        "Friday",
+        "Jones",
+        "Billy"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "In welchem Film mit Bruce Willis fällt der Satz „Ich sehe tote Menschen\"?",
+      "q_en": "In which Bruce Willis film is the line 'I see dead people' spoken?",
+      "opts_de": [
+        "The Sixth Sense",
+        "Das fünfte Element",
+        "Stirb langsam",
+        "Armageddon"
+      ],
+      "opts_en": [
+        "The Sixth Sense",
+        "The Fifth Element",
+        "Die Hard",
+        "Armageddon"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Wie hieß der erste James-Bond-Film von 1962?",
+      "q_en": "What was the first James Bond film, released in 1962?",
+      "opts_de": [
+        "James Bond – 007 jagt Dr. No",
+        "Liebesgrüße aus Moskau",
+        "Goldfinger",
+        "Feuerball"
+      ],
+      "opts_en": [
+        "Dr. No",
+        "From Russia with Love",
+        "Goldfinger",
+        "Thunderball"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Wer führte bei „E.T. – Der Außerirdische\" (1982) Regie?",
+      "q_en": "Who directed 'E.T. the Extra-Terrestrial' (1982)?",
+      "opts_de": [
+        "Steven Spielberg",
+        "Stanley Kubrick",
+        "James Cameron",
+        "Tim Burton"
+      ],
+      "opts_en": [
+        "Steven Spielberg",
+        "Stanley Kubrick",
+        "James Cameron",
+        "Tim Burton"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Durch welche Filmreihe wurde Daniel Radcliffe weltberühmt?",
+      "q_en": "Which film franchise made Daniel Radcliffe a global star?",
+      "opts_de": [
+        "Harry Potter",
+        "Ted",
+        "Spy Kids",
+        "Pirates of the Caribbean"
+      ],
+      "opts_en": [
+        "Harry Potter",
+        "Ted",
+        "Spy Kids",
+        "Pirates of the Caribbean"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Für welchen Film gewann Leonardo DiCaprio seinen ersten Oscar als bester Hauptdarsteller?",
+      "q_en": "For which film did Leonardo DiCaprio win his first Best Actor Oscar?",
+      "opts_de": [
+        "The Revenant",
+        "The Wolf of Wall Street",
+        "Shutter Island",
+        "Inception"
+      ],
+      "opts_en": [
+        "The Revenant",
+        "The Wolf of Wall Street",
+        "Shutter Island",
+        "Inception"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Welchen Film löste „Avatar\" als bis dahin erfolgreichsten Film aller Zeiten ab?",
+      "q_en": "Which film did 'Avatar' dethrone as the highest-grossing film ever?",
+      "opts_de": [
+        "Titanic",
+        "Star Wars",
+        "Vom Winde verweht",
+        "Der weiße Hai"
+      ],
+      "opts_en": [
+        "Titanic",
+        "Star Wars",
+        "Gone with the Wind",
+        "Jaws"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Welcher Schauspieler spielte die Hauptrolle in „Edward mit den Scherenhänden\" (1990)?",
+      "q_en": "Which actor played the lead in 'Edward Scissorhands' (1990)?",
+      "opts_de": [
+        "Johnny Depp",
+        "Clint Eastwood",
+        "Leonardo DiCaprio",
+        "Ben Stiller"
+      ],
+      "opts_en": [
+        "Johnny Depp",
+        "Clint Eastwood",
+        "Leonardo DiCaprio",
+        "Ben Stiller"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Wer spielte 1971 in „Willy Wonka & the Chocolate Factory\" Willy Wonka?",
+      "q_en": "Who played Willy Wonka in the 1971 'Willy Wonka & the Chocolate Factory'?",
+      "opts_de": [
+        "Gene Wilder",
+        "Shia LaBeouf",
+        "Peter Ostrum",
+        "Johnny Depp"
+      ],
+      "opts_en": [
+        "Gene Wilder",
+        "Shia LaBeouf",
+        "Peter Ostrum",
+        "Johnny Depp"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Wer spielte die Hauptrolle in „Der Mann mit der Todeskralle\" (Enter the Dragon, 1973)?",
+      "q_en": "Who starred in 'Enter the Dragon' (1973)?",
+      "opts_de": [
+        "Bruce Lee",
+        "Jackie Chan",
+        "Jet Li",
+        "Chow Yun-Fat"
+      ],
+      "opts_en": [
+        "Bruce Lee",
+        "Jackie Chan",
+        "Jet Li",
+        "Chow Yun-Fat"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Welchen Marvel-Helden spielte Chris Evans vor seiner Rolle als Captain America?",
+      "q_en": "Which Marvel hero did Chris Evans play before Captain America?",
+      "opts_de": [
+        "Die menschliche Fackel (Human Torch)",
+        "Cyclops",
+        "Iceman",
+        "Daredevil"
+      ],
+      "opts_en": [
+        "Human Torch",
+        "Cyclops",
+        "Iceman",
+        "Daredevil"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welcher dieser Filme basiert NICHT auf einem Roman von Stephen King?",
+      "q_en": "Which of these films is NOT based on a Stephen King novel?",
+      "opts_de": [
+        "Das Ding aus einer anderen Welt (The Thing)",
+        "Carrie",
+        "Misery",
+        "The Green Mile"
+      ],
+      "opts_en": [
+        "The Thing",
+        "Carrie",
+        "Misery",
+        "The Green Mile"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Wie lautet der bürgerliche Name des Schauspielers Michael Keaton?",
+      "q_en": "What is the birth name of actor Michael Keaton?",
+      "opts_de": [
+        "Michael Douglas",
+        "Michael Fox",
+        "Michael Richards",
+        "Michael Caine"
+      ],
+      "opts_en": [
+        "Michael Douglas",
+        "Michael Fox",
+        "Michael Richards",
+        "Michael Caine"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welche Kultfigur steht im Mittelpunkt der Filme „Dirty Harry kommt\", „Dirty Harry III – Der Unerbittliche\" und „Das Todesspiel\"?",
+      "q_en": "Which iconic character features in 'The Enforcer', 'Sudden Impact' and 'The Dead Pool'?",
+      "opts_de": [
+        "Dirty Harry",
+        "Indiana Jones",
+        "James Bond",
+        "Harry Potter"
+      ],
+      "opts_en": [
+        "Dirty Harry",
+        "Indiana Jones",
+        "James Bond",
+        "Harry Potter"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Wofür stehen die Buchstaben der Fast-Food-Kette „KFC\"?",
+      "q_en": "What do the letters of the fast-food chain 'KFC' stand for?",
+      "opts_de": [
+        "Kentucky Fried Chicken",
+        "Kentucky Fresh Cheese",
+        "Kibbled Freaky Cow",
+        "Kiwi Food Cut"
+      ],
+      "opts_en": [
+        "Kentucky Fried Chicken",
+        "Kentucky Fresh Cheese",
+        "Kibbled Freaky Cow",
+        "Kiwi Food Cut"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Wie viele Monate beginnen mit dem Buchstaben „J\" (Januar, Juni, Juli)?",
+      "q_en": "How many months begin with the letter 'J'?",
+      "opts_de": [
+        "Drei",
+        "Vier",
+        "Fünf",
+        "Zwei"
+      ],
+      "opts_en": [
+        "Three",
+        "Four",
+        "Five",
+        "Two"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Aus wie vielen Silben besteht ein klassisches Haiku?",
+      "q_en": "How many syllables make up a classic haiku?",
+      "opts_de": [
+        "17",
+        "15",
+        "10",
+        "21"
+      ],
+      "opts_en": [
+        "17",
+        "15",
+        "10",
+        "21"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Wie heißt „Esel\" auf Spanisch?",
+      "q_en": "What is the Spanish word for 'donkey'?",
+      "opts_de": [
+        "Burro",
+        "Caballo",
+        "Toro",
+        "Perro"
+      ],
+      "opts_en": [
+        "Burro",
+        "Caballo",
+        "Toro",
+        "Perro"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Astraphobie ist die irrationale Angst wovor?",
+      "q_en": "Astraphobia is the irrational fear of what?",
+      "opts_de": [
+        "Donner und Gewitter",
+        "Regen",
+        "Wind",
+        "Schnee"
+      ],
+      "opts_en": [
+        "Thunder and lightning",
+        "Rain",
+        "Wind",
+        "Snow"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "An welcher Krebsart starb Apple-Mitgründer Steve Jobs?",
+      "q_en": "Which form of cancer did Apple co-founder Steve Jobs die from?",
+      "opts_de": [
+        "Bauchspeicheldrüsenkrebs",
+        "Knochenkrebs",
+        "Leberkrebs",
+        "Magenkrebs"
+      ],
+      "opts_en": [
+        "Pancreatic cancer",
+        "Bone cancer",
+        "Liver cancer",
+        "Stomach cancer"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Welcher der drei Apollo-11-Astronauten betrat NICHT den Mond?",
+      "q_en": "Which of the three Apollo 11 astronauts did NOT walk on the Moon?",
+      "opts_de": [
+        "Michael Collins",
+        "Buzz Aldrin",
+        "Neil Armstrong",
+        "keiner von ihnen"
+      ],
+      "opts_en": [
+        "Michael Collins",
+        "Buzz Aldrin",
+        "Neil Armstrong",
+        "None of them"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Womit handelte das Telekommunikationsunternehmen Nokia ursprünglich?",
+      "q_en": "What did the telecommunications company Nokia originally sell?",
+      "opts_de": [
+        "Papier",
+        "Telefone",
+        "Computer",
+        "Prozessoren"
+      ],
+      "opts_en": [
+        "Paper",
+        "Phones",
+        "Computers",
+        "Processors"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Welche Substanz ist in den Samen der Aubergine enthalten?",
+      "q_en": "Which chemical is found in eggplant seeds?",
+      "opts_de": [
+        "Nikotin",
+        "Meskalin",
+        "Zyanid",
+        "Psilocybin"
+      ],
+      "opts_en": [
+        "Nicotine",
+        "Mescaline",
+        "Cyanide",
+        "Psilocybin"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Wie viele Tasten hat ein Standard-Konzertflügel?",
+      "q_en": "How many keys does a standard grand piano have?",
+      "opts_de": [
+        "88",
+        "98",
+        "108",
+        "78"
+      ],
+      "opts_en": [
+        "88",
+        "98",
+        "108",
+        "78"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "Der schwedische DJ Tim Bergling war unter welchem Künstlernamen bekannt?",
+      "q_en": "Swedish DJ Tim Bergling was better known under what alias?",
+      "opts_de": [
+        "Avicii",
+        "deadmau5",
+        "Alesso",
+        "Skrillex"
+      ],
+      "opts_en": [
+        "Avicii",
+        "deadmau5",
+        "Alesso",
+        "Skrillex"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "Welche Band veröffentlichte die Alben „Back in Black“ und „Ballbreaker“?",
+      "q_en": "Which band released the albums 'Back in Black' and 'Ballbreaker'?",
+      "opts_de": [
+        "AC/DC",
+        "Iron Maiden",
+        "Black Sabbath",
+        "Metallica"
+      ],
+      "opts_en": [
+        "AC/DC",
+        "Iron Maiden",
+        "Black Sabbath",
+        "Metallica"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "Welcher berühmte Klingelton stammt aus dem Stück „Gran Vals“?",
+      "q_en": "Which famous ringtone originates from the piece 'Gran Vals'?",
+      "opts_de": [
+        "Nokia Tune",
+        "Hello Moto",
+        "Droid-Klingelton",
+        "Microsoft-Klingelton"
+      ],
+      "opts_en": [
+        "Nokia Tune",
+        "Hello Moto",
+        "Droid Ringtone",
+        "Microsoft Ringtone"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "In welchem Jahr wurde „Gangnam Style“ auf YouTube hochgeladen?",
+      "q_en": "In what year was 'Gangnam Style' uploaded to YouTube?",
+      "opts_de": [
+        "2012",
+        "2013",
+        "2014",
+        "2011"
+      ],
+      "opts_en": [
+        "2012",
+        "2013",
+        "2014",
+        "2011"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "In seinem Hit von 1973 klopft Bob Dylan an welche Tür?",
+      "q_en": "In his 1973 song, Bob Dylan is 'knockin' on' which door?",
+      "opts_de": [
+        "Die Himmelstür",
+        "Die Tür der Hoffnung",
+        "Die Engelspforte",
+        "Eileens Tür"
+      ],
+      "opts_en": [
+        "Heaven's Door",
+        "Opportunity's Door",
+        "Angel's Door",
+        "Eileen's Door"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "Welcher dieser Titel ist KEIN Album der Sängerin Adele?",
+      "q_en": "Which of these is NOT the name of an album by Adele?",
+      "opts_de": [
+        "12",
+        "19",
+        "21",
+        "25"
+      ],
+      "opts_en": [
+        "12",
+        "19",
+        "21",
+        "25"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "„I'm never gonna dance again“ – aus welchem Wham!-Hit stammt dieser Text?",
+      "q_en": "'I'm never gonna dance again' – which Wham! hit is this from?",
+      "opts_de": [
+        "Careless Whisper",
+        "Wake Me Up Before You Go-Go",
+        "Last Christmas",
+        "Everything She Wants"
+      ],
+      "opts_en": [
+        "Careless Whisper",
+        "Wake Me Up Before You Go-Go",
+        "Last Christmas",
+        "Everything She Wants"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "Welche dieser Bands wurde als erste gegründet?",
+      "q_en": "Which of these bands is the oldest?",
+      "opts_de": [
+        "Pink Floyd",
+        "AC/DC",
+        "Metallica",
+        "Red Hot Chili Peppers"
+      ],
+      "opts_en": [
+        "Pink Floyd",
+        "AC/DC",
+        "Metallica",
+        "Red Hot Chili Peppers"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "Wer sang den Hit „I Took a Pill in Ibiza“?",
+      "q_en": "Who performed 'I Took a Pill in Ibiza'?",
+      "opts_de": [
+        "Mike Posner",
+        "Avicii",
+        "Robbie Williams",
+        "Harry Styles"
+      ],
+      "opts_en": [
+        "Mike Posner",
+        "Avicii",
+        "Robbie Williams",
+        "Harry Styles"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "easy",
+      "q_de": "„Make You Feel My Love“ wurde ursprünglich geschrieben von welchem Künstler?",
+      "q_en": "'Make You Feel My Love' was originally written and performed by which artist?",
+      "opts_de": [
+        "Bob Dylan",
+        "Elvis Presley",
+        "Adele",
+        "Billy Joel"
+      ],
+      "opts_en": [
+        "Bob Dylan",
+        "Elvis",
+        "Adele",
+        "Billy Joel"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Wer komponierte das Musikstück „Rhapsody in Blue“?",
+      "q_en": "Who composed 'Rhapsody in Blue'?",
+      "opts_de": [
+        "George Gershwin",
+        "Irving Berlin",
+        "Duke Ellington",
+        "Johnny Mandel"
+      ],
+      "opts_en": [
+        "George Gershwin",
+        "Irving Berlin",
+        "Duke Ellington",
+        "Johnny Mandel"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welche Gruppe mit George Michael als Mitglied gewann 1985 die Brit Awards?",
+      "q_en": "Which musical group with George Michael won the Brit Awards in 1985?",
+      "opts_de": [
+        "Wham!",
+        "Frankie Goes to Hollywood",
+        "U2",
+        "Culture Club"
+      ],
+      "opts_en": [
+        "Wham!",
+        "Frankie Goes to Hollywood",
+        "U2",
+        "Culture Club"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welche Band mit Boy George als Sänger gewann 1984 die Brit Awards?",
+      "q_en": "Which band with Boy George on lead vocals won the Brit Awards in 1984?",
+      "opts_de": [
+        "Culture Club",
+        "Eurythmics",
+        "UB40",
+        "The Police"
+      ],
+      "opts_en": [
+        "Culture Club",
+        "Eurythmics",
+        "UB40",
+        "The Police"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Aus welcher Stadt kommt der Rapper Pitbull?",
+      "q_en": "Which city is the rapper Pitbull from?",
+      "opts_de": [
+        "Miami",
+        "New York",
+        "Los Angeles",
+        "Boston"
+      ],
+      "opts_en": [
+        "Miami",
+        "New York",
+        "Los Angeles",
+        "Boston"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welche Rockband veröffentlichte im März 1995 das Album „The Bends“?",
+      "q_en": "Which rock band released the album 'The Bends' in March 1995?",
+      "opts_de": [
+        "Radiohead",
+        "Nirvana",
+        "Coldplay",
+        "U2"
+      ],
+      "opts_en": [
+        "Radiohead",
+        "Nirvana",
+        "Coldplay",
+        "U2"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welcher italienische Komponist (geb. 1678) wurde wegen seiner roten Haare „Der rote Priester“ genannt?",
+      "q_en": "Which Italian composer, born in 1678, was known as the 'Red Priest'?",
+      "opts_de": [
+        "Vivaldi",
+        "Puccini",
+        "Verdi",
+        "Monteverdi"
+      ],
+      "opts_en": [
+        "Vivaldi",
+        "Puccini",
+        "Verdi",
+        "Monteverdi"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welcher Queen-Song wurde im Animationsfilm „Happy Feet“ (2006) gecovert?",
+      "q_en": "Which Queen song was covered in the 2006 film 'Happy Feet'?",
+      "opts_de": [
+        "Somebody to Love",
+        "Under Pressure",
+        "Flash",
+        "Bohemian Rhapsody"
+      ],
+      "opts_en": [
+        "Somebody to Love",
+        "Under Pressure",
+        "Flash",
+        "Bohemian Rhapsody"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welchen Körperteil verlor der Entertainer Sammy Davis Jr. bei einem Autounfall?",
+      "q_en": "Which body part did performer Sammy Davis Jr. lose in a car accident?",
+      "opts_de": [
+        "Sein linkes Auge",
+        "Sein rechtes Ohr",
+        "Seinen rechten Mittelfinger",
+        "Die Nasenspitze"
+      ],
+      "opts_en": [
+        "His left eye",
+        "His right ear",
+        "His right middle finger",
+        "Tip of his nose"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "In welchem Jahr erschien der Hit „Scatman's World“?",
+      "q_en": "In what year was 'Scatman's World' released?",
+      "opts_de": [
+        "1995",
+        "1996",
+        "1994",
+        "1993"
+      ],
+      "opts_en": [
+        "1995",
+        "1996",
+        "1994",
+        "1993"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "medium",
+      "q_de": "Welches Album von Kanye West enthält die Songs „Love Lockdown“ und „Heartless“?",
+      "q_en": "Which Kanye West album contains 'Love Lockdown', 'Paranoid' and 'Heartless'?",
+      "opts_de": [
+        "808s & Heartbreak",
+        "Late Registration",
+        "The Life of Pablo",
+        "Graduation"
+      ],
+      "opts_en": [
+        "808s & Heartbreak",
+        "Late Registration",
+        "The Life of Pablo",
+        "Graduation"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welche dieser Bands trat NICHT beim Live-Aid-Konzert 1985 im Wembley-Stadion auf?",
+      "q_en": "Which of these acts did NOT perform at the Live Aid concert at Wembley in 1985?",
+      "opts_de": [
+        "The Rolling Stones",
+        "Queen",
+        "Elton John",
+        "David Bowie"
+      ],
+      "opts_en": [
+        "The Rolling Stones",
+        "Queen",
+        "Elton John",
+        "David Bowie"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welcher Künstler veröffentlichte die Originalversion von „The Tide is High“?",
+      "q_en": "Which artist's version of 'The Tide is High' came first?",
+      "opts_de": [
+        "The Paragons",
+        "Blondie",
+        "Atomic Kitten",
+        "Kardinal Offishall"
+      ],
+      "opts_en": [
+        "The Paragons",
+        "Blondie",
+        "Atomic Kitten",
+        "Kardinal Offishall"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welcher Bee-Gees-Hit von 1978 wurde 20 Jahre später von Steps gecovert?",
+      "q_en": "What Bee Gees song from 1978 was covered by Steps 20 years later?",
+      "opts_de": [
+        "Tragedy",
+        "Night Fever",
+        "Stayin' Alive",
+        "You Should Be Dancing"
+      ],
+      "opts_en": [
+        "Tragedy",
+        "Night Fever",
+        "Stayin' Alive",
+        "You Should Be Dancing"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welcher dieser Songs wurde NICHT in den 1990ern veröffentlicht?",
+      "q_en": "Which of these songs was NOT released in the 90s?",
+      "opts_de": [
+        "I Want It All (Queen)",
+        "Vogue (Madonna)",
+        "King of Wishful Thinking (Go West)",
+        "Can't Stop (Bryan Adams)"
+      ],
+      "opts_en": [
+        "I Want It All (Queen)",
+        "Vogue (Madonna)",
+        "King of Wishful Thinking (Go West)",
+        "Can't Stop This Thing We Started (Bryan Adams)"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Wer gehörte NICHT zur Band The Smiths?",
+      "q_en": "Who was NOT a member of The Smiths?",
+      "opts_de": [
+        "Martin Chambers",
+        "Morrissey",
+        "Andy Rourke",
+        "Mike Joyce"
+      ],
+      "opts_en": [
+        "Martin Chambers",
+        "Morrissey",
+        "Andy Rourke",
+        "Mike Joyce"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Wie viele Millionen Exemplare hat Metallicas „Black Album“ weltweit verkauft?",
+      "q_en": "How many million copies has Metallica's 'Black Album' sold worldwide?",
+      "opts_de": [
+        "20,5",
+        "19,5",
+        "22,5",
+        "25,5"
+      ],
+      "opts_en": [
+        "20.5",
+        "19.5",
+        "22.5",
+        "25.5"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Wer ist der Gründer und Frontmann der Industrial-Rock-Band Nine Inch Nails?",
+      "q_en": "Who is the founder and leader of Nine Inch Nails?",
+      "opts_de": [
+        "Trent Reznor",
+        "Marilyn Manson",
+        "Robin Finck",
+        "Josh Homme"
+      ],
+      "opts_en": [
+        "Trent Reznor",
+        "Marilyn Manson",
+        "Robin Finck",
+        "Josh Homme"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welche Single veröffentlichte David Hasselhoff im Jahr 2015?",
+      "q_en": "In 2015, David Hasselhoff released a single called...",
+      "opts_de": [
+        "True Survivor",
+        "True Fighter",
+        "Real Warrior",
+        "Real Hero"
+      ],
+      "opts_en": [
+        "True Survivor",
+        "True Fighter",
+        "Real Warrior",
+        "Real Hero"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welcher dieser Songs ist KEIN Lied von Men at Work?",
+      "q_en": "Which of these is NOT a Men at Work song?",
+      "opts_de": [
+        "Basket Case",
+        "Who Can It Be Now?",
+        "Be Good Johnny",
+        "Dr. Heckyll and Mr. Jive"
+      ],
+      "opts_en": [
+        "Basket Case",
+        "Who Can It Be Now?",
+        "Be Good Johnny",
+        "Dr. Heckyll and Mr. Jive"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "music",
+      "diff": "hard",
+      "q_de": "Welcher dieser Gitarristen nahm ein Album als Mitglied der Red Hot Chili Peppers auf?",
+      "q_en": "Which of these guitarists recorded an album as a Red Hot Chili Peppers member?",
+      "opts_de": [
+        "Dave Navarro",
+        "Slash",
+        "Tom Morello",
+        "John Petrucci"
+      ],
+      "opts_en": [
+        "Dave Navarro",
+        "Slash",
+        "Tom Morello",
+        "John Petrucci"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wer ist der Hauptcharakter der AMC-Serie „Breaking Bad“?",
+      "q_en": "Who is the main character of the AMC series 'Breaking Bad'?",
+      "opts_de": [
+        "Walter White",
+        "Saul Goodman",
+        "Jesse Pinkman",
+        "Skyler White"
+      ],
+      "opts_en": [
+        "Walter White",
+        "Saul Goodman",
+        "Jesse Pinkman",
+        "Skyler White"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wofür steht T.A.R.D.I.S. in der Serie „Doctor Who“?",
+      "q_en": "In 'Doctor Who', what does T.A.R.D.I.S. stand for?",
+      "opts_de": [
+        "Time And Relative Dimensions In Space",
+        "Time And Resting Dimensions In Space",
+        "Teleport And Relative Dimensions In Space",
+        "Time And Relative Density In Space"
+      ],
+      "opts_en": [
+        "Time And Relative Dimensions In Space",
+        "Time And Resting Dimensions In Space",
+        "Teleport And Relative Dimensions In Space",
+        "Time And Relative Density In Space"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "In welcher Serie ziehen ein Großvater und sein Enkel durch verrückte Abenteuer?",
+      "q_en": "What TV show is about a grandfather dragging his grandson around on adventures?",
+      "opts_de": [
+        "Rick & Morty",
+        "Family Guy",
+        "South Park",
+        "American Dad"
+      ],
+      "opts_en": [
+        "Rick & Morty",
+        "Family Guy",
+        "South Park",
+        "American Dad"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Welche Serie handelt von vier älteren Damen namens Blanche, Rose, Dorothy und Sophia?",
+      "q_en": "What TV show features older women named Blanche, Rose, Dorothy and Sophia?",
+      "opts_de": [
+        "Golden Girls",
+        "Cheers",
+        "The Wonder Years",
+        "Family Ties"
+      ],
+      "opts_en": [
+        "The Golden Girls",
+        "Cheers",
+        "The Wonder Years",
+        "Family Ties"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wie lautet der echte Name von „Littlefinger“ in „Game of Thrones“?",
+      "q_en": "In 'Game of Thrones', what is Littlefinger's real name?",
+      "opts_de": [
+        "Petyr Baelish",
+        "Podrick Payne",
+        "Lancel Lannister",
+        "Torrhen Karstark"
+      ],
+      "opts_en": [
+        "Petyr Baelish",
+        "Podrick Payne",
+        "Lancel Lannister",
+        "Torrhen Karstark"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Welches Unternehmen besitzt die Exklusivrechte an „The Grand Tour“?",
+      "q_en": "Which company has exclusive rights to air 'The Grand Tour'?",
+      "opts_de": [
+        "Amazon",
+        "Netflix",
+        "BBC",
+        "Sky"
+      ],
+      "opts_en": [
+        "Amazon",
+        "Netflix",
+        "BBC",
+        "Sky"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wie heißt das berüchtigte Produkt in „Breaking Bad“ auf der Straße?",
+      "q_en": "In 'Breaking Bad', what is the street name of Walter and Jesse's product?",
+      "opts_de": [
+        "Blue Sky",
+        "Baby Blue",
+        "Rock Candy",
+        "Pure Glass"
+      ],
+      "opts_en": [
+        "Blue Sky",
+        "Baby Blue",
+        "Rock Candy",
+        "Pure Glass"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wie viele Staffeln hatte die Serie „Stargate SG-1“?",
+      "q_en": "How many seasons did 'Stargate SG-1' have?",
+      "opts_de": [
+        "10",
+        "7",
+        "12",
+        "3"
+      ],
+      "opts_en": [
+        "10",
+        "7",
+        "12",
+        "3"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wer war der allererste Schauspieler, der den Doktor in „Doctor Who“ spielte?",
+      "q_en": "Who was the first ever actor to play The Doctor on 'Doctor Who'?",
+      "opts_de": [
+        "William Hartnell",
+        "David Tennant",
+        "Peter Capaldi",
+        "Tom Baker"
+      ],
+      "opts_en": [
+        "William Hartnell",
+        "David Tennant",
+        "Peter Capaldi",
+        "Tom Baker"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "easy",
+      "q_de": "Wer spielte die Kellnerin im Spam-Sketch von „Monty Python's Flying Circus“?",
+      "q_en": "Who played the Waitress in the Spam sketch of 'Monty Python's Flying Circus'?",
+      "opts_de": [
+        "Terry Jones",
+        "Eric Idle",
+        "Graham Chapman",
+        "John Cleese"
+      ],
+      "opts_en": [
+        "Terry Jones",
+        "Eric Idle",
+        "Graham Chapman",
+        "John Cleese"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Welche Hunderasse ist „Scooby-Doo“?",
+      "q_en": "What breed of dog is Scooby-Doo?",
+      "opts_de": [
+        "Deutsche Dogge",
+        "Pitbull",
+        "Boxer",
+        "Dobermann"
+      ],
+      "opts_en": [
+        "Great Dane",
+        "Pit bull",
+        "Boxer",
+        "Doberman Pinscher"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Wie oft kann sich ein Time Lord in „Doctor Who“ normalerweise regenerieren?",
+      "q_en": "In 'Doctor Who', how many times can a Time Lord normally regenerate?",
+      "opts_de": [
+        "12",
+        "11",
+        "13",
+        "15"
+      ],
+      "opts_en": [
+        "12",
+        "11",
+        "13",
+        "15"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Wie heißt Jon Snows Schwert in „Game of Thrones“?",
+      "q_en": "In 'Game of Thrones', what is the name of Jon Snow's sword?",
+      "opts_de": [
+        "Langklaue",
+        "Eidwahrer",
+        "Witwenklage",
+        "Nadel"
+      ],
+      "opts_en": [
+        "Longclaw",
+        "Oathkeeper",
+        "Widow's Wail",
+        "Needle"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Wofür verkauft Bart in „Die Simpsons“ seine Seele?",
+      "q_en": "In 'The Simpsons', what does Bart sell his soul for?",
+      "opts_de": [
+        "5 Dollar",
+        "Eine Kopie von Bonestorm 2",
+        "100 Dollar",
+        "Einen Riesenkaugummi"
+      ],
+      "opts_en": [
+        "$5",
+        "A copy of Bonestorm 2",
+        "$100",
+        "A giant gobstopper"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "In welchem Jahr startete „The Big Bang Theory“ auf CBS?",
+      "q_en": "In what year did 'The Big Bang Theory' debut on CBS?",
+      "opts_de": [
+        "2007",
+        "2008",
+        "2006",
+        "2009"
+      ],
+      "opts_en": [
+        "2007",
+        "2008",
+        "2006",
+        "2009"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Welchen Song singt Will sich in „Stranger Things“ immer wieder vor?",
+      "q_en": "In 'Stranger Things', what song does Will sing to himself?",
+      "opts_de": [
+        "Should I Stay or Should I Go",
+        "Love Will Tear Us Apart",
+        "This Charming Man",
+        "Africa"
+      ],
+      "opts_en": [
+        "Should I Stay or Should I Go?",
+        "Love Will Tear Us Apart",
+        "This Charming Man",
+        "Africa"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Der fiktive Film „Rochelle, Rochelle“ kommt in welcher Sitcom vor?",
+      "q_en": "The fictional movie 'Rochelle, Rochelle' features in which sitcom?",
+      "opts_de": [
+        "Seinfeld",
+        "Frasier",
+        "Cheers",
+        "Friends"
+      ],
+      "opts_en": [
+        "Seinfeld",
+        "Frasier",
+        "Cheers",
+        "Friends"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Wie lautet der echte Name von „Comic Book Guy“ in „Die Simpsons“?",
+      "q_en": "In 'The Simpsons', what is the real name of Comic Book Guy?",
+      "opts_de": [
+        "Jeff Albertson",
+        "Edward Stone",
+        "Jack Richardson",
+        "Bob Howard"
+      ],
+      "opts_en": [
+        "Jeff Albertson",
+        "Edward Stone",
+        "Jack Richardson",
+        "Bob Howard"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Wie hieß der TV-Sender Nickelodeon ursprünglich?",
+      "q_en": "What was Nickelodeon's original name?",
+      "opts_de": [
+        "Pinwheel",
+        "MTVKids",
+        "KidsTV",
+        "Splat!"
+      ],
+      "opts_en": [
+        "Pinwheel",
+        "MTVKids",
+        "KidsTV",
+        "Splat!"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "medium",
+      "q_de": "Wie heißt Mr. Krabs in „SpongeBob Schwammkopf“ mit vollem Namen?",
+      "q_en": "In 'SpongeBob SquarePants', what is Mr. Krabs' full name?",
+      "opts_de": [
+        "Eugene H. Krabs",
+        "Eugene G. Krabs",
+        "Eugene J. Krabs",
+        "Eugene D. Krabs"
+      ],
+      "opts_en": [
+        "Eugene H. Krabs",
+        "Eugene G. Krabs",
+        "Eugene J. Krabs",
+        "Eugene D. Krabs"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Wie heißt das Jenseits der Klingonen in „Star Trek“?",
+      "q_en": "In 'Star Trek', what is the Klingon afterlife called?",
+      "opts_de": [
+        "Sto-vo-kor",
+        "Walhalla",
+        "Karon'gahk",
+        "Gre'thor"
+      ],
+      "opts_en": [
+        "Sto-vo-kor",
+        "Valhalla",
+        "Karon'gahk",
+        "Gre'thor"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Welches warme Getränk bevorzugen Klingonen in „Star Trek“?",
+      "q_en": "Which race enjoys a glass of warm baghol in 'Star Trek'?",
+      "opts_de": [
+        "Klingonen",
+        "Vulkanier",
+        "Menschen",
+        "Botha"
+      ],
+      "opts_en": [
+        "Klingon",
+        "Vulcan",
+        "Human",
+        "Botha"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Im Jahr 2008 wäre Gordon Ramsay beim Dreh in Island fast gestorben. Was geschah?",
+      "q_en": "In 2008, what nearly fatal accident did Gordon Ramsay have in Iceland while filming?",
+      "opts_de": [
+        "Er rutschte von einer Klippe und ertrank fast",
+        "Bruchlandung am Flughafen Keflavík",
+        "Ein Autounfall im Schneesturm",
+        "Eine Lebensmittelvergiftung im Hotel"
+      ],
+      "opts_en": [
+        "Slipping off a cliff and nearly drowning in icy water",
+        "Crash landing at Keflavík airport",
+        "A minor car accident in a snowstorm",
+        "Being served undercooked food at his hotel"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Wie hieß der Betrugsskandal bei der britischen „Wer wird Millionär?“-Show?",
+      "q_en": "What was the UK 'Who Wants to be a Millionaire?' cheating scandal known as?",
+      "opts_de": [
+        "Major Fraud",
+        "Ingram Cheater",
+        "Coughing Major",
+        "Millionaire Crime"
+      ],
+      "opts_en": [
+        "Major Fraud",
+        "Ingram Cheater",
+        "Coughing Major",
+        "Millionaire Crime"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Welcher Schauspieler aus „The Young Ones“ spielte auch Lord Flashheart in „Blackadder II“?",
+      "q_en": "Which actor from 'The Young Ones' also played Lord Flashheart in 'Blackadder II'?",
+      "opts_de": [
+        "Rik Mayall",
+        "Adrian Edmondson",
+        "Nigel Planer",
+        "Christopher Ryan"
+      ],
+      "opts_en": [
+        "Rik Mayall",
+        "Adrian Edmondson",
+        "Nigel Planer",
+        "Christopher Ryan"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Welcher PBS-Sender zeigte als erster „Monty Python's Flying Circus“ in den USA?",
+      "q_en": "Which PBS station first aired 'Monty Python's Flying Circus' in the United States?",
+      "opts_de": [
+        "KERA (Dallas-Fort Worth)",
+        "KLCS (Los Angeles)",
+        "WETA (Washington D.C.)",
+        "WNET (New York)"
+      ],
+      "opts_en": [
+        "KERA (Dallas-Fort Worth)",
+        "KLCS (Los Angeles)",
+        "WETA (Washington D.C.)",
+        "WNET (New York City)"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Wie lautet Franks Wrestler-Name in „It's Always Sunny in Philadelphia“?",
+      "q_en": "In 'It's Always Sunny in Philadelphia', what was Frank's wrestling persona?",
+      "opts_de": [
+        "The Trash Man",
+        "Bird of War",
+        "Day Man",
+        "The Maniac"
+      ],
+      "opts_en": [
+        "The Trash Man",
+        "Bird of War",
+        "Day Man",
+        "The Maniac"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Wie lautet die erste Regel des Erwerbs der Ferengi in „Star Trek“?",
+      "q_en": "In 'Star Trek', what is the Ferengi's First Rule of Acquisition?",
+      "opts_de": [
+        "Hast du ihr Geld, gib es nie zurück",
+        "Freundschaft nie über Profit stellen",
+        "Gier ist ewig",
+        "Familie nie im Weg des Geschäfts"
+      ],
+      "opts_en": [
+        "Once you have their money, you never give it back",
+        "Never place friendship above profit",
+        "Greed is eternal",
+        "Never allow family to stand in the way of opportunity"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Mark Rosewater, bekannt von Wizards of the Coast, war vorher Autor bei welcher Serie?",
+      "q_en": "Prior to Wizards of the Coast, Mark Rosewater was a writer for which show?",
+      "opts_de": [
+        "Roseanne",
+        "Eine schrecklich nette Familie",
+        "Akte X",
+        "New York Cops"
+      ],
+      "opts_en": [
+        "Roseanne",
+        "Boy Meets World",
+        "The X-Files",
+        "NYPD Blue"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "tv",
+      "diff": "hard",
+      "q_de": "Der Toyota Corolla AE86 war der Held welcher Anime-Serie?",
+      "q_en": "The 1985 Toyota Corolla AE86 was the hero car for what anime?",
+      "opts_de": [
+        "Initial D",
+        "Wangan Midnight",
+        "Ghost MF",
+        "Ex Driver"
+      ],
+      "opts_en": [
+        "Initial D",
+        "Wangan Midnight",
+        "Ghost MF",
+        "Ex Driver"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Wie nennt man eine Gruppe von Krähen im Englischen?",
+      "q_en": "What is the collective noun for a group of crows?",
+      "opts_de": [
+        "Murder",
+        "Pack",
+        "Gaggle",
+        "Herd"
+      ],
+      "opts_en": [
+        "Murder",
+        "Pack",
+        "Gaggle",
+        "Herd"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Wie nennt man den Bau eines Kaninchens?",
+      "q_en": "What is the name of a rabbit's abode?",
+      "opts_de": [
+        "Bau",
+        "Nest",
+        "Höhle",
+        "Kobel"
+      ],
+      "opts_en": [
+        "Burrow",
+        "Nest",
+        "Den",
+        "Dray"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Zu welcher Tierklasse gehören Molche?",
+      "q_en": "Which class of animals are newts members of?",
+      "opts_de": [
+        "Amphibien",
+        "Fische",
+        "Reptilien",
+        "Säugetiere"
+      ],
+      "opts_en": [
+        "Amphibian",
+        "Fish",
+        "Reptiles",
+        "Mammals"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Wie viele Beine haben Schmetterlinge?",
+      "q_en": "How many legs do butterflies have?",
+      "opts_de": [
+        "6",
+        "2",
+        "4",
+        "8"
+      ],
+      "opts_en": [
+        "6",
+        "2",
+        "4",
+        "8"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Welches ist das schnellste Landtier?",
+      "q_en": "What is the fastest land animal?",
+      "opts_de": [
+        "Gepard",
+        "Löwe",
+        "Thomson-Gazelle",
+        "Gabelbock"
+      ],
+      "opts_en": [
+        "Cheetah",
+        "Lion",
+        "Thomson's Gazelle",
+        "Pronghorn Antelope"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Welche Farbe hat ein weiblicher Amsel?",
+      "q_en": "What colour is the female blackbird?",
+      "opts_de": [
+        "Braun",
+        "Schwarz",
+        "Weiß",
+        "Gelb"
+      ],
+      "opts_en": [
+        "Brown",
+        "Black",
+        "White",
+        "Yellow"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Welches Tier hat die längste Schwangerschaftszeit aller Landtiere?",
+      "q_en": "Which land animal has the longest pregnancy?",
+      "opts_de": [
+        "Elefant",
+        "Nashorn",
+        "Giraffe",
+        "Wal"
+      ],
+      "opts_en": [
+        "Elephant",
+        "Rhinoceros",
+        "Giraffe",
+        "Whale"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Was ist das größte lebende Reptil?",
+      "q_en": "What is the largest living reptile?",
+      "opts_de": [
+        "Leistenkrokodil",
+        "Komodowaran",
+        "Lederschildkröte",
+        "Anakonda"
+      ],
+      "opts_en": [
+        "Saltwater crocodile",
+        "Komodo dragon",
+        "Leatherback turtle",
+        "Anaconda"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Aus welchem Land stammt die Hunderasse Dalmatiner?",
+      "q_en": "Which country is the Dalmatian dog breed named after?",
+      "opts_de": [
+        "Kroatien",
+        "Italien",
+        "England",
+        "Ungarn"
+      ],
+      "opts_en": [
+        "Croatia",
+        "Italy",
+        "England",
+        "Hungary"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "easy",
+      "q_de": "Was ist das schnellste Tier überhaupt (inkl. Luft)?",
+      "q_en": "What is the fastest animal overall?",
+      "opts_de": [
+        "Wanderfalke",
+        "Steinadler",
+        "Gepard",
+        "Bremse"
+      ],
+      "opts_en": [
+        "Peregrine Falcon",
+        "Golden Eagle",
+        "Cheetah",
+        "Horsefly"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Welche ist die längste Giftschlange der Welt?",
+      "q_en": "What is the world's longest venomous snake?",
+      "opts_de": [
+        "Königskobra",
+        "Grüne Anakonda",
+        "Inlandtaipan",
+        "Gelbbauch-Seeschlange"
+      ],
+      "opts_en": [
+        "King Cobra",
+        "Green Anaconda",
+        "Inland Taipan",
+        "Yellow Bellied Sea Snake"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Was bedeutet „Hippopotamus“ und aus welcher Sprache stammt es?",
+      "q_en": "What does 'hippopotamus' mean and in what language?",
+      "opts_de": [
+        "Flusspferd (Griechisch)",
+        "Flusspferd (Latein)",
+        "Dickes Schwein (Griechisch)",
+        "Dickes Schwein (Latein)"
+      ],
+      "opts_en": [
+        "River Horse (Greek)",
+        "River Horse (Latin)",
+        "Fat Pig (Greek)",
+        "Fat Pig (Latin)"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Welche Farbe hat die Haut eines Eisbären?",
+      "q_en": "What colour is a polar bear's skin?",
+      "opts_de": [
+        "Schwarz",
+        "Weiß",
+        "Rosa",
+        "Grau"
+      ],
+      "opts_en": [
+        "Black",
+        "White",
+        "Pink",
+        "Grey"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Welche dieser Schlangen ist NICHT giftig?",
+      "q_en": "Which of the following is NOT a venomous snake?",
+      "opts_de": [
+        "Netzpython",
+        "Malaiischer Krait",
+        "Gelbbauch-Seeschlange",
+        "Schwarze Mamba"
+      ],
+      "opts_en": [
+        "Reticulated python",
+        "Malayan Krait",
+        "Yellow bellied sea snake",
+        "Black mamba"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Wie heißt die Tierkrankheit BSE umgangssprachlich?",
+      "q_en": "What is the common term for bovine spongiform encephalopathy (BSE)?",
+      "opts_de": [
+        "Rinderwahnsinn",
+        "Weil-Krankheit",
+        "Milchfieber",
+        "Maul- und Klauenseuche"
+      ],
+      "opts_en": [
+        "Mad Cow disease",
+        "Weil's disease",
+        "Milk fever",
+        "Foot-and-mouth disease"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Aus der Wolle welches Tieres wird Kaschmir gewonnen?",
+      "q_en": "Cashmere wool comes from which kind of animal?",
+      "opts_de": [
+        "Ziege",
+        "Schaf",
+        "Kamel",
+        "Lama"
+      ],
+      "opts_en": [
+        "Goat",
+        "Sheep",
+        "Camel",
+        "Llama"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Welche Tierart ist ein Natterjack?",
+      "q_en": "What type of animal is a natterjack?",
+      "opts_de": [
+        "Kröte",
+        "Vogel",
+        "Fisch",
+        "Insekt"
+      ],
+      "opts_en": [
+        "Toad",
+        "Bird",
+        "Fish",
+        "Insect"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Zu welcher Familie gehört die Hauskatze?",
+      "q_en": "What is the name of the family that the domestic cat belongs to?",
+      "opts_de": [
+        "Felidae (Katzenartige)",
+        "Felinae",
+        "Felis",
+        "Canidae"
+      ],
+      "opts_en": [
+        "Felidae",
+        "Felinae",
+        "Felis",
+        "Canidae"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Welcher Hunderasse wurde nach einer Region in Kroatien benannt?",
+      "q_en": "Which dog breed is named after a region in Croatia?",
+      "opts_de": [
+        "Dalmatiner",
+        "Pekinese",
+        "Chihuahua",
+        "Pomeranian"
+      ],
+      "opts_en": [
+        "Dalmatian",
+        "Pekingese",
+        "Chihuahua",
+        "Pomeranian"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "medium",
+      "q_de": "Was ist der wissenschaftliche Name des Schimpansen?",
+      "q_en": "What is the scientific name of the Common Chimpanzee?",
+      "opts_de": [
+        "Pan troglodytes",
+        "Gorilla gorilla",
+        "Pan paniscus",
+        "Panthera leo"
+      ],
+      "opts_en": [
+        "Pan troglodytes",
+        "Gorilla gorilla",
+        "Pan paniscus",
+        "Panthera leo"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Zu welcher wissenschaftlichen Unterordnung gehört die Familie der Hyänen?",
+      "q_en": "What scientific suborder does the family Hyaenidae belong to?",
+      "opts_de": [
+        "Katzenartige (Feliformia)",
+        "Primaten (Haplorhini)",
+        "Hundeartige (Caniformia)",
+        "Storchenvögel (Ciconiiformes)"
+      ],
+      "opts_en": [
+        "Feliformia",
+        "Haplorhini",
+        "Caniformia",
+        "Ciconiiformes"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Welches dieser Tiere ist KEINE Eidechse?",
+      "q_en": "Which of these animals is NOT a lizard?",
+      "opts_de": [
+        "Brückenechse (Tuatara)",
+        "Komodowaran",
+        "Gila-Krustenechse",
+        "Grüner Leguan"
+      ],
+      "opts_en": [
+        "Tuatara",
+        "Komodo Dragon",
+        "Gila Monster",
+        "Green Iguana"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Zu welchem biologischen Stamm gehören alle Säugetiere, Vögel und Reptilien?",
+      "q_en": "To which biological phylum do all mammals, birds and reptiles belong?",
+      "opts_de": [
+        "Chordatiere (Chordata)",
+        "Stachelhäuter (Echinodermata)",
+        "Ringelwürmer (Annelida)",
+        "Placozoa"
+      ],
+      "opts_en": [
+        "Chordata",
+        "Echinodermata",
+        "Annelida",
+        "Placazoa"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Welcher Vogel wird mit Klauen an den Flügelspitzen geboren?",
+      "q_en": "What bird is born with claws on its wing digits?",
+      "opts_de": [
+        "Hoatzin",
+        "Kormoran",
+        "Helmkasuar",
+        "Sekretär"
+      ],
+      "opts_en": [
+        "Hoatzin",
+        "Cormorant",
+        "Cassowary",
+        "Secretary bird"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Welches dieser Meerestiere ist eine Kolonie von Polypen und KEINE echte Qualle?",
+      "q_en": "Which of these is a colony of polyps and not a jellyfish?",
+      "opts_de": [
+        "Portugiesische Galeere",
+        "Seewespe",
+        "Irukandji",
+        "Feuerqualle"
+      ],
+      "opts_en": [
+        "Portuguese Man-of-War",
+        "Sea Wasp",
+        "Irukandji",
+        "Sea Nettle"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Wie viele Chinchillas werden durchschnittlich in einem Wurf geboren?",
+      "q_en": "What is the average number of chinchillas born in a single litter?",
+      "opts_de": [
+        "2–3",
+        "10–15",
+        "5–8",
+        "15–18"
+      ],
+      "opts_en": [
+        "2-3",
+        "10-15",
+        "5-8",
+        "15-18"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Was ist der wissenschaftliche Name des Weißkopfseeadlers?",
+      "q_en": "What is the scientific name for the Bald Eagle?",
+      "opts_de": [
+        "Haliaeetus leucocephalus",
+        "Tyto alba",
+        "Cyanocitta cristata",
+        "Aquila chrysaetos"
+      ],
+      "opts_en": [
+        "Haliaeetus leucocephalus",
+        "Tyto alba",
+        "Cyanocitta cristata",
+        "Aquila chrysaetos"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Welche ausgestorbene Bärenart lebte in Syrien?",
+      "q_en": "Which now-extinct bear subspecies was native to Syria?",
+      "opts_de": [
+        "Syrischer Braunbär",
+        "Kalifornischer Grizzlybär",
+        "Atlasbär",
+        "Mexikanischer Grizzlybär"
+      ],
+      "opts_en": [
+        "Syrian Brown Bear",
+        "California Grizzly Bear",
+        "Atlas Bear",
+        "Mexican Grizzly Bear"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Wie heißt das kupferhaltige Protein, das dem antarktischen Oktopus blaues Blut verleiht?",
+      "q_en": "What copper-rich protein gives the Antarctic octopus blue blood?",
+      "opts_de": [
+        "Hämocyanin",
+        "Cytochrom",
+        "Hämoglobin",
+        "Methionin"
+      ],
+      "opts_en": [
+        "Hemocyanin",
+        "Cytochrome",
+        "Hemoglobin",
+        "Methionine"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "animals",
+      "diff": "hard",
+      "q_de": "Wie nennt man eine Gruppe von Ratten im Englischen?",
+      "q_en": "What is the collective noun for rats?",
+      "opts_de": [
+        "Mischief",
+        "Pack",
+        "Race",
+        "Drift"
+      ],
+      "opts_en": [
+        "Mischief",
+        "Pack",
+        "Race",
+        "Drift"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Wer war der König der Götter in der griechischen Mythologie?",
+      "q_en": "Who was the King of the Gods in Ancient Greek mythology?",
+      "opts_de": [
+        "Zeus",
+        "Apollon",
+        "Hermes",
+        "Poseidon"
+      ],
+      "opts_en": [
+        "Zeus",
+        "Apollo",
+        "Hermes",
+        "Poseidon"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Welcher griechische Gott war der Gott des Weins?",
+      "q_en": "In Greek mythology, who is the god of wine?",
+      "opts_de": [
+        "Dionysos",
+        "Hephaistos",
+        "Demeter",
+        "Apollon"
+      ],
+      "opts_en": [
+        "Dionysus",
+        "Hephaestus",
+        "Demeter",
+        "Apollo"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Wie viele Köpfe hat Kerberos?",
+      "q_en": "How many heads does Cerberus have?",
+      "opts_de": [
+        "3",
+        "2",
+        "1",
+        "5"
+      ],
+      "opts_en": [
+        "3",
+        "2",
+        "1",
+        "5"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Wer führte die Argonauten auf der Suche nach dem Goldenen Vlies an?",
+      "q_en": "Who led the Argonauts in search of the Golden Fleece?",
+      "opts_de": [
+        "Jason",
+        "Kastor",
+        "Daidalos",
+        "Odysseus"
+      ],
+      "opts_en": [
+        "Jason",
+        "Castor",
+        "Daedalus",
+        "Odysseus"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Welches Fabelwesen ist halb Mensch und halb Pferd?",
+      "q_en": "Which mythological creature is half-man and half-horse?",
+      "opts_de": [
+        "Zentaur",
+        "Minotaurus",
+        "Pegasus",
+        "Gorgone"
+      ],
+      "opts_en": [
+        "Centaur",
+        "Minotaur",
+        "Pegasus",
+        "Gorgon"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Wer war in den meisten Überlieferungen die Ehefrau von Zeus?",
+      "q_en": "In most traditions, who was the wife of Zeus?",
+      "opts_de": [
+        "Hera",
+        "Aphrodite",
+        "Athene",
+        "Hestia"
+      ],
+      "opts_en": [
+        "Hera",
+        "Aphrodite",
+        "Athena",
+        "Hestia"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Der Markenname Nike leitet sich von der griechischen Göttin wovon ab?",
+      "q_en": "The Nike brand takes its name from the Greek goddess of what?",
+      "opts_de": [
+        "Sieg",
+        "Mut",
+        "Stärke",
+        "Ehre"
+      ],
+      "opts_en": [
+        "Victory",
+        "Courage",
+        "Strength",
+        "Honor"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Das Ankh ist das ägyptische Symbol für was?",
+      "q_en": "An Ankh is the Egyptian hieroglyph for what?",
+      "opts_de": [
+        "Leben",
+        "Liebe",
+        "Hass",
+        "Tod"
+      ],
+      "opts_en": [
+        "Life",
+        "Love",
+        "Hatred",
+        "Death"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Poseidon war der griechische Gott wovon?",
+      "q_en": "Poseidon was the Greek god of what?",
+      "opts_de": [
+        "Des Meeres",
+        "Des Krieges",
+        "Der Sonne",
+        "Des Feuers"
+      ],
+      "opts_en": [
+        "The Sea",
+        "War",
+        "The Sun",
+        "Fire"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "easy",
+      "q_de": "Welcher griechische Held stieg in die Unterwelt, um seine Frau Eurydike zurückzuholen?",
+      "q_en": "Which Greek figure traveled to the underworld to return his wife Eurydice?",
+      "opts_de": [
+        "Orpheus",
+        "Herakles",
+        "Perseus",
+        "Daidalos"
+      ],
+      "opts_en": [
+        "Orpheus",
+        "Hercules",
+        "Perseus",
+        "Daedalus"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Wie heißt der Weltenbaum in der nordischen Mythologie?",
+      "q_en": "In Norse mythology, what is the name of the World Tree?",
+      "opts_de": [
+        "Yggdrasil",
+        "Ymir",
+        "Bifröst",
+        "Midgard"
+      ],
+      "opts_en": [
+        "Yggdrasil",
+        "Ymir",
+        "Bifrost",
+        "Midgard"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Was bedeuten die Namen von Odins Raben „Huginn“ und „Muninn“?",
+      "q_en": "What do the names of Odin's ravens 'Huginn' and 'Muninn' mean?",
+      "opts_de": [
+        "Gedanke und Erinnerung",
+        "Macht und Frieden",
+        "Krieg und Wissen",
+        "Schlaf und Wachen"
+      ],
+      "opts_en": [
+        "Thought & Memory",
+        "Power & Peace",
+        "War & Learning",
+        "Sleeping & Waking"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Wer war der römische Gott des Feuers?",
+      "q_en": "Who was the Roman god of fire?",
+      "opts_de": [
+        "Vulcanus",
+        "Apollon",
+        "Jupiter",
+        "Merkur"
+      ],
+      "opts_en": [
+        "Vulcan",
+        "Apollo",
+        "Jupiter",
+        "Mercury"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Welcher dieser römischen Götter hat KEIN Gegenstück in der griechischen Mythologie?",
+      "q_en": "Which of these Roman gods doesn't have a counterpart in Greek mythology?",
+      "opts_de": [
+        "Janus",
+        "Vulcanus",
+        "Juno",
+        "Mars"
+      ],
+      "opts_en": [
+        "Janus",
+        "Vulcan",
+        "Juno",
+        "Mars"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Hel, die Herrscherin der Unterwelt, ist die Tochter welcher nordischen Figur?",
+      "q_en": "Hel was the daughter of which Norse mythological figure?",
+      "opts_de": [
+        "Loki",
+        "Thor",
+        "Odin",
+        "Balder"
+      ],
+      "opts_en": [
+        "Loki",
+        "Thor",
+        "Odin",
+        "Balder"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Wer tötete Achilles in der griechischen Mythologie?",
+      "q_en": "In Greek mythology, who killed Achilles?",
+      "opts_de": [
+        "Paris",
+        "Hektor",
+        "Helena",
+        "Perikles"
+      ],
+      "opts_en": [
+        "Paris",
+        "Hector",
+        "Helen",
+        "Pericles"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Womit wurde der nordische Gott Balder laut Sage von Loki getötet?",
+      "q_en": "In Norse mythology, Balder was killed by Loki with a spear made from what plant?",
+      "opts_de": [
+        "Mistel",
+        "Eisenhut",
+        "Kreuzdorn",
+        "Schierling"
+      ],
+      "opts_en": [
+        "Mistletoe",
+        "Wolf's Bane",
+        "Buckthorn",
+        "Hemlock"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "In der afrikanischen Mythologie ist Anansi ein Trickster in Gestalt welches Tieres?",
+      "q_en": "In African mythology, Anansi the trickster takes the shape of which animal?",
+      "opts_de": [
+        "Spinne",
+        "Wildhund",
+        "Affe",
+        "Krokodil"
+      ],
+      "opts_en": [
+        "Spider",
+        "Wild dog",
+        "Monkey",
+        "Crocodile"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Wer ist der Vater von Ikarus, der zu nah an die Sonne flog?",
+      "q_en": "Who is the father of Icarus, who flew too close to the sun?",
+      "opts_de": [
+        "Daidalos",
+        "Minos",
+        "Perseus",
+        "Zeus"
+      ],
+      "opts_en": [
+        "Daedalus",
+        "Minos",
+        "Perseus",
+        "Zeus"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "medium",
+      "q_de": "Ein Minotaurus ist halb Mensch und halb welches Tier?",
+      "q_en": "A minotaur is half human and half what?",
+      "opts_de": [
+        "Stier",
+        "Kuh",
+        "Pferd",
+        "Adler"
+      ],
+      "opts_en": [
+        "Bull",
+        "Cow",
+        "Horse",
+        "Eagle"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Talos, der mythische Bronzeriese, war Beschützer welcher Insel?",
+      "q_en": "Talos, the mythical giant bronze man, protected which island?",
+      "opts_de": [
+        "Kreta",
+        "Sardinien",
+        "Sizilien",
+        "Zypern"
+      ],
+      "opts_en": [
+        "Crete",
+        "Sardinia",
+        "Sicily",
+        "Cyprus"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "In der griechischen Mythologie war Ariadne die Tochter welches Königs?",
+      "q_en": "In Greek mythology, Ariadne was the daughter of which king?",
+      "opts_de": [
+        "König Minos",
+        "König Priamos",
+        "König Ödipus",
+        "König Agamemnon"
+      ],
+      "opts_en": [
+        "King Minos",
+        "King Priam",
+        "King Oedipus",
+        "King Agamemnon"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Wie heißt die Schlange, die an den Wurzeln des Weltenbaums Yggdrasil nagt?",
+      "q_en": "What is the name of the serpent that gnaws at the roots of Yggdrasil?",
+      "opts_de": [
+        "Nidhöggr",
+        "Jörmungandr",
+        "Fenrir",
+        "Ymir"
+      ],
+      "opts_en": [
+        "Nidhogg",
+        "Jormungandr",
+        "Fenrir",
+        "Ymir"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Welche Strafe erhielt Sisyphos für seine Hinterlist?",
+      "q_en": "What was the punishment for Sisyphus's craftiness?",
+      "opts_de": [
+        "Einen Felsen einen Berg hinaufrollen – auf ewig",
+        "An einen Felsen gekettet, von Vögeln angepickt",
+        "In einem See stehen, dessen Wasser er nicht trinken konnte",
+        "Einen Baum fällen, der immer nachwuchs"
+      ],
+      "opts_en": [
+        "Rolling a boulder up a hill for eternity",
+        "Tied to a boulder, pecked by birds for eternity",
+        "Standing in water he could not drink",
+        "Felling a tree that always regrew"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Wen besiegte Hippomenes in einem Wettrennen?",
+      "q_en": "Who did Hippomenes defeat in a footrace?",
+      "opts_de": [
+        "Atalanta",
+        "Peleus",
+        "Theseus",
+        "Jason"
+      ],
+      "opts_en": [
+        "Atalanta",
+        "Peleus",
+        "Theseus",
+        "Jason"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Wie wird man laut der Algonkin-Folklore zum Wendigo?",
+      "q_en": "According to Algonquian folklore, how does one become a Wendigo?",
+      "opts_de": [
+        "Durch Kannibalismus",
+        "Durch Tierverstümmelung",
+        "Durch ein Mordritual",
+        "Durch das Trinken von Tierblut"
+      ],
+      "opts_en": [
+        "Participating in cannibalism",
+        "Excessive mutilation of animal corpses",
+        "Performing a ritual involving murder",
+        "Drinking blood of slain animals"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Wer ist der ägyptische Gott der Fruchtbarkeit und des Lattichanbaus?",
+      "q_en": "Who is the Egyptian god of reproduction and lettuce?",
+      "opts_de": [
+        "Min",
+        "Menu",
+        "Mut",
+        "Meret"
+      ],
+      "opts_en": [
+        "Min",
+        "Menu",
+        "Mut",
+        "Meret"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Welcher griechische Halbgott war Beschützer der Käseherstellung und Imkerei?",
+      "q_en": "Which minor Greek god is protector of arts such as cheese making and beekeeping?",
+      "opts_de": [
+        "Aristaios",
+        "Autonoë",
+        "Karme",
+        "Kephisso"
+      ],
+      "opts_en": [
+        "Aristaeus",
+        "Autonoe",
+        "Carme",
+        "Cephisso"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Die Maori glauben, dass welches Inselland von Kupe unter einer langen weißen Wolke entdeckt wurde?",
+      "q_en": "The Maori hold that which island nation was discovered by Kupe under a long white cloud?",
+      "opts_de": [
+        "Neuseeland",
+        "Vanuatu",
+        "Fidschi",
+        "Hawaii"
+      ],
+      "opts_en": [
+        "New Zealand",
+        "Vanuatu",
+        "Fiji",
+        "Hawaii"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "mythology",
+      "diff": "hard",
+      "q_de": "Was ist laut japanischer Folklore das Lieblingsessen eines Kappa?",
+      "q_en": "According to Japanese folklore, what is the favourite food of the Kappa?",
+      "opts_de": [
+        "Gurken",
+        "Kürbis",
+        "Aubergine",
+        "Soba-Nudeln"
+      ],
+      "opts_en": [
+        "Cucumbers",
+        "Kabocha",
+        "Nasu",
+        "Soba"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Wofür steht LAN in der Netzwerktechnik?",
+      "q_en": "In computing, what does LAN stand for?",
+      "opts_de": [
+        "Local Area Network",
+        "Long Antenna Node",
+        "Light Access Node",
+        "Land Address Navigation"
+      ],
+      "opts_en": [
+        "Local Area Network",
+        "Long Antenna Node",
+        "Light Access Node",
+        "Land Address Navigation"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Wie viele Bits ergeben üblicherweise ein Byte?",
+      "q_en": "What amount of bits commonly equals one byte?",
+      "opts_de": [
+        "8",
+        "1",
+        "2",
+        "64"
+      ],
+      "opts_en": [
+        "8",
+        "1",
+        "2",
+        "64"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Mit welchem SQL-Schlüsselwort ruft man Daten aus einer Datenbank ab?",
+      "q_en": "Which SQL keyword is used to fetch data from a database?",
+      "opts_de": [
+        "SELECT",
+        "INDEX",
+        "VALUES",
+        "EXEC"
+      ],
+      "opts_en": [
+        "SELECT",
+        "INDEX",
+        "VALUES",
+        "EXEC"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "In welcher Programmiersprache tippt man nur Nullen und Einsen?",
+      "q_en": "In which language would you only type 0s and 1s?",
+      "opts_de": [
+        "Binärcode",
+        "JavaScript",
+        "C++",
+        "Python"
+      ],
+      "opts_en": [
+        "Binary",
+        "JavaScript",
+        "C++",
+        "Python"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Swift wurde entwickelt, um welche Programmiersprache zu ersetzen?",
+      "q_en": "The programming language Swift was created to replace what?",
+      "opts_de": [
+        "Objective-C",
+        "C#",
+        "Ruby",
+        "C++"
+      ],
+      "opts_en": [
+        "Objective-C",
+        "C#",
+        "Ruby",
+        "C++"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Welches Unternehmen wurde am 1. April 1976 von Steve Jobs, Steve Wozniak und Ronald Wayne gegründet?",
+      "q_en": "Which company was founded on April 1st, 1976 by Jobs, Wozniak and Wayne?",
+      "opts_de": [
+        "Apple",
+        "Microsoft",
+        "Atari",
+        "Commodore"
+      ],
+      "opts_en": [
+        "Apple",
+        "Microsoft",
+        "Atari",
+        "Commodore"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Wofür steht die Abkürzung LTS in der Softwarebranche?",
+      "q_en": "What does LTS stand for in the software market?",
+      "opts_de": [
+        "Long Term Support",
+        "Long Taco Service",
+        "Ludicrous Transfer Speed",
+        "Last Trusted System"
+      ],
+      "opts_en": [
+        "Long Term Support",
+        "Long Taco Service",
+        "Ludicrous Transfer Speed",
+        "Last Trusted System"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "In welcher Programmiersprache wurde GitHub geschrieben?",
+      "q_en": "What programming language was GitHub written in?",
+      "opts_de": [
+        "Ruby",
+        "JavaScript",
+        "Python",
+        "Lua"
+      ],
+      "opts_en": [
+        "Ruby",
+        "JavaScript",
+        "Python",
+        "Lua"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Wie lautet die Standard-Tastenkombination für Kopieren unter Windows?",
+      "q_en": "What is the keyboard shortcut for Copy on Windows?",
+      "opts_de": [
+        "Strg + C",
+        "Strg + X",
+        "Alt + C",
+        "Alt + X"
+      ],
+      "opts_en": [
+        "Ctrl + C",
+        "Ctrl + X",
+        "Alt + C",
+        "Alt + X"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "easy",
+      "q_de": "Die Programmiersprache C wurde von welchem Informatiker erfunden?",
+      "q_en": "The C programming language was created by which computer scientist?",
+      "opts_de": [
+        "Dennis Ritchie",
+        "Tim Berners-Lee",
+        "al-Chwarizmi",
+        "Willis Ware"
+      ],
+      "opts_en": [
+        "Dennis Ritchie",
+        "Tim Berners Lee",
+        "al-Khwarizmi",
+        "Willis Ware"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Welche Standard-Abtastfrequenz wird für Audio-CDs verwendet?",
+      "q_en": "What frequency is the standard for audio in the CD Digital Audio format?",
+      "opts_de": [
+        "44,1 kHz",
+        "32,0 kHz",
+        "1,5 MHz",
+        "20,5 kHz"
+      ],
+      "opts_en": [
+        "44.1 kHz",
+        "32.0 kHz",
+        "1.5 MHz",
+        "20.5 kHz"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Welche dieser Programmiersprachen ist eine Low-Level-Sprache?",
+      "q_en": "Which of these programming languages is a low-level language?",
+      "opts_de": [
+        "Assembly",
+        "Python",
+        "C#",
+        "Pascal"
+      ],
+      "opts_en": [
+        "Assembly",
+        "Python",
+        "C#",
+        "Pascal"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Wofür steht DOS in Microsofts erstem Betriebssystem MS-DOS?",
+      "q_en": "What does DOS stand for in Microsoft's 'MS-DOS'?",
+      "opts_de": [
+        "Disk Operating System",
+        "Dumb Operating System",
+        "Driver Oriented System",
+        "Diskless Operating System"
+      ],
+      "opts_en": [
+        "Disk Operating System",
+        "Dumb Operating System",
+        "Driver Oriented System",
+        "Diskless Operating System"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Welche Programmiersprache wurde 1995 von Sun Microsystems entwickelt?",
+      "q_en": "Which programming language was developed by Sun Microsystems in 1995?",
+      "opts_de": [
+        "Java",
+        "Python",
+        "Solaris",
+        "C++"
+      ],
+      "opts_en": [
+        "Java",
+        "Python",
+        "Solaris OS",
+        "C++"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Welches Internetunternehmen begann als Online-Buchhandlung namens Cadabra?",
+      "q_en": "Which internet company began life as an online bookstore called 'Cadabra'?",
+      "opts_de": [
+        "Amazon",
+        "eBay",
+        "Overstock",
+        "Shopify"
+      ],
+      "opts_en": [
+        "Amazon",
+        "eBay",
+        "Overstock",
+        "Shopify"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Wofür steht die Abkürzung GPU?",
+      "q_en": "What does GPU stand for?",
+      "opts_de": [
+        "Graphics Processing Unit",
+        "Gaming Processor Unit",
+        "Graphite Producing Unit",
+        "Graphical Proprietary Unit"
+      ],
+      "opts_en": [
+        "Graphics Processing Unit",
+        "Gaming Processor Unit",
+        "Graphite Producing Unit",
+        "Graphical Proprietary Unit"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Wie viele Bytes hat ein Kibibyte?",
+      "q_en": "How many bytes are in a single Kibibyte?",
+      "opts_de": [
+        "1024",
+        "2400",
+        "1000",
+        "1240"
+      ],
+      "opts_en": [
+        "1024",
+        "2400",
+        "1000",
+        "1240"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Welches CSS-Schlüsselwort kann NICHT für die position-Eigenschaft verwendet werden?",
+      "q_en": "In CSS, which value CANNOT be used with the 'position' property?",
+      "opts_de": [
+        "center",
+        "static",
+        "absolute",
+        "relative"
+      ],
+      "opts_en": [
+        "center",
+        "static",
+        "absolute",
+        "relative"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Das Moore'sche Gesetz besagte ursprünglich, dass sich die Transistoren auf einem Chip alle ... verdoppeln.",
+      "q_en": "Moore's Law originally stated transistors on a chip would double every...",
+      "opts_de": [
+        "Jahr",
+        "Vier Jahre",
+        "Zwei Jahre",
+        "Acht Jahre"
+      ],
+      "opts_en": [
+        "Year",
+        "Four years",
+        "Two years",
+        "Eight years"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "medium",
+      "q_de": "Unix-Zeit zählt Sekunden seit welchem Zeitpunkt?",
+      "q_en": "Unix Time counts seconds since when?",
+      "opts_de": [
+        "Mitternacht, 1. Januar 1970",
+        "Mitternacht, 4. Juli 1976",
+        "Mitternacht, 1. Januar 1980",
+        "Mitternacht, 1. Januar 1960"
+      ],
+      "opts_en": [
+        "Midnight, January 1, 1970",
+        "Midnight, July 4, 1976",
+        "Midnight, January 1, 1980",
+        "Midnight, January 1, 1960"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Für welche Datenstruktur gilt das FILO-Prinzip (First In, Last Out)?",
+      "q_en": "Which data structure does FILO (First In, Last Out) apply to?",
+      "opts_de": [
+        "Stack",
+        "Queue",
+        "Heap",
+        "Tree"
+      ],
+      "opts_en": [
+        "Stack",
+        "Queue",
+        "Heap",
+        "Tree"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Auf welchem Port läuft HTTP standardmäßig?",
+      "q_en": "What port does HTTP run on?",
+      "opts_de": [
+        "80",
+        "53",
+        "443",
+        "23"
+      ],
+      "opts_en": [
+        "80",
+        "53",
+        "443",
+        "23"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Welcher dieser Sortieralgorithmen existiert NICHT?",
+      "q_en": "Which of the following is NOT a real sorting algorithm?",
+      "opts_de": [
+        "Float Sort",
+        "Bubble Sort",
+        "Merge Sort",
+        "Quick Sort"
+      ],
+      "opts_en": [
+        "Float Sort",
+        "Bubble Sort",
+        "Merge Sort",
+        "Quick Sort"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Wie viele Hertz unterstützt der Videostandard PAL?",
+      "q_en": "How many Hz does the video standard PAL support?",
+      "opts_de": [
+        "50",
+        "59",
+        "60",
+        "25"
+      ],
+      "opts_en": [
+        "50",
+        "59",
+        "60",
+        "25"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Welcher RAID-Level verwendet Datenspiegelung?",
+      "q_en": "Which RAID array type is associated with data mirroring?",
+      "opts_de": [
+        "RAID 1",
+        "RAID 0",
+        "RAID 10",
+        "RAID 5"
+      ],
+      "opts_en": [
+        "RAID 1",
+        "RAID 0",
+        "RAID 10",
+        "RAID 5"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Welches Unternehmen verwendete als erstes den Begriff Golden Master?",
+      "q_en": "What was the first company to use the term 'Golden Master'?",
+      "opts_de": [
+        "Apple",
+        "IBM",
+        "Microsoft",
+        "Google"
+      ],
+      "opts_en": [
+        "Apple",
+        "IBM",
+        "Microsoft",
+        "Google"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Wie hieß die erste Edition von Apples Mac OS X (Version 10.0) als Codename?",
+      "q_en": "What animal code name was given to Mac OS X version 10.0?",
+      "opts_de": [
+        "Cheetah",
+        "Puma",
+        "Tiger",
+        "Leopard"
+      ],
+      "opts_en": [
+        "Cheetah",
+        "Puma",
+        "Tiger",
+        "Leopard"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Was war die ursprüngliche Zeichenbegrenzung eines Tweets auf Twitter?",
+      "q_en": "What was the original character limit for a Tweet on Twitter?",
+      "opts_de": [
+        "140",
+        "120",
+        "160",
+        "100"
+      ],
+      "opts_en": [
+        "140",
+        "120",
+        "160",
+        "100"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Welcher Online-Dienst war der Vorläufer von America Online (AOL)?",
+      "q_en": "America Online (AOL) started out as which online service?",
+      "opts_de": [
+        "Quantum Link",
+        "CompuServe",
+        "Prodigy",
+        "GEnie"
+      ],
+      "opts_en": [
+        "Quantum Link",
+        "CompuServe",
+        "Prodigy",
+        "GEnie"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "computers",
+      "diff": "hard",
+      "q_de": "Welche Blockgröße hatte Bitcoin im Jahr 2010?",
+      "q_en": "What was Bitcoin's block size limit in 2010?",
+      "opts_de": [
+        "1 MB",
+        "1 GB",
+        "1 KB",
+        "1 TB"
+      ],
+      "opts_en": [
+        "1 MB",
+        "1 GB",
+        "1 KB",
+        "1 TB"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Wer malte die Mona Lisa?",
+      "q_en": "Who painted the Mona Lisa?",
+      "opts_de": [
+        "Leonardo da Vinci",
+        "Pablo Picasso",
+        "Claude Monet",
+        "Vincent van Gogh"
+      ],
+      "opts_en": [
+        "Leonardo da Vinci",
+        "Pablo Picasso",
+        "Claude Monet",
+        "Vincent van Gogh"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Wer schuf die Skulptur des David?",
+      "q_en": "Who sculpted the statue of David?",
+      "opts_de": [
+        "Michelangelo",
+        "Gian Lorenzo Bernini",
+        "Auguste Rodin",
+        "Donatello"
+      ],
+      "opts_en": [
+        "Michelangelo",
+        "Gian Lorenzo Bernini",
+        "Auguste Rodin",
+        "Donatello"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Welcher Künstler ist dafür bekannt, sich ein Ohr abgeschnitten zu haben?",
+      "q_en": "Which artist is famous for cutting off his ear?",
+      "opts_de": [
+        "Vincent van Gogh",
+        "Salvador Dalí",
+        "Rembrandt",
+        "Michelangelo"
+      ],
+      "opts_en": [
+        "Vincent van Gogh",
+        "Salvador Dalí",
+        "Rembrandt",
+        "Michelangelo"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Wie heißt die japanische Kunst des Papierfaltens?",
+      "q_en": "What is the Japanese art of paper folding called?",
+      "opts_de": [
+        "Origami",
+        "Sumi-e",
+        "Ukiyo-e",
+        "Ikebana"
+      ],
+      "opts_en": [
+        "Origami",
+        "Sumi-e",
+        "Ukiyo-e",
+        "Ikebana"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Wer malte das berühmte Fresko „Die Erschaffung Adams“?",
+      "q_en": "Who painted the biblical fresco 'The Creation of Adam'?",
+      "opts_de": [
+        "Michelangelo",
+        "Leonardo da Vinci",
+        "Caravaggio",
+        "Rembrandt"
+      ],
+      "opts_en": [
+        "Michelangelo",
+        "Leonardo da Vinci",
+        "Caravaggio",
+        "Rembrandt"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Wer malte „Die Sternennacht“?",
+      "q_en": "Who painted 'The Starry Night'?",
+      "opts_de": [
+        "Vincent van Gogh",
+        "Edvard Munch",
+        "Pablo Picasso",
+        "Claude Monet"
+      ],
+      "opts_en": [
+        "Vincent van Gogh",
+        "Edvard Munch",
+        "Pablo Picasso",
+        "Claude Monet"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Welcher Künstler malte „Die Beständigkeit der Erinnerung“ mit den schmelzenden Uhren?",
+      "q_en": "Who painted 'The Persistence of Memory' with the melting clocks?",
+      "opts_de": [
+        "Salvador Dalí",
+        "Jackson Pollock",
+        "Vincent van Gogh",
+        "Edgar Degas"
+      ],
+      "opts_en": [
+        "Salvador Dalí",
+        "Jackson Pollock",
+        "Vincent van Gogh",
+        "Edgar Degas"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Wer bemalte die Decke der Sixtinischen Kapelle?",
+      "q_en": "Who painted the ceiling of the Sistine Chapel?",
+      "opts_de": [
+        "Michelangelo",
+        "Leonardo da Vinci",
+        "Pablo Picasso",
+        "Raffael"
+      ],
+      "opts_en": [
+        "Michelangelo",
+        "Leonardo da Vinci",
+        "Pablo Picasso",
+        "Raphael"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Was ist das älteste bekannte literarische Werk der Welt?",
+      "q_en": "What is the world's oldest known piece of fiction?",
+      "opts_de": [
+        "Gilgamesch-Epos",
+        "Papyrus des Ani",
+        "Codex Hammurabi",
+        "Stein von Rosette"
+      ],
+      "opts_en": [
+        "Epic of Gilgamesh",
+        "Papyrus of Ani",
+        "Code of Hammurabi",
+        "Rosetta Stone"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "easy",
+      "q_de": "Welche Farbe entsteht, wenn man Schwarz und Weiß mischt?",
+      "q_en": "What colour is produced by mixing black and white?",
+      "opts_de": [
+        "Grau",
+        "Schwarz",
+        "Braun",
+        "Weiß"
+      ],
+      "opts_en": [
+        "Grey",
+        "Black",
+        "Brown",
+        "White"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Wer malte das Bild „Der Schrei“?",
+      "q_en": "Who painted 'The Scream'?",
+      "opts_de": [
+        "Edvard Munch",
+        "Vincent van Gogh",
+        "Pablo Picasso",
+        "Henri Matisse"
+      ],
+      "opts_en": [
+        "Edvard Munch",
+        "Vincent van Gogh",
+        "Pablo Picasso",
+        "Henri Matisse"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Welcher Künstler malte das Bild „Nighthawks“ (Nachtschwärmer)?",
+      "q_en": "Who painted 'Nighthawks'?",
+      "opts_de": [
+        "Edward Hopper",
+        "Johannes Vermeer",
+        "Vincent van Gogh",
+        "Salvador Dalí"
+      ],
+      "opts_en": [
+        "Edward Hopper",
+        "Johannes Vermeer",
+        "Vincent van Gogh",
+        "Salvador Dalí"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Welcher Künstler ist bekannt für seine Technik mit kleinen Farbpunkten (Pointillismus)?",
+      "q_en": "Which artist's style used small coloured dots to create a picture?",
+      "opts_de": [
+        "Georges Seurat",
+        "Paul Cézanne",
+        "Vincent van Gogh",
+        "Henri Rousseau"
+      ],
+      "opts_en": [
+        "Georges Seurat",
+        "Paul Cézanne",
+        "Vincent van Gogh",
+        "Henri Rousseau"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Wer malte „Der Verrat der Bilder“ – eine Pfeife mit dem Text „Dies ist keine Pfeife“?",
+      "q_en": "Who painted 'The Treachery of Images' – a pipe labelled 'this is not a pipe'?",
+      "opts_de": [
+        "René Magritte",
+        "Henri Matisse",
+        "Amedeo Modigliani",
+        "Edvard Munch"
+      ],
+      "opts_en": [
+        "Magritte",
+        "Matisse",
+        "Modigliani",
+        "Munch"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Wessen Atelier war als „The Factory“ bekannt?",
+      "q_en": "Which artist's studio was known as 'The Factory'?",
+      "opts_de": [
+        "Andy Warhol",
+        "Roy Lichtenstein",
+        "David Hockney",
+        "Peter Blake"
+      ],
+      "opts_en": [
+        "Andy Warhol",
+        "Roy Lichtenstein",
+        "David Hockney",
+        "Peter Blake"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Wer gestaltete das Logo der Lutscher-Marke Chupa Chups?",
+      "q_en": "Who designed the Chupa Chups logo?",
+      "opts_de": [
+        "Salvador Dalí",
+        "Pablo Picasso",
+        "Andy Warhol",
+        "Vincent van Gogh"
+      ],
+      "opts_en": [
+        "Salvador Dalí",
+        "Pablo Picasso",
+        "Andy Warhol",
+        "Vincent van Gogh"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Wer malte das epische Wandgemälde „Guernica“?",
+      "q_en": "Who painted the epic mural 'Guernica'?",
+      "opts_de": [
+        "Pablo Picasso",
+        "Francisco Goya",
+        "Leonardo da Vinci",
+        "Henri Matisse"
+      ],
+      "opts_en": [
+        "Pablo Picasso",
+        "Francisco Goya",
+        "Leonardo da Vinci",
+        "Henri Matisse"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Welcher griechische Bildhauer entwarf die Athena Parthenos im Parthenon?",
+      "q_en": "Which Greek sculptor designed the Athena Parthenos inside the Parthenon?",
+      "opts_de": [
+        "Phidias",
+        "Skopas",
+        "Hesiod",
+        "Praxiteles"
+      ],
+      "opts_en": [
+        "Phidias",
+        "Scopas",
+        "Hesiod",
+        "Praxiteles"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "medium",
+      "q_de": "Welche Farben trug Jesus in Leonardo da Vincis „Das letzte Abendmahl“?",
+      "q_en": "In Da Vinci's 'Last Supper', what colours were Jesus's robes?",
+      "opts_de": [
+        "Rot und Blau",
+        "Rot und Weiß",
+        "Rot und Gelb",
+        "Rot und Schwarz"
+      ],
+      "opts_en": [
+        "Red and Blue",
+        "Red and White",
+        "Red and Yellow",
+        "Red and Black"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "In welchem Jahr wurde die Mona Lisa fertiggestellt?",
+      "q_en": "What year was the Mona Lisa finished?",
+      "opts_de": [
+        "1504",
+        "1487",
+        "1523",
+        "1511"
+      ],
+      "opts_en": [
+        "1504",
+        "1487",
+        "1523",
+        "1511"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Picassos „Guernica“ entstand als Reaktion auf welchen Krieg?",
+      "q_en": "Picasso's 'Guernica' was a response to which war?",
+      "opts_de": [
+        "Spanischer Bürgerkrieg",
+        "Erster Weltkrieg",
+        "Krimkrieg",
+        "Spanisch-Amerikanischer Krieg"
+      ],
+      "opts_en": [
+        "Spanish Civil War",
+        "World War I",
+        "The Crimean War",
+        "Spanish-American War"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Welcher französische Bildhauer entwarf die Freiheitsstatue?",
+      "q_en": "What French sculptor designed the Statue of Liberty?",
+      "opts_de": [
+        "Frédéric Auguste Bartholdi",
+        "Jean-Léon Gérôme",
+        "Auguste Rodin",
+        "Henri Matisse"
+      ],
+      "opts_en": [
+        "Frédéric Auguste Bartholdi",
+        "Jean-Léon Gérôme",
+        "Auguste Rodin",
+        "Henri Matisse"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Welche Nationalität hatte Vincent van Gogh?",
+      "q_en": "What nationality was Vincent van Gogh?",
+      "opts_de": [
+        "Niederländisch",
+        "Französisch",
+        "Russisch",
+        "Polnisch"
+      ],
+      "opts_en": [
+        "Dutch",
+        "French",
+        "Russian",
+        "Polish"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Die „Sternennacht“ von Vincent van Gogh gehört zu welcher Kunstbewegung?",
+      "q_en": "Van Gogh's 'The Starry Night' was part of which art movement?",
+      "opts_de": [
+        "Postimpressionismus",
+        "Romantik",
+        "Neoklassizismus",
+        "Impressionismus"
+      ],
+      "opts_en": [
+        "Post-Impressionism",
+        "Romanticism",
+        "Neoclassical",
+        "Impressionism"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Welche Kunstbewegung hat Pablo Picasso mitbegründet?",
+      "q_en": "Which art movement was Pablo Picasso known for co-founding?",
+      "opts_de": [
+        "Kubismus",
+        "Futurismus",
+        "Expressionismus",
+        "Impressionismus"
+      ],
+      "opts_en": [
+        "Cubism",
+        "Futurism",
+        "Expressionism",
+        "Impressionism"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "In welchem Jahr schuf Albrecht Dürer das Gemälde „Der junge Hase“?",
+      "q_en": "In what year did Albrecht Dürer paint 'The Young Hare'?",
+      "opts_de": [
+        "1502",
+        "1702",
+        "1402",
+        "1602"
+      ],
+      "opts_en": [
+        "1502",
+        "1702",
+        "1402",
+        "1602"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Geburts- und Sterbeort von Albrecht Dürer war welche Stadt?",
+      "q_en": "Albrecht Dürer's birthplace and place of death were in...",
+      "opts_de": [
+        "Nürnberg",
+        "Augsburg",
+        "Bamberg",
+        "Berlin"
+      ],
+      "opts_en": [
+        "Nuremberg",
+        "Augsburg",
+        "Bamberg",
+        "Berlin"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Wie viele Farb- und Pastellversionen von „Der Schrei“ hat Edvard Munch vermutlich angefertigt?",
+      "q_en": "How many paint and pastel versions of 'The Scream' did Edvard Munch produce?",
+      "opts_de": [
+        "4",
+        "1",
+        "3",
+        "2"
+      ],
+      "opts_en": [
+        "4",
+        "1",
+        "3",
+        "2"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "art",
+      "diff": "hard",
+      "q_de": "Was war das erste erfolgreiche kommerzielle Fotografie-Verfahren?",
+      "q_en": "What was the first commercially viable photographic technique?",
+      "opts_de": [
+        "Die Daguerreotypie",
+        "Das Kollodiumverfahren",
+        "Das Turiner Grabtuch",
+        "Kodachrome-Film"
+      ],
+      "opts_en": [
+        "The Daguerreotype",
+        "Collodion process",
+        "The Turin Shroud",
+        "Kodachrome film"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Wie heißt das berühmteste Weltraumteleskop der NASA?",
+      "q_en": "What is the name of NASA's most famous space telescope?",
+      "opts_de": [
+        "Hubble",
+        "Big Eye",
+        "Kepler",
+        "Spitzer"
+      ],
+      "opts_en": [
+        "Hubble Space Telescope",
+        "Big Eye",
+        "Kepler",
+        "Spitzer"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Was wird im Londoner Madame Tussauds Museum ausgestellt?",
+      "q_en": "What is on display in Madame Tussaud's museum in London?",
+      "opts_de": [
+        "Wachsfiguren",
+        "Designerkleidung",
+        "Oldtimer",
+        "Filmrequisiten"
+      ],
+      "opts_en": [
+        "Wax sculptures",
+        "Designer clothing",
+        "Vintage cars",
+        "Film props"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Wie viele Farben hat ein Regenbogen?",
+      "q_en": "How many colors are there in a rainbow?",
+      "opts_de": [
+        "7",
+        "8",
+        "9",
+        "6"
+      ],
+      "opts_en": [
+        "7",
+        "8",
+        "9",
+        "6"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Welches chemische Element hat das Symbol Na?",
+      "q_en": "Which chemical element has the symbol Na?",
+      "opts_de": [
+        "Natrium",
+        "Kohlenstoff",
+        "Blei",
+        "Stickstoff"
+      ],
+      "opts_en": [
+        "Sodium",
+        "Carbon",
+        "Lead",
+        "Nitrogen"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "In welchem Land wurde die Hyundai Motor Company gegründet?",
+      "q_en": "In which country was the Hyundai Motor Company founded?",
+      "opts_de": [
+        "Südkorea",
+        "Russland",
+        "Japan",
+        "China"
+      ],
+      "opts_en": [
+        "South Korea",
+        "Russia",
+        "Japan",
+        "China"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "easy",
+      "q_de": "Wie viele Buchstaben hat das englische Alphabet?",
+      "q_en": "How many letters are there in the English alphabet?",
+      "opts_de": [
+        "26",
+        "28",
+        "23",
+        "24"
+      ],
+      "opts_en": [
+        "26",
+        "28",
+        "23",
+        "24"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Welcher Berg hat den höchsten Gipfel Europas?",
+      "q_en": "Which mountain has the highest peak in Europe?",
+      "opts_de": [
+        "Elbrus (Russland)",
+        "Schchara (Georgien)",
+        "Ararat (Türkei)",
+        "Mont Blanc (Frankreich)"
+      ],
+      "opts_en": [
+        "Mount Elbrus, Russia",
+        "Shkhara, Georgia",
+        "Mount Ararat, Turkey",
+        "Mont Blanc, France"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Nach wie vielen Ehejahren feiert man die Kristallhochzeit?",
+      "q_en": "After how many years do you celebrate your crystal anniversary?",
+      "opts_de": [
+        "15",
+        "20",
+        "10",
+        "25"
+      ],
+      "opts_en": [
+        "15",
+        "20",
+        "10",
+        "25"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Wie heißt die Pokerhand aus einem Drilling und einem Paar?",
+      "q_en": "What is the name of the poker hand containing three of a kind and a pair?",
+      "opts_de": [
+        "Full House",
+        "Flush",
+        "Straight",
+        "Zwei Paare"
+      ],
+      "opts_en": [
+        "Full House",
+        "Flush",
+        "Straight",
+        "Two Pair"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Welcher Architekt entwarf die Glaspyramide des Louvre in Paris?",
+      "q_en": "Which architect designed the glass pyramid at the Louvre in Paris?",
+      "opts_de": [
+        "I. M. Pei",
+        "Frank Gehry",
+        "Zaha Hadid",
+        "Wang Shu"
+      ],
+      "opts_en": [
+        "I. M. Pei",
+        "Frank Gehry",
+        "Zaha Hadid",
+        "Wang Shu"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Welches dieser Unternehmen stellt KEINE Autos her?",
+      "q_en": "Which of these companies does NOT manufacture automobiles?",
+      "opts_de": [
+        "Ducati",
+        "Nissan",
+        "GMC",
+        "Fiat"
+      ],
+      "opts_en": [
+        "Ducati",
+        "Nissan",
+        "GMC",
+        "Fiat"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "In welchem Land fanden die Olympischen Sommerspiele 1992 statt?",
+      "q_en": "In which country were the 1992 Summer Olympics held?",
+      "opts_de": [
+        "Spanien",
+        "Russland",
+        "Südkorea",
+        "USA"
+      ],
+      "opts_en": [
+        "Spain",
+        "Russia",
+        "Korea",
+        "USA"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "medium",
+      "q_de": "Wie lautet die Fortsetzung des Sprichworts: Neugier tötete die Katze, aber...?",
+      "q_en": "The lesser-known continuation of 'Curiosity killed the cat...' is what?",
+      "opts_de": [
+        "...Zufriedenheit brachte sie zurück",
+        "...die stille Maus blieb sitzen",
+        "...was ihr eine Lehre war",
+        "...Wahrheit ist besser als Unwissenheit"
+      ],
+      "opts_en": [
+        "...but satisfaction brought it back",
+        "...and the silent mouse remained thereat",
+        "...which taught it not to do that",
+        "...but death by the truth is better than ignorance"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Mauve, benannt nach der Malvenblüte, ist ein Farbton von welcher Farbe?",
+      "q_en": "Named after the mallow flower, mauve is a shade of what?",
+      "opts_de": [
+        "Lila",
+        "Rot",
+        "Braun",
+        "Rosa"
+      ],
+      "opts_en": [
+        "Purple",
+        "Red",
+        "Brown",
+        "Pink"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Was wächst, wenn man Samen von Quercus robur pflanzt?",
+      "q_en": "If you planted the seeds of Quercus robur, what would grow?",
+      "opts_de": [
+        "Bäume (Eichen)",
+        "Getreide",
+        "Gemüse",
+        "Blumen"
+      ],
+      "opts_en": [
+        "Trees",
+        "Grains",
+        "Vegetables",
+        "Flowers"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Nephelococcygia ist die Beschäftigung mit was?",
+      "q_en": "Nephelococcygia is the practice of doing what?",
+      "opts_de": [
+        "Formen in Wolken erkennen",
+        "Mit offenen Augen schlafen",
+        "Glas mit der Stimme brechen",
+        "In Eiswasser schwimmen"
+      ],
+      "opts_en": [
+        "Finding shapes in clouds",
+        "Sleeping with your eyes open",
+        "Breaking glass with your voice",
+        "Swimming in freezing water"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Wie heißt die Währung Äthiopiens?",
+      "q_en": "What is the name of the currency used in Ethiopia?",
+      "opts_de": [
+        "Birr",
+        "Dirham",
+        "US-Dollar",
+        "Rand"
+      ],
+      "opts_en": [
+        "Birr",
+        "Dirham",
+        "U.S. Dollar",
+        "Rand"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Wenn jemand unerfahren ist, welche Farbe ist er im Deutschen?",
+      "q_en": "When someone is inexperienced they are said to be what color?",
+      "opts_de": [
+        "Grün",
+        "Rot",
+        "Blau",
+        "Gelb"
+      ],
+      "opts_en": [
+        "Green",
+        "Red",
+        "Blue",
+        "Yellow"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Welcher Fluss fliesst durch die schottische Stadt Glasgow?",
+      "q_en": "Which river flows through the Scottish city of Glasgow?",
+      "opts_de": [
+        "Clyde",
+        "Tay",
+        "Dee",
+        "Tweed"
+      ],
+      "opts_en": [
+        "Clyde",
+        "Tay",
+        "Dee",
+        "Tweed"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "general",
+      "diff": "hard",
+      "q_de": "Wie nennt man die rechte Seite eines Schiffes?",
+      "q_en": "What do sailors call the right side of a boat?",
+      "opts_de": [
+        "Steürbord",
+        "Backbord",
+        "Heck",
+        "Bug"
+      ],
+      "opts_en": [
+        "Starboard",
+        "Port",
+        "Stern",
+        "Bow"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "In welchem Land wurde Josef Stalin geboren?",
+      "q_en": "Which country was Josef Stalin born in?",
+      "opts_de": [
+        "Georgien",
+        "Russland",
+        "Deutschland",
+        "Polen"
+      ],
+      "opts_en": [
+        "Georgia",
+        "Russia",
+        "Germany",
+        "Poland"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "In welchem Land wurde die Freiheitsstatü gebaut, bevor sie in die USA verschifft wurde?",
+      "q_en": "In which country was the Statue of Liberty built before export to the USA?",
+      "opts_de": [
+        "Frankreich",
+        "Deutschland",
+        "Spanien",
+        "England"
+      ],
+      "opts_en": [
+        "France",
+        "Germany",
+        "Spain",
+        "England"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "George Orwell meldete sich freiwillig für welchen Krieg?",
+      "q_en": "What war did George Orwell famously volunteer for and nearly died in?",
+      "opts_de": [
+        "Spanischer Bürgerkrieg",
+        "Erster Weltkrieg",
+        "Zweiter Weltkrieg",
+        "Russischer Bürgerkrieg"
+      ],
+      "opts_en": [
+        "Spanish Civil War",
+        "World War I",
+        "World War II",
+        "Russian Civil War"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "In welcher Londoner Straße begann der Große Brand von 1666?",
+      "q_en": "On what street did the 1666 Great Fire of London start?",
+      "opts_de": [
+        "Pudding Lane",
+        "Baker Street",
+        "Fleet Street",
+        "Downing Street"
+      ],
+      "opts_en": [
+        "Pudding Lane",
+        "Baker Street",
+        "Fleet Street",
+        "Downing Street"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "easy",
+      "q_de": "In welchem Jahr fiel der Irak in Kuwait ein?",
+      "q_en": "In which year did the Invasion of Kuwait by Iraq occur?",
+      "opts_de": [
+        "1990",
+        "1992",
+        "1988",
+        "1986"
+      ],
+      "opts_en": [
+        "1990",
+        "1992",
+        "1988",
+        "1986"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wer erschoss Erzherzog Franz Ferdinand?",
+      "q_en": "Who assassinated Archduke Franz Ferdinand?",
+      "opts_de": [
+        "Gavrilo Princip",
+        "Nedeljko Cabrinovic",
+        "Oskar Potiorek",
+        "Ferdinand Cohen-Blind"
+      ],
+      "opts_en": [
+        "Gavrilo Princip",
+        "Nedeljko Cabrinovic",
+        "Oskar Potiorek",
+        "Ferdinand Cohen-Blind"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wer war der Lehrer von Alexander dem Großen?",
+      "q_en": "Who tutored Alexander the Great?",
+      "opts_de": [
+        "Aristoteles",
+        "Sokrates",
+        "Platon",
+        "König Philipp"
+      ],
+      "opts_en": [
+        "Aristotle",
+        "Socrates",
+        "Plato",
+        "King Philip"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "medium",
+      "q_de": "Wie hiess der Deckname für die deutsche Invasion der Sowjetunion im Zweiten Weltkrieg?",
+      "q_en": "What was the code name for the German invasion of the Soviet Union in WW2?",
+      "opts_de": [
+        "Unternehmen Barbarossa",
+        "Unternehmen Kaiserschlacht",
+        "Unternehmen Undenkbar",
+        "Unternehmen Molotow"
+      ],
+      "opts_en": [
+        "Operation Barbarossa",
+        "Operation Kaiserschlact",
+        "Operation Unthinkable",
+        "Operation Molotov"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Wer war der erste Mensch, der zweimal ins Weltall flog?",
+      "q_en": "Who was the first man to travel into outer space twice?",
+      "opts_de": [
+        "Gus Grissom",
+        "Wladimir Komarow",
+        "Charles Conrad",
+        "Juri Gagarin"
+      ],
+      "opts_en": [
+        "Gus Grissom",
+        "Vladimir Komarov",
+        "Charles Conrad",
+        "Yuri Gagarin"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Was wurde 1946 von zwei jungen Hirten in einer Höhle entdeckt?",
+      "q_en": "What was found in 1946 by two young shepherds near a cave?",
+      "opts_de": [
+        "Die Schriftrollen vom Toten Meer",
+        "Eine Piratentruhe",
+        "Ein antikes Grab",
+        "Eine römische Münzsammlung"
+      ],
+      "opts_en": [
+        "Dead Sea Scrolls",
+        "A pirate chest",
+        "An ancient tomb",
+        "A Roman coin collection"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Wer war der britische Premierminister bei Ausbruch des Zweiten Weltkriegs 1939?",
+      "q_en": "Who was the British Prime Minister at the outbreak of WWII in 1939?",
+      "opts_de": [
+        "Neville Chamberlain",
+        "Stanley Baldwin",
+        "Winston Churchill",
+        "Ramsay MacDonald"
+      ],
+      "opts_en": [
+        "Neville Chamberlain",
+        "Stanley Baldwin",
+        "Winston Churchill",
+        "Ramsay MacDonald"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Welches der Sieben Weltwunder der Antike hat bis heute überlebt?",
+      "q_en": "Of the Seven Wonders of the Ancient World, which has survived to this day?",
+      "opts_de": [
+        "Große Pyramide von Gizeh",
+        "Koloss von Rhodos",
+        "Leuchtturm von Alexandria",
+        "Zeus-Statü von Olympia"
+      ],
+      "opts_en": [
+        "Great Pyramid of Giza",
+        "Colossus of Rhodes",
+        "Lighthouse of Alexandria",
+        "Statue of Zeus at Olympia"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Die Konflikte zwischen den Häusern York und Lancaster im 15. Jh. heissen Kriege der...?",
+      "q_en": "The 15th century conflicts between the Houses of York and Lancaster are known as the Wars of the...?",
+      "opts_de": [
+        "Rosen",
+        "Lilien",
+        "Tulpen",
+        "Narzissen"
+      ],
+      "opts_en": [
+        "Roses",
+        "Lillies",
+        "Tulips",
+        "Daffodils"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "history",
+      "diff": "hard",
+      "q_de": "Welches Land war KEIN Teil der Sowjetunion?",
+      "q_en": "Which of these countries was NOT a part of the Soviet Union?",
+      "opts_de": [
+        "Afghanistan",
+        "Turkmenistan",
+        "Kasachstan",
+        "Usbekistan"
+      ],
+      "opts_en": [
+        "Afghanistan",
+        "Turkmenistan",
+        "Kazakhstan",
+        "Uzbekistan"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Wie viele Zeitzonen hat China?",
+      "q_en": "How many time zones does China have?",
+      "opts_de": [
+        "1",
+        "3",
+        "4",
+        "2"
+      ],
+      "opts_en": [
+        "1",
+        "3",
+        "4",
+        "2"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Welche europäische Stadt wird Stadt des Lichts genannt?",
+      "q_en": "Which European city is known as the City of Light?",
+      "opts_de": [
+        "Paris",
+        "Rom",
+        "London",
+        "Madrid"
+      ],
+      "opts_en": [
+        "Paris",
+        "Rome",
+        "London",
+        "Madrid"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "Wie viele unabhängige Länder hat der Kontinent Südamerika?",
+      "q_en": "How many independent countries are in South America?",
+      "opts_de": [
+        "12",
+        "8",
+        "9",
+        "10"
+      ],
+      "opts_en": [
+        "12",
+        "8",
+        "9",
+        "10"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "easy",
+      "q_de": "In welchem Land liegt die Stadt Rio de Janeiro?",
+      "q_en": "In which country is the city of Rio de Janeiro?",
+      "opts_de": [
+        "Brasilien",
+        "Peru",
+        "Chile",
+        "Venezüla"
+      ],
+      "opts_en": [
+        "Brazil",
+        "Peru",
+        "Chile",
+        "Venezuela"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Was ist die Hauptstadt Australiens?",
+      "q_en": "What is the capital of Australia?",
+      "opts_de": [
+        "Canberra",
+        "Sydney",
+        "Melbourne",
+        "Brisbane"
+      ],
+      "opts_en": [
+        "Canberra",
+        "Sydney",
+        "Melbourne",
+        "Brisbane"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Welches Gebirge bildet die Grenze zwischen Spanien und Frankreich?",
+      "q_en": "What mountain range lines the border between Spain and France?",
+      "opts_de": [
+        "Pyrenäen",
+        "Alpen",
+        "Karpaten",
+        "Ural"
+      ],
+      "opts_en": [
+        "Pyrenees",
+        "Alps",
+        "Carpathians",
+        "Urals"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Welches Land hat die Abkürzung CH?",
+      "q_en": "Which country has the abbreviation CH?",
+      "opts_de": [
+        "Schweiz",
+        "China",
+        "Kanada",
+        "Kein Land"
+      ],
+      "opts_en": [
+        "Switzerland",
+        "China",
+        "Canada",
+        "No Country"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "medium",
+      "q_de": "Was ist die Hauptstadt Litaüns?",
+      "q_en": "What is the capital of Lithuania?",
+      "opts_de": [
+        "Vilnius",
+        "Tallinn",
+        "Helsinki",
+        "Riga"
+      ],
+      "opts_en": [
+        "Vilnius",
+        "Tallinn",
+        "Helsinki",
+        "Riga"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Was ist das Besondere am Titicacasee?",
+      "q_en": "What is special about Lake Titicaca?",
+      "opts_de": [
+        "Höchstgelegener schiffbarer See",
+        "Längster See der Welt",
+        "Tiefster See der Welt",
+        "Ganzjährig zugefroren"
+      ],
+      "opts_en": [
+        "Highest navigable lake",
+        "Longest lake in the world",
+        "Deepest lake in the world",
+        "Remains frozen all year round"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Wie gross ist die Fläche der Vatikanstadt?",
+      "q_en": "What is the area of Vatican City?",
+      "opts_de": [
+        "0,44 km2",
+        "0,10 km2",
+        "0,86 km2",
+        "12,00 km2"
+      ],
+      "opts_en": [
+        "0.44km2",
+        "0.10km2",
+        "0.86km2",
+        "12.00km2"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Die ehemals ostpreussische Stadt Königsberg heißt heute wie?",
+      "q_en": "The formerly East-Prussian city of Koenigsberg is known as which city today?",
+      "opts_de": [
+        "Kaliningrad",
+        "Kasan",
+        "Kursk",
+        "Krasnodar"
+      ],
+      "opts_en": [
+        "Kaliningrad",
+        "Kazan",
+        "Kursk",
+        "Krasnodar"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Welches ist die grösste dieser vier Inseln?",
+      "q_en": "Which is the largest of these 4 islands?",
+      "opts_de": [
+        "Borneo",
+        "Grossbritannien",
+        "Kuba",
+        "Madagaskar"
+      ],
+      "opts_en": [
+        "Borneo",
+        "Great Britain",
+        "Cuba",
+        "Madagascar"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Welche Insel der Kanaren war Schauplatz einer der schlimmsten Flugkatastrophen der Geschichte?",
+      "q_en": "What Canary Island was the scene of a catastrophic collision of two jumbo jets?",
+      "opts_de": [
+        "Teneriffa",
+        "Fürteventura",
+        "Gran Canaria",
+        "Lanzarote"
+      ],
+      "opts_en": [
+        "Tenerife",
+        "Fuerteventura",
+        "Gran Canaria",
+        "Lanzarote"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Welches ist das kleinste Land Südamerikas nach Fläche?",
+      "q_en": "What is the smallest country in South America by area?",
+      "opts_de": [
+        "Suriname",
+        "Ecuador",
+        "Uruguay",
+        "Paraguay"
+      ],
+      "opts_en": [
+        "Suriname",
+        "Ecuador",
+        "Uruguay",
+        "Paraguay"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "geo",
+      "diff": "hard",
+      "q_de": "Welches Land kontrolliert die Andamanen und Nikobaren in Südostasien?",
+      "q_en": "The Andaman and Nicobar Islands are controlled by which country?",
+      "opts_de": [
+        "Indien",
+        "Vietnam",
+        "Thailand",
+        "Indonesien"
+      ],
+      "opts_en": [
+        "India",
+        "Vietnam",
+        "Thailand",
+        "Indonesia"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Wie viele Kammern hat das menschliche Herz?",
+      "q_en": "The human heart has how many chambers?",
+      "opts_de": [
+        "4",
+        "2",
+        "6",
+        "3"
+      ],
+      "opts_en": [
+        "4",
+        "2",
+        "6",
+        "3"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Welcher ist der längste Knochen im menschlichen Körper?",
+      "q_en": "Which is the longest bone in the human body?",
+      "opts_de": [
+        "Oberschenkelknochen (Femur)",
+        "Schulterblatt",
+        "Wadenbein",
+        "Elle"
+      ],
+      "opts_en": [
+        "Femur",
+        "Scapula",
+        "Fibula",
+        "Ulna"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "easy",
+      "q_de": "Welches Tier kommt in Schrödingers berümhtem Gedankenexperiment vor?",
+      "q_en": "What animal takes part in Schrodinger's most famous thought experiment?",
+      "opts_de": [
+        "Katze",
+        "Hund",
+        "Fledermaus",
+        "Schmetterling"
+      ],
+      "opts_en": [
+        "Cat",
+        "Dog",
+        "Bat",
+        "Butterfly"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Wie viele Herzen hat ein Oktopus?",
+      "q_en": "How many hearts does an octopus have?",
+      "opts_de": [
+        "Drei",
+        "Eines",
+        "Zwei",
+        "Vier"
+      ],
+      "opts_en": [
+        "Three",
+        "One",
+        "Two",
+        "Four"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Was ist die chemische Formel für Ammoniak?",
+      "q_en": "What is the chemical formula for ammonia?",
+      "opts_de": [
+        "NH3",
+        "CO2",
+        "NO3",
+        "CH4"
+      ],
+      "opts_en": [
+        "NH3",
+        "CO2",
+        "NO3",
+        "CH4"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Was waren die ersten Lebewesen im Weltraum?",
+      "q_en": "What was the first living creature in space?",
+      "opts_de": [
+        "Fruchtfliegen",
+        "Ein Affe",
+        "Ein Hund",
+        "Eine Maus"
+      ],
+      "opts_en": [
+        "Fruit flies",
+        "Monkey",
+        "Dog",
+        "Mouse"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "medium",
+      "q_de": "Wie lautet die mathematische Formel des Ohmschen Gesetzes?",
+      "q_en": "What is the mathematical formula of Ohm's law?",
+      "opts_de": [
+        "V = I x R",
+        "I = V x R",
+        "R = V x I",
+        "V = I / R"
+      ],
+      "opts_en": [
+        "V = I*R",
+        "I = V*R",
+        "R = V*I",
+        "V = I / R"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Wie lang ist ein Lichtjahr?",
+      "q_en": "How long is a light-year?",
+      "opts_de": [
+        "9,461 Billionen Kilometer",
+        "1 AU",
+        "105,4 Erdjahre",
+        "501,2 Millionen Meilen"
+      ],
+      "opts_en": [
+        "9.461 Trillion Kilometres",
+        "1 AU",
+        "105.40 Earth-years",
+        "501.2 Million Miles"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Welche wissenschaftliche Einheit ist nach einem italienischen Adeligen benannt?",
+      "q_en": "Which scientific unit is named after an Italian nobleman?",
+      "opts_de": [
+        "Volt",
+        "Pascal",
+        "Ohm",
+        "Hertz"
+      ],
+      "opts_en": [
+        "Volt",
+        "Pascal",
+        "Ohm",
+        "Hertz"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Isobutylphenylpropionsäure ist besser bekannt als welches Medikament?",
+      "q_en": "What is isobutylphenylpropanoic acid more commonly known as?",
+      "opts_de": [
+        "Ibuprofen",
+        "Morphin",
+        "Ketamin",
+        "Aspirin"
+      ],
+      "opts_en": [
+        "Ibuprofen",
+        "Morphine",
+        "Ketamine",
+        "Aspirin"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Wie heißt der wissenschaftliche Name des Rotfuchses?",
+      "q_en": "What is the scientific name of the red fox?",
+      "opts_de": [
+        "Vulpes vulpes",
+        "Vulpes redus",
+        "Canis rufus",
+        "Vulpes lagopus"
+      ],
+      "opts_en": [
+        "Vulpes vulpes",
+        "Vulpes redus",
+        "Canis rufus",
+        "Vulpes lagopus"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Welches dieser subatomaren Teilchen wurde noch nie beobachtet?",
+      "q_en": "In quantum physics, which theorised sub-atomic particle has yet to be observed?",
+      "opts_de": [
+        "Graviton",
+        "Z-Boson",
+        "Tau-Neutrino",
+        "Gluon"
+      ],
+      "opts_en": [
+        "Graviton",
+        "Z boson",
+        "Tau neutrino",
+        "Gluon"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Folsäure ist die synthetische Form welches Vitamins?",
+      "q_en": "Folic acid is the synthetic form of which vitamin?",
+      "opts_de": [
+        "Vitamin B",
+        "Vitamin A",
+        "Vitamin C",
+        "Vitamin D"
+      ],
+      "opts_en": [
+        "Vitamin B",
+        "Vitamin A",
+        "Vitamin C",
+        "Vitamin D"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "science",
+      "diff": "hard",
+      "q_de": "Wie viele Grad Fahrenheit sind 100 Grad Celsius?",
+      "q_en": "How many degrees Fahrenheit is 100 degrees Celsius?",
+      "opts_de": [
+        "212",
+        "326",
+        "100",
+        "451"
+      ],
+      "opts_en": [
+        "212",
+        "326",
+        "100",
+        "451"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Welcher Fahrer wurde 7 Mal Formel-1-Weltmeister?",
+      "q_en": "Which driver has been Formula 1 world champion a record 7 times?",
+      "opts_de": [
+        "Michael Schumacher",
+        "Ayrton Senna",
+        "Fernando Alonso",
+        "Jim Clark"
+      ],
+      "opts_en": [
+        "Michael Schumacher",
+        "Ayrton Senna",
+        "Fernando Alonso",
+        "Jim Clark"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Welches Team gewann die Premier Leagü 2015/16 sensationell?",
+      "q_en": "Which team sensationally won the 2015-16 English Premier League?",
+      "opts_de": [
+        "Leicester City",
+        "Liverpool",
+        "Chelsea",
+        "Manchester United"
+      ],
+      "opts_en": [
+        "Leicester City",
+        "Liverpool",
+        "Chelsea",
+        "Manchester United"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Wie heißt das Spielgerät, mit dem man beim Billard die weisse Kugel stösst?",
+      "q_en": "What is the tool used to hit the white ball in snooker or billiards?",
+      "opts_de": [
+        "Quü",
+        "Schläger",
+        "Bat",
+        "Hammer"
+      ],
+      "opts_en": [
+        "Cue",
+        "Racquet",
+        "Bat",
+        "Mallet"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "easy",
+      "q_de": "Wann fand das erste offizielle Fussball-Länderspiel statt?",
+      "q_en": "When was the first official international football game played?",
+      "opts_de": [
+        "1872",
+        "1880",
+        "1863",
+        "1865"
+      ],
+      "opts_en": [
+        "1872",
+        "1880",
+        "1863",
+        "1865"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Wie viele Punkte ist die grüne Kugel beim Snooker wert?",
+      "q_en": "In snooker, what colour ball is worth 3 points?",
+      "opts_de": [
+        "Grün",
+        "Gelb",
+        "Braun",
+        "Blau"
+      ],
+      "opts_en": [
+        "Green",
+        "Yellow",
+        "Brown",
+        "Blue"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Edson Arantes do Nascimento ist der vollständige Name welches legendären Fussballers?",
+      "q_en": "Edson Arantes do Nascimento is the full name of which legendary footballer?",
+      "opts_de": [
+        "Pele",
+        "Romario",
+        "Zico",
+        "Ronaldinho"
+      ],
+      "opts_en": [
+        "Pele",
+        "Romario",
+        "Zico",
+        "Ronaldinho"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Wer ist der beste Torschütze der englischen Premier Leagü aller Zeiten?",
+      "q_en": "Who has scored the most goals in the English Premier League?",
+      "opts_de": [
+        "Alan Shearer",
+        "Wayne Rooney",
+        "Lionel Messi",
+        "Didier Drogba"
+      ],
+      "opts_en": [
+        "Alan Shearer",
+        "Wayne Rooney",
+        "Lionel Messi",
+        "Didier Drogba"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "medium",
+      "q_de": "Welche Disziplin gehört NICHT zum olympischen Zehnkampf der Männer?",
+      "q_en": "Which event is NOT part of the Olympic men's decathlon?",
+      "opts_de": [
+        "Hammerwerfen",
+        "Stabhochsprung",
+        "Weitsprung",
+        "Kugelstossen"
+      ],
+      "opts_en": [
+        "Hammer throw",
+        "Pole vault",
+        "Long jump",
+        "Shot put"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Welcher Fussballspieler verpasste 1995 einem Crystal-Palace-Fan einen Kung-Fu-Tritt?",
+      "q_en": "Which player kung-fu kicked a Crystal Palace fan in January 1995?",
+      "opts_de": [
+        "Eric Cantona",
+        "David Seaman",
+        "Ashley Cole",
+        "Mark Hughes"
+      ],
+      "opts_en": [
+        "Eric Cantona",
+        "David Seaman",
+        "Ashley Cole",
+        "Mark Hughes"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Wie lautet der vollständige Name von Cristiano Ronaldo?",
+      "q_en": "What is the full name of footballer Cristiano Ronaldo?",
+      "opts_de": [
+        "Cristiano Ronaldo dos Santos Aveiro",
+        "Cristiano Ronaldo los Santos Diego",
+        "Cristiano Armando Diego Ronaldo",
+        "Cristiano Luis Armando Ronaldo"
+      ],
+      "opts_en": [
+        "Cristiano Ronaldo dos Santos Aveiro",
+        "Cristiano Ronaldo los Santos Diego",
+        "Cristiano Armando Diego Ronaldo",
+        "Cristiano Luis Armando Ronaldo"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Wer hält den Rekord für die meisten Einsätze bei Manchester United?",
+      "q_en": "Who is Manchester United's all-time leading appearance maker?",
+      "opts_de": [
+        "Ryan Giggs",
+        "David Beckham",
+        "Wayne Rooney",
+        "Eric Cantona"
+      ],
+      "opts_en": [
+        "Ryan Giggs",
+        "David Beckham",
+        "Wayne Rooney",
+        "Eric Cantona"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Wer gilt als der beste rumänische Fussballer aller Zeiten?",
+      "q_en": "Who is regarded as the best Romanian footballer of all time?",
+      "opts_de": [
+        "Gheorghe Hagi",
+        "Cristian Chivu",
+        "Nicolä Dobrin",
+        "Gheorghe Popescu"
+      ],
+      "opts_en": [
+        "Gheorghe Hagi",
+        "Cristian Chivu",
+        "Nicolae Dobrin",
+        "Gheorghe Popescu"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Welches Werkzeug gibt beim Curling dem Vorteil des letzten Steins seinen Namen?",
+      "q_en": "What tool lends its name to a last-stone advantage in Curling?",
+      "opts_de": [
+        "Hammer",
+        "Schraubenschlüssel",
+        "Bohrer",
+        "Schraubenzieher"
+      ],
+      "opts_en": [
+        "Hammer",
+        "Wrench",
+        "Drill",
+        "Screwdriver"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Welcher englische Fussballverein trägt den Spitznamen The Tigers?",
+      "q_en": "Which English football team is nicknamed The Tigers?",
+      "opts_de": [
+        "Hull City",
+        "Cardiff City",
+        "Bristol City",
+        "Manchester City"
+      ],
+      "opts_en": [
+        "Hull City",
+        "Cardiff City",
+        "Bristol City",
+        "Manchester City"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "sport",
+      "diff": "hard",
+      "q_de": "Wie viele Wertungszonen gibt es auf einer Standard-Dartscheibe?",
+      "q_en": "How many scoring zones are there on a conventional dart board?",
+      "opts_de": [
+        "82",
+        "62",
+        "42",
+        "102"
+      ],
+      "opts_en": [
+        "82",
+        "62",
+        "42",
+        "102"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "In welchem Film sagt Humphrey Bogart: Ich schau dir in die Augen, Kleines?",
+      "q_en": "In which film does Humphrey Bogart say Here's looking at you, kid?",
+      "opts_de": [
+        "Casablanca",
+        "Die Spur des Falken",
+        "Der Schatz der Sierra Madre",
+        "Citizen Kane"
+      ],
+      "opts_en": [
+        "Casablanca",
+        "The Maltese Falcon",
+        "The Treasure of the Sierra Madre",
+        "Citizen Kane"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Wer spielte Han Solo in der Star-Wars-Hauptreihe?",
+      "q_en": "Who portrayed Han Solo in the Star Wars main film series?",
+      "opts_de": [
+        "Harrison Ford",
+        "Peter Cushing",
+        "Mark Hamill",
+        "Alec Guinness"
+      ],
+      "opts_en": [
+        "Harrison Ford",
+        "Peter Cushing",
+        "Mark Hamill",
+        "Alec Guinness"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Welcher Film enthält das Zitat: Houston, wir haben ein Problem?",
+      "q_en": "Which movie contains the quote Houston, we have a problem?",
+      "opts_de": [
+        "Apollo 13",
+        "The Right Stuff",
+        "Capricorn One",
+        "Gravity"
+      ],
+      "opts_en": [
+        "Apollo 13",
+        "The Right Stuff",
+        "Capricorn One",
+        "Gravity"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "easy",
+      "q_de": "Was war der erste vollständig computeranimierte Spielfilm?",
+      "q_en": "What was the first feature-length computer-animated movie?",
+      "opts_de": [
+        "Toy Story",
+        "Tron",
+        "König der Löwen",
+        "101 Dalmatiner"
+      ],
+      "opts_en": [
+        "Toy Story",
+        "Tron",
+        "The Lion King",
+        "101 Dalmatians"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Welcher Regisseur drehte den Film Pans Labyrinth?",
+      "q_en": "Which director directed Pan's Labyrinth?",
+      "opts_de": [
+        "Guillermo del Toro",
+        "Alfonso Cuaron",
+        "Alejandro Gonzalez Inarritu",
+        "Alejandro Jodorowsky"
+      ],
+      "opts_en": [
+        "Guillermo Del Toro",
+        "Alfonso Cuaron",
+        "Alejandro Gonzalez Inarritu",
+        "Alejandro Jodorowsky"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Dieser Film enthält das Zitat: Ich liebe den Geruch von Napalm am Morgen!",
+      "q_en": "This movie contains the quote I love the smell of napalm in the morning!",
+      "opts_de": [
+        "Apocalypse Now",
+        "Platoon",
+        "Die durch die Hölle gehen",
+        "Full Metal Jacket"
+      ],
+      "opts_en": [
+        "Apocalypse Now",
+        "Platoon",
+        "The Deer Hunter",
+        "Full Metal Jacket"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "In welchem Film muss sich Robin Williams als Frau verkleiden?",
+      "q_en": "In which movie does Robin Williams disguise as a woman?",
+      "opts_de": [
+        "Mrs. Doubtfire",
+        "Old Dogs",
+        "Jumanji",
+        "Awakenings"
+      ],
+      "opts_en": [
+        "Mrs. Doubtfire",
+        "Old Dogs",
+        "Jumanji",
+        "Awakenings"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "medium",
+      "q_de": "Welcher Musiker hatte eine prominente Rolle in Kingsman: The Golden Circle (2017)?",
+      "q_en": "Which musical artist had a prominent role in Kingsman: The Golden Circle (2017)?",
+      "opts_de": [
+        "Elton John",
+        "Lady Gaga",
+        "Rihanna",
+        "Justin Bieber"
+      ],
+      "opts_en": [
+        "Elton John",
+        "Lady Gaga",
+        "Rihanna",
+        "Justin Bieber"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welches war Alfred Hitchcocks erster Farbfilm?",
+      "q_en": "Which was Alfred Hitchcock's first film in colour?",
+      "opts_de": [
+        "Cocktail für eine Leiche (Rope)",
+        "Psycho",
+        "Vertigo",
+        "Rebecca"
+      ],
+      "opts_en": [
+        "Rope",
+        "Psycho",
+        "Vertigo",
+        "Rebecca"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welche Schauspieler bildeten das Trio in Zwei glorreiche Halunken?",
+      "q_en": "Which actors made up the trio in The Good, the Bad, and the Ugly?",
+      "opts_de": [
+        "Clint Eastwood, Eli Wallach, Lee Van Cleef",
+        "Sergio Leone, Ennio Morricone, Tonino Delli Colli",
+        "Yul Brynner, Steve McQueen, Charles Bronson",
+        "Aldo Giuffre, Mario Brega, Luigi Pistilli"
+      ],
+      "opts_en": [
+        "Clint Eastwood, Eli Wallach, and Lee Van Cleef",
+        "Sergio Leone, Ennio Morricone, and Tonino Delli Colli",
+        "Yul Brynner, Steve McQueen, and Charles Bronson",
+        "Aldo Giuffre, Mario Brega, and Luigi Pistilli"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welcher dieser Filme enthält NICHT den verstorbenen Schauspieler John Candy?",
+      "q_en": "Which movie did NOT feature the late actor John Candy?",
+      "opts_de": [
+        "Ghostbusters",
+        "Der kleine Horrorladen",
+        "Kevin - Allein zu Haus",
+        "Ein Ticket für Zwei"
+      ],
+      "opts_en": [
+        "Ghostbusters",
+        "Little Shop Of Horrors",
+        "Home Alone",
+        "Planes Trains and Automobiles"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "In welchem James-Bond-Film sang Adele den Titelsong?",
+      "q_en": "Which James Bond film had its theme song performed by Adele?",
+      "opts_de": [
+        "Skyfall",
+        "Casino Royale",
+        "Ein Quantum Trost",
+        "Spectre"
+      ],
+      "opts_en": [
+        "Skyfall",
+        "Casino Royale",
+        "Quantum of Solace",
+        "Spectre"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "In welchem Film machte Johnny Depp sein Leinwand-Debut?",
+      "q_en": "Johnny Depp made his big-screen acting debut in which film?",
+      "opts_de": [
+        "Nightmare on Elm Street",
+        "Valentinstag-Massaker",
+        "Halloween",
+        "Freitag der 13."
+      ],
+      "opts_en": [
+        "A Nightmare on Elm Street",
+        "My Bloody Valentine",
+        "Halloween",
+        "Friday the 13th"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welcher Disney-Klassiker erschien 1970?",
+      "q_en": "Which Disney classic was released in 1970?",
+      "opts_de": [
+        "Aristocats",
+        "101 Dalmatiner",
+        "Cap und Capper",
+        "Arielle"
+      ],
+      "opts_en": [
+        "The Aristocats",
+        "One Hundred and One Dalmatians",
+        "The Fox and the Hound",
+        "The Little Mermaid"
+      ],
+      "c": 0
+    },
+    {
+      "cat": "film",
+      "diff": "hard",
+      "q_de": "Welcher Schauspieler spielte Obi-Wan Kenobi in Star Wars Episode I-III?",
+      "q_en": "Which actor plays Obi-Wan Kenobi in Star Wars Episodes I-III?",
+      "opts_de": [
+        "Ewan McGregor",
+        "Alec Guinness",
+        "Hayden Christensen",
+        "Liam Neeson"
+      ],
+      "opts_en": [
+        "Ewan McGregor",
+        "Alec Guinness",
+        "Hayden Christensen",
+        "Liam Neeson"
+      ],
+      "c": 0
+    }
+  ]
+}

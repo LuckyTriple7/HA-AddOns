@@ -302,9 +302,77 @@
       .start-box h1 { font-size: 34px; }
       .start-box .level-btn { padding: 11px 18px; font-size: 15px; }
     }
+
+    /* ── Mobil: Querformat-Hinweis (Rotier-Overlay) ───────────────── */
+    #rotate-overlay { display: none; }
+    @media (orientation: portrait) and (max-width: 600px) and (pointer: coarse) {
+      #rotate-overlay {
+        display: flex; position: fixed; inset: 0; z-index: 1000;
+        background: radial-gradient(ellipse at center, var(--felt1), var(--felt2));
+        align-items: center; justify-content: center; text-align: center; padding: 24px;
+      }
+      .rotate-inner { max-width: 300px; }
+      .rotate-icon { font-size: 72px; margin-bottom: 18px; display: inline-block;
+        animation: rotateHint 2.2s ease-in-out infinite; }
+      .rotate-title { font-size: 22px; font-weight: 700; color: var(--gold); margin-bottom: 10px; }
+      .rotate-hint { font-size: 15px; opacity: 0.8; line-height: 1.45; }
+    }
+    @keyframes rotateHint { 0%,60%,100% { transform: rotate(0); } 30% { transform: rotate(90deg); } }
+
+    /* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
+    @media (max-height: 500px) {
+      /* Startbildschirm: oben ausrichten + scrollbar, damit nichts oben/unten abgeschnitten wird */
+      #start-screen { align-items: flex-start; overflow-y: auto; padding: 12px; }
+      .start-box h1 { font-size: 26px; margin-bottom: 2px; }
+      .start-box .sub { font-size: 12px; margin-bottom: 8px; }
+      .start-box .seclabel { margin-top: 8px; margin-bottom: 4px; }
+      .start-box .level-btn { padding: 7px 14px; font-size: 13px; }
+      #g66-resume-box { margin-bottom: 8px !important; }
+      #g66-resume-box .level-btn { font-size: 14px !important; padding: 9px 22px !important; }
+      #g66-stats-box { margin-top: 8px; }
+      .start-box > div:last-child { margin-top: 12px !important; }
+
+      .topbar { padding: 3px 8px; }
+      .iconbtn { width: 28px; height: 28px; font-size: 0.95rem; }
+      .topbar .title { font-size: 0.95rem; }
+      .rulestag { font-size: 0.62rem; }
+      .bummerl { font-size: 0.72rem; }
+
+      .felt { padding: 2px 8px 4px; }
+      .seat { gap: 8px; }
+      .seat.me { margin-bottom: 4px; }
+      .info { font-size: 0.72rem; min-width: 74px; }
+      .pts { font-size: 1.1rem; }
+      .pc { height: clamp(48px, 15vh, 78px); }
+      .hand.opp .pc { margin-left: -26px; }
+      .center { gap: 14px; }
+      .table-cards { min-height: clamp(50px, 15vh, 78px); min-width: clamp(90px, 20vh, 150px); gap: 8px; }
+      .last-trick .pc { height: clamp(34px, 7vh, 50px); }
+
+      /* Auslosen-Modal kompakt */
+      .cut-slot { width: clamp(54px, 12vw, 80px); height: clamp(76px, 17vh, 112px); }
+      .banner .box { padding: 14px 18px; }
+      .banner h2 { font-size: 1.1rem; }
+      .banner .big { font-size: 1.6rem; }
+
+      /* Mobil: angetippte Karten NICHT hochschieben → goldener Ring statt Anheben */
+      .hand.me .card-slot.playable:hover,
+      .hand.me .card-slot.playable:active { transform: none !important; }
+      .hand.me .card-slot.playable:active .pc {
+        box-shadow: 0 0 0 3px rgba(241,196,15,0.9), 0 3px 8px rgba(0,0,0,0.45) !important;
+      }
+    }
   </style>
 </head>
 <body>
+  <!-- ── Mobil: Querformat-Hinweis (nur im Hochformat auf kleinen Touch-Screens) ── -->
+  <div id="rotate-overlay">
+    <div class="rotate-inner">
+      <div class="rotate-icon">📱</div>
+      <div class="rotate-title">{{ t.game_rotate_title }}</div>
+      <div class="rotate-hint">{{ t.game_rotate_hint }}</div>
+    </div>
+  </div>
   <div id="start-screen">
     <div class="start-box">
       <h1>🃏 {{ t.g66_title }}</h1>
@@ -633,6 +701,7 @@
   const SFX = {
     cardPlay:  () => playNoise(0.08, 0.15),
     cardDraw:  () => playNoise(0.06, 0.10),
+    shuffle:   () => { for(let i = 0; i < 15; i++) setTimeout(() => playNoise(0.05, 0.07 + Math.random()*0.05), i*60); },
     trick:     () => { playNoise(0.05, 0.10); setTimeout(()=>playNoise(0.04, 0.08), 60); },
     meld:      () => { playTone(523, 0.12, 'triangle', 0.14); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.14), 100); },
     close:     () => playTone(330, 0.25, 'square', 0.08),
@@ -1252,6 +1321,9 @@
     if (trumpEl) { trumpEl.style.opacity = '0'; trumpEl.style.transition = 'none'; }
     if (stockEl) { stockEl.style.opacity = '0'; stockEl.style.transition = 'none'; }
     if (countLine) { countLine.style.opacity = '0'; countLine.style.transition = 'none'; }
+
+    // Kartenmischsound vor dem Aufbau (nur bei aktivem Ton)
+    if (soundOn){ SFX.shuffle(); await sleep(900); }
 
     const fadeDur = flyMs / 1000;
     const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
@@ -1938,6 +2010,9 @@
   } catch(e){ bc = null; }
   $('tab-resume').onclick = becomeActive;
   claim();          // dieser Tab beansprucht beim Laden die aktive Rolle
+
+  // Best-effort: auf Mobilgeräten Querformat anfordern (nur in PWA/Fullscreen wirksam, sonst harmlos)
+  try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {}
 
   // Session beanspruchen, dann Startbildschirm zeigen (Auswahl / Fortsetzen)
   (async () => {

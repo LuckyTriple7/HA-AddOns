@@ -378,9 +378,85 @@ body{
   .card.playable:active{transform:translateY(-14px) scale(1.05)}
   .top-btn{width:40px;height:40px}
 }
+
+/* ── Mobil: Querformat-Hinweis (Rotier-Overlay) ───────────────── */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:600px) and (pointer:coarse){
+  #rotate-overlay{
+    display:flex;position:fixed;inset:0;z-index:1000;
+    background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+    align-items:center;justify-content:center;text-align:center;padding:24px;
+  }
+  .rotate-inner{max-width:300px}
+  .rotate-icon{font-size:72px;margin-bottom:18px;display:inline-block;
+    animation:rotateHint 2.2s ease-in-out infinite}
+  .rotate-title{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+  .rotate-hint{font-size:15px;opacity:0.8;line-height:1.45}
+}
+@keyframes rotateHint{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
+
+/* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
+@media (max-height:500px){
+  /* Startbildschirm: oben ausrichten + scrollbar, damit nichts oben/unten abgeschnitten wird */
+  #start-screen{align-items:flex-start;overflow-y:auto;padding:12px}
+  .start-box h1{font-size:28px;margin-bottom:2px}
+  .start-box .sub{font-size:13px;margin-bottom:10px}
+  .start-box .level-btn{padding:9px 18px;font-size:14px}
+  #resume-box{margin-bottom:8px !important}
+  #resume-box .level-btn{font-size:14px !important;padding:9px 22px !important}
+  #stats-box{margin-top:10px}
+  .start-box > div:last-child{margin-top:12px !important}
+  .modal-box{max-height:94vh}
+
+  #topbar{padding:3px 10px}
+  #scorebar{gap:14px}
+  .score-name{font-size:9px}
+  .score-val{font-size:18px}
+  .top-btn{width:30px;height:30px;font-size:0.95rem}
+  #topbar-btns{gap:3px;right:8px}
+  .btn-suit{width:46px;height:46px;font-size:20px}
+  .btn-next{height:46px;font-size:10px}
+
+  #game-area{padding:1px 10px}
+  #opponents{gap:8px;padding:0 6px}
+  .opp-label{font-size:10px;margin-bottom:1px}
+  .opp-hand .card{width:clamp(28px,7vw,42px);height:clamp(40px,13vh,54px)}
+
+  #play-area{min-height:0}
+  #table-cards{min-height:clamp(50px,15vh,72px);gap:clamp(10px,3vw,20px)}
+  .table-label{font-size:9px;margin-bottom:1px}
+  #info-text{margin-top:2px;font-size:12px;min-height:14px}
+  #last-trick .card{width:clamp(24px,5vw,36px);height:clamp(36px,7vh,52px)}
+
+  #player-area{padding-bottom:2px}
+  #player-label{font-size:10px;margin-bottom:1px}
+  #player-hand{
+    min-height:0;gap:3px;flex-wrap:nowrap;
+    overflow-x:auto;overflow-y:hidden;padding-bottom:3px;
+    -webkit-overflow-scrolling:touch;
+  }
+  #actions{margin-top:4px;min-height:0;gap:8px}
+
+  /* Mobil: ausgewählte/aktive Karten NICHT hochschieben → goldener Ring statt Anheben */
+  .card.playable:hover,.card.playable:active,.card.exchange-sel{transform:none !important}
+  .card.playable:active{box-shadow:inset 0 0 0 3px rgba(241,196,15,0.85) !important}
+  .card.exchange-sel{box-shadow:inset 0 0 0 3px #ff4444 !important}
+
+  /* gemeinsame Kartengröße (Hand + Tisch) an die Höhe koppeln */
+  .card{width:clamp(44px,15vh,60px);height:clamp(60px,19vh,80px)}
+}
 </style>
 </head>
 <body>
+
+<!-- ── Mobil: Querformat-Hinweis (nur im Hochformat auf kleinen Touch-Screens) ── -->
+<div id="rotate-overlay">
+  <div class="rotate-inner">
+    <div class="rotate-icon">📱</div>
+    <div class="rotate-title">{{ t.game_rotate_title }}</div>
+    <div class="rotate-hint">{{ t.game_rotate_hint }}</div>
+  </div>
+</div>
 
 <!-- ── Startbildschirm ─────────────────────── -->
 <div id="start-screen">
@@ -699,6 +775,17 @@ const SUIT_NAME = {h:G.suit_h, d:G.suit_d, s:G.suit_s, c:G.suit_c};
 const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
 const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
 const ALL_RANKS = ['7','8','9','T','J','Q','K','A'];
+// Handsortierung wie bei 66: zuerst nach Farbe, dann nach Wert; Trumpf immer ganz rechts.
+// Kartenformat hier: c[0]=Farbe, c[1]=Rang.
+const SUIT_ORD = {c:0, d:1, h:2, s:3};
+const RANK_ORD = {'7':0,'8':1,'9':2,'J':3,'Q':4,'K':5,'T':6,'A':7};
+function sortedHand(hand, trump){
+  return hand.slice().sort((a, b) => {
+    const at = a[0] === trump, bt = b[0] === trump;
+    if(at !== bt) return at ? 1 : -1;            // Trumpf nach rechts
+    return (SUIT_ORD[a[0]] - SUIT_ORD[b[0]]) || (RANK_ORD[a[1]] - RANK_ORD[b[1]]);
+  });
+}
 function startsText(p){ return NAMES[p] + ' ' + (p === 'p' ? G.starts_you : G.starts) + '!'; }
 function cardName(c){ return RANK_DISP[c[1]] + ' ' + SUIT_SYM[c[0]]; }
 const NAMES = {p:G.player, a1:G.ai1, a2:G.ai2};
@@ -802,9 +889,24 @@ function playNoise(dur, vol){
     src.start();
   } catch(e){}
 }
+function playSlide(f1, f2, dur, type, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio(); const t = ctx.currentTime;
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.type = type || 'sawtooth';
+    osc.frequency.setValueAtTime(f1, t);
+    osc.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    gain.gain.setValueAtTime(vol || 0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur);
+  } catch(e){}
+}
 const SFX = {
   cardPlay: () => playNoise(0.08, 0.15),
   cardDraw: () => playNoise(0.06, 0.10),
+  shuffle:  () => { for(let i = 0; i < 15; i++) setTimeout(() => playNoise(0.05, 0.07 + Math.random()*0.05), i*60); },
   trick:    () => { playNoise(0.05, 0.12); setTimeout(()=>playNoise(0.04, 0.08), 60); },
   bid:      () => playTone(520, 0.08, 'triangle', 0.08),
   trump:    () => { playTone(523, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.12), 100); },
@@ -816,6 +918,11 @@ const SFX = {
   penalty:  () => { playTone(220, 0.3, 'sawtooth', 0.05); setTimeout(()=>playTone(185, 0.35, 'sawtooth', 0.04), 200); },
   exchange: () => { playNoise(0.04, 0.08); setTimeout(()=>playNoise(0.05, 0.10), 80); setTimeout(()=>playNoise(0.04, 0.08), 160); },
   nextCard: () => { playTone(392, 0.15, 'triangle', 0.12); setTimeout(()=>playTone(523, 0.18, 'triangle', 0.15), 130); setTimeout(()=>playTone(659, 0.2, 'triangle', 0.12), 260); },
+  // Rundenergebnis (nur Zwischenrunden): Punkte runter = gut, Punkte rauf = schlecht, Bounce = Abpraller
+  roundWon:  () => { [523,659,784].forEach((f,i)=>setTimeout(()=>playTone(f, 0.2, 'triangle', 0.16), i*120)); },
+  roundLost: () => { playSlide(330, 247, 0.28, 'sawtooth', 0.10); setTimeout(()=>playSlide(294, 196, 0.45, 'sawtooth', 0.11), 260); },
+  roundBounce: () => { playSlide(196, 392, 0.16, 'triangle', 0.12); setTimeout(()=>playSlide(392, 262, 0.30, 'triangle', 0.10), 160); },
+  roundPass: () => playTone(440, 0.18, 'sine', 0.05),
 };
 
 /* ── Spielverlauf (Log) ───────────────────── */
@@ -1103,6 +1210,9 @@ async function dealCards(){
 
   all.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
 
+  // Kartenmischsound vor dem Aufbau (nur bei aktivem Ton)
+  if(soundOn){ SFX.shuffle(); await sleep(900); }
+
   const fadeDur = flyMs / 1000;
   const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
   const pause = Math.max(60, Math.round(flyMs * 0.25));
@@ -1157,6 +1267,40 @@ async function animateExchangeIn(){
   }
   await sleep(200);
   cards.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.style.transition = ''; });
+}
+
+async function animateAiExchange(who, count){
+  if(reduceMotion || count <= 0) return;
+  const handEl = $('hand-'+who);
+  if(!handEl) return;
+  const cards = Array.from(handEl.querySelectorAll('.card'));
+  if(!cards.length) return;
+  const out = cards.slice(-count);          // die getauschten = letzte N verdeckte Karten
+  const outDur = Math.max(0.45, flyMs / 1000);   // bewusst etwas langsamer
+  const inDur  = Math.max(0.40, flyMs / 1000);
+
+  // 1) langsam ausblenden (leicht nach oben)
+  SFX.exchange();
+  out.forEach(c => {
+    c.style.transition = 'opacity '+outDur+'s ease, transform '+outDur+'s ease';
+    c.style.transform = 'translateY(-26px) scale(0.82)';
+    c.style.opacity = '0';
+  });
+  await sleep(outDur * 1000 + 120);
+
+  // 2) als „neue" Karten an gleicher Stelle wieder langsam einblenden
+  out.forEach(c => { c.style.transition = 'none'; c.style.transform = 'translateY(-26px) scale(0.82)'; });
+  void handEl.offsetWidth;
+  await sleep(40);
+  for(const c of out){
+    c.style.transition = 'opacity '+inDur+'s ease, transform '+inDur+'s ease';
+    c.style.opacity = '1';
+    c.style.transform = 'none';
+    SFX.cardDraw();
+    await sleep(Math.max(110, Math.round(inDur * 1000 * 0.45)));
+  }
+  await sleep(150);
+  out.forEach(c => { c.style.opacity = ''; c.style.transform = ''; c.style.transition = ''; });
 }
 
 async function showTrumpCardReveal(card){
@@ -1351,11 +1495,12 @@ function renderPlayerHand(st){
     $('player-hand').innerHTML = html;
     return;
   }
-  const hand = st.hands?.p;
-  if(!hand || !Array.isArray(hand)){
+  const rawHand = st.hands?.p;
+  if(!rawHand || !Array.isArray(rawHand)){
     $('player-hand').innerHTML = '';
     return;
   }
+  const hand = sortedHand(rawHand, st.trump);
   const canPlay = st.status === 'playing' && st.turn === 'p';
   const canExchange = st.status === 'exchanging' && st.exchange_turn === 'p';
   const legal = st.legal || [];
@@ -1766,6 +1911,8 @@ async function advanceAI(){
       gameState = v.state;
       render(gameState);
       if(detectDealExtra(gameState)) await dealCards();
+      // Extra-Liegezeit, damit Trumpfansage / Reizentscheidung / Kartentausch der KI länger sichtbar bleibt
+      if(v.event && (v.event.type === 'trump' || v.event.type === 'bid' || v.event.type === 'exchange')) await sleep(lingerMs);
     }
     if(gameState){
       if(gameState.status === 'round_over') showRoundResult();
@@ -1820,11 +1967,12 @@ async function handleEvent(evt){
     await flyAiCard(evt.who, evt.card);
   }
   else if(evt.type === 'exchange'){
-    SFX.cardDraw();
     if(evt.count > 0){
       showToast(evt.name + ' ' + G.exchanges_n + ' ' + evt.count + ' ' + G.cards, 'info');
       addLog(evt.name + ' tauscht ' + evt.count + ' Karten');
+      await animateAiExchange(evt.who, evt.count);
     } else {
+      SFX.cardDraw();
       showToast(evt.name + ' ' + G.no_exchange, '');
       addLog(evt.name + ' tauscht nicht');
     }
@@ -1892,8 +2040,14 @@ function showRoundResult(){
   }
   $('round-extras').innerHTML = extras;
 
-  if(hasBounce) SFX.bounce();
-  else if(hasPenalty) SFX.penalty();
+  // Ergebnisabhängiger Sound (nur Zwischenrunden; am Spielende übernimmt win/lose).
+  if(gameState.status === 'round_over'){
+    const pr = rr.p;
+    if(!pr || !pr.active) SFX.roundPass();      // gepasst / nicht aktiv → neutral
+    else if(pr.bounced)   SFX.roundBounce();    // Überschuss prallt zurück
+    else if(pr.change < 0) SFX.roundWon();      // Punkte runter → gewonnen
+    else if(pr.change > 0) SFX.roundLost();     // Punkte rauf (+5) → verloren
+  }
 
   $('modal-round').classList.add('show');
 }
@@ -2073,10 +2227,14 @@ async function resumeGame(){
   if(v && v.state && v.state.status !== 'game_over'){
     $('start-screen').classList.add('hidden');
     canUndo = false; updateUndo();
-    lastHandCount = 0;
+    lastHandCount = Array.isArray(v.state.hands?.p) ? v.state.hands.p.length : 0;
     exchangeSelected = new Set();
     gameState = v.state;
     render(gameState);
+    // KI-Schleife nach dem Fortsetzen wieder anstoßen, sonst bleibt es bei "KI überlegt…" hängen
+    if(gameState.status === 'round_over') showRoundResult();
+    else if(gameState.status === 'cutting') await animateCutting();
+    else await advanceAI();
   }
 }
 
@@ -2156,6 +2314,8 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Best-effort: auf Mobilgeräten Querformat anfordern (nur in PWA/Fullscreen wirksam, sonst harmlos)
+  try { if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); } catch(e){}
   const ok = await claimSession(false);
   if (ok) init();
 });

@@ -143,7 +143,7 @@
   "allow_indexing_hint": "Off = the site asks all search engines not to index it (noindex + robots.txt Disallow) and IndexNow pauses. Default: on.",
   "mini_games": "Mini Games",
   "field_mini_games": "Mini games (footer link)",
-  "mini_games_hint": "Shows a “Mini Games” link in the footer: Snake, Dino, Pong, photo memory (uses your album images), a slot machine (777 jackpot) and blackjack (17+4). Default: off.",
+  "mini_games_hint": "Shows a “Mini Games” link in the footer: Snake, Dino, Pong, photo memory (uses your album images), a slot machine (777 jackpot), blackjack (17+4), video poker and a trick-question quiz. Default: off.",
   "field_reveal_effect": "Reveal effect",
   "reveal_off": "Off",
   "reveal_fade": "Gentle fade-in",
@@ -228,6 +228,515 @@
   "g_pk_twopair": "Two Pair",
   "g_pk_jacks": "Jacks or Better",
   "g_sim": "Simulation (no payout)",
+  "g_quiz_title": "Trick Questions",
+  "g_quiz_label": "Question",
+  "g_quiz_right": "Correct!",
+  "g_quiz_wrong": "Nope — the answer is:",
+  "g_quiz_next": "Next",
+  "g_quiz_done": "Result",
+  "g_quiz_final": "Tip: the obvious answer is rarely the right one. 😉",
+  "g_quiz_q": [
+    {
+      "q": "Which months have 28 days?",
+      "opts": [
+        "All twelve",
+        "Only February",
+        "Only February in leap years",
+        "Four short months"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Which ducks walk on two legs?",
+      "opts": [
+        "All of them",
+        "Only the drakes",
+        "Only mallards",
+        "None"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Which is heavier: a kilo of feathers or a kilo of lead?",
+      "opts": [
+        "They weigh the same",
+        "The lead",
+        "The feathers",
+        "Depends on the feathers"
+      ],
+      "c": 0
+    },
+    {
+      "q": "A farmer has 17 sheep. All but 9 run away. How many are left?",
+      "opts": [
+        "9",
+        "8",
+        "17",
+        "0"
+      ],
+      "c": 0
+    },
+    {
+      "q": "How many animals of each kind did Moses take on the ark?",
+      "opts": [
+        "None – that was Noah",
+        "Two",
+        "Seven",
+        "One pair each"
+      ],
+      "c": 0
+    },
+    {
+      "q": "In a race you overtake the runner in second place. What position are you in now?",
+      "opts": [
+        "Second",
+        "First",
+        "Third",
+        "At the finish"
+      ],
+      "c": 0
+    },
+    {
+      "q": "A red house is made of red bricks, a blue house of blue bricks. What is a greenhouse made of?",
+      "opts": [
+        "Glass",
+        "Green bricks",
+        "Wood",
+        "Plants"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets wetter the more it dries?",
+      "opts": [
+        "A towel",
+        "A sponge",
+        "The sun",
+        "A hairdryer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a neck but no head?",
+      "opts": [
+        "A bottle",
+        "A guitar",
+        "A sweater",
+        "A swan"
+      ],
+      "c": 0
+    },
+    {
+      "q": "How far can a dog run into the woods?",
+      "opts": [
+        "Halfway",
+        "All the way",
+        "As far as it likes",
+        "One kilometre"
+      ],
+      "c": 0
+    },
+    {
+      "q": "You get 3 pills, one every half hour. How long do they last?",
+      "opts": [
+        "One hour",
+        "One and a half hours",
+        "Half an hour",
+        "Three hours"
+      ],
+      "c": 0
+    },
+    {
+      "q": "Which number gets bigger when you turn it upside down?",
+      "opts": [
+        "The 6",
+        "The 8",
+        "The 1",
+        "The 0"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What goes up and down but never moves from the spot?",
+      "opts": [
+        "A staircase",
+        "A lift",
+        "A ball",
+        "A swing"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has many teeth but never bites?",
+      "opts": [
+        "A comb",
+        "A guard dog",
+        "A crocodile",
+        "A wolf"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets bigger the more you take away?",
+      "opts": [
+        "A hole",
+        "A mountain",
+        "A supply",
+        "A stack"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has hands but cannot clap?",
+      "opts": [
+        "A clock",
+        "A glove",
+        "A monkey",
+        "A robot"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has cities but no houses, forests but no trees, water but no fish?",
+      "opts": [
+        "A map",
+        "A desert",
+        "The moon",
+        "A model"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can you catch but not throw?",
+      "opts": [
+        "A cold",
+        "A ball",
+        "A fish",
+        "A stone"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has four wheels and flies?",
+      "opts": [
+        "A garbage truck",
+        "An airplane",
+        "A flying carpet",
+        "A car"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What belongs to you but is used more by others than by you?",
+      "opts": [
+        "Your name",
+        "Your car",
+        "Your phone",
+        "Your money"
+      ],
+      "c": 0
+    },
+    {
+      "q": "How many peas fit into an empty glass?",
+      "opts": [
+        "One – then it's no longer empty",
+        "A hundred",
+        "None",
+        "As many as fit"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a head and a foot but no legs?",
+      "opts": [
+        "A bed",
+        "A table",
+        "A mushroom",
+        "A mountain"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What runs and runs but has no legs?",
+      "opts": [
+        "A river",
+        "A runner",
+        "A dog",
+        "An ant"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has many eyes but cannot see?",
+      "opts": [
+        "A potato",
+        "An owl",
+        "An eagle",
+        "A camera"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What is always in front of you but can never be reached?",
+      "opts": [
+        "The future",
+        "A wall",
+        "Your reflection",
+        "The moon"
+      ],
+      "c": 0
+    },
+    {
+      "q": "An electric train heads east, the wind blows from the west. Which way does the smoke drift?",
+      "opts": [
+        "There is no smoke",
+        "East",
+        "West",
+        "Upward"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What runs through every town but never moves itself?",
+      "opts": [
+        "The road",
+        "The wind",
+        "The traffic",
+        "The train"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What must you break before you can use it?",
+      "opts": [
+        "An egg",
+        "A vase",
+        "A window",
+        "A plate"
+      ],
+      "c": 0
+    },
+    {
+      "q": "A rooster lays an egg on a pointed roof. Which side does it roll down?",
+      "opts": [
+        "Neither – roosters don't lay eggs",
+        "Left",
+        "Right",
+        "The steeper side"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets longer in winter and shorter in summer?",
+      "opts": [
+        "The night",
+        "The day",
+        "The snow",
+        "A beard"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has one eye but cannot see?",
+      "opts": [
+        "A needle",
+        "A mole",
+        "A button",
+        "A stone"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a thumb and four fingers but is not alive?",
+      "opts": [
+        "A glove",
+        "A statue",
+        "A hand",
+        "A robot"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a ring but no finger?",
+      "opts": [
+        "A telephone",
+        "A door",
+        "A window",
+        "A table"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has leaves but is not a tree?",
+      "opts": [
+        "A book",
+        "A stone",
+        "A car",
+        "A lamp"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What wears a hat but has no head?",
+      "opts": [
+        "A mushroom",
+        "A cowboy",
+        "A king",
+        "A clown"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has teeth but cannot eat anything?",
+      "opts": [
+        "A saw",
+        "A baby",
+        "A shark",
+        "A crocodile"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What always comes but never arrives?",
+      "opts": [
+        "Tomorrow",
+        "The bus",
+        "The mail",
+        "Summer"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can you hold without ever touching it?",
+      "opts": [
+        "Your breath",
+        "A ball",
+        "A hand",
+        "A rope"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What always goes up but never comes back down?",
+      "opts": [
+        "Your age",
+        "An elevator",
+        "A balloon",
+        "The sun"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can fly without wings?",
+      "opts": [
+        "Time",
+        "A bird",
+        "An airplane",
+        "A kite"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What gets shorter the longer it burns?",
+      "opts": [
+        "A candle",
+        "A fire",
+        "A light bulb",
+        "An oven"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What stands in the corner yet travels all around the world?",
+      "opts": [
+        "A stamp",
+        "A globe",
+        "A tourist",
+        "A lamp"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a crown and a neck but is no king?",
+      "opts": [
+        "A tooth",
+        "A giraffe",
+        "A queen",
+        "A bottle"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What is full of holes but still holds water?",
+      "opts": [
+        "A sponge",
+        "A sieve",
+        "A net",
+        "A bucket"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What speaks every language without ever having learned one?",
+      "opts": [
+        "An echo",
+        "A radio",
+        "A parrot",
+        "A translator"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What comes once in a minute, twice in a moment, but never in a thousand years?",
+      "opts": [
+        "The letter M",
+        "A full moon",
+        "A blink",
+        "New Year"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What has a head but cannot think?",
+      "opts": [
+        "A match",
+        "A professor",
+        "A student",
+        "A parrot"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What runs around the garden but never moves?",
+      "opts": [
+        "A fence",
+        "A dog",
+        "The gardener",
+        "A lawnmower"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What can you give away and still keep?",
+      "opts": [
+        "Your word",
+        "Your money",
+        "Your car",
+        "Your cake"
+      ],
+      "c": 0
+    },
+    {
+      "q": "What grows the more you share it?",
+      "opts": [
+        "Joy",
+        "A cake",
+        "Money",
+        "A pizza"
+      ],
+      "c": 0
+    }
+  ],
   "g66_title": "66 (Sixty-Six)",
   "g66_intro": "The classic trick-taking game against the AI — 20 cards, marriages, closing, going out. Your game is saved and can be continued on any device.",
   "g66_play": "Play",
@@ -633,9 +1142,16 @@
   "gs_you_lose": "won!",
   "gs_swimming": "Swimming!",
   "gs_eliminated": "Eliminated!",
+  "gs_swims": "is swimming!",
+  "gs_you_swim": "You're swimming!",
+  "gs_swim_plural": "are swimming!",
+  "gs_is_elim": "is eliminated!",
+  "gs_you_elim": "You're eliminated!",
+  "gs_elim_plural": "are eliminated!",
   "gs_feuer": "FIRE — 3 Aces!",
   "gs_thirty_one": "31 points!",
   "gs_knocked": "knocked!",
+  "gs_knocked_you": "knocked!",
   "gs_ai_thinking": "is thinking...",
   "gs_all_passed": "All passed — 3 new table cards!",
   "gs_loses_life": "loses a life",
@@ -812,5 +1328,329 @@
   "g20_back": "To members area",
   "gs_back": "To members area",
   "g20_banner_no": "No",
-  "gs_banner_no": "No"
+  "gs_banner_no": "No",
+  "gmm_title": "Mau Mau",
+  "gmm_subtitle": "Card game for 3 players",
+  "gmm_intro": "The classic for three against two AI opponents — play cards, special cards, wish suits. Your progress is saved and can be continued on any device.",
+  "gmm_play": "Play",
+  "gmm_new_game": "New game",
+  "gmm_your_turn": "Your turn",
+  "gmm_draw": "Draw",
+  "gmm_draw_pile": "Draw pile",
+  "gmm_discard_pile": "Discard pile",
+  "gmm_next_round": "Continue",
+  "gmm_round": "Round",
+  "gmm_round_result": "Round result",
+  "gmm_game_over": "Game over!",
+  "gmm_you_win": "You won!",
+  "gmm_you_lose": "won!",
+  "gmm_player": "You",
+  "gmm_ai1": "AI Left",
+  "gmm_ai2": "AI Right",
+  "gmm_player_col": "Player",
+  "gmm_cards_left": "Cards",
+  "gmm_points_col": "Points",
+  "gmm_wins_col": "Wins",
+  "gmm_wins_target": "Wins to win",
+  "gmm_level_easy": "Easy",
+  "gmm_level_medium": "Medium",
+  "gmm_level_hard": "Hard",
+  "gmm_suit_h": "Hearts",
+  "gmm_suit_d": "Diamonds",
+  "gmm_suit_s": "Spades",
+  "gmm_suit_c": "Clubs",
+  "gmm_plays_card": "plays",
+  "gmm_draws_cards": "draws",
+  "gmm_wishes": "wishes",
+  "gmm_wish_title": "Wish a suit",
+  "gmm_wish_desc": "Which suit should be played next?",
+  "gmm_drawn_title": "Play the drawn card?",
+  "gmm_drawn_play": "Play",
+  "gmm_drawn_pass": "Keep",
+  "gmm_mau": "MAU",
+  "gmm_mau_mau": "MAU MAU",
+  "gmm_direction_cw": "Clockwise",
+  "gmm_direction_ccw": "Counter-clockwise",
+  "gmm_skipped": "Skipped!",
+  "gmm_reshuffled": "Draw pile reshuffled!",
+  "gmm_must_draw": "cards to draw",
+  "gmm_wins_round": "wins the round",
+  "gmm_you_win_round": "You win the round!",
+  "game_rotate_title": "Please rotate your device",
+  "game_rotate_hint": "This game is played in landscape. Turn your device sideways.",
+  "gmm_ai_playing": "is playing...",
+  "gmm_settings": "Settings",
+  "gmm_speed_label": "AI speed",
+  "gmm_speed_fly": "Card flight",
+  "gmm_speed_toast": "Info banner",
+  "gmm_settings_hint": "Shorter times = faster game",
+  "gmm_sound_label": "Sound effects",
+  "gmm_played": "Played cards",
+  "gmm_played_hand": "Own hand",
+  "gmm_played_gone": "Discarded",
+  "gmm_played_opt": "Played cards button",
+  "gmm_played_hint": "Shows the 📋 button in the top bar",
+  "gmm_keyboard": "Keyboard controls",
+  "gmm_reset": "Reset",
+  "gmm_undo": "Undo",
+  "gmm_undo_toast": "Move undone",
+  "gmm_rulesdoc": "Game rules",
+  "gmm_stats": "Statistics",
+  "gmm_stats_wins": "Wins",
+  "gmm_stats_losses": "Losses",
+  "gmm_stats_games": "Games",
+  "gmm_stats_winrate": "Win rate",
+  "gmm_stats_reset": "Reset statistics",
+  "gmm_stats_empty": "No games yet",
+  "gmm_resume": "Resume game",
+  "gmm_back": "To members area",
+  "gmm_banner_no": "No",
+  "gmm_tab_title": "Opened in another tab",
+  "gmm_tab_text": "You opened the game in another browser tab. This tab has been disconnected so the two don't interfere with each other. Your progress is safely saved.",
+  "gmm_tab_resume": "Continue here",
+  "gmm_device_title": "Active on another device",
+  "gmm_device_text": "The game is currently running on another device or browser. You can take over here — the other device will be disconnected.",
+  "gmm_device_takeover": "Take over here",
+  "gp_title": "President",
+  "gp_subtitle": "Card game for 3 players",
+  "gp_intro": "Play cards, outbid, fight for ranks — first to empty their hand becomes President! Your progress is saved and can be continued on any device.",
+  "gp_play": "Play",
+  "gp_new_game": "New game",
+  "gp_your_turn": "Your turn",
+  "gp_pass": "Pass",
+  "gp_play_cards": "Play",
+  "gp_next_round": "Continue",
+  "gp_round": "Round",
+  "gp_round_result": "Round result",
+  "gp_game_over": "Game over!",
+  "gp_you_win": "You won!",
+  "gp_you_lose": "won!",
+  "gp_player": "You",
+  "gp_ai1": "AI Left",
+  "gp_ai2": "AI Right",
+  "gp_player_col": "Player",
+  "gp_role_col": "Rank",
+  "gp_cards_left": "Cards",
+  "gp_wins_col": "Wins",
+  "gp_wins_target": "Wins to win",
+  "gp_level_easy": "Easy",
+  "gp_level_medium": "Medium",
+  "gp_level_hard": "Hard",
+  "gp_suit_h": "Hearts",
+  "gp_suit_d": "Diamonds",
+  "gp_suit_s": "Spades",
+  "gp_suit_c": "Clubs",
+  "gp_role_praesident": "President",
+  "gp_role_buerger": "Citizen",
+  "gp_role_bettler": "Beggar",
+  "gp_plays_cards": "plays",
+  "gp_passes": "passes",
+  "gp_all_passed": "All passed",
+  "gp_new_trick": "starts a new trick",
+  "gp_trick_cleared": "wins the trick",
+  "gp_trick_cleared_you": "win the trick",
+  "gp_finished": "is finished!",
+  "gp_swap_title": "Card swap",
+  "gp_swap_give": "gives 2 best cards to",
+  "gp_swap_receive": "gives 2 cards back to",
+  "gp_swap_choose": "Choose 2 cards to give back",
+  "gp_swap_confirm": "Swap cards",
+  "gp_swap_auto": "Card swap completed",
+  "gp_revolution": "REVOLUTION!",
+  "gp_revolution_active": "Revolution active — rank order reversed!",
+  "gp_revolution_off": "Revolution cancelled!",
+  "gp_select_cards": "Select cards",
+  "gp_select_hint": "Select same rank, then press Play",
+  "gp_invalid_play": "Invalid play",
+  "gp_must_beat": "Must outbid or pass",
+  "gp_opens_trick": "opens the trick",
+  "gp_wins_round": "wins as President!",
+  "gp_wins_round_you": "win as President!",
+  "gp_ai_playing": "is playing...",
+  "gp_settings": "Settings",
+  "gp_speed_label": "AI speed",
+  "gp_speed_fly": "Card flight",
+  "gp_speed_toast": "Info banner",
+  "gp_settings_hint": "Shorter times = faster game",
+  "gp_sound_label": "Sound effects",
+  "gp_played": "Played cards",
+  "gp_played_hand": "Own hand",
+  "gp_played_gone": "Played",
+  "gp_played_opt": "Played cards button",
+  "gp_played_hint": "Shows the 📋 button in the top bar",
+  "gp_keyboard": "Keyboard controls",
+  "gp_reset": "Reset",
+  "gp_undo": "Undo",
+  "gp_undo_toast": "Move undone",
+  "gp_rulesdoc": "Game rules",
+  "gp_stats": "Statistics",
+  "gp_stats_wins": "Wins",
+  "gp_stats_losses": "Losses",
+  "gp_stats_games": "Games",
+  "gp_stats_winrate": "Win rate",
+  "gp_stats_reset": "Reset statistics",
+  "gp_stats_empty": "No games yet",
+  "gp_resume": "Resume game",
+  "gp_back": "To members area",
+  "gp_banner_no": "No",
+  "gp_tab_title": "Opened in another tab",
+  "gp_tab_text": "You opened the game in another browser tab. This tab has been disconnected so the two don't interfere with each other. Your progress is safely saved.",
+  "gp_tab_resume": "Continue here",
+  "gp_device_title": "Active on another device",
+  "gp_device_text": "The game is currently running on another device or browser. You can take over here — the other device will be disconnected.",
+  "gp_device_takeover": "Take over here",
+  "gp_trick": "Trick",
+  "gp_rank_order": "Rank order: 7 < 8 < 9 < 10 < Jack < Queen < King < Ace",
+  "gp_stacked_opt": "Stack cards",
+  "gp_stacked_hint": "Display hand cards overlapping — more compact with many cards",
+  "gp_hint": "Hint",
+  "gp_hint_play": "Play",
+  "gp_hint_pass": "Better to pass",
+  "gp_hint_swap": "Swap",
+  "gj_title": "Jeopardy",
+  "gj_subtitle": "Quiz duel vs the AI – categories, buzzer, Daily Double & final round",
+  "gj_intro": "The knowledge board against the AI: pick categories and point values, buzz in faster than the AI, answer correctly – with Daily Double and Final Jeopardy. Your game is saved and can be resumed on any device.",
+  "gj_play": "Play",
+  "gj_resume": "Resume",
+  "gj_back": "Back",
+  "gj_level_easy": "Easy",
+  "gj_level_medium": "Medium",
+  "gj_level_hard": "Hard",
+  "gj_player": "You",
+  "gj_ai": "AI",
+  "gj_rulesdoc": "Rules",
+  "gj_stats": "Statistics",
+  "gj_new_game": "New game",
+  "gj_close": "Close",
+  "gj_music": "Music on/off",
+  "gj_your_pick": "Your turn – pick a tile",
+  "gj_ai_picks": "The AI is picking a tile …",
+  "gj_ai_thinking": "The AI is thinking …",
+  "gj_buzz": "Buzz",
+  "gj_buzz_hint": "Hit it faster than the AI – or let it pass.",
+  "gj_pass": "Pass",
+  "gj_you_buzzed": "You buzzed in first!",
+  "gj_ai_buzzed": "The AI was faster!",
+  "gj_answer_prompt": "Pick the correct answer:",
+  "gj_rebuttal": "Second chance!",
+  "gj_correct": "Correct",
+  "gj_wrong": "Wrong",
+  "gj_daily_double": "Daily Double",
+  "gj_dd_hint": "Only you play this tile – place your wager first.",
+  "gj_place_wager": "Place wager",
+  "gj_wager": "Wager",
+  "gj_you_scored": "You get",
+  "gj_ai_scored": "AI gets",
+  "gj_nobody": "Nobody scores.",
+  "gj_continue": "Continue",
+  "gj_final_title": "Final Jeopardy",
+  "gj_final_cat": "Category",
+  "gj_final_wager_prompt": "Secretly wager on the final clue.",
+  "gj_final_answer_prompt": "Your final answer:",
+  "gj_final_your_answer": "Your final answer",
+  "gj_you_win": "You win! 🏆",
+  "gj_you_lose": "The AI wins.",
+  "gj_tie": "It's a tie!",
+  "gj_stats_wins": "Wins",
+  "gj_stats_losses": "Losses",
+  "gj_stats_games": "Games",
+  "gj_stats_winrate": "Win rate",
+  "gj_stats_empty": "No games yet.",
+  "gj_stats_reset": "Reset statistics",
+  "gj_device_title": "Active on another device",
+  "gj_device_text": "This game is currently running on another device. Take over here?",
+  "gj_device_takeover": "Take over here",
+  "ggr_title": "Wheel of Fortune",
+  "ggr_heading": "WHEEL OF FORTUNE",
+  "ggr_subtitle": "Spin the wheel, guess the letters, solve the puzzle!",
+  "ggr_level_easy": "Easy",
+  "ggr_level_medium": "Medium",
+  "ggr_level_hard": "Hard",
+  "ggr_resume": "Resume game",
+  "ggr_new_game": "New Game",
+  "ggr_statistics": "Statistics",
+  "ggr_settings": "Settings",
+  "ggr_close": "Close",
+  "ggr_back": "To members area",
+  "ggr_reset": "Reset",
+  "ggr_category": "Category",
+  "ggr_letters": "Letters",
+  "ggr_solve": "Solve",
+  "ggr_solve_placeholder": "Enter solution...",
+  "ggr_cancel": "Cancel",
+  "ggr_confirm": "Confirm",
+  "ggr_spin": "Spin!",
+  "ggr_buy_vowel": "Vowel (250€)",
+  "ggr_continue": "Continue",
+  "ggr_game_over": "Game Over!",
+  "ggr_finale": "★ FINALE ★",
+  "ggr_finale_pick_title": "Finale — Choose 3 consonants and 1 vowel",
+  "ggr_round_of": "Round {round} of {max}",
+  "ggr_round_score": "Round: {amount} €",
+  "ggr_currency": "€",
+  "ggr_session_takeover": "Active on another device. Take over?",
+  "ggr_ai_delay_label": "AI delay:",
+  "ggr_sound_label": "Sound enabled",
+  "ggr_stats_empty": "No games played yet.",
+  "ggr_stats_wins": "Wins",
+  "ggr_stats_losses": "Losses",
+  "ggr_stats_games": "Games",
+  "ggr_stats_winrate": "Win rate",
+  "ggr_stats_best": "Best",
+  "ggr_stats_reset_confirm": "Really reset statistics?",
+  "ggr_wheel_pass": "PASS",
+  "ggr_wheel_risk": "RISK",
+  "ggr_evt_spin_money": "{player} — Spin... {amount} €!",
+  "ggr_evt_bankrupt": "{player} — BANKRUPT! 💀",
+  "ggr_evt_skip": "{player} — Skip turn!",
+  "ggr_evt_risk_win": "{player} — RISK won! {old}→{new} €",
+  "ggr_evt_risk_lose": "{player} — RISK lost! {old}→0 €",
+  "ggr_evt_letter_hit": "{player} — \"{letter}\" {count}× hit! +{earned} €",
+  "ggr_evt_letter_miss": "{player} — \"{letter}\" not found!",
+  "ggr_evt_vowel_hit": "{player} — \"{letter}\" {count}× found!",
+  "ggr_evt_vowel_miss": "{player} — \"{letter}\" not found!",
+  "ggr_evt_buy_vowel": "{player} — Buy vowel ({cost} €)",
+  "ggr_evt_solved": "{player} — Solved! 🎉",
+  "ggr_evt_auto_solved": "All letters revealed!",
+  "ggr_evt_solve_wrong": "{player} — Wrong solution!",
+  "ggr_evt_new_round": "Round {round}!",
+  "ggr_evt_finale_reveal": "{hits} hits revealed!",
+  "ggr_evt_finale_solved": "Solved! Bonus: {bonus} € 🎉",
+  "ggr_evt_finale_wrong": "Wrong answer!",
+  "ggr_evt_finale_timeout": "Time's up!",
+  "ggr_player_wins": "{player} — Won!",
+  "ggr_solution": "Solution: {phrase}",
+  "ggr_risk_win": "DOUBLED!",
+  "ggr_risk_lose": "LOST!",
+  "ggr_qualify_title": "Who goes first?",
+  "ggr_qualify_spin": "{player} spins...",
+  "ggr_qualify_result": "{player}: {amount} €",
+  "ggr_qualify_special": "{player}: 0 € (special field)",
+  "ggr_qualify_winner": "{player} starts!",
+  "ggr_qualify_tie": "It's a tie! Spin again...",
+  "ggr_finale_time_up": "Time's up!",
+  "ggr_round_complete": "Round {round} complete",
+  "ggr_round_earned": "Round: +{amount} €",
+  "ggr_risk_question": "RISK! Gamble {amount} € — double or nothing?",
+  "ggr_risk_accept": "Risk it!",
+  "ggr_risk_decline": "No thanks",
+  "ggr_evt_risk_decline": "{player} — No risk!",
+  "ggr_evt_risk_skip": "{player} — Risk with nothing to lose, spin again!",
+  "ggr_extra_life": "Extra Life",
+  "ggr_wheel_extralife": "EXTRA LIFE",
+  "ggr_evt_extra_life": "{player} — Extra life earned! ❤️",
+  "ggr_evt_extra_life_skip": "{player} — Already has an extra life, spin again!",
+  "ggr_evt_bankrupt_save": "{player} — BANKRUPT! Use extra life?",
+  "ggr_evt_skip_save": "{player} — Skip! Use extra life?",
+  "ggr_evt_life_used": "{player} — Extra life used! Saved! ❤️",
+  "ggr_use_life": "Use extra life",
+  "ggr_decline_life": "No",
+  "ggr_pause": "Pause",
+  "ggr_paused": "Paused",
+  "ggr_pause_hint": "Press P or click the button to resume",
+  "ggr_resume_game": "Resume",
+  "ggr_intro": "Spin the wheel, guess letters and solve the word puzzle against two AI rivals.",
+  "ggr_play": "Play",
+  "ggr_rules": "Rules",
+  "ggr_solving": "🧠 {player} is trying to solve …"
 }

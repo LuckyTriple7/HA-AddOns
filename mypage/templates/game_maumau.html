@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>{{ t.gmm_title }}</title>
+<style>
+/* ── Reset & Body ─────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--gold:#f1c40f;--felt1:#1a4a2a;--felt2:#0e3318}
+body{
+  font-family:'Segoe UI',Tahoma,sans-serif;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  color:#f0f0f0;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  overflow-x:hidden;
+  user-select:none;
+}
+
+/* ── Topbar ───────────────────────────────── */
+#topbar{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  padding:6px 16px;
+  background:rgba(0,0,0,0.4);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  flex-shrink:0;
+}
+#scorebar{display:flex;gap:28px;justify-content:center}
+.score-item{text-align:center;min-width:80px}
+.score-name{font-size:11px;opacity:0.6;display:block;margin-bottom:2px}
+.score-val{font-size:26px;font-weight:bold;transition:color 0.3s}
+.score-cards{font-size:11px;opacity:0.5}
+.score-item.active-player .score-val{color:var(--gold)}
+#topbar-btns{display:flex;gap:6px;position:absolute;right:16px;top:50%;transform:translateY(-50%)}
+.top-btn{
+  background:rgba(255,255,255,0.12);border:none;color:#fff;
+  font-size:1.1rem;cursor:pointer;border-radius:8px;
+  width:34px;height:34px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color 0.2s,background 0.2s;
+}
+.top-btn:hover{color:#fff;background:rgba(255,255,255,0.22)}
+
+/* ── Richtungsanzeige ────────────────────────── */
+#direction-bar{
+  text-align:center;padding:4px 0;font-size:14px;
+  background:rgba(0,0,0,0.18);
+  min-height:26px;
+}
+#direction-bar .dir-arrow{font-size:18px;vertical-align:middle}
+.wish-indicator{
+  display:inline-block;padding:2px 10px;border-radius:6px;
+  background:rgba(241,196,15,0.2);color:var(--gold);font-weight:bold;
+  margin-left:8px;
+}
+.draw-penalty{
+  display:inline-block;padding:2px 10px;border-radius:6px;
+  background:rgba(255,60,60,0.25);color:#ff6666;font-weight:bold;
+  margin-left:8px;
+}
+
+/* ── Spielbereich ─────────────────────────── */
+#game-area{
+  flex:1;display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:10px 16px;
+  max-width:800px;width:100%;margin:0 auto;
+}
+
+/* ── Gegner (Kartenfächer) ───────────────── */
+#opponents{display:flex;justify-content:space-between;gap:16px;padding:0 12px}
+.opponent{text-align:center;flex:1}
+.opp-label{font-size:13px;margin-bottom:6px;opacity:0.7}
+.opp-fan{
+  display:flex;justify-content:center;position:relative;
+  height:clamp(68px,14vh,105px);
+}
+.opp-fan .card{
+  position:absolute;
+  width:clamp(40px,8vw,65px);height:clamp(58px,12vh,95px);
+  transform-origin:bottom center;
+  transition:transform 0.3s;
+}
+.card-count-badge{
+  position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);
+  background:var(--gold);color:#1a1a1a;font-weight:bold;
+  font-size:12px;padding:1px 8px;border-radius:10px;
+  z-index:5;min-width:22px;text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,0.4);
+}
+
+/* ── Tisch (Ablage + Nachziehen) ─────────── */
+#play-area{
+  display:flex;flex-direction:column;align-items:center;
+  min-height:200px;justify-content:center;
+  position:relative;
+}
+#table-center{
+  display:flex;justify-content:center;gap:clamp(20px, 5vw, 50px);
+  align-items:center;position:relative;
+}
+#active-suit{
+  position:absolute;left:50%;top:50%;
+  transform:translate(calc(-50% - clamp(80px, 18vw, 145px)), -50%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(32px, 7vw, 52px);
+  transition:opacity 0.3s;text-shadow:0 0 6px rgba(255,255,255,0.3);
+}
+#active-suit.red{color:#cc0000}
+#active-suit.black{color:#e0e0e0}
+.pile{text-align:center;position:relative}
+.pile-label{font-size:11px;margin-bottom:4px;opacity:0.6}
+.pile .card{cursor:default}
+#draw-pile .card{cursor:pointer}
+#draw-pile .card:hover{transform:translateY(-4px);box-shadow:0 0 14px rgba(255,215,0,0.5)}
+#draw-pile.disabled .card{cursor:default;opacity:0.5}
+#draw-pile.disabled .card:hover{transform:none;box-shadow:2px 3px 8px rgba(0,0,0,0.22)}
+.pile-count{
+  position:absolute;bottom:-4px;right:-4px;
+  background:rgba(0,0,0,0.7);color:#fff;font-size:10px;
+  padding:1px 6px;border-radius:8px;
+}
+@keyframes cardFade{from{opacity:0}to{opacity:1}}
+#discard-pile .card{animation:cardFade 0.26s ease}
+#discard-pile.no-fade .card{animation:none}
+
+#info-text{
+  margin-top:10px;font-size:15px;text-align:center;
+  min-height:24px;opacity:0.8;
+}
+
+/* ── Spielerhand ──────────────────────────── */
+#player-area{text-align:center;padding-bottom:10px}
+#player-label{font-size:13px;margin-bottom:5px;opacity:0.7}
+#player-hand{
+  display:flex;justify-content:center;gap:clamp(4px, 1vw, 10px);
+  min-height:clamp(90px, 20vh, 150px);align-items:flex-end;
+  flex-wrap:wrap;
+}
+#actions{margin-top:12px;min-height:44px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+
+/* ── Karten ───────────────────────────────── */
+.card{
+  width:clamp(56px, 13vw, 95px);height:clamp(82px, 19vh, 140px);border-radius:10px;
+  position:relative;display:inline-block;
+  border:2px solid #555;background:#fff;
+  box-shadow:2px 3px 8px rgba(0,0,0,0.22);
+  transition:transform 0.15s,box-shadow 0.15s,opacity 0.2s;
+  vertical-align:bottom;flex-shrink:0;
+}
+.card.knoll-card{background:transparent;border:none;box-shadow:none;overflow:hidden;padding:0}
+.card.knoll-card img{width:100%;height:100%;object-fit:contain;pointer-events:none;border-radius:10px}
+.card.knoll-card.back{background:transparent}
+.card.knoll-card.back::after{display:none}
+.card .c-tl{position:absolute;top:5px;left:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15}
+.card .c-br{position:absolute;bottom:5px;right:7px;font-size:clamp(12px, 2vw, 17px);font-weight:bold;line-height:1.15;transform:rotate(180deg)}
+.card .c-mid{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:clamp(24px, 5vw, 38px)}
+.card.red{color:#cc0000}
+.card.black{color:#1a1a1a}
+.card.playable{cursor:pointer}
+.card.playable:hover{transform:translateY(-14px);box-shadow:0 0 16px rgba(255,215,0,0.7)}
+.card.dimmed{opacity:0.4;cursor:default}
+.skip-dim{position:relative}
+.skip-dim::after{
+  content:'⛔';position:absolute;inset:0;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,0.45);border-radius:10px;
+  font-size:clamp(28px,5vw,48px);
+  animation:skipFlash 1.2s ease-out forwards;pointer-events:none;
+}
+@keyframes skipFlash{0%{opacity:1}80%{opacity:1}100%{opacity:0}}
+@keyframes reshuffleSpin{
+  0%{transform:rotate(0deg) scale(1)}
+  50%{transform:rotate(180deg) scale(1.15)}
+  100%{transform:rotate(360deg) scale(1)}
+}
+.reshuffle-anim .card{animation:reshuffleSpin 0.6s ease-in-out}
+.card.back{
+  background:linear-gradient(135deg,#1a3c5c 0%,#2a5c8c 50%,#1a3c5c 100%);
+  border-color:#0a2a4c;cursor:default;overflow:hidden;
+}
+.card.back::before{
+  content:'';position:absolute;
+  top:5px;left:5px;right:5px;bottom:5px;
+  border:1.5px solid rgba(255,255,255,0.15);
+  border-radius:6px;
+}
+.card.back::after{
+  content:'♠♥♦♣';position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:13px;color:rgba(255,255,255,0.2);letter-spacing:2px;
+}
+
+/* ── Buttons ──────────────────────────────── */
+.btn{
+  padding:10px 24px;border:none;border-radius:8px;
+  font-size:15px;cursor:pointer;
+  transition:background 0.2s,transform 0.1s;
+  font-family:inherit;
+}
+.btn:active{transform:scale(0.96)}
+.btn-gold{background:#d4a017;color:#1a1a1a;font-weight:bold}
+.btn-gold:hover{background:#e8b82a}
+.btn-red{background:#8b3030;color:#f0f0f0}
+.btn-red:hover{background:#a04040}
+.btn-ghost{background:rgba(255,255,255,0.14);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:0.86rem;cursor:pointer}
+.btn-ghost:hover{background:rgba(255,255,255,0.22)}
+.btn-suit{
+  width:72px;height:72px;border:2px solid #555;border-radius:12px;
+  background:rgba(255,255,255,0.1);color:#f0f0f0;
+  font-size:30px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;transition:background 0.2s,border-color 0.2s;
+}
+.btn-suit:hover{background:rgba(255,255,255,0.2);border-color:var(--gold)}
+.btn-suit .suit-label{font-size:11px}
+.btn-suit.red{color:#cc0000}
+.btn-suit.black{color:#1a1a1a}
+
+/* ── Modals ───────────────────────────────── */
+.modal-overlay{
+  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.65);z-index:100;
+  justify-content:center;align-items:center;
+}
+.modal-overlay.show{display:flex}
+.modal-box{
+  background:#1e3a1e;border:1px solid rgba(255,255,255,0.15);
+  border-radius:14px;padding:24px 32px;
+  text-align:center;max-width:440px;width:92%;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  max-height:90vh;overflow-y:auto;
+}
+.modal-box.wide{max-width:750px}
+.scrollbox{max-height:62vh;overflow-y:auto;text-align:left;margin:6px 0 14px;padding-right:6px}
+.scrollbox.md{font-size:0.86rem;line-height:1.5}
+.scrollbox.md h1{font-size:1.2rem;margin:12px 0 6px}
+.scrollbox.md h2{font-size:1.05rem;margin:14px 0 6px;border:0}
+.scrollbox.md h3{font-size:0.95rem;margin:10px 0 4px}
+.scrollbox.md p{opacity:0.92;margin:6px 0}
+.scrollbox.md ul,.scrollbox.md ol{margin:6px 0 6px 18px}
+.scrollbox.md li{margin:3px 0}
+.scrollbox.md hr{border:0;border-top:1px solid rgba(255,255,255,0.15);margin:14px 0}
+.scrollbox.md table{border-collapse:collapse;width:100%;margin:8px 0;font-size:0.8rem}
+.scrollbox.md th,.scrollbox.md td{border:1px solid rgba(255,255,255,0.18);padding:5px 8px;text-align:left}
+.scrollbox.md th{background:rgba(255,255,255,0.08)}
+.scrollbox.md strong{color:#f1c40f}
+.modal-box h2{font-size:22px;margin-bottom:12px}
+.modal-box p{font-size:14px;margin:6px 0;opacity:0.85}
+.modal-box .emoji{font-size:44px;margin:8px 0}
+
+/* ── Rundenergebnis ───────────────────────── */
+.result-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+.result-table th,.result-table td{padding:6px 10px;text-align:center}
+.result-table th{opacity:0.6;font-weight:normal;border-bottom:1px solid rgba(255,255,255,0.1)}
+.result-table td.winner{color:var(--gold);font-weight:bold}
+
+/* ── Settings ─────────────────────────────── */
+.setting{text-align:left;margin:12px 0;width:min(340px,80vw)}
+.setting label{display:block;font-size:0.86rem;margin-bottom:7px}
+.setting label b{color:var(--gold);font-variant-numeric:tabular-nums}
+.setting input[type=range]{width:100%;accent-color:var(--gold)}
+.setting-hint{font-size:0.74rem;opacity:0.7;margin:4px 0 16px;max-width:340px}
+.setting-check{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.86rem}
+.setting-check input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold)}
+
+/* ── Gespielte Karten ─────────────────────── */
+.played-grid{display:flex;flex-direction:column;gap:10px;margin:10px auto;align-items:center}
+.played-row{display:flex;align-items:center;gap:5px}
+.played-row .ps{font-size:1.6rem;width:32px;text-align:center}
+.played-row .ps.red{color:#cc0000}
+.played-row .pcard{
+  height:76px;width:auto;border-radius:6px;display:block;vertical-align:middle;
+  box-shadow:0 2px 5px rgba(0,0,0,0.4);
+}
+.played-row .pcard.used{opacity:0.22;filter:grayscale(0.8)}
+.played-row .pcard.in-hand{box-shadow:0 0 0 2.5px var(--gold),0 2px 5px rgba(0,0,0,0.4)}
+.played-legend{display:flex;gap:16px;justify-content:center;font-size:0.74rem;margin:2px 0 8px;opacity:0.75}
+.played-legend span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.played-legend .pl-hand::before{background:var(--gold)}
+.played-legend .pl-gone::before{background:rgba(255,255,255,0.18)}
+
+/* ── Toasts ───────────────────────────────── */
+#toast-container{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  z-index:200;display:flex;flex-direction:column;gap:6px;
+  align-items:center;pointer-events:none;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.toast{
+  background:rgba(0,0,0,0.82);color:#fff;
+  padding:7px 18px;border-radius:8px;font-size:14px;
+  font-weight:600;white-space:nowrap;
+  animation:toastIn 0.3s ease;
+  transition:opacity 0.4s;
+  pointer-events:none;
+}
+.toast.gold{background:rgba(241,196,15,0.92);color:#20160a}
+.toast.info{background:rgba(0,80,160,0.85)}
+
+/* ── Startscreen ──────────────────────────── */
+#start-screen{
+  display:flex;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+  z-index:300;
+  justify-content:center;align-items:center;
+}
+#start-screen.hidden{display:none}
+.start-box{text-align:center}
+.start-box h1{font-size:52px;margin-bottom:6px;color:var(--gold)}
+.start-box .sub{font-size:17px;opacity:0.7;margin-bottom:32px}
+.start-box .levels{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.start-box .level-btn{
+  padding:14px 28px;border:2px solid rgba(255,255,255,0.2);
+  border-radius:10px;background:rgba(255,255,255,0.06);
+  color:#f0f0f0;font-size:17px;cursor:pointer;
+  transition:background 0.2s,border-color 0.2s;
+  font-family:inherit;
+}
+.start-box .level-btn:hover{background:rgba(255,255,255,0.15);border-color:var(--gold)}
+.start-settings{margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;font-size:14px}
+.start-settings select{
+  background:rgba(255,255,255,0.1);color:#f0f0f0;border:1px solid rgba(255,255,255,0.2);
+  border-radius:6px;padding:6px 10px;font-size:14px;font-family:inherit;cursor:pointer;
+}
+.start-settings select option{background:#1e3a1e;color:#f0f0f0}
+
+#stats-box{margin-top:28px;text-align:center}
+#stats-box .stats-title{font-size:15px;opacity:0.6;margin-bottom:10px;letter-spacing:1px;text-transform:uppercase}
+.stats-grid{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.stat{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;padding:10px 18px;min-width:80px;
+}
+.stat-val{font-size:26px;font-weight:700;color:var(--gold)}
+.stat-label{font-size:11px;opacity:0.55;margin-top:2px}
+#stats-box .stats-empty{font-size:13px;opacity:0.4;padding:8px 0}
+.stats-history{margin-top:14px;max-height:240px;overflow-y:auto;text-align:left}
+.hist-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.08);font-size:12px}
+.hist-row.win{background:rgba(76,175,80,0.08)}
+.hist-ico{font-size:16px;flex-shrink:0}
+.hist-meta{opacity:0.55;flex:1;white-space:nowrap}
+.hist-score{font-size:11px;opacity:0.7;white-space:nowrap}
+
+.game-log{
+  position:fixed;left:10px;bottom:10px;width:min(280px,70vw);max-height:34vh;
+  overflow-y:auto;background:rgba(0,0,0,0.85);border-radius:10px;padding:8px 12px;
+  font-size:12px;display:none;z-index:80;border:1px solid rgba(255,255,255,0.12);
+}
+.game-log.show{display:block}
+.game-log div{padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.08);opacity:0.8}
+.game-log div:last-child{border-bottom:none}
+.game-log .log-round{color:var(--gold);font-weight:700;opacity:1;margin-top:6px}
+.game-log .log-round:first-child{margin-top:0}
+
+/* ── Mau Mau Ansage-Animation ────────────── */
+@keyframes mauPulse{
+  0%{transform:translate(-50%,-50%) scale(0.5);opacity:0}
+  50%{transform:translate(-50%,-50%) scale(1.1);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0}
+}
+.mau-announce{
+  position:fixed;top:50%;left:50%;
+  font-size:64px;font-weight:900;color:var(--gold);
+  text-shadow:0 0 30px rgba(241,196,15,0.8),0 4px 12px rgba(0,0,0,0.5);
+  z-index:90;pointer-events:none;
+  animation:mauPulse 1.2s ease forwards;
+}
+
+/* ── prefers-reduced-motion ───────────────── */
+@media(prefers-reduced-motion:reduce){
+  #discard-pile .card{animation:none}
+  .toast{animation:none}
+  .mau-announce{animation:none;opacity:0}
+}
+
+/* ── Mobile / Touch ───────────────────────── */
+@media(max-width:600px){
+  #scorebar{gap:14px}
+  .score-val{font-size:20px}
+  .score-name{font-size:10px}
+  .btn-suit{width:56px;height:56px;font-size:24px}
+  #player-hand{gap:4px}
+  .opp-fan .card{width:clamp(32px,7vw,50px);height:clamp(48px,10vh,76px)}
+  #game-area{padding:6px 8px}
+  #topbar{padding:6px 8px}
+  #topbar-btns{gap:2px}
+  .top-btn{width:32px;height:32px;font-size:16px;padding:2px}
+  .btn{min-width:44px;min-height:44px;padding:10px 18px}
+  .played-row .pcard{height:58px;width:auto}
+}
+@media(max-width:400px){
+  #scorebar{gap:8px;padding:4px 6px}
+  .score-val{font-size:18px}
+  .btn-suit{width:48px;height:48px;font-size:20px}
+  .modal-box{padding:16px 18px}
+}
+@media(pointer:coarse){
+  .card.playable:active{transform:translateY(-14px) scale(1.05)}
+  .top-btn{width:40px;height:40px}
+}
+
+/* ── Mobil: Querformat-Hinweis (Rotier-Overlay) ───────────────── */
+#rotate-overlay{display:none}
+@media (orientation:portrait) and (max-width:600px) and (pointer:coarse){
+  #rotate-overlay{
+    display:flex;position:fixed;inset:0;z-index:1000;
+    background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));
+    align-items:center;justify-content:center;text-align:center;padding:24px;
+  }
+  .rotate-inner{max-width:300px}
+  .rotate-icon{font-size:72px;margin-bottom:18px;display:inline-block;
+    animation:rotateHint 2.2s ease-in-out infinite}
+  .rotate-title{font-size:22px;font-weight:700;color:var(--gold);margin-bottom:10px}
+  .rotate-hint{font-size:15px;opacity:0.8;line-height:1.45}
+}
+@keyframes rotateHint{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
+
+/* ── Mobil: kompaktes Querformat-Layout (niedrige Display-Höhe) ── */
+@media (max-height:500px){
+  /* Startbildschirm: oben ausrichten + scrollbar, damit nichts oben/unten abgeschnitten wird */
+  #start-screen{align-items:flex-start;overflow-y:auto;padding:12px}
+  .start-box h1{font-size:28px;margin-bottom:2px}
+  .start-box .sub{font-size:13px;margin-bottom:10px}
+  .start-box .level-btn{padding:9px 18px;font-size:14px}
+  #resume-box{margin-bottom:8px !important}
+  #resume-box .level-btn{font-size:14px !important;padding:9px 22px !important}
+  .start-settings{margin-top:10px}
+  .start-box .levels{margin-top:10px !important}
+  #stats-box{margin-top:10px}
+  .start-box > div:last-child{margin-top:12px !important}
+  .modal-box{max-height:94vh;overflow-y:auto}
+
+  #topbar{padding:3px 10px}
+  #scorebar{gap:14px}
+  .score-item{min-width:54px}
+  .score-name{font-size:9px}
+  .score-val{font-size:18px}
+  .top-btn{width:30px;height:30px;font-size:0.95rem}
+  #topbar-btns{gap:3px;right:8px}
+  #direction-bar{padding:1px 0;min-height:18px;font-size:12px}
+  #direction-bar .dir-arrow{font-size:15px}
+
+  #game-area{padding:2px 10px}
+  #opponents{gap:8px;padding:0 6px}
+  .opp-label{font-size:10px;margin-bottom:2px}
+  .opp-fan{height:clamp(40px,15vh,62px)}
+  .opp-fan .card{width:clamp(30px,7vw,44px);height:clamp(42px,15vh,62px)}
+
+  #play-area{min-height:0}
+  #table-center{gap:clamp(16px,6vw,44px)}
+  .pile-label{font-size:9px;margin-bottom:1px}
+  #info-text{margin-top:3px;font-size:12px;min-height:15px}
+
+  #player-area{padding-bottom:3px}
+  #player-label{font-size:10px;margin-bottom:1px}
+  #player-hand{
+    min-height:0;gap:3px;flex-wrap:nowrap;
+    overflow-x:auto;overflow-y:hidden;padding-bottom:3px;
+    -webkit-overflow-scrolling:touch;
+  }
+  #actions{margin-top:4px;min-height:0;gap:8px}
+
+  /* Mobil: angetippte Handkarten NICHT hochschieben (würde im niedrigen
+     Hand-Streifen oben abgeschnitten) → stattdessen goldener Ring im Inneren */
+  #player-hand .card.playable:hover,
+  #player-hand .card.playable:active{
+    transform:none !important;
+    box-shadow:inset 0 0 0 3px rgba(241,196,15,0.85) !important;
+  }
+
+  /* gemeinsame Kartengröße (Hand + Stapel) an die Höhe koppeln */
+  .card{width:clamp(44px,15vh,60px);height:clamp(62px,21vh,86px)}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Mobil: Querformat-Hinweis (nur im Hochformat auf kleinen Touch-Screens) ── -->
+<div id="rotate-overlay">
+  <div class="rotate-inner">
+    <div class="rotate-icon">📱</div>
+    <div class="rotate-title">{{ t.game_rotate_title }}</div>
+    <div class="rotate-hint">{{ t.game_rotate_hint }}</div>
+  </div>
+</div>
+
+<!-- ── Startbildschirm ─────────────────────── -->
+<div id="start-screen">
+  <div class="start-box">
+    <h1>{{ t.gmm_title }}</h1>
+    <div class="sub">{{ t.gmm_subtitle }}</div>
+    <div id="resume-box" style="display:none;margin-bottom:18px">
+      <button class="level-btn" style="border-color:var(--gold);color:var(--gold);font-size:18px;padding:16px 36px" onclick="resumeGame()">▶ {{ t.gmm_resume }}</button>
+    </div>
+    <div class="start-settings">
+      <span>{{ t.gmm_wins_target }}:</span>
+      <select id="wins-target-sel">
+        <option value="3">3</option>
+        <option value="5">5</option>
+        <option value="7">7</option>
+      </select>
+    </div>
+    <div class="levels" style="margin-top:16px">
+      <button class="level-btn" onclick="startGame('easy')">{{ t.gmm_level_easy }}</button>
+      <button class="level-btn" onclick="startGame('medium')">{{ t.gmm_level_medium }}</button>
+      <button class="level-btn" onclick="startGame('hard')">{{ t.gmm_level_hard }}</button>
+    </div>
+    <div id="stats-box"></div>
+    <div style="margin-top:28px">
+      <button class="level-btn" style="font-size:14px;padding:10px 22px;opacity:0.85" onclick="closeGame()">← {{ t.gmm_back }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Topbar mit Scores + Buttons ─────────── -->
+<div id="topbar">
+  <div id="scorebar">
+    <div class="score-item" id="si-a1">
+      <span class="score-name" id="sn-a1">{{ t.gmm_ai1 }}</span>
+      <span class="score-val" id="sv-a1">0</span>
+      <span class="score-cards" id="sc-a1"></span>
+    </div>
+    <div class="score-item" id="si-p">
+      <span class="score-name" id="sn-p">{{ t.gmm_player }}</span>
+      <span class="score-val" id="sv-p">0</span>
+      <span class="score-cards" id="sc-p"></span>
+    </div>
+    <div class="score-item" id="si-a2">
+      <span class="score-name" id="sn-a2">{{ t.gmm_ai2 }}</span>
+      <span class="score-val" id="sv-a2">0</span>
+      <span class="score-cards" id="sc-a2"></span>
+    </div>
+  </div>
+  <div id="topbar-btns">
+    <button class="top-btn" id="btn-rules" title="{{ t.gmm_rulesdoc }}">⚖</button>
+    <button class="top-btn" id="btn-stats" title="{{ t.gmm_stats }}" onclick="openStats()">🏅</button>
+    <button class="top-btn" id="btn-played" title="{{ t.gmm_played }}" style="display:none">📋</button>
+    <button class="top-btn" onclick="openSettings()" title="{{ t.gmm_settings }}">⚙</button>
+    <button class="top-btn" id="btn-undo" title="{{ t.gmm_undo }}" style="display:none">↶</button>
+    <button class="top-btn" id="btn-log" title="Verlauf" onclick="toggleLog()">≡</button>
+    <button class="top-btn" onclick="confirmNewGame()" title="{{ t.gmm_new_game }}">↻</button>
+    <button class="top-btn" onclick="closeGame()" title="Schließen">✕</button>
+  </div>
+</div>
+
+<!-- ── Richtungsanzeige ──────────────────────── -->
+<div id="direction-bar"></div>
+
+<!-- ── Spielbereich ────────────────────────── -->
+<div id="game-area">
+  <div id="opponents">
+    <div class="opponent">
+      <div class="opp-label" id="label-a1">{{ t.gmm_ai1 }}</div>
+      <div class="opp-fan" id="fan-a1"></div>
+    </div>
+    <div class="opponent">
+      <div class="opp-label" id="label-a2">{{ t.gmm_ai2 }}</div>
+      <div class="opp-fan" id="fan-a2"></div>
+    </div>
+  </div>
+
+  <div id="play-area">
+    <div id="table-center">
+      <div id="active-suit"></div>
+      <div class="pile" id="draw-pile">
+        <div class="pile-label">{{ t.gmm_draw_pile }}</div>
+      </div>
+      <div class="pile" id="discard-pile">
+        <div class="pile-label">{{ t.gmm_discard_pile }}</div>
+      </div>
+    </div>
+    <div id="info-text"></div>
+  </div>
+
+  <div id="player-area">
+    <div id="player-label">{{ t.gmm_player }}</div>
+    <div id="player-hand"></div>
+    <div id="actions"></div>
+  </div>
+</div>
+
+<!-- ── Spielverlauf ────────────────────────── -->
+<div class="game-log" id="game-log"></div>
+
+<!-- ── Toasts ──────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ── Modal: Tab-Schutz ───────────────────── -->
+<div class="modal-overlay" id="tab-modal" style="z-index:310">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">🔀</div>
+    <h2>{{ t.gmm_tab_title }}</h2>
+    <p>{{ t.gmm_tab_text }}</p>
+    <button class="btn btn-gold" id="tab-resume">{{ t.gmm_tab_resume }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Device-Schutz ───────────────── -->
+<div class="modal-overlay" id="device-modal" style="z-index:320">
+  <div class="modal-box" style="text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:8px">📱</div>
+    <h2>{{ t.gmm_device_title }}</h2>
+    <p>{{ t.gmm_device_text }}</p>
+    <button class="btn btn-gold" id="device-takeover">{{ t.gmm_device_takeover }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Rundenergebnis ──────────────── -->
+<div class="modal-overlay" id="modal-round">
+  <div class="modal-box">
+    <h2 id="round-title">{{ t.gmm_round_result }}</h2>
+    <table class="result-table" id="result-table">
+      <thead><tr><th>{{ t.gmm_player_col }}</th><th>{{ t.gmm_cards_left }}</th><th>{{ t.gmm_points_col }}</th><th>{{ t.gmm_wins_col }}</th></tr></thead>
+      <tbody id="result-body"></tbody>
+    </table>
+    <button class="btn btn-gold" id="btn-next-round" onclick="nextRound()" style="margin-top:12px">{{ t.gmm_next_round }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielende ───────────────────── -->
+<div class="modal-overlay" id="modal-gameover">
+  <div class="modal-box">
+    <div class="emoji" id="go-emoji">🏆</div>
+    <h2 id="go-title">{{ t.gmm_game_over }}</h2>
+    <p id="go-text"></p>
+    <div id="go-scores"></div>
+    <button class="btn btn-gold" onclick="showStart()" style="margin-top:14px">{{ t.gmm_new_game }}</button>
+    <button class="btn" onclick="document.getElementById('modal-gameover').classList.remove('show')" style="margin-top:14px;margin-left:8px">{{ t.gmm_banner_no }}</button>
+  </div>
+</div>
+
+<!-- ── Modal: Statistik ──────────────────── -->
+<div class="modal-overlay" id="stats-modal">
+  <div class="modal-box">
+    <h2>📊 {{ t.gmm_stats }}</h2>
+    <div id="stats-modal-content"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-ghost" onclick="resetStatsConfirm()" style="font-size:12px;opacity:0.5">{{ t.gmm_stats_reset }}</button>
+      <button class="btn btn-gold" onclick="closeStats()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Einstellungen ───────────────── -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-box">
+    <h2>⚙ {{ t.gmm_settings }}</h2>
+    <div class="setting">
+      <label>{{ t.gmm_speed_label }}: <b id="val-ai-speed">0,7s</b></label>
+      <input type="range" id="set-ai-speed" min="200" max="2000" step="100" value="700">
+    </div>
+    <div class="setting">
+      <label>{{ t.gmm_speed_fly }}: <b id="val-fly">0,38s</b></label>
+      <input type="range" id="set-fly" min="120" max="1000" step="20" value="380">
+    </div>
+    <div class="setting">
+      <label>{{ t.gmm_speed_toast }}: <b id="val-toast">2,2s</b></label>
+      <input type="range" id="set-toast" min="1500" max="5000" step="100" value="2200">
+    </div>
+    <p class="setting-hint">{{ t.gmm_settings_hint }}</p>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-sound" checked>
+        {{ t.gmm_sound_label }}
+      </label>
+    </div>
+    <div class="setting" style="margin-top:12px">
+      <label class="setting-check">
+        <input type="checkbox" id="set-played">
+        {{ t.gmm_played_opt }}
+      </label>
+      <p class="setting-hint" style="margin-top:2px">{{ t.gmm_played_hint }}</p>
+    </div>
+    <div class="setting" style="margin-top:16px">
+      <label style="font-size:0.86rem;font-weight:700">{{ t.gmm_keyboard }}</label>
+      <p class="setting-hint" style="margin-top:4px">
+        <b>1-9</b> Karte spielen &nbsp; <b>D</b> Ziehen<br>
+        <b>1-4</b> Farbe wünschen (♥♦♠♣)<br>
+        <b>U</b> {{ t.gmm_undo }} &nbsp; <b>K</b> {{ t.gmm_played }}<br>
+        <b>Enter</b> Nächste Runde &nbsp; <b>Esc</b> Schließen
+      </p>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn-ghost" id="btn-settings-reset">{{ t.gmm_reset }}</button>
+      <button class="btn btn-gold" onclick="closeSettings()">✕</button>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn btn-gold" onclick="showStart();closeSettings();" style="width:100%">{{ t.gmm_new_game }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Gespielte Karten ────────────── -->
+<div class="modal-overlay" id="played-modal">
+  <div class="modal-box wide">
+    <h2>📋 {{ t.gmm_played }}</h2>
+    <div class="played-legend">
+      <span class="pl-hand">{{ t.gmm_played_hand }}</span>
+      <span class="pl-gone">{{ t.gmm_played_gone }}</span>
+    </div>
+    <div id="played-grid" class="played-grid"></div>
+    <button class="btn btn-gold" onclick="closePlayed()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<!-- ── Modal: Spielregeln ─────────────────── -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal-box wide">
+    <h2>📖 {{ t.gmm_rulesdoc }}</h2>
+    <div class="scrollbox md" id="rules-body">Lade Regeln…</div>
+    <button class="btn btn-gold" onclick="closeRules()" style="margin-top:10px">✕</button>
+  </div>
+</div>
+
+<!-- ── Modal: Farbwunsch ─────────────────── -->
+<div class="modal-overlay" id="wish-modal">
+  <div class="modal-box">
+    <h2>{{ t.gmm_wish_title }}</h2>
+    <p>{{ t.gmm_wish_desc }}</p>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:16px">
+      <button class="btn-suit red" onclick="doWish('h')"><span>♥</span><span class="suit-label">{{ t.gmm_suit_h }}</span></button>
+      <button class="btn-suit red" onclick="doWish('d')"><span>♦</span><span class="suit-label">{{ t.gmm_suit_d }}</span></button>
+      <button class="btn-suit black" onclick="doWish('s')"><span>♠</span><span class="suit-label">{{ t.gmm_suit_s }}</span></button>
+      <button class="btn-suit black" onclick="doWish('c')"><span>♣</span><span class="suit-label">{{ t.gmm_suit_c }}</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Gezogene Karte spielen? ─────── -->
+<div class="modal-overlay" id="drawn-modal">
+  <div class="modal-box">
+    <h2>{{ t.gmm_drawn_title }}</h2>
+    <p id="drawn-card-display"></p>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:16px">
+      <button class="btn btn-gold" onclick="doPlayDrawn()">{{ t.gmm_drawn_play }}</button>
+      <button class="btn btn-ghost" onclick="doPassDrawn()">{{ t.gmm_drawn_pass }}</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Konstanten ────────────────────────────── */
+const CARD_DECK = {{ card_deck|tojson }};
+const G = {
+  title:        {{ t.gmm_title|tojson }},
+  player:       {{ t.gmm_player|tojson }},
+  ai1:          {{ t.gmm_ai1|tojson }},
+  ai2:          {{ t.gmm_ai2|tojson }},
+  your_turn:    {{ t.gmm_your_turn|tojson }},
+  draw:         {{ t.gmm_draw|tojson }},
+  round:        {{ t.gmm_round|tojson }},
+  game_over:    {{ t.gmm_game_over|tojson }},
+  you_win:      {{ t.gmm_you_win|tojson }},
+  you_lose:     {{ t.gmm_you_lose|tojson }},
+  undo:         {{ t.gmm_undo|tojson }},
+  undo_toast:   {{ t.gmm_undo_toast|tojson }},
+  suit_h:       {{ t.gmm_suit_h|tojson }},
+  suit_d:       {{ t.gmm_suit_d|tojson }},
+  suit_s:       {{ t.gmm_suit_s|tojson }},
+  suit_c:       {{ t.gmm_suit_c|tojson }},
+  round_result: {{ t.gmm_round_result|tojson }},
+  settings:     {{ t.gmm_settings|tojson }},
+  played:       {{ t.gmm_played|tojson }},
+  played_hand:  {{ t.gmm_played_hand|tojson }},
+  played_gone:  {{ t.gmm_played_gone|tojson }},
+  reset:        {{ t.gmm_reset|tojson }},
+  rulesdoc:     {{ t.gmm_rulesdoc|tojson }},
+  stats:        {{ t.gmm_stats|tojson }},
+  stats_wins:   {{ t.gmm_stats_wins|tojson }},
+  stats_losses: {{ t.gmm_stats_losses|tojson }},
+  stats_games:  {{ t.gmm_stats_games|tojson }},
+  stats_winrate:{{ t.gmm_stats_winrate|tojson }},
+  stats_reset:  {{ t.gmm_stats_reset|tojson }},
+  stats_empty:  {{ t.gmm_stats_empty|tojson }},
+  resume:       {{ t.gmm_resume|tojson }},
+  ai_playing:   {{ t.gmm_ai_playing|tojson }},
+  new_game:     {{ t.gmm_new_game|tojson }},
+  next_round:   {{ t.gmm_next_round|tojson }},
+  plays_card:   {{ t.gmm_plays_card|tojson }},
+  draws_cards:  {{ t.gmm_draws_cards|tojson }},
+  wishes:       {{ t.gmm_wishes|tojson }},
+  mau:          {{ t.gmm_mau|tojson }},
+  mau_mau:      {{ t.gmm_mau_mau|tojson }},
+  direction_cw: {{ t.gmm_direction_cw|tojson }},
+  direction_ccw:{{ t.gmm_direction_ccw|tojson }},
+  skipped:      {{ t.gmm_skipped|tojson }},
+  reshuffled:   {{ t.gmm_reshuffled|tojson }},
+  must_draw:    {{ t.gmm_must_draw|tojson }},
+  wins_round:   {{ t.gmm_wins_round|tojson }},
+  you_win_round:{{ t.gmm_you_win_round|tojson }},
+  back:         {{ t.gmm_back|tojson }},
+};
+
+const SUIT_SYM = {h:'♥', d:'♦', s:'♠', c:'♣'};
+const SUIT_NAME = {h:G.suit_h, d:G.suit_d, s:G.suit_s, c:G.suit_c};
+const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
+const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
+const ALL_RANKS = ['7','8','9','T','J','Q','K','A'];
+function cardName(c){ return RANK_DISP[c[1]] + ' ' + SUIT_SYM[c[0]]; }
+const NAMES = {p:G.player, a1:G.ai1, a2:G.ai2};
+const PLAYER_ORDER = ['p','a1','a2'];
+
+function getSkippedPlayer(who, direction){
+  const idx = PLAYER_ORDER.indexOf(who);
+  return PLAYER_ORDER[(idx + direction + 3) % 3];
+}
+
+function showSkipDim(player){
+  const el = (player === 'p') ? $('player-area') : $('fan-' + player)?.closest('.opponent');
+  if(!el) return;
+  el.classList.remove('skip-dim');
+  void el.offsetWidth;
+  el.classList.add('skip-dim');
+  setTimeout(() => el.classList.remove('skip-dim'), 1300);
+}
+
+const $ = id => document.getElementById(id);
+
+/* ── State ─────────────────────────────────── */
+let gameState = null;
+let aiRunning = false;
+let canUndo = false;
+let gameLog = [];
+
+/* ── Einstellungen (localStorage) ──────────── */
+function clampInt(v, lo, hi, def){ const n = parseInt(v); return isNaN(n) ? def : Math.max(lo, Math.min(hi, n)); }
+const FLY_DEFAULT = 380, TOAST_DEFAULT = 2200, AISPEED_DEFAULT = 700;
+let aiDelay    = clampInt(localStorage.getItem('gmm_ai_speed'), 200, 2000, AISPEED_DEFAULT);
+let flyMs      = clampInt(localStorage.getItem('gmm_fly'), 120, 1000, FLY_DEFAULT);
+let toastMs    = clampInt(localStorage.getItem('gmm_toast'), 1500, 5000, TOAST_DEFAULT);
+let soundOn    = localStorage.getItem('gmm_sound') !== '0';
+let showPlayed = localStorage.getItem('gmm_show_played') === '1';
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const fmtSec = ms => (ms/1000).toFixed(2).replace('.',',') + 's';
+
+function initSettings(){
+  const bind = (id, varGet, varSet, fmt) => {
+    const el = $(id);
+    el.value = varGet();
+    const valEl = $('val-' + id.replace('set-',''));
+    if(valEl) valEl.textContent = fmt(varGet());
+    el.oninput = () => { varSet(parseInt(el.value)); if(valEl) valEl.textContent = fmt(varGet()); };
+  };
+  bind('set-ai-speed', ()=>aiDelay, v=>{aiDelay=v;localStorage.setItem('gmm_ai_speed',v)}, fmtSec);
+  bind('set-fly', ()=>flyMs, v=>{flyMs=v;localStorage.setItem('gmm_fly',v)}, fmtSec);
+  bind('set-toast', ()=>toastMs, v=>{toastMs=v;localStorage.setItem('gmm_toast',v)}, fmtSec);
+
+  const snd = $('set-sound');
+  snd.checked = soundOn;
+  snd.onchange = () => { soundOn = snd.checked; localStorage.setItem('gmm_sound', soundOn?'1':'0'); if(soundOn) SFX.cardPlay(); };
+
+  const pl = $('set-played');
+  pl.checked = showPlayed;
+  pl.onchange = () => { showPlayed = pl.checked; localStorage.setItem('gmm_show_played', showPlayed?'1':'0'); applyPlayedVisibility(); };
+
+  $('btn-settings-reset').onclick = () => {
+    aiDelay=AISPEED_DEFAULT; flyMs=FLY_DEFAULT; toastMs=TOAST_DEFAULT;
+    soundOn=true; showPlayed=false;
+    ['gmm_ai_speed','gmm_fly','gmm_toast','gmm_sound','gmm_show_played'].forEach(k=>localStorage.removeItem(k));
+    applyPlayedVisibility(); initSettings();
+  };
+
+  applyPlayedVisibility();
+}
+
+function applyPlayedVisibility(){ $('btn-played').style.display = showPlayed ? '' : 'none'; }
+function openSettings(){ initSettings(); $('settings-modal').classList.add('show'); }
+function closeSettings(){ $('settings-modal').classList.remove('show'); }
+
+/* ── Sound (Web Audio) ─────────────────────── */
+let audioCtx = null;
+function getAudio(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, dur, type, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.value = vol || 0.1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e){}
+}
+function playNoise(dur, vol){
+  if(!soundOn) return;
+  try {
+    const ctx = getAudio();
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (vol||0.1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(gain); gain.connect(ctx.destination);
+    src.start();
+  } catch(e){}
+}
+const SFX = {
+  cardPlay:  () => playNoise(0.08, 0.15),
+  cardDraw:  () => playNoise(0.06, 0.10),
+  special:   () => { playTone(523, 0.12, 'triangle', 0.12); setTimeout(()=>playTone(659, 0.15, 'triangle', 0.12), 100); },
+  win:       () => { [523,659,784,1047].forEach((f,i) => setTimeout(()=>playTone(f, 0.2, 'triangle', 0.18), i*120)); },
+  lose:      () => { [392,330,262].forEach((f,i) => setTimeout(()=>playTone(f, 0.25, 'sine', 0.10), i*150)); },
+  undo:      () => playTone(370, 0.15, 'sine', 0.08),
+  mau:       () => { playTone(659, 0.2, 'triangle', 0.15); setTimeout(()=>playTone(784, 0.25, 'triangle', 0.18), 150); },
+  mauMau:    () => { [523,659,784,1047,1319].forEach((f,i) => setTimeout(()=>playTone(f, 0.15, 'triangle', 0.2), i*80)); },
+  draw7:     () => { playTone(220, 0.3, 'sawtooth', 0.05); setTimeout(()=>playTone(185, 0.35, 'sawtooth', 0.04), 200); },
+  reverse:   () => { playTone(523, 0.1, 'sine', 0.1); setTimeout(()=>playTone(392, 0.1, 'sine', 0.1), 100); },
+  skip:      () => { playTone(440, 0.1, 'square', 0.06); setTimeout(()=>playTone(330, 0.12, 'square', 0.06), 80); },
+  shuffle:   () => { for(let i = 0; i < 15; i++) setTimeout(() => playNoise(0.05, 0.07 + Math.random()*0.05), i*60); },
+};
+
+/* ── Spielverlauf (Log) ───────────────────── */
+function addLog(text, cls){
+  gameLog.push({text, cls: cls||''});
+  renderLog();
+}
+function addLogRound(nr){
+  addLog('── Runde ' + nr + ' ──', 'log-round');
+}
+function renderLog(){
+  const el = $('game-log');
+  el.innerHTML = '';
+  gameLog.slice(-60).forEach(e => {
+    const d = document.createElement('div');
+    if(e.cls) d.className = e.cls;
+    d.textContent = e.text;
+    el.appendChild(d);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+function toggleLog(){ $('game-log').classList.toggle('show'); }
+function clearLog(){ gameLog = []; $('game-log').innerHTML = ''; }
+
+/* ── Session-Schutz (Cross-Device) ─────────── */
+let sessionToken = null;
+let heartbeatTimer = null;
+let tabActive = true;
+
+async function claimSession(force){
+  try {
+    const r = await fetch('/api/maumau/session', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: force ? 'force' : 'claim'})
+    });
+    const d = await r.json();
+    if (d.locked){
+      $('device-modal').classList.add('show');
+      return false;
+    }
+    if (d.token){
+      sessionToken = d.token;
+      $('device-modal').classList.remove('show');
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (!sessionToken) return;
+        fetch('/api/maumau/session', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: 'heartbeat', token: sessionToken})
+        }).catch(() => {});
+      }, 15000);
+      return true;
+    }
+  } catch(e){}
+  return true;
+}
+
+window.addEventListener('beforeunload', () => {
+  if (!sessionToken) return;
+  navigator.sendBeacon('/api/maumau/session',
+    new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+      {type: 'application/json'}));
+});
+
+$('device-takeover').onclick = async () => {
+  await claimSession(true);
+  checkResume();
+};
+
+/* ── Mehr-Tab-Schutz (BroadcastChannel) ───── */
+const TAB_ID = Math.random().toString(36).slice(2);
+let bc = null, myClaimTs = 0;
+function tabClaim(){
+  myClaimTs = Date.now();
+  if (bc) try { bc.postMessage({type: 'claim', id: TAB_ID, ts: myClaimTs}); } catch(e){}
+}
+function becomePassive(){
+  if (!tabActive) return;
+  tabActive = false;
+  $('tab-modal').classList.add('show');
+}
+function becomeActive(){
+  tabActive = true;
+  $('tab-modal').classList.remove('show');
+  tabClaim();
+  checkResume();
+}
+try {
+  bc = new BroadcastChannel('mypage-gmm');
+  bc.onmessage = e => {
+    const m = e.data;
+    if (!m || m.id === TAB_ID || m.type !== 'claim') return;
+    if (m.ts > myClaimTs || (m.ts === myClaimTs && m.id > TAB_ID)) becomePassive();
+  };
+} catch(e){ bc = null; }
+$('tab-resume').onclick = becomeActive;
+tabClaim();
+
+/* ── API ───────────────────────────────────── */
+async function api(url, data){
+  if (data && sessionToken) data.token = sessionToken;
+  const opts = data
+    ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}
+    : {};
+  try {
+    const r = await fetch(url, opts);
+    if (r.status === 423){
+      $('device-modal').classList.add('show');
+      return null;
+    }
+    return r.ok ? await r.json() : null;
+  } catch(e){ return null; }
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* ── Kartenanzeige ─────────────────────────── */
+function cardSvgUrl(c){
+  return '/cards/knoll/' + c[1] + c[0] + '.svg';
+}
+
+function cardHtml(c, playable, isLegal){
+  if(CARD_DECK === 'knoll'){
+    let cls = 'card knoll-card';
+    if(playable && isLegal) cls += ' playable';
+    else if(playable && !isLegal) cls += ' dimmed';
+    return '<div class="' + cls + '" data-card="' + c + '">' +
+      '<img src="' + cardSvgUrl(c) + '" draggable="false"></div>';
+  }
+  const s = c[0], r = c[1];
+  const color = SUIT_COLOR[s];
+  const sym = SUIT_SYM[s];
+  const disp = RANK_DISP[r];
+  let cls = 'card ' + color;
+  if(playable && isLegal) cls += ' playable';
+  else if(playable && !isLegal) cls += ' dimmed';
+  return '<div class="' + cls + '" data-card="' + c + '">' +
+    '<span class="c-tl">' + disp + '<br>' + sym + '</span>' +
+    '<span class="c-mid">' + sym + '</span>' +
+    '<span class="c-br">' + disp + '<br>' + sym + '</span></div>';
+}
+
+function cardBackHtml(){
+  if(CARD_DECK === 'knoll'){
+    return '<div class="card knoll-card back"><img src="/cards/knoll/back.svg" draggable="false"></div>';
+  }
+  return '<div class="card back"></div>';
+}
+
+/* ── Toasts ────────────────────────────────── */
+function showToast(text, cls){
+  const t = document.createElement('div');
+  t.className = 'toast' + (cls ? ' '+cls : '');
+  t.textContent = text;
+  $('toast-container').appendChild(t);
+  const fadeStart = Math.max(toastMs - 400, 200);
+  setTimeout(() => { t.style.opacity = '0'; }, fadeStart);
+  setTimeout(() => t.remove(), toastMs);
+}
+
+/* ── Mau-Ansage ───────────────────────────── */
+function showMauAnnounce(text){
+  const el = document.createElement('div');
+  el.className = 'mau-announce';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
+
+/* ══════════════════════════════════════════════
+   ANIMATIONEN
+   ══════════════════════════════════════════════ */
+
+function flyCard(card){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const el = document.querySelector('#player-hand .card[data-card="' + card + '"]');
+    const target = $('discard-pile');
+    if(!el || !target){ resolve(); return; }
+    const s = el.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const clone = el.cloneNode(true);
+    clone.classList.remove('playable','dimmed');
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'transition:transform ' + (flyMs/1000) + 's cubic-bezier(.4,.8,.3,1);'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(clone);
+    el.style.visibility = 'hidden';
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
+    let done = false;
+    const fin = () => { if(done) return; done = true; clone.remove(); resolve(); };
+    clone.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 60);
+  });
+}
+
+function flyAiCard(who, card){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const fanEl = $('fan-' + who);
+    const backs = fanEl && fanEl.querySelectorAll('.card.back, .card.knoll-card.back');
+    const back = backs && backs.length > 0 ? backs[backs.length - 1] : null;
+    const target = $('discard-pile');
+    if(!back || !target){ resolve(); return; }
+    const s = back.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const tmp = document.createElement('div');
+    tmp.innerHTML = cardHtml(card, false, false);
+    const clone = tmp.firstChild;
+    const dur = flyMs / 1000;
+    clone.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(clone);
+    back.style.visibility = 'hidden';
+    clone.getBoundingClientRect();
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1.3)';
+    $('discard-pile').classList.add('no-fade');
+    let done = false;
+    const fin = () => {
+      if(done) return; done = true; clone.remove();
+      setTimeout(() => $('discard-pile').classList.remove('no-fade'), 80);
+      resolve();
+    };
+    clone.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 80);
+  });
+}
+
+function animateReshuffle(){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const discardEl = $('discard-pile');
+    const drawEl = $('draw-pile');
+    if(!discardEl || !drawEl){ resolve(); return; }
+    const s = discardEl.getBoundingClientRect();
+    const t = drawEl.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const clone = document.createElement('div');
+    clone.innerHTML = cardBackHtml();
+    const card = clone.firstChild;
+    const dur = flyMs / 1000;
+    card.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + (s.left + s.width/2 - 30) + 'px;top:' + (s.top + s.height/2 - 40) + 'px;'
+      + 'width:60px;height:80px;'
+      + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(card);
+    card.getBoundingClientRect();
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    card.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    let done = false;
+    const fin = () => { if(done) return; done = true; card.remove(); resolve(); };
+    card.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 80);
+  });
+}
+
+async function checkReshuffle(prevDrawCount){
+  if(prevDrawCount > 0 || !gameState) return;
+  if(gameState.draw_count > 0){
+    showToast(G.reshuffled, 'info');
+    // Stapel war leer → erst Mischsound, dann den Stapel neu aufbauen
+    if(soundOn){ SFX.shuffle(); await sleep(900); }
+    await animateReshuffle();
+    render(gameState);
+  }
+}
+
+function flyDrawToHand(target){
+  return new Promise(resolve => {
+    if(reduceMotion){ resolve(); return; }
+    const pile = $('draw-pile');
+    const dest = (target === 'p') ? $('player-hand') : $('fan-' + target);
+    if(!pile || !dest){ resolve(); return; }
+    const s = pile.getBoundingClientRect();
+    const t = dest.getBoundingClientRect();
+    if(!s.width){ resolve(); return; }
+    const clone = document.createElement('div');
+    clone.innerHTML = cardBackHtml();
+    const card = clone.firstChild;
+    const dur = flyMs / 1000;
+    card.style.cssText = 'position:fixed;margin:0;z-index:60;pointer-events:none;'
+      + 'left:' + s.left + 'px;top:' + s.top + 'px;'
+      + 'width:' + s.width + 'px;height:' + s.height + 'px;'
+      + 'transition:transform ' + dur + 's cubic-bezier(.4,.8,.3,1);'
+      + 'box-shadow:0 10px 22px rgba(0,0,0,.55)';
+    document.body.appendChild(card);
+    card.getBoundingClientRect();
+    const dx = (t.left + t.width/2) - (s.left + s.width/2);
+    const dy = (t.top + t.height/2) - (s.top + s.height/2);
+    card.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    let done = false;
+    const fin = () => { if(done) return; done = true; card.remove(); resolve(); };
+    card.addEventListener('transitionend', fin, {once:true});
+    setTimeout(fin, flyMs + 80);
+  });
+}
+
+async function flyDrawMultiple(target, count){
+  for(let i = 0; i < count; i++){
+    SFX.cardDraw();
+    await flyDrawToHand(target);
+    await sleep(Math.min(150, flyMs * 0.3));
+  }
+}
+
+async function dealCards(){
+  if(reduceMotion) return;
+  const a1Cards = Array.from($('fan-a1').querySelectorAll('.card'));
+  const a2Cards = Array.from($('fan-a2').querySelectorAll('.card'));
+  const pCards  = Array.from($('player-hand').querySelectorAll('.card'));
+  const all = [...a1Cards, ...a2Cards, ...pCards];
+  if(!all.length) return;
+
+  all.forEach(c => { c.style.opacity = '0'; c.style.transition = 'none'; });
+
+  // Mitte (Nachzieh-/Ablagestapel) ebenfalls zunächst verstecken,
+  // damit die Reihenfolge stimmt: Mischsound → Stapel → Handkarten
+  const center = $('table-center');
+  if(center){ center.style.opacity = '0'; center.style.transition = 'none'; }
+
+  const fadeDur = flyMs / 1000;
+  const fadeIn = el => { el.style.transition = 'opacity ' + fadeDur + 's ease-in'; el.style.opacity = '1'; };
+  const pause = Math.max(60, Math.round(flyMs * 0.25));
+
+  // Kartenmischsound zuerst, danach den Stapel in der Mitte einblenden
+  if(soundOn){ SFX.shuffle(); await sleep(900); }
+  if(center){ fadeIn(center); await sleep(pause * 2); }
+
+  const max = Math.max(a1Cards.length, a2Cards.length, pCards.length);
+  for(let i = 0; i < max; i++){
+    if(a1Cards[i]){ fadeIn(a1Cards[i]); await sleep(pause); }
+    if(a2Cards[i]){ fadeIn(a2Cards[i]); await sleep(pause); }
+    if(pCards[i]){ fadeIn(pCards[i]); await sleep(pause); }
+  }
+  await sleep(pause * 2);
+
+  all.forEach(c => { c.style.opacity = ''; c.style.transition = ''; });
+  if(center){ center.style.opacity = ''; center.style.transition = ''; }
+}
+
+/* ══════════════════════════════════════════════
+   RENDERING
+   ══════════════════════════════════════════════ */
+
+function render(st){
+  if(!st) return;
+  renderScores(st);
+  renderDirection(st);
+  renderOpponents(st);
+  renderTable(st);
+  renderPlayerHand(st);
+  renderActions(st);
+  renderInfo(st);
+  updateUndo();
+}
+
+function renderScores(st){
+  const wins = st.wins || {};
+  for(const p of ['p','a1','a2']){
+    const el = $('sv-'+p);
+    if(el) el.textContent = wins[p] ?? 0;
+    const si = $('si-'+p);
+    if(si){
+      si.classList.toggle('active-player',
+        ['playing','drawn','wish_suit'].includes(st.status) && st.turn === p);
+    }
+    const sc = $('sc-'+p);
+    if(sc){
+      const count = p === 'p'
+        ? (Array.isArray(st.hands?.p) ? st.hands.p.length : 0)
+        : (typeof st.hands?.[p] === 'number' ? st.hands[p] : 0);
+      sc.textContent = count + ' ♠';
+    }
+  }
+}
+
+function renderDirection(st){
+  const bar = $('direction-bar');
+  if(!st || st.status === 'game_over'){
+    bar.innerHTML = '';
+    return;
+  }
+  const dir = st.direction === 1 ? G.direction_cw : G.direction_ccw;
+  const arrow = st.direction === 1 ? '↻' : '↺';
+  let html = '<span class="dir-arrow">' + arrow + '</span> ' + dir;
+
+  if(st.wished_suit){
+    html += '<span class="wish-indicator">' + SUIT_SYM[st.wished_suit] + ' ' + SUIT_NAME[st.wished_suit] + '</span>';
+  }
+  if(st.draw_pending > 0){
+    html += '<span class="draw-penalty">+' + st.draw_pending + ' Karten!</span>';
+  }
+  bar.innerHTML = html;
+}
+
+function renderFan(who, count){
+  const el = $('fan-' + who);
+  if(!el) return;
+  const maxAngle = 24;
+  const maxOverlap = 0.7;
+  let html = '';
+
+  if(count <= 0){
+    el.innerHTML = '';
+    return;
+  }
+
+  const angleStep = count > 1 ? Math.min(maxAngle * 2 / (count - 1), 12) : 0;
+  const startAngle = -(angleStep * (count - 1)) / 2;
+
+  for(let i = 0; i < count; i++){
+    const angle = startAngle + angleStep * i;
+    const translateX = (i - (count-1)/2) * Math.max(8, 40 - count * 3);
+    if(CARD_DECK === 'knoll'){
+      html += '<div class="card knoll-card back" style="transform:translateX(' + translateX + 'px) rotate(' + angle + 'deg)">' +
+        '<img src="/cards/knoll/back.svg" draggable="false"></div>';
+    } else {
+      html += '<div class="card back" style="transform:translateX(' + translateX + 'px) rotate(' + angle + 'deg)"></div>';
+    }
+  }
+  html += '<span class="card-count-badge">' + count + '</span>';
+  el.innerHTML = html;
+}
+
+function renderOpponents(st){
+  for(const ai of ['a1','a2']){
+    const count = typeof st.hands?.[ai] === 'number' ? st.hands[ai] : 0;
+    renderFan(ai, count);
+
+    const label = $('label-'+ai);
+    let lbl = NAMES[ai];
+    if(st.turn === ai && ['playing','drawn','wish_suit'].includes(st.status)){
+      lbl += ' ⏳';
+    }
+    label.innerHTML = lbl;
+  }
+}
+
+function renderTable(st){
+  const drawEl = $('draw-pile');
+  const discardEl = $('discard-pile');
+
+  const drawCount = st.draw_count || 0;
+  const canDraw = st.status === 'playing' && st.turn === 'p' && st.can_draw;
+
+  let drawHtml = '<div class="pile-label">' + G.draw + '</div>';
+  if(drawCount > 0 || canDraw){
+    drawHtml += cardBackHtml();
+    if(drawCount > 0) drawHtml += '<span class="pile-count">' + drawCount + '</span>';
+  }
+  drawEl.innerHTML = drawHtml;
+  drawEl.classList.toggle('disabled', !canDraw);
+  if(canDraw){
+    const backCard = drawEl.querySelector('.card');
+    if(backCard) backCard.onclick = () => doDraw();
+  }
+
+  const discard = st.discard;
+  let discardHtml = '<div class="pile-label"></div>';
+  if(discard && discard.length > 0){
+    const top = discard[discard.length - 1];
+    discardHtml += cardHtml(top, false, false);
+  }
+  discardEl.innerHTML = discardHtml;
+
+  const suitEl = $('active-suit');
+  if(suitEl && discard && discard.length > 0){
+    const top = discard[discard.length - 1];
+    const activeSuit = st.wished_suit || top[0];
+    suitEl.textContent = SUIT_SYM[activeSuit] || '';
+    suitEl.className = (activeSuit === 'h' || activeSuit === 'd') ? 'red' : 'black';
+  }
+}
+
+function renderPlayerHand(st){
+  const hand = st.hands?.p;
+  if(!hand || !Array.isArray(hand)){
+    $('player-hand').innerHTML = '';
+    return;
+  }
+  const canPlay = st.status === 'playing' && st.turn === 'p';
+  const legal = st.legal || [];
+  let html = '';
+  for(const c of hand){
+    if(canPlay){
+      const isLegal = legal.includes(c);
+      html += cardHtml(c, true, isLegal);
+    } else {
+      html += cardHtml(c, false, false);
+    }
+  }
+  $('player-hand').innerHTML = html;
+
+  if(canPlay){
+    document.querySelectorAll('#player-hand .card.playable').forEach(el => {
+      el.onclick = () => playCard(el.dataset.card);
+    });
+  }
+}
+
+function renderActions(st){
+  const el = $('actions');
+  el.innerHTML = '';
+
+  if(st.status === 'playing' && st.turn === 'p'){
+    if(st.draw_pending > 0 && !(st.legal && st.legal.length)){
+      el.innerHTML = '<button class="btn btn-red" onclick="doDraw()">+' + st.draw_pending + ' ' + G.must_draw + '</button>';
+    }
+  }
+}
+
+function renderInfo(st){
+  const el = $('info-text');
+  if(st.status === 'playing'){
+    if(st.turn === 'p'){
+      el.textContent = G.your_turn;
+    } else {
+      el.textContent = NAMES[st.turn] + ' ' + G.ai_playing;
+    }
+  } else if(st.status === 'drawn'){
+    el.textContent = G.your_turn;
+  } else if(st.status === 'wish_suit'){
+    if(st.turn === 'p'){
+      el.textContent = G.wishes + '...';
+    } else {
+      el.textContent = NAMES[st.turn] + ' ' + G.wishes + '...';
+    }
+  } else if(st.status === 'round_over' || st.status === 'game_over'){
+    el.textContent = '';
+  } else {
+    el.textContent = '';
+  }
+}
+
+/* ── Undo ──────────────────────────────────── */
+function updateUndo(){
+  $('btn-undo').style.display = canUndo ? '' : 'none';
+}
+async function doUndo(){
+  if(aiRunning || !canUndo) return;
+  const v = await api('/api/maumau/undo', {});
+  canUndo = false;
+  updateUndo();
+  if(v && v.state){
+    gameState = v.state;
+    render(gameState);
+    showToast(G.undo_toast);
+    SFX.undo();
+  }
+}
+$('btn-undo').onclick = doUndo;
+
+/* ── Gespielte Karten Modal ───────────────── */
+function openPlayed(){
+  if(!gameState) return;
+  const grid = $('played-grid'); grid.innerHTML = '';
+  const st = gameState;
+  const hand = new Set((st.hands && Array.isArray(st.hands.p)) ? st.hands.p : []);
+  const discard = new Set(st.discard || []);
+
+  for(const s of ['h','d','s','c']){
+    const row = document.createElement('div'); row.className = 'played-row';
+    const sh = document.createElement('span');
+    sh.className = 'ps' + (SUIT_COLOR[s] === 'red' ? ' red' : '');
+    sh.textContent = SUIT_SYM[s];
+    row.appendChild(sh);
+
+    for(const r of ALL_RANKS){
+      const code = s + r;
+      const svgCode = r + s;
+      if(CARD_DECK === 'knoll'){
+        const img = document.createElement('img');
+        img.className = 'pcard';
+        img.src = '/cards/knoll/' + svgCode + '.svg';
+        img.draggable = false;
+        if(hand.has(code)) img.classList.add('in-hand');
+        else if(discard.has(code)) img.classList.add('used');
+        row.appendChild(img);
+      } else {
+        const d = document.createElement('div');
+        d.className = 'card ' + SUIT_COLOR[s];
+        d.style.cssText = 'width:48px;height:70px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0';
+        d.textContent = RANK_DISP[r] + SUIT_SYM[s];
+        if(hand.has(code)) d.classList.add('in-hand');
+        else if(discard.has(code)) d.classList.add('used');
+        row.appendChild(d);
+      }
+    }
+    grid.appendChild(row);
+  }
+  $('played-modal').classList.add('show');
+}
+function closePlayed(){ $('played-modal').classList.remove('show'); }
+$('btn-played').onclick = openPlayed;
+
+/* ── Regeln Modal ─────────────────────────── */
+let rulesLoaded = false;
+async function openRules(){
+  $('rules-modal').classList.add('show');
+  if(!rulesLoaded){
+    const v = await api('/api/maumau/rules');
+    if(v && v.html){ $('rules-body').innerHTML = v.html; rulesLoaded = true; }
+  }
+}
+function closeRules(){ $('rules-modal').classList.remove('show'); }
+$('btn-rules').onclick = openRules;
+
+/* ── Statistik ────────────────────────────── */
+async function loadStats(){
+  const v = await api('/api/maumau/history');
+  return v ? (v.games || []) : [];
+}
+
+function renderStatsContent(games, target){
+  if(!games.length){
+    target.innerHTML = '<div class="stats-empty">' + G.stats_empty + '</div>';
+    return;
+  }
+  const wins = games.filter(g => g.winner === 'p').length;
+  const total = games.length;
+  const rate = total > 0 ? Math.round(wins / total * 100) : 0;
+
+  target.innerHTML =
+    '<div class="stats-grid">' +
+    '<div class="stat"><div class="stat-val">' + wins + '</div><div class="stat-label">' + G.stats_wins + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + (total - wins) + '</div><div class="stat-label">' + G.stats_losses + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + total + '</div><div class="stat-label">' + G.stats_games + '</div></div>' +
+    '<div class="stat"><div class="stat-val">' + rate + '%</div><div class="stat-label">' + G.stats_winrate + '</div></div>' +
+    '</div>';
+
+  let hist = '<div class="stats-history">';
+  for(const g of games.slice().reverse().slice(0, 30)){
+    const isWin = g.winner === 'p';
+    const d = new Date(g.ts * 1000);
+    const date = d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit'});
+    const time = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    hist += '<div class="hist-row' + (isWin ? ' win' : '') + '">' +
+      '<span class="hist-ico">' + (isWin ? '🏆' : '💀') + '</span>' +
+      '<span class="hist-meta">' + date + ' ' + time + ' (' + g.level + ')</span>' +
+      '<span class="hist-score">R' + g.rounds + ' ' + NAMES[g.winner] + '</span>' +
+      '</div>';
+  }
+  hist += '</div>';
+  target.innerHTML += hist;
+}
+
+async function openStats(){
+  const games = await loadStats();
+  renderStatsContent(games, $('stats-modal-content'));
+  $('stats-modal').classList.add('show');
+}
+function closeStats(){ $('stats-modal').classList.remove('show'); }
+
+async function resetStatsConfirm(){
+  if(!confirm(G.stats_reset + '?')) return;
+  await api('/api/maumau/history/reset', {});
+  closeStats();
+}
+
+async function renderStartStats(){
+  const games = await loadStats();
+  renderStatsContent(games, $('stats-box'));
+}
+
+/* ══════════════════════════════════════════════
+   SPIELAKTIONEN
+   ══════════════════════════════════════════════ */
+
+async function playCard(card){
+  if(aiRunning) return;
+  const st = gameState;
+  if(!st || st.turn !== 'p') return;
+  if(st.status !== 'playing') return;
+  const legal = st.legal || [];
+  if(!legal.includes(card)) return;
+
+  canUndo = true;
+  SFX.cardPlay();
+  await flyCard(card);
+
+  const v = await api('/api/maumau/move', {type:'play', card});
+  if(!v) return;
+  gameState = v.state;
+  addLog(G.player + ' ' + G.plays_card + ': ' + cardName(card));
+
+  if(card[1] === '8'){
+    const skipped = getSkippedPlayer('p', gameState.direction);
+    SFX.skip(); showSkipDim(skipped);
+    showToast(NAMES[skipped] + ': ' + G.skipped, 'info');
+  }
+
+  const hand = gameState.hands?.p;
+  if(hand && hand.length === 1) { showMauAnnounce(G.mau + '!'); SFX.mau(); }
+  if(hand && hand.length === 0) { showMauAnnounce(G.mau_mau + '!'); SFX.mauMau(); }
+
+  if(gameState.status === 'wish_suit'){
+    render(gameState);
+    $('wish-modal').classList.add('show');
+    return;
+  }
+
+  render(gameState);
+  checkEndState();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function doDraw(){
+  if(aiRunning) return;
+  const st = gameState;
+  if(!st || st.turn !== 'p') return;
+  if(st.status !== 'playing') return;
+
+  canUndo = true;
+  const prevDraw = st.draw_count || 0;
+  const v = await api('/api/maumau/move', {type:'draw'});
+  if(!v) return;
+  gameState = v.state;
+
+  await checkReshuffle(prevDraw);
+  const count = gameState.last_play?.count || 1;
+  await flyDrawMultiple('p', count);
+  addLog(G.player + ' ' + G.draws_cards + ' (' + count + ')');
+
+  if(gameState.status === 'drawn'){
+    render(gameState);
+    const drawnCard = gameState.can_play_drawn;
+    if(drawnCard){
+      $('drawn-card-display').innerHTML = cardHtml(drawnCard, false, false);
+      $('drawn-modal').classList.add('show');
+    }
+    return;
+  }
+
+  render(gameState);
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function doPlayDrawn(){
+  $('drawn-modal').classList.remove('show');
+  const card = gameState.can_play_drawn;
+  SFX.cardPlay();
+  const v = await api('/api/maumau/move', {type:'play_drawn'});
+  if(!v) return;
+  gameState = v.state;
+  addLog(G.player + ' ' + G.plays_card + ': ' + cardName(card));
+
+  const hand = gameState.hands?.p;
+  if(hand && hand.length === 1) { showMauAnnounce(G.mau + '!'); SFX.mau(); }
+  if(hand && hand.length === 0) { showMauAnnounce(G.mau_mau + '!'); SFX.mauMau(); }
+
+  if(gameState.status === 'wish_suit'){
+    render(gameState);
+    $('wish-modal').classList.add('show');
+    return;
+  }
+
+  render(gameState);
+  checkEndState();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function doPassDrawn(){
+  $('drawn-modal').classList.remove('show');
+  const v = await api('/api/maumau/move', {type:'pass_drawn'});
+  if(!v) return;
+  gameState = v.state;
+  addLog(G.player + ': Karte behalten');
+  render(gameState);
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function doWish(suit){
+  $('wish-modal').classList.remove('show');
+  SFX.special();
+  const v = await api('/api/maumau/move', {type:'wish', suit});
+  if(!v) return;
+  gameState = v.state;
+  addLog(G.player + ' ' + G.wishes + ' ' + SUIT_NAME[suit]);
+  showToast(SUIT_SYM[suit] + ' ' + SUIT_NAME[suit], 'gold');
+  render(gameState);
+  checkEndState();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function nextRound(){
+  $('modal-round').classList.remove('show');
+  const v = await api('/api/maumau/move', {type:'next_round'});
+  if(!v) return;
+  gameState = v.state;
+  addLogRound(gameState.round_nr);
+  render(gameState);
+  await dealCards();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+function isPlayerTurn(){
+  if(!gameState) return false;
+  const st = gameState;
+  if(st.status === 'round_over' || st.status === 'game_over') return true;
+  return st.turn === 'p';
+}
+
+function checkEndState(){
+  const st = gameState;
+  if(!st) return;
+
+  if(st.status === 'round_over'){
+    showRoundResult(st);
+  } else if(st.status === 'game_over'){
+    showGameOver(st);
+  }
+}
+
+function showRoundResult(st){
+  const r = st.round_result;
+  if(!r) return;
+  const body = $('result-body');
+  body.innerHTML = '';
+
+  for(const p of ['p','a1','a2']){
+    const cards = r.hands[p] || [];
+    const pts = r.points[p] || 0;
+    const isWinner = p === r.winner;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td' + (isWinner ? ' class="winner"' : '') + '>' + NAMES[p] + (isWinner ? ' 🏆' : '') + '</td>' +
+      '<td>' + cards.length + '</td>' +
+      '<td>' + pts + '</td>' +
+      '<td>' + (st.wins[p] || 0) + '</td>';
+    body.appendChild(tr);
+  }
+
+  $('round-title').textContent = (r.winner === 'p')
+    ? G.you_win_round : (NAMES[r.winner] + ' ' + G.wins_round + '!');
+  if(r.winner === 'p') SFX.win(); else SFX.lose();
+  $('modal-round').classList.add('show');
+}
+
+function showGameOver(st){
+  const winner = st.winner;
+  const isWin = winner === 'p';
+  $('go-emoji').textContent = isWin ? '🏆' : '💀';
+  $('go-title').textContent = isWin ? G.you_win : G.you_lose;
+  $('go-text').textContent = (winner === 'p')
+    ? G.you_win_round : (NAMES[winner] + ' ' + G.wins_round + '!');
+
+  let scoresHtml = '<div style="margin-top:12px">';
+  for(const p of ['p','a1','a2']){
+    scoresHtml += '<span style="margin:0 12px">' + NAMES[p] + ': <b>' + (st.wins[p]||0) + '</b></span>';
+  }
+  scoresHtml += '</div>';
+  $('go-scores').innerHTML = scoresHtml;
+
+  if(isWin) SFX.win(); else SFX.lose();
+  $('modal-gameover').classList.add('show');
+}
+
+/* ── KI-Schleife ──────────────────────────── */
+async function aiLoop(){
+  if(aiRunning) return;
+  aiRunning = true;
+
+  while(gameState && !isPlayerTurn()){
+    render(gameState);
+    await sleep(aiDelay);
+
+    const prevDraw = gameState.draw_count || 0;
+    const v = await api('/api/maumau/ai', {});
+    if(!v || !v.state) break;
+
+    const evt = v.event;
+    gameState = v.state;
+    await checkReshuffle(prevDraw);
+
+    if(evt){
+      if(evt.type === 'play'){
+        SFX.cardPlay();
+        await flyAiCard(evt.who, evt.card);
+        addLog(evt.name + ' ' + G.plays_card + ': ' + evt.card_name);
+
+        const aiCount = typeof gameState.hands?.[evt.who] === 'number' ? gameState.hands[evt.who] : 99;
+        if(aiCount === 1){ showMauAnnounce(evt.name + ': ' + G.mau + '!'); SFX.mau(); await sleep(500); }
+        if(aiCount === 0){ showMauAnnounce(evt.name + ': ' + G.mau_mau + '!'); SFX.mauMau(); await sleep(500); }
+
+        if(evt.wished_suit){
+          showToast(evt.name + ': ' + SUIT_SYM[evt.wished_suit] + ' ' + SUIT_NAME[evt.wished_suit], 'gold');
+          addLog(evt.name + ' ' + G.wishes + ' ' + SUIT_NAME[evt.wished_suit]);
+        }
+
+        const card = evt.card;
+        if(card && card[1] === '7'){ SFX.draw7(); }
+        else if(card && card[1] === '8'){
+          const skipped = getSkippedPlayer(evt.who, gameState.direction);
+          SFX.skip(); showSkipDim(skipped);
+          showToast(NAMES[skipped] + ': ' + G.skipped, 'info');
+        }
+        else if(card && card[1] === 'A'){ SFX.reverse(); }
+      }
+      else if(evt.type === 'draw'){
+        await flyDrawMultiple(evt.who, evt.count || 1);
+        addLog(evt.name + ' ' + G.draws_cards + ' (' + (evt.count || 1) + ')');
+        if(evt.played_drawn){
+          await sleep(300);
+          SFX.cardPlay();
+          await flyAiCard(evt.who, evt.played_drawn);
+          addLog(evt.name + ' ' + G.plays_card + ': ' + evt.card_name);
+          if(evt.wished_suit){
+            showToast(evt.name + ': ' + SUIT_SYM[evt.wished_suit] + ' ' + SUIT_NAME[evt.wished_suit], 'gold');
+            addLog(evt.name + ' ' + G.wishes + ' ' + SUIT_NAME[evt.wished_suit]);
+          }
+        }
+      }
+      else if(evt.type === 'wish'){
+        showToast(evt.name + ': ' + SUIT_SYM[evt.suit] + ' ' + SUIT_NAME[evt.suit], 'gold');
+        addLog(evt.name + ' ' + G.wishes + ' ' + SUIT_NAME[evt.suit]);
+      }
+    }
+
+    render(gameState);
+  }
+
+  aiRunning = false;
+  checkEndState();
+}
+
+/* ── Spielstart & Resume ──────────────────── */
+async function startGame(level){
+  const winsTarget = parseInt($('wins-target-sel').value) || 3;
+  const v = await api('/api/maumau/new', {level, wins_target: winsTarget});
+  if(!v) return;
+  gameState = v.state;
+  canUndo = false;
+  clearLog();
+  $('start-screen').classList.add('hidden');
+  render(gameState);
+  await dealCards();
+  if(!isPlayerTurn()) aiLoop();
+}
+
+async function resumeGame(){
+  const v = await api('/api/maumau/state');
+  if(!v || !v.state) return;
+  gameState = v.state;
+  canUndo = false;
+  $('start-screen').classList.add('hidden');
+  render(gameState);
+  if(!isPlayerTurn()) aiLoop();
+}
+
+function showStart(){
+  $('modal-gameover').classList.remove('show');
+  $('modal-round').classList.remove('show');
+  $('start-screen').classList.remove('hidden');
+  renderStartStats();
+}
+
+function closeGame(){
+  releaseSession();  // Session-Sperre sofort freigeben (nicht erst nach Timeout)
+  if(window.parent !== window) window.parent.postMessage('close-maumau', location.origin);
+  else location.href = '/bereich';
+}
+
+function releaseSession(){
+  if(!sessionToken) return;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  try {
+    navigator.sendBeacon('/api/maumau/session',
+      new Blob([JSON.stringify({action: 'release', token: sessionToken})],
+        {type: 'application/json'}));
+  } catch(e){}
+  sessionToken = null;
+}
+
+function confirmNewGame(){
+  if(gameState && gameState.status !== 'game_over'){
+    if(!confirm(G.new_game + '?')) return;
+  }
+  showStart();
+}
+
+async function checkResume(){
+  const v = await api('/api/maumau/state');
+  if(v && v.state && v.state.status && v.state.status !== 'game_over'){
+    $('resume-box').style.display = 'block';
+  } else {
+    $('resume-box').style.display = 'none';
+  }
+}
+
+/* ── Keyboard ─────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const k = e.key;
+
+  if(k === 'Escape'){
+    if($('wish-modal').classList.contains('show')) return;
+    if($('drawn-modal').classList.contains('show')) return;
+    for(const id of ['settings-modal','stats-modal','played-modal','rules-modal','modal-round','modal-gameover']){
+      if($(id).classList.contains('show')){ $(id).classList.remove('show'); return; }
+    }
+    return;
+  }
+
+  if($('wish-modal').classList.contains('show')){
+    if(k === '1') doWish('h');
+    else if(k === '2') doWish('d');
+    else if(k === '3') doWish('s');
+    else if(k === '4') doWish('c');
+    return;
+  }
+
+  if($('drawn-modal').classList.contains('show')){
+    if(k === 'Enter' || k === 's' || k === 'S') doPlayDrawn();
+    else if(k === 'p' || k === 'P') doPassDrawn();
+    return;
+  }
+
+  if($('modal-round').classList.contains('show')){
+    if(k === 'Enter') nextRound();
+    return;
+  }
+
+  if(!gameState || aiRunning) return;
+  const st = gameState;
+
+  if(k === 'u' || k === 'U'){ doUndo(); return; }
+  if(k === 'k' || k === 'K'){ if(showPlayed) openPlayed(); return; }
+
+
+  if(st.status === 'playing' && st.turn === 'p'){
+    if((k === 'd' || k === 'D') && st.can_draw){ doDraw(); return; }
+    const n = parseInt(k);
+    if(n >= 1 && n <= 9){
+      const legal = st.legal || [];
+      if(n <= legal.length) playCard(legal[n-1]);
+    }
+  }
+});
+
+/* ── Init ─────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  // Best-effort: auf Mobilgeräten Querformat anfordern (nur in PWA/Fullscreen wirksam, sonst harmlos)
+  try { if(screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); } catch(e){}
+  applyPlayedVisibility();  // Button für gespielte Karten anhand der gespeicherten Option anzeigen
+  const ok = await claimSession(false);
+  if(ok){
+    checkResume();
+    renderStartStats();
+  }
+});
+</script>
+</body>
+</html>
