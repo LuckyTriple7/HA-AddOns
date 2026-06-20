@@ -78,6 +78,7 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 
 - **Schlagwörter (Tags)**: Pro Beitrag bis zu 8 Tags (komma-getrennt). Auf der Blog-Seite gibt es **Tag-Filter-Chips**; auf jeder Beitragsseite verlinken die Tags zur gefilterten Ansicht.
 - **Suche**: Ein Suchfeld auf `/blog` durchsucht Titel, Text und Tags (DE+EN). Suche und Tag-Filter lassen sich kombinieren. Entwürfe und geplante Beiträge bleiben außen vor.
+- **Newsletter / Blog-Abo** (im Design-Tab aktivierbar, Standard aus): Auf der Blog-Seite erscheint ein Abo-Feld. Besucher tragen ihre E-Mail ein und bestätigen das Abo per Link (**Double-Opt-in**). Im Blog-Tab schreibst du dann eine Nachricht (Betreff + Markdown) und sendest sie per Klick an alle **bestätigten** Abonnenten — jede Mail enthält einen **Abmelde-Link**. Du siehst die Abonnentenzahl und kannst einzelne entfernen. Schutz: Honeypot + Rate-Limit, keine E-Mail-Enumeration. Benötigt SMTP + öffentliche URL; die Liste liegt in `subscribers.json` (im Backup).
 - **Kommentare & Reaktionen** (im Design-Tab über „Kommentare & Reaktionen" aktivierbar, Standard aus): **Angemeldete Mitglieder** können Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏 — eine Reaktion pro Person, per Klick umschaltbar). Gäste sehen die Reaktionsleiste ausgegraut mit einem Hinweis zum Anmelden. Moderiert wird im Tab **Nachrichten** (siehe unten); bei neuen Kommentaren kommt zusätzlich eine Home-Assistant-Benachrichtigung. Kommentare/Reaktionen liegen in `comments.json` und werden im Backup mitgesichert.
 
 ### System
@@ -173,7 +174,7 @@ Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitema
 Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben).
 
 ### Design
-Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Kontaktformular ein/aus, **Kommentare & Reaktionen** ein/aus, **Selbst-Registrierung** ein/aus (+ Standard-Quota), Footer-Text, eigenes CSS.
+Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Kontaktformular ein/aus, **Kommentare & Reaktionen** ein/aus, **Selbst-Registrierung** ein/aus (+ Standard-Quota), **Newsletter / Blog-Abo** ein/aus, Footer-Text, eigenes CSS.
 
 - **Unterstützen-Button**: Frei konfigurierbarer Link (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …). Das passende Icon wird automatisch anhand der URL gewählt; eine eigene Beschriftung ist möglich.
 - **Termin-/Buchungs-Button**: Link zu einem externen Buchungsdienst (z. B. Calendly, Cal.com). Erscheint mit Kalender-Symbol im Kopfbereich neben dem Unterstützen-Button und öffnet beim Klick einen neuen Tab. Ist kein Link gesetzt, erscheint kein Button. Details siehe [README](README.md#-buchungskalender--termin-button).

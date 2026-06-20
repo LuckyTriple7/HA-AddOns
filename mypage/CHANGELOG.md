@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.158
+
+- 📰 **Newsletter / Blog-Abo** — Besucher können den Newsletter auf der Blog-Seite abonnieren (Double-Opt-in: Eintrag → Bestätigungs-Mail → bestätigt). Im Blog-Tab schreibst du eine Nachricht (Betreff + Markdown) und sendest sie an alle bestätigten Abonnenten; jede Mail enthält einen Abmelde-Link. Abonnentenliste mit Anzahl und Einzel-Löschen. Schutz: Honeypot, Rate-Limit, keine E-Mail-Enumeration. Aktivierbar im Design-Tab (Standard aus); benötigt SMTP + öffentliche URL. Liste in `subscribers.json` (im Backup).
+
 ## 0.6.157
 
 - 🛡️ **Admin-Protokoll (Audit-Log)** — Im System-Tab werden jetzt sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP protokolliert: erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge liegen in `audit.json` und werden im Backup mitgesichert.

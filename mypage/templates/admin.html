@@ -473,6 +473,17 @@
         <p class="hint">{{ t.blog_hint }}</p>
         <div class="proj-list" id="post-list"></div>
       </div>
+      <div class="panel" id="nl-panel">
+        <h3>{{ t.nl_admin_heading }} <span class="hint" id="nl-count" style="font-weight:normal"></span></h3>
+        <p class="hint">{{ t.nl_admin_hint }}</p>
+        <label>{{ t.nl_subject }}</label>
+        <input type="text" id="nl-subject" maxlength="150">
+        <label>{{ t.nl_body }}</label>
+        <textarea id="nl-body" rows="8" placeholder="{{ t.nl_body_ph }}"></textarea>
+        <button class="btn" style="margin-top:12px" onclick="sendNewsletter()">✉ {{ t.nl_send }}</button>
+        <div id="nl-subs" class="collapsible" style="margin-top:16px"></div>
+        <button class="btn secondary small collapse-btn" id="nl-subs-btn" onclick="toggleCollapse('nl-subs')"></button>
+      </div>
     </section>
 
     <!-- Design -->
@@ -603,6 +614,16 @@
           <div>
             <label>{{ t.field_registration_quota }}</label>
             <input type="number" id="d-registration_quota_mb" min="1" max="100000" step="1">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_newsletter_enabled }}</label>
+            <select id="d-newsletter_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.newsletter_enabled_hint }}</p>
           </div>
         </div>
         <div class="row">
@@ -1441,6 +1462,7 @@
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') initPreview();
         if (btn.dataset.tab === 'system') loadAudit();
+        if (btn.dataset.tab === 'blog') loadSubscribers();
       });
     });
 
@@ -2748,6 +2770,7 @@
       el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
+      el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
@@ -2809,6 +2832,7 @@
         comments_enabled: el('d-comments_enabled').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
+        newsletter_enabled: el('d-newsletter_enabled').value === '1',
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
       });
@@ -3009,6 +3033,47 @@
     });
 
     // ── Statistik ──
+    async function loadSubscribers() {
+      const r = await api('api/subscribers');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('nl-count').textContent = d.total ? `· ${d.confirmed} / ${d.total} ${T.nl_confirmed_count}` : '';
+      const box = el('nl-subs');
+      if (!d.subscribers.length) { box.innerHTML = `<p class="hint">${T.nl_no_subs}</p>`; refreshCollapse('nl-subs'); return; }
+      box.innerHTML = '';
+      d.subscribers.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'audit-row';
+        row.innerHTML = `<span class="audit-act" style="flex:1;min-width:0"></span><span class="audit-ip"></span><button class="btn danger small">✕</button>`;
+        row.querySelector('.audit-act').textContent = s.email + (s.confirmed ? '' : ' · ' + T.nl_pending);
+        row.querySelector('.audit-ip').textContent = new Date(s.ts * 1000).toLocaleDateString();
+        row.querySelector('button').onclick = async () => {
+          if (!confirm(T.nl_remove_confirm)) return;
+          const r2 = await fetch('api/subscribers/' + s.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) loadSubscribers();
+        };
+        box.appendChild(row);
+      });
+      refreshCollapse('nl-subs');
+    }
+
+    async function sendNewsletter() {
+      const subject = el('nl-subject').value.trim();
+      const body = el('nl-body').value.trim();
+      if (!subject || !body) { toast(T.nl_missing, true); return; }
+      if (!confirm(T.nl_send_confirm)) return;
+      const r = await apiJson('api/newsletter/send', 'POST', { subject, body });
+      if (r.ok) {
+        const d = await r.json();
+        toast(T.nl_sent_admin.replace('{n}', d.count));
+        el('nl-subject').value = ''; el('nl-body').value = '';
+      } else {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error === 'no recipients' ? T.nl_no_recipients
+              : (d.error === 'no smtp' ? T.user_smtp_off : T.error_save), true);
+      }
+    }
+
     async function loadAudit() {
       const r = await api('api/audit');
       if (!r.ok) return;
@@ -3021,6 +3086,7 @@
         user_approve: T.audit_user_approve, user_quota: T.audit_user_quota,
         user_games: T.audit_user_games, user_password: T.audit_user_password,
         user_resend: T.audit_user_resend, restore: T.audit_restore,
+        newsletter_send: T.audit_newsletter,
       };
       box.innerHTML = '';
       data.audit.forEach(a => {

@@ -62,6 +62,16 @@
     .post-tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
     .post-tags span { font-size: 0.7rem; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
     .blog-empty { color: var(--muted); font-size: 0.9rem; padding: 20px 0; }
+    .nl-banner { padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 18px; }
+    .nl-banner.ok { background: rgba(46,160,67,.14); border: 1px solid #2ea043; color: #3fb950; }
+    .nl-banner.err { background: rgba(207,34,46,.12); border: 1px solid #cf222e; color: #f85149; }
+    .nl-box { margin-top: 34px; background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
+    .nl-box h2 { font-size: 1.15rem; margin-bottom: 6px; }
+    .nl-box p { font-size: 0.86rem; color: var(--muted); margin-bottom: 12px; }
+    .nl-form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .nl-form input[type=email] { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 0.9rem; font-family: inherit; }
+    .nl-form input[type=email]:focus { outline: none; border-color: var(--accent); }
+    .nl-form button { background: var(--accent); border: none; color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.86rem; font-weight: 600; cursor: pointer; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
 </head>
@@ -73,6 +83,12 @@
   </header>
   <main class="wrap">
     <h1>{{ t.blog_heading }}</h1>
+
+    {% if nl == 'confirmed' %}<div class="nl-banner ok">{{ t.nl_confirmed }}</div>{% endif %}
+    {% if nl == 'sent' %}<div class="nl-banner ok">{{ t.nl_sent }}</div>{% endif %}
+    {% if nl == 'unsubscribed' %}<div class="nl-banner ok">{{ t.nl_unsubscribed }}</div>{% endif %}
+    {% if nl == 'invalid' %}<div class="nl-banner err">{{ t.nl_invalid }}</div>{% endif %}
+    {% if nl == 'invalidmail' %}<div class="nl-banner err">{{ t.nl_invalidmail }}</div>{% endif %}
 
     <form class="blog-search" method="get" action="/blog" role="search">
       {% if active_tag %}<input type="hidden" name="tag" value="{{ active_tag }}">{% endif %}
@@ -100,6 +116,18 @@
     {% else %}
     <p class="blog-empty">{{ t.blog_no_results }}</p>
     {% endfor %}
+
+    {% if newsletter_open %}
+    <div class="nl-box">
+      <h2>{{ t.nl_box_title }}</h2>
+      <p>{{ t.nl_box_intro }}</p>
+      <form class="nl-form" method="post" action="/newsletter/subscribe">
+        <input type="email" name="email" placeholder="{{ t.nl_email_ph }}" autocomplete="email" required>
+        <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button type="submit">{{ t.nl_subscribe_btn }}</button>
+      </form>
+    </div>
+    {% endif %}
   </main>
   <footer>
     <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>

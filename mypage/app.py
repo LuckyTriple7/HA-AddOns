@@ -71,6 +71,7 @@ STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
 COMMENTS_PATH = _DATA + '/comments.json'
 AUDIT_PATH = _DATA + '/audit.json'
+SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
@@ -141,6 +142,7 @@ _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
 _comments_lock = threading.Lock()
 _audit_lock = threading.Lock()
+_subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 
@@ -249,6 +251,7 @@ DEFAULT_SITE = {
         'comments_enabled': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
+        'newsletter_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'font': 'system', 'custom_css': '',
@@ -608,6 +611,90 @@ def log_audit(action: str, detail: str = '') -> None:
                 json.dump(data[-AUDIT_MAX:], f, indent=2, ensure_ascii=False)
         except Exception as e:
             log.warning("audit.json konnte nicht geschrieben werden: %s", e)
+
+
+# ── Newsletter / Blog-Abo ──────────────────────────────────────────────────────
+NEWSLETTER_CONFIRM_TTL = 7 * 86400                # Bestätigungslink 7 Tage gültig
+NEWSLETTER_MAX_PER_HOUR = 5
+_newsletter_times: dict[str, list[float]] = defaultdict(list)
+
+
+def load_subscribers() -> list:
+    with _subs_lock:
+        try:
+            with open(SUBSCRIBERS_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("subscribers.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def save_subscribers(data: list) -> None:
+    with _subs_lock:
+        try:
+            with open(SUBSCRIBERS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("subscribers.json konnte nicht gespeichert werden: %s", e)
+
+
+def newsletter_open() -> bool:
+    """Abo möglich: aktiviert UND E-Mail-Versand + öffentliche URL vorhanden."""
+    site = load_site()
+    return (bool(site['design'].get('newsletter_enabled'))
+            and smtp_configured()
+            and bool((site['design'].get('public_url') or '').strip()))
+
+
+def newsletter_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _newsletter_times[ip] = [t for t in _newsletter_times[ip] if now - t < 3600]
+    return len(_newsletter_times[ip]) >= NEWSLETTER_MAX_PER_HOUR
+
+
+def record_newsletter_attempt(ip: str) -> None:
+    _newsletter_times[ip].append(time.time())
+
+
+def _unsub_link(sub: dict) -> str:
+    base = (load_site()['design'].get('public_url') or '').rstrip('/')
+    return f"{base}/newsletter/unsubscribe/{sub['id']}/{sub['utoken']}" if base else ''
+
+
+def send_confirm_subscription(sub: dict, token: str) -> None:
+    base = (load_site()['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    link = f"{base}/newsletter/confirm/{sub['id']}/{token}"
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'Bitte bestätige dein Abo des Newsletters von <b>{esc(title)}</b> (Link 7 Tage gültig):',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Erst nach dem Klick erhältst du künftige Nachrichten. Wenn du das nicht warst, ignoriere diese E-Mail.']
+    send_email(f'Newsletter bestätigen – {title}',
+               _email_html(f'📰 Newsletter bestätigen – {esc(title)}', lines),
+               to=sub['email'], from_addr=_reg_from())
+
+
+def send_newsletter_batch(subject: str, body_html: str, subs: list) -> int:
+    """Sendet body_html an alle (bestätigten) Empfänger, je mit eigenem Abmelde-Link."""
+    title, esc = _site_title(), html_mod.escape
+    from_addr = _reg_from()
+    sent = 0
+    for sub in subs:
+        footer = (f'<hr style="border:none;border-top:1px solid #30363d;margin:16px 0">'
+                  f'<p style="font-size:12px;color:#8b949e;margin:0">'
+                  f'Du erhältst diese E-Mail, weil du den Newsletter von {esc(title)} abonniert hast. '
+                  f'<a href="{esc(_unsub_link(sub))}">Abmelden</a></p>')
+        html = ('<div style="font-family:sans-serif;max-width:560px;padding:20px;'
+                'background:#0d1117;color:#c9d1d9;border-radius:8px">'
+                f'<h3 style="margin:0 0 12px;color:#58a6ff">{esc(subject)}</h3>'
+                f'{body_html}{footer}</div>')
+        send_email(subject, html, to=sub['email'], from_addr=from_addr)
+        sent += 1
+    return sent
 
 
 def send_telegram(text: str) -> None:
@@ -2116,7 +2203,7 @@ def api_design():
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
-                 'registration_enabled', 'maintenance', 'indexnow',
+                 'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -2397,6 +2484,55 @@ def api_audit():
     return jsonify({'audit': list(reversed(load_audit()))[:300]})
 
 
+@admin_app.route('/api/subscribers')
+def api_subscribers():
+    err = _api_auth()
+    if err:
+        return err
+    subs = load_subscribers()
+    out = [{'id': s['id'], 'email': s['email'], 'confirmed': bool(s.get('confirmed')),
+            'ts': s.get('ts', 0)}
+           for s in sorted(subs, key=lambda s: s.get('ts', 0), reverse=True)]
+    return jsonify({'subscribers': out, 'total': len(subs),
+                    'confirmed': sum(1 for s in subs if s.get('confirmed'))})
+
+
+@admin_app.route('/api/subscribers/<sid>', methods=['DELETE'])
+def api_subscriber_delete(sid: str):
+    err = _api_auth()
+    if err:
+        return err
+    subs = load_subscribers()
+    new = [s for s in subs if s['id'] != sid]
+    if len(new) == len(subs):
+        return jsonify({'error': 'not found'}), 404
+    save_subscribers(new)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/newsletter/send', methods=['POST'])
+def api_newsletter_send():
+    err = _api_auth()
+    if err:
+        return err
+    if not smtp_configured():
+        return jsonify({'error': 'no smtp'}), 400
+    raw = request.get_json(silent=True) or {}
+    subject = _clean_str(raw.get('subject'), 150)
+    body = _clean_str(raw.get('body'), 20000)
+    if not subject or not body:
+        return jsonify({'error': 'missing'}), 400
+    confirmed = [s for s in load_subscribers() if s.get('confirmed')]
+    if not confirmed:
+        return jsonify({'error': 'no recipients'}), 400
+    body_html = render_md(body)
+    threading.Thread(target=send_newsletter_batch, args=(subject, body_html, confirmed),
+                     daemon=True).start()
+    log_audit('newsletter_send', f'{len(confirmed)} Empfänger: {subject}')
+    log.info("Newsletter '%s' an %d Empfänger ausgelöst", subject, len(confirmed))
+    return jsonify({'ok': True, 'count': len(confirmed)})
+
+
 @admin_app.route('/api/backup')
 def api_backup():
     err = _api_auth()
@@ -2405,7 +2541,7 @@ def api_backup():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                     'comments.json', 'audit.json'):
+                     'comments.json', 'audit.json', 'subscribers.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -2440,7 +2576,7 @@ def api_restore():
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                              'comments.json', 'audit.json'):
+                              'comments.json', 'audit.json', 'subscribers.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -5220,8 +5356,73 @@ def blog_index():
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
                            posts=posts, tags=all_post_tags(site),
                            query=query, active_tag=tag,
+                           newsletter_open=newsletter_open(),
+                           nl=_clean_str(request.args.get('nl'), 20),
                            meta_desc=_site_meta(site, loc),
                            year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/newsletter/subscribe', methods=['POST'])
+def newsletter_subscribe():
+    site = load_site()
+    if site['design'].get('maintenance') or not newsletter_open():
+        abort(403)
+    ip = get_client_ip(request)
+    # Honeypot + Rate-Limit → immer generische Rückmeldung (keine Enumeration)
+    if (request.form.get('website') or '').strip() or newsletter_rate_limited(ip):
+        return redirect('/blog?nl=sent')
+    record_newsletter_attempt(ip)
+    email = _clean_str(request.form.get('email'), 150).lower()
+    if not _EMAIL_RE.match(email):
+        return redirect('/blog?nl=invalidmail')
+    subs = load_subscribers()
+    existing = next((s for s in subs if s['email'] == email), None)
+    token = secrets.token_urlsafe(24)
+    if existing is None:
+        subs.append({'id': uuid.uuid4().hex[:12], 'email': email, 'confirmed': False,
+                     'ts': int(time.time()), 'utoken': secrets.token_urlsafe(16),
+                     'confirm': {'hash': generate_password_hash(token),
+                                 'exp': int(time.time()) + NEWSLETTER_CONFIRM_TTL}})
+        save_subscribers(subs)
+        threading.Thread(target=send_confirm_subscription, args=(subs[-1], token), daemon=True).start()
+        log.info("Newsletter-Abo angefragt: '%s' von %s", email, ip)
+    elif not existing.get('confirmed'):
+        existing['confirm'] = {'hash': generate_password_hash(token),
+                               'exp': int(time.time()) + NEWSLETTER_CONFIRM_TTL}
+        save_subscribers(subs)
+        threading.Thread(target=send_confirm_subscription, args=(existing, token), daemon=True).start()
+    # bereits bestätigt → still nichts tun (generische Antwort schützt vor Enumeration)
+    return redirect('/blog?nl=sent')
+
+
+@public_app.route('/newsletter/confirm/<sid>/<token>')
+def newsletter_confirm(sid: str, token: str):
+    subs = load_subscribers()
+    sub = next((s for s in subs if s['id'] == sid), None)
+    ok = False
+    if sub is not None:
+        c = sub.get('confirm')
+        if c and time.time() <= c.get('exp', 0) and check_password_hash(c.get('hash', ''), token):
+            ok = True
+    if not ok:
+        return redirect('/blog?nl=invalid')
+    sub['confirmed'] = True
+    sub.pop('confirm', None)
+    save_subscribers(subs)
+    log.info("Newsletter-Abo bestätigt: '%s'", sub['email'])
+    return redirect('/blog?nl=confirmed')
+
+
+@public_app.route('/newsletter/unsubscribe/<sid>/<token>')
+def newsletter_unsubscribe(sid: str, token: str):
+    subs = load_subscribers()
+    sub = next((s for s in subs if s['id'] == sid), None)
+    if sub is not None and secrets.compare_digest(str(sub.get('utoken', '')), token):
+        subs = [s for s in subs if s['id'] != sid]
+        save_subscribers(subs)
+        log.info("Newsletter-Abmeldung: '%s'", sub['email'])
+        return redirect('/blog?nl=unsubscribed')
+    return redirect('/blog?nl=invalid')
 
 
 @public_app.route('/blog/<pid>')
