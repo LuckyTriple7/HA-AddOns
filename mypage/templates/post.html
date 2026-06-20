@@ -99,6 +99,13 @@
     .comment-form textarea { width: 100%; background: var(--surf); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; font-family: inherit; resize: vertical; min-height: 80px; }
     .comment-form textarea:focus { outline: none; border-color: var(--accent); }
     .comment-form button { margin-top: 10px; background: var(--accent); border: none; color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.86rem; font-weight: 600; cursor: pointer; }
+    .comment.reply { margin: 10px 0 0 22px; border-left: 2px solid var(--accent); }
+    .reply-btn { background: none; border: none; color: var(--accent); font-size: 0.78rem; cursor: pointer; padding: 6px 0 0; }
+    .reply-btn:hover { text-decoration: underline; }
+    .reply-form { margin-top: 8px; }
+    .reply-form textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; font-family: inherit; resize: vertical; min-height: 60px; }
+    .reply-form textarea:focus { outline: none; border-color: var(--accent); }
+    .reply-form button { margin-top: 6px; background: var(--accent); border: none; color: #fff; padding: 7px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
 </head>
@@ -151,14 +158,39 @@
       {% if not member %}<p class="react-hint"><a href="/bereich">{{ t.comment_login_hint }}</a></p>{% endif %}
 
       <div class="comments">
-        <h2>{{ t.comments_title }} ({{ comments|length }})</h2>
+        <h2>{{ t.comments_title }} ({{ comment_count }})</h2>
         {% for c in comments %}
-        <div class="comment">
+        <div class="comment" id="c-{{ c.id }}">
           <div class="comment-head">
             <span class="comment-name">{{ c.name }}</span>
             <span class="comment-date" data-ts="{{ c.ts }}">{{ c.ts }}</span>
           </div>
           <div class="comment-text">{{ c.text }}</div>
+          {% if member %}
+          <button type="button" class="reply-btn" onclick="toggleReply('{{ c.id }}')">↩ {{ t.comment_reply }}</button>
+          <form class="reply-form" id="rf-{{ c.id }}" method="post" action="/blog/{{ p.id }}/comment" style="display:none">
+            <input type="hidden" name="parent" value="{{ c.id }}">
+            <textarea name="text" maxlength="2000" required placeholder="{{ t.comment_placeholder }}"></textarea>
+            <button type="submit">{{ t.comment_submit }}</button>
+          </form>
+          {% endif %}
+          {% for r in c.replies %}
+          <div class="comment reply" id="c-{{ r.id }}">
+            <div class="comment-head">
+              <span class="comment-name">{{ r.name }}</span>
+              <span class="comment-date" data-ts="{{ r.ts }}">{{ r.ts }}</span>
+            </div>
+            <div class="comment-text">{{ r.text }}</div>
+            {% if member %}
+            <button type="button" class="reply-btn" onclick="toggleReply('{{ r.id }}')">↩ {{ t.comment_reply }}</button>
+            <form class="reply-form" id="rf-{{ r.id }}" method="post" action="/blog/{{ p.id }}/comment" style="display:none">
+              <input type="hidden" name="parent" value="{{ c.id }}">
+              <textarea name="text" maxlength="2000" required placeholder="{{ t.comment_placeholder }}"></textarea>
+              <button type="submit">{{ t.comment_submit }}</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
         </div>
         {% else %}
         <p class="comment-hint">{{ t.comments_empty }}</p>
@@ -218,6 +250,14 @@
       const ts = parseInt(el.dataset.ts, 10);
       if (ts) el.textContent = new Date(ts * 1000).toLocaleString();
     });
+    // Antwort-Formular unter einem Kommentar ein-/ausblenden
+    function toggleReply(id) {
+      const f = document.getElementById('rf-' + id);
+      if (!f) return;
+      const show = (f.style.display === 'none' || !f.style.display);
+      f.style.display = show ? 'block' : 'none';
+      if (show) { const ta = f.querySelector('textarea'); if (ta) ta.focus(); }
+    }
     // Reaktion umschalten (Toggle) — aktualisiert Zähler ohne Neuladen
     async function react(btn) {
       const emoji = btn.dataset.emoji;

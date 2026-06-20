@@ -1530,6 +1530,18 @@ def send_activated_email(user: dict) -> None:
                to=user['email'], from_addr=_reg_from())
 
 
+def send_comment_reply_email(to_email: str, post_title: str, replier: str,
+                             text: str, post_url: str) -> None:
+    """Benachrichtigt den Autor eines Kommentars, dass jemand geantwortet hat."""
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'{esc(replier)} hat auf deinen Kommentar zu „{esc(post_title)}" geantwortet:',
+             f'<i>{esc(text[:300])}</i>',
+             (f'<a href="{esc(post_url)}#comments">Zur Diskussion</a>' if post_url else '')]
+    send_email(f'Neue Antwort auf deinen Kommentar – {title}',
+               _email_html(f'💬 Neue Antwort – {esc(title)}', [l for l in lines if l]),
+               to=to_email, from_addr=_reg_from())
+
+
 def _smb_watchdog() -> None:
     """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
     if not os.environ.get('MYPAGE_USERFILES', ''):
@@ -5442,16 +5454,32 @@ def blog_post(pid: str):
     member = current_member(request)
     cdata = load_comments().get(pid, {}) if comments_enabled else {}
     reactions = cdata.get('reactions', {})
+    clist = cdata.get('comments', [])
+    threaded = _thread_comments(clist)
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
                            text_html=text_html,
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
                            comments_enabled=comments_enabled,
                            member=member,
-                           comments=cdata.get('comments', []),
+                           comments=threaded, comment_count=len(clist),
                            reaction_emojis=COMMENT_REACTIONS,
                            reaction_counts=_reaction_counts(reactions),
                            my_reaction=(reactions.get(member['id']) if member else None),
                            year=datetime.now(timezone.utc).year)
+
+
+def _thread_comments(clist: list) -> list:
+    """Flache Kommentarliste in Threads gruppieren (eine Verschachtelungs-Ebene):
+    Top-Level-Kommentare in Reihenfolge, jeweils mit ihren Antworten (.replies)."""
+    by_parent: dict = {}
+    for c in clist:
+        by_parent.setdefault(c.get('parent') or None, []).append(c)
+    out = []
+    for c in by_parent.get(None, []):
+        node = dict(c)
+        node['replies'] = by_parent.get(c['id'], [])
+        out.append(node)
+    return out
 
 
 def _visible_post(site: dict, pid: str) -> dict | None:
@@ -5473,15 +5501,31 @@ def blog_comment(pid: str):
     text = _clean_str(request.form.get('text'), 2000).strip()
     if not text:
         return redirect(f'/blog/{pid}#comments')
+    parent_id = _clean_str(request.form.get('parent'), 12)
     data = load_comments()
     thread = _post_thread(data, pid)
-    name = _member_display_name(member)
-    thread['comments'].append({'id': uuid.uuid4().hex[:12], 'uid': member['id'],
-                               'name': name, 'text': text, 'ts': int(time.time())})
-    thread['comments'] = thread['comments'][-COMMENTS_MAX_PER_POST:]
+    clist = thread['comments']
+    # Antwort: Ziel-Kommentar suchen; Verschachtelung auf eine Ebene flachklopfen
+    parent_comment = next((c for c in clist if c['id'] == parent_id), None) if parent_id else None
+    new = {'id': uuid.uuid4().hex[:12], 'uid': member['id'],
+           'name': _member_display_name(member), 'text': text, 'ts': int(time.time())}
+    if parent_comment is not None:
+        new['parent'] = parent_comment.get('parent') or parent_comment['id']
+    clist.append(new)
+    thread['comments'] = clist[-COMMENTS_MAX_PER_POST:]
     save_comments(data)
     log_user_event(member['id'], 'comment', pid, get_client_ip(request))
+    name = new['name']
     title = post.get('title_de') or post.get('title_en') or pid
+    # Autor des beantworteten Kommentars per E-Mail informieren (nicht bei Selbstantwort)
+    if (parent_comment is not None and parent_comment.get('uid')
+            and parent_comment['uid'] != member['id'] and smtp_configured()):
+        author = next((u for u in load_users() if u['id'] == parent_comment['uid']), None)
+        if author and author.get('email'):
+            base = (site['design'].get('public_url') or '').rstrip('/')
+            url = f"{base}/blog/{pid}" if base else ''
+            threading.Thread(target=send_comment_reply_email,
+                             args=(author['email'], title, name, text, url), daemon=True).start()
     notify_ha_async('💬 MyPage: Neuer Kommentar',
                     f'{name} hat „{title}" kommentiert:\n\n{text[:300]}',
                     notification_id=f'mypage_comment_{pid}')

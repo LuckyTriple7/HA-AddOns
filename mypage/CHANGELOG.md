@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.159
+
+- 💬 **Kommentar-Antworten & Autor-Benachrichtigung** — Mitglieder können jetzt auf Blog-Kommentare antworten (Antwort-Threads, eine Ebene eingerückt). Antwortet jemand auf einen Kommentar, erhält dessen Autor – sofern ein Mailserver konfiguriert ist – eine E-Mail mit Vorschau und Link zur Diskussion (nicht bei Antwort auf den eigenen Kommentar).
+
 ## 0.6.158
 
 - 📰 **Newsletter / Blog-Abo** — Besucher können den Newsletter auf der Blog-Seite abonnieren (Double-Opt-in: Eintrag → Bestätigungs-Mail → bestätigt). Im Blog-Tab schreibst du eine Nachricht (Betreff + Markdown) und sendest sie an alle bestätigten Abonnenten; jede Mail enthält einen Abmelde-Link. Abonnentenliste mit Anzahl und Einzel-Löschen. Schutz: Honeypot, Rate-Limit, keine E-Mail-Enumeration. Aktivierbar im Design-Tab (Standard aus); benötigt SMTP + öffentliche URL. Liste in `subscribers.json` (im Backup).

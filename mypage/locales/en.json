@@ -167,6 +167,7 @@
   "comment_placeholder": "Write a comment…",
   "comment_submit": "Post comment",
   "comment_login_hint": "Log in to react or comment.",
+  "comment_reply": "Reply",
   "field_comments_enabled": "Comments & reactions",
   "comments_enabled_hint": "Members can comment on blog posts and react with emoji.",
   "comments_heading": "Blog comments",
