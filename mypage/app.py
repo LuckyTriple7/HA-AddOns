@@ -1148,9 +1148,10 @@ def user_usage_bytes(user: dict) -> int:
     return sum(f.stat().st_size for f in user_dir(user).iterdir() if f.is_file())
 
 
-def invalidate_user_sessions(uid: str) -> int:
-    """Beendet alle aktiven Sitzungen eines Benutzers (z. B. nach Passwortwechsel)."""
-    tokens = [t for t, v in user_sessions.items() if v[0] == uid]
+def invalidate_user_sessions(uid: str, keep: str | None = None) -> int:
+    """Beendet alle aktiven Sitzungen eines Benutzers (z. B. nach Passwortwechsel).
+    Mit ``keep`` lässt sich ein Token (die aktuelle Sitzung) ausnehmen."""
+    tokens = [t for t, v in user_sessions.items() if v[0] == uid and t != keep]
     for t in tokens:
         del user_sessions[t]
     if tokens:
@@ -5458,6 +5459,41 @@ def member_logout():
     resp = make_response(redirect('/bereich'))
     resp.delete_cookie('usession')
     return resp
+
+
+@public_app.route('/bereich/profile', methods=['POST'])
+def member_profile():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    users = load_users()
+    user = next((u for u in users if u['id'] == member['id']), None)
+    if user is None:
+        abort(403)
+    action = request.form.get('action', '')
+    if action == 'name':
+        user['name'] = _clean_str(request.form.get('name'), 60)
+        save_users(users)
+        log_user_event(user['id'], 'profile_name', '', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'password':
+        cur = request.form.get('current_password') or ''
+        new = request.form.get('new_password') or ''
+        new2 = request.form.get('new_password2') or ''
+        if not check_password_hash(user['pw_hash'], cur):
+            return redirect('/bereich?msg=pw_wrong')
+        if len(new) < 8:
+            return redirect('/bereich?msg=pw_short')
+        if new != new2:
+            return redirect('/bereich?msg=pw_mismatch')
+        user['pw_hash'] = generate_password_hash(new)
+        save_users(users)
+        # andere Sitzungen kappen, die aktuelle behalten
+        invalidate_user_sessions(user['id'], keep=request.cookies.get('usession'))
+        log_user_event(user['id'], 'pw_change_self', '', get_client_ip(request))
+        log.info("Mitglied '%s' hat das Passwort selbst geändert", user['email'])
+        return redirect('/bereich?msg=pw_changed')
+    return redirect('/bereich')
 
 
 @public_app.route('/bereich/upload', methods=['POST'])

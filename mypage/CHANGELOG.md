@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.155
+
+- 👤 **Mitglieder: eigenes Profil** — Eingeloggte Mitglieder können im Bereich jetzt einen **Anzeigenamen** setzen (wird z. B. bei Blog-Kommentaren verwendet) und ihr **Passwort selbst ändern** (mit Eingabe des aktuellen Passworts). Beim Passwortwechsel bleibt die aktuelle Sitzung bestehen, andere Geräte werden abgemeldet.
+- ℹ️ Hinweis: Die volle Breite des „Anzeigename"-Felds im Registrierungsformular ist seit 0.6.154 behoben — dafür muss das Add-on auf ≥ 0.6.154 aktualisiert sein.
+
 ## 0.6.154
 
 - 💅 **Registrierung & Benutzerliste — kleine UI-Korrekturen** — Das Feld „Anzeigename" im Registrierungsformular ist jetzt so breit wie die übrigen Felder (das Captcha-Feld bleibt bewusst kompakt). In der Admin-Benutzerliste steht der Status selbst-registrierter Konten nicht mehr als langer Text in der Info-Zeile, sondern als kompaktes Badge direkt beim Namen (🆕 unbestätigt / ⏳ wartet auf Freigabe) — spart Platz und ist klarer.

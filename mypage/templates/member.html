@@ -222,6 +222,34 @@
       </form>
       {% endif %}
     </div>
+
+    <div class="card" style="margin-top:18px">
+      <h1>{{ t.member_profile_title }}</h1>
+      {% if msg == 'profile_saved' %}<div class="msg ok">{{ t.member_profile_saved }}</div>{% endif %}
+      {% if msg == 'pw_changed' %}<div class="msg ok">{{ t.member_pw_changed }}</div>{% endif %}
+      {% if msg == 'pw_wrong' %}<div class="msg err">{{ t.member_pw_wrong }}</div>{% endif %}
+      {% if msg == 'pw_short' %}<div class="msg err">{{ t.member_reset_short }}</div>{% endif %}
+      {% if msg == 'pw_mismatch' %}<div class="msg err">{{ t.member_reset_mismatch }}</div>{% endif %}
+      <form method="post" action="/bereich/profile">
+        <input type="hidden" name="action" value="name">
+        <label for="pf-name">{{ t.member_register_name }}</label>
+        <input type="text" id="pf-name" name="name" maxlength="60" value="{{ member.name|default('') }}">
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_name_hint }}</p>
+        <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
+      </form>
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile" autocomplete="off">
+        <input type="hidden" name="action" value="password">
+        <label for="pf-cur">{{ t.member_pw_current }}</label>
+        <input type="password" id="pf-cur" name="current_password" autocomplete="current-password" required>
+        <label for="pf-new">{{ t.member_reset_new }}</label>
+        <input type="password" id="pf-new" name="new_password" minlength="8" autocomplete="new-password" required>
+        <label for="pf-new2">{{ t.member_reset_confirm }}</label>
+        <input type="password" id="pf-new2" name="new_password2" minlength="8" autocomplete="new-password" required>
+        <button class="btn small" type="submit">{{ t.member_pw_change_btn }}</button>
+      </form>
+    </div>
+
     {% if games_on %}
     <div class="card" style="margin-top:18px">
       <h1>🃏 {{ t.g66_title }}</h1>
