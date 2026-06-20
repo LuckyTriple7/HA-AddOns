@@ -3278,6 +3278,49 @@ def api_upload():
     return jsonify({'ok': True, 'url': '/uploads/' + name})
 
 
+def _unused_uploads(site: dict):
+    """Hochgeladene Dateien, die nirgends mehr in site.json referenziert sind.
+
+    Alle Uploads (Bilder in Seiten/Beiträgen/Projekten/Alben, Avatar, Favicon)
+    werden in site.json als `/uploads/<name>` gespeichert. Dateinamen sind
+    eindeutige UUIDs, daher ist ein Vorkommen-Scan über den JSON-Text sicher.
+    """
+    blob = json.dumps(site, ensure_ascii=False)
+    orphans, total = [], 0
+    for f in UPLOADS_DIR.iterdir():
+        if f.is_file() and f.name not in blob:
+            orphans.append(f)
+            total += f.stat().st_size
+    return orphans, total
+
+
+@admin_app.route('/api/uploads/unused')
+def api_uploads_unused():
+    err = _api_auth()
+    if err:
+        return err
+    orphans, total = _unused_uploads(load_site())
+    return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
+
+
+@admin_app.route('/api/uploads/cleanup', methods=['POST'])
+def api_uploads_cleanup():
+    err = _api_auth()
+    if err:
+        return err
+    orphans, total = _unused_uploads(load_site())
+    removed = 0
+    for f in orphans:
+        try:
+            f.unlink()
+            removed += 1
+        except OSError as e:
+            log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
+    if removed:
+        log_audit('uploads_cleanup', f'{removed} Datei(en)')
+    return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
+
+
 @admin_app.route('/api/github/repos')
 def api_github_repos():
     err = _api_auth()

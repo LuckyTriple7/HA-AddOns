@@ -63,7 +63,7 @@ Verfügbare Bereiche:
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
 
 ### Markdown-Editor
-Mehrere Textfelder (Blog-Beiträge, eigene Seiten, Projekt-Details, Bio) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen, um eine Datei direkt **hochzuladen** (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
+Mehrere Textfelder (Blog-Beiträge, eigene Seiten, Projekt-Details, Bio, Newsletter) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen, um eine Datei direkt **hochzuladen** (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
 
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
@@ -97,6 +97,7 @@ Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
+- **Speicher aufräumen**: Entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und Größe angezeigt; es werden ausschließlich nicht mehr referenzierte Dateien entfernt (geteilte Bilder bleiben erhalten).
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 

@@ -894,6 +894,11 @@
         <p class="hint">{{ t.restore_hint }}</p>
       </div>
       <div class="panel">
+        <h3>{{ t.cleanup_heading }}</h3>
+        <p class="hint">{{ t.cleanup_hint }}</p>
+        <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
+      </div>
+      <div class="panel">
         <h3>{{ t.export_heading }}</h3>
         <p class="hint">{{ t.export_hint }}</p>
         <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
@@ -1507,7 +1512,7 @@
       ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
     function initMdEditors() {
-      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en'].forEach(id => attachMd(el(id)));
+      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -2899,6 +2904,20 @@
     }
     function downloadBackup() {
       window.location.href = 'api/backup';
+    }
+    async function cleanupUploads() {
+      const btn = el('cleanup-btn'); btn.disabled = true;
+      try {
+        const r = await api('api/uploads/unused');
+        if (!r.ok) { toast(T.error_load, true); return; }
+        const info = await r.json();
+        if (!info.count) { toast(T.cleanup_none); return; }
+        if (!confirm(T.cleanup_confirm.replace('{n}', info.count).replace('{mb}', info.size_mb))) return;
+        const d = await apiJson('api/uploads/cleanup', 'POST', {});
+        if (!d.ok) { toast(T.error_save, true); return; }
+        const res = await d.json();
+        toast(T.cleanup_done.replace('{n}', res.removed).replace('{mb}', res.freed_mb));
+      } finally { btn.disabled = false; }
     }
     el('restore-input').addEventListener('change', async e => {
       const f = e.target.files[0];

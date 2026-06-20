@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2
+
+- 🧹 **Speicher aufräumen** — Neuer Knopf im System-Tab entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und freigegebener Speicher angezeigt; **geteilte Bilder bleiben erhalten** (es wird über alle Verweise geprüft). Die Aktion landet im Audit-Log.
+- ✍️ **Markdown-Editor auch im Newsletter** — Das Newsletter-Textfeld hat jetzt denselben Editor mit Werkzeugleiste und Live-Vorschau wie Blog und Seiten.
+
 ## 0.7.1
 
 - 🖼️ **Markdown-Editor: Bilder, Tabellen & mehr** — Die Werkzeugleiste hat drei neue Knöpfe: **Bild** (URL eingeben **oder** leer lassen und eine Datei direkt hochladen → wird optimiert und um Metadaten/GPS bereinigt), **Tabelle** (fügt eine Vorlage ein) und **Trennlinie**. Die Live-Vorschau zeigt Bilder, Tabellen und Trennlinien jetzt mit an. Damit Tabellen und Codeblöcke auch auf der öffentlichen Seite korrekt erscheinen, sind die Markdown-Erweiterungen `tables` und `fenced_code` aktiviert (gilt für Blog, eigene Seiten, Projekt-Details und Bio).
