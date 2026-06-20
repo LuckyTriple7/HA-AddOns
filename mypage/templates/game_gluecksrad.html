@@ -93,6 +93,18 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
 .toast.info{background:rgba(100,200,255,0.15);color:#6cf}
 .toast.solve{background:rgba(255,215,0,0.2);color:#ffd700}
 
+/* ── Qualify-Tafel (wer fängt an) ───── */
+.qualify-board{display:none;flex-direction:column;gap:8px;margin:10px auto;max-width:340px;width:100%;background:rgba(26,26,78,0.6);border:2px solid rgba(255,215,0,0.5);border-radius:14px;padding:14px 16px}
+.qualify-board.show{display:flex}
+.qualify-board .qb-title{text-align:center;color:#ffd700;font-weight:bold;font-size:1.05rem;margin-bottom:4px}
+.qualify-board .qb-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,0.06);border:2px solid transparent;transition:border-color 0.3s,background 0.3s}
+.qualify-board .qb-row.current{border-color:#ffd700;animation:activeGlow 1.5s ease-in-out infinite}
+.qualify-board .qb-row.winner{background:rgba(255,215,0,0.2);border-color:#ffd700}
+.qualify-board .qb-name{font-size:1rem;font-weight:bold;color:#fff}
+.qualify-board .qb-name.human{color:#6cf}
+.qualify-board .qb-amt{font-size:1.1rem;font-weight:bold;color:#0f8}
+.qualify-board .qb-amt.pending{color:#888}
+
 /* ── Solve Input ────────────────────── */
 .solve-input-area{display:none;flex-direction:column;align-items:center;gap:8px;margin-top:5px}
 .solve-input-area.visible{display:flex}
@@ -378,6 +390,8 @@ body{background:linear-gradient(135deg,#0a0a2e 0%,#1a1a4e 50%,#0a0a2e 100%);heig
       </div>
 
       <div class="puzzle-board" id="puzzleBoard"></div>
+
+      <div class="qualify-board" id="qualifyBoard"></div>
 
       <div class="message-area"><div class="toast" id="toast"></div></div>
 
@@ -1024,6 +1038,7 @@ function render() {
   renderPuzzle();
   renderLetters();
   renderActions();
+  updateQualifyBoard();
 
   if(S.status==='game_over') showGameOver();
   else document.getElementById('gameOver').classList.remove('visible');
@@ -1056,6 +1071,40 @@ function renderRoundInfo() {
 
 function renderCategory() {
   document.getElementById('categoryName').textContent = S.category || '—';
+}
+
+// Persistente Qualify-Tafel: zeigt die erdrehten Beträge aller Spieler,
+// bis alle gedreht haben. spins = [{player, amount}]. opts.current hebt den
+// aktuellen Dreher hervor, opts.winners markiert den/die Sieger.
+function renderQualifyBoard(spins, opts) {
+  opts = opts || {};
+  const board = document.getElementById('qualifyBoard');
+  if(!board) return;
+  if(!spins) { hideQualifyBoard(); return; }
+  const byPlayer = {};
+  spins.forEach(s => { byPlayer[s.player] = s.amount; });
+  let html = `<div class="qb-title">${G.qualify_title}</div>`;
+  S.players.forEach((p,i)=>{
+    const has = Object.prototype.hasOwnProperty.call(byPlayer, i);
+    const rowCls = ['qb-row'];
+    if(opts.current===i && !has) rowCls.push('current');
+    if(opts.winners && opts.winners.includes(i)) rowCls.push('winner');
+    const amtCls = has ? 'qb-amt' : 'qb-amt pending';
+    const amtTxt = has ? (byPlayer[i] + ' ' + G.currency) : '…';
+    html += `<div class="${rowCls.join(' ')}">`
+      + `<span class="qb-name ${p.type==='human'?'human':''}">${p.name}</span>`
+      + `<span class="${amtCls}">${amtTxt}</span></div>`;
+  });
+  board.innerHTML = html;
+  board.classList.add('show');
+}
+function hideQualifyBoard() {
+  const b = document.getElementById('qualifyBoard');
+  if(b) { b.classList.remove('show'); b.innerHTML=''; }
+}
+function updateQualifyBoard() {
+  if(!S || S.status!=='qualify_spin') { hideQualifyBoard(); return; }
+  renderQualifyBoard(S.qualify_spins||[], {current:S.current});
 }
 
 function renderPuzzle(display) {
@@ -1233,6 +1282,7 @@ async function doQualifySpin() {
         ? L(G.qualify_result, {player:pname, amount:amt})
         : L(G.qualify_special, {player:pname});
       showToast(msg, amt > 0 ? 'money' : 'skip');
+      renderQualifyBoard(S.qualify_spins, {current:S.current});
     } else if(ev && ev.type==='qualify_done') {
       const starter = S.players[ev.starter].name;
       const lastSpin = ev.spins[ev.spins.length-1];
@@ -1242,15 +1292,19 @@ async function doQualifySpin() {
         ? L(G.qualify_result, {player:lastName, amount:lastAmt})
         : L(G.qualify_special, {player:lastName});
       showToast(lastMsg, lastAmt > 0 ? 'money' : 'skip');
+      renderQualifyBoard(ev.spins, {winners:[ev.starter]});
       await sleep(1500);
       showToast(L(G.qualify_winner, {player:starter}), 'solve');
       playSound('round');
       await sleep(1500);
+      hideQualifyBoard();
       buildWheel(S.wheel_segments);
       await revealRoundIntro();
     } else if(ev && ev.type==='qualify_tie') {
+      renderQualifyBoard(ev.spins, {});
       showToast(G.qualify_tie, 'info');
       await sleep(2000);
+      hideQualifyBoard();
     }
   }
   isSpinning = false;
@@ -1569,6 +1623,7 @@ async function maybeRunAI() {
             ? L(G.qualify_result, {player:pname, amount:amt})
             : L(G.qualify_special, {player:pname}),
             amt > 0 ? 'money' : 'skip');
+          renderQualifyBoard(S.qualify_spins, {current:S.current});
         } else if(ev && ev.type==='qualify_done') {
           const lastSpin = ev.spins[ev.spins.length-1];
           const lastName = S.players[lastSpin.player].name;
@@ -1577,15 +1632,19 @@ async function maybeRunAI() {
             ? L(G.qualify_result, {player:lastName, amount:lastAmt})
             : L(G.qualify_special, {player:lastName}),
             lastAmt > 0 ? 'money' : 'skip');
+          renderQualifyBoard(ev.spins, {winners:[ev.starter]});
           await sleep(1500);
           showToast(L(G.qualify_winner, {player:S.players[ev.starter].name}), 'solve');
           playSound('round');
           await sleep(1500);
+          hideQualifyBoard();
           buildWheel(S.wheel_segments);
           await revealRoundIntro();
         } else if(ev && ev.type==='qualify_tie') {
+          renderQualifyBoard(ev.spins, {});
           showToast(G.qualify_tie, 'info');
           await sleep(2000);
+          hideQualifyBoard();
         }
       }
       render();

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.143
+
+- 🎯 **Glücksrad: Start-Auslosung bleibt stehen** — Beim „Wer fängt an?" zu Spielbeginn drehen alle drei (Spieler, Lisa, Max) reihum. Bisher verschwand der erdrehte Betrag, sobald der nächste dran war. Jetzt zeigt eine feste Tafel die Beträge **aller** Spieler und füllt sich, bis alle drei gedreht haben. Erst wenn der Startspieler feststeht (kurz hervorgehoben) oder bei Gleichstand verschwindet die Tafel wieder. Wird nur zur Start-Auslosung angezeigt.
+
 ## 0.6.142
 
 - 🖥️ **Glücksrad: neue Kategorie „Computer & IT"** — 20 neue Begriffe rund um Computer und IT (z. B. FESTPLATTE, ARBEITSSPEICHER, ZWISCHENABLAGE, HAUPTPLATINE, EINGABEAUFFORDERUNG). Bewusst echte deutsche Wörter, die sich vom englischen Begriff unterscheiden — nicht einfach das englische Wort.
