@@ -70,6 +70,7 @@ SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
 COMMENTS_PATH = _DATA + '/comments.json'
+AUDIT_PATH = _DATA + '/audit.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
@@ -139,6 +140,7 @@ _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
 _comments_lock = threading.Lock()
+_audit_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 
@@ -566,6 +568,46 @@ def _reaction_counts(reactions: dict) -> dict:
 
 def _member_display_name(member: dict) -> str:
     return member.get('name') or (member.get('email') or '').split('@')[0] or 'Mitglied'
+
+
+# ── Admin-Audit-Log ────────────────────────────────────────────────────────────
+AUDIT_MAX = 500
+
+
+def load_audit() -> list:
+    with _audit_lock:
+        try:
+            with open(AUDIT_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("audit.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def log_audit(action: str, detail: str = '') -> None:
+    """Sicherheitsrelevante Admin-Aktion protokollieren (Zeit, Aktion, Detail, IP)."""
+    try:
+        ip = get_client_ip(request)
+    except Exception:
+        ip = ''
+    entry = {'ts': int(time.time()), 'action': action, 'detail': (detail or '')[:200], 'ip': ip}
+    with _audit_lock:
+        try:
+            try:
+                with open(AUDIT_PATH, encoding='utf-8') as f:
+                    data = json.load(f)
+                    if not isinstance(data, list):
+                        data = []
+            except FileNotFoundError:
+                data = []
+            data.append(entry)
+            with open(AUDIT_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data[-AUDIT_MAX:], f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("audit.json konnte nicht geschrieben werden: %s", e)
 
 
 def send_telegram(text: str) -> None:
@@ -1899,11 +1941,13 @@ def login():
                 clear_failed_attempts(ip)
                 hours = int(cfg.get('session_hours', 24))
                 token = create_session(hours)
+                log_audit('admin_login')
                 resp = make_response(redirect(url_for('admin_index')))
                 resp.set_cookie('session', token, httponly=True,
                                 samesite='Lax', max_age=hours * 3600)
                 return resp
             record_failed_attempt(ip)
+            log_audit('admin_login_failed', uname)
             error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
     return make_response(render_template('login.html', t=t, lang=lang, error=error))
@@ -2026,6 +2070,7 @@ def api_profile():
                          for l in raw['links'][:10]
                          if isinstance(l, dict) and _clean_str(l.get('url'), 500)]
     save_site(site)
+    log_audit('settings_profile')
     return jsonify({'ok': True})
 
 
@@ -2086,6 +2131,7 @@ def api_design():
     if d.get('indexnow'):
         _indexnow_key(site)   # Schlüssel beim Aktivieren bereitstellen (speichert ggf.)
     save_site(site)
+    log_audit('settings_design')
     return jsonify({'ok': True})
 
 
@@ -2234,6 +2280,7 @@ def api_sections():
     if 'watermark_text' in raw:
         site['watermark_text'] = _clean_str(raw['watermark_text'], 80)
     save_site(site)
+    log_audit('settings_sections')
     return jsonify({'ok': True})
 
 
@@ -2341,6 +2388,15 @@ def api_comment_delete(pid: str, cid: str):
     return jsonify({'error': 'not found'}), 404
 
 
+@admin_app.route('/api/audit')
+def api_audit():
+    """Admin-Audit-Log (neueste zuerst) zur Anzeige im Panel."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'audit': list(reversed(load_audit()))[:300]})
+
+
 @admin_app.route('/api/backup')
 def api_backup():
     err = _api_auth()
@@ -2348,7 +2404,8 @@ def api_backup():
         return err
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        for name in ('site.json', 'stats.json', 'messages.json', 'users.json', 'comments.json'):
+        for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
+                     'comments.json', 'audit.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -2382,7 +2439,8 @@ def api_restore():
             for member in names:
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
-                if member in ('site.json', 'stats.json', 'messages.json', 'users.json', 'comments.json'):
+                if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
+                              'comments.json', 'audit.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -2407,6 +2465,7 @@ def api_restore():
                 restored += 1
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
+    log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
 
@@ -2423,6 +2482,7 @@ def api_legal():
         if k in raw:
             legal[k] = _clean_str(raw[k], 20000)
     save_site(site)
+    log_audit('settings_legal')
     return jsonify({'ok': True})
 
 
@@ -2555,6 +2615,7 @@ def api_member_settings():
     site = load_site()
     site['design']['welcome_from'] = wf
     save_site(site)
+    log_audit('settings_member')
     log.info("Willkommens-Absender gesetzt: %s", wf or '(Standard)')
     return jsonify({'ok': True})
 
@@ -2584,6 +2645,7 @@ def api_user_create():
     mail_sent = smtp_configured()
     if mail_sent:
         threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
+    log_audit('user_create', email)
     log.info("Benutzer '%s' angelegt (Quota %d MB)", email, quota)
     return jsonify({'ok': True, 'mail_sent': mail_sent,
                     'no_url': not (load_site()['design'].get('public_url') or '').strip()})
@@ -2603,28 +2665,34 @@ def api_user_edit(uid: str):
         save_users(users)
         invalidate_user_sessions(uid)
         shutil.rmtree(user_dir(user), ignore_errors=True)
+        log_audit('user_delete', user['email'])
         log.info("Benutzer '%s' gelöscht", user['email'])
         return jsonify({'ok': True})
     raw = request.get_json(silent=True) or {}
     mail_sent = False
     if 'quota_mb' in raw:
         user['quota_mb'] = max(1, min(100000, int(raw.get('quota_mb') or 500)))
+        log_audit('user_quota', f"{user['email']} → {user['quota_mb']} MB")
     if 'login_message' in raw:
         user['login_message'] = _clean_str(raw.get('login_message'), 2000)
     if 'games_enabled' in raw:
         user['games_enabled'] = bool(raw['games_enabled'])
+        log_audit('user_games', f"{user['email']}: {'an' if user['games_enabled'] else 'aus'}")
     if 'approved' in raw:
         was = user.get('approved', True)
         user['approved'] = bool(raw['approved'])
         # Freigabe eines selbst-registrierten Kontos → Aktivierungs-Mail
         if user['approved'] and not was and user.get('verified') and smtp_configured():
             threading.Thread(target=send_activated_email, args=(dict(user),), daemon=True).start()
+        if user['approved'] and not was:
+            log_audit('user_approve', user['email'])
         _ha_sensors_async()  # „offene Freigaben" sofort neu zählen
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
             return jsonify({'error': 'password too short'}), 400
         user['pw_hash'] = generate_password_hash(password)
+        log_audit('user_password', user['email'])
         # Passwortwechsel beendet alle bestehenden Sitzungen → Neuanmeldung nötig
         ended = invalidate_user_sessions(uid)
         if ended:
@@ -2660,6 +2728,7 @@ def api_user_resend(uid: str):
     save_users(users)
     invalidate_user_sessions(uid)  # altes Passwort → bestehende Sitzungen kappen
     log_user_event(uid, 'pw_reset')
+    log_audit('user_resend', user['email'])
     threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
     return jsonify({'ok': True,
@@ -2802,6 +2871,7 @@ def api_storage():
         site = load_site()
         site['design']['storage_subdir'] = sub
         save_site(site)
+        log_audit('settings_storage', sub or '(Standard)')
         log.info("Mitglieder-Speicherort: %s", userfiles_root())
         return jsonify({'ok': True})
     rel = _clean_str(request.args.get('path') or '', 300).strip('/')

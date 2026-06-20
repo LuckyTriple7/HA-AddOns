@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.157
+
+- 🛡️ **Admin-Protokoll (Audit-Log)** — Im System-Tab werden jetzt sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP protokolliert: erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge liegen in `audit.json` und werden im Backup mitgesichert.
+
 ## 0.6.156
 
 - 🔔 **„Offene Freigaben" in Home Assistant** — Neuer Sensor `sensor.mypage_pending_approvals` zeigt, wie viele selbst-registrierte (E-Mail-bestätigte) Konten auf deine Freigabe warten. Solange welche offen sind, bleibt zusätzlich eine **stehende HA-Benachrichtigung** sichtbar; sie verschwindet automatisch, sobald alles freigegeben ist. Aktualisiert sofort bei Bestätigung/Freigabe (sonst alle 2 Min).

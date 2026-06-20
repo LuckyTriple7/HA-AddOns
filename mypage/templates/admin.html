@@ -87,6 +87,13 @@
     .playing-tag { color: #22c55e; font-weight: 500; font-size: 0.78rem; }
     .badge-reg { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--yellow) 20%, transparent); color: var(--yellow); }
     .badge-reg.muted { background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
+    .audit-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; align-items: baseline; }
+    .audit-row:last-child { border-bottom: none; }
+    .audit-time { color: var(--muted); white-space: nowrap; min-width: 132px; }
+    .audit-act { font-weight: 600; min-width: 150px; }
+    .audit-row.warn .audit-act { color: var(--red); }
+    .audit-detail { flex: 1; color: var(--muted); word-break: break-word; }
+    .audit-ip { color: var(--muted); white-space: nowrap; }
     .badge-draft { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
     .badge-scheduled { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
 
@@ -835,6 +842,12 @@
         <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
       </div>
       <div class="panel">
+        <h3>{{ t.audit_heading }}</h3>
+        <p class="hint">{{ t.audit_hint }}</p>
+        <div id="audit-log" class="collapsible"></div>
+        <button class="btn secondary small collapse-btn" id="audit-log-btn" onclick="toggleCollapse('audit-log')"></button>
+      </div>
+      <div class="panel">
         <h3>{{ t.backup_heading }}</h3>
         <p class="hint">{{ t.backup_hint }}</p>
         <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
@@ -1427,6 +1440,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') initPreview();
+        if (btn.dataset.tab === 'system') loadAudit();
       });
     });
 
@@ -2995,6 +3009,36 @@
     });
 
     // ── Statistik ──
+    async function loadAudit() {
+      const r = await api('api/audit');
+      if (!r.ok) return;
+      const data = await r.json();
+      const box = el('audit-log');
+      if (!data.audit.length) { box.innerHTML = `<p class="hint">${T.audit_empty}</p>`; refreshCollapse('audit-log'); return; }
+      const AL = {
+        admin_login: T.audit_admin_login, admin_login_failed: T.audit_login_failed,
+        user_create: T.audit_user_create, user_delete: T.audit_user_delete,
+        user_approve: T.audit_user_approve, user_quota: T.audit_user_quota,
+        user_games: T.audit_user_games, user_password: T.audit_user_password,
+        user_resend: T.audit_user_resend, restore: T.audit_restore,
+      };
+      box.innerHTML = '';
+      data.audit.forEach(a => {
+        let label = AL[a.action];
+        if (!label && a.action.indexOf('settings_') === 0) label = T.audit_settings + ' (' + a.action.slice(9) + ')';
+        label = label || a.action;
+        const row = document.createElement('div');
+        row.className = 'audit-row' + (a.action === 'admin_login_failed' ? ' warn' : '');
+        row.innerHTML = `<span class="audit-time"></span><span class="audit-act"></span><span class="audit-detail"></span><span class="audit-ip"></span>`;
+        row.querySelector('.audit-time').textContent = new Date(a.ts * 1000).toLocaleString();
+        row.querySelector('.audit-act').textContent = label;
+        row.querySelector('.audit-detail').textContent = a.detail || '';
+        row.querySelector('.audit-ip').textContent = a.ip || '';
+        box.appendChild(row);
+      });
+      refreshCollapse('audit-log');
+    }
+
     async function loadStats() {
       const r = await api('api/stats');
       if (!r.ok) return;

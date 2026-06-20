@@ -82,6 +82,7 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
+- **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 
