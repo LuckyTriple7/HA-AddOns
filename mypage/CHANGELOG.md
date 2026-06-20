@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3
+
+- 🎨 **Design-Vorlagen (1-Klick-Stile)** — Oben im Design-Tab gibt es jetzt eine Galerie fertiger Vorlagen: **Elegant Dunkel, Hell & Clean, Verspielt, Tech Neon, Magazin, Natur Warm** und **Standard**. Jede Kachel zeigt eine Mini-Vorschau ihres Looks; ein Klick setzt **Modus, Akzentfarbe, Schrift und Layout** auf einmal. Die Felder werden nur gefüllt — erst „Speichern" wendet die Vorlage an, sodass man gefahrlos durchprobieren kann. Eigenes CSS bleibt unangetastet.
+
 ## 0.7.2
 
 - 🧹 **Speicher aufräumen** — Neuer Knopf im System-Tab entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und freigegebener Speicher angezeigt; **geteilte Bilder bleiben erhalten** (es wird über alle Verweise geprüft). Die Aktion landet im Audit-Log.

@@ -14,7 +14,7 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 - 🐙 **GitHub-Import**: Benutzername eingeben, Repos auswählen, fertig — Beschreibung, Sterne, Sprache und Topics werden übernommen, Sterne stündlich aktualisiert
 - 📅 **Termin-/Buchungs-Button** (z. B. Calendly) — siehe [unten](#-buchungskalender--termin-button)
 - ❤️ **Unterstützen-Button** (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …) mit automatischem Icon
-- 🎨 **Design**: Akzentfarbe, Hell/Dunkel, Layout, Schriftart (inkl. eigenem Font-Upload), eigenes CSS
+- 🎨 **Design**: Akzentfarbe, Hell/Dunkel, Layout, Schriftart (inkl. eigenem Font-Upload), eigenes CSS — plus **Design-Vorlagen** (1-Klick-Stile wie „Elegant Dunkel", „Hell & Clean", „Verspielt")
 - 🌍 **Zweisprachig** (DE/EN) mit optionaler Auto-Übersetzung; Besucher können umschalten
 - 👁 **Besucherzähler & Statistik**: Aufrufe, eindeutige Besucher, Länder, Browser, Referrer
 - 📷 **Fotoalben** mit Diashow, Wasserzeichen und Bild-Zoom; **Bild-Galerien** in Blog-Beiträgen

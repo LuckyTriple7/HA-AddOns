@@ -14,7 +14,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 - 🐙 **GitHub import**: enter a username, pick repos, done — description, stars, language and topics are imported, stars refreshed hourly
 - 📅 **Appointment / booking button** (e.g. Calendly) — see [below](#-booking-calendar--appointment-button)
 - ❤️ **Support button** (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …) with an automatic icon
-- 🎨 **Design**: accent color, light/dark, layout, font (incl. custom font upload), custom CSS
+- 🎨 **Design**: accent color, light/dark, layout, font (incl. custom font upload), custom CSS — plus **design templates** (one-click styles like “Elegant Dark”, “Light & Clean”, “Playful”)
 - 🌍 **Bilingual** (DE/EN) with optional auto-translation; visitors can switch
 - 👁 **Visitor counter & stats**: views, unique visitors, countries, browsers, referrers
 - 📷 **Photo albums** with slideshow, watermark and image zoom; **image galleries** in blog posts

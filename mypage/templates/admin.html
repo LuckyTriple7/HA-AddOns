@@ -190,6 +190,16 @@
     .md-preview table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
     .md-preview th, .md-preview td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
     .md-preview .md-empty { color: var(--muted); font-style: italic; }
+    .preset-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+    .preset-card { border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surf); padding: 0; text-align: left; font: inherit; color: var(--text); transition: border-color .15s, transform .1s; }
+    .preset-card:hover { transform: translateY(-2px); }
+    .preset-card.active { border-color: var(--accent); }
+    .preset-swatch { height: 58px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; gap: 5px; position: relative; }
+    .preset-line { height: 6px; border-radius: 3px; opacity: .85; }
+    .preset-dot { position: absolute; right: 9px; bottom: 8px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
+    .preset-body { padding: 7px 10px 9px; }
+    .preset-name { font-weight: 600; font-size: 0.88rem; }
+    .preset-meta { font-size: 0.71rem; color: var(--muted); margin-top: 2px; }
     @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .link-row input { flex: 1; }
@@ -505,6 +515,11 @@
 
     <!-- Design -->
     <section class="tab" id="tab-design">
+      <div class="panel">
+        <h3>{{ t.presets_heading }}</h3>
+        <p class="hint">{{ t.presets_hint }}</p>
+        <div id="preset-gallery" class="preset-gallery"></div>
+      </div>
       <div class="panel">
         <h3>{{ t.design_heading }}</h3>
         <div class="row">
@@ -3025,6 +3040,63 @@
       el('d-reveal_stagger').value = d.reveal_stagger ? '1' : '0';
       el('d-egg_message').value = d.egg_message || '';
       el('d-egg_tagline').value = d.egg_tagline || '';
+      renderPresets();
+    }
+
+    // ── Design-Vorlagen (1-Klick-Stile) ──
+    const PRESETS = [
+      { id: 'elegant',  name: 'preset_elegant',  mode: 'dark',  accent: '#C9A227', font: 'merriweather', layout: 'minimal' },
+      { id: 'clean',    name: 'preset_clean',    mode: 'light', accent: '#2563EB', font: 'inter',        layout: 'cards'   },
+      { id: 'playful',  name: 'preset_playful',  mode: 'light', accent: '#F43F5E', font: 'poppins',      layout: 'cards'   },
+      { id: 'tech',     name: 'preset_tech',     mode: 'dark',  accent: '#2DD4BF', font: 'mono',         layout: 'cards'   },
+      { id: 'magazine', name: 'preset_magazine', mode: 'light', accent: '#9D2235', font: 'merriweather', layout: 'list'    },
+      { id: 'nature',   name: 'preset_nature',   mode: 'light', accent: '#15803D', font: 'lato',         layout: 'list'    },
+      { id: 'standard', name: 'preset_standard', mode: 'dark',  accent: '#58A6FF', font: 'system',       layout: 'cards'   },
+    ];
+    const PRESET_FONT_LABEL = { system: 'System', classic: 'Serif', rounded: 'Rounded', serif: 'Serif', mono: 'Mono', inter: 'Inter', poppins: 'Poppins', montserrat: 'Montserrat', lato: 'Lato', merriweather: 'Merriweather' };
+    function renderPresets() {
+      const box = el('preset-gallery');
+      if (!box) return;
+      const d = SITE.design || {};
+      const curHex = (d.accent || '').toLowerCase();
+      box.innerHTML = '';
+      PRESETS.forEach(p => {
+        const dark = p.mode === 'dark';
+        const bg = dark ? '#0d1117' : '#f6f8fa';
+        const txt = dark ? '#c9d1d9' : '#1f2328';
+        const active = curHex === p.accent.toLowerCase() && (d.mode || 'dark') === p.mode
+          && (d.font || 'system') === p.font && (d.layout || 'cards') === p.layout;
+        const layoutLabel = T['layout_' + p.layout] || p.layout;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'preset-card' + (active ? ' active' : '');
+        card.innerHTML =
+          '<div class="preset-swatch" style="background:' + bg + '">' +
+            '<span class="preset-line" style="background:' + p.accent + ';width:55%"></span>' +
+            '<span class="preset-line" style="background:' + txt + ';width:80%"></span>' +
+            '<span class="preset-line" style="background:' + txt + ';width:68%"></span>' +
+            '<span class="preset-dot" style="background:' + p.accent + '"></span>' +
+          '</div>' +
+          '<div class="preset-body">' +
+            '<div class="preset-name"></div>' +
+            '<div class="preset-meta">' + (PRESET_FONT_LABEL[p.font] || p.font) + ' · ' + layoutLabel + '</div>' +
+          '</div>';
+        card.querySelector('.preset-name').textContent = T[p.name] || p.id;
+        card.onclick = () => applyPreset(p);
+        box.appendChild(card);
+      });
+    }
+    function applyPreset(p) {
+      el('d-mode').value = p.mode;
+      el('d-accent').value = p.accent.toLowerCase();
+      el('d-font').value = p.font;
+      el('d-layout').value = p.layout;
+      // aktive Kachel markieren (Felder gesetzt, Speichern wendet an)
+      document.querySelectorAll('#preset-gallery .preset-card').forEach(c => c.classList.remove('active'));
+      const idx = PRESETS.indexOf(p);
+      const card = el('preset-gallery').children[idx];
+      if (card) card.classList.add('active');
+      toast((T.preset_applied || '').replace('{name}', T[p.name] || p.id));
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
