@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.5
+
+- 📢 **Ankündigungs-Banner** — Eine schmale Hinweisleiste ganz oben auf allen öffentlichen Seiten (z. B. „Sommerfest am 12.7.!"). Text in DE/EN, optionaler Link (URL oder interner Pfad) mit eigenem Link-Text, in Akzentfarbe. Wahlweise **schließbar** (Besucher kann es ausblenden; bei geändertem Text erscheint es erneut). Einstellbar im Design-Tab.
+
 ## 0.7.4
 
 - 🧾 **Formular-Baukasten** — Neben dem einen Kontaktformular lassen sich jetzt **beliebige Formulare** anlegen (Veranstaltungs-Anmeldung, Umfrage, Anfrage …). Neuer Admin-Tab **„Formulare"** mit Feld-Editor: Feldtypen **Text, mehrzeilig, E-Mail, Telefon, Zahl, Datum, Auswahl (Dropdown), Auswahl (Radio), Kontrollkästchen**, je Feld DE/EN-Bezeichnung, Platzhalter, Pflicht-Schalter und Optionen; Felder per Drag sortierbar. Einleitung & Danke-Text in Markdown (DE/EN). Jedes Formular ist unter `/formular/<slug>` erreichbar (optionaler Navi-Eintrag, Entwurf/Veröffentlicht, Vorschau). **Einsendungen** erscheinen im Tab „Nachrichten" (mit 📋-Markierung und allen Feldern) und lösen — je Formular abschaltbar — dieselbe Benachrichtigung wie das Kontaktformular aus (E-Mail/Telegram/HA). Spam-Schutz wie gehabt: Honeypot, Rechen-Captcha und Rate-Limit.

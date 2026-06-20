@@ -542,6 +542,34 @@
         <div id="preset-gallery" class="preset-gallery"></div>
       </div>
       <div class="panel">
+        <h3>{{ t.banner_heading }}</h3>
+        <p class="hint">{{ t.banner_hint }}</p>
+        <label class="checkbox"><input type="checkbox" id="d-banner_enabled"> {{ t.banner_enable }}</label>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>{{ t.banner_text }} (DE)</label>
+            <input type="text" id="d-banner_text_de" maxlength="200" placeholder="{{ t.banner_text_ph }}">
+          </div>
+          <div>
+            <label>{{ t.banner_text }} (EN)</label>
+            <input type="text" id="d-banner_text_en" maxlength="200" placeholder="{{ t.banner_text_ph }}">
+          </div>
+        </div>
+        <label>{{ t.banner_link }}</label>
+        <input type="text" id="d-banner_link_url" placeholder="https://… {{ t.banner_link_hint }}">
+        <div class="row">
+          <div>
+            <label>{{ t.banner_link_label }} (DE)</label>
+            <input type="text" id="d-banner_link_label_de" maxlength="60" placeholder="{{ t.banner_more }}">
+          </div>
+          <div>
+            <label>{{ t.banner_link_label }} (EN)</label>
+            <input type="text" id="d-banner_link_label_en" maxlength="60" placeholder="{{ t.banner_more }}">
+          </div>
+        </div>
+        <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="d-banner_dismissible"> {{ t.banner_dismissible }}</label>
+      </div>
+      <div class="panel">
         <h3>{{ t.design_heading }}</h3>
         <div class="row">
           <div>
@@ -3288,6 +3316,13 @@
       el('d-reveal_stagger').value = d.reveal_stagger ? '1' : '0';
       el('d-egg_message').value = d.egg_message || '';
       el('d-egg_tagline').value = d.egg_tagline || '';
+      el('d-banner_enabled').checked = !!d.banner_enabled;
+      el('d-banner_dismissible').checked = (d.banner_dismissible !== false);
+      el('d-banner_text_de').value = d.banner_text_de || '';
+      el('d-banner_text_en').value = d.banner_text_en || '';
+      el('d-banner_link_url').value = d.banner_link_url || '';
+      el('d-banner_link_label_de').value = d.banner_link_label_de || '';
+      el('d-banner_link_label_en').value = d.banner_link_label_en || '';
       renderPresets();
     }
 
@@ -3378,6 +3413,13 @@
         newsletter_enabled: el('d-newsletter_enabled').value === '1',
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
+        banner_enabled:  el('d-banner_enabled').checked,
+        banner_dismissible: el('d-banner_dismissible').checked,
+        banner_text_de:  el('d-banner_text_de').value,
+        banner_text_en:  el('d-banner_text_en').value,
+        banner_link_url: el('d-banner_link_url').value,
+        banner_link_label_de: el('d-banner_link_label_de').value,
+        banner_link_label_en: el('d-banner_link_label_en').value,
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { loadSite(); reloadPreview(); }

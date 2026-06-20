@@ -1,0 +1,18 @@
+{% if banner %}
+<div id="mp-banner" class="mp-banner" data-key="{{ banner.key }}">
+  <span class="mp-banner-text">{{ banner.text }}{% if banner.link_url %} <a href="{{ banner.link_url }}">{{ banner.link_label or t.banner_more }}</a>{% endif %}</span>
+  {% if banner.dismissible %}<button type="button" class="mp-banner-x" onclick="mpBannerClose()" aria-label="{{ t.banner_close }}">&times;</button>{% endif %}
+</div>
+<style>
+  .mp-banner { background: var(--accent); color: #fff; font-size: 0.9rem; line-height: 1.4; padding: 8px 16px; display: flex; justify-content: center; align-items: center; gap: 14px; text-align: center; }
+  .mp-banner a { color: #fff; text-decoration: underline; font-weight: 600; }
+  .mp-banner-x { background: none; border: none; color: #fff; font-size: 1.35rem; line-height: 1; cursor: pointer; padding: 0 2px; opacity: .85; flex: 0 0 auto; }
+  .mp-banner-x:hover { opacity: 1; }
+</style>
+{% if banner.dismissible %}
+<script>
+  (function () { var b = document.getElementById('mp-banner'); if (b && localStorage.getItem('mp-banner-dismissed') === b.dataset.key) b.style.display = 'none'; })();
+  function mpBannerClose() { var b = document.getElementById('mp-banner'); if (b) { localStorage.setItem('mp-banner-dismissed', b.dataset.key); b.style.display = 'none'; } }
+</script>
+{% endif %}
+{% endif %}

@@ -254,6 +254,9 @@ DEFAULT_SITE = {
         'newsletter_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
+        'banner_enabled': False, 'banner_dismissible': True,
+        'banner_text_de': '', 'banner_text_en': '',
+        'banner_link_url': '', 'banner_link_label_de': '', 'banner_link_label_en': '',
         'font': 'system', 'custom_css': '',
         'custom_font': '', 'custom_font_name': '',
         'support_url': '', 'support_label': '',
@@ -2128,6 +2131,29 @@ def _nav_links(site: dict, loc) -> list:
     return _nav_pages(site, loc) + _nav_forms(site, loc)
 
 
+@public_app.context_processor
+def _inject_banner():
+    """Stellt das Ankündigungs-Banner allen öffentlichen Templates bereit."""
+    try:
+        d = load_site().get('design', {})
+        if not d.get('banner_enabled'):
+            return {'banner': None}
+        loc = _loc_factory(detect_language(request))
+        text = loc(d, 'banner_text')
+        if not text:
+            return {'banner': None}
+        key = hashlib.sha256((text + (d.get('banner_link_url') or '')).encode()).hexdigest()[:12]
+        return {'banner': {
+            'text': text,
+            'link_url': d.get('banner_link_url', ''),
+            'link_label': loc(d, 'banner_link_label'),
+            'dismissible': bool(d.get('banner_dismissible', True)),
+            'key': key,
+        }}
+    except Exception:
+        return {'banner': None}
+
+
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
 
 def _is_ingress() -> bool:
@@ -2367,14 +2393,20 @@ def api_design():
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
-                 'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
+                 'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
+                 'banner_enabled', 'banner_dismissible'):
         if flag in raw:
             d[flag] = bool(raw[flag])
+    if 'banner_link_url' in raw:
+        bl = _clean_str(raw['banner_link_url'], 500)
+        d['banner_link_url'] = bl if bl.startswith(('http://', 'https://', '/')) or not bl else ''
     if 'registration_quota_mb' in raw:
         d['registration_quota_mb'] = max(1, min(100000, int(raw.get('registration_quota_mb') or 500)))
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
                       ('maintenance_text_de', 1000), ('maintenance_text_en', 1000),
                       ('egg_message', 200), ('egg_tagline', 200),
+                      ('banner_text_de', 200), ('banner_text_en', 200),
+                      ('banner_link_label_de', 60), ('banner_link_label_en', 60),
                       ('meta_description_de', 300), ('meta_description_en', 300)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
