@@ -834,6 +834,12 @@
         <h3>{{ t.stat_last30 }}</h3>
         <div id="s-bars"></div>
       </div>
+      <div class="panel">
+        <h3>{{ t.stat_top_pages }}</h3>
+        <p class="hint" style="margin:2px 0 10px">{{ t.stat_top_pages_hint }}</p>
+        <div id="s-pages" class="collapsible"></div>
+        <button class="btn secondary small collapse-btn" id="s-pages-btn" onclick="toggleCollapse('s-pages')"></button>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 18px">
         <div class="panel">
           <h3>{{ t.stat_referrers }}</h3>
@@ -2908,12 +2914,32 @@
            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.views / max * 100)}%"></div></div>
            <span class="bar-num">${d.views} / ${d.uniques}</span>
          </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
+      renderTopPages('s-pages', s.pages || []);
       renderDistribution('s-referrers', s.referrers || []);
       renderDistribution('s-browsers', s.browsers || []);
       renderDistribution('s-countries', s.countries || [], countryLabel);
       renderVisitorLog(s.log || []);
+      refreshCollapse('s-pages');
       refreshCollapse('s-countries');
       refreshCollapse('s-log-wrap');
+    }
+    // Top-Seiten: Titel (falls bekannt) groß, Pfad klein darunter
+    function renderTopPages(target, items) {
+      if (!items.length) { el(target).innerHTML = `<p class="hint">${T.no_data}</p>`; return; }
+      const max = Math.max(1, ...items.map(i => i.count));
+      el(target).innerHTML = '';
+      items.forEach(i => {
+        const label = i.path === '/' ? T.stat_homepage : (i.title || i.path);
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = `<span class="bar-date" style="width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(i.count / max * 100)}%"></div></div>
+          <span class="bar-num" style="width:46px">${i.count}</span>`;
+        const lbl = row.querySelector('.bar-date');
+        lbl.textContent = label;
+        lbl.title = i.path + (i.title ? ' — ' + i.title : '');
+        el(target).appendChild(row);
+      });
     }
     // Höhenbegrenzung mit „Mehr/Weniger"-Button — Button nur bei Überlauf
     function refreshCollapse(id) {

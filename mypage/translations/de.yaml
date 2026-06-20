@@ -32,6 +32,9 @@ configuration:
   telegram_chat_id:
     name: Telegram-Chat-ID
     description: Chat-ID für die Telegram-Benachrichtigungen.
+  ha_notify:
+    name: Home-Assistant-Benachrichtigungen
+    description: Zeigt persistente Benachrichtigungen in Home Assistant bei neuer Kontaktnachricht und bei verdächtigen Anmeldeversuchen (gesperrte IP). Standard an.
   smtp_host:
     name: SMTP-Server
     description: Optional — neue Kontaktnachrichten werden per E-Mail gemeldet.

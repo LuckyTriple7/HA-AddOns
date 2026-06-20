@@ -918,6 +918,29 @@ def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
             [{'name': k, 'count': c} for k, c in top_cty])
 
 
+def top_pages(site: dict, visit_log: list, limit: int = 12) -> list:
+    """Meistbesuchte Seiten aus dem Besucher-Log (ohne Bots). Für Blog-/Projekt-
+    Detailseiten wird der Titel mitgeliefert, sonst nur der Pfad."""
+    counts: dict[str, int] = {}
+    for v in visit_log:
+        if v.get('bot'):
+            continue
+        counts[v.get('path') or '/'] = counts.get(v.get('path') or '/', 0) + 1
+    posts = {p.get('id'): p for p in site.get('posts', [])}
+    projects = {p.get('id'): p for p in site.get('projects', [])}
+    out = []
+    for path, n in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]:
+        title = ''
+        if path.startswith('/blog/'):
+            po = posts.get(path.split('/blog/', 1)[1].split('/')[0])
+            title = (po.get('title_de') or po.get('title_en')) if po else ''
+        elif path.startswith('/p/'):
+            pr = projects.get(path.split('/p/', 1)[1].split('/')[0])
+            title = pr.get('title') if pr else ''
+        out.append({'path': path, 'title': title, 'count': n})
+    return out
+
+
 # ── Mitglieder (geheimer Bereich) ─────────────────────────────────────────────
 
 def load_users() -> list:
@@ -2720,6 +2743,7 @@ def api_stats():
         'referrers': referrers,
         'browsers':  browsers,
         'countries': countries,
+        'pages':     top_pages(load_site(), stats.get('log', [])),
     })
 
 

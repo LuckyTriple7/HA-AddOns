@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.148
+
+- 📊 **Statistik: Top-Seiten** — Das Statistik-Dashboard zeigt jetzt zusätzlich die meistbesuchten Seiten (aus den letzten Aufrufen, ohne Bots). Für Blog-Beiträge und Projekt-Detailseiten wird der Titel angezeigt statt nur der Pfad.
+- 🏷️ **Add-on-Option `ha_notify` beschriftet** — Die in 0.6.146 ergänzte Option zeigte im HA-Konfigurations-UI nur den Schlüssel; jetzt mit Name und Beschreibung (DE/EN).
+
 ## 0.6.147
 
 - 🔎 **Blog: Suche & Schlagwörter (Tags)** — Beiträge können jetzt im Admin mit Schlagwörtern versehen werden (komma-getrennt, max. 8). Auf der Blog-Seite gibt es ein **Suchfeld** (durchsucht Titel, Text und Tags in DE+EN) und **Tag-Filter-Chips**; Suche und Tag lassen sich kombinieren. Auf jeder Beitragsseite werden die Tags angezeigt und verlinken auf die gefilterte Blog-Ansicht. Geplante/Entwurfs-Beiträge tauchen weder in der Suche noch in der Tag-Liste auf.
