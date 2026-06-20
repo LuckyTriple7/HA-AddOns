@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.142
+
+- 🖥️ **Glücksrad: neue Kategorie „Computer & IT"** — 20 neue Begriffe rund um Computer und IT (z. B. FESTPLATTE, ARBEITSSPEICHER, ZWISCHENABLAGE, HAUPTPLATINE, EINGABEAUFFORDERUNG). Bewusst echte deutsche Wörter, die sich vom englischen Begriff unterscheiden — nicht einfach das englische Wort.
+
 ## 0.6.141
 
 - 🔒 **Sicherheit: CodeQL-Pfadwarnungen behoben** — Alle Spielstand-Dateipfade (66, 20 AB, Schwimmen, Mau-Mau, Präsident, Jeopardy, Glücksrad, Sitzungs-Log) werden jetzt über `safe_under`/`safe_join` zusammengesetzt statt direkt per f-String. Funktional unverändert (die UID war bereits regex-validiert), beseitigt aber die als „uncontrolled data in path expression" geflaggten Stellen.
