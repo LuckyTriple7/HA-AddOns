@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.146
+
+- 🔔 **Home-Assistant-Benachrichtigungen** — MyPage meldet sich jetzt aktiv in HA (persistente Benachrichtigung): bei **neuer Kontaktnachricht** (mit Absender + Vorschau) und bei **verdächtigen Anmeldeversuchen** (wenn eine IP wegen zu vieler Fehllogins gesperrt wird). Wiederholungen derselben IP überschreiben dieselbe Meldung statt zu spammen. Abschaltbar über die neue Add-on-Option `ha_notify` (Standard: an). Ergänzt die bestehenden Telegram-/E-Mail-Hinweise und die HA-Sensoren.
+
 ## 0.6.145
 
 - 🔑 **Mitglieder: Passwort selbst zurücksetzen** — Auf der Login-Seite gibt es jetzt „Passwort vergessen?". Das Mitglied gibt seine E-Mail ein und bekommt einen zeitlich begrenzten Link (1 Stunde gültig), über den es ein neues Passwort setzen kann — ganz ohne Admin. Aus Sicherheitsgründen: immer dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Token nur einmal verwendbar, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet. Der Link erscheint nur, wenn E-Mail-Versand (SMTP) und die öffentliche URL konfiguriert sind.

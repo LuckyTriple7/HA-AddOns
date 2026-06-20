@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.6.145"
+version: "0.6.146"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -49,6 +49,7 @@ options:
   translate_email: ""
   telegram_bot_token: ""
   telegram_chat_id: ""
+  ha_notify: true
   smtp_host: ""
   smtp_port: 587
   smtp_user: ""
@@ -74,6 +75,7 @@ schema:
   translate_email: str?
   telegram_bot_token: str?
   telegram_chat_id: str?
+  ha_notify: bool?
   smtp_host: str?
   smtp_port: int?
   smtp_user: str?

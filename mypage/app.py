@@ -653,6 +653,11 @@ def record_failed_attempt(ip: str) -> None:
         _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
         log.warning("IP '%s' für %d Minuten gesperrt (zu viele fehlgeschlagene Logins)",
                     ip, RATE_LIMIT_BLOCK // 60)
+        notify_ha_async(
+            '🔒 MyPage: Verdächtige Anmeldeversuche',
+            f'Die IP {ip} wurde nach {len(recent)} fehlgeschlagenen Login-Versuchen '
+            f'für {RATE_LIMIT_BLOCK // 60} Minuten gesperrt.',
+            notification_id=f'mypage_bruteforce_{ip}')
 
 
 def clear_failed_attempts(ip: str) -> None:
@@ -1236,6 +1241,34 @@ def _smb_watchdog() -> None:
 # ── Home-Assistant-Sensoren ───────────────────────────────────────────────────
 
 SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
+
+
+def ha_notify_enabled() -> bool:
+    """Persistente HA-Benachrichtigungen aktiv? (nur im Add-on, per Option abschaltbar)"""
+    return bool(SUPERVISOR_TOKEN) and bool(load_config().get('ha_notify', True))
+
+
+def notify_ha(title: str, message: str, notification_id: str | None = None) -> None:
+    """Erzeugt/aktualisiert eine persistente Benachrichtigung in Home Assistant.
+    Gleiche notification_id überschreibt → kein Zuspammen bei Wiederholungen."""
+    if not ha_notify_enabled():
+        return
+    data = {'title': title, 'message': message}
+    if notification_id:
+        data['notification_id'] = notification_id
+    try:
+        http.post('http://supervisor/core/api/services/persistent_notification/create',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'},
+                  json=data, timeout=10)
+    except Exception as e:
+        log.warning("HA-Benachrichtigung fehlgeschlagen: %s", e)
+
+
+def notify_ha_async(title: str, message: str, notification_id: str | None = None) -> None:
+    """Wie notify_ha, aber ohne den Request zu blockieren."""
+    if ha_notify_enabled():
+        threading.Thread(target=notify_ha, args=(title, message, notification_id),
+                         daemon=True).start()
 
 
 def push_ha_sensors() -> None:
@@ -5145,9 +5178,10 @@ def contact():
     if not name or not message:
         return jsonify({'error': 'missing fields'}), 400
     _contact_times[ip].append(now)
+    msg_id = uuid.uuid4().hex[:12]
     msgs = load_messages()
     msgs.append({
-        'id':    uuid.uuid4().hex[:12],
+        'id':    msg_id,
         'ts':    int(now),
         'name':  name,
         'email': email,
@@ -5163,6 +5197,9 @@ def contact():
                        f'<b>Von:</b> {esc(name)}' + (f' &lt;{esc(email)}&gt;' if email else ''),
                        f'<b>Nachricht:</b><br>{esc(message).replace(chr(10), "<br>")}',
                    ]))
+        notify_ha(f'📨 MyPage: Neue Nachricht von {name}',
+                  (f'Von {name}' + (f' ({email})' if email else '') + f':\n\n{message[:400]}'),
+                  notification_id=f'mypage_msg_{msg_id}')
 
     threading.Thread(target=_notify, daemon=True).start()
     log.info("Kontaktnachricht von '%s' gespeichert", name)
