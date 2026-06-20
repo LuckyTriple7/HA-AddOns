@@ -2881,7 +2881,7 @@ def api_slot():
 def _game66_path(uid: str) -> Path | None:
     if not _UID_RE.match(uid or ''):
         return None
-    return GAMES_DIR / f'66_{uid}.json'
+    return safe_under(GAMES_DIR, f'66_{uid}.json')
 
 
 def load_game66(uid: str) -> dict | None:
@@ -2915,7 +2915,7 @@ GAME66_HISTORY_MAX = 50
 def _game66_hist_path(uid: str) -> Path | None:
     if not _UID_RE.match(uid or ''):
         return None
-    return GAMES_DIR / f'66hist_{uid}.json'
+    return safe_under(GAMES_DIR, f'66hist_{uid}.json')
 
 
 def load_game66_history(uid: str) -> list:
@@ -3060,7 +3060,7 @@ GSESSIONS_MAX = 100
 def _gsess_path(uid: str) -> Path | None:
     if not _UID_RE.match(uid or ''):
         return None
-    return GAMES_DIR / f'gsessions_{uid}.json'
+    return safe_under(GAMES_DIR, f'gsessions_{uid}.json')
 
 
 def _gsess_load(uid: str) -> list:
@@ -3279,7 +3279,7 @@ _schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
 def _ng_path(game: str, uid: str) -> Path | None:
     if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
         return None
-    return GAMES_DIR / f'{game}_{uid}.json'
+    return safe_under(GAMES_DIR, f'{game}_{uid}.json')
 
 
 def _ng_load(game: str, uid: str) -> dict | None:
@@ -3310,7 +3310,7 @@ def _ng_save(game: str, uid: str, st: dict) -> None:
 def _ng_hist_path(game: str, uid: str) -> Path | None:
     if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
         return None
-    return GAMES_DIR / f'{game}hist_{uid}.json'
+    return safe_under(GAMES_DIR, f'{game}hist_{uid}.json')
 
 
 def _ng_history(game: str, uid: str) -> list:
@@ -4185,7 +4185,7 @@ _JEO_SEEN_CATS_MAX = 6      # = ein ganzes Board: keine Kategorie zwei Spiele in
 def _jeopardy_seen_path(uid: str) -> Path | None:
     if not _UID_RE.match(uid or ''):
         return None
-    return GAMES_DIR / f'jeopardyseen_{uid}.json'
+    return safe_under(GAMES_DIR, f'jeopardyseen_{uid}.json')
 
 
 def _jeopardy_seen_load(uid: str) -> dict:
