@@ -104,6 +104,15 @@ Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. *
 - **Spam-Schutz**: wie beim Kontaktformular — verstecktes Honeypot-Feld, Rechen-Captcha und Rate-Limit.
 - **Status**: „Veröffentlicht" oder „Entwurf"; Entwürfe sind öffentlich 404, im Admin aber über **Vorschau** sichtbar. Formulare liegen in `site.json` (im Backup).
 
+### Mitglieder-only-Inhalte
+Einzelne Inhalte lassen sich auf **angemeldete Mitglieder** beschränken (nutzt den bestehenden [Mitgliederbereich](#persönlicher-bereich-mitglieder)):
+
+- **Blog-Beiträge**: Schalter **„🔒 Nur für Mitglieder"** im Beitrags-Editor. Gäste sehen den Beitrag in der Liste mit Schloss-Symbol; öffnen sie ihn, erscheinen nur Titel + ein kurzer Anriss und ein **„Zum Mitglieder-Login"**-Button (Kommentare, Galerie und Video bleiben verborgen). Eingeloggte Mitglieder sehen alles.
+- **Eigene Seiten**: derselbe Schalter im Seiten-Editor — gleiches Verhalten (Anriss + Login-Aufforderung für Gäste).
+- **Startseiten-Sektionen**: Im Tab **Inhalt** hat jeder Abschnitt neben dem Auge ein **Schloss-Symbol**. Aktiviert, ist der ganze Abschnitt nur für eingeloggte Mitglieder sichtbar (für Gäste komplett ausgeblendet, auch in der Navigation).
+
+Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass auch bei kurzen Inhalten stets ein Teil verborgen bleibt. Statischer Export und Suchmaschinen laufen als „Gast" — geschützte Inhalte landen nicht im Export.
+
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.

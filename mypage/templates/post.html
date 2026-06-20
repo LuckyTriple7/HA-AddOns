@@ -122,21 +122,23 @@
   <main class="wrap">
     {% if p.date or (views and not preview) %}<div class="post-date">{{ p.date }}{% if views and not preview %}{% if p.date %} · {% endif %}👁 {{ views }}{% endif %}</div>{% endif %}
     <h1>{{ loc(p, 'title') }}</h1>
+    {% if p.members_only %}<div style="margin:-6px 0 14px"><span style="display:inline-block;background:var(--surf);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 9px;font-size:.78rem">🔒 {{ t.members_only_badge }}</span></div>{% endif %}
     {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ loc(p, 'title') }}" onclick="openLightbox(this.src)">{% endif %}
     {% set vp = parse_video(p.video) %}
-    {% if vp[1] %}
+    {% if vp[1] and not locked %}
     <div class="video-embed" data-src="{{ vp[1] }}" onclick="loadVideo(this)">
       <div class="video-play">▶</div>
       <span class="video-hint">{{ t.video_load }} ({{ vp[0]|capitalize }})</span>
     </div>
     {% endif %}
     <div class="content">{{ text_html|safe }}</div>
+    {% if locked %}{% include '_locked.html' %}{% endif %}
     {% if p.tags and not preview %}
     <div class="post-tags">
       {% for tg in p.tags %}<a href="/blog?tag={{ tg|urlencode }}">#{{ tg }}</a>{% endfor %}
     </div>
     {% endif %}
-    {% if p.gallery %}
+    {% if p.gallery and not locked %}
     <div class="gal-rail-wrap">
       <button class="gal-arrow gal-prev" onclick="galScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="gal-rail" id="gal-rail">

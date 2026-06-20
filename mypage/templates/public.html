@@ -590,7 +590,7 @@
       {% for po in latest_posts %}
       <div class="news-item">
         {% if po.date %}<span class="news-date">{{ po.date }}</span>{% endif %}
-        <span class="news-text"><a href="/blog/{{ po.id }}">{{ loc(po, 'title') }}</a></span>
+        <span class="news-text"><a href="/blog/{{ po.id }}">{% if po.members_only %}<span title="{{ t.members_only_badge }}">🔒 </span>{% endif %}{{ loc(po, 'title') }}</a></span>
       </div>
       {% endfor %}
       <div class="news-item"><span class="news-date"></span><span class="news-text"><a href="/blog">{{ t.blog_all }} →</a></span></div>

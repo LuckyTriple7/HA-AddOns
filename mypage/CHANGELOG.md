@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.6
+
+- 🔒 **Mitglieder-only-Inhalte** — Blog-Beiträge, eigene Seiten und ganze Startseiten-Sektionen lassen sich auf **angemeldete Mitglieder** beschränken. Beiträge/Seiten: Schalter „🔒 Nur für Mitglieder" im Editor; Gäste sehen in der Liste ein Schloss und auf der Seite nur Titel + kurzen Anriss + „Zum Mitglieder-Login" (Kommentare/Galerie/Video verborgen), Mitglieder sehen alles. Sektionen: neues Schloss-Symbol je Abschnitt im Tab „Inhalt" — für Gäste komplett ausgeblendet (inkl. Navigation), für Mitglieder sichtbar. Der Anriss zeigt höchstens die Hälfte des Textes, sodass auch kurze Inhalte geschützt bleiben; Export/Suchmaschinen sehen nichts Geschütztes.
+
 ## 0.7.5
 
 - 📢 **Ankündigungs-Banner** — Eine schmale Hinweisleiste ganz oben auf allen öffentlichen Seiten (z. B. „Sommerfest am 12.7.!"). Text in DE/EN, optionaler Link (URL oder interner Pfad) mit eigenem Link-Text, in Akzentfarbe. Wahlweise **schließbar** (Besucher kann es ausblenden; bei geändertem Text erscheint es erneut). Einstellbar im Design-Tab.

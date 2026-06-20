@@ -49,6 +49,9 @@
     .sec-eye svg { width: 18px; height: 18px; fill: currentColor; display: block; }
     .sec-eye:hover { color: var(--text); }
     .panel.acc.acc-hidden .sec-eye { color: var(--accent); }
+    .sec-lock { order: 100; margin-left: 4px; background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.95rem; line-height: 1; opacity: .38; filter: grayscale(1); }
+    .sec-lock.on { opacity: 1; filter: none; }
+    .sec-lock:hover { opacity: .85; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -1213,6 +1216,7 @@
             <option value="1">{{ t.status_published }}</option>
             <option value="0">{{ t.status_draft }}</option>
           </select>
+          <label class="checkbox" style="margin-top:8px"><input type="checkbox" id="bm-members_only"> 🔒 {{ t.members_only_label }}</label>
         </div>
       </div>
       <p class="hint">{{ t.post_schedule_hint }}</p>
@@ -1349,6 +1353,7 @@
             <option value="0">{{ t.status_draft }}</option>
           </select>
           <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="pg-nav" checked> {{ t.page_in_nav }}</label>
+          <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="pg-members_only"> 🔒 {{ t.members_only_label }}</label>
         </div>
       </div>
       <div class="row">
@@ -1821,6 +1826,7 @@
       el('bm-text_de').value = p.text_de || '';
       el('bm-text_en').value = p.text_en || '';
       el('bm-published').value = (id && p.published === false) ? '0' : '1';
+      el('bm-members_only').checked = !!p.members_only;
       postGallery = [...(p.gallery || [])];
       renderPostGallery();
       el('post-modal').classList.add('open');
@@ -1839,6 +1845,7 @@
         text_en:  el('bm-text_en').value,
         gallery:  postGallery,
         published: el('bm-published').value === '1',
+        members_only: el('bm-members_only').checked,
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
       const r = editingPostId
@@ -1907,6 +1914,7 @@
       el('pg-slug').value = p.slug || '';
       el('pg-visible').value = (id && p.visible === false) ? '0' : '1';
       el('pg-nav').checked = (id ? p.nav !== false : true);
+      el('pg-members_only').checked = !!p.members_only;
       el('pg-meta_de').value = p.meta_de || '';
       el('pg-meta_en').value = p.meta_en || '';
       el('pg-title_de').value = p.title_de || '';
@@ -1921,6 +1929,7 @@
         slug:     el('pg-slug').value,
         visible:  el('pg-visible').value === '1',
         nav:      el('pg-nav').checked,
+        members_only: el('pg-members_only').checked,
         meta_de:  el('pg-meta_de').value,
         meta_en:  el('pg-meta_en').value,
         title_de: el('pg-title_de').value,
@@ -2137,10 +2146,11 @@
       applySectionOrder();
       initSectionDnD();
       applySectionVisibility();
+      applySectionMembers();
     }
-    // Akkordeon auf-/zuklappen (Klick auf Griff/Auge nicht)
+    // Akkordeon auf-/zuklappen (Klick auf Griff/Auge/Schloss nicht)
     function toggleAcc(e, head) {
-      if (e.target.closest('.drag-handle, .sec-eye')) return;
+      if (e.target.closest('.drag-handle, .sec-eye, .sec-lock')) return;
       head.parentElement.classList.toggle('open');
     }
     // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop, Maus + Touch) ──
@@ -2231,6 +2241,34 @@
       const r = await apiJson('api/sections', 'POST', { hidden_sections: hidden });
       if (r.ok) { SITE.hidden_sections = hidden; toast(T.saved); }
       else { toast(T.error_save, true); d.classList.toggle('acc-hidden'); btn.innerHTML = nowHidden ? EYE_ON : EYE_OFF; }
+    }
+    // ── Nur-für-Mitglieder je Abschnitt (Schloss-Button) ──
+    function applySectionMembers() {
+      const mem = new Set(SITE.members_sections || []);
+      document.querySelectorAll('#section-acc .acc').forEach(d => {
+        const head = d.querySelector('.acc-head'); if (!head) return;
+        let lock = head.querySelector('.sec-lock');
+        if (!lock) {
+          lock = document.createElement('button');
+          lock.type = 'button'; lock.className = 'sec-lock'; lock.textContent = '🔒';
+          lock.onclick = (ev) => toggleSectionMembers(lock, ev);
+          head.appendChild(lock);   // rechts neben dem Auge (per flex-order)
+        }
+        const on = mem.has(d.dataset.key);
+        lock.classList.toggle('on', on);
+        lock.title = on ? T.section_members_on : T.section_members_off;
+      });
+    }
+    async function toggleSectionMembers(btn, ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      const d = btn.closest('.acc');
+      const nowOn = !btn.classList.contains('on');
+      btn.classList.toggle('on', nowOn);
+      btn.title = nowOn ? T.section_members_on : T.section_members_off;
+      const mem = [...document.querySelectorAll('#section-acc .acc')].filter(x => x.querySelector('.sec-lock.on')).map(x => x.dataset.key);
+      const r = await apiJson('api/sections', 'POST', { members_sections: mem });
+      if (r.ok) { SITE.members_sections = mem; toast(T.saved); }
+      else { toast(T.error_save, true); btn.classList.toggle('on'); }
     }
     // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
     function moveEntryRow(btn, dir) {

@@ -298,6 +298,7 @@ DEFAULT_SITE = {
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
+    'members_sections': [],
     'tips_rotation': 'daily',
     'tips_random': False,
     'tips_stats': {},
@@ -318,6 +319,17 @@ def _plain_excerpt(s: str, limit: int = 155) -> str:
     """HTML/Markdown-Text in einen kurzen Klartext-Auszug für Meta-Description wandeln."""
     txt = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s or '')).strip()
     return txt[:limit].rstrip()
+
+
+def _locked_teaser(html: str, cap: int = 280) -> str:
+    """Anriss für Mitglieder-only-Inhalte: höchstens die Hälfte des Textes
+    (max. `cap` Zeichen) — so bleibt immer ein Teil verborgen, auch bei kurzen Texten."""
+    plain = _plain_excerpt(html, 100000)
+    cut = min(cap, len(plain) // 2)
+    teaser = plain[:cut].rstrip()
+    if len(teaser) < len(plain):
+        teaser += ' …'
+    return teaser
 
 
 def _site_meta(site: dict, loc) -> str:
@@ -1341,6 +1353,10 @@ def current_member(req) -> dict | None:
     return next((u for u in load_users() if u['id'] == uid), None)
 
 
+def is_member(req) -> bool:
+    return current_member(req) is not None
+
+
 def user_journal_max() -> int:
     """Konfigurierbares Limit für das Journal pro Benutzer (Option user_journal_max)."""
     try:
@@ -1801,6 +1817,7 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
         tags = [t.strip() for t in tags.split(',')]
     p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
     p['published'] = bool(raw.get('published', True))
+    p['members_only'] = bool(raw.get('members_only'))
     return p
 
 
@@ -2030,6 +2047,7 @@ def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
     p['meta_en']  = _clean_str(raw.get('meta_en'), 300)
     p['nav']      = bool(raw.get('nav', True))
     p['visible']  = bool(raw.get('visible', True))
+    p['members_only'] = bool(raw.get('members_only'))
     return p
 
 
@@ -2553,6 +2571,8 @@ def api_sections():
         site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
     if isinstance(raw.get('hidden_sections'), list):
         site['hidden_sections'] = [k for k in raw['hidden_sections'] if isinstance(k, str) and k in SECTION_KEYS]
+    if isinstance(raw.get('members_sections'), list):
+        site['members_sections'] = [k for k in raw['members_sections'] if isinstance(k, str) and k in SECTION_KEYS]
     if raw.get('tips_rotation') in ('daily', 'weekly'):
         site['tips_rotation'] = raw['tips_rotation']
     if 'tips_random' in raw:
@@ -5657,6 +5677,11 @@ def public_index():
     # Ausgeblendete Abschnitte entfernen (Inhalt bleibt erhalten, nur nicht sichtbar)
     hidden = set(site.get('hidden_sections') or [])
     section_order = [k for k in section_order if k not in hidden]
+    # Mitglieder-only-Sektionen: Gäste sehen sie nicht, eingeloggte Mitglieder schon
+    viewer_member = is_member(request) and not static_export
+    member_secs = set(site.get('members_sections') or [])
+    if not viewer_member:
+        section_order = [k for k in section_order if k not in member_secs]
 
     # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
     timeline_title = loc(sections, 'timeline_title')
@@ -5797,15 +5822,18 @@ def blog_post(pid: str):
     views = bump_post_view(pid, request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
-    text_html = render_md(loc(post, 'text'))
-    comments_enabled = bool(site['design'].get('comments_enabled'))
     member = current_member(request)
+    # Mitglieder-only: Gäste sehen nur einen Anriss + Login-Aufforderung
+    locked = bool(post.get('members_only')) and member is None
+    full_html = render_md(loc(post, 'text'))
+    text_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    comments_enabled = bool(site['design'].get('comments_enabled')) and not locked
     cdata = load_comments().get(pid, {}) if comments_enabled else {}
     reactions = cdata.get('reactions', {})
     clist = cdata.get('comments', [])
     threaded = _thread_comments(clist)
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
-                           text_html=text_html,
+                           text_html=text_html, locked=locked,
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
                            comments_enabled=comments_enabled,
                            member=member,
@@ -5947,6 +5975,7 @@ def admin_page_preview(pid: str):
                            title=(loc(page, 'title') or t.get('page_untitled', '')),
                            body_html=body_html, nav_items=_nav_links(site, loc),
                            page_slug=page.get('slug', ''),
+                           members_only=bool(page.get('members_only')),
                            font_family=font_family, font_faces=font_faces,
                            meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
@@ -6544,12 +6573,15 @@ def custom_page(slug: str):
     t = load_translations(lang)
     loc = _loc_factory(lang)
     title = loc(page, 'title') or t.get('page_untitled', '')
-    body_html = render_md(loc(page, 'body'))
+    full_html = render_md(loc(page, 'body'))
+    locked = bool(page.get('members_only')) and not is_member(request)
+    body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
     nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=title, body_html=body_html, nav_items=nav_items,
-                           page_slug=slug,
+                           page_slug=slug, locked=locked,
+                           members_only=bool(page.get('members_only')),
                            font_family=font_family, font_faces=font_faces,
                            meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html)
                                       or _site_meta(site, loc)),

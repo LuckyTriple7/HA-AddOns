@@ -110,7 +110,7 @@
     {% for p in posts %}
     <a class="post-item" href="/blog/{{ p.id }}">
       {% if p.date %}<div class="post-date">{{ p.date }}</div>{% endif %}
-      <div class="post-title">{{ loc(p, 'title') }}</div>
+      <div class="post-title">{% if p.members_only %}<span title="{{ t.members_only_badge }}">🔒 </span>{% endif %}{{ loc(p, 'title') }}</div>
       <div class="post-teaser">{{ loc(p, 'text')|striptags|truncate(160) }}</div>
       {% if p.tags %}<div class="post-tags">{% for tg in p.tags %}<span>{{ tg }}</span>{% endfor %}</div>{% endif %}
     </a>

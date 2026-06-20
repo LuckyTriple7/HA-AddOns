@@ -101,7 +101,9 @@
   </header>
   <main class="wrap">
     <h1 class="page-title">{{ title }}</h1>
+    {% if members_only %}<div style="margin:-12px 0 16px"><span style="display:inline-block;background:var(--surf);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 9px;font-size:.78rem">🔒 {{ t.members_only_badge }}</span></div>{% endif %}
     <div class="page-content">{{ body_html|safe }}</div>
+    {% if locked %}{% include '_locked.html' %}{% endif %}
   </main>
   <footer>
     <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
