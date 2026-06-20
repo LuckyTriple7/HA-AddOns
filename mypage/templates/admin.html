@@ -17,8 +17,9 @@
     .header-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
     .logo { font-weight: 700; font-size: 1.05rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
     .logo svg { width: 20px; height: 20px; fill: var(--accent); }
-    nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
-    .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; }
+    nav { display: flex; gap: 4px; flex: 1; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+    nav::-webkit-scrollbar { display: none; }
+    .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
     .tab-btn:hover { color: var(--text); background: var(--surf2); }
     .tab-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
     .header-actions { display: flex; align-items: center; gap: 6px; }

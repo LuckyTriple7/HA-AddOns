@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.7
+
+- 💅 **Admin-Tableiste einzeilig** — Durch die neuen Tabs (Seiten, Formulare) brach die Navigationsleiste im Admin-Panel auf zwei Zeilen um. Sie bleibt jetzt auf einer Linie und wird bei Platzmangel horizontal scrollbar.
+
 ## 0.7.6
 
 - 🔒 **Mitglieder-only-Inhalte** — Blog-Beiträge, eigene Seiten und ganze Startseiten-Sektionen lassen sich auf **angemeldete Mitglieder** beschränken. Beiträge/Seiten: Schalter „🔒 Nur für Mitglieder" im Editor; Gäste sehen in der Liste ein Schloss und auf der Seite nur Titel + kurzen Anriss + „Zum Mitglieder-Login" (Kommentare/Galerie/Video verborgen), Mitglieder sehen alles. Sektionen: neues Schloss-Symbol je Abschnitt im Tab „Inhalt" — für Gäste komplett ausgeblendet (inkl. Navigation), für Mitglieder sichtbar. Der Anriss zeigt höchstens die Hälfte des Textes, sodass auch kurze Inhalte geschützt bleiben; Export/Suchmaschinen sehen nichts Geschütztes.
