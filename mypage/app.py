@@ -1343,6 +1343,12 @@ def _member_login_blocked(user: dict) -> str | None:
     return None
 
 
+def _pending_approvals() -> int:
+    """Anzahl selbst-registrierter Konten, die (E-Mail bestätigt) auf die Admin-Freigabe warten."""
+    return sum(1 for u in load_users()
+               if u.get('self_registered') and u.get('verified') and not u.get('approved'))
+
+
 def _reg_from():
     return (load_site()['design'].get('welcome_from') or '').strip() or None
 
@@ -1443,6 +1449,18 @@ def notify_ha_async(title: str, message: str, notification_id: str | None = None
                          daemon=True).start()
 
 
+def ha_dismiss(notification_id: str) -> None:
+    """Eine persistente HA-Benachrichtigung wieder entfernen."""
+    if not (SUPERVISOR_TOKEN and notification_id):
+        return
+    try:
+        http.post('http://supervisor/core/api/services/persistent_notification/dismiss',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'},
+                  json={'notification_id': notification_id}, timeout=10)
+    except Exception as e:
+        log.warning("HA-Benachrichtigung entfernen fehlgeschlagen: %s", e)
+
+
 def push_ha_sensors() -> None:
     """Meldet Besucherzahlen als Sensoren an Home Assistant (Supervisor-API)."""
     if not SUPERVISOR_TOKEN:
@@ -1458,6 +1476,7 @@ def push_ha_sensors() -> None:
             user_mb = round(sum(user_usage_bytes(u) for u in load_users()) / 1048576, 1)
         except OSError:
             user_mb = 0.0
+    pending = _pending_approvals()
     sensors = [
         ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
         ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
@@ -1467,6 +1486,7 @@ def push_ha_sensors() -> None:
         ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
         ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
         ('mypage_members',        len(load_users()),     'MyPage Benutzer',         'mdi:account-multiple', 'Benutzer'),
+        ('mypage_pending_approvals', pending,            'MyPage offene Freigaben', 'mdi:account-clock', 'Konten'),
         ('mypage_projects',       len(site.get('projects', [])), 'MyPage Projekte',  'mdi:folder-multiple', 'Projekte'),
         ('mypage_posts',          len(site.get('posts', [])),    'MyPage Blog-Beiträge', 'mdi:post',     'Beiträge'),
         ('mypage_albums',         len(site.get('albums', [])),   'MyPage Fotoalben', 'mdi:image-multiple', 'Alben'),
@@ -1493,6 +1513,33 @@ def push_ha_sensors() -> None:
                       json={'state': 'on' if on else 'off', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Sensoren konnten nicht aktualisiert werden: %s", e)
+    _update_pending_notification(pending)
+
+
+_last_pending = -1
+
+
+def _update_pending_notification(pending: int) -> None:
+    """Stehende HA-Benachrichtigung, solange Selbst-Registrierungen auf Freigabe
+    warten — nur bei Änderung der Anzahl (kein Zuspammen), Auflösung bei 0."""
+    global _last_pending
+    if not ha_notify_enabled() or pending == _last_pending:
+        _last_pending = pending
+        return
+    if pending > 0:
+        notify_ha('🔔 MyPage: Offene Freigaben',
+                  f'{pending} selbst-registrierte(s) Konto/Konten warten auf deine Freigabe '
+                  f'(Admin → Benutzer → „Freigeben").',
+                  notification_id='mypage_pending_approvals')
+    else:
+        ha_dismiss('mypage_pending_approvals')
+    _last_pending = pending
+
+
+def _ha_sensors_async() -> None:
+    """Sofortiger Sensor-/Benachrichtigungs-Push (z. B. bei Registrierung/Freigabe)."""
+    if SUPERVISOR_TOKEN:
+        threading.Thread(target=push_ha_sensors, daemon=True).start()
 
 
 def _sensor_worker() -> None:
@@ -2572,6 +2619,7 @@ def api_user_edit(uid: str):
         # Freigabe eines selbst-registrierten Kontos → Aktivierungs-Mail
         if user['approved'] and not was and user.get('verified') and smtp_configured():
             threading.Thread(target=send_activated_email, args=(dict(user),), daemon=True).start()
+        _ha_sensors_async()  # „offene Freigaben" sofort neu zählen
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
@@ -5446,6 +5494,7 @@ def member_verify(uid: str, token: str):
     notify_ha_async('✅ MyPage: Registrierung bestätigt',
                     f'{user["email"]} hat die E-Mail bestätigt und wartet auf Freigabe.',
                     notification_id=f'mypage_register_{uid}')
+    _ha_sensors_async()  # „offene Freigaben"-Sensor/Hinweis sofort aktualisieren
     log.info("Registrierung bestätigt: '%s'", user['email'])
     return _member_auth_page('verify', verify_ok=True)
 

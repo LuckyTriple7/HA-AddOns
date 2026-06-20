@@ -112,7 +112,9 @@ Statt jeden Benutzer von Hand anzulegen, können sich Besucher selbst registrier
 
 **Selbst-registrierte Konten** starten bewusst **ohne Spielezugang** (lässt sich pro Person über den 🕹️-Button freigeben) und mit der eingestellten Standard-Quota. In der Benutzerliste sind sie als **`🆕 selbst registriert`** mit Status (`unbestätigt` / `wartet auf Freigabe` / `aktiv`) markiert.
 
-**Schutz vor Missbrauch:** Rechen-Captcha, unsichtbares Honeypot-Feld, Rate-Limit (5 Versuche/Stunde pro IP) und **keine E-Mail-Enumeration** — die Rückmeldung ist immer gleich („Prüfe dein Postfach"); existiert die Adresse bereits, bekommt sie stattdessen eine Hinweis-Mail. Bei jeder Registrierung und Bestätigung gibt es zusätzlich eine **Home-Assistant-Benachrichtigung** (`ha_notify`).
+**Schutz vor Missbrauch:** Rechen-Captcha, unsichtbares Honeypot-Feld, Rate-Limit (5 Versuche/Stunde pro IP) und **keine E-Mail-Enumeration** — die Rückmeldung ist immer gleich („Prüfe dein Postfach"); existiert die Adresse bereits, bekommt sie stattdessen eine Hinweis-Mail.
+
+**Im Blick behalten:** Bei jeder Registrierung und Bestätigung gibt es eine **Home-Assistant-Benachrichtigung** (`ha_notify`). Zusätzlich zählt `sensor.mypage_pending_approvals`, wie viele bestätigte Konten auf deine Freigabe warten, und solange welche offen sind, bleibt eine **stehende HA-Benachrichtigung** sichtbar (sie verschwindet automatisch, sobald alles freigegeben ist).
 
 ### Optionaler SMB-Speicher
 
@@ -140,6 +142,7 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `sensor.mypage_failed_logins` | Fehlgeschlagene Logins der letzten 24 h (Admin + Mitglieder) |
 | `sensor.mypage_messages` | Anzahl gespeicherter Kontaktnachrichten |
 | `sensor.mypage_members` | Anzahl angelegter Benutzer |
+| `sensor.mypage_pending_approvals` | Selbst-Registrierungen, die auf deine Freigabe warten |
 | `sensor.mypage_projects` / `_posts` / `_albums` | Anzahl Projekte / Blog-Beiträge / Fotoalben |
 | `binary_sensor.mypage_storage_online` | SMB-/Dateispeicher erreichbar (on/off) |
 | `binary_sensor.mypage_maintenance` | Wartungsmodus aktiv (on/off) |

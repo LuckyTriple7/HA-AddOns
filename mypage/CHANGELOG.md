@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.156
+
+- 🔔 **„Offene Freigaben" in Home Assistant** — Neuer Sensor `sensor.mypage_pending_approvals` zeigt, wie viele selbst-registrierte (E-Mail-bestätigte) Konten auf deine Freigabe warten. Solange welche offen sind, bleibt zusätzlich eine **stehende HA-Benachrichtigung** sichtbar; sie verschwindet automatisch, sobald alles freigegeben ist. Aktualisiert sofort bei Bestätigung/Freigabe (sonst alle 2 Min).
+
 ## 0.6.155
 
 - 👤 **Mitglieder: eigenes Profil** — Eingeloggte Mitglieder können im Bereich jetzt einen **Anzeigenamen** setzen (wird z. B. bei Blog-Kommentaren verwendet) und ihr **Passwort selbst ändern** (mit Eingabe des aktuellen Passworts). Beim Passwortwechsel bleibt die aktuelle Sitzung bestehen, andere Geräte werden abgemeldet.
