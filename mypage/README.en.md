@@ -9,6 +9,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 - 🏠 **Public homepage** on port 17760 — profile, content sections, social links
 - 🛠 **Admin panel** on port 17761 (login + brute-force protection) and via HA ingress in the sidebar
 - 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, events, link collection, FAQ, location & opening hours
+- 📄 **Custom pages**: standalone subpages (e.g. “About”, “Directions”) in Markdown (DE/EN) with their own address `/seite/<slug>`, optional nav entry and draft status
 - 🔀 **Free ordering & visibility**: reorder sections by drag & drop and hide/show them individually (header stays on top, contact stays at the bottom)
 - 🐙 **GitHub import**: enter a username, pick repos, done — description, stars, language and topics are imported, stars refreshed hourly
 - 📅 **Appointment / booking button** (e.g. Calendly) — see [below](#-booking-calendar--appointment-button)

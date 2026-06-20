@@ -9,6 +9,7 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 - 🏠 **Öffentliche Homepage** auf Port 17760 — Profil, Inhaltsbereiche, Social-Links
 - 🛠 **Admin-Panel** auf Port 17761 (Login + Brute-Force-Schutz) und über HA-Ingress in der Seitenleiste
 - 🧩 **Viele Inhaltsbereiche**: Projekte, Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, Aktuelles, Veranstaltungen, Linksammlung, FAQ, Standort & Öffnungszeiten
+- 📄 **Eigene Seiten**: eigenständige Unterseiten (z. B. „Über uns", „Anfahrt") in Markdown (DE/EN) mit eigener Adresse `/seite/<slug>`, optionalem Navi-Eintrag und Entwurfs-Status
 - 🔀 **Freie Reihenfolge & Sichtbarkeit**: Bereiche per Drag & Drop sortieren und einzeln aus-/einblenden (Kopf bleibt oben, Kontakt unten)
 - 🐙 **GitHub-Import**: Benutzername eingeben, Repos auswählen, fertig — Beschreibung, Sterne, Sprache und Topics werden übernommen, Sterne stündlich aktualisiert
 - 📅 **Termin-/Buchungs-Button** (z. B. Calendly) — siehe [unten](#-buchungskalender--termin-button)

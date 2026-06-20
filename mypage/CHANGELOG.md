@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- 📄 **Eigene Seiten** — Neben Startseite und Blog lassen sich jetzt **eigenständige Unterseiten** anlegen (z. B. „Über uns", „Anfahrt", „Vereinsordnung"). Jede Seite hat eine eigene Adresse unter `/seite/<slug>` und Inhalt in **Markdown** (DE/EN, gleicher Editor mit Live-Vorschau wie beim Blog). Pro Seite: frei wählbare Adresse (oder automatisch aus dem Titel; reservierte/doppelte werden umgangen), Schalter **„In der Navigation zeigen"** und **Veröffentlicht/Entwurf** (Entwürfe nur über die Admin-Vorschau sichtbar). Reihenfolge per Drag & Drop. Sichtbare Seiten landen automatisch in `sitemap.xml` und im statischen Export; die Daten liegen in `site.json` (im Backup). Neuer Admin-Tab **„Seiten"**.
+
 ## 0.6.161
 
 - 🔐 **Bild-Uploads: EXIF-Orientierung + Metadaten entfernt** — Hochgeladene Bilder werden jetzt vor dem Speichern korrekt nach ihrer EXIF-Orientierung gedreht (Handy-Hochkant-Fotos erscheinen richtig herum), und beim WebP-Re-Encode werden sämtliche Metadaten verworfen — inklusive eines evtl. eingebetteten **GPS-Standorts**. (GIFs bleiben für die Animation unverändert.)

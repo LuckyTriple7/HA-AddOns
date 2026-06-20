@@ -267,6 +267,7 @@ DEFAULT_SITE = {
         'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
+    'pages': [],
     'legal': {
         'impressum_de': '', 'impressum_en': '',
         'privacy_de': '', 'privacy_en': '',
@@ -1996,6 +1997,66 @@ def _has_detail(p: dict) -> bool:
                 or p.get('gallery') or p.get('video'))
 
 
+# Slugs, die nicht als eigene Seite vergeben werden dürfen (Kollision mit echten Routen)
+RESERVED_SLUGS = {
+    'blog', 'bereich', 'p', 'api', 'uploads', 'fonts', 'cards', 'album-img',
+    'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
+    'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
+    'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
+}
+
+
+def _slugify(s: str) -> str:
+    """Freitext → URL-tauglicher Slug (a-z, 0-9, Bindestrich)."""
+    s = (s or '').strip().lower()
+    repl = {'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss'}
+    for a, b in repl.items():
+        s = s.replace(a, b)
+    s = re.sub(r'[^a-z0-9]+', '-', s).strip('-')
+    return s[:60]
+
+
+def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
+    p = existing or {'id': uuid.uuid4().hex[:12]}
+    p['title_de'] = _clean_str(raw.get('title_de'), 120)
+    p['title_en'] = _clean_str(raw.get('title_en'), 120)
+    p['body_de']  = _clean_str(raw.get('body_de'), 50000)
+    p['body_en']  = _clean_str(raw.get('body_en'), 50000)
+    p['meta_de']  = _clean_str(raw.get('meta_de'), 300)
+    p['meta_en']  = _clean_str(raw.get('meta_en'), 300)
+    p['nav']      = bool(raw.get('nav', True))
+    p['visible']  = bool(raw.get('visible', True))
+    return p
+
+
+def _page_slug(site: dict, raw: dict, page_id: str) -> str:
+    """Eindeutigen, gültigen Slug ermitteln (aus Eingabe oder Titel abgeleitet)."""
+    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
+    if not slug or slug in RESERVED_SLUGS:
+        slug = 'seite-' + page_id[:6]
+    base, n = slug, 2
+    taken = {p['slug'] for p in site.get('pages', []) if p.get('id') != page_id}
+    while slug in taken or slug in RESERVED_SLUGS:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _find_page(site: dict, slug: str) -> dict | None:
+    return next((p for p in site.get('pages', []) if p.get('slug') == slug), None)
+
+
+def _nav_pages(site: dict, loc) -> list:
+    """Sichtbare Seiten, die in der Navigation erscheinen sollen."""
+    out = []
+    for p in site.get('pages', []):
+        if p.get('visible') and p.get('nav'):
+            label = loc(p, 'title')
+            if label:
+                out.append({'href': '/seite/' + p['slug'], 'label': label})
+    return out
+
+
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
 
 def _is_ingress() -> bool:
@@ -2743,6 +2804,61 @@ def api_post_edit(pid: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/pages', methods=['POST'])
+def api_page_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    page = _normalize_page(raw)
+    page['slug'] = _page_slug(site, raw, page['id'])
+    site.setdefault('pages', []).append(page)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': page['slug']})
+
+
+@admin_app.route('/api/pages/<pid>', methods=['PUT', 'DELETE'])
+def api_page_edit(pid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    pages = site.setdefault('pages', [])
+    idx = next((i for i, p in enumerate(pages) if p.get('id') == pid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        pages.pop(idx)
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    pages[idx] = _normalize_page(raw, pages[idx])
+    pages[idx]['slug'] = _page_slug(site, raw, pid)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': pages[idx]['slug']})
+
+
+@admin_app.route('/api/pages/reorder', methods=['POST'])
+def api_pages_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    pages = site.get('pages', [])
+    pos = {pid: i for i, pid in enumerate(order)}
+    pages.sort(key=lambda p: pos.get(p.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
 @admin_app.route('/api/users')
 def api_users():
     err = _api_auth()
@@ -3063,6 +3179,9 @@ def api_export():
     loc = _loc_factory('de')
     legal = site.get('legal', {})
     pages = {'index.html': '/?static=1'}
+    for p in site.get('pages', []):
+        if p.get('visible'):
+            pages[f"seite/{p['slug']}/index.html"] = f"/seite/{p['slug']}"
     for p in site['projects']:
         if _has_detail(p) and project_visible(p):
             pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
@@ -3376,6 +3495,7 @@ def _base_url() -> str:
 def _public_url_list(site: dict, base: str) -> list:
     """Alle öffentlich indexierbaren URLs (Startseite, Projekt-Detailseiten, Blog)."""
     urls = [base + '/']
+    urls += [f"{base}/seite/{p['slug']}" for p in site.get('pages', []) if p.get('visible')]
     urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
     posts = sorted_posts(site, public_only=True)
     if posts:
@@ -5104,6 +5224,7 @@ def sitemap():
     newest = max((p['date'] for p in posts if _valid_date(p.get('date'))), default='')
     # (URL, lastmod) — lastmod optional
     entries = [(base + '/', newest)]
+    entries += [(f"{base}/seite/{p['slug']}", '') for p in site.get('pages', []) if p.get('visible')]
     entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
                 if _has_detail(p) and project_visible(p)]
     if posts:
@@ -5349,6 +5470,8 @@ def public_index():
                 nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
+        # Eigene Seiten als echte Links (mit Navi-Schalter) hinten anhängen
+        nav_items += _nav_pages(site, loc)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -5601,6 +5724,30 @@ def admin_blog_preview(pid: str):
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
                            text_html=text_html, preview=True,
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+@admin_app.route('/preview/page/<pid>')
+def admin_page_preview(pid: str):
+    """Seiten-Vorschau im Admin — rendert page.html (auch unveröffentlicht)."""
+    err = _auth_required()
+    if err:
+        return err
+    lang = detect_language(request)
+    site = load_site()
+    page = next((p for p in site.get('pages', []) if p.get('id') == pid), None)
+    if page is None:
+        abort(404)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    body_html = render_md(loc(page, 'body'))
+    font_family, font_faces = font_css(site['design'])
+    return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
+                           title=(loc(page, 'title') or t.get('page_untitled', '')),
+                           body_html=body_html, nav_items=_nav_pages(site, loc),
+                           page_slug=page.get('slug', ''),
+                           font_family=font_family, font_faces=font_faces,
+                           meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -6068,6 +6215,31 @@ def impressum():
 @public_app.route('/datenschutz')
 def datenschutz():
     return _legal_page('privacy')
+
+
+@public_app.route('/seite/<slug>')
+def custom_page(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    page = _find_page(site, slug)
+    if page is None or not page.get('visible'):
+        abort(404)
+    count_visit(request)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    title = loc(page, 'title') or t.get('page_untitled', '')
+    body_html = render_md(loc(page, 'body'))
+    nav_items = _nav_pages(site, loc) if site['design'].get('show_nav', True) else []
+    font_family, font_faces = font_css(site['design'])
+    return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
+                           title=title, body_html=body_html, nav_items=nav_items,
+                           page_slug=slug,
+                           font_family=font_family, font_faces=font_faces,
+                           meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html)
+                                      or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

@@ -481,7 +481,7 @@
     {% if nav_items %}
     <nav class="site-nav" aria-label="Sektionen">
       <div class="wrap site-nav-inner">
-        {% for it in nav_items %}<a href="#{{ it.anchor }}">{{ it.label }}</a>{% endfor %}
+        {% for it in nav_items %}<a href="{% if it.href %}{{ it.href }}{% else %}#{{ it.anchor }}{% endif %}">{{ it.label }}</a>{% endfor %}
       </div>
     </nav>
     {% endif %}

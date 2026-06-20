@@ -82,6 +82,15 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 - **Newsletter / Blog-Abo** (im Design-Tab aktivierbar, Standard aus): Auf der Blog-Seite erscheint ein Abo-Feld. Besucher tragen ihre E-Mail ein und bestätigen das Abo per Link (**Double-Opt-in**). Im Blog-Tab schreibst du dann eine Nachricht (Betreff + Markdown) und sendest sie per Klick an alle **bestätigten** Abonnenten — jede Mail enthält einen **Abmelde-Link**. Du siehst die Abonnentenzahl und kannst einzelne entfernen. Schutz: Honeypot + Rate-Limit, keine E-Mail-Enumeration. Benötigt SMTP + öffentliche URL; die Liste liegt in `subscribers.json` (im Backup).
 - **Kommentare & Reaktionen** (im Design-Tab über „Kommentare & Reaktionen" aktivierbar, Standard aus): **Angemeldete Mitglieder** können Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏 — eine Reaktion pro Person, per Klick umschaltbar). Gäste sehen die Reaktionsleiste ausgegraut mit einem Hinweis zum Anmelden. Mitglieder können auf Kommentare **antworten** (Antwort-Threads, eine Ebene tief); wird ein Mailserver genutzt, bekommt der Autor des beantworteten Kommentars eine **Benachrichtigung per E-Mail** (nicht bei Selbstantwort). Moderiert wird im Tab **Nachrichten** (siehe unten); bei neuen Kommentaren kommt zusätzlich eine Home-Assistant-Benachrichtigung. Kommentare/Reaktionen liegen in `comments.json` und werden im Backup mitgesichert.
 
+### Seiten
+Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**, **„Anfahrt"** oder **„Vereinsordnung"**. Jede Seite hat eine eigene Adresse unter `/seite/<slug>` und Inhalt in **Markdown** (DE/EN, gleicher Editor wie beim Blog, mit Live-Vorschau).
+
+- **Adresse (Slug)**: Frei wählbar (Kleinbuchstaben, Ziffern, Bindestriche). Leer gelassen, wird sie automatisch aus dem Titel erzeugt. Reservierte und bereits vergebene Adressen werden automatisch umgangen (z. B. `ueber-uns-2`).
+- **In der Navigation zeigen**: Schalter je Seite — sichtbare Seiten mit aktiviertem Schalter erscheinen als Link in der Navigationsleiste (auf der Startseite und auf den Seiten selbst).
+- **Status**: „Veröffentlicht" oder „Entwurf". Entwürfe sind öffentlich nicht erreichbar (404), lassen sich im Admin aber über **Vorschau** ansehen.
+- **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
+- **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
+
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.

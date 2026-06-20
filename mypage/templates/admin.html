@@ -204,6 +204,7 @@
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
@@ -483,6 +484,18 @@
         <button class="btn" style="margin-top:12px" onclick="sendNewsletter()">✉ {{ t.nl_send }}</button>
         <div id="nl-subs" class="collapsible" style="margin-top:16px"></div>
         <button class="btn secondary small collapse-btn" id="nl-subs-btn" onclick="toggleCollapse('nl-subs')"></button>
+      </div>
+    </section>
+
+    <!-- Seiten -->
+    <section class="tab" id="tab-pages">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.pages_heading }}
+          <button class="btn small" onclick="openPageModal()">+ {{ t.new_page }}</button>
+        </h3>
+        <p class="hint">{{ t.pages_hint }}</p>
+        <div class="proj-list" id="page-list"></div>
       </div>
     </section>
 
@@ -1184,6 +1197,64 @@
     </div>
   </div>
 
+  <!-- Seiten-Modal -->
+  <div class="modal-bg" id="page-modal">
+    <div class="modal">
+      <h3 id="pg-title">{{ t.new_page }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.page_slug }}</label>
+          <input type="text" id="pg-slug" placeholder="z. B. ueber-uns" maxlength="60">
+          <p class="hint" id="pg-url-hint"></p>
+        </div>
+        <div>
+          <label>{{ t.field_status }}</label>
+          <select id="pg-visible">
+            <option value="1">{{ t.status_published }}</option>
+            <option value="0">{{ t.status_draft }}</option>
+          </select>
+          <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="pg-nav" checked> {{ t.page_in_nav }}</label>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_seo_desc }} (DE)</label>
+          <input type="text" id="pg-meta_de" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+        <div>
+          <label>{{ t.field_seo_desc }} (EN)</label>
+          <input type="text" id="pg-meta_en" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+      </div>
+      <p class="hint">{{ t.post_seo_hint }}</p>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="pg-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="pg-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_text_md }} (DE)</label>
+          <textarea id="pg-body_de" rows="12"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_text_md }} (EN)</label>
+          <textarea id="pg-body_en" rows="12"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('page-modal').classList.remove('open')">{{ t.cancel }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['pg-title_de','pg-title_en'],['pg-body_de','pg-body_en'],['pg-meta_de','pg-meta_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
+        <button class="btn" style="margin-top:16px" onclick="savePage()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="md-modal">
     <div class="modal md-modal-box">
       <h3 id="md-modal-title">{{ t.md_editor_title }}</h3>
@@ -1393,7 +1464,7 @@
       ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
     function initMdEditors() {
-      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en'].forEach(id => attachMd(el(id)));
+      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -1478,6 +1549,7 @@
       fillSystem();
       renderProjects();
       renderPosts();
+      renderPages();
       // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
       if (!el('gh-user').value && SITE.profile.github) {
         el('gh-user').value = SITE.profile.github;
@@ -1599,6 +1671,94 @@
         : await apiJson('api/posts', 'POST', body);
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { el('post-modal').classList.remove('open'); loadSite(); }
+    }
+
+    // ── Seiten ──
+    let editingPageId = null;
+    let pageDragFrom = null;
+    function renderPages() {
+      const list = el('page-list');
+      list.innerHTML = '';
+      const pages = SITE.pages || [];
+      if (!pages.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_pages}</div>`;
+        return;
+      }
+      pages.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.draggable = true;
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
+        let badge = '';
+        if (!p.visible) badge += ` <span class="badge-draft">${T.status_draft}</span>`;
+        if (!p.nav) badge += ` <span class="badge-reg">${T.page_hidden_nav}</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', badge);
+        div.querySelector('.proj-meta').textContent = '/seite/' + p.slug;
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/page/' + p.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openPageModal(p.id);
+        div.querySelector('.btn-del').onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await fetch('api/pages/' + p.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        div.addEventListener('dragstart', () => { pageDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { pageDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          if (pageDragFrom === null || pageDragFrom === i) return;
+          const arr = SITE.pages;
+          const [m] = arr.splice(pageDragFrom, 1); arr.splice(i, 0, m);
+          renderPages();
+          await apiJson('api/pages/reorder', 'POST', { order: arr.map(x => x.id) });
+        });
+        list.appendChild(div);
+      });
+    }
+    function pageSlugHint() {
+      const slug = (el('pg-slug').value || '').trim();
+      el('pg-url-hint').textContent = slug ? (publicUrl() + 'seite/' + slug) : T.page_slug_auto;
+    }
+    function openPageModal(id) {
+      editingPageId = id || null;
+      const p = id ? (SITE.pages || []).find(x => x.id === id) : {};
+      el('pg-title').textContent = id ? T.edit_page : T.new_page;
+      el('pg-slug').value = p.slug || '';
+      el('pg-visible').value = (id && p.visible === false) ? '0' : '1';
+      el('pg-nav').checked = (id ? p.nav !== false : true);
+      el('pg-meta_de').value = p.meta_de || '';
+      el('pg-meta_en').value = p.meta_en || '';
+      el('pg-title_de').value = p.title_de || '';
+      el('pg-title_en').value = p.title_en || '';
+      el('pg-body_de').value = p.body_de || '';
+      el('pg-body_en').value = p.body_en || '';
+      pageSlugHint();
+      el('page-modal').classList.add('open');
+    }
+    async function savePage() {
+      const body = {
+        slug:     el('pg-slug').value,
+        visible:  el('pg-visible').value === '1',
+        nav:      el('pg-nav').checked,
+        meta_de:  el('pg-meta_de').value,
+        meta_en:  el('pg-meta_en').value,
+        title_de: el('pg-title_de').value,
+        title_en: el('pg-title_en').value,
+        body_de:  el('pg-body_de').value,
+        body_en:  el('pg-body_en').value,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingPageId
+        ? await apiJson('api/pages/' + editingPageId, 'PUT', body)
+        : await apiJson('api/pages', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('page-modal').classList.remove('open'); loadSite(); }
     }
 
     // ── Live-Vorschau ──
@@ -3276,6 +3436,7 @@
     }
 
     initMdEditors();
+    el('pg-slug').addEventListener('input', pageSlugHint);
     loadSite();
   </script>
 </body>
