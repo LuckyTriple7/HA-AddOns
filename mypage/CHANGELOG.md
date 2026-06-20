@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.141
+
+- 🔒 **Sicherheit: CodeQL-Pfadwarnungen behoben** — Alle Spielstand-Dateipfade (66, 20 AB, Schwimmen, Mau-Mau, Präsident, Jeopardy, Glücksrad, Sitzungs-Log) werden jetzt über `safe_under`/`safe_join` zusammengesetzt statt direkt per f-String. Funktional unverändert (die UID war bereits regex-validiert), beseitigt aber die als „uncontrolled data in path expression" geflaggten Stellen.
+
 ## 0.6.140
 
 - ⏸️ **Glücksrad: echte Pause (friert sofort ein)** — Bisher lief der gerade laufende Zug (Rad drehen, Buchstaben aufdecken) noch komplett zu Ende, bevor die Pause griff. Jetzt wird **sofort an Ort und Stelle eingefroren**: Das Rad hält mitten im Dreh an, die Buchstaben-Aufdeckung stoppt, Wartezeiten merken sich ihre Restzeit. Beim Fortsetzen läuft alles **genau dort** weiter (kein Springen zum Ergebnis). Gilt für Pause-Button, Leertaste und Auto-Pause beim Tab-Wechsel; auch Münzwurf und Finale-Countdown pausieren mit.
