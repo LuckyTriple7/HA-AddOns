@@ -90,11 +90,29 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Dateibereich pro Benutzer — praktisch zum einfachen Teilen von Dateien mit Familie und Freunden.
 
 - **Benutzer anlegen** im Admin-Tab „Benutzer": E-Mail (= Benutzername), Passwort (min. 8 Zeichen), Speicher-Quota. Ist ein Mailserver konfiguriert, bekommt der Benutzer die Zugangsdaten **automatisch per E-Mail** (ebenso bei Passwort-Reset).
-- **Selbst-Registrierung** (im Design-Tab aktivierbar, Standard aus): Besucher können sich auf der Login-Seite über „Konto erstellen" selbst anmelden. Der Ablauf ist **zweistufig**: Erst bestätigt das Mitglied seine **E-Mail-Adresse** (Link, 24 h gültig), dann gibt der **Admin** das Konto frei (Button „Freigeben" in der Benutzerliste) — erst danach ist die Anmeldung möglich. Selbst-registrierte Konten starten **ohne Spielezugang** und mit der im Design-Tab eingestellten **Standard-Quota**. Schutz: Captcha, Honeypot, Rate-Limit, keine E-Mail-Enumeration. Benötigt SMTP + öffentliche URL; bei jeder Registrierung gibt es eine HA-Benachrichtigung.
+- **Selbst-Registrierung**: Besucher können sich (optional) selbst ein Konto anlegen — Details siehe Abschnitt [Selbst-Registrierung](#selbst-registrierung) unten.
 - **Passwort vergessen (Self-Service)**: Sind ein Mailserver (`smtp_host`) **und** die öffentliche URL gesetzt, erscheint auf der Login-Seite ein „Passwort vergessen?"-Link. Das Mitglied erhält einen zeitlich begrenzten Link (1 Stunde gültig) und setzt selbst ein neues Passwort — ohne Admin. Aus Sicherheitsgründen: stets dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Einmal-Token, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet.
 - **Spiele pro Mitglied abschaltbar**: In der Benutzerliste schaltet ein Button (🕹️/🚫) die Mitglieder-Spiele für ein Konto frei oder sperrt sie. Gesperrte Mitglieder sehen keine Spiel-Kacheln mehr, und die Spiel-Seiten/-APIs sind serverseitig blockiert — der Dateibereich bleibt normal nutzbar.
 - **Sicherheit**: Passwörter werden ausschließlich als scrypt-Hash gespeichert; Brute-Force-Schutz (5 Fehlversuche → 15 Min. Sperre); jeder Benutzer sieht nur den eigenen Bereich; Downloads werden immer als Datei-Anhang ausgeliefert, hochgeladene HTML-Dateien können also nie im Browser ausgeführt werden.
 - **Limits**: `user_upload_max_mb` begrenzt die Größe pro Datei (Standard 200 MB), die Quota pro Benutzer ist im Admin einstellbar.
+
+### Selbst-Registrierung
+
+Statt jeden Benutzer von Hand anzulegen, können sich Besucher selbst registrieren. Die Funktion ist **standardmäßig aus** und nur mit konfiguriertem **E-Mail-Versand (`smtp_host`)** und gesetzter **öffentlicher URL** nutzbar (die E-Mail-Bestätigung ist Pflicht).
+
+**Aktivieren:** Im Tab **Design** den Schalter **„Selbst-Registrierung"** auf **Ja** stellen und optional die **Standard-Quota** für neue Konten festlegen (Standard 500 MB). Auf der Login-Seite (`/bereich`) erscheint dann der Link **„Konto erstellen"**.
+
+**Ablauf (zweistufig):**
+
+1. Der Besucher füllt das Formular aus (E-Mail, optionaler Anzeigename, Passwort) und löst eine kleine **Sicherheitsfrage** (Captcha).
+2. Es wird ein **unbestätigtes** Konto angelegt und eine **Bestätigungs-E-Mail** mit Link verschickt (24 Stunden gültig).
+3. Der Besucher klickt den Link → seine **E-Mail ist bestätigt**.
+4. Der **Admin** gibt das Konto frei: in der Benutzerliste erscheint bei wartenden Konten ein grüner Button **„Freigeben"**. Nach der Freigabe bekommt das Mitglied eine **Aktivierungs-E-Mail**.
+5. Erst jetzt ist die **Anmeldung** möglich. Vorher wird ein Login mit einem klaren Hinweis abgewiesen („E-Mail bestätigen" bzw. „wartet auf Freigabe").
+
+**Selbst-registrierte Konten** starten bewusst **ohne Spielezugang** (lässt sich pro Person über den 🕹️-Button freigeben) und mit der eingestellten Standard-Quota. In der Benutzerliste sind sie als **`🆕 selbst registriert`** mit Status (`unbestätigt` / `wartet auf Freigabe` / `aktiv`) markiert.
+
+**Schutz vor Missbrauch:** Rechen-Captcha, unsichtbares Honeypot-Feld, Rate-Limit (5 Versuche/Stunde pro IP) und **keine E-Mail-Enumeration** — die Rückmeldung ist immer gleich („Prüfe dein Postfach"); existiert die Adresse bereits, bekommt sie stattdessen eine Hinweis-Mail. Bei jeder Registrierung und Bestätigung gibt es zusätzlich eine **Home-Assistant-Benachrichtigung** (`ha_notify`).
 
 ### Optionaler SMB-Speicher
 
