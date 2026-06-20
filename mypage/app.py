@@ -249,6 +249,7 @@ DEFAULT_SITE = {
         'welcome_from': '',
         'contact_enabled': False,
         'comments_enabled': False,
+        'share_enabled': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -2419,7 +2420,7 @@ def api_design():
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
-                 'banner_enabled', 'banner_dismissible'):
+                 'banner_enabled', 'banner_dismissible', 'share_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -5848,8 +5849,11 @@ def blog_post(pid: str):
     reactions = cdata.get('reactions', {})
     clist = cdata.get('comments', [])
     threaded = _thread_comments(clist)
+    share_on = bool(site['design'].get('share_enabled')) and not locked
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
                            text_html=text_html, locked=locked,
+                           share_on=share_on, share_url=f"{_base_url()}/blog/{pid}",
+                           share_title=loc(post, 'title'),
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
                            comments_enabled=comments_enabled,
                            member=member,

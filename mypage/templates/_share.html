@@ -1,0 +1,28 @@
+{% if share_on and not preview %}
+<div class="share-row" data-url="{{ share_url }}" data-title="{{ share_title }}">
+  <span class="share-label">{{ t.share_label }}</span>
+  <a class="share-btn" target="_blank" rel="noopener nofollow" href="https://wa.me/?text={{ (share_title ~ ' ' ~ share_url)|urlencode }}">WhatsApp</a>
+  <a class="share-btn" target="_blank" rel="noopener nofollow" href="https://twitter.com/intent/tweet?url={{ share_url|urlencode }}&text={{ share_title|urlencode }}">X</a>
+  <a class="share-btn" target="_blank" rel="noopener nofollow" href="https://www.facebook.com/sharer/sharer.php?u={{ share_url|urlencode }}">Facebook</a>
+  <a class="share-btn" target="_blank" rel="noopener nofollow" href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url|urlencode }}">LinkedIn</a>
+  <a class="share-btn" href="mailto:?subject={{ share_title|urlencode }}&body={{ share_url|urlencode }}">E-Mail</a>
+  <button type="button" class="share-btn share-copy" data-label="{{ t.share_copy }}" data-copied="{{ t.share_copied }}" onclick="shareCopy(this)">{{ t.share_copy }}</button>
+  <button type="button" class="share-btn share-native" onclick="shareNative(this)" style="display:none">{{ t.share_more }}</button>
+</div>
+<style>
+  .share-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 30px 0 6px; }
+  .share-label { color: var(--muted); font-size: 0.85rem; margin-right: 2px; }
+  .share-btn { display: inline-block; background: var(--surf); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 5px 13px; font-size: 0.82rem; cursor: pointer; text-decoration: none; }
+  .share-btn:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+</style>
+<script>
+  (function () { if (navigator.share) { var b = document.querySelector('.share-native'); if (b) b.style.display = ''; } })();
+  function shareNative(btn) { var r = btn.closest('.share-row'); if (navigator.share) navigator.share({ title: r.dataset.title, url: r.dataset.url }).catch(function () {}); }
+  function shareCopy(btn) {
+    var url = btn.closest('.share-row').dataset.url;
+    var done = function () { btn.textContent = btn.dataset.copied; setTimeout(function () { btn.textContent = btn.dataset.label; }, 1500); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(url).then(done).catch(function () { window.prompt(btn.dataset.label, url); }); }
+    else { window.prompt(btn.dataset.label, url); }
+  }
+</script>
+{% endif %}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.10
+
+- 🔗 **Teilen-Buttons unter Blog-Beiträgen** — Im Design-Tab aktivierbar (Standard aus). Zeigt unter jedem Beitrag Buttons für **WhatsApp, X, Facebook, LinkedIn, E-Mail** und **Link kopieren** sowie auf Mobilgeräten den nativen Teilen-Dialog. Datenschutzfreundlich: reine Share-Links, kein Tracking-Skript, es wird nichts von Drittanbietern nachgeladen.
+
 ## 0.7.9
 
 - 🔎 **Search-Console-Verifizierung** — Im Design-Tab zwei neue (optionale) Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. MyPage setzt daraus das passende Meta-Tag in den Kopf der Startseite (HTML-Tag-Methode). Man kann auch das ganze Meta-Tag einfügen — der Code wird herausgelesen und auf unbedenkliche Zeichen gefiltert. Leer = nichts passiert.

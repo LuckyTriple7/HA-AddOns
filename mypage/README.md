@@ -20,7 +20,7 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 - 🌍 **Zweisprachig** (DE/EN) mit optionaler Auto-Übersetzung; Besucher können umschalten
 - 👁 **Besucherzähler & Statistik**: Aufrufe, eindeutige Besucher, Länder, Browser, Referrer
 - 📷 **Fotoalben** mit Diashow, Wasserzeichen und Bild-Zoom; **Bild-Galerien** in Blog-Beiträgen
-- 📝 **Blog** mit Volltextsuche, Schlagwörtern (Tags), **Newsletter-Abo** (Double-Opt-in) und — optional — **Kommentaren & Emoji-Reaktionen** für Mitglieder (moderierbar)
+- 📝 **Blog** mit Volltextsuche, Schlagwörtern (Tags), **Newsletter-Abo** (Double-Opt-in), **Teilen-Buttons** (datenschutzfreundlich) und — optional — **Kommentaren & Emoji-Reaktionen** für Mitglieder (moderierbar)
 - 🔒 **Mitglieder-Bereich**: passwortgeschützter Dateibereich pro Benutzer (optional auf SMB-Share), optionale **Selbst-Registrierung** (E-Mail-Bestätigung + Admin-Freigabe), **Self-Service-Passwort-Reset** und je Mitglied **abschaltbare Spiele**
 - 📨 **Kontaktformular** mit Spam-Schutz (Honeypot + Captcha + Rate-Limit) und Benachrichtigung per Telegram/E-Mail sowie **Home Assistant**
 - 🧭 **Navigationsleiste** im Kopf mit Sprungmarken zu den vorhandenen Bereichen
