@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.144
+
+- ⏱️ **Glücksrad-Finale: Zeitablauf wird sauber aufgelöst** — Läuft im Finale die Zeit ab, ohne dass gelöst wurde, passierte bisher nichts (die leere Eingabe wurde verschluckt, der Timeout nie festgeschrieben). Jetzt ertönt ein negativer Sound, anschließend deckt sich die Lösung langsam auf, und das Spiel wird beendet.
+- 🔁 **Glücksrad-Finale: Countdown läuft serverautoritativ weiter** — Verlässt man das Spiel im Finale und kommt zurück, startet der Countdown nicht mehr von vorn, sondern macht mit der verbleibenden Zeit weiter (war die Zeit schon abgelaufen, wird sofort aufgelöst).
+
 ## 0.6.143
 
 - 🎯 **Glücksrad: Start-Auslosung bleibt stehen** — Beim „Wer fängt an?" zu Spielbeginn drehen alle drei (Spieler, Lisa, Max) reihum. Bisher verschwand der erdrehte Betrag, sobald der nächste dran war. Jetzt zeigt eine feste Tafel die Beträge **aller** Spieler und füllt sich, bis alle drei gedreht haben. Erst wenn der Startspieler feststeht (kurz hervorgehoben) oder bei Gleichstand verschwindet die Tafel wieder. Wird nur zur Start-Auslosung angezeigt.

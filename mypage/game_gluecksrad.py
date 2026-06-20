@@ -223,6 +223,11 @@ def public_view(state):
             "extra_vowel": state["finale"].get("extra_vowel"),
             "timer_sec": FINALE_TIMER_SEC,
         }
+        # Verbleibende Zeit serverautoritativ: beim Verlassen/Wiederbetreten
+        # läuft der Countdown weiter, statt neu zu starten.
+        if state["status"] == "finale_solve" and state["finale"].get("timer_start"):
+            elapsed = time.time() - state["finale"]["timer_start"]
+            view["finale"]["timer_remaining"] = max(0, round(FINALE_TIMER_SEC - elapsed))
     return view
 
 # ---------------------------------------------------------------------------
@@ -614,7 +619,9 @@ def _do_finale_solve(state, answer):
     elapsed = time.time() - state["finale"].get("timer_start", time.time())
     timed_out = elapsed > FINALE_TIMER_SEC + 2
 
-    if timed_out:
+    # Leere Antwort = Zeit abgelaufen (der Client schickt sie nur, wenn der
+    # Countdown 0 erreicht hat – manuell wird eine leere Eingabe blockiert).
+    if not (answer or "").strip() or timed_out:
         state["event"] = {"type": "finale_timeout", "phrase": phrase}
         state["status"] = "game_over"
         return {"ok": True}

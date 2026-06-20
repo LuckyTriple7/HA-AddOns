@@ -1382,6 +1382,7 @@ async function submitSolve() {
   const inp = document.getElementById('solveInput');
   const answer = inp.value.trim();
   if(!answer) return;
+  clearInterval(finaleTimerInterval);  // Finale-Countdown stoppen, falls aktiv
   document.getElementById('solveArea').classList.remove('visible');
   const type = S.status==='finale_solve' ? 'finale_solve' : 'solve';
   const oldDisp = S.display;
@@ -1398,6 +1399,51 @@ async function submitSolve() {
   }
   handleEvent(S.event);
   render();
+}
+
+// Finale-Zeit abgelaufen ohne Lösung: leere Antwort senden (Server wertet als
+// Timeout), negativer Sound, dann die Lösung langsam aufdecken.
+async function finaleTimeout() {
+  clearInterval(finaleTimerInterval);
+  if(!S || S.status!=='finale_solve') return;  // schon gelöst/abgeschlossen
+  document.getElementById('solveArea').classList.remove('visible');
+  const oldDisp = S.display;
+  const r = await api('/api/gluecksrad/move', {type:'finale_solve', answer:''});
+  if(!r) return;
+  S = r.state;
+  isSpinning = false;
+  const ev = S.event;
+  if(ev && ev.type==='finale_timeout') {
+    playSound('bankrupt_dramatic');
+    showToast(G.evt_finale_timeout, 'bankrupt');
+    if(S.phrase) { S.display = S.phrase; await revealSolutionTimeout(oldDisp); }
+    await sleep(1200);
+  } else {
+    handleEvent(ev);
+  }
+  render();
+}
+
+// Wie revealSolution, aber gleichmäßig langsam und ohne Jubel-Sound — passt
+// zur Niederlage bei Zeitablauf.
+async function revealSolutionTimeout(oldDisplay) {
+  const newDisplay = S.display;
+  renderPuzzle(oldDisplay);
+  const positions = [];
+  if(oldDisplay && newDisplay) {
+    for(let i=0;i<newDisplay.length;i++)
+      if(oldDisplay[i]==='_' && newDisplay[i]!=='_') positions.push(i);
+  }
+  const board = document.getElementById('puzzleBoard');
+  for(let k=0;k<positions.length;k++) {
+    const tile = board.children[positions[k]];
+    if(!tile) continue;
+    playSound('tick');
+    tile.textContent = newDisplay[positions[k]];
+    tile.className = 'puzzle-char letter reveal';
+    await sleep(280);
+  }
+  renderPuzzle();
 }
 
 async function doRiskChoice(accept) {
@@ -1560,7 +1606,12 @@ async function submitFinalePick() {
 let finaleTimerInterval;
 function startFinaleTimer() {
   const totalSec = S.finale ? S.finale.timer_sec : 15;
-  let sec = totalSec;
+  // Beim Wiederbetreten läuft der Countdown weiter (serverautoritativ),
+  // statt von vorn zu beginnen.
+  const startSec = (S.finale && S.finale.timer_remaining != null)
+    ? S.finale.timer_remaining : totalSec;
+  if(startSec <= 0) { finaleTimeout(); return; }
+  let sec = startSec;
   const R = 40, C = 2 * Math.PI * R;
   const wrap = document.createElement('div');
   wrap.className = 'finale-timer-wrap';
@@ -1568,7 +1619,7 @@ function startFinaleTimer() {
   wrap.innerHTML =
     `<svg width="100" height="100" viewBox="0 0 100 100">` +
     `<circle cx="50" cy="50" r="${R}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>` +
-    `<circle id="ftRing" cx="50" cy="50" r="${R}" fill="none" stroke="#4f4" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="0"/>` +
+    `<circle id="ftRing" cx="50" cy="50" r="${R}" fill="none" stroke="#4f4" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-sec/totalSec)}"/>` +
     `<text id="ftText" x="50" y="54" text-anchor="middle" fill="#fff" font-size="24" font-weight="bold">${sec}</text>` +
     `</svg>` +
     `<div class="ft-label">${G.finale_time_up.replace('!','')}</div>`;
@@ -1584,7 +1635,7 @@ function startFinaleTimer() {
     if(sec <= 2) { ring.setAttribute('stroke', '#f44'); wrap.style.animation = 'pulse-ft 0.5s infinite'; }
     else if(sec <= 5) { ring.setAttribute('stroke', '#fc0'); }
     if(sec <= 3) playSound('timer_warn');
-    if(sec <= 0) { clearInterval(finaleTimerInterval); txt.textContent = '0'; submitSolve(); }
+    if(sec <= 0) { clearInterval(finaleTimerInterval); txt.textContent = '0'; finaleTimeout(); }
   }
   finaleTimerInterval = setInterval(updateTimer, 1000);
 }
