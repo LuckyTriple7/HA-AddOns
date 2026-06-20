@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.154
+
+- 💅 **Registrierung & Benutzerliste — kleine UI-Korrekturen** — Das Feld „Anzeigename" im Registrierungsformular ist jetzt so breit wie die übrigen Felder (das Captcha-Feld bleibt bewusst kompakt). In der Admin-Benutzerliste steht der Status selbst-registrierter Konten nicht mehr als langer Text in der Info-Zeile, sondern als kompaktes Badge direkt beim Namen (🆕 unbestätigt / ⏳ wartet auf Freigabe) — spart Platz und ist klarer.
+
 ## 0.6.153
 
 - 📖 **Doku: eigener Abschnitt „Selbst-Registrierung"** — In DOCS.md ist die Selbst-Registrierung jetzt als ausführlicher, eigener Abschnitt beschrieben (Aktivieren, zweistufiger Ablauf, Vorgaben für neue Konten, Schutzmaßnahmen) statt nur als kurze Notiz.

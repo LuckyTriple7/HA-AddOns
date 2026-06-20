@@ -85,6 +85,8 @@
       100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
     .playing-tag { color: #22c55e; font-weight: 500; font-size: 0.78rem; }
+    .badge-reg { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--yellow) 20%, transparent); color: var(--yellow); }
+    .badge-reg.muted { background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
     .badge-draft { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
     .badge-scheduled { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
 
@@ -2302,13 +2304,17 @@
         const lastLogin = u.last_login
           ? `${T.user_last_login}: ${new Date(u.last_login.ts * 1000).toLocaleString()} (${u.last_login.ip})`
           : `${T.user_last_login}: ${T.user_never}`;
-        let regStatus = '';
         if (u.self_registered) {
-          const state = !u.verified ? T.user_reg_unverified : (!u.approved ? T.user_reg_pending : T.user_reg_active);
-          regStatus = ` · 🆕 ${T.user_reg_self} (${state})`;
+          const rb = document.createElement('span');
+          rb.className = 'badge-reg';
+          if (!u.verified) rb.textContent = '🆕 ' + T.user_reg_unverified;
+          else if (!u.approved) rb.textContent = '⏳ ' + T.user_reg_pending;
+          else { rb.className = 'badge-reg muted'; rb.textContent = '🆕 ' + T.user_reg_self; }
+          nameEl.appendChild(document.createTextNode(' '));
+          nameEl.appendChild(rb);
         }
         div.querySelector('.proj-meta').textContent =
-          `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}${regStatus}`;
+          `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
         const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         approveBtn.onclick = async () => {
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { approved: true });

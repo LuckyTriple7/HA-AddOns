@@ -35,10 +35,11 @@
     .card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 26px; }
     h1 { font-size: 1.3rem; margin-bottom: 18px; }
     label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
-    input[type="email"], input[type="password"] {
+    input[type="email"], input[type="password"], input[type="text"] {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 9px 12px; border-radius: 6px; font-size: 0.9rem;
     }
+    input.captcha-input { width: 130px; }
     input:focus { outline: none; border-color: var(--accent); }
     .btn {
       background: var(--green); border: 1px solid var(--green-h); color: #fff;
@@ -138,7 +139,7 @@
         <label for="password2">{{ t.member_reset_confirm }}</label>
         <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="8" required>
         <label for="captcha_answer">{{ t.member_register_captcha }}: {{ captcha.question }}</label>
-        <input type="text" id="captcha_answer" name="captcha_answer" inputmode="numeric" autocomplete="off" required>
+        <input type="text" class="captcha-input" id="captcha_answer" name="captcha_answer" inputmode="numeric" autocomplete="off" required>
         <input type="hidden" name="captcha_token" value="{{ captcha.token }}">
         <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="btn" type="submit">{{ t.member_register_submit }}</button>
