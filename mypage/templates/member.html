@@ -175,6 +175,7 @@
       </form>
       {% endif %}
     </div>
+    {% if games_on %}
     <div class="card" style="margin-top:18px">
       <h1>🃏 {{ t.g66_title }}</h1>
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g66_intro }}</p>
@@ -210,6 +211,7 @@
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.ggr_intro }}</p>
       <button class="btn" type="button" onclick="openGame('gluecksrad')">▶ {{ t.ggr_play }}</button>
     </div>
+    {% endif %}
     {% endif %}
   </main>
   <footer>

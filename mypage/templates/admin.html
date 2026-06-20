@@ -2261,10 +2261,11 @@
         div.dataset.uid = u.id;
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
-            <button class="btn secondary small">📁 ${T.user_files_btn}</button>
-            <button class="btn secondary small">💬 ${T.user_msg_btn}${u.login_message ? ' •' : ''}</button>
+            <button class="btn secondary small" title="${T.user_files_btn}">📁</button>
+            <button class="btn secondary small" title="${T.user_msg_btn}">💬${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small" title="${T.user_journal_btn}">📜</button>
             <button class="btn secondary small" title="${T.user_games_btn}">🎮</button>
+            <button class="btn ${u.games_enabled === false ? 'danger' : 'secondary'} small" title="${u.games_enabled === false ? T.user_games_off_title : T.user_games_on_title}">${u.games_enabled === false ? '🚫' : '🕹️'}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
             <button class="btn secondary small">${T.user_quota_btn}</button>
@@ -2288,11 +2289,16 @@
           : `${T.user_last_login}: ${T.user_never}`;
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [filesBtn, msgBtn, journalBtn, gamesBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         filesBtn.onclick = () => openUserFiles(u);
         msgBtn.onclick = () => openLoginMsg(u);
         journalBtn.onclick = () => openJournal(u);
         gamesBtn.onclick = () => openGames(u);
+        gamesToggleBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { games_enabled: u.games_enabled === false });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
         resendBtn.onclick = async () => {
           if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
           const r2 = await fetch('api/users/' + u.id + '/resend', { method: 'POST', credentials: 'same-origin' });

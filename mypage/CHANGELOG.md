@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.150
+
+- 🎮 **Spiele pro Mitglied abschaltbar** — In der Benutzerverwaltung gibt es jetzt pro Mitglied einen Schalter (🕹️/🚫), mit dem sich die Spiele für dieses Konto sperren lassen. Gesperrte Mitglieder sehen im Bereich keine Spiel-Kacheln mehr, und Spiel-Seiten/-APIs sind serverseitig blockiert (der Dateibereich bleibt normal nutzbar).
+- 🧹 **Benutzerverwaltung aufgeräumt** — Die Buttons „Dateien" und „Login-Nachricht" sind jetzt platzsparend nur noch als Symbol mit Tooltip dargestellt.
+
 ## 0.6.149
 
 - 💬 **Blog: Kommentare & Reaktionen für Mitglieder** — Angemeldete Mitglieder können Blog-Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏, eine Reaktion pro Person, umschaltbar). Aktivierbar über einen neuen Schalter in den Design-Einstellungen (Standard: aus). Im Admin gibt es unter „Nachrichten" eine Moderationsliste, in der sich einzelne Kommentare löschen lassen; bei neuen Kommentaren kommt zusätzlich eine HA-Benachrichtigung. Kommentare werden im Backup mitgesichert.

@@ -47,6 +47,8 @@
   "user_resend_title": "Zugangsdaten erneut senden",
   "user_journal_btn": "Journal",
   "user_games_btn": "Spiele",
+  "user_games_on_title": "Spiele aktiv – klicken zum Sperren",
+  "user_games_off_title": "Spiele gesperrt – klicken zum Freigeben",
   "user_playing": "spielt",
   "user_playing_now": "spielt gerade",
   "user_idle": "inaktiv",

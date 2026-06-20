@@ -47,6 +47,8 @@
   "user_resend_title": "Resend credentials",
   "user_journal_btn": "Journal",
   "user_games_btn": "Games",
+  "user_games_on_title": "Games enabled – click to block",
+  "user_games_off_title": "Games blocked – click to enable",
   "user_playing": "playing",
   "user_playing_now": "currently playing",
   "user_idle": "idle",

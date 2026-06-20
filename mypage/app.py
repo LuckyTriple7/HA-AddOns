@@ -2380,6 +2380,7 @@ def api_users():
                     'created': u.get('created', ''),
                     'last_login': u.get('last_login'),
                     'playing': _user_playing(u['id']),
+                    'games_enabled': u.get('games_enabled', True),
                     'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
@@ -2456,6 +2457,8 @@ def api_user_edit(uid: str):
         user['quota_mb'] = max(1, min(100000, int(raw.get('quota_mb') or 500)))
     if 'login_message' in raw:
         user['login_message'] = _clean_str(raw.get('login_message'), 2000)
+    if 'games_enabled' in raw:
+        user['games_enabled'] = bool(raw['games_enabled'])
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
@@ -3188,6 +3191,8 @@ def _require_member():
     member = current_member(request)
     if member is None:
         abort(403)
+    if member.get('games_enabled', True) is False:
+        abort(403)  # Spiele für dieses Mitglied vom Admin deaktiviert
     return member
 
 
@@ -5144,6 +5149,7 @@ def _member_page(member: dict | None, msg: str = ''):
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down, login_msg_html=login_msg_html,
                            can_reset=reset_enabled() if member is None else False,
+                           games_on=bool(member and member.get('games_enabled', True)),
                            year=datetime.now(timezone.utc).year)
 
 
