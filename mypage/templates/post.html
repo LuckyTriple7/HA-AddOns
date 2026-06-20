@@ -79,6 +79,26 @@
     .content pre code { border: none; background: none; padding: 0; }
     .content blockquote { border-left: 3px solid var(--accent); padding-left: 14px; color: var(--muted); margin-bottom: 14px; }
     .back { display: inline-block; margin-top: 28px; }
+    /* Reaktionen & Kommentare */
+    .engage { margin-top: 40px; border-top: 1px solid var(--border); padding-top: 24px; }
+    .react-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .react-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surf); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 0.95rem; color: var(--text); cursor: pointer; transition: border-color .15s, background .15s; }
+    .react-btn:hover { border-color: var(--accent); }
+    .react-btn.mine { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+    .react-btn .cnt { font-size: 0.8rem; color: var(--muted); min-width: 8px; }
+    .react-btn.mine .cnt { color: var(--accent); }
+    .react-hint, .comment-hint { font-size: 0.82rem; color: var(--muted); margin: 4px 0 0; }
+    .comments { margin-top: 30px; }
+    .comments h2 { font-size: 1.2rem; margin-bottom: 16px; }
+    .comment { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 12px 15px; margin-bottom: 12px; }
+    .comment-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 5px; }
+    .comment-name { font-weight: 600; font-size: 0.9rem; }
+    .comment-date { font-size: 0.74rem; color: var(--muted); white-space: nowrap; }
+    .comment-text { font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
+    .comment-form { margin-top: 18px; }
+    .comment-form textarea { width: 100%; background: var(--surf); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; font-family: inherit; resize: vertical; min-height: 80px; }
+    .comment-form textarea:focus { outline: none; border-color: var(--accent); }
+    .comment-form button { margin-top: 10px; background: var(--accent); border: none; color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.86rem; font-weight: 600; cursor: pointer; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
 </head>
@@ -117,6 +137,41 @@
       </div>
       <button class="gal-arrow gal-next" onclick="galScroll(1)" aria-label="{{ t.aria_next }}">›</button>
     </div>
+    {% endif %}
+    {% if comments_enabled and not preview %}
+    <section class="engage" id="comments">
+      <div class="react-bar">
+        {% for emoji in reaction_emojis %}
+        <button type="button" class="react-btn {{ 'mine' if my_reaction == emoji else '' }}"
+                data-emoji="{{ emoji }}" onclick="react(this)" {{ '' if member else 'disabled' }}>
+          <span>{{ emoji }}</span><span class="cnt">{{ reaction_counts.get(emoji, 0) or '' }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      {% if not member %}<p class="react-hint"><a href="/bereich">{{ t.comment_login_hint }}</a></p>{% endif %}
+
+      <div class="comments">
+        <h2>{{ t.comments_title }} ({{ comments|length }})</h2>
+        {% for c in comments %}
+        <div class="comment">
+          <div class="comment-head">
+            <span class="comment-name">{{ c.name }}</span>
+            <span class="comment-date" data-ts="{{ c.ts }}">{{ c.ts }}</span>
+          </div>
+          <div class="comment-text">{{ c.text }}</div>
+        </div>
+        {% else %}
+        <p class="comment-hint">{{ t.comments_empty }}</p>
+        {% endfor %}
+
+        {% if member %}
+        <form class="comment-form" method="post" action="/blog/{{ p.id }}/comment">
+          <textarea name="text" maxlength="2000" required placeholder="{{ t.comment_placeholder }}"></textarea>
+          <button type="submit">{{ t.comment_submit }}</button>
+        </form>
+        {% endif %}
+      </div>
+    </section>
     {% endif %}
     {% if not preview %}<a class="back" href="/blog">&larr; {{ t.blog_all }}</a>{% endif %}
   </main>
@@ -158,6 +213,29 @@
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeLightbox();
     });
+    // Kommentar-Zeitstempel in lokale, lesbare Form bringen
+    document.querySelectorAll('.comment-date[data-ts]').forEach(el => {
+      const ts = parseInt(el.dataset.ts, 10);
+      if (ts) el.textContent = new Date(ts * 1000).toLocaleString();
+    });
+    // Reaktion umschalten (Toggle) — aktualisiert Zähler ohne Neuladen
+    async function react(btn) {
+      const emoji = btn.dataset.emoji;
+      try {
+        const r = await fetch('/blog/{{ p.id }}/react', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji })
+        });
+        if (!r.ok) { if (r.status === 403) location.href = '/bereich'; return; }
+        const d = await r.json();
+        document.querySelectorAll('.react-btn').forEach(b => {
+          const e = b.dataset.emoji, n = (d.counts && d.counts[e]) || 0;
+          b.querySelector('.cnt').textContent = n || '';
+          b.classList.toggle('mine', d.mine === e);
+        });
+      } catch (e) { /* offline o. Ä. — still ignorieren */ }
+    }
     const galRail = document.getElementById('gal-rail');
     function galScroll(dir) { if (galRail) galRail.scrollBy({ left: dir * 260, behavior: 'smooth' }); }
     function updateGalArrows() {

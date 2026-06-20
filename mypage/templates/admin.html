@@ -574,6 +574,16 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_comments_enabled }}</label>
+            <select id="d-comments_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.comments_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_font }}</label>
             <select id="d-font">
               <optgroup label="{{ t.font_group_system }}">
@@ -735,6 +745,11 @@
         <p class="hint">{{ t.messages_hint }}</p>
       </div>
       <div id="msg-list"></div>
+      <div class="panel" style="margin-top:22px">
+        <h3>{{ t.comments_heading }}</h3>
+        <p class="hint">{{ t.comments_mod_hint }}</p>
+      </div>
+      <div id="comment-list"></div>
     </section>
 
     <!-- Benutzer -->
@@ -1393,7 +1408,7 @@
         el('tab-' + btn.dataset.tab).classList.add('active');
         stopUsersPolling();  // beim Verlassen des Benutzer-Tabs Polling stoppen
         if (btn.dataset.tab === 'stats') loadStats();
-        if (btn.dataset.tab === 'messages') loadMessages();
+        if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') initPreview();
       });
@@ -2164,6 +2179,44 @@
       });
     }
 
+    async function loadComments() {
+      const r = await api('api/comments');
+      if (!r.ok) return;
+      const data = await r.json();
+      const list = el('comment-list');
+      list.innerHTML = '';
+      if (!data.comments.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_comments}</div>`;
+        return;
+      }
+      data.comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'msg-item';
+        div.innerHTML = `<div class="msg-head">
+            <span class="msg-from"></span>
+            <span style="display:flex;gap:10px;align-items:center">
+              <span class="msg-time"></span>
+              <button class="btn danger small">✕</button>
+            </span>
+          </div><div class="msg-text"></div>`;
+        const from = div.querySelector('.msg-from');
+        from.textContent = c.name;
+        const post = document.createElement('a');
+        post.href = 'preview/blog/' + c.pid;
+        post.target = '_blank';
+        post.textContent = ' · ' + c.post_title;
+        from.appendChild(post);
+        div.querySelector('.msg-time').textContent = new Date(c.ts * 1000).toLocaleString();
+        div.querySelector('.msg-text').textContent = c.text;
+        div.querySelector('button').onclick = async () => {
+          if (!confirm(T.confirm_delete_comment)) return;
+          const r2 = await fetch('api/comments/' + c.pid + '/' + c.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) loadComments();
+        };
+        list.appendChild(div);
+      });
+    }
+
     // ── Benutzer ──
     function genPassword() {
       // 8 Zeichen: Groß, Klein, Zahlen — keine Sonderzeichen, keine verwechselbaren (O/0, l/1)
@@ -2641,6 +2694,7 @@
       el('d-show_counter').value = d.show_counter ? '1' : '0';
       el('d-show_nav').value = (d.show_nav === false) ? '0' : '1';
       el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
+      el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
@@ -2699,6 +2753,7 @@
         show_counter:    el('d-show_counter').value === '1',
         show_nav:        el('d-show_nav').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',
+        comments_enabled: el('d-comments_enabled').value === '1',
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
       });

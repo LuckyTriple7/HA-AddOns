@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.149
+
+- 💬 **Blog: Kommentare & Reaktionen für Mitglieder** — Angemeldete Mitglieder können Blog-Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏, eine Reaktion pro Person, umschaltbar). Aktivierbar über einen neuen Schalter in den Design-Einstellungen (Standard: aus). Im Admin gibt es unter „Nachrichten" eine Moderationsliste, in der sich einzelne Kommentare löschen lassen; bei neuen Kommentaren kommt zusätzlich eine HA-Benachrichtigung. Kommentare werden im Backup mitgesichert.
+
 ## 0.6.148
 
 - 📊 **Statistik: Top-Seiten** — Das Statistik-Dashboard zeigt jetzt zusätzlich die meistbesuchten Seiten (aus den letzten Aufrufen, ohne Bots). Für Blog-Beiträge und Projekt-Detailseiten wird der Titel angezeigt statt nur der Pfad.

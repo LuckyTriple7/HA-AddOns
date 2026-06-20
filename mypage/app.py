@@ -69,6 +69,7 @@ CONFIG_PATH   = _OPTS + '/options.json'
 SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
+COMMENTS_PATH = _DATA + '/comments.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
@@ -137,6 +138,7 @@ _site_lock  = threading.Lock()
 _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
+_comments_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 
@@ -242,6 +244,7 @@ DEFAULT_SITE = {
         'storage_subdir': '',
         'welcome_from': '',
         'contact_enabled': False,
+        'comments_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'font': 'system', 'custom_css': '',
@@ -517,6 +520,50 @@ def save_messages(data: list) -> None:
                 json.dump(data[-MESSAGES_MAX:], f, indent=2, ensure_ascii=False)
         except Exception as e:
             log.warning("messages.json konnte nicht gespeichert werden: %s", e)
+
+
+# ── Blog-Kommentare & -Reaktionen (Mitglieder) ────────────────────────────────
+COMMENT_REACTIONS = ['👍', '❤️', '😄', '🎉', '👏']
+COMMENTS_MAX_PER_POST = 500
+
+
+def load_comments() -> dict:
+    """Pro Beitrag: {post_id: {'comments': [...], 'reactions': {uid: emoji}}}"""
+    with _comments_lock:
+        try:
+            with open(COMMENTS_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning("comments.json konnte nicht geladen werden: %s", e)
+            return {}
+
+
+def save_comments(data: dict) -> None:
+    with _comments_lock:
+        try:
+            with open(COMMENTS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("comments.json konnte nicht gespeichert werden: %s", e)
+
+
+def _post_thread(data: dict, pid: str) -> dict:
+    return data.setdefault(pid, {'comments': [], 'reactions': {}})
+
+
+def _reaction_counts(reactions: dict) -> dict:
+    """{uid: emoji} → {emoji: anzahl}"""
+    counts: dict[str, int] = {}
+    for emoji in (reactions or {}).values():
+        counts[emoji] = counts.get(emoji, 0) + 1
+    return counts
+
+
+def _member_display_name(member: dict) -> str:
+    return member.get('name') or (member.get('email') or '').split('@')[0] or 'Mitglied'
 
 
 def send_telegram(text: str) -> None:
@@ -1874,7 +1921,8 @@ def api_design():
         d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
-    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
+                 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
         if flag in raw:
             d[flag] = bool(raw[flag])
@@ -2109,6 +2157,39 @@ def api_message_delete(mid: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/comments')
+def api_comments():
+    """Alle Blog-Kommentare (zum Moderieren), neueste zuerst, inkl. Beitragstitel."""
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    titles = {p.get('id'): (p.get('title_de') or p.get('title_en') or p.get('id'))
+              for p in site.get('posts', [])}
+    out = []
+    for pid, thread in load_comments().items():
+        for c in thread.get('comments', []):
+            out.append({**c, 'pid': pid, 'post_title': titles.get(pid, pid)})
+    out.sort(key=lambda c: c.get('ts', 0), reverse=True)
+    return jsonify({'comments': out[:500]})
+
+
+@admin_app.route('/api/comments/<pid>/<cid>', methods=['DELETE'])
+def api_comment_delete(pid: str, cid: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_comments()
+    thread = data.get(pid)
+    if thread:
+        kept = [c for c in thread.get('comments', []) if c.get('id') != cid]
+        if len(kept) != len(thread.get('comments', [])):
+            thread['comments'] = kept
+            save_comments(data)
+            return jsonify({'ok': True})
+    return jsonify({'error': 'not found'}), 404
+
+
 @admin_app.route('/api/backup')
 def api_backup():
     err = _api_auth()
@@ -2116,7 +2197,7 @@ def api_backup():
         return err
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        for name in ('site.json', 'stats.json', 'messages.json', 'users.json'):
+        for name in ('site.json', 'stats.json', 'messages.json', 'users.json', 'comments.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -2150,7 +2231,7 @@ def api_restore():
             for member in names:
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
-                if member in ('site.json', 'stats.json', 'messages.json', 'users.json'):
+                if member in ('site.json', 'stats.json', 'messages.json', 'users.json', 'comments.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -4920,10 +5001,81 @@ def blog_post(pid: str):
     t = load_translations(lang)
     loc = _loc_factory(lang)
     text_html = render_md(loc(post, 'text'))
+    comments_enabled = bool(site['design'].get('comments_enabled'))
+    member = current_member(request)
+    cdata = load_comments().get(pid, {}) if comments_enabled else {}
+    reactions = cdata.get('reactions', {})
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
                            text_html=text_html,
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
+                           comments_enabled=comments_enabled,
+                           member=member,
+                           comments=cdata.get('comments', []),
+                           reaction_emojis=COMMENT_REACTIONS,
+                           reaction_counts=_reaction_counts(reactions),
+                           my_reaction=(reactions.get(member['id']) if member else None),
                            year=datetime.now(timezone.utc).year)
+
+
+def _visible_post(site: dict, pid: str) -> dict | None:
+    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
+    return post if post is not None and post_visible(post) else None
+
+
+@public_app.route('/blog/<pid>/comment', methods=['POST'])
+def blog_comment(pid: str):
+    site = load_site()
+    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+        abort(403)
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    post = _visible_post(site, pid)
+    if post is None:
+        abort(404)
+    text = _clean_str(request.form.get('text'), 2000).strip()
+    if not text:
+        return redirect(f'/blog/{pid}#comments')
+    data = load_comments()
+    thread = _post_thread(data, pid)
+    name = _member_display_name(member)
+    thread['comments'].append({'id': uuid.uuid4().hex[:12], 'uid': member['id'],
+                               'name': name, 'text': text, 'ts': int(time.time())})
+    thread['comments'] = thread['comments'][-COMMENTS_MAX_PER_POST:]
+    save_comments(data)
+    log_user_event(member['id'], 'comment', pid, get_client_ip(request))
+    title = post.get('title_de') or post.get('title_en') or pid
+    notify_ha_async('💬 MyPage: Neuer Kommentar',
+                    f'{name} hat „{title}" kommentiert:\n\n{text[:300]}',
+                    notification_id=f'mypage_comment_{pid}')
+    log.info("Mitglied '%s' kommentierte Beitrag '%s'", member['email'], pid)
+    return redirect(f'/blog/{pid}#comments')
+
+
+@public_app.route('/blog/<pid>/react', methods=['POST'])
+def blog_react(pid: str):
+    site = load_site()
+    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+        return jsonify({'error': 'disabled'}), 403
+    member = current_member(request)
+    if member is None:
+        return jsonify({'error': 'auth'}), 403
+    if _visible_post(site, pid) is None:
+        return jsonify({'error': 'not found'}), 404
+    emoji = (request.get_json(silent=True) or {}).get('emoji', '')
+    if emoji not in COMMENT_REACTIONS:
+        return jsonify({'error': 'invalid'}), 400
+    data = load_comments()
+    thread = _post_thread(data, pid)
+    reactions = thread.setdefault('reactions', {})
+    if reactions.get(member['id']) == emoji:
+        reactions.pop(member['id'], None)   # gleiche Reaktion → abwählen (Toggle)
+        mine = None
+    else:
+        reactions[member['id']] = emoji
+        mine = emoji
+    save_comments(data)
+    return jsonify({'ok': True, 'counts': _reaction_counts(reactions), 'mine': mine})
 
 
 @admin_app.route('/preview/blog/<pid>')
