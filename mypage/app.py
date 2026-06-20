@@ -1416,8 +1416,38 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
         p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:30]
     else:
         p.setdefault('gallery', [])
+    tags = raw.get('tags') or []
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(',')]
+    p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
     p['published'] = bool(raw.get('published', True))
     return p
+
+
+def all_post_tags(site: dict) -> list:
+    """Alle in sichtbaren Beiträgen vorkommenden Tags, alphabetisch, ohne Duplikate."""
+    seen: dict[str, str] = {}
+    for p in site.get('posts', []):
+        if post_visible(p):
+            for tag in p.get('tags', []):
+                seen.setdefault(tag.lower(), tag)
+    return [seen[k] for k in sorted(seen)]
+
+
+def filter_posts(posts: list, query: str = '', tag: str = '') -> list:
+    """Beiträge nach Volltext (Titel/Text, DE+EN) und/oder Tag filtern."""
+    tag = (tag or '').strip().lower()
+    if tag:
+        posts = [p for p in posts if any(tag == x.lower() for x in p.get('tags', []))]
+    q = (query or '').strip().lower()
+    if q:
+        def hit(p):
+            hay = ' '.join([p.get('title_de', ''), p.get('title_en', ''),
+                            p.get('text_de', ''), p.get('text_en', ''),
+                            ' '.join(p.get('tags', []))]).lower()
+            return all(word in hay for word in q.split())
+        posts = [p for p in posts if hit(p)]
+    return posts
 
 
 def post_status(p: dict) -> str:
@@ -4837,14 +4867,19 @@ def blog_index():
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    posts = sorted_posts(site, public_only=True)
-    if not posts:
+    all_posts = sorted_posts(site, public_only=True)
+    if not all_posts:
         abort(404)
+    query = _clean_str(request.args.get('q'), 80)
+    tag = _clean_str(request.args.get('tag'), 30)
+    posts = filter_posts(all_posts, query, tag)
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
-                           posts=posts, meta_desc=_site_meta(site, loc),
+                           posts=posts, tags=all_post_tags(site),
+                           query=query, active_tag=tag,
+                           meta_desc=_site_meta(site, loc),
                            year=datetime.now(timezone.utc).year)
 
 

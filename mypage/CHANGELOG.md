@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.147
+
+- 🔎 **Blog: Suche & Schlagwörter (Tags)** — Beiträge können jetzt im Admin mit Schlagwörtern versehen werden (komma-getrennt, max. 8). Auf der Blog-Seite gibt es ein **Suchfeld** (durchsucht Titel, Text und Tags in DE+EN) und **Tag-Filter-Chips**; Suche und Tag lassen sich kombinieren. Auf jeder Beitragsseite werden die Tags angezeigt und verlinken auf die gefilterte Blog-Ansicht. Geplante/Entwurfs-Beiträge tauchen weder in der Suche noch in der Tag-Liste auf.
+
 ## 0.6.146
 
 - 🔔 **Home-Assistant-Benachrichtigungen** — MyPage meldet sich jetzt aktiv in HA (persistente Benachrichtigung): bei **neuer Kontaktnachricht** (mit Absender + Vorschau) und bei **verdächtigen Anmeldeversuchen** (wenn eine IP wegen zu vieler Fehllogins gesperrt wird). Wiederholungen derselben IP überschreiben dieselbe Meldung statt zu spammen. Abschaltbar über die neue Add-on-Option `ha_notify` (Standard: an). Ergänzt die bestehenden Telegram-/E-Mail-Hinweise und die HA-Sensoren.

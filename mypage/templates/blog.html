@@ -42,6 +42,26 @@
     .post-date { font-size: 0.76rem; color: var(--muted); }
     .post-title { font-weight: 600; font-size: 1.05rem; margin: 2px 0 4px; }
     .post-teaser { font-size: 0.86rem; color: var(--muted); }
+    .blog-search { display: flex; gap: 8px; margin-bottom: 18px; }
+    .blog-search input {
+      flex: 1; background: var(--surf); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+    }
+    .blog-search input:focus { outline: none; border-color: var(--accent); }
+    .blog-search button {
+      background: var(--accent); border: none; color: #fff; padding: 9px 16px;
+      border-radius: 8px; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+    }
+    .tag-bar { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 22px; }
+    .tag-chip {
+      font-size: 0.76rem; padding: 4px 11px; border-radius: 999px; color: var(--muted);
+      background: var(--surf); border: 1px solid var(--border); transition: border-color .15s;
+    }
+    .tag-chip:hover { border-color: var(--accent); text-decoration: none; }
+    .tag-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .post-tags { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .post-tags span { font-size: 0.7rem; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
+    .blog-empty { color: var(--muted); font-size: 0.9rem; padding: 20px 0; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
 </head>
@@ -53,12 +73,32 @@
   </header>
   <main class="wrap">
     <h1>{{ t.blog_heading }}</h1>
+
+    <form class="blog-search" method="get" action="/blog" role="search">
+      {% if active_tag %}<input type="hidden" name="tag" value="{{ active_tag }}">{% endif %}
+      <input type="search" name="q" value="{{ query }}" placeholder="{{ t.blog_search_ph }}" aria-label="{{ t.blog_search_ph }}">
+      <button type="submit">{{ t.blog_search_btn }}</button>
+    </form>
+
+    {% if tags %}
+    <div class="tag-bar">
+      <a class="tag-chip {{ 'active' if not active_tag else '' }}" href="/blog{{ ('?q=' + query) if query else '' }}">{{ t.blog_all_tags }}</a>
+      {% for tg in tags %}
+      <a class="tag-chip {{ 'active' if active_tag and active_tag|lower == tg|lower else '' }}"
+         href="/blog?tag={{ tg|urlencode }}{{ ('&q=' + query) if query else '' }}">{{ tg }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% for p in posts %}
     <a class="post-item" href="/blog/{{ p.id }}">
       {% if p.date %}<div class="post-date">{{ p.date }}</div>{% endif %}
       <div class="post-title">{{ loc(p, 'title') }}</div>
       <div class="post-teaser">{{ loc(p, 'text')|striptags|truncate(160) }}</div>
+      {% if p.tags %}<div class="post-tags">{% for tg in p.tags %}<span>{{ tg }}</span>{% endfor %}</div>{% endif %}
     </a>
+    {% else %}
+    <p class="blog-empty">{{ t.blog_no_results }}</p>
     {% endfor %}
   </main>
   <footer>

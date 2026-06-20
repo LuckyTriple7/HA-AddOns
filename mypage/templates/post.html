@@ -42,6 +42,9 @@
     .brand:hover { text-decoration: none; }
     main { padding: 36px 0 60px; }
     .post-date { font-size: 0.8rem; color: var(--muted); }
+    .post-tags { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 7px; }
+    .post-tags a { font-size: 0.76rem; color: var(--muted); background: var(--surf); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; }
+    .post-tags a:hover { border-color: var(--accent); text-decoration: none; }
     h1 { font-size: 1.7rem; margin: 4px 0 20px; }
     .hero-img { width: 100%; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 24px; }
     .video-embed { position: relative; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--surf2, var(--surf)), var(--surf)); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; cursor: pointer; }
@@ -99,6 +102,11 @@
     </div>
     {% endif %}
     <div class="content">{{ text_html|safe }}</div>
+    {% if p.tags and not preview %}
+    <div class="post-tags">
+      {% for tg in p.tags %}<a href="/blog?tag={{ tg|urlencode }}">#{{ tg }}</a>{% endfor %}
+    </div>
+    {% endif %}
     {% if p.gallery %}
     <div class="gal-rail-wrap">
       <button class="gal-arrow gal-prev" onclick="galScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>

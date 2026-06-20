@@ -1066,6 +1066,9 @@
       </div>
       <label>{{ t.field_video }}</label>
       <input type="url" id="bm-video" placeholder="https://youtube.com/watch?v=… {{ t.video_hint }}">
+      <label>{{ t.field_tags }}</label>
+      <input type="text" id="bm-tags" placeholder="home-assistant, docker, flask">
+      <p class="hint">{{ t.post_tags_hint }}</p>
       <div class="row">
         <div>
           <label>{{ t.field_seo_desc }} (DE)</label>
@@ -1489,6 +1492,7 @@
       el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
       el('bm-image').value = p.image || '';
       el('bm-video').value = p.video || '';
+      el('bm-tags').value = (p.tags || []).join(', ');
       el('bm-meta_de').value = p.meta_de || '';
       el('bm-meta_en').value = p.meta_en || '';
       el('bm-title_de').value = p.title_de || '';
@@ -1505,6 +1509,7 @@
         date:     el('bm-date').value,
         image:    el('bm-image').value,
         video:    el('bm-video').value,
+        tags:     el('bm-tags').value,
         meta_de:  el('bm-meta_de').value,
         meta_en:  el('bm-meta_en').value,
         title_de: el('bm-title_de').value,
