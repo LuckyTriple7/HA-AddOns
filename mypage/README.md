@@ -11,6 +11,7 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 - 🧩 **Viele Inhaltsbereiche**: Projekte, Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, Aktuelles, Veranstaltungen, Linksammlung, FAQ, Standort & Öffnungszeiten
 - 📄 **Eigene Seiten**: eigenständige Unterseiten (z. B. „Über uns", „Anfahrt") in Markdown (DE/EN) mit eigener Adresse `/seite/<slug>`, optionalem Navi-Eintrag und Entwurfs-Status
 - 🧾 **Formular-Baukasten**: frei konfigurierbare Formulare (Anmeldung, Umfrage, Anfrage) mit beliebigen Feldern; Einsendungen im Nachrichten-Tab + Benachrichtigung (E-Mail/Telegram/HA), Honeypot + Captcha
+- ↪️ **Weiterleitungen (301/302)** + **Search-Console-Verifizierung** (Google/Bing) im Admin
 - 🔒 **Mitglieder-only-Inhalte**: Blog-Beiträge, eigene Seiten, Fotoalben oder ganze Startseiten-Sektionen nur für eingeloggte Mitglieder (Gäste sehen Anriss/Schloss + Login-Aufforderung)
 - 🔀 **Freie Reihenfolge & Sichtbarkeit**: Bereiche per Drag & Drop sortieren und einzeln aus-/einblenden (Kopf bleibt oben, Kontakt unten)
 - 🐙 **GitHub-Import**: Benutzername eingeben, Repos auswählen, fertig — Beschreibung, Sterne, Sprache und Topics werden übernommen, Sterne stündlich aktualisiert

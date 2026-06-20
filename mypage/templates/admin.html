@@ -215,6 +215,10 @@
     @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .link-row input { flex: 1; }
+    .redirect-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
+    .redirect-row input { flex: 1; min-width: 140px; }
+    .redirect-row .rd-arrow { color: var(--muted); }
+    .redirect-row select { flex: 0 0 auto; width: auto; }
     .empty-note { color: var(--muted); font-size: 0.85rem; padding: 18px; text-align: center; }
   </style>
 </head>
@@ -986,6 +990,15 @@
         <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
       </div>
       <div class="panel">
+        <h3>{{ t.redirects_heading }}</h3>
+        <p class="hint">{{ t.redirects_hint }}</p>
+        <div id="redirect-list"></div>
+        <div style="margin-top:10px">
+          <button class="btn secondary small" onclick="addRedirectRow()">+ {{ t.redirects_add }}</button>
+          <button class="btn" style="margin-left:8px" onclick="saveRedirects()">{{ t.save }}</button>
+        </div>
+      </div>
+      <div class="panel">
         <h3>{{ t.export_heading }}</h3>
         <p class="hint">{{ t.export_hint }}</p>
         <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
@@ -1751,6 +1764,7 @@
       renderPosts();
       renderPages();
       renderForms();
+      renderRedirects();
       // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
       if (!el('gh-user').value && SITE.profile.github) {
         el('gh-user').value = SITE.profile.github;
@@ -3257,6 +3271,40 @@
     }
     function downloadBackup() {
       window.location.href = 'api/backup';
+    }
+    // ── Weiterleitungen (301/302) ──
+    function renderRedirects() {
+      const box = el('redirect-list');
+      if (!box) return;
+      box.innerHTML = '';
+      (SITE.redirects || []).forEach(addRedirectRow);
+    }
+    function addRedirectRow(r) {
+      r = r || {};
+      const box = el('redirect-list');
+      const row = document.createElement('div');
+      row.className = 'redirect-row';
+      row.innerHTML =
+        `<input class="rd-from" placeholder="/alte-adresse">
+         <span class="rd-arrow">→</span>
+         <input class="rd-to" placeholder="/neue-adresse ${T.redirects_or_url || ''}">
+         <select class="rd-perm"><option value="1">301</option><option value="0">302</option></select>
+         <button type="button" class="btn danger small">✕</button>`;
+      row.querySelector('.rd-from').value = r.from || '';
+      row.querySelector('.rd-to').value = r.to || '';
+      row.querySelector('.rd-perm').value = (r.permanent === false) ? '0' : '1';
+      row.querySelector('button').onclick = () => row.remove();
+      box.appendChild(row);
+    }
+    async function saveRedirects() {
+      const items = [...el('redirect-list').children].map(row => ({
+        from: row.querySelector('.rd-from').value,
+        to: row.querySelector('.rd-to').value,
+        permanent: row.querySelector('.rd-perm').value === '1',
+      })).filter(r => r.from.trim() && r.to.trim());
+      const r = await apiJson('api/redirects', 'POST', { redirects: items });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
     }
     async function cleanupUploads() {
       const btn = el('cleanup-btn'); btn.disabled = true;

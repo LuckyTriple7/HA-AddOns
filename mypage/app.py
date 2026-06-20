@@ -301,6 +301,7 @@ DEFAULT_SITE = {
     ],
     'hidden_sections': [],
     'members_sections': [],
+    'redirects': [],
     'tips_rotation': 'daily',
     'tips_random': False,
     'tips_stats': {},
@@ -2157,6 +2158,34 @@ def _nav_links(site: dict, loc) -> list:
     return _nav_pages(site, loc) + _nav_forms(site, loc)
 
 
+# ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
+
+def _redirect_path(p: str) -> str:
+    """Pfad normalisieren: führender Slash, ohne Query/Anker, ohne End-Slash."""
+    p = _clean_str(p, 300).split('?')[0].split('#')[0]
+    if not p.startswith('/'):
+        p = '/' + p
+    return p.rstrip('/') if len(p) > 1 else p
+
+
+def _normalize_redirect(raw: dict) -> dict:
+    to = _clean_str(raw.get('to'), 500)
+    if to and not to.startswith(('http://', 'https://', '/')):
+        to = '/' + to
+    return {'from': _redirect_path(raw.get('from')), 'to': to,
+            'permanent': bool(raw.get('permanent', True))}
+
+
+def _find_redirect(site: dict, path: str) -> dict | None:
+    target = _redirect_path(path)
+    if target == '/':
+        return None   # Startseite nie umleiten
+    for r in site.get('redirects', []):
+        if r.get('from') == target and r.get('to'):
+            return r
+    return None
+
+
 @public_app.context_processor
 def _inject_banner():
     """Stellt das Ankündigungs-Banner allen öffentlichen Templates bereit."""
@@ -3050,6 +3079,30 @@ def api_forms_reorder():
     forms.sort(key=lambda f: pos.get(f.get('id'), len(pos)))
     save_site(site)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/redirects', methods=['POST'])
+def api_redirects():
+    err = _api_auth()
+    if err:
+        return err
+    items = (request.get_json(silent=True) or {}).get('redirects')
+    if not isinstance(items, list):
+        return jsonify({'error': 'invalid'}), 400
+    seen, out = set(), []
+    for r in items[:200]:
+        if not isinstance(r, dict):
+            continue
+        nr = _normalize_redirect(r)
+        if not nr['from'] or nr['from'] == '/' or not nr['to'] or nr['from'] in seen:
+            continue
+        seen.add(nr['from'])
+        out.append(nr)
+    site = load_site()
+    site['redirects'] = out
+    save_site(site)
+    log_audit('settings_redirects', f'{len(out)} Regel(n)')
+    return jsonify({'ok': True, 'count': len(out)})
 
 
 @admin_app.route('/api/users')
@@ -5555,9 +5608,14 @@ def rss_feed():
 
 @public_app.errorhandler(404)
 def not_found(_e):
+    site = load_site()
+    # Eingerichtete Weiterleitung? Greift nur für nicht (mehr) existierende Pfade.
+    rd = _find_redirect(site, request.path)
+    if rd:
+        # rd['to'] stammt aus der gespeicherten Konfiguration (Admin), nicht aus der Anfrage
+        return redirect(rd['to'], code=301 if rd.get('permanent', True) else 302)
     lang = detect_language(request)
     t = load_translations(lang)
-    site = load_site()
     return render_template('404.html', t=t, lang=lang, site=site), 404
 
 

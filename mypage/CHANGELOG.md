@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.11
+
+- ↪️ **Weiterleitungen (301/302)** — Neuer Bereich im System-Tab: alte/geänderte Adressen dauerhaft (301) oder temporär (302) auf eine neue Adresse umleiten (interner Pfad oder vollständige URL). Greift bewusst nur für nicht (mehr) existierende Pfade, sodass echte Seiten nie überschrieben werden. Ideal nach Slug-Änderungen, damit alte Links/Lesezeichen weiter funktionieren. Regeln liegen in `site.json` (im Backup).
+
 ## 0.7.10
 
 - 🔗 **Teilen-Buttons unter Blog-Beiträgen** — Im Design-Tab aktivierbar (Standard aus). Zeigt unter jedem Beitrag Buttons für **WhatsApp, X, Facebook, LinkedIn, E-Mail** und **Link kopieren** sowie auf Mobilgeräten den nativen Teilen-Dialog. Datenschutzfreundlich: reine Share-Links, kein Tracking-Skript, es wird nichts von Drittanbietern nachgeladen.
