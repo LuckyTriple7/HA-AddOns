@@ -173,7 +173,7 @@
   "field_comments_enabled": "Kommentare & Reaktionen",
   "comments_enabled_hint": "Mitglieder können Blog-Beiträge kommentieren und mit Emoji reagieren.",
   "field_share_enabled": "Teilen-Buttons",
-  "share_enabled_hint": "Zeigt unter jedem Blog-Beitrag Buttons zum Teilen (WhatsApp, X, Facebook, LinkedIn, E-Mail, Link kopieren). Reine Links — kein Tracking, lädt nichts nach.",
+  "share_enabled_hint": "Zeigt unter Blog-Beiträgen und Projekt-Detailseiten Buttons zum Teilen (WhatsApp, X, Facebook, LinkedIn, E-Mail, Link kopieren). Reine Links — kein Tracking, lädt nichts nach.",
   "share_label": "Teilen:",
   "share_copy": "Link kopieren",
   "share_copied": "Kopiert!",

@@ -6088,6 +6088,8 @@ def project_detail(pid: str):
     long_html = render_md(loc(proj, 'long'))
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
                            long_html=long_html,
+                           share_on=bool(site['design'].get('share_enabled')),
+                           share_url=f"{_base_url()}/p/{pid}", share_title=proj.get('title', ''),
                            meta_desc=(loc(proj, 'desc') or _plain_excerpt(long_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 

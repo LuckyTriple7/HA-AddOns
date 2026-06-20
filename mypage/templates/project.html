@@ -109,6 +109,7 @@
       {% for img in p.gallery %}<img src="{{ img }}" alt="" loading="lazy" onclick="openLightbox(this.src)">{% endfor %}
     </div>
     {% endif %}
+    {% include '_share.html' %}
   </main>
   <footer>
     <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>

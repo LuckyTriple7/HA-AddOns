@@ -173,7 +173,7 @@
   "field_comments_enabled": "Comments & reactions",
   "comments_enabled_hint": "Members can comment on blog posts and react with emoji.",
   "field_share_enabled": "Share buttons",
-  "share_enabled_hint": "Shows share buttons below each blog post (WhatsApp, X, Facebook, LinkedIn, email, copy link). Plain links only — no tracking, nothing loaded.",
+  "share_enabled_hint": "Shows share buttons below blog posts and project detail pages (WhatsApp, X, Facebook, LinkedIn, email, copy link). Plain links only — no tracking, nothing loaded.",
   "share_label": "Share:",
   "share_copy": "Copy link",
   "share_copied": "Copied!",

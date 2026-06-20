@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.12
+
+- 🔗 **Teilen-Buttons auch auf Projekt-Detailseiten** — Die im Design-Tab aktivierbaren Teilen-Buttons erscheinen jetzt nicht nur unter Blog-Beiträgen, sondern auch am Ende von Projekt-Detailseiten (`/p/<id>`).
+
 ## 0.7.11
 
 - ↪️ **Weiterleitungen (301/302)** — Neuer Bereich im System-Tab: alte/geänderte Adressen dauerhaft (301) oder temporär (302) auf eine neue Adresse umleiten (interner Pfad oder vollständige URL). Greift bewusst nur für nicht (mehr) existierende Pfade, sodass echte Seiten nie überschrieben werden. Ideal nach Slug-Änderungen, damit alte Links/Lesezeichen weiter funktionieren. Regeln liegen in `site.json` (im Backup).
