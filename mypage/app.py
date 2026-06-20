@@ -307,7 +307,7 @@ SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
 def render_md(text: str) -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
-    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
+    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
 
 
 def _plain_excerpt(s: str, limit: int = 155) -> str:

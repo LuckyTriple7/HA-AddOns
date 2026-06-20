@@ -185,6 +185,10 @@
     .md-preview blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
     .md-preview code { background: var(--surf2, var(--border)); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
     .md-preview a { color: var(--accent); }
+    .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
+    .md-preview hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+    .md-preview table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+    .md-preview th, .md-preview td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
     .md-preview .md-empty { color: var(--muted); font-style: italic; }
     @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
@@ -1380,6 +1384,20 @@
       const url = prompt('URL:', 'https://'); if (!url) return;
       mdReplaceSel(ta, '[' + sel + '](' + url + ')');
     }
+    function mdInsertImage(ta, url) {
+      let alt = (prompt(T.md_img_alt, '') || '').replace(/[\[\]]/g, '').trim();
+      mdReplaceSel(ta, '![' + alt + '](' + url + ')');
+    }
+    function mdImage(ta) {
+      const url = prompt(T.md_img_url, '');
+      if (url === null) return;                 // abgebrochen
+      if (url.trim()) { mdInsertImage(ta, url.trim()); }
+      else { pickUpload(u => mdInsertImage(ta, u)); }   // leer → hochladen
+    }
+    function mdTable(ta) {
+      const h = T.md_tbl_head, c = T.md_tbl_cell;
+      mdReplaceSel(ta, '\n\n| ' + h + ' 1 | ' + h + ' 2 |\n| --- | --- |\n| ' + c + ' | ' + c + ' |\n| ' + c + ' | ' + c + ' |\n\n');
+    }
     const MD_EMOJI = ['😀','😉','😎','🥳','👍','🙏','❤️','🎉','✅','⭐','🔥','💡','📌','🚀','☕','📷','🎮','🌍','✨','🎈'];
     function mdEmoji(btn, ta) {
       let pop = btn.parentNode.querySelector('.md-emoji-pop');
@@ -1396,6 +1414,11 @@
       s = s.replace(/`([^`]+)`/g, (m, c) => '<code>' + c + '</code>');
       s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, url) => {
+        url = url.trim();
+        if (!/^(https?:|\/)/i.test(url)) return '';
+        return '<img src="' + url.replace(/"/g, '%22') + '" alt="' + alt + '" style="max-width:100%;border-radius:8px">';
+      });
       s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, txt, url) => {
         url = url.trim();
         if (!/^(https?:|mailto:)/i.test(url)) return txt;
@@ -1403,11 +1426,28 @@
       });
       return s;
     }
+    function mdRow(line) { return line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim()); }
     function mdToHtml(md) {
       const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
       let html = '', listType = null, m;
       const closeList = () => { if (listType) { html += '</' + listType + '>'; listType = null; } };
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Tabelle: Kopfzeile + Trennzeile (| --- | --- |) + Datenzeilen
+        if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+          closeList();
+          const head = mdRow(line);
+          html += '<table><thead><tr>' + head.map(c => '<th>' + mdInline(c) + '</th>').join('') + '</tr></thead><tbody>';
+          i += 2;
+          while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+            html += '<tr>' + mdRow(lines[i]).map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>';
+            i++;
+          }
+          i--;
+          html += '</tbody></table>';
+          continue;
+        }
+        if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { closeList(); html += '<hr>'; continue; }
         if (m = line.match(/^(#{1,6})\s+(.*)$/)) { closeList(); const lv = m[1].length; html += '<h' + lv + '>' + mdInline(m[2]) + '</h' + lv + '>'; continue; }
         if (m = line.match(/^>\s?(.*)$/)) { closeList(); html += '<blockquote>' + mdInline(m[1]) + '</blockquote>'; continue; }
         if (m = line.match(/^\s*[-*]\s+(.*)$/)) { if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; } html += '<li>' + mdInline(m[1]) + '</li>'; continue; }
@@ -1435,6 +1475,9 @@
         mk('&#10077;', T.md_quote, () => mdLine(ta, '> ')),
         mk('&lt;/&gt;', T.md_code, () => mdWrap(ta, '`')),
         mk('🔗', T.md_link, () => mdLink(ta)),
+        mk('🖼️', T.md_image, () => mdImage(ta)),
+        mk('▦', T.md_table, () => mdTable(ta)),
+        mk('―', T.md_hr, () => mdReplaceSel(ta, '\n\n---\n\n')),
         mk('😀', T.md_emoji, e => mdEmoji(e.currentTarget, ta))
       );
       ta.addEventListener('input', mdPreview);

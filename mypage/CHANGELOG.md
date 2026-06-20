@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1
+
+- 🖼️ **Markdown-Editor: Bilder, Tabellen & mehr** — Die Werkzeugleiste hat drei neue Knöpfe: **Bild** (URL eingeben **oder** leer lassen und eine Datei direkt hochladen → wird optimiert und um Metadaten/GPS bereinigt), **Tabelle** (fügt eine Vorlage ein) und **Trennlinie**. Die Live-Vorschau zeigt Bilder, Tabellen und Trennlinien jetzt mit an. Damit Tabellen und Codeblöcke auch auf der öffentlichen Seite korrekt erscheinen, sind die Markdown-Erweiterungen `tables` und `fenced_code` aktiviert (gilt für Blog, eigene Seiten, Projekt-Details und Bio).
+
 ## 0.7.0
 
 - 📄 **Eigene Seiten** — Neben Startseite und Blog lassen sich jetzt **eigenständige Unterseiten** anlegen (z. B. „Über uns", „Anfahrt", „Vereinsordnung"). Jede Seite hat eine eigene Adresse unter `/seite/<slug>` und Inhalt in **Markdown** (DE/EN, gleicher Editor mit Live-Vorschau wie beim Blog). Pro Seite: frei wählbare Adresse (oder automatisch aus dem Titel; reservierte/doppelte werden umgangen), Schalter **„In der Navigation zeigen"** und **Veröffentlicht/Entwurf** (Entwürfe nur über die Admin-Vorschau sichtbar). Reihenfolge per Drag & Drop. Sichtbare Seiten landen automatisch in `sitemap.xml` und im statischen Export; die Daten liegen in `site.json` (im Backup). Neuer Admin-Tab **„Seiten"**.
