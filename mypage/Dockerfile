@@ -22,6 +22,7 @@ COPY game_jeopardy.py .
 COPY game_gluecksrad.py .
 COPY game_dice.py .
 COPY game_kniffel.py .
+COPY game_chicago.py .
 COPY game_66_rules_de.md game_66_rules_en.md ./
 COPY game_20ab_rules_de.md game_20ab_rules_en.md ./
 COPY game_schwimmen_rules_de.md game_schwimmen_rules_en.md ./
