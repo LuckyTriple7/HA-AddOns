@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.35
+
+- 🎲 **Neues Spiel: Chicago (Tschigg)** — Der Kneipen-Würfelklassiker gegen **2–3 KI** (Schwierigkeit wählbar). Mit **3 Würfeln** und bis zu 3 Würfen; **1 = 100, 6 = 60**. Der **Vorleger** bestimmt das **Wurf-Limit der Runde** und sagt **hoch/tief** sowie die Wertung (**gross/klein**) an. Mit **Becher-Tricks** (zwei 6er → eine 1; drei 6er → zwei 1er), **Chicago** (drei 1er = sofort gerettet) und **Fish**, Regel **„Mit ist Shit"**. **Bierfilz-Match (n+1)**: Phase 1 sammelt der Schlechteste, Phase 2 wirft der Beste ab — wer zuletzt Filze hat, verliert. Würfelbecher-Animation, Bierfilz-Anzeige, Ansage-UI, Spielende-Dialog, Statistik, Regeln DE/EN, Menü-Kachel, Tab-/Geräte-Schutz — alles server-autoritativ & fortsetzbar.
+
 ## 0.7.34
 
 - 🛠️ **Startfehler behoben** — Das Add-on startete in v0.7.33 nicht (`ModuleNotFoundError: game_kniffel`), weil die neuen Dateien `game_dice.py`, `game_kniffel.py` und die Kniffel-Regeln **nicht ins Docker-Image kopiert** wurden (das Dockerfile listet jedes Spielmodul einzeln auf). Die fehlenden `COPY`-Zeilen wurden ergänzt.

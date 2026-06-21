@@ -56,6 +56,7 @@ import game_jeopardy
 import game_gluecksrad
 import game_praesident
 import game_kniffel
+import game_chicago
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -5169,7 +5170,7 @@ _schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
 
 
 def _ng_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago') or not _UID_RE.match(uid or ''):
         return None
     return safe_under(GAMES_DIR, f'{game}_{uid}.json')
 
@@ -5200,7 +5201,7 @@ def _ng_save(game: str, uid: str, st: dict) -> None:
 
 
 def _ng_hist_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago') or not _UID_RE.match(uid or ''):
         return None
     return safe_under(GAMES_DIR, f'{game}hist_{uid}.json')
 
@@ -5593,6 +5594,142 @@ def api_kniffel_session():
     member = _require_member()
     data = request.get_json(silent=True) or {}
     return _sess_dispatch('kniffel', member['id'], data)
+
+
+# ── Chicago / Tschigg (Würfelspiel, Mitglieder) ─────────────────────────────────
+
+@public_app.route('/bereich/chicago')
+def gamechicago_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_chicago.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
+
+
+def _clean_chicago_move(raw: dict) -> dict:
+    act = {'type': str(raw.get('type', ''))[:10]}    # roll | convert6 | stand
+    if isinstance(raw.get('held'), list):
+        act['held'] = [bool(x) for x in raw['held'][:3]]
+    if raw.get('valuation') is not None:
+        act['valuation'] = str(raw.get('valuation'))[:6]   # gross | klein
+    if raw.get('direction') is not None:
+        act['direction'] = str(raw.get('direction'))[:5]   # hoch | tief
+    return act
+
+
+def _record_chicago_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    games = _ng_history('chicago', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': 'p' if st.get('loser') != 'p' else '',   # gewonnen = nicht Verlierer
+        'loser': st.get('loser', ''),
+        'level': st.get('level', 'medium'),
+        'opponents': st.get('opponents', 2),
+    })
+    _ng_history_write('chicago', uid, games)
+
+
+@public_app.route('/api/chicago/state')
+def api_chicago_state():
+    member = _require_member()
+    st = _ng_load('chicago', member['id'])
+    return jsonify({'state': game_chicago.public_view(st) if st else None})
+
+
+@public_app.route('/api/chicago/new', methods=['POST'])
+def api_chicago_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    opponents = 3 if int(data.get('opponents') or 2) == 3 else 2
+    with _game_lock:
+        st = game_chicago.new_game(level, opponents)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
+@public_app.route('/api/chicago/move', methods=['POST'])
+def api_chicago_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_chicago_move(data)
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        try:
+            game_chicago.apply_action(st, 'p', act)
+        except game_chicago.IllegalMove:
+            return jsonify({'state': game_chicago.public_view(st)})
+        _record_chicago_if_over(member['id'], st)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
+@public_app.route('/api/chicago/ai', methods=['POST'])
+def api_chicago_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gc')
+    names['a3'] = t.get('gc_ai3', 'KI 3')
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        if st['status'] in ('opener_roll', 'follower_roll') and st['turn'] != 'p':
+            who = st['turn']
+            act = game_chicago.ai_step(st)
+            game_chicago.apply_action(st, who, act)
+            event = {'type': act['type'], 'who': who, 'name': names.get(who, who),
+                     'dice': st['dice'][:], 'held': st['held'][:],
+                     'rolls_used': st['rolls_used'], 'last': st.get('last')}
+        _record_chicago_if_over(member['id'], st)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st), 'event': event})
+
+
+@public_app.route('/api/chicago/rules')
+def api_chicago_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('chicago', detect_language(request))})
+
+
+@public_app.route('/api/chicago/history')
+def api_chicago_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('chicago', member['id'])))})
+
+
+@public_app.route('/api/chicago/history/reset', methods=['POST'])
+def api_chicago_history_reset():
+    member = _require_member()
+    _ng_history_write('chicago', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/chicago/session', methods=['POST'])
+def api_chicago_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('chicago', member['id'], data)
 
 
 # ── Schwimmen ──────────────────────────────────────────────────────────────────

@@ -240,8 +240,9 @@ def _worst_player(state: dict) -> str:
         r = state['results'].get(pid)
         if r is None or r['chic']:
             continue
+        k = tuple(r['key'])              # JSON-Roundtrip macht aus Tuple eine Liste
         # „schlechter" = bei hoch kleiner Key, bei tief größerer Key
-        worse_key = r['key'] if direc == 'hoch' else tuple(-x for x in r['key'])
+        worse_key = k if direc == 'hoch' else tuple(-x for x in k)
         cand = (worse_key, pos)          # kleinster worse_key = schlechtester; Tie → spätere pos
         if best is None or cand < best[0]:
             best = (cand, pid)
@@ -256,7 +257,8 @@ def _best_player(state: dict) -> str:
         r = state['results'].get(pid)
         if r is None:
             continue
-        better_key = r['key'] if direc == 'hoch' else tuple(-x for x in r['key'])
+        k = tuple(r['key'])
+        better_key = k if direc == 'hoch' else tuple(-x for x in k)
         cand = (better_key, -pos)        # größter better_key = bester; Tie → frühere pos
         if best is None or cand > best[0]:
             best = (cand, pid)
