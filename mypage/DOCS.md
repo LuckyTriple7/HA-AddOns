@@ -132,6 +132,7 @@ Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Datei
 - **Selbst-Registrierung**: Besucher können sich (optional) selbst ein Konto anlegen — Details siehe Abschnitt [Selbst-Registrierung](#selbst-registrierung) unten.
 - **Passwort vergessen (Self-Service)**: Sind ein Mailserver (`smtp_host`) **und** die öffentliche URL gesetzt, erscheint auf der Login-Seite ein „Passwort vergessen?"-Link. Das Mitglied erhält einen zeitlich begrenzten Link (1 Stunde gültig) und setzt selbst ein neues Passwort — ohne Admin. Aus Sicherheitsgründen: stets dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Einmal-Token, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet.
 - **Spiele pro Mitglied abschaltbar**: In der Benutzerliste schaltet ein Button (🕹️/🚫) die Mitglieder-Spiele für ein Konto frei oder sperrt sie. Gesperrte Mitglieder sehen keine Spiel-Kacheln mehr, und die Spiel-Seiten/-APIs sind serverseitig blockiert — der Dateibereich bleibt normal nutzbar.
+- **Nachrichten zwischen Mitgliedern** (verschlüsselt): siehe Abschnitt [Mitglieder-Nachrichten](#mitglieder-nachrichten) unten.
 - **Sicherheit**: Passwörter werden ausschließlich als scrypt-Hash gespeichert; Brute-Force-Schutz (5 Fehlversuche → 15 Min. Sperre); jeder Benutzer sieht nur den eigenen Bereich; Downloads werden immer als Datei-Anhang ausgeliefert, hochgeladene HTML-Dateien können also nie im Browser ausgeführt werden.
 - **Limits**: `user_upload_max_mb` begrenzt die Größe pro Datei (Standard 200 MB), die Quota pro Benutzer ist im Admin einstellbar.
 
@@ -154,6 +155,18 @@ Statt jeden Benutzer von Hand anzulegen, können sich Besucher selbst registrier
 **Schutz vor Missbrauch:** Rechen-Captcha, unsichtbares Honeypot-Feld, Rate-Limit (5 Versuche/Stunde pro IP) und **keine E-Mail-Enumeration** — die Rückmeldung ist immer gleich („Prüfe dein Postfach"); existiert die Adresse bereits, bekommt sie stattdessen eine Hinweis-Mail.
 
 **Im Blick behalten:** Bei jeder Registrierung und Bestätigung gibt es eine **Home-Assistant-Benachrichtigung** (`ha_notify`). Zusätzlich zählt `sensor.mypage_pending_approvals`, wie viele bestätigte Konten auf deine Freigabe warten, und solange welche offen sind, bleibt eine **stehende HA-Benachrichtigung** sichtbar (sie verschwindet automatisch, sobald alles freigegeben ist).
+
+### Mitglieder-Nachrichten
+
+Eingeloggte Mitglieder können sich gegenseitig **private Nachrichten** schreiben — ohne dass E-Mail-Adressen sichtbar werden.
+
+**Aktivieren:** Im Tab **Design** den Schalter **„Mitglieder-Nachrichten"** auf **Ja** stellen. Im persönlichen Bereich (`/bereich`) erscheint dann die Karte **„Nachrichten"** mit Ungelesen-Zähler.
+
+- **Postfach** (`/bereich/nachrichten`): Liste der Unterhaltungen (neueste oben), Vorschau und Ungelesen-Markierung. Zum Schreiben einen Empfänger über das **durchsuchbare Dropdown** wählen — gelistet werden nur Mitglieder, die Nachrichten empfangen.
+- **Pro Mitglied abschaltbar**: Jedes Mitglied kann im **eigenen Profil** den Empfang deaktivieren („Andere Mitglieder dürfen mir schreiben"). Wer das abschaltet, taucht in keiner Empfängerliste mehr auf; bestehende Unterhaltungen bleiben für beide sichtbar. Der **Admin** kann den Empfang zusätzlich pro Mitglied erzwingen/sperren (✉️/🔕-Button in der Benutzerliste).
+- **Verschlüsselung**: Die **Nachrichtentexte** werden mit Fernet (AES-128 + HMAC) verschlüsselt in `dm.json` gespeichert; der Schlüssel liegt in `dm.key` (wird beim ersten Start automatisch erzeugt, Dateirechte 600). Metadaten wie Absender, Empfänger und Zeitstempel bleiben im Klartext, damit das Postfach ohne Entschlüsseln funktioniert.
+- **Backup**: `dm.json` **und** `dm.key` werden vom Add-on-Backup mitgesichert und beim Restore wiederhergestellt — verschlüsselte Nachrichten bleiben so lesbar. Achtung: Dadurch ist das Backup-Archiv so vertraulich wie der Klartext (es enthält ohnehin schon Passwort-Hashes) — entsprechend sicher aufbewahren.
+- **Limits**: max. 4000 Zeichen pro Nachricht, kurze Sende-Bremse gegen Spam, je Unterhaltung werden die letzten 500 Nachrichten behalten.
 
 ### Optionaler SMB-Speicher
 

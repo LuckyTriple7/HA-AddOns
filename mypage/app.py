@@ -75,6 +75,8 @@ SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
+DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
+DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
 USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
@@ -142,6 +144,7 @@ _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
 _comments_lock = threading.Lock()
 _audit_lock = threading.Lock()
+_dm_lock    = threading.Lock()
 _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
@@ -250,6 +253,7 @@ DEFAULT_SITE = {
         'contact_enabled': False,
         'comments_enabled': False,
         'share_enabled': False,
+        'dm_enabled': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -592,6 +596,180 @@ def _reaction_counts(reactions: dict) -> dict:
 
 def _member_display_name(member: dict) -> str:
     return member.get('name') or (member.get('email') or '').split('@')[0] or 'Mitglied'
+
+
+# ── Mitglieder-Direktnachrichten (Ende-zu-Ende auf der Platte verschlüsselt) ───
+# Nachrichtentexte werden mit Fernet (AES-128-CBC + HMAC) verschlüsselt in dm.json
+# abgelegt; nur Metadaten (wer/wann/gelesen) liegen im Klartext, damit Postfach und
+# Ungelesen-Zähler ohne Entschlüsseln funktionieren.
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    _HAS_CRYPTO = True
+except Exception:  # Bibliothek fehlt (z. B. Minimal-Standalone) → Funktion deaktiviert
+    _HAS_CRYPTO = False
+
+_dm_fernet = None
+DM_MAX_PER_PAIR = 500  # max. gespeicherte Nachrichten je Unterhaltung
+DM_MAX_LEN = 4000      # max. Zeichen pro Nachricht
+
+
+def _get_fernet():
+    """Lädt (oder erzeugt einmalig) den DM-Schlüssel. None, wenn cryptography fehlt."""
+    global _dm_fernet
+    if _dm_fernet is not None:
+        return _dm_fernet
+    if not _HAS_CRYPTO:
+        return None
+    try:
+        if os.path.exists(DMKEY_PATH):
+            with open(DMKEY_PATH, 'rb') as f:
+                key = f.read().strip()
+        else:
+            key = Fernet.generate_key()
+            with open(DMKEY_PATH, 'wb') as f:
+                f.write(key)
+            try:
+                os.chmod(DMKEY_PATH, 0o600)
+            except OSError:
+                pass
+            log.info("DM-Verschlüsselungsschlüssel neu erzeugt")
+        _dm_fernet = Fernet(key)
+        return _dm_fernet
+    except Exception as e:
+        log.warning("DM-Schlüssel konnte nicht geladen/erzeugt werden: %s", e)
+        return None
+
+
+def _dm_reset_fernet() -> None:
+    """Cache verwerfen — nach einem Restore kann dm.key ausgetauscht worden sein."""
+    global _dm_fernet
+    _dm_fernet = None
+
+
+def dm_feature_on() -> bool:
+    """Globaler Schalter + funktionsfähige Verschlüsselung."""
+    return bool(load_site()['design'].get('dm_enabled')) and _get_fernet() is not None
+
+
+def _dm_encrypt(text: str) -> str:
+    f = _get_fernet()
+    if f is None:
+        return ''
+    return f.encrypt(text.encode('utf-8')).decode('ascii')
+
+
+def _dm_decrypt(token: str) -> str:
+    f = _get_fernet()
+    if f is None or not token:
+        return ''
+    try:
+        return f.decrypt(token.encode('ascii')).decode('utf-8')
+    except Exception:  # InvalidToken / beschädigte Daten → leer statt Absturz
+        return ''
+
+
+def load_dm() -> list:
+    with _dm_lock:
+        try:
+            with open(DM_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("dm.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def save_dm(data: list) -> None:
+    with _dm_lock:
+        try:
+            with open(DM_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("dm.json konnte nicht gespeichert werden: %s", e)
+
+
+def _dm_user_active(u: dict) -> bool:
+    """Konto darf Nachrichten empfangen (freigegeben + verifiziert)."""
+    return u.get('approved', True) is not False and u.get('verified', True) is not False
+
+
+def _dm_can_receive(u: dict) -> bool:
+    return _dm_user_active(u) and u.get('dm_enabled', True) is not False
+
+
+def _dm_recipients(me_id: str) -> list:
+    """Anschreibbare Mitglieder (Empfang an, ohne mich selbst), nach Name sortiert."""
+    out = [{'id': u['id'], 'name': _member_display_name(u)}
+           for u in load_users()
+           if u['id'] != me_id and _dm_can_receive(u)]
+    out.sort(key=lambda x: x['name'].lower())
+    return out
+
+
+def _dm_unread(me_id: str) -> int:
+    return sum(1 for m in load_dm() if m.get('to') == me_id and not m.get('read'))
+
+
+def _dm_conversations(me_id: str) -> list:
+    """Unterhaltungen des Mitglieds, neueste zuerst, mit Vorschau & Ungelesen-Zähler."""
+    users = {u['id']: u for u in load_users()}
+    convo: dict[str, dict] = {}
+    for m in load_dm():
+        frm, to = m.get('frm'), m.get('to')
+        if me_id not in (frm, to):
+            continue
+        partner = to if frm == me_id else frm
+        c = convo.setdefault(partner, {'partner': partner, 'last_ts': 0,
+                                       'unread': 0, '_tok': '', 'mine': False})
+        ts = m.get('ts', 0)
+        if ts >= c['last_ts']:
+            c['last_ts'] = ts
+            c['_tok'] = m.get('body', '')
+            c['mine'] = (frm == me_id)
+        if to == me_id and not m.get('read'):
+            c['unread'] += 1
+    out = []
+    for pid, c in convo.items():
+        u = users.get(pid)
+        c['name'] = _member_display_name(u) if u else '—'
+        c['gone'] = u is None
+        c['preview'] = _dm_decrypt(c.pop('_tok', ''))[:90]
+        out.append(c)
+    out.sort(key=lambda x: x['last_ts'], reverse=True)
+    return out
+
+
+def _dm_thread(me_id: str, partner_id: str) -> list:
+    """Nachrichten zwischen mir und Partner (chronologisch). Markiert eingehende als gelesen."""
+    msgs = load_dm()
+    out, changed = [], False
+    for m in msgs:
+        if {m.get('frm'), m.get('to')} == {me_id, partner_id}:
+            if m.get('to') == me_id and not m.get('read'):
+                m['read'] = True
+                changed = True
+            out.append({'ts': m.get('ts', 0), 'mine': m.get('frm') == me_id,
+                        'text': _dm_decrypt(m.get('body', ''))})
+    if changed:
+        save_dm(msgs)
+    out.sort(key=lambda x: x['ts'])
+    return out
+
+
+def _dm_send(frm: str, to: str, text: str) -> None:
+    msgs = load_dm()
+    msgs.append({'id': uuid.uuid4().hex[:12], 'frm': frm, 'to': to,
+                 'ts': int(time.time()), 'read': False, 'body': _dm_encrypt(text)})
+    # History je Unterhaltung kappen (älteste dieses Paars zuerst entfernen)
+    pair_idx = [i for i, m in enumerate(msgs)
+                if {m.get('frm'), m.get('to')} == {frm, to}]
+    if len(pair_idx) > DM_MAX_PER_PAIR:
+        for i in pair_idx[:len(pair_idx) - DM_MAX_PER_PAIR]:
+            msgs[i] = None
+        msgs = [m for m in msgs if m is not None]
+    save_dm(msgs)
 
 
 # ── Admin-Audit-Log ────────────────────────────────────────────────────────────
@@ -2450,7 +2628,7 @@ def api_design():
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
-                 'banner_enabled', 'banner_dismissible', 'share_enabled'):
+                 'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -2818,7 +2996,8 @@ def api_backup():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                     'comments.json', 'audit.json', 'subscribers.json'):
+                     'comments.json', 'audit.json', 'subscribers.json',
+                     'dm.json', 'dm.key'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -2853,7 +3032,9 @@ def api_restore():
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                              'comments.json', 'audit.json', 'subscribers.json'):
+                              'comments.json', 'audit.json', 'subscribers.json', 'dm.json'):
+                    target = safe_under(Path(_DATA), member)
+                elif member == 'dm.key':  # Binär-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -2878,6 +3059,7 @@ def api_restore():
                 restored += 1
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
+    _dm_reset_fernet()  # evtl. neuen dm.key übernehmen
     log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
@@ -3139,6 +3321,7 @@ def api_users():
                     'last_login': u.get('last_login'),
                     'playing': _user_playing(u['id']),
                     'games_enabled': u.get('games_enabled', True),
+                    'dm_enabled': u.get('dm_enabled', True),
                     'self_registered': bool(u.get('self_registered')),
                     'verified': u.get('verified', True),
                     'approved': u.get('approved', True),
@@ -3225,6 +3408,9 @@ def api_user_edit(uid: str):
     if 'games_enabled' in raw:
         user['games_enabled'] = bool(raw['games_enabled'])
         log_audit('user_games', f"{user['email']}: {'an' if user['games_enabled'] else 'aus'}")
+    if 'dm_enabled' in raw:
+        user['dm_enabled'] = bool(raw['dm_enabled'])
+        log_audit('user_dm', f"{user['email']}: {'an' if user['dm_enabled'] else 'aus'}")
     if 'approved' in raw:
         was = user.get('approved', True)
         user['approved'] = bool(raw['approved'])
@@ -6159,6 +6345,9 @@ def _member_page(member: dict | None, msg: str = ''):
                            can_reset=reset_enabled() if member is None else False,
                            can_register=registration_open() if member is None else False,
                            games_on=bool(member and member.get('games_enabled', True)),
+                           dm_feature=bool(member) and dm_feature_on(),
+                           dm_unread=_dm_unread(member['id']) if member else 0,
+                           dm_recv_on=bool(member) and member.get('dm_enabled', True) is not False,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -6372,6 +6561,12 @@ def member_profile():
         save_users(users)
         log_user_event(user['id'], 'profile_name', '', get_client_ip(request))
         return redirect('/bereich?msg=profile_saved')
+    if action == 'dm':
+        user['dm_enabled'] = request.form.get('dm_enabled') == '1'
+        save_users(users)
+        log_user_event(user['id'], 'profile_dm',
+                       'an' if user['dm_enabled'] else 'aus', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
     if action == 'password':
         cur = request.form.get('current_password') or ''
         new = request.form.get('new_password') or ''
@@ -6390,6 +6585,79 @@ def member_profile():
         log.info("Mitglied '%s' hat das Passwort selbst geändert", user['email'])
         return redirect('/bereich?msg=pw_changed')
     return redirect('/bereich')
+
+
+_dm_send_times: dict[str, float] = {}  # einfache Spam-Bremse je Mitglied
+
+
+def _dm_render(member, view, **extra):
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('dm.html', view=view, t=t, lang=lang, site=site,
+                           member=member, me_name=_member_display_name(member),
+                           dm_on=member.get('dm_enabled', True) is not False,
+                           year=datetime.now(timezone.utc).year, **extra)
+
+
+@public_app.route('/bereich/nachrichten')
+def dm_inbox():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        return redirect('/bereich')
+    return _dm_render(member, 'inbox',
+                      conversations=_dm_conversations(member['id']),
+                      recipients=_dm_recipients(member['id']),
+                      msg=request.args.get('msg', ''))
+
+
+@public_app.route('/bereich/nachrichten/<uid>')
+def dm_thread(uid: str):
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on() or uid == member['id'] or not _UID_RE.match(uid):
+        return redirect('/bereich/nachrichten')
+    partner = next((u for u in load_users() if u['id'] == uid), None)
+    thread = _dm_thread(member['id'], uid)
+    # Fremdes Mitglied nur öffnen, wenn anschreibbar ODER schon ein Verlauf existiert
+    if partner is None and not thread:
+        return redirect('/bereich/nachrichten')
+    can_reply = partner is not None and _dm_can_receive(partner)
+    return _dm_render(member, 'thread',
+                      partner={'id': uid,
+                               'name': _member_display_name(partner) if partner else '—',
+                               'gone': partner is None},
+                      thread=thread, can_reply=can_reply,
+                      msg=request.args.get('msg', ''))
+
+
+@public_app.route('/bereich/nachrichten/send', methods=['POST'])
+def dm_send():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        return redirect('/bereich')
+    to = (request.form.get('to') or '').strip()
+    text = (request.form.get('text') or '').strip()
+    if not _UID_RE.match(to) or to == member['id']:
+        return redirect('/bereich/nachrichten?msg=dm_err')
+    target = next((u for u in load_users() if u['id'] == to), None)
+    if target is None or not _dm_can_receive(target):
+        return redirect('/bereich/nachrichten?msg=dm_off')
+    if not text:
+        return redirect(f'/bereich/nachrichten/{to}')
+    text = text[:DM_MAX_LEN]
+    now = time.time()
+    if now - _dm_send_times.get(member['id'], 0) < 1.5:  # Spam-Bremse
+        return redirect(f'/bereich/nachrichten/{to}?msg=dm_slow')
+    _dm_send_times[member['id']] = now
+    _dm_send(member['id'], to, text)
+    log_user_event(member['id'], 'dm_send', to, get_client_ip(request))
+    return redirect(f'/bereich/nachrichten/{to}?msg=dm_sent')
 
 
 @public_app.route('/bereich/upload', methods=['POST'])

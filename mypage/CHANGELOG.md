@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.19
+
+- ✉️ **Mitglieder-Nachrichten (verschlüsselt)** — Eingeloggte Mitglieder können sich im geschützten Bereich gegenseitig private Nachrichten schreiben: neues **Postfach** mit Unterhaltungen, Ungelesen-Zähler und Empfänger-Auswahl per **durchsuchbarem Dropdown** (zeigt nur Mitglieder, die Nachrichten empfangen). Die **Nachrichtentexte werden verschlüsselt** auf der Platte gespeichert (Fernet/AES, Schlüssel in `dm.key`) — Metadaten wie Zeitstempel bleiben für die Listenansicht im Klartext. **Pro Mitglied abschaltbar**: jedes Mitglied kann den Empfang im eigenen Profil deaktivieren, der Admin kann es zusätzlich pro Mitglied erzwingen. Global im Design-Tab ein-/ausschaltbar. **Backup/Restore** sichern `dm.json` und `dm.key` mit, sodass verschlüsselte Nachrichten nach einer Wiederherstellung lesbar bleiben.
+
 ## 0.7.18
 
 - 🔒 **CodeQL: Open-Redirect-Warnungen behoben** — Beim Absenden eines Blog-Kommentars wird das Redirect-Ziel jetzt aus dem **validierten Beitrag** (`post['id']`) statt direkt aus dem URL-Parameter gebildet. Funktional identisch, aber ohne Taint-Fluss von der Anfrage in `redirect()` (2 MEDIUM-Findings).

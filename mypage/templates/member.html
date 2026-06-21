@@ -71,6 +71,9 @@
     input[type="file"] { font-size: 0.82rem; color: var(--muted); }
     .empty { color: var(--muted); text-align: center; padding: 28px 0; font-size: 0.88rem; }
     .logout { font-size: 0.8rem; }
+    .dm-badge { display: inline-block; background: var(--red); color: #fff; font-size: 0.7rem; font-weight: 700; border-radius: 10px; padding: 1px 8px; vertical-align: middle; }
+    .dm-toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; margin-top: 6px; font-size: 0.9rem; color: var(--text); }
+    .dm-toggle input { width: auto; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
 </head>
@@ -223,6 +226,14 @@
       {% endif %}
     </div>
 
+    {% if dm_feature %}
+    <div class="card" style="margin-top:18px">
+      <h1>✉️ {{ t.dm_title }}{% if dm_unread %} <span class="dm-badge">{{ dm_unread }}</span>{% endif %}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.dm_intro }}</p>
+      <a class="btn" href="/bereich/nachrichten">{{ t.dm_open }}{% if dm_unread %} ({{ dm_unread }}){% endif %}</a>
+    </div>
+    {% endif %}
+
     <div class="card" style="margin-top:18px">
       <h1>{{ t.member_profile_title }}</h1>
       {% if msg == 'profile_saved' %}<div class="msg ok">{{ t.member_profile_saved }}</div>{% endif %}
@@ -237,6 +248,17 @@
         <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_name_hint }}</p>
         <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
       </form>
+      {% if dm_feature %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile">
+        <input type="hidden" name="action" value="dm">
+        <label class="dm-toggle">
+          <input type="checkbox" name="dm_enabled" value="1" {% if dm_recv_on %}checked{% endif %} onchange="this.form.submit()">
+          {{ t.dm_receive_label }}
+        </label>
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.dm_receive_hint }}</p>
+      </form>
+      {% endif %}
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
       <form method="post" action="/bereich/profile" autocomplete="off">
         <input type="hidden" name="action" value="password">
