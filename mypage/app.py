@@ -97,6 +97,9 @@ WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
+# Mitglieder-Avatare fürs Verzeichnis (lokal, klein, NICHT auf dem SMB-Share)
+MEMBER_AVATARS_DIR = Path(_DATA) / 'member_avatars'
+MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
@@ -258,6 +261,7 @@ DEFAULT_SITE = {
         'share_enabled': False,
         'dm_enabled': False,
         'dm_ha_notify': False,
+        'directory_enabled': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -600,6 +604,54 @@ def _reaction_counts(reactions: dict) -> dict:
 
 def _member_display_name(member: dict) -> str:
     return member.get('name') or (member.get('email') or '').split('@')[0] or 'Mitglied'
+
+
+# ── Mitglieder-Verzeichnis (opt-in: Avatar + Kurz-Bio) ────────────────────────
+DIRECTORY_BIO_MAX = 300
+
+
+def directory_on() -> bool:
+    return bool(load_site()['design'].get('directory_enabled'))
+
+
+def _has_avatar(uid: str) -> bool:
+    return bool(_UID_RE.match(uid)) and (MEMBER_AVATARS_DIR / f'{uid}.jpg').is_file()
+
+
+def _save_member_avatar(uid: str, f) -> bool:
+    """Speichert ein quadratisch zugeschnittenes, verkleinertes JPEG (ohne EXIF)."""
+    if not (_HAS_PIL and _UID_RE.match(uid) and f and f.filename):
+        return False
+    if Path(f.filename).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return False
+    try:
+        img = Image.open(f.stream)
+        img = ImageOps.exif_transpose(img)            # Handy-Drehung + Metadaten weg
+        img = ImageOps.fit(img, (256, 256))           # mittig quadratisch zuschneiden
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(MEMBER_AVATARS_DIR / f'{uid}.jpg', 'JPEG', quality=85)
+        return True
+    except Exception as e:
+        log.warning("Avatar konnte nicht gespeichert werden: %s", e)
+        return False
+
+
+def _delete_member_avatar(uid: str) -> None:
+    if _UID_RE.match(uid):
+        try:
+            (MEMBER_AVATARS_DIR / f'{uid}.jpg').unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _directory_members() -> list:
+    """Alle Mitglieder, die sich fürs Verzeichnis sichtbar gemacht haben."""
+    out = [{'id': u['id'], 'name': _member_display_name(u), 'bio': u.get('bio', ''),
+            'avatar': _has_avatar(u['id']), 'can_dm': _dm_can_receive(u)}
+           for u in load_users() if u.get('dir_visible')]
+    out.sort(key=lambda x: x['name'].lower())
+    return out
 
 
 # ── Mitglieder-Direktnachrichten (Ende-zu-Ende auf der Platte verschlüsselt) ───
@@ -2986,7 +3038,7 @@ def api_design():
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
-                 'dm_ha_notify'):
+                 'dm_ha_notify', 'directory_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -3367,6 +3419,11 @@ def api_backup():
             for f in sorted(GAMES_DIR.iterdir()):
                 if f.is_file() and _GAME_FILE_RE.match(f.name):
                     z.write(f, 'games/' + f.name)
+        # Mitglieder-Avatare (<uid>.jpg)
+        if MEMBER_AVATARS_DIR.is_dir():
+            for f in sorted(MEMBER_AVATARS_DIR.iterdir()):
+                if f.is_file() and re.fullmatch(r'[a-f0-9]{6,32}\.jpg', f.name):
+                    z.write(f, 'member_avatars/' + f.name)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
@@ -3409,6 +3466,11 @@ def api_restore():
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         continue
                     target = safe_under(GAMES_DIR, name)
+                elif member.startswith('member_avatars/'):
+                    name = Path(member).name
+                    if not re.fullmatch(r'[a-f0-9]{6,32}\.jpg', name):
+                        continue
+                    target = safe_under(MEMBER_AVATARS_DIR, name)
                 else:
                     continue
                 if target is None:
@@ -6707,6 +6769,9 @@ def _member_page(member: dict | None, msg: str = ''):
                            dm_feature=bool(member) and dm_feature_on(),
                            dm_unread=_dm_unread(member['id']) if member else 0,
                            dm_recv_on=bool(member) and member.get('dm_enabled', True) is not False,
+                           dir_feature=bool(member) and directory_on(),
+                           dir_visible=bool(member) and bool(member.get('dir_visible')),
+                           has_avatar=bool(member) and _has_avatar(member['id']),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -6926,6 +6991,21 @@ def member_profile():
         log_user_event(user['id'], 'profile_dm',
                        'an' if user['dm_enabled'] else 'aus', get_client_ip(request))
         return redirect('/bereich?msg=profile_saved')
+    if action == 'directory' and directory_on():
+        user['bio'] = _clean_str(request.form.get('bio'), DIRECTORY_BIO_MAX)
+        user['dir_visible'] = request.form.get('dir_visible') == '1'
+        save_users(users)
+        log_user_event(user['id'], 'profile_directory',
+                       'sichtbar' if user['dir_visible'] else 'verborgen', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'avatar' and directory_on():
+        if _save_member_avatar(user['id'], request.files.get('avatar')):
+            log_user_event(user['id'], 'profile_avatar', '', get_client_ip(request))
+            return redirect('/bereich?msg=profile_saved')
+        return redirect('/bereich?msg=avatar_err')
+    if action == 'avatar_del':
+        _delete_member_avatar(user['id'])
+        return redirect('/bereich?msg=profile_saved')
     if action == 'password':
         cur = request.form.get('current_password') or ''
         new = request.form.get('new_password') or ''
@@ -6944,6 +7024,31 @@ def member_profile():
         log.info("Mitglied '%s' hat das Passwort selbst geändert", user['email'])
         return redirect('/bereich?msg=pw_changed')
     return redirect('/bereich')
+
+
+@public_app.route('/bereich/avatar/<uid>')
+def member_avatar(uid: str):
+    if current_member(request) is None:
+        abort(403)
+    if not _UID_RE.match(uid) or not _has_avatar(uid):
+        abort(404)
+    return send_from_directory(MEMBER_AVATARS_DIR, f'{uid}.jpg', max_age=300)
+
+
+@public_app.route('/bereich/verzeichnis')
+def member_directory():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not directory_on():
+        return redirect('/bereich')
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('directory.html', t=t, lang=lang, site=site, member=member,
+                           members=_directory_members(), me_id=member['id'],
+                           dm_on=dm_feature_on(),
+                           year=datetime.now(timezone.utc).year)
 
 
 _dm_send_times: dict[str, float] = {}  # einfache Spam-Bremse je Mitglied

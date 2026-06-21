@@ -170,6 +170,17 @@ Eingeloggte Mitglieder können sich gegenseitig **private Nachrichten** schreibe
 - **Backup**: `dm.json` **und** `dm.key` werden vom Add-on-Backup mitgesichert und beim Restore wiederhergestellt — verschlüsselte Nachrichten bleiben so lesbar. Achtung: Dadurch ist das Backup-Archiv so vertraulich wie der Klartext (es enthält ohnehin schon Passwort-Hashes) — entsprechend sicher aufbewahren.
 - **Limits**: max. 4000 Zeichen pro Nachricht, kurze Sende-Bremse gegen Spam, je Unterhaltung werden die letzten 500 Nachrichten behalten.
 
+### Mitglieder-Verzeichnis
+
+Damit Mitglieder wissen, wem sie schreiben, gibt es ein optionales internes **Verzeichnis** mit Avatar und Kurzvorstellung.
+
+**Aktivieren:** Tab **Design → „Mitglieder-Verzeichnis"** auf **Ja**. Im persönlichen Bereich erscheint dann die Karte **„Mitglieder-Verzeichnis"**.
+
+- **Opt-in pro Mitglied:** Jedes Mitglied entscheidet im **Profil** selbst, ob es im Verzeichnis erscheint („Mich im Mitglieder-Verzeichnis anzeigen", Standard aus), und hinterlegt optional **Profilbild** und **Kurzvorstellung** (max. 300 Zeichen).
+- **Profilbilder** werden quadratisch zugeschnitten, auf 256 px verkleinert und **ohne EXIF-Metadaten** (also ohne GPS/Kamera-Infos) als JPEG gespeichert — lokal im Add-on-Ordner, nicht auf dem SMB-Share. Sie werden vom Backup mitgesichert.
+- **Verknüpfung mit Nachrichten:** Aus dem Verzeichnis führt ein **„Schreiben"-Knopf** direkt in die Unterhaltung — sofern das Mitglied Nachrichten empfängt und die Nachrichten-Funktion aktiv ist.
+- Das Verzeichnis ist **nur für eingeloggte Mitglieder** sichtbar und zeigt ausschließlich Mitglieder, die sich freiwillig sichtbar gemacht haben.
+
 ### Optionaler SMB-Speicher
 
 Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe (z. B. FritzBox-NAS) ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` in den Add-on-Optionen setzen und das Add-on neu starten.

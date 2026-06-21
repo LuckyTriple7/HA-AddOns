@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.24
+
+- 👥 **Mitglieder-Verzeichnis (opt-in)** — Mitglieder können sich freiwillig mit **Avatar** und **Kurzvorstellung** in einem internen Verzeichnis zeigen, damit man weiß, wem man schreibt. Sichtbarkeit steuert jedes Mitglied selbst im Profil (Standard: verborgen). Vom Verzeichnis führt ein **„Schreiben"-Knopf** direkt in die Nachrichten (sofern das Mitglied Nachrichten empfängt). Avatare werden quadratisch zugeschnitten, auf 256 px verkleinert und **ohne EXIF-Metadaten** als JPEG gespeichert. Global im Design-Tab ein-/ausschaltbar; das Verzeichnis ist nur für eingeloggte Mitglieder sichtbar.
+
 ## 0.7.23
 
 - 🐛 **2FA: Backup-Codes wurden nach dem Einrichten nicht angezeigt** — Nach dem Aktivieren (und beim Neu-Erzeugen) wurden die Backup-Codes sofort wieder ausgeblendet, weil die anschließende Status-Aktualisierung sie überdeckte. Reihenfolge korrigiert: Status zuerst, Codes danach — sie bleiben jetzt sichtbar. Wer 2FA bereits aktiviert hat, holt sich über **„Backup-Codes neu erzeugen"** einen sichtbaren Satz.

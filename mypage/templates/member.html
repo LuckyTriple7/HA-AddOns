@@ -234,9 +234,18 @@
     </div>
     {% endif %}
 
+    {% if dir_feature %}
+    <div class="card" style="margin-top:18px">
+      <h1>👥 {{ t.dir_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.dir_intro }}</p>
+      <a class="btn" href="/bereich/verzeichnis">{{ t.dir_open }}</a>
+    </div>
+    {% endif %}
+
     <div class="card" style="margin-top:18px">
       <h1>{{ t.member_profile_title }}</h1>
       {% if msg == 'profile_saved' %}<div class="msg ok">{{ t.member_profile_saved }}</div>{% endif %}
+      {% if msg == 'avatar_err' %}<div class="msg err">{{ t.dir_avatar_err }}</div>{% endif %}
       {% if msg == 'pw_changed' %}<div class="msg ok">{{ t.member_pw_changed }}</div>{% endif %}
       {% if msg == 'pw_wrong' %}<div class="msg err">{{ t.member_pw_wrong }}</div>{% endif %}
       {% if msg == 'pw_short' %}<div class="msg err">{{ t.member_reset_short }}</div>{% endif %}
@@ -257,6 +266,35 @@
           {{ t.dm_receive_label }}
         </label>
         <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.dm_receive_hint }}</p>
+      </form>
+      {% endif %}
+      {% if dir_feature %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="avatar">
+        <label>{{ t.dir_avatar_label }}</label>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          {% if has_avatar %}<img src="/bereich/avatar/{{ member.id }}" alt="" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">{% endif %}
+          <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+          <button class="btn small" type="submit">{{ t.dir_avatar_upload }}</button>
+        </div>
+      </form>
+      {% if has_avatar %}
+      <form method="post" action="/bereich/profile" style="margin-top:8px">
+        <input type="hidden" name="action" value="avatar_del">
+        <button class="btn danger small" type="submit">{{ t.dir_avatar_remove }}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/bereich/profile" style="margin-top:14px">
+        <input type="hidden" name="action" value="directory">
+        <label for="pf-bio">{{ t.dir_bio_label }}</label>
+        <textarea id="pf-bio" name="bio" rows="2" maxlength="300" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:6px;font-size:0.9rem;font-family:inherit;resize:vertical">{{ member.bio|default('') }}</textarea>
+        <label class="dm-toggle">
+          <input type="checkbox" name="dir_visible" value="1" {% if dir_visible %}checked{% endif %}>
+          {{ t.dir_visible_label }}
+        </label>
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.dir_visible_hint }}</p>
+        <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
       </form>
       {% endif %}
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
