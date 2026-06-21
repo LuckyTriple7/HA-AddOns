@@ -346,10 +346,11 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 function applyRollVar(){ document.documentElement.style.setProperty('--roll',(reduceMotion?0.01:rollMs/1000)+'s'); }
 applyRollVar();
 
-/* ── Demo-Zustand ──────────────────────────── */
-let opp=2, level='medium';
-let dice=[1,1,1,1,1], held=[false,false,false,false,false], rollsLeft=3, rolling=false;
-let sheet={}; // cat -> value (Demo: nur Spieler)
+/* ── Zustand ───────────────────────────────── */
+let opp=2, level='medium';                 // Startbildschirm-Auswahl
+let state=null, busy=false;                // Serverzustand (public_view) + Aktionssperre
+// vom Serverzustand gespiegelt (für Rendering/Vorschau):
+let dice=[0,0,0,0,0], held=[false,false,false,false,false], rollsLeft=3, sheet={};
 
 /* ── Sound (Web Audio) ─────────────────────── */
 let actx=null; const getA=()=>actx||(actx=new (window.AudioContext||window.webkitAudioContext)());
@@ -426,45 +427,112 @@ function scatter(slot){ // leichte Zufallsstreuung beim Aussetteln
   slot.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px) rotate('+r.toFixed(1)+'deg)';
 }
 
+/* ── Helfer ────────────────────────────────── */
+function myTurn(){ return state && state.status==='playing' && state.turn==='p'; }
+function nameOf(p){ return ({p:G.player,a1:G.ai1,a2:G.ai2})[p]||p; }
+function labelOf(cat){ const e=G.cats.find(x=>x[0]===cat); return e?e[1]:cat; }
+function esc(s){ return String(s).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+function syncFromState(){
+  if(!state) return;
+  dice=state.dice.slice(); held=state.held.slice(); rollsLeft=state.rolls_left;
+  sheet=state.sheets.p||{}; opp=state.opponents; level=state.level;
+}
+async function api(path, body){
+  try{
+    const opt = body===undefined ? {} :
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})};
+    const r = await fetch(path, opt); if(!r.ok) return null; return await r.json();
+  }catch(e){ return null; }
+}
+const sleep = ms => new Promise(r=>setTimeout(r, reduceMotion?Math.min(ms,30):ms));
+
 /* ── Halten ────────────────────────────────── */
 function toggleHold(i){
-  if(rolling||rollsLeft===3)return; // erst nach dem ersten Wurf
+  if(busy || !myTurn() || !state.rolled || rollsLeft<=0) return;
   held[i]=!held[i];
-  const slot=$('tray').children[i],d=slot.firstChild;
+  const slot=$('tray').children[i], d=slot.firstChild;
   d.classList.toggle('held',held[i]);
   if(held[i]){ slot.style.transform=''; SFX.hold(); } else { scatter(slot); SFX.unhold(); }
 }
 
-/* ── Würfeln (Demo) ────────────────────────── */
-function doRoll(){
-  if(rolling||rollsLeft<=0)return;
-  rolling=true; $('btn-roll').disabled=true;
-  SFX.roll();
-  const slots=Array.from($('tray').children);
-  const flick=[];
-  slots.forEach((slot,i)=>{
-    if(held[i])return;
-    const d=slot.firstChild; d.classList.add('rolling');
-    flick[i]=setInterval(()=>paintDie(d,1+Math.floor(Math.random()*6)),70);
-  });
-  setTimeout(()=>{
+/* ── Würfeln (Spieler) ─────────────────────── */
+async function doRoll(){
+  if(busy || !myTurn() || rollsLeft<=0) return;
+  busy=true; $('btn-roll').disabled=true;
+  const wasRolled = state.rolled;
+  const mask = wasRolled ? held.slice() : [false,false,false,false,false];
+  const v = await api('/api/kniffel/move', {type:'roll', held:mask});
+  if(!v || !v.state){ busy=false; updateRollUI(); return; }
+  state = v.state;
+  await animateRoll(state.dice, mask);
+  busy=false;
+  syncFromState(); updateRollUI(); renderSheet();
+}
+
+/* Würfel-Animation: nicht gehaltene Würfel flackern, settlen auf die Zielwerte */
+function animateRoll(target, mask){
+  return new Promise(resolve=>{
+    SFX.roll();
+    const slots=Array.from($('tray').children);
+    const flick=[];
     slots.forEach((slot,i)=>{
-      if(held[i])return;
-      clearInterval(flick[i]);
-      const d=slot.firstChild; d.classList.remove('rolling');
-      dice[i]=1+Math.floor(Math.random()*6); paintDie(d,dice[i]); scatter(slot);
+      const d=slot.firstChild;
+      if(mask[i]){ d.classList.add('held'); return; }
+      d.classList.add('rolling');
+      flick[i]=setInterval(()=>paintDie(d,1+Math.floor(Math.random()*6)),70);
     });
-    SFX.settle();
-    rollsLeft--; rolling=false; updateRollUI(); renderSheet();
-  }, reduceMotion?10:rollMs);
+    setTimeout(()=>{
+      slots.forEach((slot,i)=>{
+        const d=slot.firstChild;
+        if(mask[i]) return;
+        if(flick[i]) clearInterval(flick[i]);
+        d.classList.remove('rolling'); d.classList.remove('held');
+        paintDie(d, target[i]); scatter(slot);
+      });
+      SFX.settle();
+      resolve();
+    }, reduceMotion?10:rollMs);
+  });
+}
+
+/* ── KI-Zug (einzeln vom Server, animiert) ─── */
+async function runAI(){
+  while(state && state.status==='playing' && state.turn!=='p'){
+    updateTurn(); updateRollUI();
+    await sleep(Math.round(aiMs*0.5));            // „überlegt"
+    const v = await api('/api/kniffel/ai', {});
+    if(!v || !v.state){ break; }
+    const ev=v.event, prev=state; state=v.state;
+    if(ev && ev.type==='roll'){
+      if(!prev.rolled) buildTray();               // KI-Zug beginnt: leerer Tray
+      await animateRoll(ev.dice, ev.held||[false,false,false,false,false]);
+      syncFromState(); updateRollUI();
+      await sleep(pauseMs);
+    } else if(ev && ev.type==='score'){
+      syncFromState(); renderSheet(); flashCell(ev.who, ev.cat); SFX.score();
+      if(ev.value!=null) toast(nameOf(ev.who)+' +'+ev.value);
+      await sleep(pauseMs);
+    } else { break; }
+  }
+  buildTray(); syncFromState(); updateRollUI(); renderSheet(); updateTurn();
+  if(state && state.status==='game_over') showGameOver();
+}
+
+function updateTurn(){
+  if(!state) return;
+  if(state.status==='game_over'){ $('turn-label').innerHTML=''; return; }
+  $('turn-label').innerHTML = (state.turn==='p')
+    ? '<b>'+G.your_turn+'</b>'
+    : '<b>'+nameOf(state.turn)+'</b> '+G.ai_turn;
 }
 
 function updateRollUI(){
-  const rr=$('rolls-left');rr.innerHTML='';
+  const rr=$('rolls-left'); rr.innerHTML='';
   for(let i=0;i<3;i++){const dot=document.createElement('div');dot.className='roll-dot'+(i<rollsLeft?' on':'');rr.appendChild(dot);}
   const lbl=document.createElement('span');lbl.className='lbl';lbl.textContent=rollsLeft+' '+G.rolls_left;rr.appendChild(lbl);
-  $('btn-roll').disabled=(rollsLeft<=0);
-  $('hold-hint').style.visibility=(rollsLeft<3&&rollsLeft>0)?'visible':'hidden';
+  $('btn-roll').style.display=(state && state.status==='playing')?'':'none';
+  $('btn-roll').disabled=!(myTurn() && rollsLeft>0 && !busy);
+  $('hold-hint').style.visibility=(myTurn() && state.rolled && rollsLeft>0)?'visible':'hidden';
 }
 
 /* ── Wertungs-Berechnung (Demo-Vorschau) ───── */
@@ -482,67 +550,113 @@ function calc(cat){
   if(cat==='chance')return sumAll();
   return 0;
 }
-function upperSum(){return UPPER.reduce((a,c)=>a+(sheet[c]||0),0);}
-function bonus(){return upperSum()>=63?35:0;}
-function total(){let t=bonus();G.cats.forEach(([c])=>t+=(sheet[c]||0));return t;}
-
-/* ── Wertungsblock rendern ─────────────────── */
-function cellHtml(cat){
-  if(cat in sheet) return '<span class="val filled">'+sheet[cat]+'</span>';
-  if(rollsLeft<3){ const v=calc(cat); return '<span class="val open preview" onclick="scoreCat(\''+cat+'\')">'+v+'</span>'; }
+/* ── Wertungsblock rendern (Server-Daten) ──── */
+function cellHtml(cat,p){
+  const sh=(state.sheets[p])||{};
+  if(cat in sh) return '<span class="val filled">'+sh[cat]+'</span>';
+  if(p==='p' && myTurn() && state.rolled){
+    return '<span class="val open" onclick="scoreCat(\''+cat+'\')">'+calc(cat)+'</span>';
+  }
   return '<span class="val">·</span>';
 }
+function secRow(t,span){ return '<tr class="sec-row"><td colspan="'+span+'">'+t+'</td></tr>'; }
+function catRow(cat,players){
+  let r='<tr class="row"><td class="cat">'+labelOf(cat)+'</td>';
+  players.forEach(p=>{ r+='<td class="'+(p==='p'?'me':'')+'" data-cell="'+cat+':'+p+'">'+cellHtml(cat,p)+'</td>'; });
+  return r+'</tr>';
+}
+function valRow(cls,t,players,fn){
+  let r='<tr class="'+cls+'"><td class="cat">'+t+'</td>';
+  players.forEach(p=>r+='<td>'+(fn(p)||0)+'</td>');
+  return r+'</tr>';
+}
 function renderSheet(){
-  const heads=[G.player]; if(opp>=1)heads.push(G.ai1); if(opp>=2)heads.push(G.ai2);
-  let h='<thead><tr><th></th>'+heads.map(n=>'<th>'+n+'</th>').join('')+'</tr></thead><tbody>';
-  h+='<tr class="sec-row"><td colspan="'+(heads.length+1)+'">'+G.upper+'</td></tr>';
-  UPPER.forEach(c=>{ const lbl=G.cats.find(x=>x[0]===c)[1];
-    h+='<tr class="row"><td class="cat">'+lbl+'</td><td class="me">'+cellHtml(c)+'</td>'+aiCells(heads.length)+'</tr>'; });
-  h+='<tr class="sum-row"><td class="cat">'+G.upper_sum+'</td><td>'+upperSum()+'</td>'+aiCells(heads.length)+'</tr>';
-  h+='<tr class="sum-row"><td class="cat">'+G.bonus+'</td><td>'+bonus()+'</td>'+aiCells(heads.length)+'</tr>';
-  h+='<tr class="sec-row"><td colspan="'+(heads.length+1)+'">'+G.lower+'</td></tr>';
-  ['three_kind','four_kind','full_house','small_straight','large_straight','kniffel','chance'].forEach(c=>{
-    const lbl=G.cats.find(x=>x[0]===c)[1];
-    h+='<tr class="row"><td class="cat">'+lbl+'</td><td class="me">'+cellHtml(c)+'</td>'+aiCells(heads.length)+'</tr>'; });
-  h+='<tr class="total-row"><td class="cat">'+G.total+'</td><td>'+total()+'</td>'+aiCells(heads.length)+'</tr>';
+  if(!state){ $('sheet').innerHTML=''; return; }
+  const players=state.players, span=players.length+1;
+  let h='<thead><tr><th></th>'+players.map(p=>'<th>'+esc(nameOf(p))+'</th>').join('')+'</tr></thead><tbody>';
+  h+=secRow(G.upper,span);
+  UPPER.forEach(c=>h+=catRow(c,players));
+  h+=valRow('sum-row',G.upper_sum,players,p=>state.upper_sum[p]);
+  h+=valRow('sum-row',G.bonus,players,p=>state.upper_bonus[p]);
+  h+=secRow(G.lower,span);
+  ['three_kind','four_kind','full_house','small_straight','large_straight','kniffel','chance']
+    .forEach(c=>h+=catRow(c,players));
+  h+=valRow('total-row',G.total,players,p=>state.totals[p]);
   h+='</tbody>'; $('sheet').innerHTML=h;
   renderPlayers();
 }
-function aiCells(n){ let s=''; for(let i=1;i<n;i++)s+='<td><span class="val">·</span></td>'; return s; }
+function flashCell(p,cat){
+  const el=document.querySelector('[data-cell="'+cat+':'+p+'"] .val');
+  if(el){ el.classList.add('preview'); setTimeout(()=>el.classList.remove('preview'),500); }
+}
 
-function scoreCat(cat){
-  if(rolling||cat in sheet||rollsLeft===3)return;
-  sheet[cat]=calc(cat); SFX.score(); toast('+'+sheet[cat],'gold');
-  // Demo: neuer Zug
-  held=[false,false,false,false,false]; rollsLeft=3;
-  buildTray(); updateRollUI(); renderSheet();
+async function scoreCat(cat){
+  if(busy || !myTurn() || !state.rolled || (cat in (state.sheets.p||{}))) return;
+  busy=true;
+  const v=await api('/api/kniffel/move', {type:'score', cat});
+  if(!v || !v.state){ busy=false; return; }
+  state=v.state; SFX.score(); renderSheet(); flashCell('p',cat);
+  buildTray(); syncFromState(); updateRollUI(); updateTurn();
+  busy=false;
+  if(state.status==='playing' && state.turn!=='p') runAI();
+  else if(state.status==='game_over') showGameOver();
 }
 
 /* ── Spieler-Chips ─────────────────────────── */
 function renderPlayers(){
-  const names=[G.player]; if(opp>=1)names.push(G.ai1); if(opp>=2)names.push(G.ai2);
-  const scores=[total()]; for(let i=1;i<names.length;i++)scores.push(0);
-  $('players').innerHTML=names.map((n,i)=>
-    '<div class="pchip'+(i===0?' active':'')+'"><span class="pname">'+n+'</span><span class="pscore">'+scores[i]+'</span></div>'
-  ).join('');
+  if(!state){ $('players').innerHTML=''; return; }
+  $('players').innerHTML=state.players.map(p=>{
+    const act = state.turn===p && state.status==='playing';
+    return '<div class="pchip'+(act?' active':'')+'"><span class="pname">'+esc(nameOf(p))
+      +'</span><span class="pscore">'+(state.totals[p]||0)+'</span></div>';
+  }).join('');
 }
 
 /* ── Ablauf / Screens ──────────────────────── */
 function selOpp(n){opp=n;document.querySelectorAll('#opp-row .opt-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.opp===n));}
 function selLvl(l){level=l;document.querySelectorAll('#lvl-row .opt-btn').forEach(b=>b.classList.toggle('sel',b.dataset.lvl===l));}
-function startGame(){
-  dice=[1,1,1,1,1];held=[false,false,false,false,false];rollsLeft=3;sheet={};
+
+function render(s){            // vollständige Anzeige eines Serverzustands
+  state=s; syncFromState();
   $('start-screen').style.display='none';
-  $('turn-label').innerHTML='<b>'+G.your_turn+'</b>';
-  buildTray();updateRollUI();renderSheet();
+  $('score-col').classList.remove('open');
+  buildTray(); updateRollUI(); renderSheet(); updateTurn();
+  Array.from($('tray').children).forEach((slot,i)=>slot.firstChild.classList.toggle('held',!!held[i]));
+  if(state.status==='playing' && state.turn!=='p') runAI();
+  else if(state.status==='game_over') showGameOver();
 }
-function showStart(){ $('start-screen').style.display='flex'; $('score-col').classList.remove('open'); }
-function resumeGame(){ startGame(); }
+async function startGame(){
+  if(busy) return; busy=true;
+  const v=await api('/api/kniffel/new', {level, opponents:opp});
+  busy=false;
+  if(v && v.state) render(v.state);
+}
+async function resumeGame(){
+  const v=await api('/api/kniffel/state');
+  if(v && v.state) render(v.state);
+}
+async function showStart(){
+  $('start-screen').style.display='flex';
+  $('score-col').classList.remove('open');
+  const v=await api('/api/kniffel/state');
+  $('resume-box').style.display=(v && v.state && v.state.status==='playing')?'block':'none';
+}
+function showGameOver(){
+  updateTurn();
+  const w=state.winner;
+  toast((w==='p'?'🏆 ':'')+nameOf(w)+' — '+(state.totals[w]||0), 'gold');
+}
 function toggleScore(){ $('score-col').classList.toggle('open'); }
 function closeGame(){ try{history.length>1?history.back():location.href='/bereich';}catch(e){location.href='/bereich';} }
 
 /* ── Modals ────────────────────────────────── */
-function openRules(){ $('rules-body').innerHTML='<p style="opacity:.7">'+{{ t.gk_intro|tojson }}+'</p>'; $('rules-modal').classList.add('show'); }
+async function openRules(){
+  $('rules-modal').classList.add('show');
+  $('rules-body').innerHTML='…';
+  const v=await api('/api/kniffel/rules');
+  $('rules-body').innerHTML=(v && v.html) ? v.html
+    : '<p style="opacity:.7">'+{{ t.gk_intro|tojson }}+'</p>';
+}
 function closeRules(){ $('rules-modal').classList.remove('show'); }
 function openSettings(){ syncSettings(); $('settings-modal').classList.add('show'); }
 function closeSettings(){ $('settings-modal').classList.remove('show'); }
@@ -561,8 +675,9 @@ function resetSettings(){ rollMs=800;pauseMs=800;aiMs=900;soundOn=true;
   ['gk_roll','gk_pause','gk_ai','gk_sound'].forEach(k=>localStorage.removeItem(k));
   applyRollVar();syncSettings(); }
 
-/* Start: Startbildschirm sichtbar; Tray vorbereiten */
-buildTray(); updateRollUI(); renderSheet();
+/* Start: leeren Tray zeigen, Resume prüfen */
+buildTray();
+showStart();
 </script>
 </body>
 </html>

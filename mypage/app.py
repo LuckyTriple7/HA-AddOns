@@ -55,6 +55,7 @@ import game_maumau
 import game_jeopardy
 import game_gluecksrad
 import game_praesident
+import game_kniffel
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -5447,6 +5448,151 @@ def gamekniffel_page():
     t = load_translations(lang)
     return render_template('game_kniffel.html', t=t, lang=lang, site=site,
                            member=member, year=datetime.now(timezone.utc).year)
+
+
+def _clean_kniffel_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input)."""
+    act = {'type': str(raw.get('type', ''))[:8]}   # roll | hold | score
+    if isinstance(raw.get('held'), list):
+        act['held'] = [bool(x) for x in raw['held'][:5]]
+    if raw.get('cat') is not None:
+        act['cat'] = str(raw.get('cat'))[:16]
+    return act
+
+
+def _record_kniffel_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    totals = {p: game_kniffel.total_score(st, p) for p in st['players']}
+    games = _ng_history('kniffel', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'scores': totals,
+        'score': totals.get('p', 0),
+        'level': st.get('level', 'medium'),
+        'opponents': st.get('opponents', 2),
+    })
+    _ng_history_write('kniffel', uid, games)
+
+
+@public_app.route('/api/kniffel/state')
+def api_kniffel_state():
+    member = _require_member()
+    st = _ng_load('kniffel', member['id'])
+    return jsonify({'state': game_kniffel.public_view(st) if st else None})
+
+
+@public_app.route('/api/kniffel/new', methods=['POST'])
+def api_kniffel_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    opponents = 2 if int(data.get('opponents') or 2) == 2 else 1
+    with _game_lock:
+        st = game_kniffel.new_game(level, opponents)
+        _ng_undo.pop(('kniffel', member['id']), None)
+        _ng_save('kniffel', member['id'], st)
+    return jsonify({'state': game_kniffel.public_view(st)})
+
+
+@public_app.route('/api/kniffel/move', methods=['POST'])
+def api_kniffel_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_kniffel_move(data)
+    with _game_lock:
+        st = _ng_load('kniffel', member['id'])
+        if st is None:
+            abort(409)
+        snapshot = copy.deepcopy(st)
+        try:
+            game_kniffel.apply_action(st, 'p', act)
+        except game_kniffel.IllegalMove:
+            return jsonify({'state': game_kniffel.public_view(st)})
+        if act.get('type') == 'score':
+            _ng_undo[('kniffel', member['id'])] = snapshot
+        _record_kniffel_if_over(member['id'], st)
+        _ng_save('kniffel', member['id'], st)
+    return jsonify({'state': game_kniffel.public_view(st)})
+
+
+@public_app.route('/api/kniffel/ai', methods=['POST'])
+def api_kniffel_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gk')
+    with _game_lock:
+        st = _ng_load('kniffel', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        if st['status'] == 'playing' and st['turn'] != 'p':
+            who = st['turn']
+            act = game_kniffel.ai_step(st)
+            game_kniffel.apply_action(st, who, act)
+            event = {'type': act['type'], 'who': who, 'name': names.get(who, '')}
+            if act['type'] == 'roll':
+                event['dice'] = st['dice'][:]
+                event['held'] = st['held'][:]
+                event['rolls_left'] = st['rolls_left']
+            else:
+                event['cat'] = act.get('cat')
+                event['value'] = st['sheets'][who].get(act.get('cat'))
+        _record_kniffel_if_over(member['id'], st)
+        _ng_save('kniffel', member['id'], st)
+    return jsonify({'state': game_kniffel.public_view(st), 'event': event})
+
+
+@public_app.route('/api/kniffel/undo', methods=['POST'])
+def api_kniffel_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('kniffel', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        _ng_save('kniffel', member['id'], snap)
+    return jsonify({'state': game_kniffel.public_view(snap)})
+
+
+@public_app.route('/api/kniffel/rules')
+def api_kniffel_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('kniffel', detect_language(request))})
+
+
+@public_app.route('/api/kniffel/history')
+def api_kniffel_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('kniffel', member['id'])))})
+
+
+@public_app.route('/api/kniffel/history/reset', methods=['POST'])
+def api_kniffel_history_reset():
+    member = _require_member()
+    _ng_history_write('kniffel', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/kniffel/session', methods=['POST'])
+def api_kniffel_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('kniffel', member['id'], data)
 
 
 # ── Schwimmen ──────────────────────────────────────────────────────────────────
