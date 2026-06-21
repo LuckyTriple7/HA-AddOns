@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.23
+
+- 🐛 **2FA: Backup-Codes wurden nach dem Einrichten nicht angezeigt** — Nach dem Aktivieren (und beim Neu-Erzeugen) wurden die Backup-Codes sofort wieder ausgeblendet, weil die anschließende Status-Aktualisierung sie überdeckte. Reihenfolge korrigiert: Status zuerst, Codes danach — sie bleiben jetzt sichtbar. Wer 2FA bereits aktiviert hat, holt sich über **„Backup-Codes neu erzeugen"** einen sichtbaren Satz.
+
 ## 0.7.22
 
 - 🔔 **HA-Benachrichtigung bei neuer Mitglieder-Nachricht** — Optionaler Schalter (Design-Tab): Bekommt ein Mitglied eine neue Nachricht, erhält der **Betreiber** sofort eine Home-Assistant-Benachrichtigung — ohne Inhalt, je Empfänger zusammengefasst (gleiche Notification-ID, kein Zuspammen). Standard aus; greift nur unter Home Assistant.

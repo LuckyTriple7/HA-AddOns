@@ -1598,9 +1598,9 @@
       const r = await apiJson('api/2fa/enable', 'POST', { code });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { toast(d.error === 'bad code' ? T.twofa_bad_code : T.error_save, true); return; }
-      showBackupCodes(d.backup_codes);
       toast(T.twofa_enabled_ok);
-      loadTwofa();
+      await loadTwofa();            // Status auf "aktiv" umstellen …
+      showBackupCodes(d.backup_codes);  // … erst danach die Codes zeigen (sonst überdeckt)
     }
     async function twofaDisable() {
       const code = prompt(T.twofa_prompt_code);
@@ -1617,8 +1617,8 @@
       const r = await apiJson('api/2fa/backup', 'POST', { code });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { toast(d.error === 'bad code' ? T.twofa_bad_code : T.error_save, true); return; }
+      await loadTwofa();
       showBackupCodes(d.backup_codes);
-      loadTwofa();
     }
     function showBackupCodes(codes) {
       el('twofa-codes-list').textContent = (codes || []).join('\n');
