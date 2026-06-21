@@ -193,25 +193,30 @@ def _ai_wants_roll(state: dict) -> bool:
         return False
     if 3 in c and 2 in c:                       # Full House
         return False
-    if state['level'] == 'easy' and random.random() < 0.35:
-        return False
+    if state['level'] == 'easy':
+        return random.random() < 0.6           # hört oft (zu) früh auf → schwächer
     return True
 
 
 def _ai_holds(dice: list[int], sheet: dict, level: str) -> list[bool]:
     c = game_dice.counts(dice)
+    # Easy: würfelt meist alles neu (kein Plan) → schwächer
+    if level == 'easy':
+        best = max((v for v in range(1, 7) if c[v] >= 2), default=0)
+        return [d == best for d in dice] if (best and random.random() < 0.5) else [False] * 5
+
     # Straßen-Ansatz (mittel/schwer): vorhandene Folge behalten
-    if level != 'easy':
-        for run in ([1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]):
-            if all(x in dice for x in run):
-                keep, seen = [False] * 5, set()
-                for i, d in enumerate(dice):
-                    if d in run and d not in seen:
-                        keep[i] = True
-                        seen.add(d)
-                if sum(keep) >= 4:
-                    return keep
-    # größte Gruppe (Paar/Drilling/…) behalten
+    for run in ([1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]):
+        if all(x in dice for x in run):
+            keep, seen = [False] * 5, set()
+            for i, d in enumerate(dice):
+                if d in run and d not in seen:
+                    keep[i] = True
+                    seen.add(d)
+            if sum(keep) >= 4:
+                return keep
+
+    # größte Gruppe behalten (bei Gleichstand höherer Wert)
     best = None
     for v in range(6, 0, -1):
         if c[v] >= 2 and (best is None or c[v] > c[best]):
@@ -219,10 +224,23 @@ def _ai_holds(dice: list[int], sheet: dict, level: str) -> list[bool]:
     keep = [False] * 5
     if best:
         keep = [d == best for d in dice]
-    else:
-        # keine Gruppe: hohe Augen für den oberen Block sichern
+    elif level == 'hard':
+        # keine Gruppe: höchsten Würfel als Anker behalten (Richtung Oberteil/Kombi)
+        mx = max(dice)
+        anchored = False
+        for i, d in enumerate(dice):
+            if d == mx and not anchored:
+                keep[i] = True
+                anchored = True
+    else:  # medium
         keep = [d >= 5 for d in dice]
     return keep
+
+
+# typischer „voller" Wert je Kategorie — für die wertorientierte KI (schwer)
+MAXVAL = {'ones': 5, 'twos': 10, 'threes': 15, 'fours': 20, 'fives': 25, 'sixes': 30,
+          'three_kind': 22, 'four_kind': 26, 'full_house': 25, 'small_straight': 30,
+          'large_straight': 40, 'kniffel': 50, 'chance': 25}
 
 
 def _ai_category(dice: list[int], sheet: dict, level: str) -> str:
@@ -230,9 +248,20 @@ def _ai_category(dice: list[int], sheet: dict, level: str) -> str:
     joker = _is_kniffel(dice) and sheet.get('kniffel') == 50
     sc = {c: score(c, dice, joker=(joker and c in JOKER_FIXED)) for c in open_cats}
     best = max(sc.values())
+
+    if level == 'hard':
+        # Sofortpunkte minus „verschenktem Potenzial" (so bleiben Premium-Felder frei,
+        # bis sie wirklich getroffen werden). Nullen landen im günstigsten Feld.
+        nonzero = [c for c in open_cats if sc[c] > 0]
+        pool = nonzero if nonzero else open_cats
+        def rank(c):
+            return sc[c] - 0.35 * (MAXVAL[c] - sc[c])
+        return sorted(pool, key=lambda c: (-rank(c), CATS.index(c)))[0]
+
     if level == 'easy' or best > 0:
-        # höchster Wert; bei Gleichstand festes Kategorie-Ranking
+        # höchster Sofortwert; bei Gleichstand festes Kategorie-Ranking
         return sorted(open_cats, key=lambda c: (-sc[c], CATS.index(c)))[0]
+
     # alles 0 → möglichst verlustarm streichen
     scratch_pref = ['ones', 'twos', 'three_kind', 'four_kind', 'kniffel',
                     'small_straight', 'large_straight', 'full_house', 'chance',

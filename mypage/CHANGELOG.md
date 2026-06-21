@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.33
+
+- 🎲 **Neues Spiel: Kniffel** — Der Würfelklassiker gegen **1–2 KI-Gegner** (Schwierigkeit Leicht/Mittel/Schwer). Pro Zug bis zu **dreimal würfeln**, beliebige Würfel **halten** und in eines der **13 Felder** eintragen — mit **63er-Bonus** und **Kniffel-Bonus** (inkl. Joker). Server-autoritativ und seed-deterministisch (manipulationssicher, auf jedem Gerät fortsetzbar). Highlights:
+  - **Würfelbecher-Animation**: Becher erscheint, **schüttelt**, **kippt um** und die Würfel **fallen** mit Bounce und Zufalls-Streuung auf den Tisch — Tempo über die **Würfeldauer** einstellbar, dazu Regler für **Pause zwischen Aktionen**, **KI-Geschwindigkeit** und **Sound** (materialechtes Würfel-„Tok" statt Pieptöne).
+  - **Wertungsblock** zentral neben den Würfeln (auf schmalen/niedrigen Schirmen als ein-/ausklappbares Overlay), **Spielende-Dialog** mit Endklassement, **Statistik** (Spiele/Siege/Niederlagen/Bestwert) auf dem Startbildschirm.
+  - **Tab-/Geräte-Schutz** wie bei den anderen Spielen, Regeln-Doku DE/EN, vollständig lokalisiert.
+
 ## 0.7.32
 
 - 🧹 **Aufgeräumte Benutzerliste** — Die Aktions-Buttons pro Konto sind jetzt durchgehend **kompakte Icons** statt teils Text: „Passwort" → 🔑, „Quota" → 💾, „Freigeben" → ✅. Der **Sprach-Knopf** zeigt nur noch **DE/EN** (ohne 🌐-Kugel). Die Beschriftung steckt jeweils im **Mouseover-Tooltip** — so passt die Zeile auch bei vielen Optionen wieder sauber nebeneinander.

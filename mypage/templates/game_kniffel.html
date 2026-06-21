@@ -346,6 +346,24 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
   </div>
 </div>
 
+<!-- Modal: in anderem Tab geöffnet -->
+<div class="modal-overlay" id="tab-modal">
+  <div class="modal-box">
+    <h2>🔌 {{ t.gk_tab_title }}</h2>
+    <p style="opacity:.85;line-height:1.5;margin-bottom:16px">{{ t.gk_tab_text }}</p>
+    <button class="btn btn-gold" id="tab-resume">{{ t.gk_tab_resume }}</button>
+  </div>
+</div>
+
+<!-- Modal: auf anderem Gerät aktiv -->
+<div class="modal-overlay" id="device-modal">
+  <div class="modal-box">
+    <h2>📵 {{ t.gk_device_title }}</h2>
+    <p style="opacity:.85;line-height:1.5;margin-bottom:16px">{{ t.gk_device_text }}</p>
+    <button class="btn btn-gold" id="device-takeover">{{ t.gk_device_takeover }}</button>
+  </div>
+</div>
+
 <!-- Modal: Spielende -->
 <div class="modal-overlay" id="over-modal">
   <div class="modal-box">
@@ -503,14 +521,57 @@ function syncFromState(){
   dice=state.dice.slice(); held=state.held.slice(); rollsLeft=state.rolls_left;
   sheet=state.sheets.p||{}; opp=state.opponents; level=state.level;
 }
+let sessionToken=null, heartbeatTimer=null, tabActive=true;
 async function api(path, body){
+  if(body && sessionToken) body.token=sessionToken;
   try{
     const opt = body===undefined ? {} :
       {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})};
-    const r = await fetch(path, opt); if(!r.ok) return null; return await r.json();
+    const r = await fetch(path, opt);
+    if(r.status===423){ $('device-modal').classList.add('show'); return null; }
+    return r.ok ? await r.json() : null;
   }catch(e){ return null; }
 }
 const sleep = ms => new Promise(r=>setTimeout(r, reduceMotion?Math.min(ms,30):ms));
+
+/* ── Geräte-/Tab-Schutz (server + BroadcastChannel) ── */
+async function claimSession(force){
+  try{
+    const r=await fetch('/api/kniffel/session',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:force?'force':'claim'})});
+    const d=await r.json();
+    if(d.locked){ $('device-modal').classList.add('show'); return false; }
+    if(d.token){
+      sessionToken=d.token; $('device-modal').classList.remove('show');
+      if(heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer=setInterval(()=>{ if(!sessionToken) return;
+        fetch('/api/kniffel/session',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'heartbeat',token:sessionToken})}).catch(()=>{}); }, 15000);
+      return true;
+    }
+  }catch(e){}
+  return true;
+}
+function releaseSession(){
+  if(!sessionToken) return;
+  if(heartbeatTimer){ clearInterval(heartbeatTimer); heartbeatTimer=null; }
+  try{ navigator.sendBeacon('/api/kniffel/session',
+    new Blob([JSON.stringify({action:'release',token:sessionToken})],{type:'application/json'})); }catch(e){}
+  sessionToken=null;
+}
+window.addEventListener('beforeunload',()=>{ if(!sessionToken) return;
+  navigator.sendBeacon('/api/kniffel/session',
+    new Blob([JSON.stringify({action:'release',token:sessionToken})],{type:'application/json'})); });
+const TAB_ID=Math.random().toString(36).slice(2); let bc=null, myClaimTs=0;
+function tabClaim(){ myClaimTs=Date.now(); if(bc) try{ bc.postMessage({type:'claim',id:TAB_ID,ts:myClaimTs}); }catch(e){} }
+function becomePassive(){ if(!tabActive) return; tabActive=false; $('tab-modal').classList.add('show'); }
+function becomeActive(){ tabActive=true; $('tab-modal').classList.remove('show'); tabClaim(); showStart(); }
+try{ bc=new BroadcastChannel('mypage-kniffel'); bc.onmessage=e=>{ const m=e.data;
+  if(!m||m.id===TAB_ID||m.type!=='claim') return;
+  if(m.ts>myClaimTs||(m.ts===myClaimTs&&m.id>TAB_ID)) becomePassive(); }; }catch(e){ bc=null; }
+$('tab-resume').onclick=becomeActive;
+$('device-takeover').onclick=async()=>{ if(await claimSession(true)) resumeGame(); };
+tabClaim();
 
 /* ── Halten ────────────────────────────────── */
 function toggleHold(i){
@@ -718,11 +779,13 @@ function render(s){            // vollständige Anzeige eines Serverzustands
 }
 async function startGame(){
   if(busy) return; busy=true;
+  if(!await claimSession(false)){ busy=false; return; }
   const v=await api('/api/kniffel/new', {level, opponents:opp});
   busy=false;
   if(v && v.state) render(v.state);
 }
 async function resumeGame(){
+  if(!await claimSession(false)) return;
   const v=await api('/api/kniffel/state');
   if(v && v.state) render(v.state);
 }
@@ -766,6 +829,7 @@ function showGameOver(){
 function closeOver(){ $('over-modal').classList.remove('show'); }
 function toggleScore(){ $('score-col').classList.toggle('open'); }
 function closeGame(){
+  releaseSession();
   if(window.parent !== window) window.parent.postMessage('close-kniffel', location.origin);
   else location.href = '/bereich';
 }
