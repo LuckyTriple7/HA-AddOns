@@ -798,6 +798,16 @@ const G = {
   hint_play:     {{ t.gp_hint_play|tojson }},
   hint_pass:     {{ t.gp_hint_pass|tojson }},
   hint_swap:     {{ t.gp_hint_swap|tojson }},
+  why: {
+    lead_low:   {{ t.gp_why_lead_low|tojson }},
+    lead_multi: {{ t.gp_why_lead_multi|tojson }},
+    endgame:    {{ t.gp_why_endgame|tojson }},
+    block:      {{ t.gp_why_block|tojson }},
+    beat_low:   {{ t.gp_why_beat_low|tojson }},
+    save_high:  {{ t.gp_why_save_high|tojson }},
+    no_play:    {{ t.gp_why_no_play|tojson }},
+    swap:       {{ t.gp_why_swap|tojson }},
+  },
 };
 
 const SUIT_SYM = {h:'♥', d:'♦', s:'♠', c:'♣'};
@@ -1630,15 +1640,16 @@ async function doHint(){
   if(!v || !v.hint) return;
   SFX.hint();
   const h = v.hint;
+  const why = (h.reason && G.why[h.reason]) ? ' — ' + G.why[h.reason] : '';
   if(h.type === 'play'){
     const names = (h.cards||[]).map(cardName).join(', ');
-    showToast('💡 ' + G.hint_play + ': ' + names, 'info');
+    showToast('💡 ' + G.hint_play + ': ' + names + why, 'info');
     highlightHintCards(h.cards || []);
   } else if(h.type === 'pass'){
-    showToast('💡 ' + G.hint_pass, 'info');
+    showToast('💡 ' + G.hint_pass + why, 'info');
   } else if(h.type === 'swap_choose'){
     const names = (h.cards||[]).map(cardName).join(', ');
-    showToast('💡 ' + G.hint_swap + ': ' + names, 'info');
+    showToast('💡 ' + G.hint_swap + ': ' + names + why, 'info');
     highlightHintCards(h.cards || []);
   }
 }

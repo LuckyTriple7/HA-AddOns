@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.29
+
+- 🃏 **Präsident: klarerer Spiel-Hinweis & hilfreichere Tipps** — Der verwirrende Platzhalter „Gleichen Rang wählen, dann Spielen drücken" wurde ersetzt durch **„Karte(n) antippen, dann ‚Spielen' – mehrere nur gleichen Werts"**. Die **💡 Tipp-Funktion** wurde von Grund auf überarbeitet: Statt überwiegend „Passen" zu empfehlen, folgt sie jetzt einer echten Strategie (kleine Karten zuerst loswerden, beim Ausspielen **Paare/Drillinge** legen um Gegner zum Passen zu zwingen, günstig überbieten statt zu passen, hohe Karten für die Endphase aufsparen, Gegner blockieren die kurz vorm Ausspielen stehen). Jeder Tipp zeigt zusätzlich eine **kurze Begründung** an (z. B. „— niedrige Karten zuerst loswerden", „— hohe Karten für später aufsparen").
+
 ## 0.7.28
 
 - 📱 **Mobile Admin-Ansicht korrigiert** — Im **Benutzer-Tab** (und allen anderen Listen wie Projekte, Seiten, Formulare, Alben, Dateien) lagen auf schmalen Bildschirmen die vielen Aktions-Buttons über dem Namen und waren nicht bedienbar. Die Listenzeilen werden auf Handys jetzt **vertikal gestapelt**: Name/Info oben, die Aktions-Buttons darunter mit **Umbruch** — alles wieder antippbar. Zudem wird im **mobilen Admin-Header** der Schriftzug „MyPage" ausgeblendet (das Haus-Icon bleibt), damit mehr Platz für die Tab-Navigation bleibt.
