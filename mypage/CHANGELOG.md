@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.26
+
+- 📎 **Verschlüsselte Datei-Anhänge in Nachrichten** — Mitglieder können an eine Nachricht eine **Datei anhängen** (max. 25 MB; Bilder, PDF, Office-Dokumente, Archive, Audio/Video). Anhänge werden — wie der Nachrichtentext — **mit Fernet verschlüsselt** auf der Platte abgelegt (`dm_files/`) und nur für die Gesprächsteilnehmer beim Download wieder entschlüsselt; sie werden immer als Datei-Download ausgeliefert (nie inline ausgeführt). Eine Nachricht darf auch **nur aus einem Anhang** bestehen. Beim endgültigen Löschen einer Nachricht wird die Anhang-Datei mitentfernt; Backups sichern die verschlüsselten Anhänge mit.
+
 ## 0.7.25
 
 - 📢 **Admin-Rundnachricht an alle Mitglieder** — Im Benutzer-Tab kannst du eine **Ankündigung** verfassen, die im **Postfach aller Mitglieder** landet (verschlüsselt wie normale Nachrichten). Sie erscheint als Unterhaltung mit deinem Seitentitel und 📢-Markierung; Mitglieder können sie lesen und für sich löschen, aber **nicht beantworten**. Setzt aktivierte Mitglieder-Nachrichten voraus.

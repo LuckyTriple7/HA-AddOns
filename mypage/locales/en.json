@@ -230,6 +230,8 @@
   "dm_thread_empty": "No messages yet. Write the first one!",
   "dm_partner_gone": "This member no longer exists. Replying is not possible.",
   "dm_reply_label": "Reply",
+  "dm_attach": "Attach file (max. 25 MB, encrypted)",
+  "dm_att_err": "Attachment rejected: too large (max. 25 MB) or unsupported file type.",
   "dm_send": "Send",
   "dm_partner_off": "This member is currently not receiving messages.",
   "dm_off_err": "This member is currently not receiving messages.",

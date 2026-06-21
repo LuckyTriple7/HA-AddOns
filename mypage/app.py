@@ -100,6 +100,9 @@ GAMES_DIR.mkdir(parents=True, exist_ok=True)
 # Mitglieder-Avatare fürs Verzeichnis (lokal, klein, NICHT auf dem SMB-Share)
 MEMBER_AVATARS_DIR = Path(_DATA) / 'member_avatars'
 MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+# Verschlüsselte Datei-Anhänge der Mitglieder-Nachrichten (lokal, NICHT auf SMB)
+DM_FILES_DIR = Path(_DATA) / 'dm_files'
+DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
@@ -667,6 +670,11 @@ except Exception:  # Bibliothek fehlt (z. B. Minimal-Standalone) → Funktion de
 _dm_fernet = None
 DM_MAX_PER_PAIR = 500  # max. gespeicherte Nachrichten je Unterhaltung
 DM_MAX_LEN = 4000      # max. Zeichen pro Nachricht
+DM_ATT_MAX_BYTES = 25 * 1024 * 1024   # 25 MB pro Datei-Anhang
+DM_ATT_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt', '.md', '.csv',
+              '.zip', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods',
+              '.mp3', '.m4a', '.ogg', '.wav', '.mp4', '.webm', '.mov'}
+_FID_RE = re.compile(r'^[a-f0-9]{32}$')
 ADMIN_DM_ID = '__admin__'  # Pseudo-Absender für Admin-Rundnachrichten (kein echtes Konto)
 
 
@@ -790,11 +798,12 @@ def _dm_conversations(me_id: str) -> list:
             continue
         partner = to if frm == me_id else frm
         c = convo.setdefault(partner, {'partner': partner, 'last_ts': 0,
-                                       'unread': 0, '_tok': '', 'mine': False})
+                                       'unread': 0, '_tok': '', '_att': None, 'mine': False})
         ts = m.get('ts', 0)
         if ts >= c['last_ts']:
             c['last_ts'] = ts
             c['_tok'] = m.get('body', '')
+            c['_att'] = m.get('att')
             c['mine'] = (frm == me_id)
         if to == me_id and not m.get('read'):
             c['unread'] += 1
@@ -807,7 +816,9 @@ def _dm_conversations(me_id: str) -> list:
             c['name'] = _member_display_name(u) if u else '—'
             c['gone'] = u is None
             c['admin'] = False
-        c['preview'] = _dm_decrypt(c.pop('_tok', ''))[:90]
+        prev = _dm_decrypt(c.pop('_tok', ''))[:90]
+        att = c.pop('_att', None)
+        c['preview'] = prev or (('📎 ' + att.get('name', '')) if att else '')
         out.append(c)
     out.sort(key=lambda x: x['last_ts'], reverse=True)
     return out
@@ -824,15 +835,64 @@ def _dm_thread(me_id: str, partner_id: str) -> list:
                 changed = True
             out.append({'id': m.get('id'), 'ts': m.get('ts', 0),
                         'mine': m.get('frm') == me_id,
-                        'text': _dm_decrypt(m.get('body', ''))})
+                        'text': _dm_decrypt(m.get('body', '')),
+                        'att': m.get('att')})
     if changed:
         save_dm(msgs)
     out.sort(key=lambda x: x['ts'])
     return out
 
 
+def _dm_att_path(fid: str) -> Path | None:
+    return DM_FILES_DIR / fid if _FID_RE.match(fid or '') else None
+
+
+def _dm_att_store(f) -> dict | None:
+    """Validiert + verschlüsselt einen Datei-Anhang. Liefert {fid,name,size} oder None."""
+    if not (f and f.filename):
+        return None
+    name = secure_filename(f.filename)
+    if not name or Path(name).suffix.lower() not in DM_ATT_EXT:
+        return None
+    data = f.read(DM_ATT_MAX_BYTES + 1)
+    if not data or len(data) > DM_ATT_MAX_BYTES:
+        return None
+    fer = _get_fernet()
+    if fer is None:
+        return None
+    fid = uuid.uuid4().hex
+    try:
+        with open(DM_FILES_DIR / fid, 'wb') as out:
+            out.write(fer.encrypt(data))
+    except Exception as e:
+        log.warning("DM-Anhang konnte nicht gespeichert werden: %s", e)
+        return None
+    return {'fid': fid, 'name': name, 'size': len(data)}
+
+
+def _dm_att_read(fid: str) -> bytes | None:
+    p = _dm_att_path(fid)
+    fer = _get_fernet()
+    if p is None or fer is None or not p.is_file():
+        return None
+    try:
+        return fer.decrypt(p.read_bytes())
+    except Exception:
+        return None
+
+
+def _dm_att_delete(fid: str) -> None:
+    p = _dm_att_path(fid)
+    if p is not None:
+        try:
+            p.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def _dm_purge(msgs: list) -> list:
-    """Entfernt Nachrichten endgültig, sobald kein lebendes Mitglied sie mehr behält."""
+    """Entfernt Nachrichten endgültig, sobald kein lebendes Mitglied sie mehr behält;
+    löscht dabei auch die verschlüsselten Anhang-Dateien."""
     uids = {u['id'] for u in load_users()}
     keep = []
     for m in msgs:
@@ -840,6 +900,10 @@ def _dm_purge(msgs: list) -> list:
         alive = {p for p in (m.get('frm'), m.get('to')) if p in uids and p not in dels}
         if alive:
             keep.append(m)
+        else:
+            att = m.get('att')
+            if att and att.get('fid'):
+                _dm_att_delete(att['fid'])
     return keep
 
 
@@ -859,15 +923,21 @@ def _dm_delete_for(me_id: str, mid: str = '', partner_id: str = '') -> None:
     save_dm(_dm_purge(msgs))
 
 
-def _dm_send(frm: str, to: str, text: str) -> None:
+def _dm_send(frm: str, to: str, text: str, att: dict | None = None) -> None:
     msgs = load_dm()
-    msgs.append({'id': uuid.uuid4().hex[:12], 'frm': frm, 'to': to,
-                 'ts': int(time.time()), 'read': False, 'body': _dm_encrypt(text)})
+    msg = {'id': uuid.uuid4().hex[:12], 'frm': frm, 'to': to,
+           'ts': int(time.time()), 'read': False, 'body': _dm_encrypt(text)}
+    if att:
+        msg['att'] = att
+    msgs.append(msg)
     # History je Unterhaltung kappen (älteste dieses Paars zuerst entfernen)
     pair_idx = [i for i, m in enumerate(msgs)
                 if {m.get('frm'), m.get('to')} == {frm, to}]
     if len(pair_idx) > DM_MAX_PER_PAIR:
         for i in pair_idx[:len(pair_idx) - DM_MAX_PER_PAIR]:
+            a = (msgs[i].get('att') or {}).get('fid')
+            if a:
+                _dm_att_delete(a)
             msgs[i] = None
         msgs = [m for m in msgs if m is not None]
     save_dm(msgs)
@@ -3467,6 +3537,11 @@ def api_backup():
             for f in sorted(MEMBER_AVATARS_DIR.iterdir()):
                 if f.is_file() and re.fullmatch(r'[a-f0-9]{6,32}\.jpg', f.name):
                     z.write(f, 'member_avatars/' + f.name)
+        # Verschlüsselte DM-Anhänge (<fid>)
+        if DM_FILES_DIR.is_dir():
+            for f in sorted(DM_FILES_DIR.iterdir()):
+                if f.is_file() and _FID_RE.match(f.name):
+                    z.write(f, 'dm_files/' + f.name)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
@@ -3514,6 +3589,11 @@ def api_restore():
                     if not re.fullmatch(r'[a-f0-9]{6,32}\.jpg', name):
                         continue
                     target = safe_under(MEMBER_AVATARS_DIR, name)
+                elif member.startswith('dm_files/'):
+                    name = Path(member).name
+                    if not _FID_RE.match(name):
+                        continue
+                    target = safe_under(DM_FILES_DIR, name)
                 else:
                     continue
                 if target is None:
@@ -7157,17 +7237,50 @@ def dm_send():
     target = next((u for u in load_users() if u['id'] == to), None)
     if target is None or not _dm_can_receive(target):
         return redirect('/bereich/nachrichten?msg=dm_off')
-    if not text:
-        return redirect(f'/bereich/nachrichten/{to}')
     text = text[:DM_MAX_LEN]
+    # optionaler Datei-Anhang (verschlüsselt abgelegt)
+    fup = request.files.get('file')
+    att = None
+    if fup and fup.filename:
+        att = _dm_att_store(fup)
+        if att is None:
+            return redirect(f'/bereich/nachrichten/{to}?msg=dm_att_err')
+    if not text and att is None:
+        return redirect(f'/bereich/nachrichten/{to}')
     now = time.time()
     if now - _dm_send_times.get(member['id'], 0) < 1.5:  # Spam-Bremse
+        if att and att.get('fid'):
+            _dm_att_delete(att['fid'])
         return redirect(f'/bereich/nachrichten/{to}?msg=dm_slow')
     _dm_send_times[member['id']] = now
-    _dm_send(member['id'], to, text)
+    _dm_send(member['id'], to, text, att)
     _dm_owner_notify(to)
     log_user_event(member['id'], 'dm_send', to, get_client_ip(request))
     return redirect(f'/bereich/nachrichten/{to}?msg=dm_sent')
+
+
+@public_app.route('/bereich/nachrichten/datei/<mid>')
+def dm_attachment(mid: str):
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        abort(403)
+    me = member['id']
+    msg = next((m for m in load_dm() if m.get('id') == mid), None)
+    # nur Teilnehmer der Nachricht, die sie nicht für sich gelöscht haben
+    if (msg is None or me not in (msg.get('frm'), msg.get('to'))
+            or _dm_hidden(msg, me) or not msg.get('att')):
+        abort(404)
+    data = _dm_att_read(msg['att'].get('fid', ''))
+    if data is None:
+        abort(404)
+    resp = make_response(data)
+    resp.headers['Content-Type'] = 'application/octet-stream'  # nie inline ausführen
+    resp.headers['Content-Disposition'] = (
+        'attachment; filename="' + secure_filename(msg['att'].get('name') or 'datei') + '"')
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
 
 
 @public_app.route('/bereich/nachrichten/del', methods=['POST'])

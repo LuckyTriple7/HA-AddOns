@@ -67,6 +67,11 @@
     .b-row.them { align-self: flex-start; }
     .bubble { padding: 9px 13px; border-radius: 12px; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
     .bubble .b-time { display: block; font-size: 0.68rem; opacity: .7; margin-top: 4px; }
+    .bubble .att { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; font-weight: 600; word-break: break-all; }
+    .bubble.me .att { color: #fff; }
+    .bubble .att-sz { font-weight: 400; opacity: .8; font-size: 0.76rem; }
+    .att-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .att-row input[type="file"] { font-size: 0.8rem; color: var(--muted); max-width: 100%; }
     .bubble.them { background: var(--surf2); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
     .bubble.me { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
     .b-del { margin: 0; }
@@ -106,11 +111,12 @@
       {% if msg == 'dm_sent' %}<div class="msg ok">{{ t.dm_sent }}</div>{% endif %}
       {% if msg == 'dm_deleted' %}<div class="msg ok">{{ t.dm_deleted }}</div>{% endif %}
       {% if msg == 'dm_slow' %}<div class="msg err">{{ t.dm_slow }}</div>{% endif %}
+      {% if msg == 'dm_att_err' %}<div class="msg err">{{ t.dm_att_err }}</div>{% endif %}
       {% if thread %}
       <div class="thread">
         {% for m in thread %}
         <div class="b-row {{ 'me' if m.mine else 'them' }}">
-          <div class="bubble {{ 'me' if m.mine else 'them' }}">{{ m.text }}<span class="b-time" data-ts="{{ m.ts }}"></span></div>
+          <div class="bubble {{ 'me' if m.mine else 'them' }}">{% if m.text %}{{ m.text }}{% endif %}{% if m.att %}<a class="att" href="/bereich/nachrichten/datei/{{ m.id }}">📎 {{ m.att.name }} <span class="att-sz">{% if m.att.size >= 1048576 %}{{ (m.att.size / 1048576)|round(1) }} MB{% else %}{{ (m.att.size / 1024)|round|int }} KB{% endif %}</span></a>{% endif %}<span class="b-time" data-ts="{{ m.ts }}"></span></div>
           <form method="post" action="/bereich/nachrichten/del" class="b-del" onsubmit="return confirm({{ t.dm_delete_confirm|tojson }})">
             <input type="hidden" name="mid" value="{{ m.id }}">
             <input type="hidden" name="convo" value="{{ partner.id }}">
@@ -127,10 +133,14 @@
       {% elif partner.gone %}
       <div class="msg err">{{ t.dm_partner_gone }}</div>
       {% elif can_reply %}
-      <form method="post" action="/bereich/nachrichten/send">
+      <form method="post" action="/bereich/nachrichten/send" enctype="multipart/form-data">
         <input type="hidden" name="to" value="{{ partner.id }}">
         <label for="t-text">{{ t.dm_reply_label }}</label>
-        <textarea id="t-text" name="text" maxlength="4000" required></textarea>
+        <textarea id="t-text" name="text" maxlength="4000"></textarea>
+        <div class="att-row">
+          <label for="t-file" style="margin:0">📎 {{ t.dm_attach }}</label>
+          <input type="file" id="t-file" name="file">
+        </div>
         <button class="btn" type="submit">{{ t.dm_send }}</button>
       </form>
       {% else %}
@@ -147,14 +157,18 @@
       {% if msg == 'dm_deleted' %}<div class="msg ok">{{ t.dm_deleted }}</div>{% endif %}
 
       {% if recipients %}
-      <form method="post" action="/bereich/nachrichten/send">
+      <form method="post" action="/bereich/nachrichten/send" enctype="multipart/form-data">
         <label for="r-search">{{ t.dm_new_to }}</label>
         <input type="text" id="r-search" class="search" placeholder="{{ t.dm_search_ph }}" autocomplete="off">
         <select name="to" id="r-select" required>
           {% for r in recipients %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
         </select>
         <label for="n-text">{{ t.dm_message }}</label>
-        <textarea id="n-text" name="text" maxlength="4000" placeholder="{{ t.dm_message_ph }}" required></textarea>
+        <textarea id="n-text" name="text" maxlength="4000" placeholder="{{ t.dm_message_ph }}"></textarea>
+        <div class="att-row">
+          <label for="n-file" style="margin:0">📎 {{ t.dm_attach }}</label>
+          <input type="file" id="n-file" name="file">
+        </div>
         <button class="btn" type="submit">{{ t.dm_send }}</button>
       </form>
       {% else %}

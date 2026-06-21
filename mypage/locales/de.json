@@ -230,6 +230,8 @@
   "dm_thread_empty": "Noch keine Nachrichten. Schreib die erste!",
   "dm_partner_gone": "Dieses Mitglied gibt es nicht mehr. Antworten ist nicht möglich.",
   "dm_reply_label": "Antworten",
+  "dm_attach": "Datei anhängen (max. 25 MB, verschlüsselt)",
+  "dm_att_err": "Anhang abgelehnt: zu groß (max. 25 MB) oder unzulässiger Dateityp.",
   "dm_send": "Senden",
   "dm_partner_off": "Dieses Mitglied empfängt zurzeit keine Nachrichten.",
   "dm_off_err": "Dieses Mitglied empfängt zurzeit keine Nachrichten.",
