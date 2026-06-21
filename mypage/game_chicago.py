@@ -18,10 +18,12 @@ Zustand (Würfeln über game_dice), KI-Schritte einzeln abrufbar (animationsgetr
   einen Filz, bis alle n+1 verteilt sind; er legt die nächste Runde vor. Phase 2
   („Runterspielen") spielen nur Spieler mit ≥1 Filz; der BESTE darf je Runde einen
   Filz abwerfen; wer 0 Filze hat, ist raus (gerettet). Letzter mit Filz(en) verliert.
-* Vereinfachung v1: die optionalen Becher-Tricks (zwei 6er→eine 1 mit Neuwurf,
-  drei 6er→zwei 1er mit Neuwurf) sind NICHT umgesetzt — zwei/drei Sechser zählen
-  einfach als (60,60,·)/(60,60,60). "Chicago" (drei 1er) zählt; in einem Wurf
-  erzielt nimmt der Spieler sofort gerettet aus dem Spiel.
+* Becher-Tricks: zwei 6er können (Wahl-Aktion 'convert6') in eine 1 umgewandelt
+  werden — eine 6 wird zur gehaltenen 1, die andere kommt zurück in den Becher und
+  muss neu geworfen werden (nur mit verbleibendem Wurf). Drei 6er werden automatisch
+  zu zwei gehaltenen 1ern, der dritte Würfel kommt zurück in den Becher (bzw. bleibt
+  6, falls kein Wurf mehr übrig). "Chicago" (drei 1er) in einem Wurf nimmt den
+  Spieler sofort gerettet aus dem Spiel.
 """
 from __future__ import annotations
 
@@ -126,10 +128,10 @@ def apply_action(state: dict, player: str, action: dict) -> None:
     t = action.get('type', '')
     if t == 'roll':
         _do_roll(state, player, action.get('held'))
+    elif t == 'convert6':
+        _do_convert6(state, player)
     elif t == 'stand':
         _do_stand(state, player, action)
-    elif t == 'next':
-        _start_next_turn(state)
     else:
         raise IllegalMove('unknown action')
 
@@ -154,6 +156,37 @@ def _do_roll(state: dict, player: str, held=None) -> None:
     state['rolls_used'] += 1
     state['last'] = {'type': 'roll', 'who': player, 'dice': dice[:], 'held': mask[:],
                      'rolls_used': state['rolls_used']}
+    # Drei Sechser → automatisch zwei (gehaltene) Einser, dritter zurück in den Becher
+    if dice.count(6) == 3:
+        dice[0] = 1
+        dice[1] = 1
+        if state['rolls_used'] < state['roll_cap']:
+            dice[2] = 0
+            state['held'] = [True, True, False]
+        else:
+            dice[2] = 6                      # kein Wurf mehr → bleibt 6 (1,1,6)
+            state['held'] = [True, True, True]
+        state['dice'] = dice
+        state['last'] = {'type': 'triple6', 'who': player, 'dice': dice[:]}
+
+
+def _do_convert6(state: dict, player: str) -> None:
+    """Zwei 6er → eine gehaltene 1; die andere 6 kommt zurück in den Becher (Neuwurf)."""
+    if state['turn'] != player or state['status'] not in ('opener_roll', 'follower_roll'):
+        raise IllegalMove('cannot convert')
+    if state['rolls_used'] < 1 or state['rolls_used'] >= state['roll_cap']:
+        raise IllegalMove('no roll left to return a die')
+    dice = state['dice']
+    six_idx = [i for i, d in enumerate(dice) if d == 6]
+    if len(six_idx) != 2 or 0 in dice:
+        raise IllegalMove('need exactly two sixes')
+    a, b = six_idx
+    dice[a] = 1
+    state['held'][a] = True                  # eine 6 → 1, gehalten
+    dice[b] = 0
+    state['held'][b] = False                 # andere 6 → zurück (muss neu geworfen werden)
+    state['dice'] = dice
+    state['last'] = {'type': 'convert6', 'who': player, 'dice': dice[:]}
 
 
 def _do_stand(state: dict, player: str, action: dict) -> None:
@@ -161,6 +194,8 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
         raise IllegalMove('cannot stand')
     if state['rolls_used'] < 1:
         raise IllegalMove('must roll first')
+    if 0 in state['dice']:
+        raise IllegalMove('must reroll returned die')
 
     if state['status'] == 'opener_roll':
         val = action.get('valuation')
@@ -317,9 +352,18 @@ def ai_step(state: dict) -> dict:
     if state['rolls_used'] == 0:
         return {'type': 'roll'}
 
+    # Nach einer Transformation liegt ein zurückgelegter Würfel (0) → neu werfen
+    if 0 in dice:
+        return {'type': 'roll', 'held': [d in (1, 6) for d in dice]}
+
+    cap = 3 if is_opener else state['roll_cap']
+    # Zwei 6er in eine 1 umwandeln (mittel/schwer), wenn noch ein Wurf übrig & keine 1 vorhanden
+    if (dice.count(6) == 2 and 1 not in dice
+            and state['rolls_used'] < cap and state['level'] != 'easy'):
+        return {'type': 'convert6'}
+
     # Würfel halten: 1er und 6er sichern (gross-Denke)
     held = [d in (1, 6) for d in dice]
-    cap = 3 if is_opener else state['roll_cap']
     good = is_chicago(dice) or dice.count(1) >= 1
     want_more = state['rolls_used'] < cap and not good
     if state['level'] == 'easy':
@@ -359,6 +403,9 @@ def public_view(state: dict) -> dict:
         'dice': state['dice'],
         'held': state['held'],
         'rolls_used': state['rolls_used'],
+        'can_convert6': (state['status'] in ('opener_roll', 'follower_roll')
+                         and 1 <= state['rolls_used'] < state['roll_cap']
+                         and state['dice'].count(6) == 2 and 0 not in state['dice']),
         'results': {p: {'label': r['label'], 'dice': r['dice'], 'chic': r['chic'],
                         'rolls': r['rolls']}
                     for p, r in state['results'].items()},
