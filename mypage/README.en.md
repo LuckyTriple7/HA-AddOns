@@ -8,19 +8,24 @@ Run your own homepage straight from Home Assistant — no design skills required
 
 - 🏠 **Public homepage** on port 17760 — profile, content sections, social links
 - 🛠 **Admin panel** on port 17761 (login + brute-force protection) and via HA ingress in the sidebar
-- 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, events, link collection, FAQ, location & opening hours
+- 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, **countdown**, events, link collection, FAQ, location & opening hours
+- 📄 **Custom pages**: standalone subpages (e.g. “About”, “Directions”) in Markdown (DE/EN) with their own address `/seite/<slug>`, optional nav entry and draft status
+- 🧾 **Form builder**: freely configurable forms (sign-up, survey, request) with arbitrary fields; submissions in the messages tab + notification (email/Telegram/HA), honeypot + captcha
+- ↪️ **Redirects (301/302)** + **Search Console verification** (Google/Bing) in the admin
+- 🔒 **Members-only content**: blog posts, custom pages, photo albums or entire homepage sections restricted to logged-in members (guests see a teaser/lock + login prompt)
 - 🔀 **Free ordering & visibility**: reorder sections by drag & drop and hide/show them individually (header stays on top, contact stays at the bottom)
 - 🐙 **GitHub import**: enter a username, pick repos, done — description, stars, language and topics are imported, stars refreshed hourly
 - 📅 **Appointment / booking button** (e.g. Calendly) — see [below](#-booking-calendar--appointment-button)
 - ❤️ **Support button** (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …) with an automatic icon
-- 🎨 **Design**: accent color, light/dark, layout, font (incl. custom font upload), custom CSS
+- 🎨 **Design**: accent color, light/dark, layout, font (incl. custom font upload), custom CSS — plus **design templates** (one-click styles like “Elegant Dark”, “Light & Clean”, “Playful”)
 - 🌍 **Bilingual** (DE/EN) with optional auto-translation; visitors can switch
 - 👁 **Visitor counter & stats**: views, unique visitors, countries, browsers, referrers
 - 📷 **Photo albums** with slideshow, watermark and image zoom; **image galleries** in blog posts
-- 🔒 **Members area**: password-protected file area per user (optionally on an SMB share)
-- 📨 **Contact form** with spam protection (honeypot + captcha + rate limit) and Telegram/email notification
+- 📝 **Blog** with full-text search, tags, **newsletter subscription** (double opt-in), **share buttons** (privacy-friendly) and — optionally — **comments & emoji reactions** for members (moderatable)
+- 🔒 **Members area**: password-protected file area per user (optionally on an SMB share), optional **self-registration** (email confirmation + admin approval), **self-service password reset** and **per-member games toggle**
+- 📨 **Contact form** with spam protection (honeypot + captcha + rate limit) and notifications via Telegram/email and **Home Assistant**
 - 🧭 **Navigation bar** in the header with jump links to the sections that exist
-- 📈 **Home Assistant sensors**, RSS, PWA, SEO (sitemap/robots.txt), backup & static export
+- 📈 **Home Assistant sensors & notifications**, RSS, PWA, SEO (sitemap/robots.txt), backup & static export
 
 ## Quick start
 
@@ -33,6 +38,8 @@ Run your own homepage straight from Home Assistant — no design skills required
 > **Tip:** Only expose port 17760 to the outside. Keep the admin panel (17761) on your local network or behind HA.
 
 Full documentation of all options and features is in [DOCS.md](DOCS.md).
+
+> **No Home Assistant?** MyPage also runs as a plain Docker container (via `docker compose`) — guide: [STANDALONE.en.md](STANDALONE.en.md).
 
 ## Ordering & hiding sections
 

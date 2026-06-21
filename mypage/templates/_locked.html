@@ -1,0 +1,12 @@
+<div class="members-lock">
+  <div class="ml-icon">🔒</div>
+  <p>{{ t.members_only_notice }}</p>
+  <a href="/bereich" class="ml-btn">{{ t.members_login_cta }}</a>
+</div>
+<style>
+  .members-lock { border: 1px dashed var(--border); border-radius: 10px; padding: 26px 20px; text-align: center; margin: 26px 0; background: var(--surf); }
+  .members-lock .ml-icon { font-size: 1.9rem; margin-bottom: 8px; }
+  .members-lock p { color: var(--muted); margin: 0 0 14px; }
+  .members-lock .ml-btn { display: inline-block; background: var(--accent); color: #fff; padding: 10px 22px; border-radius: 8px; font-weight: 600; }
+  .members-lock .ml-btn:hover { text-decoration: none; filter: brightness(1.08); }
+</style>

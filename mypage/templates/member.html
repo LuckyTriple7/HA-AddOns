@@ -35,10 +35,11 @@
     .card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 26px; }
     h1 { font-size: 1.3rem; margin-bottom: 18px; }
     label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
-    input[type="email"], input[type="password"] {
+    input[type="email"], input[type="password"], input[type="text"] {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 9px 12px; border-radius: 6px; font-size: 0.9rem;
     }
+    input.captcha-input { width: 130px; }
     input:focus { outline: none; border-color: var(--accent); }
     .btn {
       background: var(--green); border: 1px solid var(--green-h); color: #fff;
@@ -51,6 +52,8 @@
     .msg.err { background: rgba(207,34,46,.12); border: 1px solid var(--red); color: var(--red); }
     .msg.ok { background: rgba(46,160,67,.12); border: 1px solid var(--green-h); color: var(--green-h); }
     .login-card { max-width: 380px; margin: 0 auto; }
+    .reset-link { color: var(--accent); font-size: 0.82rem; text-decoration: none; }
+    .reset-link:hover { text-decoration: underline; }
     .notice-card { margin-bottom: 16px; border-left: 4px solid var(--accent); padding: 18px 22px; }
     .notice-card p { margin: 0 0 8px; } .notice-card p:last-child { margin-bottom: 0; }
     .notice-card ul, .notice-card ol { margin: 4px 0 8px 20px; }
@@ -80,10 +83,88 @@
   </header>
   <main class="wrap">
     {% if not member %}
+    {% if view == 'forgot' %}
+    <div class="card login-card">
+      <h1>{{ t.member_forgot_title }}</h1>
+      {% if msg == 'reset_sent' %}
+      <div class="msg ok">{{ t.member_reset_sent }}</div>
+      <p style="text-align:center"><a class="reset-link" href="/bereich">{{ t.member_back_login }}</a></p>
+      {% else %}
+      <p style="font-size:0.9rem;color:var(--muted,#8b949e);margin:0 0 14px">{{ t.member_forgot_intro }}</p>
+      <form method="post" action="/bereich/forgot" autocomplete="on">
+        <label for="email">{{ t.member_email }}</label>
+        <input type="email" id="email" name="email" autocomplete="username" autofocus required>
+        <button class="btn" type="submit">{{ t.member_forgot_submit }}</button>
+      </form>
+      <p style="text-align:center;margin-top:14px"><a class="reset-link" href="/bereich">{{ t.member_back_login }}</a></p>
+      {% endif %}
+    </div>
+    {% elif view == 'reset' %}
+    <div class="card login-card">
+      <h1>{{ t.member_reset_title }}</h1>
+      {% if not reset_valid %}
+      <div class="msg err">{{ t.member_reset_invalid }}</div>
+      <p style="text-align:center"><a class="reset-link" href="/bereich/forgot">{{ t.member_forgot_title }}</a></p>
+      {% else %}
+      {% if msg == 'reset_short' %}<div class="msg err">{{ t.member_reset_short }}</div>{% endif %}
+      {% if msg == 'reset_mismatch' %}<div class="msg err">{{ t.member_reset_mismatch }}</div>{% endif %}
+      <form method="post" action="/bereich/reset/{{ uid }}/{{ token }}" autocomplete="off">
+        <label for="password">{{ t.member_reset_new }}</label>
+        <input type="password" id="password" name="password" autocomplete="new-password" minlength="8" autofocus required>
+        <label for="password2">{{ t.member_reset_confirm }}</label>
+        <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="8" required>
+        <button class="btn" type="submit">{{ t.member_reset_submit }}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% elif view == 'register' %}
+    <div class="card login-card">
+      <h1>{{ t.member_register_title }}</h1>
+      {% if msg == 'register_sent' %}
+      <div class="msg ok">{{ t.member_register_sent }}</div>
+      <p style="text-align:center"><a class="reset-link" href="/bereich">{{ t.member_back_login }}</a></p>
+      {% else %}
+      <p style="font-size:0.9rem;color:var(--muted,#8b949e);margin:0 0 14px">{{ t.member_register_intro }}</p>
+      {% if msg == 'register_captcha' %}<div class="msg err">{{ t.member_register_captcha_err }}</div>{% endif %}
+      {% if msg == 'register_email' %}<div class="msg err">{{ t.member_register_email_err }}</div>{% endif %}
+      {% if msg == 'reset_short' %}<div class="msg err">{{ t.member_reset_short }}</div>{% endif %}
+      {% if msg == 'reset_mismatch' %}<div class="msg err">{{ t.member_reset_mismatch }}</div>{% endif %}
+      <form method="post" action="/bereich/register" autocomplete="on">
+        <label for="email">{{ t.member_email }}</label>
+        <input type="email" id="email" name="email" autocomplete="username" value="{{ reg_email|default('') }}" autofocus required>
+        <label for="name">{{ t.member_register_name }}</label>
+        <input type="text" id="name" name="name" maxlength="60" value="{{ reg_name|default('') }}">
+        <label for="password">{{ t.member_reset_new }}</label>
+        <input type="password" id="password" name="password" autocomplete="new-password" minlength="8" required>
+        <label for="password2">{{ t.member_reset_confirm }}</label>
+        <input type="password" id="password2" name="password2" autocomplete="new-password" minlength="8" required>
+        <label for="captcha_answer">{{ t.member_register_captcha }}: {{ captcha.question }}</label>
+        <input type="text" class="captcha-input" id="captcha_answer" name="captcha_answer" inputmode="numeric" autocomplete="off" required>
+        <input type="hidden" name="captcha_token" value="{{ captcha.token }}">
+        <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button class="btn" type="submit">{{ t.member_register_submit }}</button>
+      </form>
+      <p style="text-align:center;margin-top:14px"><a class="reset-link" href="/bereich">{{ t.member_back_login }}</a></p>
+      {% endif %}
+    </div>
+    {% elif view == 'verify' %}
+    <div class="card login-card">
+      <h1>{{ t.member_register_title }}</h1>
+      {% if verify_ok %}
+      <div class="msg ok">{{ t.member_verify_ok }}</div>
+      {% else %}
+      <div class="msg err">{{ t.member_verify_invalid }}</div>
+      {% endif %}
+      <p style="text-align:center"><a class="reset-link" href="/bereich">{{ t.member_back_login }}</a></p>
+    </div>
+    {% else %}
     <div class="card login-card">
       <h1>{{ t.member_area }}</h1>
       {% if msg == 'credentials' %}<div class="msg err">{{ t.error_credentials }}</div>{% endif %}
       {% if msg == 'locked' %}<div class="msg err">{{ t.error_locked }}</div>{% endif %}
+      {% if msg == 'pwchanged' %}<div class="msg ok">{{ t.member_pwchanged }}</div>{% endif %}
+      {% if msg == 'unverified' %}<div class="msg err">{{ t.member_login_unverified }}</div>{% endif %}
+      {% if msg == 'pending' %}<div class="msg err">{{ t.member_login_pending }}</div>{% endif %}
       <form method="post" action="/bereich/login" autocomplete="on">
         <label for="email">{{ t.member_email }}</label>
         <input type="email" id="email" name="email" autocomplete="username" autofocus required>
@@ -91,7 +172,13 @@
         <input type="password" id="password" name="password" autocomplete="current-password" required>
         <button class="btn" type="submit">{{ t.login }}</button>
       </form>
+      <p style="text-align:center;margin-top:14px">
+        {% if can_register %}<a class="reset-link" href="/bereich/register">{{ t.member_register_link }}</a>{% endif %}
+        {% if can_register and can_reset %}<span style="color:var(--muted,#8b949e)"> · </span>{% endif %}
+        {% if can_reset %}<a class="reset-link" href="/bereich/forgot">{{ t.member_forgot_link }}</a>{% endif %}
+      </p>
     </div>
+    {% endif %}
     {% else %}
     {% if login_msg_html %}<div class="card notice-card">{{ login_msg_html|safe }}</div>{% endif %}
     <div class="card">
@@ -135,6 +222,35 @@
       </form>
       {% endif %}
     </div>
+
+    <div class="card" style="margin-top:18px">
+      <h1>{{ t.member_profile_title }}</h1>
+      {% if msg == 'profile_saved' %}<div class="msg ok">{{ t.member_profile_saved }}</div>{% endif %}
+      {% if msg == 'pw_changed' %}<div class="msg ok">{{ t.member_pw_changed }}</div>{% endif %}
+      {% if msg == 'pw_wrong' %}<div class="msg err">{{ t.member_pw_wrong }}</div>{% endif %}
+      {% if msg == 'pw_short' %}<div class="msg err">{{ t.member_reset_short }}</div>{% endif %}
+      {% if msg == 'pw_mismatch' %}<div class="msg err">{{ t.member_reset_mismatch }}</div>{% endif %}
+      <form method="post" action="/bereich/profile">
+        <input type="hidden" name="action" value="name">
+        <label for="pf-name">{{ t.member_register_name }}</label>
+        <input type="text" id="pf-name" name="name" maxlength="60" value="{{ member.name|default('') }}">
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_name_hint }}</p>
+        <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
+      </form>
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile" autocomplete="off">
+        <input type="hidden" name="action" value="password">
+        <label for="pf-cur">{{ t.member_pw_current }}</label>
+        <input type="password" id="pf-cur" name="current_password" autocomplete="current-password" required>
+        <label for="pf-new">{{ t.member_reset_new }}</label>
+        <input type="password" id="pf-new" name="new_password" minlength="8" autocomplete="new-password" required>
+        <label for="pf-new2">{{ t.member_reset_confirm }}</label>
+        <input type="password" id="pf-new2" name="new_password2" minlength="8" autocomplete="new-password" required>
+        <button class="btn small" type="submit">{{ t.member_pw_change_btn }}</button>
+      </form>
+    </div>
+
+    {% if games_on %}
     <div class="card" style="margin-top:18px">
       <h1>🃏 {{ t.g66_title }}</h1>
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g66_intro }}</p>
@@ -170,6 +286,7 @@
       <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.ggr_intro }}</p>
       <button class="btn" type="button" onclick="openGame('gluecksrad')">▶ {{ t.ggr_play }}</button>
     </div>
+    {% endif %}
     {% endif %}
   </main>
   <footer>

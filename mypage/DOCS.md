@@ -15,6 +15,7 @@
 | `geoip_api_key` | Optional: ipapi.is-Key — ohne Key ca. 1.000 Lookups/Tag frei |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
 | `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
+| `ha_notify` | Persistente Home-Assistant-Benachrichtigungen bei neuer Kontaktnachricht, neuem Blog-Kommentar und gesperrter IP (Brute-Force). Standard: an |
 | `smtp_host` | Optional: SMTP-Server — neue Kontaktnachrichten werden per E-Mail gemeldet |
 | `smtp_port` | SMTP-Port, meist 587 (STARTTLS) oder 465 (SSL) |
 | `smtp_user` / `smtp_password` | Zugangsdaten für den Mailversand (App-Passwort empfohlen) |
@@ -48,6 +49,7 @@ Der Tab **Inhalt** zeigt alle Startseiten-Bereiche als einklappbare Karten (Akko
 
 Verfügbare Bereiche:
 
+- **Countdown**: zählt sichtbar auf ein Zieldatum/-zeit herunter (z. B. Eröffnung, Launch, Veranstaltung) — Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, optionaler Überschrift, Untertitel und Bild darüber. Bei Ablauf erscheint ein frei wählbarer „Es ist soweit!"-Text. Optional ein **„Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (benötigt aktiven Newsletter). Leeres Zieldatum = Abschnitt aus. Ist ein Countdown eingerichtet, erscheint er **auch auf der Wartungs-/„Seite im Aufbau"-Seite** (siehe Wartungsmodus) — ideal als Coming-Soon-Seite; das Newsletter-Abo funktioniert dort trotz Wartungsmodus.
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
 - **Leistungen**: Angebote/Dienstleistungen als Karten mit Symbol (Emoji), Beschreibung (DE/EN) und optionalem Preis
 - **Referenzen**: Kundenstimmen mit Zitat (DE/EN), Name, Funktion und optionalem Foto
@@ -61,6 +63,9 @@ Verfügbare Bereiche:
 - **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay; ein **Klick auf das Bild** zeigt es groß, ein weiterer Klick in voller Auflösung (scroll-/schwenkbar). Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert. Die Bild-Reihenfolge lässt sich per **Drag & Drop** ändern; ein Klick auf eine Mini-Kachel im Admin zeigt eine Vorschau.
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
 
+### Markdown-Editor
+Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Projekt-Details, Bio, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen, um eine Datei direkt **hochzuladen** (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
+
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
 - **Manuell**: Projekte mit Titel, Beschreibung (DE/EN), Bild, Demo-Link, GitHub-Link, Tags und Sprache anlegen.
@@ -68,14 +73,55 @@ Verfügbare Bereiche:
 - Reihenfolge per ↑/↓-Buttons ändern.
 
 ### Nachrichten
-Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz dreifach: unsichtbares Honeypot-Feld, ein einfaches Rechen-Captcha („7 + 3 = ?", selbst gehostet, kein externer Dienst) und Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID) und/oder **E-Mail** (SMTP-Optionen) — beides in den Add-on-Optionen, wie bei GitPulse.
+Das Kontaktformular (im Design-Tab aktivierbar) speichert Nachrichten im Tab „Nachrichten". Spam-Schutz dreifach: unsichtbares Honeypot-Feld, ein einfaches Rechen-Captcha („7 + 3 = ?", selbst gehostet, kein externer Dienst) und Rate-Limit (5 Nachrichten/Stunde pro IP). Benachrichtigungen bei neuen Nachrichten wahlweise per **Telegram** (Bot-Token + Chat-ID), **E-Mail** (SMTP-Optionen) und/oder als **Home-Assistant-Benachrichtigung** (`ha_notify`).
+
+Im selben Tab werden unter **„Blog-Kommentare"** alle Mitglieder-Kommentare zur Moderation gelistet (mit Beitragstitel, verlinkt zur Vorschau). Einzelne Kommentare lassen sich per ✕ entfernen.
 
 ### Blog
 Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einzelne Beiträge unter `/blog/<id>`, die neuesten drei erscheinen auf der Startseite. Optional je Beitrag ein Titelbild, ein Video-Embed (YouTube/Vimeo, datenschutzfreundlich erst auf Klick) und eine **Bild-Galerie** (horizontal scrollbar mit Pfeilen). Ein Klick auf ein Bild öffnet es groß, ein weiterer in voller Auflösung.
 
+- **Schlagwörter (Tags)**: Pro Beitrag bis zu 8 Tags (komma-getrennt). Auf der Blog-Seite gibt es **Tag-Filter-Chips**; auf jeder Beitragsseite verlinken die Tags zur gefilterten Ansicht.
+- **Aufrufe je Beitrag**: Jeder Blog-Beitrag zählt seine Aufrufe (ohne Bots). Die Zahl steht im Admin in der Beitragsliste und erscheint dezent (👁) auf der Beitragsseite. Die Zähler liegen in `stats.json` (im Backup).
+- **Suche**: Ein Suchfeld auf `/blog` durchsucht Titel, Text und Tags (DE+EN). Suche und Tag-Filter lassen sich kombinieren. Entwürfe und geplante Beiträge bleiben außen vor.
+- **Newsletter / Blog-Abo** (im Design-Tab aktivierbar, Standard aus): Auf der Blog-Seite erscheint ein Abo-Feld. Besucher tragen ihre E-Mail ein und bestätigen das Abo per Link (**Double-Opt-in**). Im Blog-Tab schreibst du dann eine Nachricht (Betreff + Markdown) und sendest sie per Klick an alle **bestätigten** Abonnenten — jede Mail enthält einen **Abmelde-Link**. Du siehst die Abonnentenzahl und kannst einzelne entfernen. Schutz: Honeypot + Rate-Limit, keine E-Mail-Enumeration. Benötigt SMTP + öffentliche URL; die Liste liegt in `subscribers.json` (im Backup).
+- **Teilen-Buttons** (im Design-Tab über „Teilen-Buttons" aktivierbar, Standard aus): Unter jedem Beitrag **und auf Projekt-Detailseiten** erscheinen Buttons zum Teilen via **WhatsApp, X, Facebook, LinkedIn, E-Mail** sowie **Link kopieren** (und auf Mobilgeräten der native Teilen-Dialog). Reine Links — kein Tracking-Skript, es wird nichts nachgeladen.
+- **Kommentare & Reaktionen** (im Design-Tab über „Kommentare & Reaktionen" aktivierbar, Standard aus): **Angemeldete Mitglieder** können Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏 — eine Reaktion pro Person, per Klick umschaltbar). Gäste sehen die Reaktionsleiste ausgegraut mit einem Hinweis zum Anmelden. Mitglieder können auf Kommentare **antworten** (Antwort-Threads, eine Ebene tief); wird ein Mailserver genutzt, bekommt der Autor des beantworteten Kommentars eine **Benachrichtigung per E-Mail** (nicht bei Selbstantwort). Moderiert wird im Tab **Nachrichten** (siehe unten); bei neuen Kommentaren kommt zusätzlich eine Home-Assistant-Benachrichtigung. Kommentare/Reaktionen liegen in `comments.json` und werden im Backup mitgesichert.
+
+### Seiten
+Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**, **„Anfahrt"** oder **„Vereinsordnung"**. Jede Seite hat eine eigene Adresse unter `/seite/<slug>` und Inhalt in **Markdown** (DE/EN, gleicher Editor wie beim Blog, mit Live-Vorschau).
+
+- **Adresse (Slug)**: Frei wählbar (Kleinbuchstaben, Ziffern, Bindestriche). Leer gelassen, wird sie automatisch aus dem Titel erzeugt. Reservierte und bereits vergebene Adressen werden automatisch umgangen (z. B. `ueber-uns-2`).
+- **In der Navigation zeigen**: Schalter je Seite — sichtbare Seiten mit aktiviertem Schalter erscheinen als Link in der Navigationsleiste (auf der Startseite und auf den Seiten selbst).
+- **Status**: „Veröffentlicht" oder „Entwurf". Entwürfe sind öffentlich nicht erreichbar (404), lassen sich im Admin aber über **Vorschau** ansehen.
+- **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
+- **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
+
+### Formulare
+Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. **Veranstaltungs-Anmeldung, Umfrage oder Anfrage**. Jedes Formular ist unter `/formular/<slug>` erreichbar (optional als Navi-Eintrag).
+
+- **Felder**: beliebig viele, per Drag sortierbar. Typen: Text, mehrzeiliges Textfeld, E-Mail, Telefon, Zahl, Datum, Auswahl (Dropdown), Auswahl (Radio) und Kontrollkästchen. Je Feld DE/EN-Bezeichnung, optionaler Platzhalter, **Pflicht**-Schalter und (für Auswahl/Radio) Optionen (eine je Zeile).
+- **Einleitung & Danke-Text** (DE/EN, Markdown) lassen sich frei texten.
+- **Einsendungen** landen im Tab **„Nachrichten"** — mit Formularnamen als Markierung (📋) und allen Feldern aufgelistet. Sie zählen in den Nachrichten-Badge und werden im Backup mitgesichert.
+- **Benachrichtigung**: Je Formular abschaltbar. Ist sie an, wird bei jeder Einsendung dieselbe Benachrichtigung wie beim Kontaktformular ausgelöst (E-Mail, Telegram und Home-Assistant-Notification).
+- **Spam-Schutz**: wie beim Kontaktformular — verstecktes Honeypot-Feld, Rechen-Captcha und Rate-Limit.
+- **Status**: „Veröffentlicht" oder „Entwurf"; Entwürfe sind öffentlich 404, im Admin aber über **Vorschau** sichtbar. Formulare liegen in `site.json` (im Backup).
+
+### Mitglieder-only-Inhalte
+Einzelne Inhalte lassen sich auf **angemeldete Mitglieder** beschränken (nutzt den bestehenden [Mitgliederbereich](#persönlicher-bereich-mitglieder)):
+
+- **Blog-Beiträge**: Schalter **„🔒 Nur für Mitglieder"** im Beitrags-Editor. Gäste sehen den Beitrag in der Liste mit Schloss-Symbol; öffnen sie ihn, erscheinen nur Titel + ein kurzer Anriss und ein **„Zum Mitglieder-Login"**-Button (Kommentare, Galerie und Video bleiben verborgen). Eingeloggte Mitglieder sehen alles.
+- **Eigene Seiten**: derselbe Schalter im Seiten-Editor — gleiches Verhalten (Anriss + Login-Aufforderung für Gäste).
+- **Fotoalben**: Schalter **„🔒 Nur für Mitglieder"** im Album-Editor. Gäste sehen statt der Bilder eine **Schloss-Karte** (Titel + Foto-Anzahl + Link zum Login); es werden keine Bild-Adressen des Albums ausgeliefert. Eingeloggte Mitglieder sehen das Album normal mit Diashow.
+- **Startseiten-Sektionen**: Im Tab **Inhalt** hat jeder Abschnitt neben dem Auge ein **Schloss-Symbol**. Aktiviert, ist der ganze Abschnitt nur für eingeloggte Mitglieder sichtbar (für Gäste komplett ausgeblendet, auch in der Navigation).
+
+Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass auch bei kurzen Inhalten stets ein Teil verborgen bleibt. Statischer Export und Suchmaschinen laufen als „Gast" — geschützte Inhalte landen nicht im Export.
+
 ### System
-- **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
-- **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
+- **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar. Ist im Tab **Inhalt** ein **Countdown** eingerichtet, wird er auf dieser Seite mit angezeigt — so entsteht eine Coming-Soon-Seite mit Countdown und optionalem „Benachrichtige mich"-Newsletter-Button.
+- **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
+- **Speicher aufräumen**: Entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und Größe angezeigt; es werden ausschließlich nicht mehr referenzierte Dateien entfernt (geteilte Bilder bleiben erhalten).
+- **Weiterleitungen (301)**: Leitet alte/geänderte Adressen auf eine neue um — dauerhaft (301) oder temporär (302). Ziel als interner Pfad (`/neue-seite`) oder vollständige URL (`https://…`). Greift **nur für Pfade, die es nicht (mehr) gibt** — bestehende Seiten werden nie überschrieben. Praktisch, wenn du den Slug einer Seite/eines Beitrags geändert hast und alte Links/Lesezeichen weiter funktionieren sollen.
+- **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 
 ## Persönlicher Bereich (Mitglieder)
@@ -83,8 +129,31 @@ Beiträge mit Datum, Titel und Markdown-Text (DE/EN). Liste unter `/blog`, einze
 Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Dateibereich pro Benutzer — praktisch zum einfachen Teilen von Dateien mit Familie und Freunden.
 
 - **Benutzer anlegen** im Admin-Tab „Benutzer": E-Mail (= Benutzername), Passwort (min. 8 Zeichen), Speicher-Quota. Ist ein Mailserver konfiguriert, bekommt der Benutzer die Zugangsdaten **automatisch per E-Mail** (ebenso bei Passwort-Reset).
+- **Selbst-Registrierung**: Besucher können sich (optional) selbst ein Konto anlegen — Details siehe Abschnitt [Selbst-Registrierung](#selbst-registrierung) unten.
+- **Passwort vergessen (Self-Service)**: Sind ein Mailserver (`smtp_host`) **und** die öffentliche URL gesetzt, erscheint auf der Login-Seite ein „Passwort vergessen?"-Link. Das Mitglied erhält einen zeitlich begrenzten Link (1 Stunde gültig) und setzt selbst ein neues Passwort — ohne Admin. Aus Sicherheitsgründen: stets dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Einmal-Token, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet.
+- **Spiele pro Mitglied abschaltbar**: In der Benutzerliste schaltet ein Button (🕹️/🚫) die Mitglieder-Spiele für ein Konto frei oder sperrt sie. Gesperrte Mitglieder sehen keine Spiel-Kacheln mehr, und die Spiel-Seiten/-APIs sind serverseitig blockiert — der Dateibereich bleibt normal nutzbar.
 - **Sicherheit**: Passwörter werden ausschließlich als scrypt-Hash gespeichert; Brute-Force-Schutz (5 Fehlversuche → 15 Min. Sperre); jeder Benutzer sieht nur den eigenen Bereich; Downloads werden immer als Datei-Anhang ausgeliefert, hochgeladene HTML-Dateien können also nie im Browser ausgeführt werden.
 - **Limits**: `user_upload_max_mb` begrenzt die Größe pro Datei (Standard 200 MB), die Quota pro Benutzer ist im Admin einstellbar.
+
+### Selbst-Registrierung
+
+Statt jeden Benutzer von Hand anzulegen, können sich Besucher selbst registrieren. Die Funktion ist **standardmäßig aus** und nur mit konfiguriertem **E-Mail-Versand (`smtp_host`)** und gesetzter **öffentlicher URL** nutzbar (die E-Mail-Bestätigung ist Pflicht).
+
+**Aktivieren:** Im Tab **Design** den Schalter **„Selbst-Registrierung"** auf **Ja** stellen und optional die **Standard-Quota** für neue Konten festlegen (Standard 500 MB). Auf der Login-Seite (`/bereich`) erscheint dann der Link **„Konto erstellen"**.
+
+**Ablauf (zweistufig):**
+
+1. Der Besucher füllt das Formular aus (E-Mail, optionaler Anzeigename, Passwort) und löst eine kleine **Sicherheitsfrage** (Captcha).
+2. Es wird ein **unbestätigtes** Konto angelegt und eine **Bestätigungs-E-Mail** mit Link verschickt (24 Stunden gültig).
+3. Der Besucher klickt den Link → seine **E-Mail ist bestätigt**.
+4. Der **Admin** gibt das Konto frei: in der Benutzerliste erscheint bei wartenden Konten ein grüner Button **„Freigeben"**. Nach der Freigabe bekommt das Mitglied eine **Aktivierungs-E-Mail**.
+5. Erst jetzt ist die **Anmeldung** möglich. Vorher wird ein Login mit einem klaren Hinweis abgewiesen („E-Mail bestätigen" bzw. „wartet auf Freigabe").
+
+**Selbst-registrierte Konten** starten bewusst **ohne Spielezugang** (lässt sich pro Person über den 🕹️-Button freigeben) und mit der eingestellten Standard-Quota. In der Benutzerliste sind sie als **`🆕 selbst registriert`** mit Status (`unbestätigt` / `wartet auf Freigabe` / `aktiv`) markiert.
+
+**Schutz vor Missbrauch:** Rechen-Captcha, unsichtbares Honeypot-Feld, Rate-Limit (5 Versuche/Stunde pro IP) und **keine E-Mail-Enumeration** — die Rückmeldung ist immer gleich („Prüfe dein Postfach"); existiert die Adresse bereits, bekommt sie stattdessen eine Hinweis-Mail.
+
+**Im Blick behalten:** Bei jeder Registrierung und Bestätigung gibt es eine **Home-Assistant-Benachrichtigung** (`ha_notify`). Zusätzlich zählt `sensor.mypage_pending_approvals`, wie viele bestätigte Konten auf deine Freigabe warten, und solange welche offen sind, bleibt eine **stehende HA-Benachrichtigung** sichtbar (sie verschwindet automatisch, sobald alles freigegeben ist).
 
 ### Optionaler SMB-Speicher
 
@@ -112,24 +181,43 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `sensor.mypage_failed_logins` | Fehlgeschlagene Logins der letzten 24 h (Admin + Mitglieder) |
 | `sensor.mypage_messages` | Anzahl gespeicherter Kontaktnachrichten |
 | `sensor.mypage_members` | Anzahl angelegter Benutzer |
+| `sensor.mypage_pending_approvals` | Selbst-Registrierungen, die auf deine Freigabe warten |
 | `sensor.mypage_projects` / `_posts` / `_albums` | Anzahl Projekte / Blog-Beiträge / Fotoalben |
 | `binary_sensor.mypage_storage_online` | SMB-/Dateispeicher erreichbar (on/off) |
 | `binary_sensor.mypage_maintenance` | Wartungsmodus aktiv (on/off) |
 
+Zusätzlich gibt es **Live-Spiel-Sensoren** (alle 30 s aktualisiert): `sensor.mypage_spieler_aktiv` (Anzahl gerade Spielender, mit Detail-Attributen), je Spiel `sensor.mypage_aktiv_<spiel>` und `binary_sensor.mypage_spielt_jemand` (on/off).
+
 Damit lassen sich Dashboards und Automationen bauen (z. B. Benachrichtigung bei Besucherrekord).
+
+### Benachrichtigungen
+
+Ist `ha_notify` aktiv (Standard), erzeugt MyPage **persistente Benachrichtigungen** direkt in Home Assistant bei:
+
+- **neuer Kontaktnachricht** (mit Absender und Vorschau),
+- **neuem Blog-Kommentar** (mit Beitragstitel und Vorschau),
+- **verdächtigen Anmeldeversuchen** — wenn eine IP wegen zu vieler Fehllogins gesperrt wird.
+
+Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu vervielfachen. So siehst du wichtige Ereignisse direkt im HA-Dashboard bzw. auf dem Handy (HA-App), zusätzlich zu den optionalen Telegram-/E-Mail-Hinweisen.
 
 ## SEO
 
 `sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain). Strukturierte Daten (JSON-LD) für Person und Blog-Beiträge sind eingebaut.
 
+**Search-Console-Verifizierung (optional):** Im Design-Tab gibt es Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. Trägst du dort den Bestätigungs-Code ein (oder fügst das komplette Meta-Tag ein — der Code wird automatisch herausgelesen), setzt MyPage das passende `<meta>`-Tag in den Kopf der Startseite, sodass du die Seite per „HTML-Tag"-Methode bestätigen kannst. Leer lassen, wenn deine Seite dort bereits bestätigt ist.
+
 Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
 
 ## Bilder
 
-Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben).
+Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben). Dabei wird die **EXIF-Orientierung angewendet** (Handy-Hochkant-Fotos erscheinen also richtig herum) und die **Metadaten werden entfernt** — insbesondere ein evtl. eingebetteter **GPS-Standort**, der sonst öffentlich auslesbar wäre.
 
 ### Design
-Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Footer-Text, eigenes CSS.
+**Design-Vorlagen (1-Klick-Stile):** Oben im Design-Tab gibt es eine Galerie fertiger Vorlagen (z. B. „Elegant Dunkel", „Hell & Clean", „Verspielt", „Tech Neon", „Magazin", „Natur Warm" sowie „Standard"). Ein Klick setzt **Modus, Akzentfarbe, Schrift und Layout** auf einmal — die Felder werden gefüllt, mit „Speichern" wird die Vorlage angewendet. Dein eigenes CSS bleibt dabei unangetastet.
+
+**Ankündigungs-Banner:** Eine schmale Hinweisleiste ganz oben auf allen öffentlichen Seiten (z. B. „Sommerfest am 12.7.!"). Text in DE/EN, optionaler Link (URL oder interner Pfad wie `/formular/anmeldung`) mit eigenem Link-Text, in Akzentfarbe. Wahlweise **schließbar** — Besucher können es ausblenden; wird der Text geändert, erscheint es erneut.
+
+Einzeln einstellbar: Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hell/dunkel/auto), Layout (Karten/Liste/Minimal), Schriftart (System-Fonts, Web-Fonts oder eigener Font-Upload), Besucherzähler ein/aus, Navigationsleiste ein/aus, Kontaktformular ein/aus, **Kommentare & Reaktionen** ein/aus, **Selbst-Registrierung** ein/aus (+ Standard-Quota), **Newsletter / Blog-Abo** ein/aus, Footer-Text, eigenes CSS.
 
 - **Unterstützen-Button**: Frei konfigurierbarer Link (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …). Das passende Icon wird automatisch anhand der URL gewählt; eine eigene Beschriftung ist möglich.
 - **Termin-/Buchungs-Button**: Link zu einem externen Buchungsdienst (z. B. Calendly, Cal.com). Erscheint mit Kalender-Symbol im Kopfbereich neben dem Unterstützen-Button und öffnet beim Klick einen neuen Tab. Ist kein Link gesetzt, erscheint kein Button. Details siehe [README](README.md#-buchungskalender--termin-button).
@@ -140,6 +228,8 @@ Impressum und Datenschutzerklärung als Freitext (DE/EN). Sobald Text eingetrage
 
 ### Statistik
 Aufrufe gesamt, Aufrufe und eindeutige Besucher heute, Verlauf der letzten 30 Tage. Eindeutige Besucher werden über gesalzene Tages-Hashes erkannt; bekannte Bots und Monitoring-Tools zählen nicht in die Statistik.
+
+Zusätzlich gibt es **Top-Seiten** (meistbesuchte Seiten aus den letzten Aufrufen, ohne Bots — für Blog-Beiträge und Projekt-Detailseiten mit Titel statt nur Pfad) sowie Verteilungen nach **Referrern, Browsern und Ländern**.
 
 Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, IP-Adresse, Browser/User-Agent, Sprache und Referrer (Bots werden markiert). Hinweis: Wer die Seite öffentlich betreibt, sollte die IP-Speicherung ggf. in seiner Datenschutzerklärung erwähnen.
 

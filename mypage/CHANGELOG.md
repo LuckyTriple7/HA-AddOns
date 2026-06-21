@@ -1,5 +1,164 @@
 # Changelog
 
+## 0.7.17
+
+- ✏️ **Markdown-Editor an weiteren Feldern** — Der Editor-Button (Werkzeugleiste + Live-Vorschau) ist jetzt überall verfügbar, wo Text als Markdown gerendert wird: **Wartungsmodus-Text**, **Formular-Danke-Text**, **Login-Nachricht je Benutzer** und **Standort-Öffnungszeiten** (zusätzlich zu Blog, Seiten, Projekten, Bio, Newsletter, Formular-Einleitung, Tipps und FAQ-Antworten).
+
+## 0.7.16
+
+- 💅 **Design-Vorlagen einzeilig & scrollbar** — Die Vorlagen-Galerie im Design-Tab bricht nicht mehr auf mehrere Zeilen um, sondern bleibt eine Zeile mit horizontalem Scrollen und denselben Rand-Pfeilen wie die Admin-Tableiste (zeigen an, dass links/rechts weitere Vorlagen sind).
+
+## 0.7.15
+
+- ⏳ **Countdown auch im Wartungsmodus** — Ist ein Countdown eingerichtet, erscheint er jetzt zusätzlich auf der „Seite im Aufbau"-Vollbildseite (Wartungsmodus) — fertige Coming-Soon-Seite inkl. „Benachrichtige mich"-Newsletter-Button, der dort auch während des Wartungsmodus funktioniert. (Countdown-Markup intern in ein wiederverwendbares Partial ausgelagert.)
+- ◀▶ **Admin-Tableiste: Scroll-Pfeile** — Passt die Tab-Navigation nicht in die Breite, erscheinen an den Rändern dezente Pfeile mit Verlauf, die anzeigen, dass links/rechts weitere Tabs sind (klickbar zum Scrollen). Der aktive Tab wird beim Wechsel automatisch in den sichtbaren Bereich gerückt.
+
+## 0.7.14
+
+- ⏳ **Countdown-Sektion** — Neuer Startseiten-Abschnitt, der sichtbar auf ein Zieldatum/-zeit herunterzählt (Eröffnung, Launch, Veranstaltung …). Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, theme-bewusst — passt sich automatisch ans gewählte Design an. Konfigurierbar: Überschrift, Untertitel und optionales Bild darüber (alle DE/EN), frei wählbarer „Es ist soweit!"-Text bei Ablauf, und ein **optionaler „Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (mit Bestätigung direkt auf der Startseite). Wie jede Sektion: per Drag sortierbar, ein-/ausblendbar, sogar „nur für Mitglieder". Leeres Zieldatum = Abschnitt aus.
+
+## 0.7.13
+
+- 🐳 **Standalone-Betrieb dokumentiert** — MyPage lässt sich auch ohne Home Assistant als reiner Docker-Container betreiben. Neu im Repo: `docker-compose.yml`, `options.example.json` und eine Schritt-für-Schritt-Anleitung **[STANDALONE.md](STANDALONE.md)** / **[STANDALONE.en.md](STANDALONE.en.md)** (inkl. Konfigurations-Tabelle, HTTPS via Caddy, Updates/Backup, Sicherheitshinweise). Keine Code-Änderung — die HA-Funktionen (Sensoren/Notifications/Ingress) waren schon immer optional und werden ohne `SUPERVISOR_TOKEN` übersprungen.
+
+## 0.7.12
+
+- 🔗 **Teilen-Buttons auch auf Projekt-Detailseiten** — Die im Design-Tab aktivierbaren Teilen-Buttons erscheinen jetzt nicht nur unter Blog-Beiträgen, sondern auch am Ende von Projekt-Detailseiten (`/p/<id>`).
+
+## 0.7.11
+
+- ↪️ **Weiterleitungen (301/302)** — Neuer Bereich im System-Tab: alte/geänderte Adressen dauerhaft (301) oder temporär (302) auf eine neue Adresse umleiten (interner Pfad oder vollständige URL). Greift bewusst nur für nicht (mehr) existierende Pfade, sodass echte Seiten nie überschrieben werden. Ideal nach Slug-Änderungen, damit alte Links/Lesezeichen weiter funktionieren. Regeln liegen in `site.json` (im Backup).
+
+## 0.7.10
+
+- 🔗 **Teilen-Buttons unter Blog-Beiträgen** — Im Design-Tab aktivierbar (Standard aus). Zeigt unter jedem Beitrag Buttons für **WhatsApp, X, Facebook, LinkedIn, E-Mail** und **Link kopieren** sowie auf Mobilgeräten den nativen Teilen-Dialog. Datenschutzfreundlich: reine Share-Links, kein Tracking-Skript, es wird nichts von Drittanbietern nachgeladen.
+
+## 0.7.9
+
+- 🔎 **Search-Console-Verifizierung** — Im Design-Tab zwei neue (optionale) Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. MyPage setzt daraus das passende Meta-Tag in den Kopf der Startseite (HTML-Tag-Methode). Man kann auch das ganze Meta-Tag einfügen — der Code wird herausgelesen und auf unbedenkliche Zeichen gefiltert. Leer = nichts passiert.
+
+## 0.7.8
+
+- 🔒 **Fotoalben nur für Mitglieder** — Wie bei Blog/Seiten gibt es jetzt je Album einen Schalter „🔒 Nur für Mitglieder". Gäste sehen statt der Fotos eine Schloss-Karte (Titel + Anzahl + Login-Link); die Bild-Adressen des Albums werden für sie nicht ausgeliefert. Eingeloggte Mitglieder sehen das Album normal. Im statischen Export bleiben gesperrte Alben außen vor.
+
+## 0.7.7
+
+- 💅 **Admin-Tableiste einzeilig** — Durch die neuen Tabs (Seiten, Formulare) brach die Navigationsleiste im Admin-Panel auf zwei Zeilen um. Sie bleibt jetzt auf einer Linie und wird bei Platzmangel horizontal scrollbar.
+
+## 0.7.6
+
+- 🔒 **Mitglieder-only-Inhalte** — Blog-Beiträge, eigene Seiten und ganze Startseiten-Sektionen lassen sich auf **angemeldete Mitglieder** beschränken. Beiträge/Seiten: Schalter „🔒 Nur für Mitglieder" im Editor; Gäste sehen in der Liste ein Schloss und auf der Seite nur Titel + kurzen Anriss + „Zum Mitglieder-Login" (Kommentare/Galerie/Video verborgen), Mitglieder sehen alles. Sektionen: neues Schloss-Symbol je Abschnitt im Tab „Inhalt" — für Gäste komplett ausgeblendet (inkl. Navigation), für Mitglieder sichtbar. Der Anriss zeigt höchstens die Hälfte des Textes, sodass auch kurze Inhalte geschützt bleiben; Export/Suchmaschinen sehen nichts Geschütztes.
+
+## 0.7.5
+
+- 📢 **Ankündigungs-Banner** — Eine schmale Hinweisleiste ganz oben auf allen öffentlichen Seiten (z. B. „Sommerfest am 12.7.!"). Text in DE/EN, optionaler Link (URL oder interner Pfad) mit eigenem Link-Text, in Akzentfarbe. Wahlweise **schließbar** (Besucher kann es ausblenden; bei geändertem Text erscheint es erneut). Einstellbar im Design-Tab.
+
+## 0.7.4
+
+- 🧾 **Formular-Baukasten** — Neben dem einen Kontaktformular lassen sich jetzt **beliebige Formulare** anlegen (Veranstaltungs-Anmeldung, Umfrage, Anfrage …). Neuer Admin-Tab **„Formulare"** mit Feld-Editor: Feldtypen **Text, mehrzeilig, E-Mail, Telefon, Zahl, Datum, Auswahl (Dropdown), Auswahl (Radio), Kontrollkästchen**, je Feld DE/EN-Bezeichnung, Platzhalter, Pflicht-Schalter und Optionen; Felder per Drag sortierbar. Einleitung & Danke-Text in Markdown (DE/EN). Jedes Formular ist unter `/formular/<slug>` erreichbar (optionaler Navi-Eintrag, Entwurf/Veröffentlicht, Vorschau). **Einsendungen** erscheinen im Tab „Nachrichten" (mit 📋-Markierung und allen Feldern) und lösen — je Formular abschaltbar — dieselbe Benachrichtigung wie das Kontaktformular aus (E-Mail/Telegram/HA). Spam-Schutz wie gehabt: Honeypot, Rechen-Captcha und Rate-Limit.
+
+## 0.7.3
+
+- 🎨 **Design-Vorlagen (1-Klick-Stile)** — Oben im Design-Tab gibt es jetzt eine Galerie fertiger Vorlagen: **Elegant Dunkel, Hell & Clean, Verspielt, Tech Neon, Magazin, Natur Warm** und **Standard**. Jede Kachel zeigt eine Mini-Vorschau ihres Looks; ein Klick setzt **Modus, Akzentfarbe, Schrift und Layout** auf einmal. Die Felder werden nur gefüllt — erst „Speichern" wendet die Vorlage an, sodass man gefahrlos durchprobieren kann. Eigenes CSS bleibt unangetastet.
+
+## 0.7.2
+
+- 🧹 **Speicher aufräumen** — Neuer Knopf im System-Tab entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und freigegebener Speicher angezeigt; **geteilte Bilder bleiben erhalten** (es wird über alle Verweise geprüft). Die Aktion landet im Audit-Log.
+- ✍️ **Markdown-Editor auch im Newsletter** — Das Newsletter-Textfeld hat jetzt denselben Editor mit Werkzeugleiste und Live-Vorschau wie Blog und Seiten.
+
+## 0.7.1
+
+- 🖼️ **Markdown-Editor: Bilder, Tabellen & mehr** — Die Werkzeugleiste hat drei neue Knöpfe: **Bild** (URL eingeben **oder** leer lassen und eine Datei direkt hochladen → wird optimiert und um Metadaten/GPS bereinigt), **Tabelle** (fügt eine Vorlage ein) und **Trennlinie**. Die Live-Vorschau zeigt Bilder, Tabellen und Trennlinien jetzt mit an. Damit Tabellen und Codeblöcke auch auf der öffentlichen Seite korrekt erscheinen, sind die Markdown-Erweiterungen `tables` und `fenced_code` aktiviert (gilt für Blog, eigene Seiten, Projekt-Details und Bio).
+
+## 0.7.0
+
+- 📄 **Eigene Seiten** — Neben Startseite und Blog lassen sich jetzt **eigenständige Unterseiten** anlegen (z. B. „Über uns", „Anfahrt", „Vereinsordnung"). Jede Seite hat eine eigene Adresse unter `/seite/<slug>` und Inhalt in **Markdown** (DE/EN, gleicher Editor mit Live-Vorschau wie beim Blog). Pro Seite: frei wählbare Adresse (oder automatisch aus dem Titel; reservierte/doppelte werden umgangen), Schalter **„In der Navigation zeigen"** und **Veröffentlicht/Entwurf** (Entwürfe nur über die Admin-Vorschau sichtbar). Reihenfolge per Drag & Drop. Sichtbare Seiten landen automatisch in `sitemap.xml` und im statischen Export; die Daten liegen in `site.json` (im Backup). Neuer Admin-Tab **„Seiten"**.
+
+## 0.6.161
+
+- 🔐 **Bild-Uploads: EXIF-Orientierung + Metadaten entfernt** — Hochgeladene Bilder werden jetzt vor dem Speichern korrekt nach ihrer EXIF-Orientierung gedreht (Handy-Hochkant-Fotos erscheinen richtig herum), und beim WebP-Re-Encode werden sämtliche Metadaten verworfen — inklusive eines evtl. eingebetteten **GPS-Standorts**. (GIFs bleiben für die Animation unverändert.)
+
+## 0.6.160
+
+- 👁 **Aufrufe je Blog-Beitrag** — Jeder Beitrag zählt jetzt seine Aufrufe (ohne Bots). Die Zahl steht im Admin in der Beitragsliste und erscheint dezent neben dem Datum auf der Beitragsseite. Zähler in `stats.json` (im Backup).
+- 💅 **Reaktions-Buttons: Emoji zentriert** — Ohne Zähler (0 Reaktionen) saßen die Emojis durch das leere Zähler-Feld leicht links; jetzt sind sie sauber mittig, das Zähler-Feld erscheint erst ab der ersten Reaktion.
+
+## 0.6.159
+
+- 💬 **Kommentar-Antworten & Autor-Benachrichtigung** — Mitglieder können jetzt auf Blog-Kommentare antworten (Antwort-Threads, eine Ebene eingerückt). Antwortet jemand auf einen Kommentar, erhält dessen Autor – sofern ein Mailserver konfiguriert ist – eine E-Mail mit Vorschau und Link zur Diskussion (nicht bei Antwort auf den eigenen Kommentar).
+
+## 0.6.158
+
+- 📰 **Newsletter / Blog-Abo** — Besucher können den Newsletter auf der Blog-Seite abonnieren (Double-Opt-in: Eintrag → Bestätigungs-Mail → bestätigt). Im Blog-Tab schreibst du eine Nachricht (Betreff + Markdown) und sendest sie an alle bestätigten Abonnenten; jede Mail enthält einen Abmelde-Link. Abonnentenliste mit Anzahl und Einzel-Löschen. Schutz: Honeypot, Rate-Limit, keine E-Mail-Enumeration. Aktivierbar im Design-Tab (Standard aus); benötigt SMTP + öffentliche URL. Liste in `subscribers.json` (im Backup).
+
+## 0.6.157
+
+- 🛡️ **Admin-Protokoll (Audit-Log)** — Im System-Tab werden jetzt sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP protokolliert: erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge liegen in `audit.json` und werden im Backup mitgesichert.
+
+## 0.6.156
+
+- 🔔 **„Offene Freigaben" in Home Assistant** — Neuer Sensor `sensor.mypage_pending_approvals` zeigt, wie viele selbst-registrierte (E-Mail-bestätigte) Konten auf deine Freigabe warten. Solange welche offen sind, bleibt zusätzlich eine **stehende HA-Benachrichtigung** sichtbar; sie verschwindet automatisch, sobald alles freigegeben ist. Aktualisiert sofort bei Bestätigung/Freigabe (sonst alle 2 Min).
+
+## 0.6.155
+
+- 👤 **Mitglieder: eigenes Profil** — Eingeloggte Mitglieder können im Bereich jetzt einen **Anzeigenamen** setzen (wird z. B. bei Blog-Kommentaren verwendet) und ihr **Passwort selbst ändern** (mit Eingabe des aktuellen Passworts). Beim Passwortwechsel bleibt die aktuelle Sitzung bestehen, andere Geräte werden abgemeldet.
+- ℹ️ Hinweis: Die volle Breite des „Anzeigename"-Felds im Registrierungsformular ist seit 0.6.154 behoben — dafür muss das Add-on auf ≥ 0.6.154 aktualisiert sein.
+
+## 0.6.154
+
+- 💅 **Registrierung & Benutzerliste — kleine UI-Korrekturen** — Das Feld „Anzeigename" im Registrierungsformular ist jetzt so breit wie die übrigen Felder (das Captcha-Feld bleibt bewusst kompakt). In der Admin-Benutzerliste steht der Status selbst-registrierter Konten nicht mehr als langer Text in der Info-Zeile, sondern als kompaktes Badge direkt beim Namen (🆕 unbestätigt / ⏳ wartet auf Freigabe) — spart Platz und ist klarer.
+
+## 0.6.153
+
+- 📖 **Doku: eigener Abschnitt „Selbst-Registrierung"** — In DOCS.md ist die Selbst-Registrierung jetzt als ausführlicher, eigener Abschnitt beschrieben (Aktivieren, zweistufiger Ablauf, Vorgaben für neue Konten, Schutzmaßnahmen) statt nur als kurze Notiz.
+
+## 0.6.152
+
+- 🆕 **Selbst-Registrierung für Mitglieder** — Besucher können sich (wenn aktiviert) über „Konto erstellen" auf der Login-Seite selbst anmelden. Zweistufig: erst **E-Mail-Bestätigung** (Link, 24 h gültig), dann **Admin-Freigabe** (Button „Freigeben" in der Benutzerliste). Selbst-registrierte Konten starten ohne Spielezugang und mit einstellbarer Standard-Quota. Schutz: Captcha, Honeypot, Rate-Limit, keine E-Mail-Enumeration; HA-Benachrichtigung bei jeder Registrierung. Aktivierbar im Design-Tab (Standard aus); benötigt SMTP + öffentliche URL.
+
+## 0.6.151
+
+- 📖 **Dokumentation erweitert (DE/EN)** — DOCS.md und beide READMEs (DE/EN) dokumentieren jetzt die neuen Funktionen: Blog-Suche & Tags, Kommentare/Reaktionen, Self-Service-Passwort-Reset, abschaltbare Spiele pro Mitglied, Top-Seiten-Statistik, Spiel-Sensoren und Home-Assistant-Benachrichtigungen (inkl. neuer Option `ha_notify`).
+
+## 0.6.150
+
+- 🎮 **Spiele pro Mitglied abschaltbar** — In der Benutzerverwaltung gibt es jetzt pro Mitglied einen Schalter (🕹️/🚫), mit dem sich die Spiele für dieses Konto sperren lassen. Gesperrte Mitglieder sehen im Bereich keine Spiel-Kacheln mehr, und Spiel-Seiten/-APIs sind serverseitig blockiert (der Dateibereich bleibt normal nutzbar).
+- 🧹 **Benutzerverwaltung aufgeräumt** — Die Buttons „Dateien" und „Login-Nachricht" sind jetzt platzsparend nur noch als Symbol mit Tooltip dargestellt.
+
+## 0.6.149
+
+- 💬 **Blog: Kommentare & Reaktionen für Mitglieder** — Angemeldete Mitglieder können Blog-Beiträge kommentieren und mit Emoji reagieren (👍 ❤️ 😄 🎉 👏, eine Reaktion pro Person, umschaltbar). Aktivierbar über einen neuen Schalter in den Design-Einstellungen (Standard: aus). Im Admin gibt es unter „Nachrichten" eine Moderationsliste, in der sich einzelne Kommentare löschen lassen; bei neuen Kommentaren kommt zusätzlich eine HA-Benachrichtigung. Kommentare werden im Backup mitgesichert.
+
+## 0.6.148
+
+- 📊 **Statistik: Top-Seiten** — Das Statistik-Dashboard zeigt jetzt zusätzlich die meistbesuchten Seiten (aus den letzten Aufrufen, ohne Bots). Für Blog-Beiträge und Projekt-Detailseiten wird der Titel angezeigt statt nur der Pfad.
+- 🏷️ **Add-on-Option `ha_notify` beschriftet** — Die in 0.6.146 ergänzte Option zeigte im HA-Konfigurations-UI nur den Schlüssel; jetzt mit Name und Beschreibung (DE/EN).
+
+## 0.6.147
+
+- 🔎 **Blog: Suche & Schlagwörter (Tags)** — Beiträge können jetzt im Admin mit Schlagwörtern versehen werden (komma-getrennt, max. 8). Auf der Blog-Seite gibt es ein **Suchfeld** (durchsucht Titel, Text und Tags in DE+EN) und **Tag-Filter-Chips**; Suche und Tag lassen sich kombinieren. Auf jeder Beitragsseite werden die Tags angezeigt und verlinken auf die gefilterte Blog-Ansicht. Geplante/Entwurfs-Beiträge tauchen weder in der Suche noch in der Tag-Liste auf.
+
+## 0.6.146
+
+- 🔔 **Home-Assistant-Benachrichtigungen** — MyPage meldet sich jetzt aktiv in HA (persistente Benachrichtigung): bei **neuer Kontaktnachricht** (mit Absender + Vorschau) und bei **verdächtigen Anmeldeversuchen** (wenn eine IP wegen zu vieler Fehllogins gesperrt wird). Wiederholungen derselben IP überschreiben dieselbe Meldung statt zu spammen. Abschaltbar über die neue Add-on-Option `ha_notify` (Standard: an). Ergänzt die bestehenden Telegram-/E-Mail-Hinweise und die HA-Sensoren.
+
+## 0.6.145
+
+- 🔑 **Mitglieder: Passwort selbst zurücksetzen** — Auf der Login-Seite gibt es jetzt „Passwort vergessen?". Das Mitglied gibt seine E-Mail ein und bekommt einen zeitlich begrenzten Link (1 Stunde gültig), über den es ein neues Passwort setzen kann — ganz ohne Admin. Aus Sicherheitsgründen: immer dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Token nur einmal verwendbar, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet. Der Link erscheint nur, wenn E-Mail-Versand (SMTP) und die öffentliche URL konfiguriert sind.
+
+## 0.6.144
+
+- ⏱️ **Glücksrad-Finale: Zeitablauf wird sauber aufgelöst** — Läuft im Finale die Zeit ab, ohne dass gelöst wurde, passierte bisher nichts (die leere Eingabe wurde verschluckt, der Timeout nie festgeschrieben). Jetzt ertönt ein negativer Sound, anschließend deckt sich die Lösung langsam auf, und das Spiel wird beendet.
+- 🔁 **Glücksrad-Finale: Countdown läuft serverautoritativ weiter** — Verlässt man das Spiel im Finale und kommt zurück, startet der Countdown nicht mehr von vorn, sondern macht mit der verbleibenden Zeit weiter (war die Zeit schon abgelaufen, wird sofort aufgelöst).
+
+## 0.6.143
+
+- 🎯 **Glücksrad: Start-Auslosung bleibt stehen** — Beim „Wer fängt an?" zu Spielbeginn drehen alle drei (Spieler, Lisa, Max) reihum. Bisher verschwand der erdrehte Betrag, sobald der nächste dran war. Jetzt zeigt eine feste Tafel die Beträge **aller** Spieler und füllt sich, bis alle drei gedreht haben. Erst wenn der Startspieler feststeht (kurz hervorgehoben) oder bei Gleichstand verschwindet die Tafel wieder. Wird nur zur Start-Auslosung angezeigt.
+
+## 0.6.142
+
+- 🖥️ **Glücksrad: neue Kategorie „Computer & IT"** — 20 neue Begriffe rund um Computer und IT (z. B. FESTPLATTE, ARBEITSSPEICHER, ZWISCHENABLAGE, HAUPTPLATINE, EINGABEAUFFORDERUNG). Bewusst echte deutsche Wörter, die sich vom englischen Begriff unterscheiden — nicht einfach das englische Wort.
+
 ## 0.6.141
 
 - 🔒 **Sicherheit: CodeQL-Pfadwarnungen behoben** — Alle Spielstand-Dateipfade (66, 20 AB, Schwimmen, Mau-Mau, Präsident, Jeopardy, Glücksrad, Sitzungs-Log) werden jetzt über `safe_under`/`safe_join` zusammengesetzt statt direkt per f-String. Funktional unverändert (die UID war bereits regex-validiert), beseitigt aber die als „uncontrolled data in path expression" geflaggten Stellen.

@@ -1,0 +1,25 @@
+# MyPage ohne Home Assistant betreiben (Standalone).
+# Anleitung: siehe STANDALONE.md
+#
+# Schnellstart:
+#   1. cp options.example.json options.json   (und Passwort ändern!)
+#   2. docker compose up -d
+#   3. Admin:   http://<server>:17761   (Login mit username/password aus options.json)
+#      Seite:   http://<server>:17760
+
+services:
+  mypage:
+    image: ghcr.io/luckytriple7/mypage:latest
+    container_name: mypage
+    ports:
+      - "17760:17760"        # öffentliche Homepage
+      - "17761:17761"        # Admin-Panel (passwortgeschützt)
+    volumes:
+      - ./data:/config                          # persistente Daten (site.json, uploads, …)
+      - ./options.json:/data/options.json:ro    # Konfiguration (Login, SMTP, …)
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:17760/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

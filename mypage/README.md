@@ -8,19 +8,24 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 
 - 🏠 **Öffentliche Homepage** auf Port 17760 — Profil, Inhaltsbereiche, Social-Links
 - 🛠 **Admin-Panel** auf Port 17761 (Login + Brute-Force-Schutz) und über HA-Ingress in der Seitenleiste
-- 🧩 **Viele Inhaltsbereiche**: Projekte, Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, Aktuelles, Veranstaltungen, Linksammlung, FAQ, Standort & Öffnungszeiten
+- 🧩 **Viele Inhaltsbereiche**: Projekte, Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, Aktuelles, **Countdown**, Veranstaltungen, Linksammlung, FAQ, Standort & Öffnungszeiten
+- 📄 **Eigene Seiten**: eigenständige Unterseiten (z. B. „Über uns", „Anfahrt") in Markdown (DE/EN) mit eigener Adresse `/seite/<slug>`, optionalem Navi-Eintrag und Entwurfs-Status
+- 🧾 **Formular-Baukasten**: frei konfigurierbare Formulare (Anmeldung, Umfrage, Anfrage) mit beliebigen Feldern; Einsendungen im Nachrichten-Tab + Benachrichtigung (E-Mail/Telegram/HA), Honeypot + Captcha
+- ↪️ **Weiterleitungen (301/302)** + **Search-Console-Verifizierung** (Google/Bing) im Admin
+- 🔒 **Mitglieder-only-Inhalte**: Blog-Beiträge, eigene Seiten, Fotoalben oder ganze Startseiten-Sektionen nur für eingeloggte Mitglieder (Gäste sehen Anriss/Schloss + Login-Aufforderung)
 - 🔀 **Freie Reihenfolge & Sichtbarkeit**: Bereiche per Drag & Drop sortieren und einzeln aus-/einblenden (Kopf bleibt oben, Kontakt unten)
 - 🐙 **GitHub-Import**: Benutzername eingeben, Repos auswählen, fertig — Beschreibung, Sterne, Sprache und Topics werden übernommen, Sterne stündlich aktualisiert
 - 📅 **Termin-/Buchungs-Button** (z. B. Calendly) — siehe [unten](#-buchungskalender--termin-button)
 - ❤️ **Unterstützen-Button** (Buy Me a Coffee, Ko-fi, PayPal, Patreon, GitHub Sponsors …) mit automatischem Icon
-- 🎨 **Design**: Akzentfarbe, Hell/Dunkel, Layout, Schriftart (inkl. eigenem Font-Upload), eigenes CSS
+- 🎨 **Design**: Akzentfarbe, Hell/Dunkel, Layout, Schriftart (inkl. eigenem Font-Upload), eigenes CSS — plus **Design-Vorlagen** (1-Klick-Stile wie „Elegant Dunkel", „Hell & Clean", „Verspielt")
 - 🌍 **Zweisprachig** (DE/EN) mit optionaler Auto-Übersetzung; Besucher können umschalten
 - 👁 **Besucherzähler & Statistik**: Aufrufe, eindeutige Besucher, Länder, Browser, Referrer
 - 📷 **Fotoalben** mit Diashow, Wasserzeichen und Bild-Zoom; **Bild-Galerien** in Blog-Beiträgen
-- 🔒 **Mitglieder-Bereich**: passwortgeschützter Dateibereich pro Benutzer (optional auf SMB-Share)
-- 📨 **Kontaktformular** mit Spam-Schutz (Honeypot + Captcha + Rate-Limit) und Telegram/E-Mail-Benachrichtigung
+- 📝 **Blog** mit Volltextsuche, Schlagwörtern (Tags), **Newsletter-Abo** (Double-Opt-in), **Teilen-Buttons** (datenschutzfreundlich) und — optional — **Kommentaren & Emoji-Reaktionen** für Mitglieder (moderierbar)
+- 🔒 **Mitglieder-Bereich**: passwortgeschützter Dateibereich pro Benutzer (optional auf SMB-Share), optionale **Selbst-Registrierung** (E-Mail-Bestätigung + Admin-Freigabe), **Self-Service-Passwort-Reset** und je Mitglied **abschaltbare Spiele**
+- 📨 **Kontaktformular** mit Spam-Schutz (Honeypot + Captcha + Rate-Limit) und Benachrichtigung per Telegram/E-Mail sowie **Home Assistant**
 - 🧭 **Navigationsleiste** im Kopf mit Sprungmarken zu den vorhandenen Bereichen
-- 📈 **Home-Assistant-Sensoren**, RSS, PWA, SEO (Sitemap/robots.txt), Backup & statischer Export
+- 📈 **Home-Assistant-Sensoren & -Benachrichtigungen**, RSS, PWA, SEO (Sitemap/robots.txt), Backup & statischer Export
 
 ## Schnellstart
 
@@ -33,6 +38,8 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 > **Tipp:** Nur Port 17760 nach außen freigeben. Das Admin-Panel (17761) bleibt am besten im lokalen Netz bzw. hinter HA.
 
 Die vollständige Dokumentation aller Optionen und Funktionen steht in [DOCS.md](DOCS.md).
+
+> **Ohne Home Assistant?** MyPage läuft auch als reiner Docker-Container (mit `docker compose`) — Anleitung: [STANDALONE.md](STANDALONE.md).
 
 ## Inhaltsbereiche anordnen & ausblenden
 

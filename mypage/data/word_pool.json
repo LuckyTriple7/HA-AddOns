@@ -12,7 +12,8 @@
     "essen": { "de": "Essen & Trinken", "en": "Food & Drink" },
     "tier": { "de": "Tier", "en": "Animal" },
     "redewendung": { "de": "Redewendung", "en": "Idiom" },
-    "sport": { "de": "Sport & Freizeit", "en": "Sports & Leisure" }
+    "sport": { "de": "Sport & Freizeit", "en": "Sports & Leisure" },
+    "computer": { "de": "Computer & IT", "en": "Computers & IT" }
   },
   "puzzles": [
     {"cat": "sprichwort", "de": "MORGENSTUND HAT GOLD IM MUND", "en": "THE EARLY BIRD CATCHES THE WORM"},
@@ -323,6 +324,27 @@
     {"cat": "sport", "de": "WINDSURFEN", "en": "WINDSURFING"},
     {"cat": "sport", "de": "SCHLITTSCHUHLAUFEN", "en": "ROLLER SKATING"},
     {"cat": "sport", "de": "SPORTSCHÜTZE", "en": "SPORT SHOOTING"},
-    {"cat": "sport", "de": "DREISPRUNG", "en": "TRIPLE JUMP"}
+    {"cat": "sport", "de": "DREISPRUNG", "en": "TRIPLE JUMP"},
+
+    {"cat": "computer", "de": "FESTPLATTE", "en": "HARD DRIVE"},
+    {"cat": "computer", "de": "ARBEITSSPEICHER", "en": "RANDOM ACCESS MEMORY"},
+    {"cat": "computer", "de": "BILDSCHIRM", "en": "COMPUTER SCREEN"},
+    {"cat": "computer", "de": "TASTATUR", "en": "KEYBOARD"},
+    {"cat": "computer", "de": "BETRIEBSSYSTEM", "en": "OPERATING SYSTEM"},
+    {"cat": "computer", "de": "SUCHMASCHINE", "en": "SEARCH ENGINE"},
+    {"cat": "computer", "de": "DATENSICHERUNG", "en": "DATA BACKUP"},
+    {"cat": "computer", "de": "ZWISCHENABLAGE", "en": "CLIPBOARD"},
+    {"cat": "computer", "de": "BENUTZERKONTO", "en": "USER ACCOUNT"},
+    {"cat": "computer", "de": "SCHNITTSTELLE", "en": "INTERFACE"},
+    {"cat": "computer", "de": "GRAFIKKARTE", "en": "GRAPHICS CARD"},
+    {"cat": "computer", "de": "HAUPTPLATINE", "en": "MOTHERBOARD"},
+    {"cat": "computer", "de": "MAUSZEIGER", "en": "MOUSE CURSOR"},
+    {"cat": "computer", "de": "BILDPUNKT", "en": "PIXEL"},
+    {"cat": "computer", "de": "RECHENZENTRUM", "en": "DATA CENTER"},
+    {"cat": "computer", "de": "VIRENSCHUTZ", "en": "ANTIVIRUS SOFTWARE"},
+    {"cat": "computer", "de": "DRUCKERPATRONE", "en": "INK CARTRIDGE"},
+    {"cat": "computer", "de": "VERKNÜPFUNG", "en": "DESKTOP SHORTCUT"},
+    {"cat": "computer", "de": "EINGABEAUFFORDERUNG", "en": "COMMAND PROMPT"},
+    {"cat": "computer", "de": "WERKSEINSTELLUNG", "en": "FACTORY SETTINGS"}
   ]
 }

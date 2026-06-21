@@ -17,8 +17,15 @@
     .header-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
     .logo { font-weight: 700; font-size: 1.05rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
     .logo svg { width: 20px; height: 20px; fill: var(--accent); }
-    nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
-    .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; }
+    .nav-wrap { flex: 1; min-width: 0; position: relative; }
+    nav { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
+    nav::-webkit-scrollbar { display: none; }
+    .nav-arrow { position: absolute; top: 0; bottom: 0; width: 30px; display: none; align-items: center; justify-content: center; border: none; cursor: pointer; color: var(--text); font-size: 1.4rem; line-height: 1; z-index: 3; padding: 0; }
+    .nav-arrow.show { display: flex; }
+    .nav-arrow.nav-left { left: 0; background: linear-gradient(to right, var(--surf) 60%, transparent); }
+    .nav-arrow.nav-right { right: 0; background: linear-gradient(to left, var(--surf) 60%, transparent); }
+    .nav-arrow:hover { color: var(--accent); }
+    .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
     .tab-btn:hover { color: var(--text); background: var(--surf2); }
     .tab-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
     .header-actions { display: flex; align-items: center; gap: 6px; }
@@ -49,6 +56,9 @@
     .sec-eye svg { width: 18px; height: 18px; fill: currentColor; display: block; }
     .sec-eye:hover { color: var(--text); }
     .panel.acc.acc-hidden .sec-eye { color: var(--accent); }
+    .sec-lock { order: 100; margin-left: 4px; background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 0.95rem; line-height: 1; opacity: .38; filter: grayscale(1); }
+    .sec-lock.on { opacity: 1; filter: none; }
+    .sec-lock:hover { opacity: .85; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
     input[type="text"], input[type="email"], input[type="url"], textarea, select {
@@ -85,6 +95,15 @@
       100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
     .playing-tag { color: #22c55e; font-weight: 500; font-size: 0.78rem; }
+    .badge-reg { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--yellow) 20%, transparent); color: var(--yellow); }
+    .badge-reg.muted { background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
+    .audit-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; align-items: baseline; }
+    .audit-row:last-child { border-bottom: none; }
+    .audit-time { color: var(--muted); white-space: nowrap; min-width: 132px; }
+    .audit-act { font-weight: 600; min-width: 150px; }
+    .audit-row.warn .audit-act { color: var(--red); }
+    .audit-detail { flex: 1; color: var(--muted); word-break: break-word; }
+    .audit-ip { color: var(--muted); white-space: nowrap; }
     .badge-draft { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 22%, transparent); color: var(--muted); }
     .badge-scheduled { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
 
@@ -176,10 +195,40 @@
     .md-preview blockquote { margin: 0.5em 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
     .md-preview code { background: var(--surf2, var(--border)); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
     .md-preview a { color: var(--accent); }
+    .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
+    .md-preview hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+    .md-preview table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+    .md-preview th, .md-preview td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
     .md-preview .md-empty { color: var(--muted); font-style: italic; }
+    .preset-wrap { position: relative; }
+    .preset-gallery { display: flex; gap: 12px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px; }
+    .preset-gallery::-webkit-scrollbar { display: none; }
+    .preset-arrow.preset-left { left: 0; background: linear-gradient(to right, var(--surf) 62%, transparent); }
+    .preset-arrow.preset-right { right: 0; background: linear-gradient(to left, var(--surf) 62%, transparent); }
+    .preset-card { flex: 0 0 152px; border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surf); padding: 0; text-align: left; font: inherit; color: var(--text); transition: border-color .15s, transform .1s; }
+    .preset-card:hover { transform: translateY(-2px); }
+    .preset-card.active { border-color: var(--accent); }
+    .preset-swatch { height: 58px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; gap: 5px; position: relative; }
+    .preset-line { height: 6px; border-radius: 3px; opacity: .85; }
+    .preset-dot { position: absolute; right: 9px; bottom: 8px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.35); }
+    .preset-body { padding: 7px 10px 9px; }
+    .preset-name { font-weight: 600; font-size: 0.88rem; }
+    .preset-meta { font-size: 0.71rem; color: var(--muted); margin-top: 2px; }
+    .fm-field-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--bg); }
+    .fm-field-top { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .fm-field-top .fm-drag { cursor: grab; color: var(--muted); user-select: none; }
+    .fm-field-top select { flex: 0 0 auto; width: auto; min-width: 130px; }
+    .fm-field-top .fm-req { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; white-space: nowrap; }
+    .fm-field-top .fm-del { margin-left: auto; }
+    .fm-field-row.dragging { opacity: .5; }
+    .fm-opts { margin-top: 8px; }
     @media (max-width: 760px) { .md-split { grid-template-columns: 1fr; } .md-preview { max-height: 40vh; } }
     .link-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .link-row input { flex: 1; }
+    .redirect-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
+    .redirect-row input { flex: 1; min-width: 140px; }
+    .redirect-row .rd-arrow { color: var(--muted); }
+    .redirect-row select { flex: 0 0 auto; width: auto; }
     .empty-note { color: var(--muted); font-size: 0.85rem; padding: 18px; text-align: center; }
   </style>
 </head>
@@ -190,11 +239,15 @@
         <svg viewBox="0 0 24 24"><path d="M12 2 2 9h2v11h6v-6h4v6h6V9h2L12 2zm0 2.5L18 9v9h-2v-6H8v6H6V9l6-4.5z"/></svg>
         MyPage
       </div>
+      <div class="nav-wrap">
+      <button type="button" class="nav-arrow nav-left" aria-label="◄" onclick="navScroll(-1)">‹</button>
       <nav>
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
+        <button class="tab-btn" data-tab="forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
@@ -202,6 +255,8 @@
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
         <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
       </nav>
+      <button type="button" class="nav-arrow nav-right" aria-label="►" onclick="navScroll(1)">›</button>
+      </div>
       <div class="header-actions">
         <a href="{{ url_for('set_lang', lang='de', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
         <a href="{{ url_for('set_lang', lang='en', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
@@ -275,6 +330,31 @@
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.news_heading }}</div>
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
+      </div>
+      <div class="panel acc" data-key="countdown">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.countdown_heading }}</div>
+        <p class="hint">{{ t.countdown_admin_hint }}</p>
+        <label>{{ t.countdown_target }}</label>
+        <input type="datetime-local" id="cd-target">
+        <div class="row">
+          <div><label>{{ t.field_title }} (DE)</label><input type="text" id="cd-title_de" placeholder="{{ t.countdown_heading }}"></div>
+          <div><label>{{ t.field_title }} (EN)</label><input type="text" id="cd-title_en"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.countdown_subtitle }} (DE)</label><input type="text" id="cd-subtitle_de"></div>
+          <div><label>{{ t.countdown_subtitle }} (EN)</label><input type="text" id="cd-subtitle_en"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.countdown_expired }} (DE)</label><input type="text" id="cd-expired_de" placeholder="{{ t.countdown_expired }}"></div>
+          <div><label>{{ t.countdown_expired }} (EN)</label><input type="text" id="cd-expired_en"></div>
+        </div>
+        <label>{{ t.countdown_image }}</label>
+        <div class="upload-row">
+          <input type="text" id="cd-image" placeholder="https://… {{ t.or_upload }}">
+          <button class="btn secondary small" onclick="pickUpload(u => { el('cd-image').value = u; })">{{ t.upload }}</button>
+        </div>
+        <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="cd-notify"> {{ t.countdown_notify_label }}</label>
+        <p class="hint">{{ t.countdown_notify_hint }}</p>
       </div>
       <div class="panel acc" data-key="tips">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_section }}</div>
@@ -464,10 +544,82 @@
         <p class="hint">{{ t.blog_hint }}</p>
         <div class="proj-list" id="post-list"></div>
       </div>
+      <div class="panel" id="nl-panel">
+        <h3>{{ t.nl_admin_heading }} <span class="hint" id="nl-count" style="font-weight:normal"></span></h3>
+        <p class="hint">{{ t.nl_admin_hint }}</p>
+        <label>{{ t.nl_subject }}</label>
+        <input type="text" id="nl-subject" maxlength="150">
+        <label>{{ t.nl_body }}</label>
+        <textarea id="nl-body" rows="8" placeholder="{{ t.nl_body_ph }}"></textarea>
+        <button class="btn" style="margin-top:12px" onclick="sendNewsletter()">✉ {{ t.nl_send }}</button>
+        <div id="nl-subs" class="collapsible" style="margin-top:16px"></div>
+        <button class="btn secondary small collapse-btn" id="nl-subs-btn" onclick="toggleCollapse('nl-subs')"></button>
+      </div>
+    </section>
+
+    <!-- Seiten -->
+    <section class="tab" id="tab-pages">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.pages_heading }}
+          <button class="btn small" onclick="openPageModal()">+ {{ t.new_page }}</button>
+        </h3>
+        <p class="hint">{{ t.pages_hint }}</p>
+        <div class="proj-list" id="page-list"></div>
+      </div>
+    </section>
+
+    <!-- Formulare -->
+    <section class="tab" id="tab-forms">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.forms_heading }}
+          <button class="btn small" onclick="openFormModal()">+ {{ t.new_form }}</button>
+        </h3>
+        <p class="hint">{{ t.forms_hint }}</p>
+        <div class="proj-list" id="form-list"></div>
+      </div>
     </section>
 
     <!-- Design -->
     <section class="tab" id="tab-design">
+      <div class="panel">
+        <h3>{{ t.presets_heading }}</h3>
+        <p class="hint">{{ t.presets_hint }}</p>
+        <div class="preset-wrap">
+          <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="presetScroll(-1)">‹</button>
+          <div id="preset-gallery" class="preset-gallery"></div>
+          <button type="button" class="nav-arrow preset-arrow preset-right" aria-label="►" onclick="presetScroll(1)">›</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.banner_heading }}</h3>
+        <p class="hint">{{ t.banner_hint }}</p>
+        <label class="checkbox"><input type="checkbox" id="d-banner_enabled"> {{ t.banner_enable }}</label>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>{{ t.banner_text }} (DE)</label>
+            <input type="text" id="d-banner_text_de" maxlength="200" placeholder="{{ t.banner_text_ph }}">
+          </div>
+          <div>
+            <label>{{ t.banner_text }} (EN)</label>
+            <input type="text" id="d-banner_text_en" maxlength="200" placeholder="{{ t.banner_text_ph }}">
+          </div>
+        </div>
+        <label>{{ t.banner_link }}</label>
+        <input type="text" id="d-banner_link_url" placeholder="https://… {{ t.banner_link_hint }}">
+        <div class="row">
+          <div>
+            <label>{{ t.banner_link_label }} (DE)</label>
+            <input type="text" id="d-banner_link_label_de" maxlength="60" placeholder="{{ t.banner_more }}">
+          </div>
+          <div>
+            <label>{{ t.banner_link_label }} (EN)</label>
+            <input type="text" id="d-banner_link_label_en" maxlength="60" placeholder="{{ t.banner_more }}">
+          </div>
+        </div>
+        <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="d-banner_dismissible"> {{ t.banner_dismissible }}</label>
+      </div>
       <div class="panel">
         <h3>{{ t.design_heading }}</h3>
         <div class="row">
@@ -558,6 +710,17 @@
         <p class="hint">{{ t.indexnow_hint }}</p>
         <div class="row">
           <div>
+            <label>{{ t.verify_google }}</label>
+            <input type="text" id="d-google_verify" placeholder="google-site-verification …">
+          </div>
+          <div>
+            <label>{{ t.verify_bing }}</label>
+            <input type="text" id="d-bing_verify" placeholder="msvalidate.01 …">
+          </div>
+        </div>
+        <p class="hint">{{ t.verify_hint }}</p>
+        <div class="row">
+          <div>
             <label>{{ t.field_favicon }}</label>
             <div class="upload-row">
               <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
@@ -570,6 +733,48 @@
               <option value="0">{{ t.no }}</option>
               <option value="1">{{ t.yes }}</option>
             </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_comments_enabled }}</label>
+            <select id="d-comments_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.comments_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_share_enabled }}</label>
+            <select id="d-share_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.share_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_registration_enabled }}</label>
+            <select id="d-registration_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.registration_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_registration_quota }}</label>
+            <input type="number" id="d-registration_quota_mb" min="1" max="100000" step="1">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_newsletter_enabled }}</label>
+            <select id="d-newsletter_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.newsletter_enabled_hint }}</p>
           </div>
         </div>
         <div class="row">
@@ -735,6 +940,11 @@
         <p class="hint">{{ t.messages_hint }}</p>
       </div>
       <div id="msg-list"></div>
+      <div class="panel" style="margin-top:22px">
+        <h3>{{ t.comments_heading }}</h3>
+        <p class="hint">{{ t.comments_mod_hint }}</p>
+      </div>
+      <div id="comment-list"></div>
     </section>
 
     <!-- Benutzer -->
@@ -804,12 +1014,32 @@
         <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
       </div>
       <div class="panel">
+        <h3>{{ t.audit_heading }}</h3>
+        <p class="hint">{{ t.audit_hint }}</p>
+        <div id="audit-log" class="collapsible"></div>
+        <button class="btn secondary small collapse-btn" id="audit-log-btn" onclick="toggleCollapse('audit-log')"></button>
+      </div>
+      <div class="panel">
         <h3>{{ t.backup_heading }}</h3>
         <p class="hint">{{ t.backup_hint }}</p>
         <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
         <button class="btn secondary" onclick="el('restore-input').click()">⬆ {{ t.restore_upload }}</button>
         <input type="file" id="restore-input" accept=".zip" style="display:none">
         <p class="hint">{{ t.restore_hint }}</p>
+      </div>
+      <div class="panel">
+        <h3>{{ t.cleanup_heading }}</h3>
+        <p class="hint">{{ t.cleanup_hint }}</p>
+        <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.redirects_heading }}</h3>
+        <p class="hint">{{ t.redirects_hint }}</p>
+        <div id="redirect-list"></div>
+        <div style="margin-top:10px">
+          <button class="btn secondary small" onclick="addRedirectRow()">+ {{ t.redirects_add }}</button>
+          <button class="btn" style="margin-left:8px" onclick="saveRedirects()">{{ t.save }}</button>
+        </div>
       </div>
       <div class="panel">
         <h3>{{ t.export_heading }}</h3>
@@ -833,6 +1063,12 @@
       <div class="panel">
         <h3>{{ t.stat_last30 }}</h3>
         <div id="s-bars"></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.stat_top_pages }}</h3>
+        <p class="hint" style="margin:2px 0 10px">{{ t.stat_top_pages_hint }}</p>
+        <div id="s-pages" class="collapsible"></div>
+        <button class="btn secondary small collapse-btn" id="s-pages-btn" onclick="toggleCollapse('s-pages')"></button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 18px">
         <div class="panel">
@@ -1015,7 +1251,8 @@
           <textarea id="am-desc_en" rows="2"></textarea>
         </div>
       </div>
-      <label>{{ t.album_images }}</label>
+      <label class="checkbox" style="margin-top:4px"><input type="checkbox" id="am-members_only"> 🔒 {{ t.members_only_label }}</label>
+      <label style="margin-top:12px">{{ t.album_images }}</label>
       <div class="gallery-list" id="am-images"></div>
       <button class="btn secondary small" onclick="el('am-file').click()">+ {{ t.add_images }}</button>
       <input type="file" id="am-file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple style="display:none">
@@ -1056,6 +1293,7 @@
             <option value="1">{{ t.status_published }}</option>
             <option value="0">{{ t.status_draft }}</option>
           </select>
+          <label class="checkbox" style="margin-top:8px"><input type="checkbox" id="bm-members_only"> 🔒 {{ t.members_only_label }}</label>
         </div>
       </div>
       <p class="hint">{{ t.post_schedule_hint }}</p>
@@ -1066,6 +1304,9 @@
       </div>
       <label>{{ t.field_video }}</label>
       <input type="url" id="bm-video" placeholder="https://youtube.com/watch?v=… {{ t.video_hint }}">
+      <label>{{ t.field_tags }}</label>
+      <input type="text" id="bm-tags" placeholder="home-assistant, docker, flask">
+      <p class="hint">{{ t.post_tags_hint }}</p>
       <div class="row">
         <div>
           <label>{{ t.field_seo_desc }} (DE)</label>
@@ -1106,6 +1347,127 @@
         <button class="btn secondary" onclick="el('post-modal').classList.remove('open')">{{ t.cancel }}</button>
         {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['bm-title_de','bm-title_en'],['bm-text_de','bm-text_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
         <button class="btn" style="margin-top:16px" onclick="savePost()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formular-Modal -->
+  <div class="modal-bg" id="form-modal">
+    <div class="modal md-modal-box">
+      <h3 id="fm-title">{{ t.new_form }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.page_slug }}</label>
+          <input type="text" id="fm-slug" placeholder="z. B. anmeldung" maxlength="60">
+          <p class="hint" id="fm-url-hint"></p>
+        </div>
+        <div>
+          <label>{{ t.field_status }}</label>
+          <select id="fm-enabled">
+            <option value="1">{{ t.status_published }}</option>
+            <option value="0">{{ t.status_draft }}</option>
+          </select>
+          <label class="checkbox" style="margin-top:8px"><input type="checkbox" id="fm-nav"> {{ t.page_in_nav }}</label>
+          <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="fm-notify" checked> {{ t.form_notify }}</label>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="fm-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="fm-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.form_intro }} (DE)</label>
+          <textarea id="fm-intro_de" rows="3"></textarea>
+        </div>
+        <div>
+          <label>{{ t.form_intro }} (EN)</label>
+          <textarea id="fm-intro_en" rows="3"></textarea>
+        </div>
+      </div>
+      <h4 style="margin:18px 0 6px">{{ t.form_fields_heading }}</h4>
+      <p class="hint">{{ t.form_fields_hint }}</p>
+      <div id="fm-fields"></div>
+      <button type="button" class="btn secondary small" onclick="addFieldRow()">+ {{ t.form_add_field }}</button>
+      <div class="row" style="margin-top:18px">
+        <div>
+          <label>{{ t.form_success }} (DE)</label>
+          <textarea id="fm-success_de" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
+        </div>
+        <div>
+          <label>{{ t.form_success }} (EN)</label>
+          <textarea id="fm-success_en" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('form-modal').classList.remove('open')">{{ t.cancel }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateForm(this)">🌐 {{ t.tr_btn }}</button>{% endif %}
+        <button class="btn" style="margin-top:16px" onclick="saveForm()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seiten-Modal -->
+  <div class="modal-bg" id="page-modal">
+    <div class="modal">
+      <h3 id="pg-title">{{ t.new_page }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.page_slug }}</label>
+          <input type="text" id="pg-slug" placeholder="z. B. ueber-uns" maxlength="60">
+          <p class="hint" id="pg-url-hint"></p>
+        </div>
+        <div>
+          <label>{{ t.field_status }}</label>
+          <select id="pg-visible">
+            <option value="1">{{ t.status_published }}</option>
+            <option value="0">{{ t.status_draft }}</option>
+          </select>
+          <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="pg-nav" checked> {{ t.page_in_nav }}</label>
+          <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="pg-members_only"> 🔒 {{ t.members_only_label }}</label>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_seo_desc }} (DE)</label>
+          <input type="text" id="pg-meta_de" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+        <div>
+          <label>{{ t.field_seo_desc }} (EN)</label>
+          <input type="text" id="pg-meta_en" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+      </div>
+      <p class="hint">{{ t.post_seo_hint }}</p>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="pg-title_de">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="pg-title_en">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_text_md }} (DE)</label>
+          <textarea id="pg-body_de" rows="12"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_text_md }} (EN)</label>
+          <textarea id="pg-body_en" rows="12"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('page-modal').classList.remove('open')">{{ t.cancel }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['pg-title_de','pg-title_en'],['pg-body_de','pg-body_en'],['pg-meta_de','pg-meta_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
+        <button class="btn" style="margin-top:16px" onclick="savePage()">{{ t.save }}</button>
       </div>
     </div>
   </div>
@@ -1235,6 +1597,20 @@
       const url = prompt('URL:', 'https://'); if (!url) return;
       mdReplaceSel(ta, '[' + sel + '](' + url + ')');
     }
+    function mdInsertImage(ta, url) {
+      let alt = (prompt(T.md_img_alt, '') || '').replace(/[\[\]]/g, '').trim();
+      mdReplaceSel(ta, '![' + alt + '](' + url + ')');
+    }
+    function mdImage(ta) {
+      const url = prompt(T.md_img_url, '');
+      if (url === null) return;                 // abgebrochen
+      if (url.trim()) { mdInsertImage(ta, url.trim()); }
+      else { pickUpload(u => mdInsertImage(ta, u)); }   // leer → hochladen
+    }
+    function mdTable(ta) {
+      const h = T.md_tbl_head, c = T.md_tbl_cell;
+      mdReplaceSel(ta, '\n\n| ' + h + ' 1 | ' + h + ' 2 |\n| --- | --- |\n| ' + c + ' | ' + c + ' |\n| ' + c + ' | ' + c + ' |\n\n');
+    }
     const MD_EMOJI = ['😀','😉','😎','🥳','👍','🙏','❤️','🎉','✅','⭐','🔥','💡','📌','🚀','☕','📷','🎮','🌍','✨','🎈'];
     function mdEmoji(btn, ta) {
       let pop = btn.parentNode.querySelector('.md-emoji-pop');
@@ -1251,6 +1627,11 @@
       s = s.replace(/`([^`]+)`/g, (m, c) => '<code>' + c + '</code>');
       s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, url) => {
+        url = url.trim();
+        if (!/^(https?:|\/)/i.test(url)) return '';
+        return '<img src="' + url.replace(/"/g, '%22') + '" alt="' + alt + '" style="max-width:100%;border-radius:8px">';
+      });
       s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, txt, url) => {
         url = url.trim();
         if (!/^(https?:|mailto:)/i.test(url)) return txt;
@@ -1258,11 +1639,28 @@
       });
       return s;
     }
+    function mdRow(line) { return line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim()); }
     function mdToHtml(md) {
       const lines = String(md || '').replace(/\r\n/g, '\n').split('\n');
       let html = '', listType = null, m;
       const closeList = () => { if (listType) { html += '</' + listType + '>'; listType = null; } };
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Tabelle: Kopfzeile + Trennzeile (| --- | --- |) + Datenzeilen
+        if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+          closeList();
+          const head = mdRow(line);
+          html += '<table><thead><tr>' + head.map(c => '<th>' + mdInline(c) + '</th>').join('') + '</tr></thead><tbody>';
+          i += 2;
+          while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+            html += '<tr>' + mdRow(lines[i]).map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>';
+            i++;
+          }
+          i--;
+          html += '</tbody></table>';
+          continue;
+        }
+        if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { closeList(); html += '<hr>'; continue; }
         if (m = line.match(/^(#{1,6})\s+(.*)$/)) { closeList(); const lv = m[1].length; html += '<h' + lv + '>' + mdInline(m[2]) + '</h' + lv + '>'; continue; }
         if (m = line.match(/^>\s?(.*)$/)) { closeList(); html += '<blockquote>' + mdInline(m[1]) + '</blockquote>'; continue; }
         if (m = line.match(/^\s*[-*]\s+(.*)$/)) { if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; } html += '<li>' + mdInline(m[1]) + '</li>'; continue; }
@@ -1290,6 +1688,9 @@
         mk('&#10077;', T.md_quote, () => mdLine(ta, '> ')),
         mk('&lt;/&gt;', T.md_code, () => mdWrap(ta, '`')),
         mk('🔗', T.md_link, () => mdLink(ta)),
+        mk('🖼️', T.md_image, () => mdImage(ta)),
+        mk('▦', T.md_table, () => mdTable(ta)),
+        mk('―', T.md_hr, () => mdReplaceSel(ta, '\n\n---\n\n')),
         mk('😀', T.md_emoji, e => mdEmoji(e.currentTarget, ta))
       );
       ta.addEventListener('input', mdPreview);
@@ -1319,7 +1720,8 @@
       ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
     function initMdEditors() {
-      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en'].forEach(id => attachMd(el(id)));
+      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en',
+       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -1384,9 +1786,11 @@
         el('tab-' + btn.dataset.tab).classList.add('active');
         stopUsersPolling();  // beim Verlassen des Benutzer-Tabs Polling stoppen
         if (btn.dataset.tab === 'stats') loadStats();
-        if (btn.dataset.tab === 'messages') loadMessages();
+        if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
-        if (btn.dataset.tab === 'design') initPreview();
+        if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
+        if (btn.dataset.tab === 'system') loadAudit();
+        if (btn.dataset.tab === 'blog') loadSubscribers();
       });
     });
 
@@ -1402,6 +1806,9 @@
       fillSystem();
       renderProjects();
       renderPosts();
+      renderPages();
+      renderForms();
+      renderRedirects();
       // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
       if (!el('gh-user').value && SITE.profile.github) {
         el('gh-user').value = SITE.profile.github;
@@ -1434,7 +1841,8 @@
         if (p.published === false) badge = `<span class="badge-draft">${T.status_draft}</span>`;
         else if ((p.date || '') > today) badge = `<span class="badge-scheduled">${T.status_scheduled}</span>`;
         if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ' ' + badge);
-        div.querySelector('.proj-meta').textContent = p.date || '';
+        div.querySelector('.proj-meta').textContent =
+          (p.date || '') + (p.date ? ' · ' : '') + '👁 ' + (p.views || 0) + ' ' + T.post_views;
         div.querySelector('.btn-preview').onclick = () => window.open('preview/blog/' + p.id, '_blank');
         div.querySelector('.btn-edit').onclick = () => openPostModal(p.id);
         div.querySelector('.btn-del').onclick = async () => {
@@ -1489,6 +1897,7 @@
       el('bm-date').value = p.date || new Date().toISOString().slice(0, 10);
       el('bm-image').value = p.image || '';
       el('bm-video').value = p.video || '';
+      el('bm-tags').value = (p.tags || []).join(', ');
       el('bm-meta_de').value = p.meta_de || '';
       el('bm-meta_en').value = p.meta_en || '';
       el('bm-title_de').value = p.title_de || '';
@@ -1496,6 +1905,7 @@
       el('bm-text_de').value = p.text_de || '';
       el('bm-text_en').value = p.text_en || '';
       el('bm-published').value = (id && p.published === false) ? '0' : '1';
+      el('bm-members_only').checked = !!p.members_only;
       postGallery = [...(p.gallery || [])];
       renderPostGallery();
       el('post-modal').classList.add('open');
@@ -1505,6 +1915,7 @@
         date:     el('bm-date').value,
         image:    el('bm-image').value,
         video:    el('bm-video').value,
+        tags:     el('bm-tags').value,
         meta_de:  el('bm-meta_de').value,
         meta_en:  el('bm-meta_en').value,
         title_de: el('bm-title_de').value,
@@ -1513,6 +1924,7 @@
         text_en:  el('bm-text_en').value,
         gallery:  postGallery,
         published: el('bm-published').value === '1',
+        members_only: el('bm-members_only').checked,
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
       const r = editingPostId
@@ -1520,6 +1932,245 @@
         : await apiJson('api/posts', 'POST', body);
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { el('post-modal').classList.remove('open'); loadSite(); }
+    }
+
+    // ── Seiten ──
+    let editingPageId = null;
+    let pageDragFrom = null;
+    function renderPages() {
+      const list = el('page-list');
+      list.innerHTML = '';
+      const pages = SITE.pages || [];
+      if (!pages.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_pages}</div>`;
+        return;
+      }
+      pages.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.draggable = true;
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = p.title_de || p.title_en;
+        let badge = '';
+        if (!p.visible) badge += ` <span class="badge-draft">${T.status_draft}</span>`;
+        if (!p.nav) badge += ` <span class="badge-reg">${T.page_hidden_nav}</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', badge);
+        div.querySelector('.proj-meta').textContent = '/seite/' + p.slug;
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/page/' + p.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openPageModal(p.id);
+        div.querySelector('.btn-del').onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await fetch('api/pages/' + p.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        div.addEventListener('dragstart', () => { pageDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { pageDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          if (pageDragFrom === null || pageDragFrom === i) return;
+          const arr = SITE.pages;
+          const [m] = arr.splice(pageDragFrom, 1); arr.splice(i, 0, m);
+          renderPages();
+          await apiJson('api/pages/reorder', 'POST', { order: arr.map(x => x.id) });
+        });
+        list.appendChild(div);
+      });
+    }
+    function pageSlugHint() {
+      const slug = (el('pg-slug').value || '').trim();
+      el('pg-url-hint').textContent = slug ? (publicUrl() + 'seite/' + slug) : T.page_slug_auto;
+    }
+    function openPageModal(id) {
+      editingPageId = id || null;
+      const p = id ? (SITE.pages || []).find(x => x.id === id) : {};
+      el('pg-title').textContent = id ? T.edit_page : T.new_page;
+      el('pg-slug').value = p.slug || '';
+      el('pg-visible').value = (id && p.visible === false) ? '0' : '1';
+      el('pg-nav').checked = (id ? p.nav !== false : true);
+      el('pg-members_only').checked = !!p.members_only;
+      el('pg-meta_de').value = p.meta_de || '';
+      el('pg-meta_en').value = p.meta_en || '';
+      el('pg-title_de').value = p.title_de || '';
+      el('pg-title_en').value = p.title_en || '';
+      el('pg-body_de').value = p.body_de || '';
+      el('pg-body_en').value = p.body_en || '';
+      pageSlugHint();
+      el('page-modal').classList.add('open');
+    }
+    async function savePage() {
+      const body = {
+        slug:     el('pg-slug').value,
+        visible:  el('pg-visible').value === '1',
+        nav:      el('pg-nav').checked,
+        members_only: el('pg-members_only').checked,
+        meta_de:  el('pg-meta_de').value,
+        meta_en:  el('pg-meta_en').value,
+        title_de: el('pg-title_de').value,
+        title_en: el('pg-title_en').value,
+        body_de:  el('pg-body_de').value,
+        body_en:  el('pg-body_en').value,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingPageId
+        ? await apiJson('api/pages/' + editingPageId, 'PUT', body)
+        : await apiJson('api/pages', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('page-modal').classList.remove('open'); loadSite(); }
+    }
+
+    // ── Formulare ──
+    let editingFormId = null;
+    let formDragFrom = null;
+    const FIELD_TYPES = ['text', 'textarea', 'email', 'tel', 'number', 'date', 'select', 'radio', 'checkbox'];
+    function renderForms() {
+      const list = el('form-list');
+      list.innerHTML = '';
+      const forms = SITE.forms || [];
+      if (!forms.length) { list.innerHTML = `<div class="empty-note">${T.no_forms}</div>`; return; }
+      forms.forEach((f, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.draggable = true;
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = f.title_de || f.title_en;
+        let badge = '';
+        if (!f.enabled) badge += ` <span class="badge-draft">${T.status_draft}</span>`;
+        if (!f.nav) badge += ` <span class="badge-reg">${T.page_hidden_nav}</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', badge);
+        div.querySelector('.proj-meta').textContent = '/formular/' + f.slug + ' · ' + (f.fields || []).length + ' ' + T.form_fields_count;
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/form/' + f.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openFormModal(f.id);
+        div.querySelector('.btn-del').onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await fetch('api/forms/' + f.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        div.addEventListener('dragstart', () => { formDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { formDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          if (formDragFrom === null || formDragFrom === i) return;
+          const arr = SITE.forms; const [m] = arr.splice(formDragFrom, 1); arr.splice(i, 0, m);
+          renderForms();
+          await apiJson('api/forms/reorder', 'POST', { order: arr.map(x => x.id) });
+        });
+        list.appendChild(div);
+      });
+    }
+    function formSlugHint() {
+      const slug = (el('fm-slug').value || '').trim();
+      el('fm-url-hint').textContent = slug ? (publicUrl() + 'formular/' + slug) : T.page_slug_auto;
+    }
+    function fieldTypeNeedsOptions(t) { return t === 'select' || t === 'radio'; }
+    function addFieldRow(f) {
+      f = f || { type: 'text', required: false, options: [] };
+      const box = el('fm-fields');
+      const row = document.createElement('div');
+      row.className = 'fm-field-row';
+      row.draggable = true;
+      const typeOpts = FIELD_TYPES.map(tp => `<option value="${tp}"${f.type === tp ? ' selected' : ''}>${T['ftype_' + tp] || tp}</option>`).join('');
+      row.innerHTML =
+        `<div class="fm-field-top">
+           <span class="fm-drag" title="${T.album_drag_hint || ''}">⠿</span>
+           <select class="ff-type">${typeOpts}</select>
+           <label class="fm-req"><input type="checkbox" class="ff-required"${f.required ? ' checked' : ''}> ${T.form_required}</label>
+           <button type="button" class="btn danger small fm-del">✕</button>
+         </div>
+         <div class="row">
+           <div><label>${T.field_label} (DE)</label><input type="text" class="ff-label_de"></div>
+           <div><label>${T.field_label} (EN)</label><input type="text" class="ff-label_en"></div>
+         </div>
+         <div class="row">
+           <div><label>${T.form_placeholder} (DE)</label><input type="text" class="ff-ph_de"></div>
+           <div><label>${T.form_placeholder} (EN)</label><input type="text" class="ff-ph_en"></div>
+         </div>
+         <div class="fm-opts"><label>${T.form_options}</label><textarea class="ff-options" rows="3" placeholder="${T.form_options_ph}"></textarea></div>`;
+      row.querySelector('.ff-label_de').value = f.label_de || '';
+      row.querySelector('.ff-label_en').value = f.label_en || '';
+      row.querySelector('.ff-ph_de').value = f.placeholder_de || '';
+      row.querySelector('.ff-ph_en').value = f.placeholder_en || '';
+      row.querySelector('.ff-options').value = (f.options || []).join('\n');
+      const optBox = row.querySelector('.fm-opts');
+      const sync = () => { optBox.style.display = fieldTypeNeedsOptions(row.querySelector('.ff-type').value) ? '' : 'none'; };
+      row.querySelector('.ff-type').addEventListener('change', sync); sync();
+      row.querySelector('.fm-del').onclick = () => row.remove();
+      row.addEventListener('dragstart', e => { if (e.target !== row) return; row.classList.add('dragging'); window._ffDrag = row; });
+      row.addEventListener('dragend', () => { row.classList.remove('dragging'); window._ffDrag = null; });
+      row.addEventListener('dragover', e => {
+        e.preventDefault();
+        const d = window._ffDrag; if (!d || d === row) return;
+        const r = row.getBoundingClientRect();
+        box.insertBefore(d, (e.clientY - r.top) / r.height < 0.5 ? row : row.nextSibling);
+      });
+      box.appendChild(row);
+    }
+    function collectFields() {
+      return [...el('fm-fields').children].map(row => ({
+        type: row.querySelector('.ff-type').value,
+        required: row.querySelector('.ff-required').checked,
+        label_de: row.querySelector('.ff-label_de').value,
+        label_en: row.querySelector('.ff-label_en').value,
+        placeholder_de: row.querySelector('.ff-ph_de').value,
+        placeholder_en: row.querySelector('.ff-ph_en').value,
+        options: row.querySelector('.ff-options').value.split('\n').map(s => s.trim()).filter(Boolean),
+      })).filter(f => f.label_de.trim() || f.label_en.trim());
+    }
+    function openFormModal(id) {
+      editingFormId = id || null;
+      const f = id ? (SITE.forms || []).find(x => x.id === id) : {};
+      el('fm-title').textContent = id ? T.edit_form : T.new_form;
+      el('fm-slug').value = f.slug || '';
+      el('fm-enabled').value = (id && f.enabled === false) ? '0' : '1';
+      el('fm-nav').checked = !!f.nav;
+      el('fm-notify').checked = (id ? f.notify !== false : true);
+      el('fm-title_de').value = f.title_de || '';
+      el('fm-title_en').value = f.title_en || '';
+      el('fm-intro_de').value = f.intro_de || '';
+      el('fm-intro_en').value = f.intro_en || '';
+      el('fm-success_de').value = f.success_de || '';
+      el('fm-success_en').value = f.success_en || '';
+      el('fm-fields').innerHTML = '';
+      (f.fields || []).forEach(addFieldRow);
+      formSlugHint();
+      el('form-modal').classList.add('open');
+    }
+    async function saveForm() {
+      const body = {
+        slug: el('fm-slug').value, enabled: el('fm-enabled').value === '1',
+        nav: el('fm-nav').checked, notify: el('fm-notify').checked,
+        title_de: el('fm-title_de').value, title_en: el('fm-title_en').value,
+        intro_de: el('fm-intro_de').value, intro_en: el('fm-intro_en').value,
+        success_de: el('fm-success_de').value, success_en: el('fm-success_en').value,
+        fields: collectFields(),
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingFormId
+        ? await apiJson('api/forms/' + editingFormId, 'PUT', body)
+        : await apiJson('api/forms', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('form-modal').classList.remove('open'); loadSite(); }
+    }
+    function translateForm(btn) {
+      const pairs = [['fm-title_de', 'fm-title_en'], ['fm-intro_de', 'fm-intro_en'], ['fm-success_de', 'fm-success_en']];
+      [...el('fm-fields').children].forEach(row => {
+        // Feld-Labels mitübersetzen über temporäre IDs
+        const de = row.querySelector('.ff-label_de'), en = row.querySelector('.ff-label_en');
+        if (!de.id) { de.id = 'ff-tmp-' + Math.random().toString(36).slice(2); en.id = de.id + 'x'; }
+        pairs.push([de.id, en.id]);
+      });
+      translateFields(btn, pairs);
     }
 
     // ── Live-Vorschau ──
@@ -1568,16 +2219,27 @@
       el('loc-hours_en').value = L.hours_en || '';
       el('loc-show_map').value = L.show_map ? '1' : '0';
       el('loc-coords').value = (L.lat && L.lng) ? (L.lat + ', ' + L.lng) : '';
+      const CD = s.countdown || {};
+      el('cd-target').value = CD.target || '';
+      el('cd-title_de').value = CD.title_de || '';
+      el('cd-title_en').value = CD.title_en || '';
+      el('cd-subtitle_de').value = CD.subtitle_de || '';
+      el('cd-subtitle_en').value = CD.subtitle_en || '';
+      el('cd-expired_de').value = CD.expired_de || '';
+      el('cd-expired_en').value = CD.expired_en || '';
+      el('cd-image').value = CD.image || '';
+      el('cd-notify').checked = !!CD.notify;
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
       applySectionOrder();
       initSectionDnD();
       applySectionVisibility();
+      applySectionMembers();
     }
-    // Akkordeon auf-/zuklappen (Klick auf Griff/Auge nicht)
+    // Akkordeon auf-/zuklappen (Klick auf Griff/Auge/Schloss nicht)
     function toggleAcc(e, head) {
-      if (e.target.closest('.drag-handle, .sec-eye')) return;
+      if (e.target.closest('.drag-handle, .sec-eye, .sec-lock')) return;
       head.parentElement.classList.toggle('open');
     }
     // ── Reihenfolge der Startseiten-Abschnitte (Drag & Drop, Maus + Touch) ──
@@ -1668,6 +2330,34 @@
       const r = await apiJson('api/sections', 'POST', { hidden_sections: hidden });
       if (r.ok) { SITE.hidden_sections = hidden; toast(T.saved); }
       else { toast(T.error_save, true); d.classList.toggle('acc-hidden'); btn.innerHTML = nowHidden ? EYE_ON : EYE_OFF; }
+    }
+    // ── Nur-für-Mitglieder je Abschnitt (Schloss-Button) ──
+    function applySectionMembers() {
+      const mem = new Set(SITE.members_sections || []);
+      document.querySelectorAll('#section-acc .acc').forEach(d => {
+        const head = d.querySelector('.acc-head'); if (!head) return;
+        let lock = head.querySelector('.sec-lock');
+        if (!lock) {
+          lock = document.createElement('button');
+          lock.type = 'button'; lock.className = 'sec-lock'; lock.textContent = '🔒';
+          lock.onclick = (ev) => toggleSectionMembers(lock, ev);
+          head.appendChild(lock);   // rechts neben dem Auge (per flex-order)
+        }
+        const on = mem.has(d.dataset.key);
+        lock.classList.toggle('on', on);
+        lock.title = on ? T.section_members_on : T.section_members_off;
+      });
+    }
+    async function toggleSectionMembers(btn, ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      const d = btn.closest('.acc');
+      const nowOn = !btn.classList.contains('on');
+      btn.classList.toggle('on', nowOn);
+      btn.title = nowOn ? T.section_members_on : T.section_members_off;
+      const mem = [...document.querySelectorAll('#section-acc .acc')].filter(x => x.querySelector('.sec-lock.on')).map(x => x.dataset.key);
+      const r = await apiJson('api/sections', 'POST', { members_sections: mem });
+      if (r.ok) { SITE.members_sections = mem; toast(T.saved); }
+      else { toast(T.error_save, true); btn.classList.toggle('on'); }
     }
     // Eintrags-Zeile in ihrer Liste nach oben/unten verschieben (Reihenfolge = DOM-Reihenfolge)
     function moveEntryRow(btn, dir) {
@@ -1996,8 +2686,19 @@
         lng:      coords[1] || '',
         show_map: el('loc-show_map').value === '1',
       };
+      const countdown = {
+        target:      el('cd-target').value,
+        title_de:    el('cd-title_de').value,
+        title_en:    el('cd-title_en').value,
+        subtitle_de: el('cd-subtitle_de').value,
+        subtitle_en: el('cd-subtitle_en').value,
+        expired_de:  el('cd-expired_de').value,
+        expired_en:  el('cd-expired_en').value,
+        image:       el('cd-image').value,
+        notify:      el('cd-notify').checked,
+      };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location,
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown,
           timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
@@ -2025,6 +2726,7 @@
              <button class="btn danger small" onclick="deleteAlbum('${a.id}')">✕</button>
            </div>`;
         div.querySelector('.proj-name').textContent = a.title_de || a.title_en;
+        if (a.members_only) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', ` <span class="badge-reg">🔒 ${T.members_only_badge}</span>`);
         div.querySelector('.proj-meta').textContent = `${(a.images || []).length} ${T.album_image_count}`;
         list.appendChild(div);
       });
@@ -2068,6 +2770,7 @@
       el('am-title_en').value = a.title_en || '';
       el('am-desc_de').value = a.desc_de || '';
       el('am-desc_en').value = a.desc_en || '';
+      el('am-members_only').checked = !!a.members_only;
       albumImages = [...(a.images || [])];
       el('am-progress').textContent = '';
       renderAlbumImages();
@@ -2091,6 +2794,7 @@
       const body = {
         title_de: el('am-title_de').value, title_en: el('am-title_en').value,
         desc_de: el('am-desc_de').value, desc_en: el('am-desc_en').value,
+        members_only: el('am-members_only').checked,
         images: albumImages,
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
@@ -2135,7 +2839,12 @@
             </span>
           </div><div class="msg-text"></div>`;
         const from = div.querySelector('.msg-from');
-        from.textContent = m.name;
+        if (m.form) {
+          const b = document.createElement('span');
+          b.className = 'badge-reg'; b.textContent = '📋 ' + m.form;
+          from.appendChild(b); from.appendChild(document.createTextNode(' '));
+        }
+        from.appendChild(document.createTextNode(m.name || ''));
         if (m.email) {
           const a = document.createElement('a');
           a.href = 'mailto:' + m.email;
@@ -2143,11 +2852,59 @@
           from.appendChild(a);
         }
         div.querySelector('.msg-time').textContent = new Date(m.ts * 1000).toLocaleString();
-        div.querySelector('.msg-text').textContent = m.text;
+        const txt = div.querySelector('.msg-text');
+        if (m.fields && m.fields.length) {
+          m.fields.forEach(e => {
+            const line = document.createElement('div');
+            const lbl = document.createElement('b'); lbl.textContent = e.label + ': ';
+            line.appendChild(lbl); line.appendChild(document.createTextNode(e.value));
+            txt.appendChild(line);
+          });
+        } else {
+          txt.textContent = m.text;
+        }
         div.querySelector('button').onclick = async () => {
           if (!confirm(T.confirm_delete_msg)) return;
           const r2 = await fetch('api/messages/' + m.id, { method: 'DELETE', credentials: 'same-origin' });
           if (r2.ok) loadMessages();
+        };
+        list.appendChild(div);
+      });
+    }
+
+    async function loadComments() {
+      const r = await api('api/comments');
+      if (!r.ok) return;
+      const data = await r.json();
+      const list = el('comment-list');
+      list.innerHTML = '';
+      if (!data.comments.length) {
+        list.innerHTML = `<div class="empty-note">${T.no_comments}</div>`;
+        return;
+      }
+      data.comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'msg-item';
+        div.innerHTML = `<div class="msg-head">
+            <span class="msg-from"></span>
+            <span style="display:flex;gap:10px;align-items:center">
+              <span class="msg-time"></span>
+              <button class="btn danger small">✕</button>
+            </span>
+          </div><div class="msg-text"></div>`;
+        const from = div.querySelector('.msg-from');
+        from.textContent = c.name;
+        const post = document.createElement('a');
+        post.href = 'preview/blog/' + c.pid;
+        post.target = '_blank';
+        post.textContent = ' · ' + c.post_title;
+        from.appendChild(post);
+        div.querySelector('.msg-time').textContent = new Date(c.ts * 1000).toLocaleString();
+        div.querySelector('.msg-text').textContent = c.text;
+        div.querySelector('button').onclick = async () => {
+          if (!confirm(T.confirm_delete_comment)) return;
+          const r2 = await fetch('api/comments/' + c.pid + '/' + c.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) loadComments();
         };
         list.appendChild(div);
       });
@@ -2197,10 +2954,12 @@
         div.dataset.uid = u.id;
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
-            <button class="btn secondary small">📁 ${T.user_files_btn}</button>
-            <button class="btn secondary small">💬 ${T.user_msg_btn}${u.login_message ? ' •' : ''}</button>
+            <button class="btn small" title="${T.user_approve_title}" style="${(u.self_registered && u.verified && !u.approved) ? 'background:var(--green);border-color:var(--green-h);color:#fff' : 'display:none'}">✅ ${T.user_approve}</button>
+            <button class="btn secondary small" title="${T.user_files_btn}">📁</button>
+            <button class="btn secondary small" title="${T.user_msg_btn}">💬${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small" title="${T.user_journal_btn}">📜</button>
             <button class="btn secondary small" title="${T.user_games_btn}">🎮</button>
+            <button class="btn ${u.games_enabled === false ? 'danger' : 'secondary'} small" title="${u.games_enabled === false ? T.user_games_off_title : T.user_games_on_title}">${u.games_enabled === false ? '🚫' : '🕹️'}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
             <button class="btn secondary small">${T.user_quota_btn}</button>
@@ -2222,13 +2981,32 @@
         const lastLogin = u.last_login
           ? `${T.user_last_login}: ${new Date(u.last_login.ts * 1000).toLocaleString()} (${u.last_login.ip})`
           : `${T.user_last_login}: ${T.user_never}`;
+        if (u.self_registered) {
+          const rb = document.createElement('span');
+          rb.className = 'badge-reg';
+          if (!u.verified) rb.textContent = '🆕 ' + T.user_reg_unverified;
+          else if (!u.approved) rb.textContent = '⏳ ' + T.user_reg_pending;
+          else { rb.className = 'badge-reg muted'; rb.textContent = '🆕 ' + T.user_reg_self; }
+          nameEl.appendChild(document.createTextNode(' '));
+          nameEl.appendChild(rb);
+        }
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [filesBtn, msgBtn, journalBtn, gamesBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        approveBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { approved: true });
+          toast(r2.ok ? T.user_approved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
         filesBtn.onclick = () => openUserFiles(u);
         msgBtn.onclick = () => openLoginMsg(u);
         journalBtn.onclick = () => openJournal(u);
         gamesBtn.onclick = () => openGames(u);
+        gamesToggleBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { games_enabled: u.games_enabled === false });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
         resendBtn.onclick = async () => {
           if (!confirm(T.user_resend_confirm.replace('{email}', u.email))) return;
           const r2 = await fetch('api/users/' + u.id + '/resend', { method: 'POST', credentials: 'same-origin' });
@@ -2559,6 +3337,54 @@
     function downloadBackup() {
       window.location.href = 'api/backup';
     }
+    // ── Weiterleitungen (301/302) ──
+    function renderRedirects() {
+      const box = el('redirect-list');
+      if (!box) return;
+      box.innerHTML = '';
+      (SITE.redirects || []).forEach(addRedirectRow);
+    }
+    function addRedirectRow(r) {
+      r = r || {};
+      const box = el('redirect-list');
+      const row = document.createElement('div');
+      row.className = 'redirect-row';
+      row.innerHTML =
+        `<input class="rd-from" placeholder="/alte-adresse">
+         <span class="rd-arrow">→</span>
+         <input class="rd-to" placeholder="/neue-adresse ${T.redirects_or_url || ''}">
+         <select class="rd-perm"><option value="1">301</option><option value="0">302</option></select>
+         <button type="button" class="btn danger small">✕</button>`;
+      row.querySelector('.rd-from').value = r.from || '';
+      row.querySelector('.rd-to').value = r.to || '';
+      row.querySelector('.rd-perm').value = (r.permanent === false) ? '0' : '1';
+      row.querySelector('button').onclick = () => row.remove();
+      box.appendChild(row);
+    }
+    async function saveRedirects() {
+      const items = [...el('redirect-list').children].map(row => ({
+        from: row.querySelector('.rd-from').value,
+        to: row.querySelector('.rd-to').value,
+        permanent: row.querySelector('.rd-perm').value === '1',
+      })).filter(r => r.from.trim() && r.to.trim());
+      const r = await apiJson('api/redirects', 'POST', { redirects: items });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+    async function cleanupUploads() {
+      const btn = el('cleanup-btn'); btn.disabled = true;
+      try {
+        const r = await api('api/uploads/unused');
+        if (!r.ok) { toast(T.error_load, true); return; }
+        const info = await r.json();
+        if (!info.count) { toast(T.cleanup_none); return; }
+        if (!confirm(T.cleanup_confirm.replace('{n}', info.count).replace('{mb}', info.size_mb))) return;
+        const d = await apiJson('api/uploads/cleanup', 'POST', {});
+        if (!d.ok) { toast(T.error_save, true); return; }
+        const res = await d.json();
+        toast(T.cleanup_done.replace('{n}', res.removed).replace('{mb}', res.freed_mb));
+      } finally { btn.disabled = false; }
+    }
     el('restore-input').addEventListener('change', async e => {
       const f = e.target.files[0];
       if (!f) return;
@@ -2630,6 +3456,11 @@
       el('d-show_counter').value = d.show_counter ? '1' : '0';
       el('d-show_nav').value = (d.show_nav === false) ? '0' : '1';
       el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
+      el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
+      el('d-share_enabled').value = d.share_enabled ? '1' : '0';
+      el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
+      el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
+      el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
@@ -2637,6 +3468,8 @@
       el('d-meta_description_en').value = d.meta_description_en || '';
       el('d-allow_indexing').value = (d.allow_indexing === false) ? '0' : '1';
       el('d-indexnow').value = d.indexnow ? '1' : '0';
+      el('d-google_verify').value = d.google_verify || '';
+      el('d-bing_verify').value = d.bing_verify || '';
       el('d-support_url').value = d.support_url || '';
       el('d-support_label').value = d.support_label || '';
       el('d-booking_url').value = d.booking_url || '';
@@ -2661,6 +3494,71 @@
       el('d-reveal_stagger').value = d.reveal_stagger ? '1' : '0';
       el('d-egg_message').value = d.egg_message || '';
       el('d-egg_tagline').value = d.egg_tagline || '';
+      el('d-banner_enabled').checked = !!d.banner_enabled;
+      el('d-banner_dismissible').checked = (d.banner_dismissible !== false);
+      el('d-banner_text_de').value = d.banner_text_de || '';
+      el('d-banner_text_en').value = d.banner_text_en || '';
+      el('d-banner_link_url').value = d.banner_link_url || '';
+      el('d-banner_link_label_de').value = d.banner_link_label_de || '';
+      el('d-banner_link_label_en').value = d.banner_link_label_en || '';
+      renderPresets();
+    }
+
+    // ── Design-Vorlagen (1-Klick-Stile) ──
+    const PRESETS = [
+      { id: 'elegant',  name: 'preset_elegant',  mode: 'dark',  accent: '#C9A227', font: 'merriweather', layout: 'minimal' },
+      { id: 'clean',    name: 'preset_clean',    mode: 'light', accent: '#2563EB', font: 'inter',        layout: 'cards'   },
+      { id: 'playful',  name: 'preset_playful',  mode: 'light', accent: '#F43F5E', font: 'poppins',      layout: 'cards'   },
+      { id: 'tech',     name: 'preset_tech',     mode: 'dark',  accent: '#2DD4BF', font: 'mono',         layout: 'cards'   },
+      { id: 'magazine', name: 'preset_magazine', mode: 'light', accent: '#9D2235', font: 'merriweather', layout: 'list'    },
+      { id: 'nature',   name: 'preset_nature',   mode: 'light', accent: '#15803D', font: 'lato',         layout: 'list'    },
+      { id: 'standard', name: 'preset_standard', mode: 'dark',  accent: '#58A6FF', font: 'system',       layout: 'cards'   },
+    ];
+    const PRESET_FONT_LABEL = { system: 'System', classic: 'Serif', rounded: 'Rounded', serif: 'Serif', mono: 'Mono', inter: 'Inter', poppins: 'Poppins', montserrat: 'Montserrat', lato: 'Lato', merriweather: 'Merriweather' };
+    function renderPresets() {
+      const box = el('preset-gallery');
+      if (!box) return;
+      const d = SITE.design || {};
+      const curHex = (d.accent || '').toLowerCase();
+      box.innerHTML = '';
+      PRESETS.forEach(p => {
+        const dark = p.mode === 'dark';
+        const bg = dark ? '#0d1117' : '#f6f8fa';
+        const txt = dark ? '#c9d1d9' : '#1f2328';
+        const active = curHex === p.accent.toLowerCase() && (d.mode || 'dark') === p.mode
+          && (d.font || 'system') === p.font && (d.layout || 'cards') === p.layout;
+        const layoutLabel = T['layout_' + p.layout] || p.layout;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'preset-card' + (active ? ' active' : '');
+        card.innerHTML =
+          '<div class="preset-swatch" style="background:' + bg + '">' +
+            '<span class="preset-line" style="background:' + p.accent + ';width:55%"></span>' +
+            '<span class="preset-line" style="background:' + txt + ';width:80%"></span>' +
+            '<span class="preset-line" style="background:' + txt + ';width:68%"></span>' +
+            '<span class="preset-dot" style="background:' + p.accent + '"></span>' +
+          '</div>' +
+          '<div class="preset-body">' +
+            '<div class="preset-name"></div>' +
+            '<div class="preset-meta">' + (PRESET_FONT_LABEL[p.font] || p.font) + ' · ' + layoutLabel + '</div>' +
+          '</div>';
+        card.querySelector('.preset-name').textContent = T[p.name] || p.id;
+        card.onclick = () => applyPreset(p);
+        box.appendChild(card);
+      });
+      if (typeof updatePresetArrows === 'function') updatePresetArrows();
+    }
+    function applyPreset(p) {
+      el('d-mode').value = p.mode;
+      el('d-accent').value = p.accent.toLowerCase();
+      el('d-font').value = p.font;
+      el('d-layout').value = p.layout;
+      // aktive Kachel markieren (Felder gesetzt, Speichern wendet an)
+      document.querySelectorAll('#preset-gallery .preset-card').forEach(c => c.classList.remove('active'));
+      const idx = PRESETS.indexOf(p);
+      const card = el('preset-gallery').children[idx];
+      if (card) card.classList.add('active');
+      toast((T.preset_applied || '').replace('{name}', T[p.name] || p.id));
     }
     async function saveDesign() {
       const r = await apiJson('api/design', 'POST', {
@@ -2681,6 +3579,8 @@
         meta_description_en: el('d-meta_description_en').value,
         allow_indexing:  el('d-allow_indexing').value === '1',
         indexnow:        el('d-indexnow').value === '1',
+        google_verify:   el('d-google_verify').value,
+        bing_verify:     el('d-bing_verify').value,
         support_url:     el('d-support_url').value,
         support_label:   el('d-support_label').value,
         booking_url:     el('d-booking_url').value,
@@ -2688,8 +3588,20 @@
         show_counter:    el('d-show_counter').value === '1',
         show_nav:        el('d-show_nav').value === '1',
         contact_enabled: el('d-contact_enabled').value === '1',
+        comments_enabled: el('d-comments_enabled').value === '1',
+        share_enabled:    el('d-share_enabled').value === '1',
+        registration_enabled: el('d-registration_enabled').value === '1',
+        registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
+        newsletter_enabled: el('d-newsletter_enabled').value === '1',
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
+        banner_enabled:  el('d-banner_enabled').checked,
+        banner_dismissible: el('d-banner_dismissible').checked,
+        banner_text_de:  el('d-banner_text_de').value,
+        banner_text_en:  el('d-banner_text_en').value,
+        banner_link_url: el('d-banner_link_url').value,
+        banner_link_label_de: el('d-banner_link_label_de').value,
+        banner_link_label_en: el('d-banner_link_label_en').value,
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { loadSite(); reloadPreview(); }
@@ -2888,6 +3800,78 @@
     });
 
     // ── Statistik ──
+    async function loadSubscribers() {
+      const r = await api('api/subscribers');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('nl-count').textContent = d.total ? `· ${d.confirmed} / ${d.total} ${T.nl_confirmed_count}` : '';
+      const box = el('nl-subs');
+      if (!d.subscribers.length) { box.innerHTML = `<p class="hint">${T.nl_no_subs}</p>`; refreshCollapse('nl-subs'); return; }
+      box.innerHTML = '';
+      d.subscribers.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'audit-row';
+        row.innerHTML = `<span class="audit-act" style="flex:1;min-width:0"></span><span class="audit-ip"></span><button class="btn danger small">✕</button>`;
+        row.querySelector('.audit-act').textContent = s.email + (s.confirmed ? '' : ' · ' + T.nl_pending);
+        row.querySelector('.audit-ip').textContent = new Date(s.ts * 1000).toLocaleDateString();
+        row.querySelector('button').onclick = async () => {
+          if (!confirm(T.nl_remove_confirm)) return;
+          const r2 = await fetch('api/subscribers/' + s.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r2.ok) loadSubscribers();
+        };
+        box.appendChild(row);
+      });
+      refreshCollapse('nl-subs');
+    }
+
+    async function sendNewsletter() {
+      const subject = el('nl-subject').value.trim();
+      const body = el('nl-body').value.trim();
+      if (!subject || !body) { toast(T.nl_missing, true); return; }
+      if (!confirm(T.nl_send_confirm)) return;
+      const r = await apiJson('api/newsletter/send', 'POST', { subject, body });
+      if (r.ok) {
+        const d = await r.json();
+        toast(T.nl_sent_admin.replace('{n}', d.count));
+        el('nl-subject').value = ''; el('nl-body').value = '';
+      } else {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error === 'no recipients' ? T.nl_no_recipients
+              : (d.error === 'no smtp' ? T.user_smtp_off : T.error_save), true);
+      }
+    }
+
+    async function loadAudit() {
+      const r = await api('api/audit');
+      if (!r.ok) return;
+      const data = await r.json();
+      const box = el('audit-log');
+      if (!data.audit.length) { box.innerHTML = `<p class="hint">${T.audit_empty}</p>`; refreshCollapse('audit-log'); return; }
+      const AL = {
+        admin_login: T.audit_admin_login, admin_login_failed: T.audit_login_failed,
+        user_create: T.audit_user_create, user_delete: T.audit_user_delete,
+        user_approve: T.audit_user_approve, user_quota: T.audit_user_quota,
+        user_games: T.audit_user_games, user_password: T.audit_user_password,
+        user_resend: T.audit_user_resend, restore: T.audit_restore,
+        newsletter_send: T.audit_newsletter,
+      };
+      box.innerHTML = '';
+      data.audit.forEach(a => {
+        let label = AL[a.action];
+        if (!label && a.action.indexOf('settings_') === 0) label = T.audit_settings + ' (' + a.action.slice(9) + ')';
+        label = label || a.action;
+        const row = document.createElement('div');
+        row.className = 'audit-row' + (a.action === 'admin_login_failed' ? ' warn' : '');
+        row.innerHTML = `<span class="audit-time"></span><span class="audit-act"></span><span class="audit-detail"></span><span class="audit-ip"></span>`;
+        row.querySelector('.audit-time').textContent = new Date(a.ts * 1000).toLocaleString();
+        row.querySelector('.audit-act').textContent = label;
+        row.querySelector('.audit-detail').textContent = a.detail || '';
+        row.querySelector('.audit-ip').textContent = a.ip || '';
+        box.appendChild(row);
+      });
+      refreshCollapse('audit-log');
+    }
+
     async function loadStats() {
       const r = await api('api/stats');
       if (!r.ok) return;
@@ -2903,12 +3887,32 @@
            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.views / max * 100)}%"></div></div>
            <span class="bar-num">${d.views} / ${d.uniques}</span>
          </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
+      renderTopPages('s-pages', s.pages || []);
       renderDistribution('s-referrers', s.referrers || []);
       renderDistribution('s-browsers', s.browsers || []);
       renderDistribution('s-countries', s.countries || [], countryLabel);
       renderVisitorLog(s.log || []);
+      refreshCollapse('s-pages');
       refreshCollapse('s-countries');
       refreshCollapse('s-log-wrap');
+    }
+    // Top-Seiten: Titel (falls bekannt) groß, Pfad klein darunter
+    function renderTopPages(target, items) {
+      if (!items.length) { el(target).innerHTML = `<p class="hint">${T.no_data}</p>`; return; }
+      const max = Math.max(1, ...items.map(i => i.count));
+      el(target).innerHTML = '';
+      items.forEach(i => {
+        const label = i.path === '/' ? T.stat_homepage : (i.title || i.path);
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = `<span class="bar-date" style="width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(i.count / max * 100)}%"></div></div>
+          <span class="bar-num" style="width:46px">${i.count}</span>`;
+        const lbl = row.querySelector('.bar-date');
+        lbl.textContent = label;
+        lbl.title = i.path + (i.title ? ' — ' + i.title : '');
+        el(target).appendChild(row);
+      });
     }
     // Höhenbegrenzung mit „Mehr/Weniger"-Button — Button nur bei Überlauf
     function refreshCollapse(id) {
@@ -3037,7 +4041,54 @@
       });
     }
 
+    // ── Tableiste: Scroll-Pfeile, wenn nicht alles passt ──
+    function navScroll(dir) {
+      const nav = document.querySelector('header nav');
+      if (nav) nav.scrollBy({ left: dir * 180, behavior: 'smooth' });
+    }
+    function updateNavArrows() {
+      const nav = document.querySelector('header nav');
+      if (!nav) return;
+      const wrap = nav.parentNode;
+      const max = nav.scrollWidth - nav.clientWidth;
+      wrap.querySelector('.nav-left').classList.toggle('show', nav.scrollLeft > 4);
+      wrap.querySelector('.nav-right').classList.toggle('show', nav.scrollLeft < max - 4);
+    }
+    // Design-Vorlagen: gleiche Scroll-Pfeile wie die Tableiste
+    function presetScroll(dir) {
+      const g = el('preset-gallery');
+      if (g) g.scrollBy({ left: dir * 200, behavior: 'smooth' });
+    }
+    function updatePresetArrows() {
+      const g = el('preset-gallery');
+      if (!g) return;
+      const wrap = g.parentNode, max = g.scrollWidth - g.clientWidth;
+      const l = wrap.querySelector('.preset-left'), r = wrap.querySelector('.preset-right');
+      if (l) l.classList.toggle('show', g.scrollLeft > 4);
+      if (r) r.classList.toggle('show', g.scrollLeft < max - 4);
+    }
+    (function () {
+      const nav = document.querySelector('header nav');
+      if (nav) {
+        nav.addEventListener('scroll', updateNavArrows, { passive: true });
+        window.addEventListener('resize', updateNavArrows);
+        // aktiven Tab beim Wechsel in den sichtbaren Bereich rücken
+        document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
+          b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+          setTimeout(updateNavArrows, 250);
+        }));
+        updateNavArrows();
+      }
+      const pg = el('preset-gallery');
+      if (pg) {
+        pg.addEventListener('scroll', updatePresetArrows, { passive: true });
+        window.addEventListener('resize', updatePresetArrows);
+      }
+    })();
+
     initMdEditors();
+    el('pg-slug').addEventListener('input', pageSlugHint);
+    el('fm-slug').addEventListener('input', formSlugHint);
     loadSite();
   </script>
 </body>

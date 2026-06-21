@@ -34,7 +34,7 @@ from urllib.parse import urlparse
 
 import markdown as md_lib
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -69,6 +69,9 @@ CONFIG_PATH   = _OPTS + '/options.json'
 SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
+COMMENTS_PATH = _DATA + '/comments.json'
+AUDIT_PATH = _DATA + '/audit.json'
+SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
@@ -137,6 +140,9 @@ _site_lock  = threading.Lock()
 _stats_lock = threading.Lock()
 _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
+_comments_lock = threading.Lock()
+_audit_lock = threading.Lock()
+_subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 
@@ -242,14 +248,23 @@ DEFAULT_SITE = {
         'storage_subdir': '',
         'welcome_from': '',
         'contact_enabled': False,
+        'comments_enabled': False,
+        'share_enabled': False,
+        'registration_enabled': False,
+        'registration_quota_mb': 500,
+        'newsletter_enabled': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
+        'banner_enabled': False, 'banner_dismissible': True,
+        'banner_text_de': '', 'banner_text_en': '',
+        'banner_link_url': '', 'banner_link_label_de': '', 'banner_link_label_en': '',
         'font': 'system', 'custom_css': '',
         'custom_font': '', 'custom_font_name': '',
         'support_url': '', 'support_label': '',
         'booking_url': '', 'booking_label': '',
         'indexnow': False,
         'allow_indexing': True,
+        'google_verify': '', 'bing_verify': '',
         'easter_eggs': False, 'egg_message': '', 'egg_tagline': '',
         'mini_games': False,
         'reveal_effect': 'off', 'reveal_stagger': True,
@@ -257,6 +272,8 @@ DEFAULT_SITE = {
         'meta_description_de': '', 'meta_description_en': '',
     },
     'posts': [],
+    'pages': [],
+    'forms': [],
     'legal': {
         'impressum_de': '', 'impressum_en': '',
         'privacy_de': '', 'privacy_en': '',
@@ -274,15 +291,18 @@ DEFAULT_SITE = {
         'events': [],
         'location': {},
         'tips': [],
+        'countdown': {},
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
     'section_order': [
-        'news', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'news', 'countdown', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
+    'members_sections': [],
+    'redirects': [],
     'tips_rotation': 'daily',
     'tips_random': False,
     'tips_stats': {},
@@ -296,13 +316,24 @@ SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
 def render_md(text: str) -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
-    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists'])
+    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
 
 
 def _plain_excerpt(s: str, limit: int = 155) -> str:
     """HTML/Markdown-Text in einen kurzen Klartext-Auszug für Meta-Description wandeln."""
     txt = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s or '')).strip()
     return txt[:limit].rstrip()
+
+
+def _locked_teaser(html: str, cap: int = 280) -> str:
+    """Anriss für Mitglieder-only-Inhalte: höchstens die Hälfte des Textes
+    (max. `cap` Zeichen) — so bleibt immer ein Teil verborgen, auch bei kurzen Texten."""
+    plain = _plain_excerpt(html, 100000)
+    cut = min(cap, len(plain) // 2)
+    teaser = plain[:cut].rstrip()
+    if len(teaser) < len(plain):
+        teaser += ' …'
+    return teaser
 
 
 def _site_meta(site: dict, loc) -> str:
@@ -519,6 +550,174 @@ def save_messages(data: list) -> None:
             log.warning("messages.json konnte nicht gespeichert werden: %s", e)
 
 
+# ── Blog-Kommentare & -Reaktionen (Mitglieder) ────────────────────────────────
+COMMENT_REACTIONS = ['👍', '❤️', '😄', '🎉', '👏']
+COMMENTS_MAX_PER_POST = 500
+
+
+def load_comments() -> dict:
+    """Pro Beitrag: {post_id: {'comments': [...], 'reactions': {uid: emoji}}}"""
+    with _comments_lock:
+        try:
+            with open(COMMENTS_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning("comments.json konnte nicht geladen werden: %s", e)
+            return {}
+
+
+def save_comments(data: dict) -> None:
+    with _comments_lock:
+        try:
+            with open(COMMENTS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("comments.json konnte nicht gespeichert werden: %s", e)
+
+
+def _post_thread(data: dict, pid: str) -> dict:
+    return data.setdefault(pid, {'comments': [], 'reactions': {}})
+
+
+def _reaction_counts(reactions: dict) -> dict:
+    """{uid: emoji} → {emoji: anzahl}"""
+    counts: dict[str, int] = {}
+    for emoji in (reactions or {}).values():
+        counts[emoji] = counts.get(emoji, 0) + 1
+    return counts
+
+
+def _member_display_name(member: dict) -> str:
+    return member.get('name') or (member.get('email') or '').split('@')[0] or 'Mitglied'
+
+
+# ── Admin-Audit-Log ────────────────────────────────────────────────────────────
+AUDIT_MAX = 500
+
+
+def load_audit() -> list:
+    with _audit_lock:
+        try:
+            with open(AUDIT_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("audit.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def log_audit(action: str, detail: str = '') -> None:
+    """Sicherheitsrelevante Admin-Aktion protokollieren (Zeit, Aktion, Detail, IP)."""
+    try:
+        ip = get_client_ip(request)
+    except Exception:
+        ip = ''
+    entry = {'ts': int(time.time()), 'action': action, 'detail': (detail or '')[:200], 'ip': ip}
+    with _audit_lock:
+        try:
+            try:
+                with open(AUDIT_PATH, encoding='utf-8') as f:
+                    data = json.load(f)
+                    if not isinstance(data, list):
+                        data = []
+            except FileNotFoundError:
+                data = []
+            data.append(entry)
+            with open(AUDIT_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data[-AUDIT_MAX:], f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("audit.json konnte nicht geschrieben werden: %s", e)
+
+
+# ── Newsletter / Blog-Abo ──────────────────────────────────────────────────────
+NEWSLETTER_CONFIRM_TTL = 7 * 86400                # Bestätigungslink 7 Tage gültig
+NEWSLETTER_MAX_PER_HOUR = 5
+_newsletter_times: dict[str, list[float]] = defaultdict(list)
+
+
+def load_subscribers() -> list:
+    with _subs_lock:
+        try:
+            with open(SUBSCRIBERS_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("subscribers.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def save_subscribers(data: list) -> None:
+    with _subs_lock:
+        try:
+            with open(SUBSCRIBERS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("subscribers.json konnte nicht gespeichert werden: %s", e)
+
+
+def newsletter_open() -> bool:
+    """Abo möglich: aktiviert UND E-Mail-Versand + öffentliche URL vorhanden."""
+    site = load_site()
+    return (bool(site['design'].get('newsletter_enabled'))
+            and smtp_configured()
+            and bool((site['design'].get('public_url') or '').strip()))
+
+
+def newsletter_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _newsletter_times[ip] = [t for t in _newsletter_times[ip] if now - t < 3600]
+    return len(_newsletter_times[ip]) >= NEWSLETTER_MAX_PER_HOUR
+
+
+def record_newsletter_attempt(ip: str) -> None:
+    _newsletter_times[ip].append(time.time())
+
+
+def _unsub_link(sub: dict) -> str:
+    base = (load_site()['design'].get('public_url') or '').rstrip('/')
+    return f"{base}/newsletter/unsubscribe/{sub['id']}/{sub['utoken']}" if base else ''
+
+
+def send_confirm_subscription(sub: dict, token: str) -> None:
+    base = (load_site()['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    link = f"{base}/newsletter/confirm/{sub['id']}/{token}"
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'Bitte bestätige dein Abo des Newsletters von <b>{esc(title)}</b> (Link 7 Tage gültig):',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Erst nach dem Klick erhältst du künftige Nachrichten. Wenn du das nicht warst, ignoriere diese E-Mail.']
+    send_email(f'Newsletter bestätigen – {title}',
+               _email_html(f'📰 Newsletter bestätigen – {esc(title)}', lines),
+               to=sub['email'], from_addr=_reg_from())
+
+
+def send_newsletter_batch(subject: str, body_html: str, subs: list) -> int:
+    """Sendet body_html an alle (bestätigten) Empfänger, je mit eigenem Abmelde-Link."""
+    title, esc = _site_title(), html_mod.escape
+    from_addr = _reg_from()
+    sent = 0
+    for sub in subs:
+        footer = (f'<hr style="border:none;border-top:1px solid #30363d;margin:16px 0">'
+                  f'<p style="font-size:12px;color:#8b949e;margin:0">'
+                  f'Du erhältst diese E-Mail, weil du den Newsletter von {esc(title)} abonniert hast. '
+                  f'<a href="{esc(_unsub_link(sub))}">Abmelden</a></p>')
+        html = ('<div style="font-family:sans-serif;max-width:560px;padding:20px;'
+                'background:#0d1117;color:#c9d1d9;border-radius:8px">'
+                f'<h3 style="margin:0 0 12px;color:#58a6ff">{esc(subject)}</h3>'
+                f'{body_html}{footer}</div>')
+        send_email(subject, html, to=sub['email'], from_addr=from_addr)
+        sent += 1
+    return sent
+
+
 def send_telegram(text: str) -> None:
     cfg = load_config()
     token = (cfg.get('telegram_bot_token') or '').strip()
@@ -653,6 +852,11 @@ def record_failed_attempt(ip: str) -> None:
         _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
         log.warning("IP '%s' für %d Minuten gesperrt (zu viele fehlgeschlagene Logins)",
                     ip, RATE_LIMIT_BLOCK // 60)
+        notify_ha_async(
+            '🔒 MyPage: Verdächtige Anmeldeversuche',
+            f'Die IP {ip} wurde nach {len(recent)} fehlgeschlagenen Login-Versuchen '
+            f'für {RATE_LIMIT_BLOCK // 60} Minuten gesperrt.',
+            notification_id=f'mypage_bruteforce_{ip}')
 
 
 def clear_failed_attempts(ip: str) -> None:
@@ -796,6 +1000,21 @@ def _geoip_worker() -> None:
             log.warning("GeoIP-Worker-Fehler: %s", e)
 
 
+def bump_post_view(pid: str, req) -> int:
+    """Zählt einen Aufruf eines Blog-Beitrags (ohne Bots/Export); liefert den neuen Stand."""
+    cur = load_stats().get('posts', {}).get(pid, 0)
+    if req.headers.get('X-MyPage-Export'):
+        return cur
+    ua = req.headers.get('User-Agent') or ''
+    if (not ua) or any(b in ua.lower() for b in _BOT_UA):
+        return cur
+    stats = load_stats()
+    posts = stats.setdefault('posts', {})
+    posts[pid] = posts.get(pid, 0) + 1
+    save_stats(stats)
+    return posts[pid]
+
+
 def count_visit(req) -> None:
     global _seen_today, _seen_day
     if req.headers.get('X-MyPage-Export'):
@@ -911,6 +1130,29 @@ def aggregate_visits(visit_log: list) -> tuple[list, list, list]:
     return ([{'name': k, 'count': c} for k, c in top_ref],
             [{'name': k, 'count': c} for k, c in top_brw],
             [{'name': k, 'count': c} for k, c in top_cty])
+
+
+def top_pages(site: dict, visit_log: list, limit: int = 12) -> list:
+    """Meistbesuchte Seiten aus dem Besucher-Log (ohne Bots). Für Blog-/Projekt-
+    Detailseiten wird der Titel mitgeliefert, sonst nur der Pfad."""
+    counts: dict[str, int] = {}
+    for v in visit_log:
+        if v.get('bot'):
+            continue
+        counts[v.get('path') or '/'] = counts.get(v.get('path') or '/', 0) + 1
+    posts = {p.get('id'): p for p in site.get('posts', [])}
+    projects = {p.get('id'): p for p in site.get('projects', [])}
+    out = []
+    for path, n in sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]:
+        title = ''
+        if path.startswith('/blog/'):
+            po = posts.get(path.split('/blog/', 1)[1].split('/')[0])
+            title = (po.get('title_de') or po.get('title_en')) if po else ''
+        elif path.startswith('/p/'):
+            pr = projects.get(path.split('/p/', 1)[1].split('/')[0])
+            title = pr.get('title') if pr else ''
+        out.append({'path': path, 'title': title, 'count': n})
+    return out
 
 
 # ── Mitglieder (geheimer Bereich) ─────────────────────────────────────────────
@@ -1071,9 +1313,10 @@ def user_usage_bytes(user: dict) -> int:
     return sum(f.stat().st_size for f in user_dir(user).iterdir() if f.is_file())
 
 
-def invalidate_user_sessions(uid: str) -> int:
-    """Beendet alle aktiven Sitzungen eines Benutzers (z. B. nach Passwortwechsel)."""
-    tokens = [t for t, v in user_sessions.items() if v[0] == uid]
+def invalidate_user_sessions(uid: str, keep: str | None = None) -> int:
+    """Beendet alle aktiven Sitzungen eines Benutzers (z. B. nach Passwortwechsel).
+    Mit ``keep`` lässt sich ein Token (die aktuelle Sitzung) ausnehmen."""
+    tokens = [t for t, v in user_sessions.items() if v[0] == uid and t != keep]
     for t in tokens:
         del user_sessions[t]
     if tokens:
@@ -1112,6 +1355,10 @@ def current_member(req) -> dict | None:
         del user_sessions[token]
         return None
     return next((u for u in load_users() if u['id'] == uid), None)
+
+
+def is_member(req) -> bool:
+    return current_member(req) is not None
 
 
 def user_journal_max() -> int:
@@ -1165,6 +1412,176 @@ def send_welcome_email(user: dict, password: str, subject: str | None = None) ->
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
 
+# ── Self-Service-Passwort-Reset ────────────────────────────────────────────
+RESET_TTL = 3600                                  # Token 1 Stunde gültig
+RESET_MAX_PER_HOUR = 5                            # Anfragen pro IP/Stunde
+_reset_times: dict[str, list[float]] = defaultdict(list)
+
+
+def reset_enabled() -> bool:
+    """Reset nur möglich, wenn E-Mail-Versand UND öffentliche URL konfiguriert sind."""
+    return smtp_configured() and bool((load_site()['design'].get('public_url') or '').strip())
+
+
+def reset_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _reset_times[ip] = [t for t in _reset_times[ip] if now - t < 3600]
+    return len(_reset_times[ip]) >= RESET_MAX_PER_HOUR
+
+
+def record_reset_attempt(ip: str) -> None:
+    _reset_times[ip].append(time.time())
+
+
+def send_reset_email(user: dict, token: str) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    link = f"{base}/bereich/reset/{user['id']}/{token}"
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    lines = [f'Für dein Konto bei <b>{esc(title)}</b> wurde ein Zurücksetzen des Passworts angefordert.',
+             'Klicke auf den folgenden Link, um ein neues Passwort zu setzen (1 Stunde gültig):',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Wenn du das nicht warst, ignoriere diese E-Mail einfach — dein Passwort bleibt unverändert.']
+    send_email(f'Passwort zurücksetzen – {title}',
+               _email_html(f'🔑 Passwort zurücksetzen – {esc(title)}', lines),
+               to=user['email'],
+               from_addr=(site['design'].get('welcome_from') or '').strip() or None)
+
+
+def _find_reset_user(users: list, uid: str, token: str) -> dict | None:
+    """Liefert den Benutzer, wenn uid+Token zu einem gültigen, nicht abgelaufenen
+    Reset-Eintrag passen — sonst None."""
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return None
+    r = user.get('reset')
+    if not r or time.time() > r.get('exp', 0):
+        return None
+    if not check_password_hash(r.get('hash', ''), token):
+        return None
+    return user
+
+
+# ── Self-Service-Registrierung ─────────────────────────────────────────────
+REGISTER_TTL = 86400                              # Bestätigungslink 24 h gültig
+REGISTER_MAX_PER_HOUR = 5
+_register_times: dict[str, list[float]] = defaultdict(list)
+
+
+def registration_open() -> bool:
+    """Registrierung möglich: aktiviert UND E-Mail-Versand + öffentliche URL vorhanden
+    (E-Mail-Bestätigung ist Pflicht)."""
+    site = load_site()
+    return (bool(site['design'].get('registration_enabled'))
+            and smtp_configured()
+            and bool((site['design'].get('public_url') or '').strip()))
+
+
+def register_rate_limited(ip: str) -> bool:
+    now = time.time()
+    _register_times[ip] = [t for t in _register_times[ip] if now - t < 3600]
+    return len(_register_times[ip]) >= REGISTER_MAX_PER_HOUR
+
+
+def record_register_attempt(ip: str) -> None:
+    _register_times[ip].append(time.time())
+
+
+def _find_verify_user(users: list, uid: str, token: str) -> dict | None:
+    user = next((u for u in users if u['id'] == uid), None)
+    if user is None:
+        return None
+    v = user.get('verify')
+    if not v or time.time() > v.get('exp', 0):
+        return None
+    if not check_password_hash(v.get('hash', ''), token):
+        return None
+    return user
+
+
+def _member_login_blocked(user: dict) -> str | None:
+    """Grund, warum ein selbst-registriertes Konto noch nicht anmelden darf — sonst None."""
+    if user.get('self_registered'):
+        if not user.get('verified'):
+            return 'unverified'
+        if not user.get('approved'):
+            return 'pending'
+    return None
+
+
+def _pending_approvals() -> int:
+    """Anzahl selbst-registrierter Konten, die (E-Mail bestätigt) auf die Admin-Freigabe warten."""
+    return sum(1 for u in load_users()
+               if u.get('self_registered') and u.get('verified') and not u.get('approved'))
+
+
+def _reg_from():
+    return (load_site()['design'].get('welcome_from') or '').strip() or None
+
+
+def _site_title() -> str:
+    site = load_site()
+    return site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+
+
+def send_verify_email(user: dict, token: str) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    link = f"{base}/bereich/verify/{user['id']}/{token}"
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'Willkommen bei <b>{esc(title)}</b>! Bitte bestätige deine E-Mail-Adresse, um die Registrierung abzuschließen (Link 24 Stunden gültig):',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Danach schaltet der Betreiber dein Konto frei — du bekommst dann eine weitere E-Mail.',
+             'Wenn du dich nicht registriert hast, ignoriere diese E-Mail einfach.']
+    send_email(f'E-Mail bestätigen – {title}',
+               _email_html(f'✅ E-Mail bestätigen – {esc(title)}', lines),
+               to=user['email'], from_addr=_reg_from())
+
+
+def send_already_registered_email(user: dict) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'Für diese E-Mail-Adresse besteht bei <b>{esc(title)}</b> bereits ein Konto.',
+             (f'Du kannst dich hier anmelden: <a href="{esc(base)}/bereich">{esc(base)}/bereich</a>'
+              if base else 'Du kannst dich im Mitgliederbereich anmelden.'),
+             'Passwort vergessen? Nutze den „Passwort vergessen?"-Link auf der Login-Seite.',
+             'Wenn du das nicht warst, kannst du diese E-Mail ignorieren.']
+    send_email(f'Konto besteht bereits – {title}',
+               _email_html(f'ℹ️ Konto besteht bereits – {esc(title)}', lines),
+               to=user['email'], from_addr=_reg_from())
+
+
+def send_activated_email(user: dict) -> None:
+    site = load_site()
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    title, esc = _site_title(), html_mod.escape
+    url = (base + '/bereich') if base else ''
+    lines = [f'Dein Konto bei <b>{esc(title)}</b> wurde freigeschaltet — du kannst dich jetzt anmelden.',
+             (f'<a href="{esc(url)}">{esc(url)}</a>' if url else ''),
+             f'<b>Benutzername:</b> {esc(user["email"])}']
+    send_email(f'Konto freigeschaltet – {title}',
+               _email_html(f'🎉 Konto freigeschaltet – {esc(title)}', [l for l in lines if l]),
+               to=user['email'], from_addr=_reg_from())
+
+
+def send_comment_reply_email(to_email: str, post_title: str, replier: str,
+                             text: str, post_url: str) -> None:
+    """Benachrichtigt den Autor eines Kommentars, dass jemand geantwortet hat."""
+    title, esc = _site_title(), html_mod.escape
+    lines = [f'{esc(replier)} hat auf deinen Kommentar zu „{esc(post_title)}" geantwortet:',
+             f'<i>{esc(text[:300])}</i>',
+             (f'<a href="{esc(post_url)}#comments">Zur Diskussion</a>' if post_url else '')]
+    send_email(f'Neue Antwort auf deinen Kommentar – {title}',
+               _email_html(f'💬 Neue Antwort – {esc(title)}', [l for l in lines if l]),
+               to=to_email, from_addr=_reg_from())
+
+
 def _smb_watchdog() -> None:
     """Stellt den SMB-Mount nach NAS-/FritzBox-Neustart automatisch wieder her."""
     if not os.environ.get('MYPAGE_USERFILES', ''):
@@ -1185,6 +1602,46 @@ def _smb_watchdog() -> None:
 SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
 
 
+def ha_notify_enabled() -> bool:
+    """Persistente HA-Benachrichtigungen aktiv? (nur im Add-on, per Option abschaltbar)"""
+    return bool(SUPERVISOR_TOKEN) and bool(load_config().get('ha_notify', True))
+
+
+def notify_ha(title: str, message: str, notification_id: str | None = None) -> None:
+    """Erzeugt/aktualisiert eine persistente Benachrichtigung in Home Assistant.
+    Gleiche notification_id überschreibt → kein Zuspammen bei Wiederholungen."""
+    if not ha_notify_enabled():
+        return
+    data = {'title': title, 'message': message}
+    if notification_id:
+        data['notification_id'] = notification_id
+    try:
+        http.post('http://supervisor/core/api/services/persistent_notification/create',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'},
+                  json=data, timeout=10)
+    except Exception as e:
+        log.warning("HA-Benachrichtigung fehlgeschlagen: %s", e)
+
+
+def notify_ha_async(title: str, message: str, notification_id: str | None = None) -> None:
+    """Wie notify_ha, aber ohne den Request zu blockieren."""
+    if ha_notify_enabled():
+        threading.Thread(target=notify_ha, args=(title, message, notification_id),
+                         daemon=True).start()
+
+
+def ha_dismiss(notification_id: str) -> None:
+    """Eine persistente HA-Benachrichtigung wieder entfernen."""
+    if not (SUPERVISOR_TOKEN and notification_id):
+        return
+    try:
+        http.post('http://supervisor/core/api/services/persistent_notification/dismiss',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'},
+                  json={'notification_id': notification_id}, timeout=10)
+    except Exception as e:
+        log.warning("HA-Benachrichtigung entfernen fehlgeschlagen: %s", e)
+
+
 def push_ha_sensors() -> None:
     """Meldet Besucherzahlen als Sensoren an Home Assistant (Supervisor-API)."""
     if not SUPERVISOR_TOKEN:
@@ -1200,6 +1657,7 @@ def push_ha_sensors() -> None:
             user_mb = round(sum(user_usage_bytes(u) for u in load_users()) / 1048576, 1)
         except OSError:
             user_mb = 0.0
+    pending = _pending_approvals()
     sensors = [
         ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
         ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
@@ -1209,6 +1667,7 @@ def push_ha_sensors() -> None:
         ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
         ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
         ('mypage_members',        len(load_users()),     'MyPage Benutzer',         'mdi:account-multiple', 'Benutzer'),
+        ('mypage_pending_approvals', pending,            'MyPage offene Freigaben', 'mdi:account-clock', 'Konten'),
         ('mypage_projects',       len(site.get('projects', [])), 'MyPage Projekte',  'mdi:folder-multiple', 'Projekte'),
         ('mypage_posts',          len(site.get('posts', [])),    'MyPage Blog-Beiträge', 'mdi:post',     'Beiträge'),
         ('mypage_albums',         len(site.get('albums', [])),   'MyPage Fotoalben', 'mdi:image-multiple', 'Alben'),
@@ -1235,6 +1694,33 @@ def push_ha_sensors() -> None:
                       json={'state': 'on' if on else 'off', 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Sensoren konnten nicht aktualisiert werden: %s", e)
+    _update_pending_notification(pending)
+
+
+_last_pending = -1
+
+
+def _update_pending_notification(pending: int) -> None:
+    """Stehende HA-Benachrichtigung, solange Selbst-Registrierungen auf Freigabe
+    warten — nur bei Änderung der Anzahl (kein Zuspammen), Auflösung bei 0."""
+    global _last_pending
+    if not ha_notify_enabled() or pending == _last_pending:
+        _last_pending = pending
+        return
+    if pending > 0:
+        notify_ha('🔔 MyPage: Offene Freigaben',
+                  f'{pending} selbst-registrierte(s) Konto/Konten warten auf deine Freigabe '
+                  f'(Admin → Benutzer → „Freigeben").',
+                  notification_id='mypage_pending_approvals')
+    else:
+        ha_dismiss('mypage_pending_approvals')
+    _last_pending = pending
+
+
+def _ha_sensors_async() -> None:
+    """Sofortiger Sensor-/Benachrichtigungs-Push (z. B. bei Registrierung/Freigabe)."""
+    if SUPERVISOR_TOKEN:
+        threading.Thread(target=push_ha_sensors, daemon=True).start()
 
 
 def _sensor_worker() -> None:
@@ -1330,8 +1816,39 @@ def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
         p['gallery'] = [_clean_str(g, 500) for g in gallery if _clean_str(g, 500)][:30]
     else:
         p.setdefault('gallery', [])
+    tags = raw.get('tags') or []
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(',')]
+    p['tags'] = [_clean_str(t, 30) for t in tags if _clean_str(t, 30)][:8]
     p['published'] = bool(raw.get('published', True))
+    p['members_only'] = bool(raw.get('members_only'))
     return p
+
+
+def all_post_tags(site: dict) -> list:
+    """Alle in sichtbaren Beiträgen vorkommenden Tags, alphabetisch, ohne Duplikate."""
+    seen: dict[str, str] = {}
+    for p in site.get('posts', []):
+        if post_visible(p):
+            for tag in p.get('tags', []):
+                seen.setdefault(tag.lower(), tag)
+    return [seen[k] for k in sorted(seen)]
+
+
+def filter_posts(posts: list, query: str = '', tag: str = '') -> list:
+    """Beiträge nach Volltext (Titel/Text, DE+EN) und/oder Tag filtern."""
+    tag = (tag or '').strip().lower()
+    if tag:
+        posts = [p for p in posts if any(tag == x.lower() for x in p.get('tags', []))]
+    q = (query or '').strip().lower()
+    if q:
+        def hit(p):
+            hay = ' '.join([p.get('title_de', ''), p.get('title_en', ''),
+                            p.get('text_de', ''), p.get('text_en', ''),
+                            ' '.join(p.get('tags', []))]).lower()
+            return all(word in hay for word in q.split())
+        posts = [p for p in posts if hit(p)]
+    return posts
 
 
 def post_status(p: dict) -> str:
@@ -1357,17 +1874,22 @@ def sorted_posts(site: dict, public_only: bool = False) -> list:
     return [p for p in posts if post_visible(p)] if public_only else posts
 
 
-def _albums_for_public(site: dict) -> list:
+def _albums_for_public(site: dict, viewer_member: bool = False) -> list:
     """Alben mit Bildern; Bild-URLs auf die /album-img/-Route umgeschrieben
-    (liefert je nach Einstellung Original oder Wasserzeichen-Version)."""
+    (liefert je nach Einstellung Original oder Wasserzeichen-Version).
+    Mitglieder-only-Alben werden für Gäste gesperrt (ohne Bild-URLs)."""
     out = []
     for a in site.get('albums', []):
         imgs = a.get('images') or []
         if not imgs:
             continue
+        if a.get('members_only') and not viewer_member:
+            # gesperrt: keine Bild-URLs ausliefern, nur Titel + Anzahl
+            out.append({**a, 'images': [], 'locked': True, 'photo_count': len(imgs)})
+            continue
         mapped = [('/album-img/' + u.removeprefix('/uploads/')) if u.startswith('/uploads/') else u
                   for u in imgs]
-        out.append({**a, 'images': mapped})
+        out.append({**a, 'images': mapped, 'locked': False, 'photo_count': len(imgs)})
     return out
 
 
@@ -1377,6 +1899,7 @@ def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
     a['title_en'] = _clean_str(raw.get('title_en'), 120)
     a['desc_de']  = _clean_str(raw.get('desc_de'), 1000)
     a['desc_en']  = _clean_str(raw.get('desc_en'), 1000)
+    a['members_only'] = bool(raw.get('members_only'))
     images = raw.get('images') or []
     if isinstance(images, list):
         a['images'] = [_clean_str(g, 500) for g in images if _clean_str(g, 500)][:200]
@@ -1505,6 +2028,188 @@ def _has_detail(p: dict) -> bool:
                 or p.get('gallery') or p.get('video'))
 
 
+# Slugs, die nicht als eigene Seite vergeben werden dürfen (Kollision mit echten Routen)
+RESERVED_SLUGS = {
+    'blog', 'bereich', 'p', 'api', 'uploads', 'fonts', 'cards', 'album-img',
+    'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
+    'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
+    'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
+}
+
+
+def _slugify(s: str) -> str:
+    """Freitext → URL-tauglicher Slug (a-z, 0-9, Bindestrich)."""
+    s = (s or '').strip().lower()
+    repl = {'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss'}
+    for a, b in repl.items():
+        s = s.replace(a, b)
+    s = re.sub(r'[^a-z0-9]+', '-', s).strip('-')
+    return s[:60]
+
+
+def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
+    p = existing or {'id': uuid.uuid4().hex[:12]}
+    p['title_de'] = _clean_str(raw.get('title_de'), 120)
+    p['title_en'] = _clean_str(raw.get('title_en'), 120)
+    p['body_de']  = _clean_str(raw.get('body_de'), 50000)
+    p['body_en']  = _clean_str(raw.get('body_en'), 50000)
+    p['meta_de']  = _clean_str(raw.get('meta_de'), 300)
+    p['meta_en']  = _clean_str(raw.get('meta_en'), 300)
+    p['nav']      = bool(raw.get('nav', True))
+    p['visible']  = bool(raw.get('visible', True))
+    p['members_only'] = bool(raw.get('members_only'))
+    return p
+
+
+def _page_slug(site: dict, raw: dict, page_id: str) -> str:
+    """Eindeutigen, gültigen Slug ermitteln (aus Eingabe oder Titel abgeleitet)."""
+    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
+    if not slug or slug in RESERVED_SLUGS:
+        slug = 'seite-' + page_id[:6]
+    base, n = slug, 2
+    taken = {p['slug'] for p in site.get('pages', []) if p.get('id') != page_id}
+    while slug in taken or slug in RESERVED_SLUGS:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _find_page(site: dict, slug: str) -> dict | None:
+    return next((p for p in site.get('pages', []) if p.get('slug') == slug), None)
+
+
+def _nav_pages(site: dict, loc) -> list:
+    """Sichtbare Seiten, die in der Navigation erscheinen sollen."""
+    out = []
+    for p in site.get('pages', []):
+        if p.get('visible') and p.get('nav'):
+            label = loc(p, 'title')
+            if label:
+                out.append({'href': '/seite/' + p['slug'], 'label': label})
+    return out
+
+
+# ── Formular-Baukasten ────────────────────────────────────────────────────────
+
+FORM_FIELD_TYPES = {'text', 'textarea', 'email', 'tel', 'number', 'date',
+                    'select', 'radio', 'checkbox'}
+
+
+def _normalize_field(raw: dict) -> dict:
+    f = {'id': _clean_str(raw.get('id'), 20) or uuid.uuid4().hex[:8]}
+    ftype = raw.get('type')
+    f['type'] = ftype if ftype in FORM_FIELD_TYPES else 'text'
+    f['label_de'] = _clean_str(raw.get('label_de'), 120)
+    f['label_en'] = _clean_str(raw.get('label_en'), 120)
+    f['placeholder_de'] = _clean_str(raw.get('placeholder_de'), 120)
+    f['placeholder_en'] = _clean_str(raw.get('placeholder_en'), 120)
+    f['required'] = bool(raw.get('required'))
+    opts = raw.get('options') or []
+    if isinstance(opts, str):
+        opts = opts.split('\n')
+    f['options'] = [_clean_str(o, 100) for o in opts if _clean_str(o, 100)][:40]
+    return f
+
+
+def _normalize_form(raw: dict, existing: dict | None = None) -> dict:
+    fm = existing or {'id': uuid.uuid4().hex[:12]}
+    fm['title_de']   = _clean_str(raw.get('title_de'), 120)
+    fm['title_en']   = _clean_str(raw.get('title_en'), 120)
+    fm['intro_de']   = _clean_str(raw.get('intro_de'), 5000)
+    fm['intro_en']   = _clean_str(raw.get('intro_en'), 5000)
+    fm['success_de'] = _clean_str(raw.get('success_de'), 1000)
+    fm['success_en'] = _clean_str(raw.get('success_en'), 1000)
+    fm['enabled']    = bool(raw.get('enabled', True))
+    fm['nav']        = bool(raw.get('nav', False))
+    fm['notify']     = bool(raw.get('notify', True))
+    fields = raw.get('fields') or []
+    fm['fields'] = [_normalize_field(x) for x in fields if isinstance(x, dict)][:40]
+    return fm
+
+
+def _form_slug(site: dict, raw: dict, form_id: str) -> str:
+    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
+    if not slug:
+        slug = 'formular-' + form_id[:6]
+    base, n = slug, 2
+    taken = {f['slug'] for f in site.get('forms', []) if f.get('id') != form_id}
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _find_form(site: dict, slug: str) -> dict | None:
+    return next((f for f in site.get('forms', []) if f.get('slug') == slug), None)
+
+
+def _nav_forms(site: dict, loc) -> list:
+    """Aktive Formulare mit gesetztem Navi-Schalter."""
+    out = []
+    for f in site.get('forms', []):
+        if f.get('enabled') and f.get('nav'):
+            label = loc(f, 'title')
+            if label:
+                out.append({'href': '/formular/' + f['slug'], 'label': label})
+    return out
+
+
+def _nav_links(site: dict, loc) -> list:
+    """Navi-Einträge für eigene Seiten und Formulare."""
+    return _nav_pages(site, loc) + _nav_forms(site, loc)
+
+
+# ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
+
+def _redirect_path(p: str) -> str:
+    """Pfad normalisieren: führender Slash, ohne Query/Anker, ohne End-Slash."""
+    p = _clean_str(p, 300).split('?')[0].split('#')[0]
+    if not p.startswith('/'):
+        p = '/' + p
+    return p.rstrip('/') if len(p) > 1 else p
+
+
+def _normalize_redirect(raw: dict) -> dict:
+    to = _clean_str(raw.get('to'), 500)
+    if to and not to.startswith(('http://', 'https://', '/')):
+        to = '/' + to
+    return {'from': _redirect_path(raw.get('from')), 'to': to,
+            'permanent': bool(raw.get('permanent', True))}
+
+
+def _find_redirect(site: dict, path: str) -> dict | None:
+    target = _redirect_path(path)
+    if target == '/':
+        return None   # Startseite nie umleiten
+    for r in site.get('redirects', []):
+        if r.get('from') == target and r.get('to'):
+            return r
+    return None
+
+
+@public_app.context_processor
+def _inject_banner():
+    """Stellt das Ankündigungs-Banner allen öffentlichen Templates bereit."""
+    try:
+        d = load_site().get('design', {})
+        if not d.get('banner_enabled'):
+            return {'banner': None}
+        loc = _loc_factory(detect_language(request))
+        text = loc(d, 'banner_text')
+        if not text:
+            return {'banner': None}
+        key = hashlib.sha256((text + (d.get('banner_link_url') or '')).encode()).hexdigest()[:12]
+        return {'banner': {
+            'text': text,
+            'link_url': d.get('banner_link_url', ''),
+            'link_label': loc(d, 'banner_link_label'),
+            'dismissible': bool(d.get('banner_dismissible', True)),
+            'key': key,
+        }}
+    except Exception:
+        return {'banner': None}
+
+
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
 
 def _is_ingress() -> bool:
@@ -1564,11 +2269,13 @@ def login():
                 clear_failed_attempts(ip)
                 hours = int(cfg.get('session_hours', 24))
                 token = create_session(hours)
+                log_audit('admin_login')
                 resp = make_response(redirect(url_for('admin_index')))
                 resp.set_cookie('session', token, httponly=True,
                                 samesite='Lax', max_age=hours * 3600)
                 return resp
             record_failed_attempt(ip)
+            log_audit('admin_login_failed', uname)
             error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
     return make_response(render_template('login.html', t=t, lang=lang, error=error))
@@ -1600,7 +2307,11 @@ def api_site():
     err = _api_auth()
     if err:
         return err
-    return jsonify(load_site())
+    site = load_site()
+    pv = load_stats().get('posts', {})
+    for p in site.get('posts', []):
+        p['views'] = pv.get(p.get('id'), 0)
+    return jsonify(site)
 
 
 def _mymemory_translate(text: str, src: str, dst: str) -> str:
@@ -1691,6 +2402,7 @@ def api_profile():
                          for l in raw['links'][:10]
                          if isinstance(l, dict) and _clean_str(l.get('url'), 500)]
     save_site(site)
+    log_audit('settings_profile')
     return jsonify({'ok': True})
 
 
@@ -1735,19 +2447,36 @@ def api_design():
         d['booking_url'] = bu if bu.startswith(('http://', 'https://')) or not bu else ''
     if 'booking_label' in raw:
         d['booking_label'] = _clean_str(raw['booking_label'], 40)
-    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'maintenance', 'indexnow',
-                 'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger'):
+    for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
+                 'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
+                 'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
+                 'banner_enabled', 'banner_dismissible', 'share_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
+    if 'banner_link_url' in raw:
+        bl = _clean_str(raw['banner_link_url'], 500)
+        d['banner_link_url'] = bl if bl.startswith(('http://', 'https://', '/')) or not bl else ''
+    if 'registration_quota_mb' in raw:
+        d['registration_quota_mb'] = max(1, min(100000, int(raw.get('registration_quota_mb') or 500)))
     for k, maxlen in (('site_title', 80), ('footer_text', 300), ('favicon', 500),
                       ('maintenance_text_de', 1000), ('maintenance_text_en', 1000),
                       ('egg_message', 200), ('egg_tagline', 200),
+                      ('banner_text_de', 200), ('banner_text_en', 200),
+                      ('banner_link_label_de', 60), ('banner_link_label_en', 60),
                       ('meta_description_de', 300), ('meta_description_en', 300)):
         if k in raw:
             d[k] = _clean_str(raw[k], maxlen)
+    for k in ('google_verify', 'bing_verify'):
+        if k in raw:
+            v = _clean_str(raw[k], 300)
+            m = re.search(r'content=["\']([^"\']+)["\']', v)  # ganzes Meta-Tag erlaubt
+            if m:
+                v = m.group(1)
+            d[k] = re.sub(r'[^A-Za-z0-9_\-]', '', v)[:120]   # nur unbedenkliche Zeichen
     if d.get('indexnow'):
         _indexnow_key(site)   # Schlüssel beim Aktivieren bereitstellen (speichert ggf.)
     save_site(site)
+    log_audit('settings_design')
     return jsonify({'ok': True})
 
 
@@ -1887,6 +2616,8 @@ def api_sections():
         site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
     if isinstance(raw.get('hidden_sections'), list):
         site['hidden_sections'] = [k for k in raw['hidden_sections'] if isinstance(k, str) and k in SECTION_KEYS]
+    if isinstance(raw.get('members_sections'), list):
+        site['members_sections'] = [k for k in raw['members_sections'] if isinstance(k, str) and k in SECTION_KEYS]
     if raw.get('tips_rotation') in ('daily', 'weekly'):
         site['tips_rotation'] = raw['tips_rotation']
     if 'tips_random' in raw:
@@ -1895,7 +2626,25 @@ def api_sections():
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
         site['watermark_text'] = _clean_str(raw['watermark_text'], 80)
+    if isinstance(raw.get('countdown'), dict):
+        cd = raw['countdown']
+        target = _clean_str(cd.get('target'), 20)
+        # erwartet datetime-local-Format YYYY-MM-DDTHH:MM
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$', target):
+            target = ''
+        sec['countdown'] = {
+            'target':      target,
+            'title_de':    _clean_str(cd.get('title_de'), 120),
+            'title_en':    _clean_str(cd.get('title_en'), 120),
+            'subtitle_de': _clean_str(cd.get('subtitle_de'), 300),
+            'subtitle_en': _clean_str(cd.get('subtitle_en'), 300),
+            'expired_de':  _clean_str(cd.get('expired_de'), 120),
+            'expired_en':  _clean_str(cd.get('expired_en'), 120),
+            'image':       _clean_str(cd.get('image'), 500),
+            'notify':      bool(cd.get('notify')),
+        } if target else {}
     save_site(site)
+    log_audit('settings_sections')
     return jsonify({'ok': True})
 
 
@@ -1970,6 +2719,97 @@ def api_message_delete(mid: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/comments')
+def api_comments():
+    """Alle Blog-Kommentare (zum Moderieren), neueste zuerst, inkl. Beitragstitel."""
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    titles = {p.get('id'): (p.get('title_de') or p.get('title_en') or p.get('id'))
+              for p in site.get('posts', [])}
+    out = []
+    for pid, thread in load_comments().items():
+        for c in thread.get('comments', []):
+            out.append({**c, 'pid': pid, 'post_title': titles.get(pid, pid)})
+    out.sort(key=lambda c: c.get('ts', 0), reverse=True)
+    return jsonify({'comments': out[:500]})
+
+
+@admin_app.route('/api/comments/<pid>/<cid>', methods=['DELETE'])
+def api_comment_delete(pid: str, cid: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_comments()
+    thread = data.get(pid)
+    if thread:
+        kept = [c for c in thread.get('comments', []) if c.get('id') != cid]
+        if len(kept) != len(thread.get('comments', [])):
+            thread['comments'] = kept
+            save_comments(data)
+            return jsonify({'ok': True})
+    return jsonify({'error': 'not found'}), 404
+
+
+@admin_app.route('/api/audit')
+def api_audit():
+    """Admin-Audit-Log (neueste zuerst) zur Anzeige im Panel."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'audit': list(reversed(load_audit()))[:300]})
+
+
+@admin_app.route('/api/subscribers')
+def api_subscribers():
+    err = _api_auth()
+    if err:
+        return err
+    subs = load_subscribers()
+    out = [{'id': s['id'], 'email': s['email'], 'confirmed': bool(s.get('confirmed')),
+            'ts': s.get('ts', 0)}
+           for s in sorted(subs, key=lambda s: s.get('ts', 0), reverse=True)]
+    return jsonify({'subscribers': out, 'total': len(subs),
+                    'confirmed': sum(1 for s in subs if s.get('confirmed'))})
+
+
+@admin_app.route('/api/subscribers/<sid>', methods=['DELETE'])
+def api_subscriber_delete(sid: str):
+    err = _api_auth()
+    if err:
+        return err
+    subs = load_subscribers()
+    new = [s for s in subs if s['id'] != sid]
+    if len(new) == len(subs):
+        return jsonify({'error': 'not found'}), 404
+    save_subscribers(new)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/newsletter/send', methods=['POST'])
+def api_newsletter_send():
+    err = _api_auth()
+    if err:
+        return err
+    if not smtp_configured():
+        return jsonify({'error': 'no smtp'}), 400
+    raw = request.get_json(silent=True) or {}
+    subject = _clean_str(raw.get('subject'), 150)
+    body = _clean_str(raw.get('body'), 20000)
+    if not subject or not body:
+        return jsonify({'error': 'missing'}), 400
+    confirmed = [s for s in load_subscribers() if s.get('confirmed')]
+    if not confirmed:
+        return jsonify({'error': 'no recipients'}), 400
+    body_html = render_md(body)
+    threading.Thread(target=send_newsletter_batch, args=(subject, body_html, confirmed),
+                     daemon=True).start()
+    log_audit('newsletter_send', f'{len(confirmed)} Empfänger: {subject}')
+    log.info("Newsletter '%s' an %d Empfänger ausgelöst", subject, len(confirmed))
+    return jsonify({'ok': True, 'count': len(confirmed)})
+
+
 @admin_app.route('/api/backup')
 def api_backup():
     err = _api_auth()
@@ -1977,7 +2817,8 @@ def api_backup():
         return err
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        for name in ('site.json', 'stats.json', 'messages.json', 'users.json'):
+        for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
+                     'comments.json', 'audit.json', 'subscribers.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -2011,7 +2852,8 @@ def api_restore():
             for member in names:
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
-                if member in ('site.json', 'stats.json', 'messages.json', 'users.json'):
+                if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
+                              'comments.json', 'audit.json', 'subscribers.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -2036,6 +2878,7 @@ def api_restore():
                 restored += 1
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
+    log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
 
@@ -2052,6 +2895,7 @@ def api_legal():
         if k in raw:
             legal[k] = _clean_str(raw[k], 20000)
     save_site(site)
+    log_audit('settings_legal')
     return jsonify({'ok': True})
 
 
@@ -2145,6 +2989,140 @@ def api_post_edit(pid: str):
     return jsonify({'ok': True})
 
 
+@admin_app.route('/api/pages', methods=['POST'])
+def api_page_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    page = _normalize_page(raw)
+    page['slug'] = _page_slug(site, raw, page['id'])
+    site.setdefault('pages', []).append(page)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': page['slug']})
+
+
+@admin_app.route('/api/pages/<pid>', methods=['PUT', 'DELETE'])
+def api_page_edit(pid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    pages = site.setdefault('pages', [])
+    idx = next((i for i, p in enumerate(pages) if p.get('id') == pid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        pages.pop(idx)
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    pages[idx] = _normalize_page(raw, pages[idx])
+    pages[idx]['slug'] = _page_slug(site, raw, pid)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': pages[idx]['slug']})
+
+
+@admin_app.route('/api/pages/reorder', methods=['POST'])
+def api_pages_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    pages = site.get('pages', [])
+    pos = {pid: i for i, pid in enumerate(order)}
+    pages.sort(key=lambda p: pos.get(p.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/forms', methods=['POST'])
+def api_form_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    form = _normalize_form(raw)
+    form['slug'] = _form_slug(site, raw, form['id'])
+    site.setdefault('forms', []).append(form)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': form['slug']})
+
+
+@admin_app.route('/api/forms/<fid>', methods=['PUT', 'DELETE'])
+def api_form_edit(fid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    forms = site.setdefault('forms', [])
+    idx = next((i for i, f in enumerate(forms) if f.get('id') == fid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        forms.pop(idx)
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
+        return jsonify({'error': 'title required'}), 400
+    forms[idx] = _normalize_form(raw, forms[idx])
+    forms[idx]['slug'] = _form_slug(site, raw, fid)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': forms[idx]['slug']})
+
+
+@admin_app.route('/api/forms/reorder', methods=['POST'])
+def api_forms_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    forms = site.get('forms', [])
+    pos = {fid: i for i, fid in enumerate(order)}
+    forms.sort(key=lambda f: pos.get(f.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/redirects', methods=['POST'])
+def api_redirects():
+    err = _api_auth()
+    if err:
+        return err
+    items = (request.get_json(silent=True) or {}).get('redirects')
+    if not isinstance(items, list):
+        return jsonify({'error': 'invalid'}), 400
+    seen, out = set(), []
+    for r in items[:200]:
+        if not isinstance(r, dict):
+            continue
+        nr = _normalize_redirect(r)
+        if not nr['from'] or nr['from'] == '/' or not nr['to'] or nr['from'] in seen:
+            continue
+        seen.add(nr['from'])
+        out.append(nr)
+    site = load_site()
+    site['redirects'] = out
+    save_site(site)
+    log_audit('settings_redirects', f'{len(out)} Regel(n)')
+    return jsonify({'ok': True, 'count': len(out)})
+
+
 @admin_app.route('/api/users')
 def api_users():
     err = _api_auth()
@@ -2160,6 +3138,10 @@ def api_users():
                     'created': u.get('created', ''),
                     'last_login': u.get('last_login'),
                     'playing': _user_playing(u['id']),
+                    'games_enabled': u.get('games_enabled', True),
+                    'self_registered': bool(u.get('self_registered')),
+                    'verified': u.get('verified', True),
+                    'approved': u.get('approved', True),
                     'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
@@ -2180,6 +3162,7 @@ def api_member_settings():
     site = load_site()
     site['design']['welcome_from'] = wf
     save_site(site)
+    log_audit('settings_member')
     log.info("Willkommens-Absender gesetzt: %s", wf or '(Standard)')
     return jsonify({'ok': True})
 
@@ -2209,6 +3192,7 @@ def api_user_create():
     mail_sent = smtp_configured()
     if mail_sent:
         threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
+    log_audit('user_create', email)
     log.info("Benutzer '%s' angelegt (Quota %d MB)", email, quota)
     return jsonify({'ok': True, 'mail_sent': mail_sent,
                     'no_url': not (load_site()['design'].get('public_url') or '').strip()})
@@ -2228,19 +3212,34 @@ def api_user_edit(uid: str):
         save_users(users)
         invalidate_user_sessions(uid)
         shutil.rmtree(user_dir(user), ignore_errors=True)
+        log_audit('user_delete', user['email'])
         log.info("Benutzer '%s' gelöscht", user['email'])
         return jsonify({'ok': True})
     raw = request.get_json(silent=True) or {}
     mail_sent = False
     if 'quota_mb' in raw:
         user['quota_mb'] = max(1, min(100000, int(raw.get('quota_mb') or 500)))
+        log_audit('user_quota', f"{user['email']} → {user['quota_mb']} MB")
     if 'login_message' in raw:
         user['login_message'] = _clean_str(raw.get('login_message'), 2000)
+    if 'games_enabled' in raw:
+        user['games_enabled'] = bool(raw['games_enabled'])
+        log_audit('user_games', f"{user['email']}: {'an' if user['games_enabled'] else 'aus'}")
+    if 'approved' in raw:
+        was = user.get('approved', True)
+        user['approved'] = bool(raw['approved'])
+        # Freigabe eines selbst-registrierten Kontos → Aktivierungs-Mail
+        if user['approved'] and not was and user.get('verified') and smtp_configured():
+            threading.Thread(target=send_activated_email, args=(dict(user),), daemon=True).start()
+        if user['approved'] and not was:
+            log_audit('user_approve', user['email'])
+        _ha_sensors_async()  # „offene Freigaben" sofort neu zählen
     password = str(raw.get('password') or '')
     if password:
         if len(password) < 8:
             return jsonify({'error': 'password too short'}), 400
         user['pw_hash'] = generate_password_hash(password)
+        log_audit('user_password', user['email'])
         # Passwortwechsel beendet alle bestehenden Sitzungen → Neuanmeldung nötig
         ended = invalidate_user_sessions(uid)
         if ended:
@@ -2276,6 +3275,7 @@ def api_user_resend(uid: str):
     save_users(users)
     invalidate_user_sessions(uid)  # altes Passwort → bestehende Sitzungen kappen
     log_user_event(uid, 'pw_reset')
+    log_audit('user_resend', user['email'])
     threading.Thread(target=send_welcome_email, args=(user, password), daemon=True).start()
     log.info("Zugangsdaten für '%s' erneut versendet (neues Passwort)", user['email'])
     return jsonify({'ok': True,
@@ -2418,6 +3418,7 @@ def api_storage():
         site = load_site()
         site['design']['storage_subdir'] = sub
         save_site(site)
+        log_audit('settings_storage', sub or '(Standard)')
         log.info("Mitglieder-Speicherort: %s", userfiles_root())
         return jsonify({'ok': True})
     rel = _clean_str(request.args.get('path') or '', 300).strip('/')
@@ -2442,6 +3443,9 @@ def api_export():
     loc = _loc_factory('de')
     legal = site.get('legal', {})
     pages = {'index.html': '/?static=1'}
+    for p in site.get('pages', []):
+        if p.get('visible'):
+            pages[f"seite/{p['slug']}/index.html"] = f"/seite/{p['slug']}"
     for p in site['projects']:
         if _has_detail(p) and project_visible(p):
             pages[f"p/{p['id']}/index.html"] = f"/p/{p['id']}"
@@ -2513,6 +3517,9 @@ def api_upload():
     if _HAS_PIL and ext != '.gif':
         try:
             img = Image.open(f.stream)
+            # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
+            # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
+            img = ImageOps.exif_transpose(img)
             img.thumbnail((1600, 1600))
             if img.mode not in ('RGB', 'RGBA'):
                 img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
@@ -2520,6 +3527,7 @@ def api_upload():
             target = safe_under(UPLOADS_DIR, name)
             if target is None:
                 abort(400)
+            # ohne exif=... → das neu kodierte WebP enthält keine Metadaten mehr
             img.save(target, 'WEBP', quality=82)
             return jsonify({'ok': True, 'url': '/uploads/' + name})
         except Exception as e:
@@ -2532,6 +3540,49 @@ def api_upload():
         abort(400)
     f.save(target)
     return jsonify({'ok': True, 'url': '/uploads/' + name})
+
+
+def _unused_uploads(site: dict):
+    """Hochgeladene Dateien, die nirgends mehr in site.json referenziert sind.
+
+    Alle Uploads (Bilder in Seiten/Beiträgen/Projekten/Alben, Avatar, Favicon)
+    werden in site.json als `/uploads/<name>` gespeichert. Dateinamen sind
+    eindeutige UUIDs, daher ist ein Vorkommen-Scan über den JSON-Text sicher.
+    """
+    blob = json.dumps(site, ensure_ascii=False)
+    orphans, total = [], 0
+    for f in UPLOADS_DIR.iterdir():
+        if f.is_file() and f.name not in blob:
+            orphans.append(f)
+            total += f.stat().st_size
+    return orphans, total
+
+
+@admin_app.route('/api/uploads/unused')
+def api_uploads_unused():
+    err = _api_auth()
+    if err:
+        return err
+    orphans, total = _unused_uploads(load_site())
+    return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
+
+
+@admin_app.route('/api/uploads/cleanup', methods=['POST'])
+def api_uploads_cleanup():
+    err = _api_auth()
+    if err:
+        return err
+    orphans, total = _unused_uploads(load_site())
+    removed = 0
+    for f in orphans:
+        try:
+            f.unlink()
+            removed += 1
+        except OSError as e:
+            log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
+    if removed:
+        log_audit('uploads_cleanup', f'{removed} Datei(en)')
+    return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
 
 
 @admin_app.route('/api/github/repos')
@@ -2604,6 +3655,7 @@ def api_stats():
         'referrers': referrers,
         'browsers':  browsers,
         'countries': countries,
+        'pages':     top_pages(load_site(), stats.get('log', [])),
     })
 
 
@@ -2750,6 +3802,7 @@ def _base_url() -> str:
 def _public_url_list(site: dict, base: str) -> list:
     """Alle öffentlich indexierbaren URLs (Startseite, Projekt-Detailseiten, Blog)."""
     urls = [base + '/']
+    urls += [f"{base}/seite/{p['slug']}" for p in site.get('pages', []) if p.get('visible')]
     urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
     posts = sorted_posts(site, public_only=True)
     if posts:
@@ -2967,6 +4020,8 @@ def _require_member():
     member = current_member(request)
     if member is None:
         abort(403)
+    if member.get('games_enabled', True) is False:
+        abort(403)  # Spiele für dieses Mitglied vom Admin deaktiviert
     return member
 
 
@@ -4476,6 +5531,7 @@ def sitemap():
     newest = max((p['date'] for p in posts if _valid_date(p.get('date'))), default='')
     # (URL, lastmod) — lastmod optional
     entries = [(base + '/', newest)]
+    entries += [(f"{base}/seite/{p['slug']}", '') for p in site.get('pages', []) if p.get('visible')]
     entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
                 if _has_detail(p) and project_visible(p)]
     if posts:
@@ -4570,9 +5626,14 @@ def rss_feed():
 
 @public_app.errorhandler(404)
 def not_found(_e):
+    site = load_site()
+    # Eingerichtete Weiterleitung? Greift nur für nicht (mehr) existierende Pfade.
+    rd = _find_redirect(site, request.path)
+    if rd:
+        # rd['to'] stammt aus der gespeicherten Konfiguration (Admin), nicht aus der Anfrage
+        return redirect(rd['to'], code=301 if rd.get('permanent', True) else 302)
     lang = detect_language(request)
     t = load_translations(lang)
-    site = load_site()
     return render_template('404.html', t=t, lang=lang, site=site), 404
 
 
@@ -4632,8 +5693,13 @@ def _maintenance_page(site: dict, lang: str):
     t = load_translations(lang)
     loc = _loc_factory(lang)
     text = loc(site.get('design', {}), 'maintenance_text') or t.get('maintenance_default', '')
-    resp = make_response(render_template('maintenance.html', t=t, lang=lang, site=site,
-                                         text_html=render_md(text)), 503)
+    font_family, font_faces = font_css(site['design'])
+    resp = make_response(render_template('maintenance.html', t=t, lang=lang, site=site, loc=loc,
+                                         text_html=render_md(text),
+                                         font_family=font_family, font_faces=font_faces,
+                                         cd=(site.get('sections') or {}).get('countdown') or {},
+                                         newsletter_open=newsletter_open(),
+                                         nl=_clean_str(request.args.get('nl'), 20)), 503)
     resp.headers['Retry-After'] = '3600'
     return resp
 
@@ -4653,9 +5719,12 @@ def public_index():
     email_parts = email.split('@', 1) if '@' in email else None
     projects = [dict(p, has_detail=_has_detail(p)) for p in site['projects'] if project_visible(p)]
     static_export = bool(request.args.get('static'))
+    viewer_member = is_member(request) and not static_export
     font_family, font_faces = font_css(site['design'])
     sections = site.get('sections', {})
-    albums = _albums_for_public(site)
+    albums = _albums_for_public(site, viewer_member)
+    if static_export:
+        albums = [a for a in albums if not a.get('locked')]
     latest_posts = sorted_posts(site, public_only=True)[:3]
     contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
 
@@ -4684,9 +5753,12 @@ def public_index():
                 tstats[tip_of_day['id']] = {'last': today_key, 'days': (st.get('days', 0) if st else 0) + 1}
                 save_site(site)
 
+    cd = sections.get('countdown') or {}
+    countdown_title = loc(cd, 'title')
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
+        'countdown':    ('countdown',    'countdown_heading',    bool(cd.get('target'))),
         'tips':         ('tips',         'tips_heading_week' if tips_weekly else 'tips_heading', bool(tips)),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
@@ -4707,6 +5779,10 @@ def public_index():
     # Ausgeblendete Abschnitte entfernen (Inhalt bleibt erhalten, nur nicht sichtbar)
     hidden = set(site.get('hidden_sections') or [])
     section_order = [k for k in section_order if k not in hidden]
+    # Mitglieder-only-Sektionen: Gäste sehen sie nicht, eingeloggte Mitglieder schon
+    member_secs = set(site.get('members_sections') or [])
+    if not viewer_member:
+        section_order = [k for k in section_order if k not in member_secs]
 
     # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
     timeline_title = loc(sections, 'timeline_title')
@@ -4717,10 +5793,17 @@ def public_index():
         for key in section_order:
             anchor, label_key, present = section_defs[key]
             if present:
-                label = timeline_title if (key == 'timeline' and timeline_title) else t.get(label_key, label_key)
+                if key == 'timeline' and timeline_title:
+                    label = timeline_title
+                elif key == 'countdown' and countdown_title:
+                    label = countdown_title
+                else:
+                    label = t.get(label_key, label_key)
                 nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
+        # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen
+        nav_items += _nav_links(site, loc)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -4732,6 +5815,9 @@ def public_index():
                            albums=albums,
                            album_protect=bool(site.get('album_protect')),
                            latest_posts=latest_posts,
+                           countdown_title=countdown_title,
+                           newsletter_open=newsletter_open() and not static_export,
+                           nl=_clean_str(request.args.get('nl'), 20),
                            nav_items=nav_items,
                            section_order=section_order,
                            timeline_title=timeline_title,
@@ -4751,15 +5837,87 @@ def blog_index():
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    posts = sorted_posts(site, public_only=True)
-    if not posts:
+    all_posts = sorted_posts(site, public_only=True)
+    if not all_posts:
         abort(404)
+    query = _clean_str(request.args.get('q'), 80)
+    tag = _clean_str(request.args.get('tag'), 30)
+    posts = filter_posts(all_posts, query, tag)
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
-                           posts=posts, meta_desc=_site_meta(site, loc),
+                           posts=posts, tags=all_post_tags(site),
+                           query=query, active_tag=tag,
+                           newsletter_open=newsletter_open(),
+                           nl=_clean_str(request.args.get('nl'), 20),
+                           meta_desc=_site_meta(site, loc),
                            year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/newsletter/subscribe', methods=['POST'])
+def newsletter_subscribe():
+    site = load_site()
+    # Abo bewusst auch im Wartungsmodus erlauben (Coming-Soon-Countdown „Benachrichtige mich")
+    if not newsletter_open():
+        abort(403)
+    ip = get_client_ip(request)
+    back = _safe_next(request.form.get('next') or '/blog')   # zurück zur Herkunftsseite
+    # Honeypot + Rate-Limit → immer generische Rückmeldung (keine Enumeration)
+    if (request.form.get('website') or '').strip() or newsletter_rate_limited(ip):
+        return redirect(f'{back}?nl=sent')
+    record_newsletter_attempt(ip)
+    email = _clean_str(request.form.get('email'), 150).lower()
+    if not _EMAIL_RE.match(email):
+        return redirect(f'{back}?nl=invalidmail')
+    subs = load_subscribers()
+    existing = next((s for s in subs if s['email'] == email), None)
+    token = secrets.token_urlsafe(24)
+    if existing is None:
+        subs.append({'id': uuid.uuid4().hex[:12], 'email': email, 'confirmed': False,
+                     'ts': int(time.time()), 'utoken': secrets.token_urlsafe(16),
+                     'confirm': {'hash': generate_password_hash(token),
+                                 'exp': int(time.time()) + NEWSLETTER_CONFIRM_TTL}})
+        save_subscribers(subs)
+        threading.Thread(target=send_confirm_subscription, args=(subs[-1], token), daemon=True).start()
+        log.info("Newsletter-Abo angefragt: '%s' von %s", email, ip)
+    elif not existing.get('confirmed'):
+        existing['confirm'] = {'hash': generate_password_hash(token),
+                               'exp': int(time.time()) + NEWSLETTER_CONFIRM_TTL}
+        save_subscribers(subs)
+        threading.Thread(target=send_confirm_subscription, args=(existing, token), daemon=True).start()
+    # bereits bestätigt → still nichts tun (generische Antwort schützt vor Enumeration)
+    return redirect(f'{back}?nl=sent')
+
+
+@public_app.route('/newsletter/confirm/<sid>/<token>')
+def newsletter_confirm(sid: str, token: str):
+    subs = load_subscribers()
+    sub = next((s for s in subs if s['id'] == sid), None)
+    ok = False
+    if sub is not None:
+        c = sub.get('confirm')
+        if c and time.time() <= c.get('exp', 0) and check_password_hash(c.get('hash', ''), token):
+            ok = True
+    if not ok:
+        return redirect('/blog?nl=invalid')
+    sub['confirmed'] = True
+    sub.pop('confirm', None)
+    save_subscribers(subs)
+    log.info("Newsletter-Abo bestätigt: '%s'", sub['email'])
+    return redirect('/blog?nl=confirmed')
+
+
+@public_app.route('/newsletter/unsubscribe/<sid>/<token>')
+def newsletter_unsubscribe(sid: str, token: str):
+    subs = load_subscribers()
+    sub = next((s for s in subs if s['id'] == sid), None)
+    if sub is not None and secrets.compare_digest(str(sub.get('utoken', '')), token):
+        subs = [s for s in subs if s['id'] != sid]
+        save_subscribers(subs)
+        log.info("Newsletter-Abmeldung: '%s'", sub['email'])
+        return redirect('/blog?nl=unsubscribed')
+    return redirect('/blog?nl=invalid')
 
 
 @public_app.route('/blog/<pid>')
@@ -4772,13 +5930,124 @@ def blog_post(pid: str):
     if post is None or not post_visible(post):
         abort(404)
     count_visit(request)
+    views = bump_post_view(pid, request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
-    text_html = render_md(loc(post, 'text'))
+    member = current_member(request)
+    # Mitglieder-only: Gäste sehen nur einen Anriss + Login-Aufforderung
+    locked = bool(post.get('members_only')) and member is None
+    full_html = render_md(loc(post, 'text'))
+    text_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    comments_enabled = bool(site['design'].get('comments_enabled')) and not locked
+    cdata = load_comments().get(pid, {}) if comments_enabled else {}
+    reactions = cdata.get('reactions', {})
+    clist = cdata.get('comments', [])
+    threaded = _thread_comments(clist)
+    share_on = bool(site['design'].get('share_enabled')) and not locked
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
-                           text_html=text_html,
+                           text_html=text_html, locked=locked,
+                           share_on=share_on, share_url=f"{_base_url()}/blog/{pid}",
+                           share_title=loc(post, 'title'),
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
+                           comments_enabled=comments_enabled,
+                           member=member,
+                           comments=threaded, comment_count=len(clist),
+                           reaction_emojis=COMMENT_REACTIONS,
+                           reaction_counts=_reaction_counts(reactions),
+                           my_reaction=(reactions.get(member['id']) if member else None),
+                           views=views,
                            year=datetime.now(timezone.utc).year)
+
+
+def _thread_comments(clist: list) -> list:
+    """Flache Kommentarliste in Threads gruppieren (eine Verschachtelungs-Ebene):
+    Top-Level-Kommentare in Reihenfolge, jeweils mit ihren Antworten (.replies)."""
+    by_parent: dict = {}
+    for c in clist:
+        by_parent.setdefault(c.get('parent') or None, []).append(c)
+    out = []
+    for c in by_parent.get(None, []):
+        node = dict(c)
+        node['replies'] = by_parent.get(c['id'], [])
+        out.append(node)
+    return out
+
+
+def _visible_post(site: dict, pid: str) -> dict | None:
+    post = next((p for p in site.get('posts', []) if p.get('id') == pid), None)
+    return post if post is not None and post_visible(post) else None
+
+
+@public_app.route('/blog/<pid>/comment', methods=['POST'])
+def blog_comment(pid: str):
+    site = load_site()
+    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+        abort(403)
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    post = _visible_post(site, pid)
+    if post is None:
+        abort(404)
+    text = _clean_str(request.form.get('text'), 2000).strip()
+    if not text:
+        return redirect(f'/blog/{pid}#comments')
+    parent_id = _clean_str(request.form.get('parent'), 12)
+    data = load_comments()
+    thread = _post_thread(data, pid)
+    clist = thread['comments']
+    # Antwort: Ziel-Kommentar suchen; Verschachtelung auf eine Ebene flachklopfen
+    parent_comment = next((c for c in clist if c['id'] == parent_id), None) if parent_id else None
+    new = {'id': uuid.uuid4().hex[:12], 'uid': member['id'],
+           'name': _member_display_name(member), 'text': text, 'ts': int(time.time())}
+    if parent_comment is not None:
+        new['parent'] = parent_comment.get('parent') or parent_comment['id']
+    clist.append(new)
+    thread['comments'] = clist[-COMMENTS_MAX_PER_POST:]
+    save_comments(data)
+    log_user_event(member['id'], 'comment', pid, get_client_ip(request))
+    name = new['name']
+    title = post.get('title_de') or post.get('title_en') or pid
+    # Autor des beantworteten Kommentars per E-Mail informieren (nicht bei Selbstantwort)
+    if (parent_comment is not None and parent_comment.get('uid')
+            and parent_comment['uid'] != member['id'] and smtp_configured()):
+        author = next((u for u in load_users() if u['id'] == parent_comment['uid']), None)
+        if author and author.get('email'):
+            base = (site['design'].get('public_url') or '').rstrip('/')
+            url = f"{base}/blog/{pid}" if base else ''
+            threading.Thread(target=send_comment_reply_email,
+                             args=(author['email'], title, name, text, url), daemon=True).start()
+    notify_ha_async('💬 MyPage: Neuer Kommentar',
+                    f'{name} hat „{title}" kommentiert:\n\n{text[:300]}',
+                    notification_id=f'mypage_comment_{pid}')
+    log.info("Mitglied '%s' kommentierte Beitrag '%s'", member['email'], pid)
+    return redirect(f'/blog/{pid}#comments')
+
+
+@public_app.route('/blog/<pid>/react', methods=['POST'])
+def blog_react(pid: str):
+    site = load_site()
+    if site['design'].get('maintenance') or not site['design'].get('comments_enabled'):
+        return jsonify({'error': 'disabled'}), 403
+    member = current_member(request)
+    if member is None:
+        return jsonify({'error': 'auth'}), 403
+    if _visible_post(site, pid) is None:
+        return jsonify({'error': 'not found'}), 404
+    emoji = (request.get_json(silent=True) or {}).get('emoji', '')
+    if emoji not in COMMENT_REACTIONS:
+        return jsonify({'error': 'invalid'}), 400
+    data = load_comments()
+    thread = _post_thread(data, pid)
+    reactions = thread.setdefault('reactions', {})
+    if reactions.get(member['id']) == emoji:
+        reactions.pop(member['id'], None)   # gleiche Reaktion → abwählen (Toggle)
+        mine = None
+    else:
+        reactions[member['id']] = emoji
+        mine = emoji
+    save_comments(data)
+    return jsonify({'ok': True, 'counts': _reaction_counts(reactions), 'mine': mine})
 
 
 @admin_app.route('/preview/blog/<pid>')
@@ -4801,6 +6070,45 @@ def admin_blog_preview(pid: str):
                            year=datetime.now(timezone.utc).year)
 
 
+@admin_app.route('/preview/page/<pid>')
+def admin_page_preview(pid: str):
+    """Seiten-Vorschau im Admin — rendert page.html (auch unveröffentlicht)."""
+    err = _auth_required()
+    if err:
+        return err
+    lang = detect_language(request)
+    site = load_site()
+    page = next((p for p in site.get('pages', []) if p.get('id') == pid), None)
+    if page is None:
+        abort(404)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    body_html = render_md(loc(page, 'body'))
+    font_family, font_faces = font_css(site['design'])
+    return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
+                           title=(loc(page, 'title') or t.get('page_untitled', '')),
+                           body_html=body_html, nav_items=_nav_links(site, loc),
+                           page_slug=page.get('slug', ''),
+                           members_only=bool(page.get('members_only')),
+                           font_family=font_family, font_faces=font_faces,
+                           meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html) or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+@admin_app.route('/preview/form/<fid>')
+def admin_form_preview(fid: str):
+    """Formular-Vorschau im Admin — rendert form.html (auch unveröffentlicht)."""
+    err = _auth_required()
+    if err:
+        return err
+    lang = detect_language(request)
+    site = load_site()
+    form = next((f for f in site.get('forms', []) if f.get('id') == fid), None)
+    if form is None:
+        abort(404)
+    return _render_form(form, site, lang)
+
+
 @public_app.route('/p/<pid>')
 def project_detail(pid: str):
     lang = detect_language(request)
@@ -4816,6 +6124,8 @@ def project_detail(pid: str):
     long_html = render_md(loc(proj, 'long'))
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
                            long_html=long_html,
+                           share_on=bool(site['design'].get('share_enabled')),
+                           share_url=f"{_base_url()}/p/{pid}", share_title=proj.get('title', ''),
                            meta_desc=(loc(proj, 'desc') or _plain_excerpt(long_html) or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
 
@@ -4846,7 +6156,22 @@ def _member_page(member: dict | None, msg: str = ''):
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down, login_msg_html=login_msg_html,
+                           can_reset=reset_enabled() if member is None else False,
+                           can_register=registration_open() if member is None else False,
+                           games_on=bool(member and member.get('games_enabled', True)),
                            year=datetime.now(timezone.utc).year)
+
+
+def _member_auth_page(view: str, **extra):
+    """Login-/Forgot-/Reset-/Register-Karte (immer ohne eingeloggtes Mitglied)."""
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('member.html', t=t, lang=lang, site=site, member=None,
+                           files=[], used=0, quota=0, msg=extra.pop('msg', ''),
+                           storage_down=False, login_msg_html='', view=view,
+                           can_reset=reset_enabled(), can_register=registration_open(),
+                           year=datetime.now(timezone.utc).year, **extra)
 
 
 @public_app.route('/bereich')
@@ -4872,6 +6197,10 @@ def member_login():
         log.warning("Mitglieder-Login FEHLGESCHLAGEN: '%s' von %s", email or '?', ip)
         return redirect('/bereich?msg=credentials')
     clear_failed_attempts(ip)
+    blocked = _member_login_blocked(user)
+    if blocked:
+        log.info("Mitglieder-Login abgewiesen ('%s'): %s", email, blocked)
+        return redirect('/bereich?msg=' + blocked)  # unverified | pending
     token = secrets.token_hex(32)
     user_sessions[token] = [user['id'], time.time() + USER_SESSION_HOURS * 3600]
     save_user_sessions()
@@ -4883,6 +6212,140 @@ def member_login():
     return resp
 
 
+@public_app.route('/bereich/forgot', methods=['GET', 'POST'])
+def member_forgot():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    if not reset_enabled():
+        return redirect('/bereich')
+    if request.method == 'GET':
+        return _member_auth_page('forgot')
+    ip = get_client_ip(request)
+    # Immer dieselbe, generische Antwort → keine Rückschlüsse, ob die E-Mail existiert.
+    if reset_rate_limited(ip):
+        log.warning("Passwort-Reset RATELIMIT von %s", ip)
+        return _member_auth_page('forgot', msg='reset_sent')
+    record_reset_attempt(ip)
+    email = (request.form.get('email') or '').strip().lower()
+    users = load_users()
+    user = next((u for u in users if u['email'] == email), None) if _EMAIL_RE.match(email) else None
+    if user is not None:
+        token = secrets.token_urlsafe(32)
+        user['reset'] = {'hash': generate_password_hash(token), 'exp': int(time.time()) + RESET_TTL}
+        save_users(users)
+        threading.Thread(target=send_reset_email, args=(dict(user), token), daemon=True).start()
+        log.info("Passwort-Reset angefordert für '%s' von %s", email, ip)
+    return _member_auth_page('forgot', msg='reset_sent')
+
+
+@public_app.route('/bereich/reset/<uid>/<token>', methods=['GET', 'POST'])
+def member_reset(uid: str, token: str):
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    users = load_users()
+    user = _find_reset_user(users, uid, token)
+    if user is None:
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=False)
+    if request.method == 'GET':
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=True)
+    pw = request.form.get('password') or ''
+    pw2 = request.form.get('password2') or ''
+    if len(pw) < 8:
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=True, msg='reset_short')
+    if pw != pw2:
+        return _member_auth_page('reset', uid=uid, token=token, reset_valid=True, msg='reset_mismatch')
+    user['pw_hash'] = generate_password_hash(pw)
+    user.pop('reset', None)
+    save_users(users)
+    invalidate_user_sessions(uid)  # alle alten Sitzungen kappen
+    log_user_event(uid, 'pw_reset_self', '', get_client_ip(request))
+    log.info("Passwort per Self-Service zurückgesetzt für '%s'", user['email'])
+    return redirect('/bereich?msg=pwchanged')
+
+
+@public_app.route('/bereich/register', methods=['GET', 'POST'])
+def member_register():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    if not registration_open():
+        return redirect('/bereich')
+    if request.method == 'GET':
+        return _member_auth_page('register', captcha=make_captcha())
+    ip = get_client_ip(request)
+    # Honeypot (Bots füllen das versteckte Feld) + Rate-Limit → generische Antwort
+    if (request.form.get('website') or '').strip() or register_rate_limited(ip):
+        return _member_auth_page('register', msg='register_sent')
+    if not check_captcha(request.form.get('captcha_token'), request.form.get('captcha_answer')):
+        return _member_auth_page('register', msg='register_captcha', captcha=make_captcha(),
+                                 reg_email=_clean_str(request.form.get('email'), 150),
+                                 reg_name=_clean_str(request.form.get('name'), 60))
+    email = _clean_str(request.form.get('email'), 150).lower()
+    pw = request.form.get('password') or ''
+    pw2 = request.form.get('password2') or ''
+    name = _clean_str(request.form.get('name'), 60)
+    if not _EMAIL_RE.match(email):
+        return _member_auth_page('register', msg='register_email', captcha=make_captcha(), reg_name=name)
+    if len(pw) < 8:
+        return _member_auth_page('register', msg='reset_short', captcha=make_captcha(),
+                                 reg_email=email, reg_name=name)
+    if pw != pw2:
+        return _member_auth_page('register', msg='reset_mismatch', captcha=make_captcha(),
+                                 reg_email=email, reg_name=name)
+    record_register_attempt(ip)
+    users = load_users()
+    existing = next((u for u in users if u['email'] == email), None)
+    token = secrets.token_urlsafe(32)
+    if existing is None:
+        quota = max(1, min(100000, int(site['design'].get('registration_quota_mb') or 500)))
+        user = {'id': uuid.uuid4().hex[:12], 'email': email,
+                'pw_hash': generate_password_hash(pw),
+                'quota_mb': quota, 'created': date.today().isoformat(),
+                'self_registered': True, 'verified': False, 'approved': False,
+                'games_enabled': False,
+                'verify': {'hash': generate_password_hash(token), 'exp': int(time.time()) + REGISTER_TTL}}
+        if name:
+            user['name'] = name
+        users.append(user)
+        save_users(users)
+        threading.Thread(target=send_verify_email, args=(dict(user), token), daemon=True).start()
+        notify_ha_async('🆕 MyPage: Neue Registrierung',
+                        f'{email} hat ein Konto angelegt (wartet auf E-Mail-Bestätigung & Freigabe).',
+                        notification_id=f'mypage_register_{user["id"]}')
+        log.info("Selbst-Registrierung: '%s' von %s", email, ip)
+    elif existing.get('self_registered') and not existing.get('verified'):
+        # Konto besteht, aber noch unbestätigt → Bestätigungslink neu schicken
+        existing['verify'] = {'hash': generate_password_hash(token), 'exp': int(time.time()) + REGISTER_TTL}
+        save_users(users)
+        threading.Thread(target=send_verify_email, args=(dict(existing), token), daemon=True).start()
+    else:
+        # E-Mail existiert bereits → keine Enumeration, stattdessen Hinweis-Mail
+        threading.Thread(target=send_already_registered_email, args=(dict(existing),), daemon=True).start()
+    return _member_auth_page('register', msg='register_sent')
+
+
+@public_app.route('/bereich/verify/<uid>/<token>')
+def member_verify(uid: str, token: str):
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    users = load_users()
+    user = _find_verify_user(users, uid, token)
+    if user is None:
+        return _member_auth_page('verify', verify_ok=False)
+    user['verified'] = True
+    user.pop('verify', None)
+    save_users(users)
+    notify_ha_async('✅ MyPage: Registrierung bestätigt',
+                    f'{user["email"]} hat die E-Mail bestätigt und wartet auf Freigabe.',
+                    notification_id=f'mypage_register_{uid}')
+    _ha_sensors_async()  # „offene Freigaben"-Sensor/Hinweis sofort aktualisieren
+    log.info("Registrierung bestätigt: '%s'", user['email'])
+    return _member_auth_page('verify', verify_ok=True)
+
+
 @public_app.route('/bereich/logout')
 def member_logout():
     token = request.cookies.get('usession')
@@ -4892,6 +6355,41 @@ def member_logout():
     resp = make_response(redirect('/bereich'))
     resp.delete_cookie('usession')
     return resp
+
+
+@public_app.route('/bereich/profile', methods=['POST'])
+def member_profile():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    users = load_users()
+    user = next((u for u in users if u['id'] == member['id']), None)
+    if user is None:
+        abort(403)
+    action = request.form.get('action', '')
+    if action == 'name':
+        user['name'] = _clean_str(request.form.get('name'), 60)
+        save_users(users)
+        log_user_event(user['id'], 'profile_name', '', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'password':
+        cur = request.form.get('current_password') or ''
+        new = request.form.get('new_password') or ''
+        new2 = request.form.get('new_password2') or ''
+        if not check_password_hash(user['pw_hash'], cur):
+            return redirect('/bereich?msg=pw_wrong')
+        if len(new) < 8:
+            return redirect('/bereich?msg=pw_short')
+        if new != new2:
+            return redirect('/bereich?msg=pw_mismatch')
+        user['pw_hash'] = generate_password_hash(new)
+        save_users(users)
+        # andere Sitzungen kappen, die aktuelle behalten
+        invalidate_user_sessions(user['id'], keep=request.cookies.get('usession'))
+        log_user_event(user['id'], 'pw_change_self', '', get_client_ip(request))
+        log.info("Mitglied '%s' hat das Passwort selbst geändert", user['email'])
+        return redirect('/bereich?msg=pw_changed')
+    return redirect('/bereich')
 
 
 @public_app.route('/bereich/upload', methods=['POST'])
@@ -5026,9 +6524,10 @@ def contact():
     if not name or not message:
         return jsonify({'error': 'missing fields'}), 400
     _contact_times[ip].append(now)
+    msg_id = uuid.uuid4().hex[:12]
     msgs = load_messages()
     msgs.append({
-        'id':    uuid.uuid4().hex[:12],
+        'id':    msg_id,
         'ts':    int(now),
         'name':  name,
         'email': email,
@@ -5044,10 +6543,112 @@ def contact():
                        f'<b>Von:</b> {esc(name)}' + (f' &lt;{esc(email)}&gt;' if email else ''),
                        f'<b>Nachricht:</b><br>{esc(message).replace(chr(10), "<br>")}',
                    ]))
+        notify_ha(f'📨 MyPage: Neue Nachricht von {name}',
+                  (f'Von {name}' + (f' ({email})' if email else '') + f':\n\n{message[:400]}'),
+                  notification_id=f'mypage_msg_{msg_id}')
 
     threading.Thread(target=_notify, daemon=True).start()
     log.info("Kontaktnachricht von '%s' gespeichert", name)
     return jsonify({'ok': True})
+
+
+def _render_form(form: dict, site: dict, lang: str, *, error: str = '', ok: bool = False):
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    fields = []
+    for f in form.get('fields', []):
+        fields.append({
+            'id': f['id'], 'type': f['type'], 'required': f.get('required'),
+            'label': loc(f, 'label') or f['id'],
+            'placeholder': loc(f, 'placeholder'),
+            'options': f.get('options', []),
+        })
+    return render_template('form.html', t=t, lang=lang, site=site, loc=loc,
+                           form=form, title=loc(form, 'title'),
+                           intro_html=render_md(loc(form, 'intro')),
+                           success_html=render_md(loc(form, 'success')) if ok else '',
+                           fields=fields, captcha=make_captcha(),
+                           nav_items=_nav_links(site, loc),
+                           font_family=font_css(site['design'])[0],
+                           font_faces=font_css(site['design'])[1],
+                           error=error, ok=ok, form_slug=form['slug'],
+                           meta_desc=(_plain_excerpt(render_md(loc(form, 'intro'))) or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/formular/<slug>')
+def custom_form(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    form = _find_form(site, slug)
+    if form is None or not form.get('enabled'):
+        abort(404)
+    count_visit(request)
+    return _render_form(form, site, lang, ok=bool(request.args.get('ok')))
+
+
+@public_app.route('/formular/<slug>', methods=['POST'])
+def custom_form_submit(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    form = _find_form(site, slug)
+    if form is None or not form.get('enabled'):
+        abort(404)
+    t = load_translations(lang)
+    # Honeypot: Bots füllen das versteckte Feld aus → still „erfolgreich"
+    if (request.form.get('website') or '').strip():
+        return redirect('/formular/' + slug + '?ok=1')
+    if not check_captcha(request.form.get('captcha_token'), request.form.get('captcha_answer')):
+        return _render_form(form, site, lang, error=t.get('form_err_captcha', ''))
+    ip = get_client_ip(request)
+    now = time.time()
+    _contact_times[ip] = [x for x in _contact_times[ip] if now - x < 3600]
+    if len(_contact_times[ip]) >= CONTACT_MAX_PER_HOUR:
+        return _render_form(form, site, lang, error=t.get('form_err_rate', ''))
+
+    loc = _loc_factory(lang)
+    entries, sub_name, sub_email = [], '', ''
+    for f in form.get('fields', []):
+        label = loc(f, 'label') or f['id']
+        if f['type'] == 'checkbox':
+            val = t.get('form_yes', 'Ja') if request.form.get('f_' + f['id']) else t.get('form_no', 'Nein')
+        else:
+            val = _clean_str(request.form.get('f_' + f['id']), 3000)
+        if f.get('required') and not (request.form.get('f_' + f['id']) or '').strip():
+            return _render_form(form, site, lang, error=t.get('form_err_required', ''))
+        entries.append({'label': label, 'value': val})
+        if not sub_email and f['type'] == 'email' and val:
+            sub_email = val[:150]
+        if not sub_name and f['type'] == 'text' and val:
+            sub_name = val[:80]
+
+    _contact_times[ip].append(now)
+    msg_id = uuid.uuid4().hex[:12]
+    form_title = loc(form, 'title') or t.get('form_untitled', 'Formular')
+    summary = '\n'.join(f"{e['label']}: {e['value']}" for e in entries)
+    msgs = load_messages()
+    msgs.append({
+        'id': msg_id, 'ts': int(now),
+        'name': sub_name or form_title, 'email': sub_email,
+        'text': summary, 'form': form_title, 'fields': entries,
+    })
+    save_messages(msgs)
+
+    if form.get('notify', True):
+        def _notify():
+            send_telegram(f"📋 MyPage — {form_title}:\n\n{summary[:800]}")
+            esc = html_mod.escape
+            lines = [f'<b>{esc(e["label"])}:</b> {esc(e["value"]).replace(chr(10), "<br>")}' for e in entries]
+            send_email(f'MyPage — {form_title}', _email_html(f'📋 {esc(form_title)}', lines))
+            notify_ha(f'📋 MyPage: {form_title}', summary[:400],
+                      notification_id=f'mypage_form_{msg_id}')
+        threading.Thread(target=_notify, daemon=True).start()
+    log.info("Formular-Einsendung '%s' gespeichert", form_title)
+    return redirect('/formular/' + slug + '?ok=1')
 
 
 def _legal_page(kind: str):
@@ -5073,6 +6674,34 @@ def impressum():
 @public_app.route('/datenschutz')
 def datenschutz():
     return _legal_page('privacy')
+
+
+@public_app.route('/seite/<slug>')
+def custom_page(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    page = _find_page(site, slug)
+    if page is None or not page.get('visible'):
+        abort(404)
+    count_visit(request)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    title = loc(page, 'title') or t.get('page_untitled', '')
+    full_html = render_md(loc(page, 'body'))
+    locked = bool(page.get('members_only')) and not is_member(request)
+    body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    font_family, font_faces = font_css(site['design'])
+    return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
+                           title=title, body_html=body_html, nav_items=nav_items,
+                           page_slug=slug, locked=locked,
+                           members_only=bool(page.get('members_only')),
+                           font_family=font_family, font_faces=font_faces,
+                           meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html)
+                                      or _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
