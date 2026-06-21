@@ -5168,7 +5168,7 @@ _schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
 
 
 def _ng_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel') or not _UID_RE.match(uid or ''):
         return None
     return safe_under(GAMES_DIR, f'{game}_{uid}.json')
 
@@ -5199,7 +5199,7 @@ def _ng_save(game: str, uid: str, st: dict) -> None:
 
 
 def _ng_hist_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel') or not _UID_RE.match(uid or ''):
         return None
     return safe_under(GAMES_DIR, f'{game}hist_{uid}.json')
 
@@ -5432,6 +5432,21 @@ def api_20ab_session():
     member = _require_member()
     data = request.get_json(silent=True) or {}
     return _sess_dispatch('20ab', member['id'], data)
+
+
+# ── Kniffel (Würfelspiel, Mitglieder) ───────────────────────────────────────────
+# Spielfeld-Seite. API/Engine folgen in der nächsten Etappe.
+
+@public_app.route('/bereich/kniffel')
+def gamekniffel_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_kniffel.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
 
 
 # ── Schwimmen ──────────────────────────────────────────────────────────────────
