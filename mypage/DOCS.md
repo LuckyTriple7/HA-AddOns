@@ -270,7 +270,14 @@ Der **direkte Login** (Port 17761) lässt sich optional mit einem zeitbasierten 
 - **Backup-Codes:** Beim Aktivieren werden **10 einmalige Backup-Codes** angezeigt (nur dieses eine Mal). Damit kommst du auch ohne die App rein. Jeder Code funktioniert genau einmal; sie lassen sich jederzeit neu erzeugen.
 - **Über Home Assistant (Ingress) ist 2FA nicht erforderlich** und wird dort nicht abgefragt — HA authentifiziert dich bereits. Die 2FA greift ausschließlich beim direkten Zugriff auf Port 17761.
 - **Technik:** TOTP nach RFC 6238 (30 s, 6 Stellen, ±1 Fenster Toleranz), umgesetzt mit der Python-Standardbibliothek. Das Geheimnis und die **gehashten** Backup-Codes liegen in `admin_2fa.json` (Dateirechte 600) und werden vom Backup mitgesichert.
-- **Verloren?** Wenn App **und** Backup-Codes weg sind: `admin_2fa.json` im Add-on-Konfigurationsordner löschen und das Add-on neu starten — der Login geht dann wieder nur mit Passwort.
+
+#### Zugang verloren? (Wiederherstellung)
+
+Du kannst dich praktisch nie wirklich aussperren — vom bequemsten zum letzten Weg:
+
+1. **Über Home Assistant (einfachster Weg).** Die 2FA gilt **nur** für den direkten Login auf Port 17761. Über die **MyPage-Seitenleiste in HA (Ingress) wird nie ein Code verlangt** — dort authentifiziert dich HA bereits. Du kommst also jederzeit über HA ins Admin-Panel und kannst 2FA dort deaktivieren oder neu einrichten. Das ist dein eingebauter Wiederherstellungs-Pfad.
+2. **Backup-Code verwenden.** Beim Login statt des App-Codes einen der 10 Backup-Codes eingeben (jeder genau einmal gültig). Neue Codes gibt es im Panel über „Backup-Codes neu erzeugen".
+3. **Notnagel: Datei löschen.** Sind App **und** Backup-Codes weg und es gibt keinen HA-Zugang: `admin_2fa.json` im Add-on-Konfigurationsordner (`\\<host>\addon_configs\XXX_mypage\admin_2fa.json`) löschen und das Add-on neu starten — der Login geht dann wieder nur mit Passwort.
 
 ## Veröffentlichen (Cloudflare Tunnel)
 
