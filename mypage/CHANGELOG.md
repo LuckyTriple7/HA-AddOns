@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.28
+
+- 📱 **Mobile Admin-Ansicht korrigiert** — Im **Benutzer-Tab** (und allen anderen Listen wie Projekte, Seiten, Formulare, Alben, Dateien) lagen auf schmalen Bildschirmen die vielen Aktions-Buttons über dem Namen und waren nicht bedienbar. Die Listenzeilen werden auf Handys jetzt **vertikal gestapelt**: Name/Info oben, die Aktions-Buttons darunter mit **Umbruch** — alles wieder antippbar. Zudem wird im **mobilen Admin-Header** der Schriftzug „MyPage" ausgeblendet (das Haus-Icon bleibt), damit mehr Platz für die Tab-Navigation bleibt.
+
 ## 0.7.27
 
 - 🔍 **Volltextsuche** — Eine neue, optionale Suche durchsucht **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Ist sie im Design-Tab aktiviert, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisseite (`/suche`) zeigt pro Treffer die Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. **Mitglieder-Inhalte** (gesperrte Beiträge/Seiten) erscheinen für Gäste nur als Titel mit 🔒, **ohne Inhalts-Vorschau** — Mitglieder sehen nach Anmeldung die volle Vorschau. Die Suchseite ist auf `noindex` gesetzt.

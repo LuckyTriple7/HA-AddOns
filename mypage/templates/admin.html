@@ -84,6 +84,12 @@
     .proj-name { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
     .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
+    @media (max-width: 640px) {
+      .logo-text { display: none; }
+      .proj-item { flex-direction: column; align-items: stretch; gap: 10px; }
+      .proj-actions { flex-wrap: wrap; flex-shrink: 1; }
+      .proj-meta { white-space: normal; }
+    }
     .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
     /* Live-Spielstatus: grün = spielt gerade, grau = inaktiv */
     .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
@@ -237,7 +243,7 @@
     <div class="wrap header-inner">
       <div class="logo">
         <svg viewBox="0 0 24 24"><path d="M12 2 2 9h2v11h6v-6h4v6h6V9h2L12 2zm0 2.5L18 9v9h-2v-6H8v6H6V9l6-4.5z"/></svg>
-        MyPage
+        <span class="logo-text">MyPage</span>
       </div>
       <div class="nav-wrap">
       <button type="button" class="nav-arrow nav-left" aria-label="◄" onclick="navScroll(-1)">‹</button>
