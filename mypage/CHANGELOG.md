@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.34
+
+- 🛠️ **Startfehler behoben** — Das Add-on startete in v0.7.33 nicht (`ModuleNotFoundError: game_kniffel`), weil die neuen Dateien `game_dice.py`, `game_kniffel.py` und die Kniffel-Regeln **nicht ins Docker-Image kopiert** wurden (das Dockerfile listet jedes Spielmodul einzeln auf). Die fehlenden `COPY`-Zeilen wurden ergänzt.
+
 ## 0.7.33
 
 - 🎲 **Neues Spiel: Kniffel** — Der Würfelklassiker gegen **1–2 KI-Gegner** (Schwierigkeit Leicht/Mittel/Schwer). Pro Zug bis zu **dreimal würfeln**, beliebige Würfel **halten** und in eines der **13 Felder** eintragen — mit **63er-Bonus** und **Kniffel-Bonus** (inkl. Joker). Server-autoritativ und seed-deterministisch (manipulationssicher, auf jedem Gerät fortsetzbar). Highlights:
