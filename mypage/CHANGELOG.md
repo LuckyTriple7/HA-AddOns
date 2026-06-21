@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.25
+
+- 📢 **Admin-Rundnachricht an alle Mitglieder** — Im Benutzer-Tab kannst du eine **Ankündigung** verfassen, die im **Postfach aller Mitglieder** landet (verschlüsselt wie normale Nachrichten). Sie erscheint als Unterhaltung mit deinem Seitentitel und 📢-Markierung; Mitglieder können sie lesen und für sich löschen, aber **nicht beantworten**. Setzt aktivierte Mitglieder-Nachrichten voraus.
+
 ## 0.7.24
 
 - 👥 **Mitglieder-Verzeichnis (opt-in)** — Mitglieder können sich freiwillig mit **Avatar** und **Kurzvorstellung** in einem internen Verzeichnis zeigen, damit man weiß, wem man schreibt. Sichtbarkeit steuert jedes Mitglied selbst im Profil (Standard: verborgen). Vom Verzeichnis führt ein **„Schreiben"-Knopf** direkt in die Nachrichten (sofern das Mitglied Nachrichten empfängt). Avatare werden quadratisch zugeschnitten, auf 256 px verkleinert und **ohne EXIF-Metadaten** als JPEG gespeichert. Global im Design-Tab ein-/ausschaltbar; das Verzeichnis ist nur für eingeloggte Mitglieder sichtbar.

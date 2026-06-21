@@ -93,8 +93,8 @@
       <p style="margin-bottom:10px"><a href="/bereich/nachrichten">&larr; {{ t.dm_back_inbox }}</a></p>
       <div class="thread-head">
         <div>
-          <h1>{{ partner.name }}</h1>
-          <p class="sub">{{ t.dm_with }} {{ partner.name }}</p>
+          <h1>{% if partner.admin %}📢 {% endif %}{{ partner.name }}</h1>
+          <p class="sub">{% if partner.admin %}{{ t.dm_broadcast_label }}{% else %}{{ t.dm_with }} {{ partner.name }}{% endif %}</p>
         </div>
         {% if thread %}
         <form method="post" action="/bereich/nachrichten/del" onsubmit="return confirm({{ t.dm_delete_convo_confirm|tojson }})">
@@ -122,7 +122,9 @@
       {% else %}
       <p class="empty">{{ t.dm_thread_empty }}</p>
       {% endif %}
-      {% if partner.gone %}
+      {% if partner.admin %}
+      <div class="msg" style="background:var(--surf2);border:1px solid var(--border)">📢 {{ t.dm_broadcast_note }}</div>
+      {% elif partner.gone %}
       <div class="msg err">{{ t.dm_partner_gone }}</div>
       {% elif can_reply %}
       <form method="post" action="/bereich/nachrichten/send">
@@ -167,7 +169,7 @@
         {% for c in conversations %}
         <a class="conv" href="/bereich/nachrichten/{{ c.partner }}">
           <div class="conv-top">
-            <span class="conv-name">{{ c.name }}</span>
+            <span class="conv-name">{% if c.admin %}📢 {% endif %}{{ c.name }}</span>
             {% if c.unread %}<span class="conv-badge">{{ c.unread }}</span>{% endif %}
             <span class="conv-time" data-ts="{{ c.last_ts }}"></span>
           </div>

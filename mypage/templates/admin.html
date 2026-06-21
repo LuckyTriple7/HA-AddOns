@@ -999,6 +999,12 @@
         <div><button class="btn" onclick="createUser()">{{ t.user_create }}</button></div>
         <p class="hint" id="u-storage"></p>
       </div>
+      <div class="panel" id="broadcast-panel">
+        <h3>📢 {{ t.broadcast_heading }}</h3>
+        <p class="hint">{{ t.broadcast_hint }}</p>
+        <textarea id="bc-text" rows="3" maxlength="4000" placeholder="{{ t.broadcast_ph }}"></textarea>
+        <div><button class="btn" onclick="sendBroadcast()">{{ t.broadcast_send }}</button></div>
+      </div>
       <div class="panel" id="storage-warn" style="display:none;border-color:var(--red)">
         <h3 style="color:var(--red)">⚠ {{ t.storage_down_admin_title }}</h3>
         <p class="hint">{{ t.storage_down_admin }}</p>
@@ -1634,6 +1640,18 @@
     function showBackupCodes(codes) {
       el('twofa-codes-list').textContent = (codes || []).join('\n');
       el('twofa-codes').style.display = '';
+    }
+
+    // ── Admin-Rundnachricht ──
+    async function sendBroadcast() {
+      const text = el('bc-text').value.trim();
+      if (!text) return;
+      if (!confirm(T.broadcast_confirm)) return;
+      const r = await apiJson('api/broadcast', 'POST', { text });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(d.error === 'dm disabled' ? T.broadcast_dm_off : T.error_save, true); return; }
+      el('bc-text').value = '';
+      toast(T.broadcast_sent.replace('{n}', d.count));
     }
     // Mini-Kachel größer anzeigen (Vorschau, nicht volle Auflösung)
     function openThumbPreview(src) {

@@ -667,6 +667,12 @@ except Exception:  # Bibliothek fehlt (z. B. Minimal-Standalone) → Funktion de
 _dm_fernet = None
 DM_MAX_PER_PAIR = 500  # max. gespeicherte Nachrichten je Unterhaltung
 DM_MAX_LEN = 4000      # max. Zeichen pro Nachricht
+ADMIN_DM_ID = '__admin__'  # Pseudo-Absender für Admin-Rundnachrichten (kein echtes Konto)
+
+
+def _admin_dm_name() -> str:
+    site = load_site()
+    return site['design'].get('site_title') or site['profile'].get('name') or 'Team'
 
 
 def _get_fernet():
@@ -794,9 +800,13 @@ def _dm_conversations(me_id: str) -> list:
             c['unread'] += 1
     out = []
     for pid, c in convo.items():
-        u = users.get(pid)
-        c['name'] = _member_display_name(u) if u else '—'
-        c['gone'] = u is None
+        if pid == ADMIN_DM_ID:
+            c['name'], c['gone'], c['admin'] = _admin_dm_name(), False, True
+        else:
+            u = users.get(pid)
+            c['name'] = _member_display_name(u) if u else '—'
+            c['gone'] = u is None
+            c['admin'] = False
         c['preview'] = _dm_decrypt(c.pop('_tok', ''))[:90]
         out.append(c)
     out.sort(key=lambda x: x['last_ts'], reverse=True)
@@ -876,6 +886,23 @@ def _dm_owner_notify(to_id: str) -> None:
     notify_ha_async('📨 MyPage: Neue Mitglieder-Nachricht',
                     f'{name} hat {n} ungelesene Nachricht(en) im Postfach.',
                     notification_id=f'mypage_dm_{to_id}')
+
+
+def _dm_broadcast(text: str) -> int:
+    """Admin-Rundnachricht (verschlüsselt) an alle Mitglieder. Liefert die Anzahl."""
+    text = (text or '').strip()[:DM_MAX_LEN]
+    if not text:
+        return 0
+    body = _dm_encrypt(text)          # ein Token für alle (gleicher Inhalt)
+    now = int(time.time())
+    msgs = load_dm()
+    n = 0
+    for u in load_users():
+        msgs.append({'id': uuid.uuid4().hex[:12], 'frm': ADMIN_DM_ID, 'to': u['id'],
+                     'ts': now, 'read': False, 'body': body})
+        n += 1
+    save_dm(msgs)
+    return n
 
 
 # ── DM-Erinnerung: ungelesen seit 3 h → E-Mail (ohne Inhalt, nur Link) ─────────
@@ -2877,6 +2904,22 @@ def api_2fa_backup():
     save_2fa(d)
     log_audit('admin_2fa_backup_regen')
     return jsonify({'ok': True, 'backup_codes': plain})
+
+
+@admin_app.route('/api/broadcast', methods=['POST'])
+def api_broadcast():
+    err = _api_auth()
+    if err:
+        return err
+    if not dm_feature_on():
+        return jsonify({'error': 'dm disabled'}), 400
+    text = _clean_str((request.get_json(silent=True) or {}).get('text'), DM_MAX_LEN).strip()
+    if not text:
+        return jsonify({'error': 'empty'}), 400
+    n = _dm_broadcast(text)
+    log_audit('dm_broadcast', f'{n} Empfänger')
+    log.info("Admin-Rundnachricht an %d Mitglieder verschickt", n)
+    return jsonify({'ok': True, 'count': n})
 
 
 @admin_app.route('/')
@@ -7082,18 +7125,20 @@ def dm_thread(uid: str):
     member = current_member(request)
     if member is None:
         abort(403)
-    if not dm_feature_on() or uid == member['id'] or not _UID_RE.match(uid):
+    is_admin = uid == ADMIN_DM_ID
+    if not dm_feature_on() or uid == member['id'] or (not is_admin and not _UID_RE.match(uid)):
         return redirect('/bereich/nachrichten')
-    partner = next((u for u in load_users() if u['id'] == uid), None)
+    partner = None if is_admin else next((u for u in load_users() if u['id'] == uid), None)
     thread = _dm_thread(member['id'], uid)
-    # Fremdes Mitglied nur öffnen, wenn anschreibbar ODER schon ein Verlauf existiert
-    if partner is None and not thread:
+    # Ohne Verlauf nur öffnen, wenn ein echtes (anschreibbares) Mitglied dahinter steht
+    if not thread and (is_admin or partner is None):
         return redirect('/bereich/nachrichten')
-    can_reply = partner is not None and _dm_can_receive(partner)
+    can_reply = (not is_admin) and partner is not None and _dm_can_receive(partner)
+    pname = _admin_dm_name() if is_admin else (_member_display_name(partner) if partner else '—')
     return _dm_render(member, 'thread',
-                      partner={'id': uid,
-                               'name': _member_display_name(partner) if partner else '—',
-                               'gone': partner is None},
+                      partner={'id': uid, 'name': pname,
+                               'gone': (not is_admin) and partner is None,
+                               'admin': is_admin},
                       thread=thread, can_reply=can_reply,
                       msg=request.args.get('msg', ''))
 
@@ -7135,7 +7180,7 @@ def dm_delete():
     me = member['id']
     mid = (request.form.get('mid') or '').strip()
     convo = (request.form.get('convo') or '').strip()
-    if not _UID_RE.match(convo):
+    if convo != ADMIN_DM_ID and not _UID_RE.match(convo):
         convo = ''
     if mid:
         _dm_delete_for(me, mid=mid[:32])

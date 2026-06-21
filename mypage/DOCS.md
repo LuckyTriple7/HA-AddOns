@@ -169,6 +169,7 @@ Eingeloggte Mitglieder können sich gegenseitig **private Nachrichten** schreibe
 - **Verschlüsselung**: Die **Nachrichtentexte** werden mit Fernet (AES-128 + HMAC) verschlüsselt in `dm.json` gespeichert; der Schlüssel liegt in `dm.key` (wird beim ersten Start automatisch erzeugt, Dateirechte 600). Metadaten wie Absender, Empfänger und Zeitstempel bleiben im Klartext, damit das Postfach ohne Entschlüsseln funktioniert.
 - **Backup**: `dm.json` **und** `dm.key` werden vom Add-on-Backup mitgesichert und beim Restore wiederhergestellt — verschlüsselte Nachrichten bleiben so lesbar. Achtung: Dadurch ist das Backup-Archiv so vertraulich wie der Klartext (es enthält ohnehin schon Passwort-Hashes) — entsprechend sicher aufbewahren.
 - **Limits**: max. 4000 Zeichen pro Nachricht, kurze Sende-Bremse gegen Spam, je Unterhaltung werden die letzten 500 Nachrichten behalten.
+- **Rundnachricht (Admin):** Im Tab **Benutzer** gibt es ein Feld **„Rundnachricht an alle Mitglieder"**. Damit landet eine **Ankündigung** im Postfach jedes Mitglieds — verschlüsselt wie normale Nachrichten, mit deinem Seitentitel und 📢-Markierung. Mitglieder können sie lesen und für sich löschen, aber nicht beantworten. (Bei aktiviertem 3h-Reminder erinnert die ungelesene Ankündigung wie jede andere Nachricht.)
 
 ### Mitglieder-Verzeichnis
 
