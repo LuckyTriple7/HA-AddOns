@@ -200,8 +200,12 @@
     .md-preview table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
     .md-preview th, .md-preview td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
     .md-preview .md-empty { color: var(--muted); font-style: italic; }
-    .preset-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
-    .preset-card { border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surf); padding: 0; text-align: left; font: inherit; color: var(--text); transition: border-color .15s, transform .1s; }
+    .preset-wrap { position: relative; }
+    .preset-gallery { display: flex; gap: 12px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px; }
+    .preset-gallery::-webkit-scrollbar { display: none; }
+    .preset-arrow.preset-left { left: 0; background: linear-gradient(to right, var(--surf) 62%, transparent); }
+    .preset-arrow.preset-right { right: 0; background: linear-gradient(to left, var(--surf) 62%, transparent); }
+    .preset-card { flex: 0 0 152px; border: 2px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surf); padding: 0; text-align: left; font: inherit; color: var(--text); transition: border-color .15s, transform .1s; }
     .preset-card:hover { transform: translateY(-2px); }
     .preset-card.active { border-color: var(--accent); }
     .preset-swatch { height: 58px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; gap: 5px; position: relative; }
@@ -582,7 +586,11 @@
       <div class="panel">
         <h3>{{ t.presets_heading }}</h3>
         <p class="hint">{{ t.presets_hint }}</p>
-        <div id="preset-gallery" class="preset-gallery"></div>
+        <div class="preset-wrap">
+          <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="presetScroll(-1)">‹</button>
+          <div id="preset-gallery" class="preset-gallery"></div>
+          <button type="button" class="nav-arrow preset-arrow preset-right" aria-label="►" onclick="presetScroll(1)">›</button>
+        </div>
       </div>
       <div class="panel">
         <h3>{{ t.banner_heading }}</h3>
@@ -1779,7 +1787,7 @@
         if (btn.dataset.tab === 'stats') loadStats();
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
-        if (btn.dataset.tab === 'design') initPreview();
+        if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') loadAudit();
         if (btn.dataset.tab === 'blog') loadSubscribers();
       });
@@ -3537,6 +3545,7 @@
         card.onclick = () => applyPreset(p);
         box.appendChild(card);
       });
+      if (typeof updatePresetArrows === 'function') updatePresetArrows();
     }
     function applyPreset(p) {
       el('d-mode').value = p.mode;
@@ -4044,6 +4053,19 @@
       wrap.querySelector('.nav-left').classList.toggle('show', nav.scrollLeft > 4);
       wrap.querySelector('.nav-right').classList.toggle('show', nav.scrollLeft < max - 4);
     }
+    // Design-Vorlagen: gleiche Scroll-Pfeile wie die Tableiste
+    function presetScroll(dir) {
+      const g = el('preset-gallery');
+      if (g) g.scrollBy({ left: dir * 200, behavior: 'smooth' });
+    }
+    function updatePresetArrows() {
+      const g = el('preset-gallery');
+      if (!g) return;
+      const wrap = g.parentNode, max = g.scrollWidth - g.clientWidth;
+      const l = wrap.querySelector('.preset-left'), r = wrap.querySelector('.preset-right');
+      if (l) l.classList.toggle('show', g.scrollLeft > 4);
+      if (r) r.classList.toggle('show', g.scrollLeft < max - 4);
+    }
     (function () {
       const nav = document.querySelector('header nav');
       if (nav) {
@@ -4055,6 +4077,11 @@
           setTimeout(updateNavArrows, 250);
         }));
         updateNavArrows();
+      }
+      const pg = el('preset-gallery');
+      if (pg) {
+        pg.addEventListener('scroll', updatePresetArrows, { passive: true });
+        window.addEventListener('resize', updatePresetArrows);
       }
     })();
 

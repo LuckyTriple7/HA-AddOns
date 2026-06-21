@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.16
+
+- 💅 **Design-Vorlagen einzeilig & scrollbar** — Die Vorlagen-Galerie im Design-Tab bricht nicht mehr auf mehrere Zeilen um, sondern bleibt eine Zeile mit horizontalem Scrollen und denselben Rand-Pfeilen wie die Admin-Tableiste (zeigen an, dass links/rechts weitere Vorlagen sind).
+
 ## 0.7.15
 
 - ⏳ **Countdown auch im Wartungsmodus** — Ist ein Countdown eingerichtet, erscheint er jetzt zusätzlich auf der „Seite im Aufbau"-Vollbildseite (Wartungsmodus) — fertige Coming-Soon-Seite inkl. „Benachrichtige mich"-Newsletter-Button, der dort auch während des Wartungsmodus funktioniert. (Countdown-Markup intern in ein wiederverwendbares Partial ausgelagert.)
