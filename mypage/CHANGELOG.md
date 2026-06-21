@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.36
+
+- 🔧 **Kniffel & Chicago vollständig integriert** — Beide Würfelspiele waren in zentralen Registern noch nicht eingetragen. Jetzt nachgezogen: **Admin-Anzeige „wer spielt gerade"** (Benutzerliste), **Home-Assistant-Sensoren** (`sensor.mypage_aktiv_kniffel` / `…_chicago` + Gesamtübersicht) und — am wichtigsten — die **Backup-Aufnahme**: Spielstände/Verläufe von Kniffel und Chicago werden nun in Sicherungen ein- und zurückgespielt (vorher fehlten sie im Backup-Filter). Die Spielregeln (📖) waren bereits angebunden.
+
 ## 0.7.35
 
 - 🎲 **Neues Spiel: Chicago (Tschigg)** — Der Kneipen-Würfelklassiker gegen **2–3 KI** (Schwierigkeit wählbar). Mit **3 Würfeln** und bis zu 3 Würfen; **1 = 100, 6 = 60**. Der **Vorleger** bestimmt das **Wurf-Limit der Runde** und sagt **hoch/tief** sowie die Wertung (**gross/klein**) an. Mit **Becher-Tricks** (zwei 6er → eine 1; drei 6er → zwei 1er), **Chicago** (drei 1er = sofort gerettet) und **Fish**, Regel **„Mit ist Shit"**. **Bierfilz-Match (n+1)**: Phase 1 sammelt der Schlechteste, Phase 2 wirft der Beste ab — wer zuletzt Filze hat, verliert. Würfelbecher-Animation, Bierfilz-Anzeige, Ansage-UI, Spielende-Dialog, Statistik, Regeln DE/EN, Menü-Kachel, Tab-/Geräte-Schutz — alles server-autoritativ & fortsetzbar.

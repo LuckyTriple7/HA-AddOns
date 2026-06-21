@@ -109,7 +109,7 @@ DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
-    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
+    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad|kniffel|chicago)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -2331,13 +2331,13 @@ def _sensor_worker() -> None:
 # ── Spiel-Sensoren (Live: wer spielt gerade was) ──────────────────────────────
 _HA_GAME_LABELS = {'66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen',
                    'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy',
-                   'gluecksrad': 'Glücksrad'}
+                   'gluecksrad': 'Glücksrad', 'kniffel': 'Kniffel', 'chicago': 'Chicago'}
 
 
 def _playing_overview() -> tuple[list, dict]:
     """Liefert (spieler, pro_spiel): wer spielt gerade welches Spiel."""
     players: list = []
-    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': [], 'gluecksrad': []}
+    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': [], 'gluecksrad': [], 'kniffel': [], 'chicago': []}
     for u in load_users():
         p = _user_playing(u['id'])
         if not p:
@@ -2365,7 +2365,7 @@ def push_ha_games() -> None:
                                        'spieler': players,
                                        'pro_spiel': {_HA_GAME_LABELS[g]: len(v)
                                                      for g, v in per_game.items()}}})
-        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad'):
+        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago'):
             http.post(f'{base}/sensor.mypage_aktiv_{g}', headers=headers, timeout=10,
                       json={'state': len(per_game.get(g, [])),
                             'attributes': {'friendly_name': f'MyPage aktiv {_HA_GAME_LABELS[g]}',
@@ -4131,7 +4131,7 @@ def api_user_journal(uid: str):
     return jsonify({'journal': list(reversed(user.get('journal', [])))})
 
 
-_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad')
+_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago')
 
 
 def _user_playing(uid: str):
