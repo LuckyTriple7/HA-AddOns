@@ -5991,7 +5991,7 @@ def blog_comment(pid: str):
         abort(404)
     text = _clean_str(request.form.get('text'), 2000).strip()
     if not text:
-        return redirect(f'/blog/{pid}#comments')
+        return redirect(f"/blog/{post['id']}#comments")
     parent_id = _clean_str(request.form.get('parent'), 12)
     data = load_comments()
     thread = _post_thread(data, pid)
@@ -6021,7 +6021,7 @@ def blog_comment(pid: str):
                     f'{name} hat „{title}" kommentiert:\n\n{text[:300]}',
                     notification_id=f'mypage_comment_{pid}')
     log.info("Mitglied '%s' kommentierte Beitrag '%s'", member['email'], pid)
-    return redirect(f'/blog/{pid}#comments')
+    return redirect(f"/blog/{post['id']}#comments")
 
 
 @public_app.route('/blog/<pid>/react', methods=['POST'])

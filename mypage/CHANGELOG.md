@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.18
+
+- 🔒 **CodeQL: Open-Redirect-Warnungen behoben** — Beim Absenden eines Blog-Kommentars wird das Redirect-Ziel jetzt aus dem **validierten Beitrag** (`post['id']`) statt direkt aus dem URL-Parameter gebildet. Funktional identisch, aber ohne Taint-Fluss von der Anfrage in `redirect()` (2 MEDIUM-Findings).
+
 ## 0.7.17
 
 - ✏️ **Markdown-Editor an weiteren Feldern** — Der Editor-Button (Werkzeugleiste + Live-Vorschau) ist jetzt überall verfügbar, wo Text als Markdown gerendert wird: **Wartungsmodus-Text**, **Formular-Danke-Text**, **Login-Nachricht je Benutzer** und **Standort-Öffnungszeiten** (zusätzlich zu Blog, Seiten, Projekten, Bio, Newsletter, Formular-Einleitung, Tipps und FAQ-Antworten).
