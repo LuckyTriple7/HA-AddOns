@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.37
+
+- 🎲 **Chicago-Verbesserungen** — Würfel können **innerhalb eines Wurfs** an- und wieder **abgewählt** werden; **sobald erneut gewürfelt** wird, sind die gehaltenen Würfel fix (kein Zurück in den Becher). Beim **Stehenbleiben** wird die **tatsächliche Punktzahl** angezeigt (gross/klein direkt als Auswahl, z. B. „161" / „7"), zusätzlich live unter den Würfeln. **„Zu schlagen"** zeigt jetzt korrekt die **Ansage des Vorlegers, fix für die ganze Runde** (statt sich mit jedem KI-Wurf zu ändern). Die **restlichen Bierfilze** stehen im Phasen-Badge. Der Begriff „Fish" wurde entfernt — solche Würfe erscheinen einfach als Punktzahl.
+- 🃏 **Button-Darstellung korrigiert (Kniffel & Chicago)** — Die Buttons **„Schließen"** (Spielende) und **„Zurücksetzen"** (Einstellungen) erhielten die fehlende Basis-Stilklasse und werden nun korrekt dargestellt.
+
 ## 0.7.36
 
 - 🔧 **Kniffel & Chicago vollständig integriert** — Beide Würfelspiele waren in zentralen Registern noch nicht eingetragen. Jetzt nachgezogen: **Admin-Anzeige „wer spielt gerade"** (Benutzerliste), **Home-Assistant-Sensoren** (`sensor.mypage_aktiv_kniffel` / `…_chicago` + Gesamtübersicht) und — am wichtigsten — die **Backup-Aufnahme**: Spielstände/Verläufe von Kniffel und Chicago werden nun in Sicherungen ein- und zurückgespielt (vorher fehlten sie im Backup-Filter). Die Spielregeln (📖) waren bereits angebunden.

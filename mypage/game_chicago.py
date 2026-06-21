@@ -64,8 +64,6 @@ def is_fish(dice: list[int]) -> bool:
 def label(dice: list[int], valuation: str, rolls: int) -> str:
     if is_chicago(dice):
         return f'Chicago auf {rolls}'
-    if is_fish(dice):
-        return f'Fish auf {rolls}'
     total = sum(_die_value(d, valuation) for d in dice)
     return f'{total} auf {rolls}'
 
@@ -102,6 +100,7 @@ def new_game(level: str = 'medium', opponents: int = 2, seed: int | None = None)
         'roll_cap': 3,
         'dice': [0, 0, 0],
         'held': [False, False, False],
+        'locked': [False, False, False],   # über einen Wurf gehalten → fix
         'rolls_used': 0,
         'results': {},                # pid -> {key,label,chic,rolls}
         'tief': None,                 # aktuell „tief" (zu schlagen)
@@ -141,10 +140,11 @@ def _do_roll(state: dict, player: str, held=None) -> None:
         raise IllegalMove('not your roll')
     if state['rolls_used'] >= state['roll_cap']:
         raise IllegalMove('no rolls left')
-    # Halten ist kumulativ (Herausgelegtes darf nicht zurück)
+    # Halten frei wählbar, ABER bereits über einen Wurf gehaltene (locked) bleiben fix;
+    # zurückgelegte (0) Würfel werden immer neu geworfen
+    locked = state.get('locked', [False, False, False])
     if state['rolls_used'] > 0 and isinstance(held, list) and len(held) == 3:
-        cur = state['held']
-        state['held'] = [bool(cur[i]) or bool(held[i]) for i in range(3)]
+        state['held'] = [(locked[i] or bool(held[i])) and state['dice'][i] != 0 for i in range(3)]
     mask = state['held'] if state['rolls_used'] > 0 else [False, False, False]
     state['roll_step'] += 1
     fresh = game_dice.roll(3, state['seed'], state['roll_step'])
@@ -154,6 +154,8 @@ def _do_roll(state: dict, player: str, held=None) -> None:
             dice[i] = fresh[i]
     state['dice'] = dice
     state['rolls_used'] += 1
+    # Was bei diesem Wurf gehalten wurde, ist nun „gelegt" → nicht mehr abwählbar
+    state['locked'] = [locked[i] or mask[i] for i in range(3)]
     state['last'] = {'type': 'roll', 'who': player, 'dice': dice[:], 'held': mask[:],
                      'rolls_used': state['rolls_used']}
     # Drei Sechser → automatisch zwei (gehaltene) Einser, dritter zurück in den Becher
@@ -226,6 +228,7 @@ def _begin_turn(state: dict, who: str, opener: bool) -> None:
     state['status'] = 'opener_roll' if opener else 'follower_roll'
     state['dice'] = [0, 0, 0]
     state['held'] = [False, False, False]
+    state['locked'] = [False, False, False]
     state['rolls_used'] = 0
 
 
@@ -404,6 +407,7 @@ def public_view(state: dict) -> dict:
         'roll_cap': state['roll_cap'],
         'dice': state['dice'],
         'held': state['held'],
+        'locked': state.get('locked', [False, False, False]),
         'rolls_used': state['rolls_used'],
         'can_convert6': (state['status'] in ('opener_roll', 'follower_roll')
                          and 1 <= state['rolls_used'] < state['roll_cap']
