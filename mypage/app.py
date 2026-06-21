@@ -34,6 +34,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import markdown as md_lib
+from markupsafe import Markup, escape
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps
     _HAS_PIL = True
@@ -265,6 +266,7 @@ DEFAULT_SITE = {
         'dm_enabled': False,
         'dm_ha_notify': False,
         'directory_enabled': False,
+        'search_enabled': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -2431,6 +2433,91 @@ def filter_posts(posts: list, query: str = '', tag: str = '') -> list:
     return posts
 
 
+SEARCH_SNIPPET_LEN = 170
+SEARCH_MAX_RESULTS = 80
+SEARCH_MAX_WORDS = 8
+
+
+def _search_words(query: str) -> list:
+    """Suchanfrage → Liste klein geschriebener Suchwörter (begrenzt)."""
+    return [w for w in (query or '').strip().lower().split() if w][:SEARCH_MAX_WORDS]
+
+
+def _search_snippet(text: str, words: list) -> str:
+    """Klartext-Auszug rund um den ersten Treffer."""
+    plain = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', text or '')).strip()
+    if not plain:
+        return ''
+    low = plain.lower()
+    pos = -1
+    for w in words:
+        i = low.find(w)
+        if i != -1 and (pos == -1 or i < pos):
+            pos = i
+    if pos <= 0:
+        snippet = plain[:SEARCH_SNIPPET_LEN]
+        prefix = ''
+    else:
+        start = max(0, pos - SEARCH_SNIPPET_LEN // 3)
+        snippet = plain[start:start + SEARCH_SNIPPET_LEN]
+        prefix = '… ' if start > 0 else ''
+    if len(prefix) + len(snippet) < len(prefix) + len(plain[(pos if pos > 0 else 0):]):
+        snippet = snippet.rstrip() + ' …'
+    return prefix + snippet
+
+
+def _search_highlight(text: str, words: list) -> Markup:
+    """Text escapen und Suchwörter mit <mark> hervorheben (XSS-sicher)."""
+    out = str(escape(text or ''))
+    for w in sorted({w for w in words if w}, key=len, reverse=True):
+        wesc = re.escape(str(escape(w)))
+        out = re.sub(f'({wesc})', r'<mark>\1</mark>', out, flags=re.IGNORECASE)
+    return Markup(out)
+
+
+def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
+    """Seitenweite Volltextsuche über Beiträge, Projekte und Seiten.
+    Liefert eine Liste {kind, title, title_html, url, snippet, locked}."""
+    words = _search_words(query)
+    if not words:
+        return []
+    results: list = []
+
+    def consider(kind, title, url, body, members_only):
+        hay = (str(title) + ' ' + str(body)).lower()
+        if not all(w in hay for w in words):
+            return
+        locked = bool(members_only) and not viewer_is_member
+        snippet = '' if locked else _search_snippet(body, words)
+        results.append({
+            'kind': kind,
+            'title': title or '…',
+            'title_html': _search_highlight(title or '…', words),
+            'url': url,
+            'snippet': _search_highlight(snippet, words) if snippet else '',
+            'locked': locked,
+        })
+
+    for p in sorted_posts(site, public_only=True):
+        body = ' '.join([loc(p, 'text'), ' '.join(p.get('tags', []))])
+        consider('blog', loc(p, 'title'), '/blog/' + p['id'], body, p.get('members_only'))
+
+    for p in site.get('projects', []):
+        if not project_visible(p):
+            continue
+        body = ' '.join([loc(p, 'desc'), loc(p, 'long'), ' '.join(p.get('tags', []))])
+        url = '/p/' + p['id'] if _has_detail(p) else (p.get('url') or '/#projects')
+        consider('project', p.get('title', ''), url, body, False)
+
+    for p in site.get('pages', []):
+        if not p.get('visible'):
+            continue
+        consider('page', loc(p, 'title'), '/seite/' + p.get('slug', ''),
+                 loc(p, 'body'), p.get('members_only'))
+
+    return results[:SEARCH_MAX_RESULTS]
+
+
 def post_status(p: dict) -> str:
     """'draft' (Entwurf), 'scheduled' (Datum in Zukunft) oder 'published'."""
     if not p.get('published', True):
@@ -2614,6 +2701,7 @@ RESERVED_SLUGS = {
     'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
     'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
     'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
+    'suche', 'search',
 }
 
 
@@ -3151,7 +3239,7 @@ def api_design():
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
-                 'dm_ha_notify', 'directory_enabled'):
+                 'dm_ha_notify', 'directory_enabled', 'search_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -6558,6 +6646,7 @@ def public_index():
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),
                            has_members=bool(load_users()) and not static_export,
+                           search_on=bool(site['design'].get('search_enabled')) and not static_export,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -6581,6 +6670,33 @@ def blog_index():
                            query=query, active_tag=tag,
                            newsletter_open=newsletter_open(),
                            nl=_clean_str(request.args.get('nl'), 20),
+                           meta_desc=_site_meta(site, loc),
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/suche')
+def site_search_page():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    if not site['design'].get('search_enabled'):
+        abort(404)
+    query = _clean_str(request.args.get('q'), 80)
+    loc = _loc_factory(lang)
+    member = current_member(request)
+    results = site_search(site, query, loc, member is not None) if query else []
+    count_visit(request)
+    t = load_translations(lang)
+    kind_labels = {
+        'blog':    t.get('search_kind_blog', 'Blog'),
+        'project': t.get('search_kind_project', 'Projekt'),
+        'page':    t.get('search_kind_page', 'Seite'),
+    }
+    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    return render_template('search.html', t=t, lang=lang, site=site, loc=loc,
+                           query=query, results=results, kind_labels=kind_labels,
+                           nav_items=nav_items,
                            meta_desc=_site_meta(site, loc),
                            year=datetime.now(timezone.utc).year)
 

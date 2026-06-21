@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.27
+
+- 🔍 **Volltextsuche** — Eine neue, optionale Suche durchsucht **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Ist sie im Design-Tab aktiviert, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisseite (`/suche`) zeigt pro Treffer die Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. **Mitglieder-Inhalte** (gesperrte Beiträge/Seiten) erscheinen für Gäste nur als Titel mit 🔒, **ohne Inhalts-Vorschau** — Mitglieder sehen nach Anmeldung die volle Vorschau. Die Suchseite ist auf `noindex` gesetzt.
+
 ## 0.7.26
 
 - 📎 **Verschlüsselte Datei-Anhänge in Nachrichten** — Mitglieder können an eine Nachricht eine **Datei anhängen** (max. 25 MB; Bilder, PDF, Office-Dokumente, Archive, Audio/Video). Anhänge werden — wie der Nachrichtentext — **mit Fernet verschlüsselt** auf der Platte abgelegt (`dm_files/`) und nur für die Gesprächsteilnehmer beim Download wieder entschlüsselt; sie werden immer als Datei-Download ausgeliefert (nie inline ausgeführt). Eine Nachricht darf auch **nur aus einem Anhang** bestehen. Beim endgültigen Löschen einer Nachricht wird die Anhang-Datei mitentfernt; Backups sichern die verschlüsselten Anhänge mit.

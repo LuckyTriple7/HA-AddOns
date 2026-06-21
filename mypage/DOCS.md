@@ -96,6 +96,13 @@ Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**
 - **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
 - **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
 
+### Volltextsuche
+Eine seitenweite Suche über **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+
+- **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
+- **Mitglieder-Inhalte**: Gesperrte (Mitglieder-only) Beiträge und Seiten erscheinen für Gäste nur als **Titel mit 🔒, ohne Inhalts-Vorschau** — angemeldete Mitglieder sehen die volle Vorschau. So wird kein geschützter Text geleakt.
+- **Hinweis**: Die Suchseite ist auf `noindex` gesetzt (keine Indexierung durch Suchmaschinen). Sie nutzt ausschließlich vorhandene Inhalte aus `site.json` — kein zusätzlicher Speicher, kein externer Dienst.
+
 ### Formulare
 Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. **Veranstaltungs-Anmeldung, Umfrage oder Anfrage**. Jedes Formular ist unter `/formular/<slug>` erreichbar (optional als Navi-Eintrag).
 
