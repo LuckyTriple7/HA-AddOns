@@ -84,7 +84,47 @@ body{
   82%{transform:translateY(0) rotate(515deg) scale(1)}
   100%{transform:translateY(0) rotate(540deg) scale(1)}
 }
-@media(prefers-reduced-motion:reduce){.die.rolling{animation:none}.die-slot{transition:none}}
+@media(prefers-reduced-motion:reduce){.die.rolling{animation:none}.die-slot{transition:none}.die.dropping{animation:none}}
+
+/* ── Würfelbecher ─────────────────────────── */
+#tray-wrap{position:relative}
+#cup{
+  position:absolute;left:50%;top:50%;width:clamp(104px,13vw,150px);height:clamp(140px,24vh,196px);
+  transform:translate(-50%,-58%);transform-origin:50% 78%;
+  display:none;z-index:30;pointer-events:none;
+}
+#cup .cup-body{
+  position:absolute;inset:8px 0 0 0;
+  background:linear-gradient(100deg,#9a6630 0%,#6b3f1d 40%,#37200f 72%,#5a3318 100%);
+  clip-path:polygon(10% 0,90% 0,73% 100%,27% 100%);
+  box-shadow:0 12px 22px rgba(0,0,0,0.55);
+}
+#cup .cup-rim{
+  position:absolute;left:6%;right:6%;top:0;height:18px;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 40%,#241405 0%,#241405 45%,#7a4a23 100%);
+  box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);z-index:2;
+}
+#cup.show{display:block}
+#cup.shake{animation:cupShake .15s ease-in-out infinite alternate}
+@keyframes cupShake{
+  0%{transform:translate(-50%,-58%) rotate(-10deg)}
+  100%{transform:translate(-54%,-61%) rotate(10deg)}
+}
+#cup.flip{animation:cupFlip var(--flipdur,.26s) cubic-bezier(.5,.1,.4,1) forwards}
+@keyframes cupFlip{
+  0%{transform:translate(-50%,-58%) rotate(0deg)}
+  55%{transform:translate(-50%,-118%) rotate(20deg)}
+  100%{transform:translate(-46%,-128%) rotate(168deg)}
+}
+/* Würfel fallen aus dem (gekippten) Becher auf den Tisch */
+@keyframes diceDrop{
+  0%{transform:translateY(-104px) rotate(-120deg);opacity:0}
+  35%{opacity:1}
+  72%{transform:translateY(7px) rotate(10deg)}
+  88%{transform:translateY(-3px) rotate(-4deg)}
+  100%{transform:translateY(0) rotate(0)}
+}
+.die.dropping{animation:diceDrop var(--dropdur,.32s) cubic-bezier(.3,.85,.4,1)}
 
 #hold-hint{font-size:12px;opacity:0.55;min-height:16px;text-align:center}
 
@@ -232,7 +272,10 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
 <div id="game-area">
   <div id="play-col">
     <div id="turn-label"></div>
-    <div id="tray"></div>
+    <div id="tray-wrap">
+      <div id="tray"></div>
+      <div id="cup"><div class="cup-rim"></div><div class="cup-body"></div></div>
+    </div>
     <div id="hold-hint">{{ t.gk_hold_hint }}</div>
     <div id="roll-row">
       <button id="btn-roll" onclick="doRoll()">🎲 {{ t.gk_roll }}</button>
@@ -489,29 +532,54 @@ async function doRoll(){
   syncFromState(); updateRollUI(); renderSheet();
 }
 
-/* Würfel-Animation: nicht gehaltene Würfel flackern, settlen auf die Zielwerte */
+/* Würfel-Animation: Becher schütteln → umkippen → Würfel fallen auf den Tisch.
+   Gehaltene Würfel bleiben liegen; nur die übrigen kommen „aus dem Becher". */
 function animateRoll(target, mask){
   return new Promise(resolve=>{
-    SFX.roll();
     const slots=Array.from($('tray').children);
-    const flick=[];
-    slots.forEach((slot,i)=>{
-      const d=slot.firstChild;
-      if(mask[i]){ d.classList.add('held'); return; }
-      d.classList.add('rolling');
-      flick[i]=setInterval(()=>paintDie(d,1+Math.floor(Math.random()*6)),70);
-    });
+    slots.forEach((slot,i)=>{ if(mask[i]) slot.firstChild.classList.add('held'); });
+
+    if(reduceMotion){
+      slots.forEach((slot,i)=>{ if(!mask[i]){ const d=slot.firstChild;
+        d.classList.remove('held'); paintDie(d,target[i]); scatter(slot); } });
+      resolve(); return;
+    }
+
+    // Phasen aus der Würfeldauer ableiten
+    const shake = Math.max(220, Math.round(rollMs*0.55));
+    const flip  = Math.max(240, Math.round(rollMs*0.24));
+    const drop  = Math.max(220, Math.round(rollMs*0.30));
+    const cup=$('cup');
+    cup.style.setProperty('--flipdur', flip+'ms');
+
+    // nicht gehaltene Würfel „in den Becher" (verstecken)
+    slots.forEach((slot,i)=>{ if(!mask[i]) slot.firstChild.style.visibility='hidden'; });
+
+    // Phase 1: Becher zeigen + schütteln (mit Rattern)
+    cup.className='show shake';
+    SFX.roll();
+
+    // Phase 2: kippen
+    setTimeout(()=>{ cup.className='show flip'; }, shake);
+
+    // Phase 3: Würfel fallen lassen
     setTimeout(()=>{
+      cup.className='';   // verbirgt den Becher (Klasse statt Inline-Style!)
       slots.forEach((slot,i)=>{
-        const d=slot.firstChild;
         if(mask[i]) return;
-        if(flick[i]) clearInterval(flick[i]);
-        d.classList.remove('rolling'); d.classList.remove('held');
-        paintDie(d, target[i]); scatter(slot);
+        const d=slot.firstChild;
+        d.style.visibility=''; d.classList.remove('held');
+        d.style.setProperty('--dropdur', drop+'ms');
+        d.classList.add('dropping');
+        const fl=setInterval(()=>paintDie(d,1+Math.floor(Math.random()*6)),60);
+        setTimeout(()=>{
+          clearInterval(fl); d.classList.remove('dropping');
+          paintDie(d, target[i]); scatter(slot);
+        }, drop);
       });
       SFX.settle();
-      resolve();
-    }, reduceMotion?10:rollMs);
+      setTimeout(resolve, drop+40);
+    }, shake+flip);
   });
 }
 
