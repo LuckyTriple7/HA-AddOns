@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.21
+
+- 🔐 **Zwei-Faktor-Authentifizierung (2FA) für den Admin** — Der direkte Login (Port 17761) lässt sich optional mit einem zeitbasierten Einmalcode (TOTP, RFC 6238) absichern. Einrichtung im Tab **System → 2FA**: QR-Code scannen (Google Authenticator, Aegis, 1Password …) oder Geheimnis manuell eintragen, mit einem Code bestätigen — danach verlangt der Login nach Benutzername/Passwort zusätzlich den Code. Es gibt **10 einmalige Backup-Codes** (für den Fall eines verlorenen Geräts), neu erzeugbar. **Über Home Assistant (Ingress) ist 2FA bewusst nicht erforderlich**, da HA die Authentifizierung dort bereits übernimmt. Das TOTP-Verfahren ist mit der Standardbibliothek umgesetzt; Secret und (gehashte) Backup-Codes liegen in `admin_2fa.json` und werden vom Backup mitgesichert.
+
 ## 0.7.20
 
 - 🗑 **Nachrichten löschen** — Mitglieder können einzelne Nachrichten (✕ an der Sprechblase) oder eine ganze Unterhaltung (🗑 in der Kopfzeile) löschen. Das Löschen wirkt **nur für einen selbst** — die Gegenseite behält ihre Sicht; erst wenn beide gelöscht haben (oder ein Konto entfernt wurde), wird der Eintrag endgültig aus `dm.json` entfernt.

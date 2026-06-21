@@ -262,6 +262,16 @@ Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, I
 - Session-Cookies sind `HttpOnly` + `SameSite=Lax`
 - Uploads: nur PNG/JPG/GIF/WebP, max. 8 MB, zufällige Dateinamen
 
+### Zwei-Faktor-Authentifizierung (2FA)
+
+Der **direkte Login** (Port 17761) lässt sich optional mit einem zeitbasierten Einmalcode (TOTP) absichern — zusätzlich zu Benutzername und Passwort.
+
+- **Einrichten:** Tab **System → Zwei-Faktor-Authentifizierung → „2FA aktivieren"**. Den angezeigten **QR-Code** mit einer Authenticator-App scannen (z. B. Google Authenticator, Aegis, 1Password) oder das **Geheimnis** manuell eintragen, dann mit einem aktuellen Code bestätigen.
+- **Backup-Codes:** Beim Aktivieren werden **10 einmalige Backup-Codes** angezeigt (nur dieses eine Mal). Damit kommst du auch ohne die App rein. Jeder Code funktioniert genau einmal; sie lassen sich jederzeit neu erzeugen.
+- **Über Home Assistant (Ingress) ist 2FA nicht erforderlich** und wird dort nicht abgefragt — HA authentifiziert dich bereits. Die 2FA greift ausschließlich beim direkten Zugriff auf Port 17761.
+- **Technik:** TOTP nach RFC 6238 (30 s, 6 Stellen, ±1 Fenster Toleranz), umgesetzt mit der Python-Standardbibliothek. Das Geheimnis und die **gehashten** Backup-Codes liegen in `admin_2fa.json` (Dateirechte 600) und werden vom Backup mitgesichert.
+- **Verloren?** Wenn App **und** Backup-Codes weg sind: `admin_2fa.json` im Add-on-Konfigurationsordner löschen und das Add-on neu starten — der Login geht dann wieder nur mit Passwort.
+
 ## Veröffentlichen (Cloudflare Tunnel)
 
 Im Tunnel nur `http://<host>:17760` als Ziel eintragen. Das Admin-Panel auf 17761 sollte nicht öffentlich erreichbar sein — falls doch nötig, schützt der Login mit Rate-Limit.

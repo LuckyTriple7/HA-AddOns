@@ -5,6 +5,7 @@ Zwei Server in einem Prozess:
   - Port 17760: öffentliche Homepage (kein Login, Besucherzähler)
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
+import base64
 import copy
 import errno
 import hashlib
@@ -77,6 +78,7 @@ USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
+TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
 USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
@@ -145,6 +147,7 @@ _users_lock = threading.Lock()
 _comments_lock = threading.Lock()
 _audit_lock = threading.Lock()
 _dm_lock    = threading.Lock()
+_2fa_lock   = threading.Lock()
 _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
@@ -1143,6 +1146,137 @@ def record_failed_attempt(ip: str) -> None:
 def clear_failed_attempts(ip: str) -> None:
     _failed_attempts.pop(ip, None)
     _blocked_ips.pop(ip, None)
+
+
+# ── Zwei-Faktor-Authentifizierung (Admin, nur Direkt-Login) ───────────────────
+# TOTP nach RFC 6238 mit der Standardbibliothek — keine externe Krypto-Lib nötig.
+# Greift NUR beim Login über Port 17761; über HA-Ingress übernimmt HA die Auth.
+TOTP_STEP = 30          # Sekunden pro Code
+TOTP_DIGITS = 6
+TOTP_WINDOW = 1         # ±1 Zeitfenster Toleranz (Uhren-Drift)
+BACKUP_CODE_COUNT = 10
+# Kurzlebige Merker zwischen Schritt 1 (Passwort) und Schritt 2 (Code)
+_pending_2fa: dict[str, float] = {}   # token → Ablaufzeit
+PENDING_2FA_TTL = 300
+
+
+def load_2fa() -> dict:
+    with _2fa_lock:
+        try:
+            with open(TWOFA_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning("admin_2fa.json konnte nicht geladen werden: %s", e)
+            return {}
+
+
+def save_2fa(data: dict) -> None:
+    with _2fa_lock:
+        try:
+            with open(TWOFA_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+            try:
+                os.chmod(TWOFA_PATH, 0o600)
+            except OSError:
+                pass
+        except Exception as e:
+            log.warning("admin_2fa.json konnte nicht gespeichert werden: %s", e)
+
+
+def twofa_enabled() -> bool:
+    d = load_2fa()
+    return bool(d.get('enabled') and d.get('secret'))
+
+
+def _new_totp_secret() -> str:
+    """Zufälliges Base32-Secret (160 Bit) ohne Padding."""
+    return base64.b32encode(secrets.token_bytes(20)).decode('ascii').rstrip('=')
+
+
+def _totp_at(secret_b32: str, t: float) -> str:
+    key = base64.b32decode(secret_b32 + '=' * (-len(secret_b32) % 8), casefold=True)
+    counter = int(t // TOTP_STEP).to_bytes(8, 'big')
+    h = hmac.new(key, counter, hashlib.sha1).digest()
+    o = h[-1] & 0x0F
+    num = int.from_bytes(h[o:o + 4], 'big') & 0x7FFFFFFF
+    return str(num % (10 ** TOTP_DIGITS)).zfill(TOTP_DIGITS)
+
+
+def totp_verify(secret_b32: str, code: str) -> bool:
+    code = (code or '').strip().replace(' ', '')
+    if not (secret_b32 and code.isdigit() and len(code) == TOTP_DIGITS):
+        return False
+    now = time.time()
+    for w in range(-TOTP_WINDOW, TOTP_WINDOW + 1):
+        if secrets.compare_digest(_totp_at(secret_b32, now + w * TOTP_STEP), code):
+            return True
+    return False
+
+
+def _otpauth_uri(secret_b32: str, account: str) -> str:
+    site = load_site()
+    issuer = (site['design'].get('site_title') or site['profile'].get('name') or 'MyPage')[:40]
+    from urllib.parse import quote
+    label = quote(f'{issuer}:{account}')
+    return (f'otpauth://totp/{label}?secret={secret_b32}'
+            f'&issuer={quote(issuer)}&digits={TOTP_DIGITS}&period={TOTP_STEP}')
+
+
+def _qr_svg(data: str) -> str:
+    """QR-Code als Inline-SVG (lokal erzeugt — Secret verlässt den Server nie)."""
+    try:
+        import qrcode
+        import qrcode.image.svg as qrsvg
+        img = qrcode.make(data, image_factory=qrsvg.SvgPathImage, box_size=9, border=2)
+        buf = io.BytesIO()
+        img.save(buf)
+        return buf.getvalue().decode('utf-8')
+    except Exception as e:
+        log.warning("QR-Code konnte nicht erzeugt werden: %s", e)
+        return ''
+
+
+def _gen_backup_codes() -> tuple[list, list]:
+    """Liefert (Klartext-Codes für die einmalige Anzeige, Hashes für die Platte)."""
+    plain = ['-'.join(secrets.token_hex(2) for _ in range(2)) for _ in range(BACKUP_CODE_COUNT)]
+    return plain, [generate_password_hash(c) for c in plain]
+
+
+def backup_code_consume(code: str) -> bool:
+    """Prüft einen Backup-Code und verbraucht ihn (Einmal-Nutzung)."""
+    code = (code or '').strip().lower()
+    if not code:
+        return False
+    d = load_2fa()
+    hashes = d.get('backup') or []
+    for i, h in enumerate(hashes):
+        if check_password_hash(h, code):
+            hashes.pop(i)
+            d['backup'] = hashes
+            save_2fa(d)
+            return True
+    return False
+
+
+def _pending_2fa_new() -> str:
+    now = time.time()
+    for k in [k for k, exp in _pending_2fa.items() if exp < now]:
+        _pending_2fa.pop(k, None)
+    token = secrets.token_hex(32)
+    _pending_2fa[token] = now + PENDING_2FA_TTL
+    return token
+
+
+def _pending_2fa_valid(token: str | None) -> bool:
+    if not token or token not in _pending_2fa:
+        return False
+    if time.time() > _pending_2fa[token]:
+        _pending_2fa.pop(token, None)
+        return False
+    return True
 
 
 # ── i18n ──────────────────────────────────────────────────────────────────────
@@ -2538,28 +2672,54 @@ def login():
         return redirect(url_for('admin_index'))
 
     error = None
+    step = 'password'
+
+    def _grant_session(ip):
+        clear_failed_attempts(ip)
+        hours = int(cfg.get('session_hours', 24))
+        token = create_session(hours)
+        log_audit('admin_login')
+        resp = make_response(redirect(url_for('admin_index')))
+        resp.set_cookie('session', token, httponly=True, samesite='Lax', max_age=hours * 3600)
+        resp.delete_cookie('pre2fa')
+        return resp
+
     if request.method == 'POST':
         ip = get_client_ip(request)
         if is_rate_limited(ip):
             error = t.get('error_locked', 'Zu viele Fehlversuche. Bitte 15 Minuten warten.')
+        elif request.form.get('step') == 'code':
+            # Schritt 2: TOTP- oder Backup-Code (nur nach erfolgreichem Passwort)
+            if not _pending_2fa_valid(request.cookies.get('pre2fa')):
+                return redirect(url_for('login'))   # Vormerkung abgelaufen → neu starten
+            code = request.form.get('code', '')
+            secret = load_2fa().get('secret', '')
+            if totp_verify(secret, code) or backup_code_consume(code):
+                _pending_2fa.pop(request.cookies.get('pre2fa'), None)
+                return _grant_session(ip)
+            record_failed_attempt(ip)
+            log_audit('admin_login_2fa_failed')
+            error = t.get('error_2fa_code', 'Ungültiger Code.')
+            step = 'code'
         else:
+            # Schritt 1: Benutzername + Passwort
             uname = request.form.get('username', '')
             pwd   = request.form.get('password', '')
             if (secrets.compare_digest(uname, str(cfg.get('username', 'admin'))) and
                     secrets.compare_digest(pwd, str(cfg.get('password', '')))):
-                clear_failed_attempts(ip)
-                hours = int(cfg.get('session_hours', 24))
-                token = create_session(hours)
-                log_audit('admin_login')
-                resp = make_response(redirect(url_for('admin_index')))
-                resp.set_cookie('session', token, httponly=True,
-                                samesite='Lax', max_age=hours * 3600)
-                return resp
+                if twofa_enabled():
+                    pre = _pending_2fa_new()
+                    resp = make_response(render_template('login.html', t=t, lang=lang,
+                                                         error=None, step='code'))
+                    resp.set_cookie('pre2fa', pre, httponly=True, samesite='Lax',
+                                    max_age=PENDING_2FA_TTL)
+                    return resp
+                return _grant_session(ip)
             record_failed_attempt(ip)
             log_audit('admin_login_failed', uname)
             error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
-    return make_response(render_template('login.html', t=t, lang=lang, error=error))
+    return make_response(render_template('login.html', t=t, lang=lang, error=error, step=step))
 
 
 @admin_app.route('/logout')
@@ -2571,6 +2731,84 @@ def logout():
     resp = make_response(redirect(url_for('login')))
     resp.delete_cookie('session')
     return resp
+
+
+@admin_app.route('/api/2fa')
+def api_2fa_status():
+    err = _api_auth()
+    if err:
+        return err
+    d = load_2fa()
+    return jsonify({'enabled': twofa_enabled(), 'ingress': _is_ingress(),
+                    'backup_remaining': len(d.get('backup') or [])})
+
+
+@admin_app.route('/api/2fa/setup', methods=['POST'])
+def api_2fa_setup():
+    err = _api_auth()
+    if err:
+        return err
+    secret = _new_totp_secret()
+    d = load_2fa()
+    d['pending'] = secret           # erst nach Code-Bestätigung aktiv
+    save_2fa(d)
+    account = str(load_config().get('username', 'admin'))
+    uri = _otpauth_uri(secret, account)
+    return jsonify({'secret': secret, 'uri': uri, 'qr': _qr_svg(uri), 'account': account})
+
+
+@admin_app.route('/api/2fa/enable', methods=['POST'])
+def api_2fa_enable():
+    err = _api_auth()
+    if err:
+        return err
+    code = (request.get_json(silent=True) or {}).get('code', '')
+    d = load_2fa()
+    pending = d.get('pending', '')
+    if not pending:
+        return jsonify({'error': 'no setup'}), 400
+    if not totp_verify(pending, code):
+        return jsonify({'error': 'bad code'}), 400
+    plain, hashes = _gen_backup_codes()
+    save_2fa({'enabled': True, 'secret': pending, 'backup': hashes})
+    log_audit('admin_2fa_enabled')
+    log.info("Admin-2FA aktiviert")
+    return jsonify({'ok': True, 'backup_codes': plain})
+
+
+@admin_app.route('/api/2fa/disable', methods=['POST'])
+def api_2fa_disable():
+    err = _api_auth()
+    if err:
+        return err
+    code = (request.get_json(silent=True) or {}).get('code', '')
+    d = load_2fa()
+    if not twofa_enabled():
+        return jsonify({'ok': True})
+    if not (totp_verify(d.get('secret', ''), code) or backup_code_consume(code)):
+        return jsonify({'error': 'bad code'}), 400
+    save_2fa({'enabled': False, 'secret': '', 'backup': []})
+    log_audit('admin_2fa_disabled')
+    log.info("Admin-2FA deaktiviert")
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/2fa/backup', methods=['POST'])
+def api_2fa_backup():
+    err = _api_auth()
+    if err:
+        return err
+    code = (request.get_json(silent=True) or {}).get('code', '')
+    d = load_2fa()
+    if not twofa_enabled():
+        return jsonify({'error': 'not enabled'}), 400
+    if not totp_verify(d.get('secret', ''), code):
+        return jsonify({'error': 'bad code'}), 400
+    plain, hashes = _gen_backup_codes()
+    d['backup'] = hashes
+    save_2fa(d)
+    log_audit('admin_2fa_backup_regen')
+    return jsonify({'ok': True, 'backup_codes': plain})
 
 
 @admin_app.route('/')
@@ -3100,7 +3338,7 @@ def api_backup():
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
-                     'dm.json', 'dm.key'):
+                     'dm.json', 'dm.key', 'admin_2fa.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -3135,7 +3373,8 @@ def api_restore():
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                              'comments.json', 'audit.json', 'subscribers.json', 'dm.json'):
+                              'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
+                              'admin_2fa.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member == 'dm.key':  # Binär-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
