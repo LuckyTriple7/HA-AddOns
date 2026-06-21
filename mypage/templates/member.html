@@ -257,6 +257,19 @@
         <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_name_hint }}</p>
         <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
       </form>
+      {% if member_mail %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile">
+        <input type="hidden" name="action" value="lang">
+        <label for="pf-lang">{{ t.member_profile_lang }}</label>
+        <select id="pf-lang" name="lang" onchange="this.form.submit()"
+                style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:0.9rem;font-family:inherit">
+          <option value="de" {% if member_lang == 'de' %}selected{% endif %}>Deutsch</option>
+          <option value="en" {% if member_lang == 'en' %}selected{% endif %}>English</option>
+        </select>
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_lang_hint }}</p>
+      </form>
+      {% endif %}
       {% if dm_feature %}
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
       <form method="post" action="/bereich/profile">

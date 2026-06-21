@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.30
+
+- 🌐 **Zweisprachige Mitglieder-Mails (DE/EN)** — Jedes Mitglied hat jetzt ein **Sprachfeld** (Deutsch/Englisch), das bestimmt, in welcher Sprache **alle automatischen E-Mails** ankommen: Zugangsdaten/Willkommen, neues Passwort, Passwort-Zurücksetzen, E-Mail-Bestätigung, „Konto besteht bereits", Konto-Freischaltung, Kommentar-Antworten und die Postfach-Erinnerung. Bei der **Selbst-Registrierung** wird die Sprache automatisch aus der gewählten Seitensprache übernommen; beim **Anlegen im Admin** ist sie wählbar und lässt sich jederzeit über den neuen **🌐-Knopf** in der Benutzerliste umschalten. Mitglieder können ihre Mail-Sprache zudem **selbst im Profil** einstellen. Sämtliche Mailtexte liegen nun lokalisiert in `de.json`/`en.json`.
+
 ## 0.7.29
 
 - 🃏 **Präsident: klarerer Spiel-Hinweis & hilfreichere Tipps** — Der verwirrende Platzhalter „Gleichen Rang wählen, dann Spielen drücken" wurde ersetzt durch **„Karte(n) antippen, dann ‚Spielen' – mehrere nur gleichen Werts"**. Die **💡 Tipp-Funktion** wurde von Grund auf überarbeitet: Statt überwiegend „Passen" zu empfehlen, folgt sie jetzt einer echten Strategie (kleine Karten zuerst loswerden, beim Ausspielen **Paare/Drillinge** legen um Gegner zum Passen zu zwingen, günstig überbieten statt zu passen, hohe Karten für die Endphase aufsparen, Gegner blockieren die kurz vorm Ausspielen stehen). Jeder Tipp zeigt zusätzlich eine **kurze Begründung** an (z. B. „— niedrige Karten zuerst loswerden", „— hohe Karten für später aufsparen").

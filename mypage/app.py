@@ -982,18 +982,19 @@ DM_REMINDER_AFTER = 3 * 3600   # erst nach 3 Stunden erinnern
 DM_REMINDER_EVERY = 900        # Prüf-Intervall (15 min)
 
 
-def send_dm_reminder(email: str, name: str, base: str) -> None:
+def send_dm_reminder(email: str, name: str, base: str, lang: str = 'de') -> None:
     """Neutrale Erinnerung – bewusst ohne Absender/Inhalt, nur Link zum Postfach."""
     site = load_site()
     title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
     esc = html_mod.escape
+    m = load_translations(lang if lang in ('de', 'en') else 'de')
     link = f"{base}/bereich/nachrichten"
-    lines = [f'Hallo {esc(name)},',
-             'du hast neue ungelesene Nachrichten in deinem Postfach.',
-             f'<a href="{esc(link)}">{esc(link)}</a>',
-             'Aus Datenschutzgründen steht hier kein Inhalt — bitte im Postfach nachsehen.']
-    send_email(f'Neue Nachrichten – {title}',
-               _email_html(f'✉️ Neue Nachrichten – {esc(title)}', lines),
+    lines = [m['mail_dm_hello'].format(name=esc(name)),
+             m['mail_dm_body'],
+             m['mail_link'].format(link=esc(link)),
+             m['mail_dm_privacy']]
+    send_email(m['mail_dm_subject'].format(title=title),
+               _email_html(m['mail_dm_heading'].format(title=esc(title)), lines),
                to=email,
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
@@ -1029,7 +1030,7 @@ def _dm_check_reminders() -> None:
         u = users.get(to_id)
         if u and u.get('email'):
             threading.Thread(target=send_dm_reminder,
-                             args=(u['email'], _member_display_name(u), base),
+                             args=(u['email'], _member_display_name(u), base, _member_lang(u)),
                              daemon=True).start()
             log.info("DM-Erinnerung an '%s' (%d ungelesen)", u['email'], len(items))
     if changed:
@@ -1977,19 +1978,26 @@ def generate_member_password() -> str:
     return ''.join(chars)
 
 
+def _member_lang(user: dict | None) -> str:
+    """Bevorzugte E-Mail-Sprache eines Mitglieds (de/en), Standard Deutsch."""
+    lang = (user or {}).get('lang')
+    return lang if lang in ('de', 'en') else 'de'
+
+
 def send_welcome_email(user: dict, password: str, subject: str | None = None) -> None:
     site = load_site()
     base = (site['design'].get('public_url') or '').rstrip('/')
     url = (base + '/bereich') if base else ''
     title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
     esc = html_mod.escape
-    lines = [f'Hallo, für dich wurde ein persönlicher Dateibereich auf <b>{esc(title)}</b> eingerichtet.',
-             f'<b>Login:</b> <a href="{esc(url)}">{esc(url)}</a>' if url else '',
-             f'<b>Benutzername:</b> {esc(user["email"])}',
-             f'<b>Passwort:</b> {esc(password)}',
-             'Wenn du dieses Konto nicht erwartet hast, kannst du diese E-Mail ignorieren.']
-    send_email(subject or f'Dein Zugang zu {title}',
-               _email_html(f'🔑 Dein Zugang zu {esc(title)}', [l for l in lines if l]),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_welcome_intro'].format(title=esc(title)),
+             m['mail_welcome_login'].format(url=esc(url)) if url else '',
+             m['mail_username_label'].format(email=esc(user['email'])),
+             m['mail_password_label'].format(password=esc(password)),
+             m['mail_welcome_ignore']]
+    send_email(subject or m['mail_welcome_subject'].format(title=title),
+               _email_html(m['mail_welcome_heading'].format(title=esc(title)), [l for l in lines if l]),
                to=user['email'],
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
@@ -2023,12 +2031,13 @@ def send_reset_email(user: dict, token: str) -> None:
     link = f"{base}/bereich/reset/{user['id']}/{token}"
     title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
     esc = html_mod.escape
-    lines = [f'Für dein Konto bei <b>{esc(title)}</b> wurde ein Zurücksetzen des Passworts angefordert.',
-             'Klicke auf den folgenden Link, um ein neues Passwort zu setzen (1 Stunde gültig):',
-             f'<a href="{esc(link)}">{esc(link)}</a>',
-             'Wenn du das nicht warst, ignoriere diese E-Mail einfach — dein Passwort bleibt unverändert.']
-    send_email(f'Passwort zurücksetzen – {title}',
-               _email_html(f'🔑 Passwort zurücksetzen – {esc(title)}', lines),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_reset_intro'].format(title=esc(title)),
+             m['mail_reset_cta'],
+             m['mail_link'].format(link=esc(link)),
+             m['mail_reset_ignore']]
+    send_email(m['mail_reset_subject'].format(title=title),
+               _email_html(m['mail_reset_heading'].format(title=esc(title)), lines),
                to=user['email'],
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
@@ -2116,12 +2125,13 @@ def send_verify_email(user: dict, token: str) -> None:
         return
     link = f"{base}/bereich/verify/{user['id']}/{token}"
     title, esc = _site_title(), html_mod.escape
-    lines = [f'Willkommen bei <b>{esc(title)}</b>! Bitte bestätige deine E-Mail-Adresse, um die Registrierung abzuschließen (Link 24 Stunden gültig):',
-             f'<a href="{esc(link)}">{esc(link)}</a>',
-             'Danach schaltet der Betreiber dein Konto frei — du bekommst dann eine weitere E-Mail.',
-             'Wenn du dich nicht registriert hast, ignoriere diese E-Mail einfach.']
-    send_email(f'E-Mail bestätigen – {title}',
-               _email_html(f'✅ E-Mail bestätigen – {esc(title)}', lines),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_verify_intro'].format(title=esc(title)),
+             m['mail_link'].format(link=esc(link)),
+             m['mail_verify_after'],
+             m['mail_verify_ignore']]
+    send_email(m['mail_verify_subject'].format(title=title),
+               _email_html(m['mail_verify_heading'].format(title=esc(title)), lines),
                to=user['email'], from_addr=_reg_from())
 
 
@@ -2129,13 +2139,13 @@ def send_already_registered_email(user: dict) -> None:
     site = load_site()
     base = (site['design'].get('public_url') or '').rstrip('/')
     title, esc = _site_title(), html_mod.escape
-    lines = [f'Für diese E-Mail-Adresse besteht bei <b>{esc(title)}</b> bereits ein Konto.',
-             (f'Du kannst dich hier anmelden: <a href="{esc(base)}/bereich">{esc(base)}/bereich</a>'
-              if base else 'Du kannst dich im Mitgliederbereich anmelden.'),
-             'Passwort vergessen? Nutze den „Passwort vergessen?"-Link auf der Login-Seite.',
-             'Wenn du das nicht warst, kannst du diese E-Mail ignorieren.']
-    send_email(f'Konto besteht bereits – {title}',
-               _email_html(f'ℹ️ Konto besteht bereits – {esc(title)}', lines),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_exists_intro'].format(title=esc(title)),
+             (m['mail_exists_login'].format(base=esc(base)) if base else m['mail_exists_login_nourl']),
+             m['mail_exists_forgot'],
+             m['mail_exists_ignore']]
+    send_email(m['mail_exists_subject'].format(title=title),
+               _email_html(m['mail_exists_heading'].format(title=esc(title)), lines),
                to=user['email'], from_addr=_reg_from())
 
 
@@ -2144,23 +2154,25 @@ def send_activated_email(user: dict) -> None:
     base = (site['design'].get('public_url') or '').rstrip('/')
     title, esc = _site_title(), html_mod.escape
     url = (base + '/bereich') if base else ''
-    lines = [f'Dein Konto bei <b>{esc(title)}</b> wurde freigeschaltet — du kannst dich jetzt anmelden.',
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_activated_intro'].format(title=esc(title)),
              (f'<a href="{esc(url)}">{esc(url)}</a>' if url else ''),
-             f'<b>Benutzername:</b> {esc(user["email"])}']
-    send_email(f'Konto freigeschaltet – {title}',
-               _email_html(f'🎉 Konto freigeschaltet – {esc(title)}', [l for l in lines if l]),
+             m['mail_username_label'].format(email=esc(user['email']))]
+    send_email(m['mail_activated_subject'].format(title=title),
+               _email_html(m['mail_activated_heading'].format(title=esc(title)), [l for l in lines if l]),
                to=user['email'], from_addr=_reg_from())
 
 
 def send_comment_reply_email(to_email: str, post_title: str, replier: str,
-                             text: str, post_url: str) -> None:
+                             text: str, post_url: str, lang: str = 'de') -> None:
     """Benachrichtigt den Autor eines Kommentars, dass jemand geantwortet hat."""
     title, esc = _site_title(), html_mod.escape
-    lines = [f'{esc(replier)} hat auf deinen Kommentar zu „{esc(post_title)}" geantwortet:',
-             f'<i>{esc(text[:300])}</i>',
-             (f'<a href="{esc(post_url)}#comments">Zur Diskussion</a>' if post_url else '')]
-    send_email(f'Neue Antwort auf deinen Kommentar – {title}',
-               _email_html(f'💬 Neue Antwort – {esc(title)}', [l for l in lines if l]),
+    m = load_translations(lang if lang in ('de', 'en') else 'de')
+    lines = [m['mail_reply_intro'].format(replier=esc(replier), post=esc(post_title)),
+             m['mail_reply_quote'].format(text=esc(text[:300])),
+             (m['mail_reply_cta'].format(url=esc(post_url)) if post_url else '')]
+    send_email(m['mail_reply_subject'].format(title=title),
+               _email_html(m['mail_reply_heading'].format(title=esc(title)), [l for l in lines if l]),
                to=to_email, from_addr=_reg_from())
 
 
@@ -3957,6 +3969,7 @@ def api_users():
                     'self_registered': bool(u.get('self_registered')),
                     'verified': u.get('verified', True),
                     'approved': u.get('approved', True),
+                    'lang': _member_lang(u),
                     'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
@@ -3998,9 +4011,10 @@ def api_user_create():
     users = load_users()
     if any(u['email'] == email for u in users):
         return jsonify({'error': 'exists'}), 409
+    lang = raw.get('lang') if raw.get('lang') in ('de', 'en') else 'de'
     user = {'id': uuid.uuid4().hex[:12], 'email': email,
             'pw_hash': generate_password_hash(password),
-            'quota_mb': quota, 'created': date.today().isoformat()}
+            'quota_mb': quota, 'lang': lang, 'created': date.today().isoformat()}
     users.append(user)
     save_users(users)
     user_dir(user)
@@ -4043,6 +4057,9 @@ def api_user_edit(uid: str):
     if 'dm_enabled' in raw:
         user['dm_enabled'] = bool(raw['dm_enabled'])
         log_audit('user_dm', f"{user['email']}: {'an' if user['dm_enabled'] else 'aus'}")
+    if 'lang' in raw and raw['lang'] in ('de', 'en'):
+        user['lang'] = raw['lang']
+        log_audit('user_lang', f"{user['email']} → {user['lang'].upper()}")
     if 'approved' in raw:
         was = user.get('approved', True)
         user['approved'] = bool(raw['approved'])
@@ -4064,8 +4081,9 @@ def api_user_edit(uid: str):
             log.info("Passwortwechsel: %d Sitzung(en) von '%s' beendet", ended, user['email'])
         mail_sent = smtp_configured()
         if mail_sent:
+            pw_subject = load_translations(_member_lang(user))['mail_pw_subject']
             threading.Thread(target=send_welcome_email,
-                             args=(user, password, f'Neues Passwort für deinen Bereich'),
+                             args=(user, password, pw_subject),
                              daemon=True).start()
     save_users(users)
     return jsonify({'ok': True, 'mail_sent': mail_sent,
@@ -6862,7 +6880,8 @@ def blog_comment(pid: str):
             base = (site['design'].get('public_url') or '').rstrip('/')
             url = f"{base}/blog/{pid}" if base else ''
             threading.Thread(target=send_comment_reply_email,
-                             args=(author['email'], title, name, text, url), daemon=True).start()
+                             args=(author['email'], title, name, text, url, _member_lang(author)),
+                             daemon=True).start()
     notify_ha_async('💬 MyPage: Neuer Kommentar',
                     f'{name} hat „{title}" kommentiert:\n\n{text[:300]}',
                     notification_id=f'mypage_comment_{pid}')
@@ -7011,6 +7030,8 @@ def _member_page(member: dict | None, msg: str = ''):
                            dir_feature=bool(member) and directory_on(),
                            dir_visible=bool(member) and bool(member.get('dir_visible')),
                            has_avatar=bool(member) and _has_avatar(member['id']),
+                           member_lang=_member_lang(member) if member else 'de',
+                           member_mail=bool(member) and smtp_configured(),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -7154,7 +7175,8 @@ def member_register():
         quota = max(1, min(100000, int(site['design'].get('registration_quota_mb') or 500)))
         user = {'id': uuid.uuid4().hex[:12], 'email': email,
                 'pw_hash': generate_password_hash(pw),
-                'quota_mb': quota, 'created': date.today().isoformat(),
+                'quota_mb': quota, 'lang': detect_language(request),
+                'created': date.today().isoformat(),
                 'self_registered': True, 'verified': False, 'approved': False,
                 'games_enabled': False,
                 'verify': {'hash': generate_password_hash(token), 'exp': int(time.time()) + REGISTER_TTL}}
@@ -7229,6 +7251,13 @@ def member_profile():
         save_users(users)
         log_user_event(user['id'], 'profile_dm',
                        'an' if user['dm_enabled'] else 'aus', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'lang':
+        lang = request.form.get('lang')
+        if lang in ('de', 'en'):
+            user['lang'] = lang
+            save_users(users)
+            log_user_event(user['id'], 'profile_lang', lang.upper(), get_client_ip(request))
         return redirect('/bereich?msg=profile_saved')
     if action == 'directory' and directory_on():
         user['bio'] = _clean_str(request.form.get('bio'), DIRECTORY_BIO_MAX)

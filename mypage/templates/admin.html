@@ -1009,6 +1009,11 @@
         </div>
         <label>{{ t.user_quota }}</label>
         <input type="number" id="u-quota" value="500" min="1">
+        <label>{{ t.user_lang }}</label>
+        <select id="u-lang">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+        </select>
         <div><button class="btn" onclick="createUser()">{{ t.user_create }}</button></div>
         <p class="hint" id="u-storage"></p>
       </div>
@@ -3113,6 +3118,7 @@
             <button class="btn secondary small" title="${T.user_games_btn}">🎮</button>
             <button class="btn ${u.games_enabled === false ? 'danger' : 'secondary'} small" title="${u.games_enabled === false ? T.user_games_off_title : T.user_games_on_title}">${u.games_enabled === false ? '🚫' : '🕹️'}</button>
             <button class="btn ${u.dm_enabled === false ? 'danger' : 'secondary'} small" title="${u.dm_enabled === false ? T.user_dm_off_title : T.user_dm_on_title}">${u.dm_enabled === false ? '🔕' : '✉️'}</button>
+            <button class="btn secondary small" title="${T.user_lang_title}">🌐 ${(u.lang || 'de').toUpperCase()}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
             <button class="btn secondary small">${T.user_reset_pw}</button>
             <button class="btn secondary small">${T.user_quota_btn}</button>
@@ -3145,7 +3151,7 @@
         }
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, dmToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, dmToggleBtn, langBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         approveBtn.onclick = async () => {
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { approved: true });
           toast(r2.ok ? T.user_approved : T.error_save, !r2.ok);
@@ -3162,6 +3168,11 @@
         };
         dmToggleBtn.onclick = async () => {
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { dm_enabled: u.dm_enabled === false });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        langBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { lang: u.lang === 'en' ? 'de' : 'en' });
           toast(r2.ok ? T.saved : T.error_save, !r2.ok);
           if (r2.ok) loadUsers();
         };
@@ -3211,6 +3222,7 @@
       if (password.length < 8) { toast(T.user_pw_short, true); return; }
       const r = await apiJson('api/users', 'POST', {
         email, password, quota_mb: parseInt(el('u-quota').value) || 500,
+        lang: el('u-lang').value,
       });
       if (r.ok) {
         const d = await r.json();
