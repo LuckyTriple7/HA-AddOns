@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.20
+
+- 🗑 **Nachrichten löschen** — Mitglieder können einzelne Nachrichten (✕ an der Sprechblase) oder eine ganze Unterhaltung (🗑 in der Kopfzeile) löschen. Das Löschen wirkt **nur für einen selbst** — die Gegenseite behält ihre Sicht; erst wenn beide gelöscht haben (oder ein Konto entfernt wurde), wird der Eintrag endgültig aus `dm.json` entfernt.
+- ⏰ **Erinnerungs-Mail bei ungelesenen Nachrichten** — Bleibt eine neue Nachricht **3 Stunden ungelesen**, bekommt der Empfänger eine **E-Mail** (sofern Mailserver + öffentliche URL gesetzt). Die Mail enthält **bewusst keinen Inhalt und keinen Absender** — nur einen Hinweis und den **Link zum Postfach**. Pro ungelesener Nachricht wird höchstens **einmal** erinnert; ein Hintergrund-Dienst prüft das alle 15 Minuten.
+
 ## 0.7.19
 
 - ✉️ **Mitglieder-Nachrichten (verschlüsselt)** — Eingeloggte Mitglieder können sich im geschützten Bereich gegenseitig private Nachrichten schreiben: neues **Postfach** mit Unterhaltungen, Ungelesen-Zähler und Empfänger-Auswahl per **durchsuchbarem Dropdown** (zeigt nur Mitglieder, die Nachrichten empfangen). Die **Nachrichtentexte werden verschlüsselt** auf der Platte gespeichert (Fernet/AES, Schlüssel in `dm.key`) — Metadaten wie Zeitstempel bleiben für die Listenansicht im Klartext. **Pro Mitglied abschaltbar**: jedes Mitglied kann den Empfang im eigenen Profil deaktivieren, der Admin kann es zusätzlich pro Mitglied erzwingen. Global im Design-Tab ein-/ausschaltbar. **Backup/Restore** sichern `dm.json` und `dm.key` mit, sodass verschlüsselte Nachrichten nach einer Wiederherstellung lesbar bleiben.

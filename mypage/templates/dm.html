@@ -62,10 +62,19 @@
     .conv-prev { color: var(--muted); font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .empty { color: var(--muted); text-align: center; padding: 26px 0; font-size: 0.88rem; }
     .thread { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 18px; }
-    .bubble { max-width: 78%; padding: 9px 13px; border-radius: 12px; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
+    .b-row { display: flex; align-items: center; gap: 6px; max-width: 86%; }
+    .b-row.me { flex-direction: row-reverse; align-self: flex-end; }
+    .b-row.them { align-self: flex-start; }
+    .bubble { padding: 9px 13px; border-radius: 12px; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
     .bubble .b-time { display: block; font-size: 0.68rem; opacity: .7; margin-top: 4px; }
-    .bubble.them { align-self: flex-start; background: var(--surf2); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
-    .bubble.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+    .bubble.them { background: var(--surf2); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+    .bubble.me { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+    .b-del { margin: 0; }
+    .b-del button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.82rem; opacity: .35; transition: opacity .15s, color .15s; padding: 2px 4px; margin: 0; }
+    .b-row:hover .b-del button { opacity: .9; } .b-del button:hover { color: var(--red); }
+    .thread-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .btn-del-convo { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer; margin: 0; white-space: nowrap; }
+    .btn-del-convo:hover { border-color: var(--red); color: var(--red); }
     .search { margin-bottom: 6px; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
@@ -82,14 +91,32 @@
     {% if view == 'thread' %}
     <div class="card">
       <p style="margin-bottom:10px"><a href="/bereich/nachrichten">&larr; {{ t.dm_back_inbox }}</a></p>
-      <h1>{{ partner.name }}</h1>
-      <p class="sub">{{ t.dm_with }} {{ partner.name }}</p>
+      <div class="thread-head">
+        <div>
+          <h1>{{ partner.name }}</h1>
+          <p class="sub">{{ t.dm_with }} {{ partner.name }}</p>
+        </div>
+        {% if thread %}
+        <form method="post" action="/bereich/nachrichten/del" onsubmit="return confirm({{ t.dm_delete_convo_confirm|tojson }})">
+          <input type="hidden" name="convo" value="{{ partner.id }}">
+          <button type="submit" class="btn-del-convo">🗑 {{ t.dm_delete_convo }}</button>
+        </form>
+        {% endif %}
+      </div>
       {% if msg == 'dm_sent' %}<div class="msg ok">{{ t.dm_sent }}</div>{% endif %}
+      {% if msg == 'dm_deleted' %}<div class="msg ok">{{ t.dm_deleted }}</div>{% endif %}
       {% if msg == 'dm_slow' %}<div class="msg err">{{ t.dm_slow }}</div>{% endif %}
       {% if thread %}
       <div class="thread">
         {% for m in thread %}
-        <div class="bubble {{ 'me' if m.mine else 'them' }}">{{ m.text }}<span class="b-time" data-ts="{{ m.ts }}"></span></div>
+        <div class="b-row {{ 'me' if m.mine else 'them' }}">
+          <div class="bubble {{ 'me' if m.mine else 'them' }}">{{ m.text }}<span class="b-time" data-ts="{{ m.ts }}"></span></div>
+          <form method="post" action="/bereich/nachrichten/del" class="b-del" onsubmit="return confirm({{ t.dm_delete_confirm|tojson }})">
+            <input type="hidden" name="mid" value="{{ m.id }}">
+            <input type="hidden" name="convo" value="{{ partner.id }}">
+            <button type="submit" title="{{ t.dm_delete_msg }}">✕</button>
+          </form>
+        </div>
         {% endfor %}
       </div>
       {% else %}
@@ -115,6 +142,7 @@
       <p class="sub">{{ t.dm_intro }}</p>
       {% if msg == 'dm_off' %}<div class="msg err">{{ t.dm_off_err }}</div>{% endif %}
       {% if msg == 'dm_err' %}<div class="msg err">{{ t.dm_generic_err }}</div>{% endif %}
+      {% if msg == 'dm_deleted' %}<div class="msg ok">{{ t.dm_deleted }}</div>{% endif %}
 
       {% if recipients %}
       <form method="post" action="/bereich/nachrichten/send">

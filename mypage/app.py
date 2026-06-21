@@ -708,8 +708,14 @@ def _dm_recipients(me_id: str) -> list:
     return out
 
 
+def _dm_hidden(m: dict, me_id: str) -> bool:
+    """True, wenn das Mitglied diese Nachricht für sich gelöscht hat."""
+    return me_id in (m.get('del') or [])
+
+
 def _dm_unread(me_id: str) -> int:
-    return sum(1 for m in load_dm() if m.get('to') == me_id and not m.get('read'))
+    return sum(1 for m in load_dm()
+               if m.get('to') == me_id and not m.get('read') and not _dm_hidden(m, me_id))
 
 
 def _dm_conversations(me_id: str) -> list:
@@ -718,7 +724,7 @@ def _dm_conversations(me_id: str) -> list:
     convo: dict[str, dict] = {}
     for m in load_dm():
         frm, to = m.get('frm'), m.get('to')
-        if me_id not in (frm, to):
+        if me_id not in (frm, to) or _dm_hidden(m, me_id):
             continue
         partner = to if frm == me_id else frm
         c = convo.setdefault(partner, {'partner': partner, 'last_ts': 0,
@@ -746,16 +752,45 @@ def _dm_thread(me_id: str, partner_id: str) -> list:
     msgs = load_dm()
     out, changed = [], False
     for m in msgs:
-        if {m.get('frm'), m.get('to')} == {me_id, partner_id}:
+        if {m.get('frm'), m.get('to')} == {me_id, partner_id} and not _dm_hidden(m, me_id):
             if m.get('to') == me_id and not m.get('read'):
                 m['read'] = True
                 changed = True
-            out.append({'ts': m.get('ts', 0), 'mine': m.get('frm') == me_id,
+            out.append({'id': m.get('id'), 'ts': m.get('ts', 0),
+                        'mine': m.get('frm') == me_id,
                         'text': _dm_decrypt(m.get('body', ''))})
     if changed:
         save_dm(msgs)
     out.sort(key=lambda x: x['ts'])
     return out
+
+
+def _dm_purge(msgs: list) -> list:
+    """Entfernt Nachrichten endgültig, sobald kein lebendes Mitglied sie mehr behält."""
+    uids = {u['id'] for u in load_users()}
+    keep = []
+    for m in msgs:
+        dels = set(m.get('del') or [])
+        alive = {p for p in (m.get('frm'), m.get('to')) if p in uids and p not in dels}
+        if alive:
+            keep.append(m)
+    return keep
+
+
+def _dm_delete_for(me_id: str, mid: str = '', partner_id: str = '') -> None:
+    """Markiert eine Nachricht (mid) oder eine ganze Unterhaltung (partner_id)
+    als für ``me_id`` gelöscht und räumt vollständig gelöschte Einträge auf."""
+    msgs = load_dm()
+    for m in msgs:
+        if me_id not in (m.get('frm'), m.get('to')):
+            continue
+        hit = (mid and m.get('id') == mid) or \
+              (partner_id and {m.get('frm'), m.get('to')} == {me_id, partner_id})
+        if hit:
+            d = m.setdefault('del', [])
+            if me_id not in d:
+                d.append(me_id)
+    save_dm(_dm_purge(msgs))
 
 
 def _dm_send(frm: str, to: str, text: str) -> None:
@@ -770,6 +805,74 @@ def _dm_send(frm: str, to: str, text: str) -> None:
             msgs[i] = None
         msgs = [m for m in msgs if m is not None]
     save_dm(msgs)
+
+
+# ── DM-Erinnerung: ungelesen seit 3 h → E-Mail (ohne Inhalt, nur Link) ─────────
+DM_REMINDER_AFTER = 3 * 3600   # erst nach 3 Stunden erinnern
+DM_REMINDER_EVERY = 900        # Prüf-Intervall (15 min)
+
+
+def send_dm_reminder(email: str, name: str, base: str) -> None:
+    """Neutrale Erinnerung – bewusst ohne Absender/Inhalt, nur Link zum Postfach."""
+    site = load_site()
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    link = f"{base}/bereich/nachrichten"
+    lines = [f'Hallo {esc(name)},',
+             'du hast neue ungelesene Nachrichten in deinem Postfach.',
+             f'<a href="{esc(link)}">{esc(link)}</a>',
+             'Aus Datenschutzgründen steht hier kein Inhalt — bitte im Postfach nachsehen.']
+    send_email(f'Neue Nachrichten – {title}',
+               _email_html(f'✉️ Neue Nachrichten – {esc(title)}', lines),
+               to=email,
+               from_addr=(site['design'].get('welcome_from') or '').strip() or None)
+
+
+def _dm_check_reminders() -> None:
+    """Findet je Empfänger ungelesene Nachrichten, die älter als 3 h sind und noch
+    nicht erinnert wurden, verschickt eine neutrale Mail und markiert sie (``rem``)."""
+    if not smtp_configured():
+        return
+    site = load_site()
+    if not site['design'].get('dm_enabled'):
+        return
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    now = time.time()
+    msgs = load_dm()
+    overdue: dict[str, list] = {}
+    for m in msgs:
+        to = m.get('to')
+        if (to and not m.get('read') and not m.get('rem')
+                and not _dm_hidden(m, to)
+                and (now - m.get('ts', 0)) >= DM_REMINDER_AFTER):
+            overdue.setdefault(to, []).append(m)
+    if not overdue:
+        return
+    users = {u['id']: u for u in load_users()}
+    changed = False
+    for to_id, items in overdue.items():
+        for m in items:               # nur einmal erinnern, egal ob Mail klappt
+            m['rem'] = True
+            changed = True
+        u = users.get(to_id)
+        if u and u.get('email'):
+            threading.Thread(target=send_dm_reminder,
+                             args=(u['email'], _member_display_name(u), base),
+                             daemon=True).start()
+            log.info("DM-Erinnerung an '%s' (%d ungelesen)", u['email'], len(items))
+    if changed:
+        save_dm(msgs)
+
+
+def _dm_reminder_worker() -> None:
+    while True:
+        time.sleep(DM_REMINDER_EVERY)
+        try:
+            _dm_check_reminders()
+        except Exception as e:
+            log.warning("DM-Erinnerung fehlgeschlagen: %s", e)
 
 
 # ── Admin-Audit-Log ────────────────────────────────────────────────────────────
@@ -6660,6 +6763,30 @@ def dm_send():
     return redirect(f'/bereich/nachrichten/{to}?msg=dm_sent')
 
 
+@public_app.route('/bereich/nachrichten/del', methods=['POST'])
+def dm_delete():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        return redirect('/bereich')
+    me = member['id']
+    mid = (request.form.get('mid') or '').strip()
+    convo = (request.form.get('convo') or '').strip()
+    if not _UID_RE.match(convo):
+        convo = ''
+    if mid:
+        _dm_delete_for(me, mid=mid[:32])
+        dest = f'/bereich/nachrichten/{convo}' if convo else '/bereich/nachrichten'
+    elif convo:
+        _dm_delete_for(me, partner_id=convo)
+        dest = '/bereich/nachrichten'
+    else:
+        return redirect('/bereich/nachrichten')
+    log_user_event(me, 'dm_delete', convo or mid, get_client_ip(request))
+    return redirect(f'{dest}?msg=dm_deleted')
+
+
 @public_app.route('/bereich/upload', methods=['POST'])
 def member_upload():
     member = current_member(request)
@@ -7003,6 +7130,7 @@ if __name__ == '__main__':
     threading.Thread(target=_ha_games_worker, daemon=True).start()
     threading.Thread(target=_geoip_worker, daemon=True).start()
     threading.Thread(target=_smb_watchdog, daemon=True).start()
+    threading.Thread(target=_dm_reminder_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)
