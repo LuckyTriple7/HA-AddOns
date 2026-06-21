@@ -60,6 +60,7 @@
   "user_exists": "This email address already exists.",
   "user_email_required": "Please enter an email address.",
   "user_delete_confirm": "Really delete user {email} and all their files?",
+  "user_delete_title": "Delete user",
   "user_files": "file(s)",
   "user_since": "since",
   "user_storage": "Storage",

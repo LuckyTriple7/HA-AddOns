@@ -3111,18 +3111,18 @@
         div.dataset.uid = u.id;
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
-            <button class="btn small" title="${T.user_approve_title}" style="${(u.self_registered && u.verified && !u.approved) ? 'background:var(--green);border-color:var(--green-h);color:#fff' : 'display:none'}">✅ ${T.user_approve}</button>
+            <button class="btn small" title="${T.user_approve_title}" style="${(u.self_registered && u.verified && !u.approved) ? 'background:var(--green);border-color:var(--green-h);color:#fff' : 'display:none'}">✅</button>
             <button class="btn secondary small" title="${T.user_files_btn}">📁</button>
             <button class="btn secondary small" title="${T.user_msg_btn}">💬${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small" title="${T.user_journal_btn}">📜</button>
             <button class="btn secondary small" title="${T.user_games_btn}">🎮</button>
             <button class="btn ${u.games_enabled === false ? 'danger' : 'secondary'} small" title="${u.games_enabled === false ? T.user_games_off_title : T.user_games_on_title}">${u.games_enabled === false ? '🚫' : '🕹️'}</button>
             <button class="btn ${u.dm_enabled === false ? 'danger' : 'secondary'} small" title="${u.dm_enabled === false ? T.user_dm_off_title : T.user_dm_on_title}">${u.dm_enabled === false ? '🔕' : '✉️'}</button>
-            <button class="btn secondary small" title="${T.user_lang_title}">🌐 ${(u.lang || 'de').toUpperCase()}</button>
+            <button class="btn secondary small" title="${T.user_lang_title}">${(u.lang || 'de').toUpperCase()}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
-            <button class="btn secondary small">${T.user_reset_pw}</button>
-            <button class="btn secondary small">${T.user_quota_btn}</button>
-            <button class="btn danger small">✕</button>
+            <button class="btn secondary small" title="${T.user_reset_pw}">🔑</button>
+            <button class="btn secondary small" title="${T.user_quota_btn}">💾</button>
+            <button class="btn danger small" title="${T.user_delete_title}">✕</button>
           </div>`;
         const nameEl = div.querySelector('.proj-name');
         const dot = document.createElement('span');

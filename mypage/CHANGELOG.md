@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.32
+
+- 🧹 **Aufgeräumte Benutzerliste** — Die Aktions-Buttons pro Konto sind jetzt durchgehend **kompakte Icons** statt teils Text: „Passwort" → 🔑, „Quota" → 💾, „Freigeben" → ✅. Der **Sprach-Knopf** zeigt nur noch **DE/EN** (ohne 🌐-Kugel). Die Beschriftung steckt jeweils im **Mouseover-Tooltip** — so passt die Zeile auch bei vielen Optionen wieder sauber nebeneinander.
+
 ## 0.7.31
 
 - 🃏 **Kartenflug des Spielers in Firefox repariert (66 & 20AB)** — Auf manchen Browsern (v. a. **Firefox**, auch auf älteren Tablets) **sprang die selbst gespielte Karte ohne Flug-Animation sofort auf den Tisch**, während die KI-Karten korrekt flogen. Ursache: Der Spieler-Flug stieß die CSS-Transition nur per `requestAnimationFrame` an — Firefox fasst „Klon erscheint" und „Ziel gesetzt" dann zu einem Schritt zusammen, sodass kein Flug entsteht. Jetzt wird (wie bei den bereits funktionierenden KI-Flügen) vor dem Start ein **Reflow erzwungen**, damit die Startposition zuverlässig festgeschrieben wird. Betrifft Spieler-Flug, Stich-Einzug und Trumpf-/Bube-Tausch in beiden Spielen.

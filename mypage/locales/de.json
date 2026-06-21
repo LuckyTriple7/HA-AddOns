@@ -60,6 +60,7 @@
   "user_exists": "Diese E-Mail-Adresse existiert bereits.",
   "user_email_required": "Bitte E-Mail-Adresse eingeben.",
   "user_delete_confirm": "Benutzer {email} und alle seine Dateien wirklich löschen?",
+  "user_delete_title": "Benutzer löschen",
   "user_files": "Datei(en)",
   "user_since": "seit",
   "user_storage": "Speicherort",
