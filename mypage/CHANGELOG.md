@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.17
+
+- ✏️ **Markdown-Editor an weiteren Feldern** — Der Editor-Button (Werkzeugleiste + Live-Vorschau) ist jetzt überall verfügbar, wo Text als Markdown gerendert wird: **Wartungsmodus-Text**, **Formular-Danke-Text**, **Login-Nachricht je Benutzer** und **Standort-Öffnungszeiten** (zusätzlich zu Blog, Seiten, Projekten, Bio, Newsletter, Formular-Einleitung, Tipps und FAQ-Antworten).
+
 ## 0.7.16
 
 - 💅 **Design-Vorlagen einzeilig & scrollbar** — Die Vorlagen-Galerie im Design-Tab bricht nicht mehr auf mehrere Zeilen um, sondern bleibt eine Zeile mit horizontalem Scrollen und denselben Rand-Pfeilen wie die Admin-Tableiste (zeigen an, dass links/rechts weitere Vorlagen sind).

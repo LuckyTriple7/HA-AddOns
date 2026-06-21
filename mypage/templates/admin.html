@@ -1720,7 +1720,8 @@
       ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
     function initMdEditors() {
-      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en'].forEach(id => attachMd(el(id)));
+      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en',
+       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
