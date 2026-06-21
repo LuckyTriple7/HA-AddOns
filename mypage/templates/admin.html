@@ -762,7 +762,14 @@
             </select>
             <p class="hint">{{ t.dm_enabled_hint }}</p>
           </div>
-          <div></div>
+          <div>
+            <label>{{ t.field_dm_ha_notify }}</label>
+            <select id="d-dm_ha_notify">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.dm_ha_notify_hint }}</p>
+          </div>
         </div>
         <div class="row">
           <div>
@@ -3568,6 +3575,7 @@
       el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
       el('d-share_enabled').value = d.share_enabled ? '1' : '0';
       el('d-dm_enabled').value = d.dm_enabled ? '1' : '0';
+      el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
@@ -3701,6 +3709,7 @@
         comments_enabled: el('d-comments_enabled').value === '1',
         share_enabled:    el('d-share_enabled').value === '1',
         dm_enabled:       el('d-dm_enabled').value === '1',
+        dm_ha_notify:     el('d-dm_ha_notify').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         newsletter_enabled: el('d-newsletter_enabled').value === '1',

@@ -257,6 +257,7 @@ DEFAULT_SITE = {
         'comments_enabled': False,
         'share_enabled': False,
         'dm_enabled': False,
+        'dm_ha_notify': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -808,6 +809,21 @@ def _dm_send(frm: str, to: str, text: str) -> None:
             msgs[i] = None
         msgs = [m for m in msgs if m is not None]
     save_dm(msgs)
+
+
+def _dm_owner_notify(to_id: str) -> None:
+    """Optionaler HA-Push an den Betreiber: Mitglied X hat ungelesene Nachrichten.
+    Bewusst ohne Inhalt; je Empfänger zusammengefasst (gleiche notification_id)."""
+    if not load_site()['design'].get('dm_ha_notify'):
+        return
+    user = next((u for u in load_users() if u['id'] == to_id), None)
+    if user is None:
+        return
+    n = _dm_unread(to_id)
+    name = _member_display_name(user)
+    notify_ha_async('📨 MyPage: Neue Mitglieder-Nachricht',
+                    f'{name} hat {n} ungelesene Nachricht(en) im Postfach.',
+                    notification_id=f'mypage_dm_{to_id}')
 
 
 # ── DM-Erinnerung: ungelesen seit 3 h → E-Mail (ohne Inhalt, nur Link) ─────────
@@ -2969,7 +2985,8 @@ def api_design():
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
-                 'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled'):
+                 'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
+                 'dm_ha_notify'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -6998,6 +7015,7 @@ def dm_send():
         return redirect(f'/bereich/nachrichten/{to}?msg=dm_slow')
     _dm_send_times[member['id']] = now
     _dm_send(member['id'], to, text)
+    _dm_owner_notify(to)
     log_user_event(member['id'], 'dm_send', to, get_client_ip(request))
     return redirect(f'/bereich/nachrichten/{to}?msg=dm_sent')
 

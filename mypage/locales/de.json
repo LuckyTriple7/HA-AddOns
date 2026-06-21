@@ -198,6 +198,8 @@
   "share_enabled_hint": "Zeigt unter Blog-Beiträgen und Projekt-Detailseiten Buttons zum Teilen (WhatsApp, X, Facebook, LinkedIn, E-Mail, Link kopieren). Reine Links — kein Tracking, lädt nichts nach.",
   "field_dm_enabled": "Mitglieder-Nachrichten",
   "dm_enabled_hint": "Mitglieder können sich gegenseitig private Nachrichten schreiben. Texte werden verschlüsselt gespeichert. Jedes Mitglied kann den Empfang im eigenen Profil abschalten.",
+  "field_dm_ha_notify": "HA-Benachrichtigung bei neuer Nachricht",
+  "dm_ha_notify_hint": "Schickt dir (dem Betreiber) eine Home-Assistant-Benachrichtigung, sobald ein Mitglied eine neue Nachricht erhält — ohne Inhalt, je Empfänger zusammengefasst. Nur sinnvoll, wenn das Add-on unter Home Assistant läuft.",
   "user_dm_on_title": "Nachrichten-Empfang an (klicken zum Abschalten)",
   "user_dm_off_title": "Nachrichten-Empfang aus (klicken zum Einschalten)",
   "dm_title": "Nachrichten",

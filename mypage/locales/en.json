@@ -198,6 +198,8 @@
   "share_enabled_hint": "Shows share buttons below blog posts and project detail pages (WhatsApp, X, Facebook, LinkedIn, email, copy link). Plain links only — no tracking, nothing loaded.",
   "field_dm_enabled": "Member messages",
   "dm_enabled_hint": "Members can send each other private messages. Texts are stored encrypted. Every member can turn off receiving in their own profile.",
+  "field_dm_ha_notify": "HA notification on new message",
+  "dm_ha_notify_hint": "Sends you (the operator) a Home Assistant notification whenever a member receives a new message — no content, summarized per recipient. Only useful when the add-on runs under Home Assistant.",
   "user_dm_on_title": "Message receiving on (click to turn off)",
   "user_dm_off_title": "Message receiving off (click to turn on)",
   "dm_title": "Messages",
