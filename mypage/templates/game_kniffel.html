@@ -172,6 +172,10 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
 .btn-gold{background:linear-gradient(145deg,#f4d03f,#d4a017);color:#1a1a1a;font-weight:700}
 .btn-ghost{background:none;border:1.5px solid rgba(255,255,255,0.2);color:#ddd}
 .scrollbox{max-height:62vh;overflow-y:auto;text-align:left;margin:6px 0 14px;line-height:1.5}
+#over-title{color:var(--gold)}
+.over-row{display:flex;justify-content:space-between;gap:18px;padding:9px 14px;margin:6px 0;border-radius:10px;background:rgba(255,255,255,0.06);font-size:1.05rem}
+.over-row.win{background:rgba(241,196,15,0.16);border:1px solid var(--gold);color:var(--gold);font-weight:700}
+.over-row .rank{opacity:0.6;margin-right:8px}
 
 /* ── Toast ────────────────────────────────── */
 #toast-wrap{position:fixed;top:54px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
@@ -299,6 +303,18 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
   </div>
 </div>
 
+<!-- Modal: Spielende -->
+<div class="modal-overlay" id="over-modal">
+  <div class="modal-box">
+    <h2 id="over-title">🎲 {{ t.gk_game_over }}</h2>
+    <div id="over-list"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-gold" onclick="showStart();closeOver();">{{ t.gk_new_game }}</button>
+      <button class="btn-ghost" onclick="closeOver()">{{ t.gk_close }}</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Regeln -->
 <div class="modal-overlay" id="rules-modal">
   <div class="modal-box wide">
@@ -324,6 +340,7 @@ const G = {
   bonus: {{ t.gk_bonus|tojson }}, upper_sum: {{ t.gk_upper_sum|tojson }},
   rolls_left: {{ t.gk_rolls_left|tojson }},
   ai_turn: {{ t.gk_ai_turn|tojson }}, ai_thinking: {{ t.gk_ai_thinking|tojson }},
+  game_over: {{ t.gk_game_over|tojson }}, you_win: {{ t.gk_you_win|tojson }}, wins: {{ t.gk_wins|tojson }},
   cats: [
     ['ones',{{ t.gk_cat_ones|tojson }}],['twos',{{ t.gk_cat_twos|tojson }}],
     ['threes',{{ t.gk_cat_threes|tojson }}],['fours',{{ t.gk_cat_fours|tojson }}],
@@ -396,6 +413,8 @@ const SFX={
   hold:()=>clack(0.35, 1600),
   unhold:()=>clack(0.25, 1100),
   score:()=>{ tone(659,0.12,'triangle',0.12); setTimeout(()=>tone(880,0.16,'triangle',0.11),100); },
+  win:()=>{ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.22,'triangle',0.16),i*130)); },
+  lose:()=>{ [440,370,294].forEach((f,i)=>setTimeout(()=>tone(f,0.28,'sine',0.12),i*160)); },
 };
 
 /* ── Toast ─────────────────────────────────── */
@@ -645,8 +664,16 @@ async function showStart(){
 function showGameOver(){
   updateTurn();
   const w=state.winner;
-  toast((w==='p'?'🏆 ':'')+nameOf(w)+' — '+(state.totals[w]||0), 'gold');
+  const ranking=state.players.slice().sort((a,b)=>(state.totals[b]||0)-(state.totals[a]||0));
+  $('over-title').innerHTML = (w==='p') ? G.you_win
+    : '🎲 '+esc(nameOf(w))+' '+G.wins;
+  $('over-list').innerHTML = ranking.map((p,i)=>
+    '<div class="over-row'+(p===w?' win':'')+'"><span><span class="rank">'+(i+1)+'.</span>'
+    +esc(nameOf(p))+'</span><span>'+(state.totals[p]||0)+'</span></div>').join('');
+  $('over-modal').classList.add('show');
+  (w==='p'?SFX.win:SFX.lose)();
 }
+function closeOver(){ $('over-modal').classList.remove('show'); }
 function toggleScore(){ $('score-col').classList.toggle('open'); }
 function closeGame(){ try{history.length>1?history.back():location.href='/bereich';}catch(e){location.href='/bereich';} }
 
