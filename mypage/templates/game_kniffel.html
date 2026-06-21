@@ -361,11 +361,38 @@ function noise(d,v){ if(!soundOn)return; try{const c=getA(),b=c.createBuffer(1,c
   for(let i=0;i<dat.length;i++)dat[i]=(Math.random()*2-1)*(v||0.1);
   const s=c.createBufferSource();s.buffer=b;const g=c.createGain();g.gain.value=1;
   g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);s.connect(g);g.connect(c.destination);s.start();}catch(e){} }
+/* Würfel-„Tok": ganz kurzes, bandpass-gefiltertes Rauschen = Anschlag auf dem Tisch
+   (kein Ton/Oszillator → klingt nach Material, nicht nach Piepsen). */
+function clack(vol, freq){
+  if(!soundOn) return;
+  try{
+    const c=getA(), t=c.currentTime; vol=(vol||0.5);
+    const len=Math.floor(c.sampleRate*0.028);
+    const buf=c.createBuffer(1, len, c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len, 3);  // schneller Abfall
+    const src=c.createBufferSource(); src.buffer=buf;
+    const bp=c.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.value=freq||(1000+Math.random()*1400);   // 1–2.4 kHz „holzig"
+    bp.Q.value=0.9+Math.random()*1.2;
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=3500;
+    const g=c.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t+0.05);
+    src.connect(bp); bp.connect(lp); lp.connect(g); g.connect(c.destination);
+    src.start(t); src.stop(t+0.06);
+  }catch(e){}
+}
 const SFX={
-  roll:()=>{ const n=Math.max(4,Math.round(rollMs/110)); for(let i=0;i<n;i++) setTimeout(()=>noise(0.05,0.06+Math.random()*0.05),i*100); },
-  settle:()=>{ tone(160,0.10,'square',0.10); setTimeout(()=>tone(120,0.10,'square',0.07),50); },
-  hold:()=>tone(660,0.07,'triangle',0.10),
-  unhold:()=>tone(380,0.07,'triangle',0.08),
+  roll:()=>{ if(!soundOn)return;
+    const dur=rollMs, n=Math.max(5,Math.round(dur/140)); let t=0;
+    for(let i=0;i<n;i++){ const prog=i/n;
+      t += 45 + Math.random()*100*(0.4+prog);         // unregelmäßig, gegen Ende träger
+      if(t>dur) break;
+      setTimeout(()=>clack(0.45*(1-0.45*prog)), t); }  // leiser werdend
+  },
+  settle:()=>{ clack(0.55, 700); setTimeout(()=>clack(0.4, 520), 60); },  // tieferes Doppel-„Tok"
+  hold:()=>clack(0.35, 1600),
+  unhold:()=>clack(0.25, 1100),
   score:()=>{ tone(659,0.12,'triangle',0.12); setTimeout(()=>tone(880,0.16,'triangle',0.11),100); },
 };
 
