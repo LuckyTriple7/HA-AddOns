@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.31
+
+- 🃏 **Kartenflug des Spielers in Firefox repariert (66 & 20AB)** — Auf manchen Browsern (v. a. **Firefox**, auch auf älteren Tablets) **sprang die selbst gespielte Karte ohne Flug-Animation sofort auf den Tisch**, während die KI-Karten korrekt flogen. Ursache: Der Spieler-Flug stieß die CSS-Transition nur per `requestAnimationFrame` an — Firefox fasst „Klon erscheint" und „Ziel gesetzt" dann zu einem Schritt zusammen, sodass kein Flug entsteht. Jetzt wird (wie bei den bereits funktionierenden KI-Flügen) vor dem Start ein **Reflow erzwungen**, damit die Startposition zuverlässig festgeschrieben wird. Betrifft Spieler-Flug, Stich-Einzug und Trumpf-/Bube-Tausch in beiden Spielen.
+
 ## 0.7.30
 
 - 🌐 **Zweisprachige Mitglieder-Mails (DE/EN)** — Jedes Mitglied hat jetzt ein **Sprachfeld** (Deutsch/Englisch), das bestimmt, in welcher Sprache **alle automatischen E-Mails** ankommen: Zugangsdaten/Willkommen, neues Passwort, Passwort-Zurücksetzen, E-Mail-Bestätigung, „Konto besteht bereits", Konto-Freischaltung, Kommentar-Antworten und die Postfach-Erinnerung. Bei der **Selbst-Registrierung** wird die Sprache automatisch aus der gewählten Seitensprache übernommen; beim **Anlegen im Admin** ist sie wählbar und lässt sich jederzeit über den neuen **🌐-Knopf** in der Benutzerliste umschalten. Mitglieder können ihre Mail-Sprache zudem **selbst im Profil** einstellen. Sämtliche Mailtexte liegen nun lokalisiert in `de.json`/`en.json`.

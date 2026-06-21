@@ -1129,6 +1129,7 @@
       slot.style.visibility = 'hidden';
       const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
       const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
       requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
       let done = false;
       const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
@@ -1167,6 +1168,7 @@
       let done = false;
       const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
       const move = () => {
+        void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
         requestAnimationFrame(() => {
           clone.style.transform = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) scale(1)';
           if (opts.fadeIn) clone.style.opacity = '1';
@@ -1220,6 +1222,7 @@
       const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
       const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
       const startFly = () => {
+        void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
         requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
       };
       if (clone.complete && clone.naturalWidth) startFly();
@@ -1288,6 +1291,7 @@
       const tdy = -jdy * (hr.height / tr.height);
 
       // Klone sind sofort dekodiert -> ohne load-Wartezeit starten
+      void trumpClone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
       requestAnimationFrame(() => {
         jackClone.style.transform = 'translate(' + jdx + 'px,' + jdy + 'px)';
         trumpClone.style.transform = 'translate(' + tdx + 'px,' + tdy + 'px)';
@@ -1418,6 +1422,7 @@
         const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
         let done = false;
         const fin = () => { if (done) return; done = true; clone.remove(); allDone(); };
+        void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
         requestAnimationFrame(() => {
           clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(0.35)';
           clone.style.opacity = '0.25';
