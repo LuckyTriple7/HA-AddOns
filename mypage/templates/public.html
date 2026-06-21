@@ -188,6 +188,25 @@
     .album-locked:hover { text-decoration: none; }
     .album-cover-locked { display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(45deg, var(--surf2), var(--surf2) 10px, var(--surf) 10px, var(--surf) 20px); }
     .album-lock { font-size: 2rem; opacity: .7; }
+    /* Countdown */
+    .countdown { text-align: center; }
+    .cd-image { max-width: 240px; height: auto; margin: 4px auto 10px; display: block; }
+    .cd-subtitle { color: var(--muted); margin: 0 auto 20px; max-width: 560px; }
+    .cd-grid { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .cd-tile { background: var(--surf); border: 1px solid var(--border); border-radius: 14px; padding: 16px 10px; min-width: 92px; }
+    .cd-num { display: block; font-size: clamp(2rem, 7vw, 3rem); font-weight: 700; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .cd-label { display: block; margin-top: 9px; font-size: 0.72rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+    .cd-expired { font-size: 1.5rem; font-weight: 700; color: var(--accent); margin: 8px 0; }
+    .cd-notify { margin-top: 24px; }
+    .cd-notify-btn { background: var(--accent); color: #fff; border: none; padding: 11px 26px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+    .cd-notify-btn:hover { filter: brightness(1.08); }
+    .cd-notify-form { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+    .cd-notify-form input[type=email] { min-width: 220px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font: inherit; }
+    .cd-notify-form input[type=email]:focus { outline: none; border-color: var(--accent); }
+    .cd-notify-form button { background: var(--accent); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .nl-banner { padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 18px; }
+    .nl-banner.ok { background: rgba(46,160,67,.14); border: 1px solid #2ea043; color: #3fb950; }
+    .nl-banner.err { background: rgba(207,34,46,.12); border: 1px solid #cf222e; color: #f85149; }
 
     /* Diashow */
     .slideshow { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.94); flex-direction: column; }
@@ -495,6 +514,10 @@
   </header>
 
   <main class="wrap">
+    {% if nl == 'sent' %}<div class="nl-banner ok">{{ t.nl_sent }}</div>{% endif %}
+    {% if nl == 'confirmed' %}<div class="nl-banner ok">{{ t.nl_confirmed }}</div>{% endif %}
+    {% if nl == 'unsubscribed' %}<div class="nl-banner ok">{{ t.nl_unsubscribed }}</div>{% endif %}
+    {% if nl == 'invalidmail' %}<div class="nl-banner err">{{ t.nl_invalidmail }}</div>{% endif %}
     <section class="hero">
       {% if site.profile.avatar %}<img class="avatar" src="{{ site.profile.avatar }}" alt="{{ site.profile.name }}">{% endif %}
       <div>
@@ -578,6 +601,34 @@
       </div>
       {% endfor %}
     </div>
+    {% endif %}
+
+    {% elif _sec == 'countdown' %}
+    {% set cd = sections.countdown or {} %}
+    {% if cd.target %}
+    <section class="countdown" id="countdown" data-target="{{ cd.target }}">
+      <h2 class="section-title" style="text-align:center">{{ countdown_title or t.countdown_heading }}</h2>
+      {% if cd.image %}<img class="cd-image" src="{{ cd.image }}" alt="" loading="lazy">{% endif %}
+      {% if loc(cd, 'subtitle') %}<p class="cd-subtitle">{{ loc(cd, 'subtitle') }}</p>{% endif %}
+      <div class="cd-grid">
+        <div class="cd-tile"><span class="cd-num" data-cd="d">--</span><span class="cd-label">{{ t.countdown_days }}</span></div>
+        <div class="cd-tile"><span class="cd-num" data-cd="h">--</span><span class="cd-label">{{ t.countdown_hours }}</span></div>
+        <div class="cd-tile"><span class="cd-num" data-cd="m">--</span><span class="cd-label">{{ t.countdown_minutes }}</span></div>
+        <div class="cd-tile"><span class="cd-num" data-cd="s">--</span><span class="cd-label">{{ t.countdown_seconds }}</span></div>
+      </div>
+      <p class="cd-expired" style="display:none">{{ loc(cd, 'expired') or t.countdown_expired }}</p>
+      {% if cd.notify and newsletter_open %}
+      <div class="cd-notify">
+        <button type="button" class="cd-notify-btn" onclick="cdToggleNotify(this)">{{ t.countdown_notify }}</button>
+        <form class="cd-notify-form" method="post" action="/newsletter/subscribe" style="display:none">
+          <input type="hidden" name="next" value="/">
+          <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <input type="email" name="email" placeholder="{{ t.nl_email_ph }}" autocomplete="email" required>
+          <button type="submit">{{ t.nl_subscribe_btn }}</button>
+        </form>
+      </div>
+      {% endif %}
+    </section>
     {% endif %}
 
     {% elif _sec == 'tips' %}
@@ -963,6 +1014,42 @@
       const n = c === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', n);
       localStorage.setItem('mp-public-theme', n);
+    }
+    // Countdown-Ticker
+    (function(){
+      var box = document.getElementById('countdown');
+      if (!box || !box.dataset.target) return;
+      var target = new Date(box.dataset.target).getTime();
+      if (isNaN(target)) return;
+      var grid = box.querySelector('.cd-grid'),
+          expired = box.querySelector('.cd-expired'),
+          notify = box.querySelector('.cd-notify'),
+          nd = box.querySelector('[data-cd=d]'), nh = box.querySelector('[data-cd=h]'),
+          nm = box.querySelector('[data-cd=m]'), ns = box.querySelector('[data-cd=s]');
+      var pad = function(n){ return (n < 10 ? '0' : '') + n; };
+      var iv;
+      function tick(){
+        var diff = target - Date.now();
+        if (diff <= 0){
+          if (grid) grid.style.display = 'none';
+          if (notify) notify.style.display = 'none';
+          if (expired) expired.style.display = '';
+          clearInterval(iv); return;
+        }
+        var s = Math.floor(diff / 1000);
+        nd.textContent = Math.floor(s / 86400);
+        nh.textContent = pad(Math.floor(s % 86400 / 3600));
+        nm.textContent = pad(Math.floor(s % 3600 / 60));
+        ns.textContent = pad(s % 60);
+      }
+      tick(); iv = setInterval(tick, 1000);
+    })();
+    function cdToggleNotify(btn){
+      var f = btn.parentNode.querySelector('.cd-notify-form');
+      if (!f) return;
+      var show = f.style.display === 'none';
+      f.style.display = show ? 'flex' : 'none';
+      if (show){ var e = f.querySelector('input[type=email]'); if (e) e.focus(); }
     }
     // Sprachfarben für die Projekt-Punkte (GitHub-Farbschema)
     const LANG_COLORS = {

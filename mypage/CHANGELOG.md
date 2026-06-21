@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.14
+
+- ⏳ **Countdown-Sektion** — Neuer Startseiten-Abschnitt, der sichtbar auf ein Zieldatum/-zeit herunterzählt (Eröffnung, Launch, Veranstaltung …). Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, theme-bewusst — passt sich automatisch ans gewählte Design an. Konfigurierbar: Überschrift, Untertitel und optionales Bild darüber (alle DE/EN), frei wählbarer „Es ist soweit!"-Text bei Ablauf, und ein **optionaler „Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (mit Bestätigung direkt auf der Startseite). Wie jede Sektion: per Drag sortierbar, ein-/ausblendbar, sogar „nur für Mitglieder". Leeres Zieldatum = Abschnitt aus.
+
 ## 0.7.13
 
 - 🐳 **Standalone-Betrieb dokumentiert** — MyPage lässt sich auch ohne Home Assistant als reiner Docker-Container betreiben. Neu im Repo: `docker-compose.yml`, `options.example.json` und eine Schritt-für-Schritt-Anleitung **[STANDALONE.md](STANDALONE.md)** / **[STANDALONE.en.md](STANDALONE.en.md)** (inkl. Konfigurations-Tabelle, HTTPS via Caddy, Updates/Backup, Sicherheitshinweise). Keine Code-Änderung — die HA-Funktionen (Sensoren/Notifications/Ingress) waren schon immer optional und werden ohne `SUPERVISOR_TOKEN` übersprungen.

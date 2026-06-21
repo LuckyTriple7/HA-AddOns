@@ -291,12 +291,13 @@ DEFAULT_SITE = {
         'events': [],
         'location': {},
         'tips': [],
+        'countdown': {},
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
     'section_order': [
-        'news', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'news', 'countdown', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
@@ -2625,6 +2626,23 @@ def api_sections():
         site['album_protect'] = bool(raw['album_protect'])
     if 'watermark_text' in raw:
         site['watermark_text'] = _clean_str(raw['watermark_text'], 80)
+    if isinstance(raw.get('countdown'), dict):
+        cd = raw['countdown']
+        target = _clean_str(cd.get('target'), 20)
+        # erwartet datetime-local-Format YYYY-MM-DDTHH:MM
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$', target):
+            target = ''
+        sec['countdown'] = {
+            'target':      target,
+            'title_de':    _clean_str(cd.get('title_de'), 120),
+            'title_en':    _clean_str(cd.get('title_en'), 120),
+            'subtitle_de': _clean_str(cd.get('subtitle_de'), 300),
+            'subtitle_en': _clean_str(cd.get('subtitle_en'), 300),
+            'expired_de':  _clean_str(cd.get('expired_de'), 120),
+            'expired_en':  _clean_str(cd.get('expired_en'), 120),
+            'image':       _clean_str(cd.get('image'), 500),
+            'notify':      bool(cd.get('notify')),
+        } if target else {}
     save_site(site)
     log_audit('settings_sections')
     return jsonify({'ok': True})
@@ -5730,9 +5748,12 @@ def public_index():
                 tstats[tip_of_day['id']] = {'last': today_key, 'days': (st.get('days', 0) if st else 0) + 1}
                 save_site(site)
 
+    cd = sections.get('countdown') or {}
+    countdown_title = loc(cd, 'title')
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
+        'countdown':    ('countdown',    'countdown_heading',    bool(cd.get('target'))),
         'tips':         ('tips',         'tips_heading_week' if tips_weekly else 'tips_heading', bool(tips)),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
@@ -5767,7 +5788,12 @@ def public_index():
         for key in section_order:
             anchor, label_key, present = section_defs[key]
             if present:
-                label = timeline_title if (key == 'timeline' and timeline_title) else t.get(label_key, label_key)
+                if key == 'timeline' and timeline_title:
+                    label = timeline_title
+                elif key == 'countdown' and countdown_title:
+                    label = countdown_title
+                else:
+                    label = t.get(label_key, label_key)
                 nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
@@ -5784,6 +5810,9 @@ def public_index():
                            albums=albums,
                            album_protect=bool(site.get('album_protect')),
                            latest_posts=latest_posts,
+                           countdown_title=countdown_title,
+                           newsletter_open=newsletter_open() and not static_export,
+                           nl=_clean_str(request.args.get('nl'), 20),
                            nav_items=nav_items,
                            section_order=section_order,
                            timeline_title=timeline_title,
@@ -5827,13 +5856,14 @@ def newsletter_subscribe():
     if site['design'].get('maintenance') or not newsletter_open():
         abort(403)
     ip = get_client_ip(request)
+    back = _safe_next(request.form.get('next') or '/blog')   # zurück zur Herkunftsseite
     # Honeypot + Rate-Limit → immer generische Rückmeldung (keine Enumeration)
     if (request.form.get('website') or '').strip() or newsletter_rate_limited(ip):
-        return redirect('/blog?nl=sent')
+        return redirect(f'{back}?nl=sent')
     record_newsletter_attempt(ip)
     email = _clean_str(request.form.get('email'), 150).lower()
     if not _EMAIL_RE.match(email):
-        return redirect('/blog?nl=invalidmail')
+        return redirect(f'{back}?nl=invalidmail')
     subs = load_subscribers()
     existing = next((s for s in subs if s['email'] == email), None)
     token = secrets.token_urlsafe(24)
@@ -5851,7 +5881,7 @@ def newsletter_subscribe():
         save_subscribers(subs)
         threading.Thread(target=send_confirm_subscription, args=(existing, token), daemon=True).start()
     # bereits bestätigt → still nichts tun (generische Antwort schützt vor Enumeration)
-    return redirect('/blog?nl=sent')
+    return redirect(f'{back}?nl=sent')
 
 
 @public_app.route('/newsletter/confirm/<sid>/<token>')

@@ -49,6 +49,7 @@ Der Tab **Inhalt** zeigt alle Startseiten-Bereiche als einklappbare Karten (Akko
 
 Verfügbare Bereiche:
 
+- **Countdown**: zählt sichtbar auf ein Zieldatum/-zeit herunter (z. B. Eröffnung, Launch, Veranstaltung) — Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, optionaler Überschrift, Untertitel und Bild darüber. Bei Ablauf erscheint ein frei wählbarer „Es ist soweit!"-Text. Optional ein **„Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (benötigt aktiven Newsletter). Leeres Zieldatum = Abschnitt aus.
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
 - **Leistungen**: Angebote/Dienstleistungen als Karten mit Symbol (Emoji), Beschreibung (DE/EN) und optionalem Preis
 - **Referenzen**: Kundenstimmen mit Zitat (DE/EN), Name, Funktion und optionalem Foto

@@ -8,7 +8,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 
 - 🏠 **Public homepage** on port 17760 — profile, content sections, social links
 - 🛠 **Admin panel** on port 17761 (login + brute-force protection) and via HA ingress in the sidebar
-- 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, events, link collection, FAQ, location & opening hours
+- 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, **countdown**, events, link collection, FAQ, location & opening hours
 - 📄 **Custom pages**: standalone subpages (e.g. “About”, “Directions”) in Markdown (DE/EN) with their own address `/seite/<slug>`, optional nav entry and draft status
 - 🧾 **Form builder**: freely configurable forms (sign-up, survey, request) with arbitrary fields; submissions in the messages tab + notification (email/Telegram/HA), honeypot + captcha
 - ↪️ **Redirects (301/302)** + **Search Console verification** (Google/Bing) in the admin

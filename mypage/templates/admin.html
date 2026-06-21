@@ -317,6 +317,31 @@
         <div id="news-list"></div>
         <button class="btn secondary small" onclick="addNewsRow()">+ {{ t.add_entry }}</button>
       </div>
+      <div class="panel acc" data-key="countdown">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.countdown_heading }}</div>
+        <p class="hint">{{ t.countdown_admin_hint }}</p>
+        <label>{{ t.countdown_target }}</label>
+        <input type="datetime-local" id="cd-target">
+        <div class="row">
+          <div><label>{{ t.field_title }} (DE)</label><input type="text" id="cd-title_de" placeholder="{{ t.countdown_heading }}"></div>
+          <div><label>{{ t.field_title }} (EN)</label><input type="text" id="cd-title_en"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.countdown_subtitle }} (DE)</label><input type="text" id="cd-subtitle_de"></div>
+          <div><label>{{ t.countdown_subtitle }} (EN)</label><input type="text" id="cd-subtitle_en"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.countdown_expired }} (DE)</label><input type="text" id="cd-expired_de" placeholder="{{ t.countdown_expired }}"></div>
+          <div><label>{{ t.countdown_expired }} (EN)</label><input type="text" id="cd-expired_en"></div>
+        </div>
+        <label>{{ t.countdown_image }}</label>
+        <div class="upload-row">
+          <input type="text" id="cd-image" placeholder="https://… {{ t.or_upload }}">
+          <button class="btn secondary small" onclick="pickUpload(u => { el('cd-image').value = u; })">{{ t.upload }}</button>
+        </div>
+        <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="cd-notify"> {{ t.countdown_notify_label }}</label>
+        <p class="hint">{{ t.countdown_notify_hint }}</p>
+      </div>
       <div class="panel acc" data-key="tips">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tips_section }}</div>
         <p class="hint">{{ t.tips_hint }}</p>
@@ -2175,6 +2200,16 @@
       el('loc-hours_en').value = L.hours_en || '';
       el('loc-show_map').value = L.show_map ? '1' : '0';
       el('loc-coords').value = (L.lat && L.lng) ? (L.lat + ', ' + L.lng) : '';
+      const CD = s.countdown || {};
+      el('cd-target').value = CD.target || '';
+      el('cd-title_de').value = CD.title_de || '';
+      el('cd-title_en').value = CD.title_en || '';
+      el('cd-subtitle_de').value = CD.subtitle_de || '';
+      el('cd-subtitle_en').value = CD.subtitle_en || '';
+      el('cd-expired_de').value = CD.expired_de || '';
+      el('cd-expired_en').value = CD.expired_en || '';
+      el('cd-image').value = CD.image || '';
+      el('cd-notify').checked = !!CD.notify;
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
@@ -2632,8 +2667,19 @@
         lng:      coords[1] || '',
         show_map: el('loc-show_map').value === '1',
       };
+      const countdown = {
+        target:      el('cd-target').value,
+        title_de:    el('cd-title_de').value,
+        title_en:    el('cd-title_en').value,
+        subtitle_de: el('cd-subtitle_de').value,
+        subtitle_en: el('cd-subtitle_en').value,
+        expired_de:  el('cd-expired_de').value,
+        expired_en:  el('cd-expired_en').value,
+        image:       el('cd-image').value,
+        notify:      el('cd-notify').checked,
+      };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location,
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown,
           timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
