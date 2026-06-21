@@ -49,7 +49,7 @@ Der Tab **Inhalt** zeigt alle Startseiten-Bereiche als einklappbare Karten (Akko
 
 Verfügbare Bereiche:
 
-- **Countdown**: zählt sichtbar auf ein Zieldatum/-zeit herunter (z. B. Eröffnung, Launch, Veranstaltung) — Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, optionaler Überschrift, Untertitel und Bild darüber. Bei Ablauf erscheint ein frei wählbarer „Es ist soweit!"-Text. Optional ein **„Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (benötigt aktiven Newsletter). Leeres Zieldatum = Abschnitt aus.
+- **Countdown**: zählt sichtbar auf ein Zieldatum/-zeit herunter (z. B. Eröffnung, Launch, Veranstaltung) — Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, optionaler Überschrift, Untertitel und Bild darüber. Bei Ablauf erscheint ein frei wählbarer „Es ist soweit!"-Text. Optional ein **„Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (benötigt aktiven Newsletter). Leeres Zieldatum = Abschnitt aus. Ist ein Countdown eingerichtet, erscheint er **auch auf der Wartungs-/„Seite im Aufbau"-Seite** (siehe Wartungsmodus) — ideal als Coming-Soon-Seite; das Newsletter-Abo funktioniert dort trotz Wartungsmodus.
 - **Skills**: kommagetrennte Liste, wird als Chips angezeigt
 - **Leistungen**: Angebote/Dienstleistungen als Karten mit Symbol (Emoji), Beschreibung (DE/EN) und optionalem Preis
 - **Referenzen**: Kundenstimmen mit Zitat (DE/EN), Name, Funktion und optionalem Foto
@@ -117,7 +117,7 @@ Einzelne Inhalte lassen sich auf **angemeldete Mitglieder** beschränken (nutzt 
 Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass auch bei kurzen Inhalten stets ein Teil verborgen bleibt. Statischer Export und Suchmaschinen laufen als „Gast" — geschützte Inhalte landen nicht im Export.
 
 ### System
-- **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar.
+- **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar. Ist im Tab **Inhalt** ein **Countdown** eingerichtet, wird er auf dieser Seite mit angezeigt — so entsteht eine Coming-Soon-Seite mit Countdown und optionalem „Benachrichtige mich"-Newsletter-Button.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
 - **Speicher aufräumen**: Entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und Größe angezeigt; es werden ausschließlich nicht mehr referenzierte Dateien entfernt (geteilte Bilder bleiben erhalten).
 - **Weiterleitungen (301)**: Leitet alte/geänderte Adressen auf eine neue um — dauerhaft (301) oder temporär (302). Ziel als interner Pfad (`/neue-seite`) oder vollständige URL (`https://…`). Greift **nur für Pfade, die es nicht (mehr) gibt** — bestehende Seiten werden nie überschrieben. Praktisch, wenn du den Slug einer Seite/eines Beitrags geändert hast und alte Links/Lesezeichen weiter funktionieren sollen.

@@ -25,17 +25,25 @@
       background: var(--surf); border: 1px solid var(--border); border-radius: 12px;
       padding: 44px 36px; max-width: 480px; text-align: center;
     }
+    .card.card-wide { max-width: 600px; }
     .icon { font-size: 2.6rem; margin-bottom: 14px; }
     h1 { font-size: 1.3rem; margin-bottom: 10px; }
     .text { color: var(--muted); font-size: 0.92rem; }
     .text p { margin-bottom: 6px; }
+    .countdown { margin-top: 28px; }
+    .nl-banner { padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-top: 16px; }
+    .nl-banner.ok { background: rgba(46,160,67,.14); border: 1px solid #2ea043; color: #3fb950; }
+    .nl-banner.err { background: rgba(207,34,46,.12); border: 1px solid #cf222e; color: #f85149; }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card {% if cd and cd.target %}card-wide{% endif %}">
     <div class="icon">🛠️</div>
     <h1>{{ site.design.site_title or site.profile.name or 'MyPage' }}</h1>
     <div class="text">{{ text_html|safe }}</div>
+    {% if nl == 'sent' %}<div class="nl-banner ok">{{ t.nl_sent }}</div>{% endif %}
+    {% if nl == 'invalidmail' %}<div class="nl-banner err">{{ t.nl_invalidmail }}</div>{% endif %}
+    {% include '_countdown.html' %}
   </div>
   <script>
     const saved = localStorage.getItem('mp-public-theme');

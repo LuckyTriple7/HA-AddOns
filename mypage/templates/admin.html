@@ -17,8 +17,14 @@
     .header-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
     .logo { font-weight: 700; font-size: 1.05rem; color: var(--accent); display: flex; align-items: center; gap: 8px; }
     .logo svg { width: 20px; height: 20px; fill: var(--accent); }
-    nav { display: flex; gap: 4px; flex: 1; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+    .nav-wrap { flex: 1; min-width: 0; position: relative; }
+    nav { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
     nav::-webkit-scrollbar { display: none; }
+    .nav-arrow { position: absolute; top: 0; bottom: 0; width: 30px; display: none; align-items: center; justify-content: center; border: none; cursor: pointer; color: var(--text); font-size: 1.4rem; line-height: 1; z-index: 3; padding: 0; }
+    .nav-arrow.show { display: flex; }
+    .nav-arrow.nav-left { left: 0; background: linear-gradient(to right, var(--surf) 60%, transparent); }
+    .nav-arrow.nav-right { right: 0; background: linear-gradient(to left, var(--surf) 60%, transparent); }
+    .nav-arrow:hover { color: var(--accent); }
     .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
     .tab-btn:hover { color: var(--text); background: var(--surf2); }
     .tab-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
@@ -229,6 +235,8 @@
         <svg viewBox="0 0 24 24"><path d="M12 2 2 9h2v11h6v-6h4v6h6V9h2L12 2zm0 2.5L18 9v9h-2v-6H8v6H6V9l6-4.5z"/></svg>
         MyPage
       </div>
+      <div class="nav-wrap">
+      <button type="button" class="nav-arrow nav-left" aria-label="◄" onclick="navScroll(-1)">‹</button>
       <nav>
         <button class="tab-btn active" data-tab="profile">{{ t.tab_profile }}</button>
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
@@ -243,6 +251,8 @@
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
         <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
       </nav>
+      <button type="button" class="nav-arrow nav-right" aria-label="►" onclick="navScroll(1)">›</button>
+      </div>
       <div class="header-actions">
         <a href="{{ url_for('set_lang', lang='de', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
         <a href="{{ url_for('set_lang', lang='en', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
@@ -4020,6 +4030,33 @@
         tbody.appendChild(tr);
       });
     }
+
+    // ── Tableiste: Scroll-Pfeile, wenn nicht alles passt ──
+    function navScroll(dir) {
+      const nav = document.querySelector('header nav');
+      if (nav) nav.scrollBy({ left: dir * 180, behavior: 'smooth' });
+    }
+    function updateNavArrows() {
+      const nav = document.querySelector('header nav');
+      if (!nav) return;
+      const wrap = nav.parentNode;
+      const max = nav.scrollWidth - nav.clientWidth;
+      wrap.querySelector('.nav-left').classList.toggle('show', nav.scrollLeft > 4);
+      wrap.querySelector('.nav-right').classList.toggle('show', nav.scrollLeft < max - 4);
+    }
+    (function () {
+      const nav = document.querySelector('header nav');
+      if (nav) {
+        nav.addEventListener('scroll', updateNavArrows, { passive: true });
+        window.addEventListener('resize', updateNavArrows);
+        // aktiven Tab beim Wechsel in den sichtbaren Bereich rücken
+        document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
+          b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+          setTimeout(updateNavArrows, 250);
+        }));
+        updateNavArrows();
+      }
+    })();
 
     initMdEditors();
     el('pg-slug').addEventListener('input', pageSlugHint);

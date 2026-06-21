@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.15
+
+- ⏳ **Countdown auch im Wartungsmodus** — Ist ein Countdown eingerichtet, erscheint er jetzt zusätzlich auf der „Seite im Aufbau"-Vollbildseite (Wartungsmodus) — fertige Coming-Soon-Seite inkl. „Benachrichtige mich"-Newsletter-Button, der dort auch während des Wartungsmodus funktioniert. (Countdown-Markup intern in ein wiederverwendbares Partial ausgelagert.)
+- ◀▶ **Admin-Tableiste: Scroll-Pfeile** — Passt die Tab-Navigation nicht in die Breite, erscheinen an den Rändern dezente Pfeile mit Verlauf, die anzeigen, dass links/rechts weitere Tabs sind (klickbar zum Scrollen). Der aktive Tab wird beim Wechsel automatisch in den sichtbaren Bereich gerückt.
+
 ## 0.7.14
 
 - ⏳ **Countdown-Sektion** — Neuer Startseiten-Abschnitt, der sichtbar auf ein Zieldatum/-zeit herunterzählt (Eröffnung, Launch, Veranstaltung …). Kacheln für Tage/Stunden/Minuten/Sekunden im Karten-Stil mit Akzentfarbe, theme-bewusst — passt sich automatisch ans gewählte Design an. Konfigurierbar: Überschrift, Untertitel und optionales Bild darüber (alle DE/EN), frei wählbarer „Es ist soweit!"-Text bei Ablauf, und ein **optionaler „Benachrichtige mich"-Button**, über den Besucher ihre E-Mail fürs Newsletter-Abo hinterlegen (mit Bestätigung direkt auf der Startseite). Wie jede Sektion: per Drag sortierbar, ein-/ausblendbar, sogar „nur für Mitglieder". Leeres Zieldatum = Abschnitt aus.

@@ -5693,8 +5693,13 @@ def _maintenance_page(site: dict, lang: str):
     t = load_translations(lang)
     loc = _loc_factory(lang)
     text = loc(site.get('design', {}), 'maintenance_text') or t.get('maintenance_default', '')
-    resp = make_response(render_template('maintenance.html', t=t, lang=lang, site=site,
-                                         text_html=render_md(text)), 503)
+    font_family, font_faces = font_css(site['design'])
+    resp = make_response(render_template('maintenance.html', t=t, lang=lang, site=site, loc=loc,
+                                         text_html=render_md(text),
+                                         font_family=font_family, font_faces=font_faces,
+                                         cd=(site.get('sections') or {}).get('countdown') or {},
+                                         newsletter_open=newsletter_open(),
+                                         nl=_clean_str(request.args.get('nl'), 20)), 503)
     resp.headers['Retry-After'] = '3600'
     return resp
 
@@ -5853,7 +5858,8 @@ def blog_index():
 @public_app.route('/newsletter/subscribe', methods=['POST'])
 def newsletter_subscribe():
     site = load_site()
-    if site['design'].get('maintenance') or not newsletter_open():
+    # Abo bewusst auch im Wartungsmodus erlauben (Coming-Soon-Countdown „Benachrichtige mich")
+    if not newsletter_open():
         abort(403)
     ip = get_client_ip(request)
     back = _safe_next(request.form.get('next') or '/blog')   # zurück zur Herkunftsseite
