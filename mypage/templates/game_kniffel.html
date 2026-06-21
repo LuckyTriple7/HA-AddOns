@@ -384,6 +384,9 @@ const G = {
   rolls_left: {{ t.gk_rolls_left|tojson }},
   ai_turn: {{ t.gk_ai_turn|tojson }}, ai_thinking: {{ t.gk_ai_thinking|tojson }},
   game_over: {{ t.gk_game_over|tojson }}, you_win: {{ t.gk_you_win|tojson }}, wins: {{ t.gk_wins|tojson }},
+  stats_games: {{ t.gk_stats_games|tojson }}, stats_wins: {{ t.gk_stats_wins|tojson }},
+  stats_losses: {{ t.gk_stats_losses|tojson }}, stats_best: {{ t.gk_stats_best|tojson }},
+  stats_empty: {{ t.gk_stats_empty|tojson }}, stats_reset: {{ t.gk_stats_reset|tojson }},
   cats: [
     ['ones',{{ t.gk_cat_ones|tojson }}],['twos',{{ t.gk_cat_twos|tojson }}],
     ['threes',{{ t.gk_cat_threes|tojson }}],['fours',{{ t.gk_cat_fours|tojson }}],
@@ -728,7 +731,26 @@ async function showStart(){
   $('score-col').classList.remove('open');
   const v=await api('/api/kniffel/state');
   $('resume-box').style.display=(v && v.state && v.state.status==='playing')?'block':'none';
+  renderStats();
 }
+function stat(label,val){
+  return '<div style="min-width:60px"><div style="font-size:22px;font-weight:700;color:var(--gold)">'
+    +val+'</div><div style="font-size:11px;opacity:.65">'+label+'</div></div>';
+}
+async function renderStats(){
+  const box=$('stats-box');
+  const v=await api('/api/kniffel/history');
+  const games=(v && v.games)||[];
+  if(!games.length){ box.innerHTML='<span style="opacity:.55">'+G.stats_empty+'</span>'; return; }
+  const wins=games.filter(g=>g.winner==='p').length;
+  const best=games.reduce((m,g)=>Math.max(m,g.score||0),0);
+  box.innerHTML='<div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:8px">'
+    +stat(G.stats_games,games.length)+stat(G.stats_wins,wins)
+    +stat(G.stats_losses,games.length-wins)+stat(G.stats_best,best)+'</div>'
+    +'<button onclick="resetStats()" style="background:none;border:none;color:#bbb;font-size:11px;opacity:.6;cursor:pointer;text-decoration:underline">'
+    +G.stats_reset+'</button>';
+}
+async function resetStats(){ await api('/api/kniffel/history/reset', {}); renderStats(); }
 function showGameOver(){
   updateTurn();
   const w=state.winner;
@@ -743,7 +765,10 @@ function showGameOver(){
 }
 function closeOver(){ $('over-modal').classList.remove('show'); }
 function toggleScore(){ $('score-col').classList.toggle('open'); }
-function closeGame(){ try{history.length>1?history.back():location.href='/bereich';}catch(e){location.href='/bereich';} }
+function closeGame(){
+  if(window.parent !== window) window.parent.postMessage('close-kniffel', location.origin);
+  else location.href = '/bereich';
+}
 
 /* ── Modals ────────────────────────────────── */
 async function openRules(){
