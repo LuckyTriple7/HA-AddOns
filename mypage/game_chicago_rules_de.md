@@ -16,6 +16,8 @@ Spieler mit Bierfilzen zu sein.
 ### Ein Zug
 - Bis zu **drei Würfe**. Nach jedem Wurf darfst du Würfel **herauslegen** (halten);
   **Herausgelegtes darf nicht zurück** in den Becher.
+- **Nur 1 und 6 dürfen stehen bleiben** — eine **2, 3, 4 oder 5 muss immer zurück**
+  in den Becher und wird neu geworfen.
 - Der **Vorleger** bestimmt mit seiner Wurfzahl das **Wurf-Limit der Runde**: bleibt
   er nach dem 1./2. Wurf stehen, dürfen alle nur 1×/2× würfeln. Er sagt außerdem an,
   ob **„hoch"** (höher gewinnt) oder **„tief"** (tiefer gewinnt) gewertet wird.

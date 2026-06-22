@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.50
+
+- 🎲 **Chicago — nur 1 und 6 dürfen stehen bleiben** — Beim Halten zwischen den Würfen können jetzt **nur 1en und 6en** liegen bleiben; **2–5 wandern immer zurück in den Becher** und werden neu geworfen. Gilt für dich **und** die KI, ist in den Spielregeln ergänzt und der Halte-Hinweis wurde angepasst.
+- 📊 **Chicago — „Chicago"-Zähler in der Statistik** — Die Statistik auf dem Startbildschirm zeigt neben Spiele/Siege/Niederlagen jetzt einen vierten Wert **„Chicago"**: wie oft du per Chicago (drei 1er) gewonnen hast.
+
 ## 0.7.49
 
 - ⏸ **Kniffel & Chicago — echte Pause (wie Glücksrad)** — Wird der Tab in den Hintergrund geschoben, pausiert das Spiel jetzt automatisch: laufende Wartezeiten, KI-Züge und die Würfelbecher-Animation werden **eingefroren** und beim Zurückkehren exakt dort fortgesetzt (kein Vorspringen mehr, kein Auseinanderlaufen von Anzeige und echtem Spielstand). Zusätzlich ein **manueller Pause-Button** ⏸ in der Kopfzeile (auch per Taste **P**); fortsetzen per Klick auf die Pause-Anzeige, den Button oder P. Während der Pause ist alles stumm.

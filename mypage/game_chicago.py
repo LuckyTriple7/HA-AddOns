@@ -145,11 +145,12 @@ def _do_roll(state: dict, player: str, held=None) -> None:
         raise IllegalMove('not your roll')
     if state['rolls_used'] >= state['roll_cap']:
         raise IllegalMove('no rolls left')
-    # Halten frei wählbar, ABER bereits über einen Wurf gehaltene (locked) bleiben fix;
-    # zurückgelegte (0) Würfel werden immer neu geworfen
+    # Halten NUR für 1 und 6 erlaubt (2–5 müssen zurück in den Becher); bereits über
+    # einen Wurf gehaltene (locked) bleiben fix; zurückgelegte (0) immer neu werfen
     locked = state.get('locked', [False, False, False])
     if state['rolls_used'] > 0 and isinstance(held, list) and len(held) == 3:
-        state['held'] = [(locked[i] or bool(held[i])) and state['dice'][i] != 0 for i in range(3)]
+        state['held'] = [(locked[i] or bool(held[i])) and state['dice'][i] in (1, 6)
+                         for i in range(3)]
     mask = state['held'] if state['rolls_used'] > 0 else [False, False, False]
     state['roll_step'] += 1
     fresh = game_dice.roll(3, state['seed'], state['roll_step'])
@@ -219,6 +220,8 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
         'rolls': state['rolls_used'],
     }
     state['results'][player] = res
+    if res['chic'] and player == 'p':
+        state['human_chicago'] = True        # für die „Chicago"-Statistik
     state['last'] = {'type': 'stand', 'who': player, 'result': res}
 
     state['order_pos'] += 1
@@ -370,6 +373,7 @@ def end_after_human_chicago(state: dict) -> None:
     state['winner'] = 'p'
     state['loser'] = None
     state['turn'] = None
+    state['human_chicago'] = True            # für die „Chicago"-Statistik
     state['last'] = {'type': 'human_chicago_win', 'round_no': state.get('round_no', 1)}
 
 
@@ -449,12 +453,13 @@ def _ai_plan(dice: list[int]) -> tuple:
 
 def _keep_mask(dice: list[int], valuation: str, direction: str) -> list[bool]:
     """Würfel halten, die den Neuwurf-Erwartungswert in die gewünschte Richtung
-    schlagen (hoch → höher behalten, tief → tiefer behalten)."""
+    schlagen (hoch → höher behalten, tief → tiefer behalten). Regel: NUR 1 und 6
+    dürfen stehen bleiben — 2–5 müssen immer zurück in den Becher."""
     exp = _EXP.get(valuation, _EXP['gross'])
     mask = []
     for d in dice:
-        if d == 0:
-            mask.append(False)
+        if d not in (1, 6):
+            mask.append(False)         # nur 1 und 6 dürfen gehalten werden
             continue
         v = _die_value(d, valuation)
         mask.append(v >= exp if direction == 'hoch' else v <= exp)

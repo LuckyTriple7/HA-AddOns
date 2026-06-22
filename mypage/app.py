@@ -5632,6 +5632,7 @@ def _record_chicago_if_over(uid: str, st: dict) -> None:
         'loser': st.get('loser', ''),
         'level': st.get('level', 'medium'),
         'opponents': st.get('opponents', 2),
+        'chicago': bool(st.get('human_chicago')),           # per Chicago (drei 1er) gewonnen
     })
     _ng_history_write('chicago', uid, games)
 

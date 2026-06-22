@@ -301,7 +301,7 @@ const G = {
   cwin_rounds:{{ t.gc_cwin_rounds|tojson }}, cwin_one:{{ t.gc_cwin_one|tojson }}, cwin_watch:{{ t.gc_cwin_watch|tojson }}, cwin_end:{{ t.gc_cwin_end|tojson }},
   loser_mat:{{ t.gc_round_loser_mat|tojson }}, loser_mat_you:{{ t.gc_round_loser_mat_you|tojson }}, winner_off:{{ t.gc_round_winner_off|tojson }}, winner_off_you:{{ t.gc_round_winner_off_you|tojson }}, safe:{{ t.gc_safe|tojson }},
   game_over:{{ t.gc_game_over|tojson }}, you_lose:{{ t.gc_you_lose|tojson }}, loses:{{ t.gc_loses|tojson }}, you_win:{{ t.gc_you_win|tojson }},
-  stats_games:{{ t.gc_stats_games|tojson }}, stats_wins:{{ t.gc_stats_wins|tojson }}, stats_losses:{{ t.gc_stats_losses|tojson }},
+  stats_games:{{ t.gc_stats_games|tojson }}, stats_wins:{{ t.gc_stats_wins|tojson }}, stats_losses:{{ t.gc_stats_losses|tojson }}, stats_chicago:{{ t.gc_stats_chicago|tojson }},
   stats_empty:{{ t.gc_stats_empty|tojson }}, stats_reset:{{ t.gc_stats_reset|tojson }},
 };
 const $ = id => document.getElementById(id);
@@ -406,6 +406,7 @@ function scatter(slot){if(reduceMotion){slot.style.transform='';return;}const x=
 function toggleHold(i){
   if(busy||!myTurn()||state.rolls_used<1)return;
   if(state.dice[i]===0)return;                 // zurückgelegter Würfel ist nicht wählbar
+  if(state.dice[i]!==1&&state.dice[i]!==6)return; // nur 1 und 6 dürfen stehen bleiben
   if(state.locked&&state.locked[i])return;     // über einen Wurf gelegt → kein Zurück
   state.held[i]=!state.held[i];
   const slot=$('tray').children[i];slot.firstChild.classList.toggle('held',state.held[i]);
@@ -675,8 +676,9 @@ function stat(label,val){return '<div style="min-width:60px"><div style="font-si
 async function renderStats(){const box=$('stats-box');const v=await api('/api/chicago/history');const games=(v&&v.games)||[];
   if(!games.length){box.innerHTML='<span style="opacity:.55">'+G.stats_empty+'</span>';return;}
   const wins=games.filter(g=>g.winner==='p').length;
+  const chicago=games.filter(g=>g.winner==='p'&&g.chicago).length;
   box.innerHTML='<div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:8px">'
-    +stat(G.stats_games,games.length)+stat(G.stats_wins,wins)+stat(G.stats_losses,games.length-wins)+'</div>'
+    +stat(G.stats_games,games.length)+stat(G.stats_wins,wins)+stat(G.stats_losses,games.length-wins)+stat(G.stats_chicago,chicago)+'</div>'
     +'<button onclick="resetStats()" style="background:none;border:none;color:#bbb;font-size:11px;opacity:.6;cursor:pointer;text-decoration:underline">'+G.stats_reset+'</button>';}
 async function resetStats(){await api('/api/chicago/history/reset',{});renderStats();}
 

@@ -15,6 +15,8 @@ player holding beer mats.
 ### A turn
 - Up to **three rolls**. After each roll you may **set aside** (hold) dice; **what is
   set aside cannot go back** into the cup.
+- **Only 1s and 6s may be kept** — a **2, 3, 4 or 5 must always go back** into the cup
+  and be rerolled.
 - The **opener** sets the **roll limit for the round** by their number of rolls: if
   they stop after the 1st/2nd roll, everyone may roll only once/twice. They also call
   **"high"** (higher wins) or **"low"** (lower wins).
