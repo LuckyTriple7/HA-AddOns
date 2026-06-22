@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.60
+
+- 🎲 **Chicago — 6→1-Umwandlung nur innerhalb eines Wurfs** — Zwei Sechser dürfen nur dann in eine 1 umgewandelt werden (und drei Sechser nur dann automatisch zu zwei Einsern), wenn sie **im selben Wurf** fallen. Lag schon eine 6 und im nächsten Wurf kommt eine dazu, zählt das **nicht** mehr. Gilt für Mensch (Button erscheint nicht) und KI; Regeltexte ergänzt.
+
 ## 0.7.59
 
 - 📱 **Kniffel & Chicago — Startbildschirm auf Mobilgeräten scrollbar** — Der Startbildschirm zentrierte den Inhalt in einem fixen Container und schnitt ihn auf kleinen/Querformat-Displays oben ab, ohne Scrollmöglichkeit. Jetzt ist er **scrollbar** (zentriert bei genug Platz, scrollt bei Überlauf) und wird auf niedrigen Viewports zusätzlich **kompakter** dargestellt.

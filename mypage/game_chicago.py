@@ -67,6 +67,14 @@ def is_fish(dice: list[int]) -> bool:
     return all(d not in (1, 6) for d in dice)
 
 
+def _fresh_six_idx(state: dict) -> list[int]:
+    """Indizes der Sechser, die IM AKTUELLEN Wurf geworfen wurden (nicht bereits
+    liegende/gehaltene). Die 6→1-Umwandlung gilt nur innerhalb eines Wurfs:
+    liegt schon eine 6 und im nächsten Wurf kommt eine dazu, zählt das nicht."""
+    thrown = state.get('thrown', [True, True, True])
+    return [i for i, d in enumerate(state['dice']) if d == 6 and thrown[i]]
+
+
 def label(dice: list[int], valuation: str, rolls: int) -> str:
     if is_chicago(dice):
         return f'Chicago auf {rolls}'
@@ -123,6 +131,7 @@ def new_game(level: str = 'medium', humans: int = 1, ai: int = 2,
         'dice': [0, 0, 0],
         'held': [False, False, False],
         'locked': [False, False, False],   # über einen Wurf gehalten → fix
+        'thrown': [False, False, False],   # welche Würfel diesen Wurf geworfen wurden
         'rolls_used': 0,
         'results': {},                # pid -> {key,label,chic,rolls}
         'tief': None,                 # aktuell „tief" (zu schlagen)
@@ -177,12 +186,16 @@ def _do_roll(state: dict, player: str, held=None) -> None:
             dice[i] = fresh[i]
     state['dice'] = dice
     state['rolls_used'] += 1
+    # Welche Würfel wurden DIESEN Wurf geworfen (= nicht gehalten)? Für die 6→1-Regel
+    thrown = [not (state['rolls_used'] > 1 and mask[i]) for i in range(3)]
+    state['thrown'] = thrown
     # Was bei diesem Wurf gehalten wurde, ist nun „gelegt" → nicht mehr abwählbar
     state['locked'] = [locked[i] or mask[i] for i in range(3)]
     state['last'] = {'type': 'roll', 'who': player, 'dice': dice[:], 'held': mask[:],
                      'rolls_used': state['rolls_used']}
-    # Drei Sechser → automatisch zwei (gehaltene) Einser, dritter zurück in den Becher
-    if dice.count(6) == 3:
+    # Drei Sechser → automatisch zwei (gehaltene) Einser, dritter zurück in den Becher.
+    # Nur wenn alle drei IN DIESEM Wurf fielen (liegende 6er zählen nicht mit).
+    if dice.count(6) == 3 and all(thrown):
         dice[0] = 1
         dice[1] = 1
         if state['rolls_used'] < state['roll_cap']:
@@ -202,7 +215,8 @@ def _do_convert6(state: dict, player: str) -> None:
     if state['rolls_used'] < 1 or state['rolls_used'] >= state['roll_cap']:
         raise IllegalMove('no roll left to return a die')
     dice = state['dice']
-    six_idx = [i for i, d in enumerate(dice) if d == 6]
+    # Nur Sechser, die IN DIESEM Wurf fielen, dürfen umgewandelt werden
+    six_idx = _fresh_six_idx(state)
     if len(six_idx) != 2 or 0 in dice:
         raise IllegalMove('need exactly two sixes')
     a, b = six_idx
@@ -254,6 +268,7 @@ def _begin_turn(state: dict, who: str, opener: bool) -> None:
     state['dice'] = [0, 0, 0]
     state['held'] = [False, False, False]
     state['locked'] = [False, False, False]
+    state['thrown'] = [False, False, False]
     state['rolls_used'] = 0
 
 
@@ -521,8 +536,9 @@ def ai_step(state: dict) -> dict:
             return {'type': 'stand', 'valuation': 'gross', 'direction': 'hoch'}
         return {'type': 'stand'}
 
-    # Zwei 6er → eine 1: nur sinnvoll, wenn die 1 hoch zählt und hoch gespielt wird
-    if (dice.count(6) == 2 and 1 not in dice and state['rolls_used'] < cap
+    # Zwei 6er → eine 1: nur sinnvoll, wenn die 1 hoch zählt und hoch gespielt wird;
+    # zudem nur, wenn beide 6er IN DIESEM Wurf fielen (liegende zählen nicht)
+    if (len(_fresh_six_idx(state)) == 2 and 1 not in dice and state['rolls_used'] < cap
             and state['level'] == 'hard' and val == 'gross' and direc == 'hoch'):
         return {'type': 'convert6'}
 
@@ -569,7 +585,7 @@ def public_view(state: dict) -> dict:
         'rolls_used': state['rolls_used'],
         'can_convert6': (state['status'] in ('opener_roll', 'follower_roll')
                          and 1 <= state['rolls_used'] < state['roll_cap']
-                         and state['dice'].count(6) == 2 and 0 not in state['dice']),
+                         and len(_fresh_six_idx(state)) == 2 and 0 not in state['dice']),
         'results': {p: {'label': r['label'], 'dice': r['dice'], 'chic': r['chic'],
                         'rolls': r['rolls']}
                     for p, r in state['results'].items()},

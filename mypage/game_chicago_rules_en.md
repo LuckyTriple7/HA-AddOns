@@ -26,6 +26,9 @@ don't be the last player holding beer mats.
 - **Two sixes** can be turned into a **1**: one six becomes the one, the other returns
   to the cup (needs another roll). Or keep two sixes as **120**.
 - **Three sixes** automatically become **two ones**; the third die returns to the cup.
+- **Within a single roll only:** the conversion applies only to sixes thrown together
+  in **one** roll. If a six is already lying and another comes up on the next roll,
+  that does **not** count as "two sixes".
 
 ### "Mit ist Shit" (tie loses)
 A tie does **not** beat: whoever only ties becomes "low". So you can even get away

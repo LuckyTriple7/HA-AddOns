@@ -29,6 +29,9 @@ Ziel: nicht der letzte Spieler mit Bierfilzen zu sein.
   als **120** liegen.
 - **Drei Sechser** werden automatisch zu **zwei Einsern**, der dritte Würfel kommt
   zurück in den Becher.
+- **Nur innerhalb eines Wurfs:** Die Umwandlung gilt ausschließlich für Sechser, die
+  in **einem** Wurf zusammen fallen. Liegt schon eine 6 und im nächsten Wurf kommt
+  eine dazu, zählt das **nicht** als „zwei Sechser".
 
 ### „Mit ist Shit"
 Gleichstand schlägt **nicht**: Wer nur gleichzieht, ist selbst „tief". So kommt man
