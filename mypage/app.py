@@ -5652,9 +5652,12 @@ def api_chicago_new():
         return jsonify({'error': 'session_locked'}), 423
     level = data.get('level')
     level = level if level in ('easy', 'medium', 'hard') else 'medium'
-    opponents = 3 if int(data.get('opponents') or 2) == 3 else 2
+    humans = max(1, min(3, int(data.get('humans') or 1)))
+    ai = max(0, min(2, int(data.get('ai') if data.get('ai') is not None
+                           else data.get('opponents', 2))))
+    names = data.get('names') if isinstance(data.get('names'), dict) else {}
     with _game_lock:
-        st = game_chicago.new_game(level, opponents)
+        st = game_chicago.new_game(level, humans=humans, ai=ai, names=names)
         _ng_save('chicago', member['id'], st)
     return jsonify({'state': game_chicago.public_view(st)})
 
@@ -5672,8 +5675,13 @@ def api_chicago_move():
         st = _ng_load('chicago', member['id'])
         if st is None:
             abort(409)
+        # Hotseat: der Zug gilt für den aktuell am Gerät sitzenden MENSCHEN
+        cur = st.get('turn')
+        humans = st.get('humans', ['p'])
+        if cur not in humans:
+            return jsonify({'state': game_chicago.public_view(st)})
         try:
-            game_chicago.apply_action(st, 'p', act)
+            game_chicago.apply_action(st, cur, act)
         except game_chicago.IllegalMove:
             return jsonify({'state': game_chicago.public_view(st)})
         _record_chicago_if_over(member['id'], st)
@@ -5699,6 +5707,23 @@ def api_chicago_concede():
     return jsonify({'state': game_chicago.public_view(st)})
 
 
+@public_app.route('/api/chicago/names', methods=['POST'])
+def api_chicago_names():
+    """Namen menschlicher Spieler jederzeit ändern."""
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    names = data.get('names') if isinstance(data.get('names'), dict) else {}
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        game_chicago.set_names(st, names)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
 @public_app.route('/api/chicago/ai', methods=['POST'])
 def api_chicago_ai():
     member = _require_member()
@@ -5713,7 +5738,8 @@ def api_chicago_ai():
         if st is None:
             abort(409)
         event = None
-        if st['status'] in ('opener_roll', 'follower_roll') and st['turn'] != 'p':
+        humans = st.get('humans', ['p'])
+        if st['status'] in ('opener_roll', 'follower_roll') and st['turn'] not in humans:
             who = st['turn']
             act = game_chicago.ai_step(st)
             game_chicago.apply_action(st, who, act)

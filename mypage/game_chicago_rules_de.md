@@ -1,7 +1,8 @@
 ## Chicago (Tschigg) — Spielregeln
 
-Ein Würfelspiel mit **3 Würfeln** gegen **2–3 KI-Gegner**. Ziel: nicht der letzte
-Spieler mit Bierfilzen zu sein.
+Ein Würfelspiel mit **3 Würfeln** für **2–5 Spieler** — bis zu **3 Menschen am
+selben Gerät** (mit eigenen, jederzeit änderbaren Namen) und/oder **bis zu 2 KI**.
+Ziel: nicht der letzte Spieler mit Bierfilzen zu sein.
 
 ### Wertung
 - **1** zählt 100, **6** zählt 60, **2–5** zählen ihren Augenwert (so wählt der

@@ -27,6 +27,9 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
 #pause-overlay .pic{font-size:54px;color:var(--gold)}
 #pause-overlay h2{font-size:clamp(1.8rem,6vw,2.6rem);color:var(--gold);margin:0}
 #pause-overlay .ph{opacity:.75;font-size:1rem}
+.name-inp{width:100%;max-width:240px;margin:4px auto;display:block;padding:7px 10px;border-radius:8px;
+  border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.08);color:#fff;font-size:14px;text-align:center}
+.name-inp::placeholder{color:rgba(255,255,255,0.45)}
 body.gpaused #game-area *{animation-play-state:paused!important}
 body.gpaused .confetti-piece{animation-play-state:paused!important}
 
@@ -223,10 +226,18 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
     <h1>🎲 {{ t.gc_title }}</h1>
     <div class="sub">{{ t.gc_subtitle }}</div>
     <div id="resume-box" style="display:none"><button id="btn-resume" onclick="resumeGame()">▶ {{ t.gc_resume }}</button></div>
-    <div class="seclabel">{{ t.gc_opponents }}</div>
-    <div class="optrow" id="opp-row">
-      <button class="opt-btn sel" data-opp="2" onclick="selOpp(2)">{{ t.gc_opp_2 }}</button>
-      <button class="opt-btn" data-opp="3" onclick="selOpp(3)">{{ t.gc_opp_3 }}</button>
+    <div class="seclabel">{{ t.gc_humans }}</div>
+    <div class="optrow" id="hum-row">
+      <button class="opt-btn sel" data-hum="1" onclick="selHum(1)">1</button>
+      <button class="opt-btn" data-hum="2" onclick="selHum(2)">2</button>
+      <button class="opt-btn" data-hum="3" onclick="selHum(3)">3</button>
+    </div>
+    <div id="name-fields"></div>
+    <div class="seclabel">{{ t.gc_ai_count }}</div>
+    <div class="optrow" id="ai-row">
+      <button class="opt-btn" data-ai="0" onclick="selAI(0)">0</button>
+      <button class="opt-btn" data-ai="1" onclick="selAI(1)">1</button>
+      <button class="opt-btn sel" data-ai="2" onclick="selAI(2)">2</button>
     </div>
     <div class="seclabel">{{ t.gc_level }}</div>
     <div class="optrow" id="lvl-row">
@@ -249,6 +260,8 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
     <div class="setting"><label>{{ t.gc_speed_pause }}: <b id="val-pause"></b></label><input type="range" id="set-pause" min="200" max="2500" step="100"></div>
     <div class="setting"><label>{{ t.gc_speed_ai }}: <b id="val-ai"></b></label><input type="range" id="set-ai" min="300" max="2500" step="100"></div>
     <p class="setting-hint">{{ t.gc_settings_hint }}</p>
+    <div class="setting" id="rename-box" style="display:none"><label>{{ t.gc_names_label }}</label>
+      <div id="rename-fields"></div></div>
     <div class="setting"><label class="setting-check"><input type="checkbox" id="set-sound" checked> {{ t.gc_sound_label }}</label>
       <p class="setting-hint" style="margin-top:2px">{{ t.gc_sound_hint }}</p></div>
     <div style="display:flex;gap:10px;justify-content:center"><button class="btn btn-ghost" onclick="resetSettings()">{{ t.gc_reset }}</button><button class="btn btn-gold" onclick="closeSettings()">✕</button></div>
@@ -292,8 +305,8 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
 
 <script>
 const G = {
-  player:{{ t.gc_player|tojson }}, ai1:{{ t.gc_ai1|tojson }}, ai2:{{ t.gc_ai2|tojson }}, ai3:{{ t.gc_ai3|tojson }},
-  your_turn:{{ t.gc_your_turn|tojson }}, you_opener:{{ t.gc_you_opener|tojson }}, ai_turn:{{ t.gc_ai_turn|tojson }},
+  player:{{ t.gc_player|tojson }}, player2:{{ t.gc_player2|tojson }}, player3:{{ t.gc_player3|tojson }}, ai1:{{ t.gc_ai1|tojson }}, ai2:{{ t.gc_ai2|tojson }}, ai3:{{ t.gc_ai3|tojson }},
+  your_turn:{{ t.gc_your_turn|tojson }}, you_opener:{{ t.gc_you_opener|tojson }}, ai_turn:{{ t.gc_ai_turn|tojson }}, turn_named:{{ t.gc_turn_named|tojson }}, opener_named:{{ t.gc_opener_named|tojson }},
   opener_label:{{ t.gc_opener_label|tojson }}, phase1:{{ t.gc_phase1|tojson }}, phase2:{{ t.gc_phase2|tojson }},
   announce:{{ t.gc_announce|tojson }}, hoch:{{ t.gc_dir_hoch_short|tojson }}, tief:{{ t.gc_dir_tief_short|tojson }},
   valh_gross:{{ t.gc_valh_gross|tojson }}, valh_klein:{{ t.gc_valh_klein|tojson }}, valh_ohne1:{{ t.gc_valh_ohne1|tojson }},
@@ -314,7 +327,8 @@ const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches
 function applyRollVar(){document.documentElement.style.setProperty('--roll',(reduceMotion?0.01:rollMs/1000)+'s');}
 applyRollVar();
 
-let opp=2, level='medium', state=null, busy=false;
+let numHumans=1, numAI=2, level='medium', state=null, busy=false;
+let pnames={p:'',h2:'',h3:''};
 let declVal='gross', declDir='hoch';
 
 /* Sound */
@@ -392,9 +406,17 @@ $('device-takeover').onclick=async()=>{if(await claimSession(true))resumeGame(tr
 tabClaim();
 
 /* Helfer */
-function nameOf(p){return ({p:G.player,a1:G.ai1,a2:G.ai2,a3:G.ai3})[p]||p;}
-function myTurn(){return state&&(state.status==='opener_roll'||state.status==='follower_roll')&&state.turn==='p';}
-function isOpenerTurn(){return state&&state.status==='opener_roll'&&state.turn==='p';}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function humans(){return (state&&state.humans)||['p'];}
+function isHuman(p){return humans().indexOf(p)>=0;}
+function customName(p){return state&&state.names&&state.names[p]?state.names[p]:'';}
+// Eigener Name → 3. Person („Beate gewinnt"); nur namenloser Spieler 1 bleibt „Du"
+function use2nd(p){return p==='p'&&!customName('p');}
+function nameOf(p){
+  if(customName(p))return customName(p);
+  return ({p:G.player,h2:G.player2,h3:G.player3,a1:G.ai1,a2:G.ai2,a3:G.ai3})[p]||p;}
+function myTurn(){return state&&(state.status==='opener_roll'||state.status==='follower_roll')&&isHuman(state.turn);}
+function isOpenerTurn(){return state&&state.status==='opener_roll'&&isHuman(state.turn);}
 function cap(){return state?state.roll_cap:3;}
 
 /* Würfel */
@@ -486,7 +508,7 @@ function renderPlayers(){
     const opener=state.opener===p&&!out;
     return '<div class="pchip'+(act?' active':'')+(out?' out':'')+'">'
       +'<span class="popener">'+(opener?G.opener_label:'')+'</span>'
-      +'<span class="pname">'+nameOf(p)+'</span>'
+      +'<span class="pname">'+esc(nameOf(p))+'</span>'
       +'<span class="pmats">'+matIcons(state.mats[p]||0)+'</span>'
       +'<span class="presult'+(res&&res.chic?' chic':'')+'">'+(res?res.label:'')+'</span></div>';
   }).join('');
@@ -510,8 +532,10 @@ function updateTurn(){
     const left=Math.max(0,(state.mats_target||0)-dist);
     $('phase-badge').textContent=G.phase1+' · 🍺 '+left;}
   else $('phase-badge').textContent=G.phase2;
-  if(state.turn==='p')$('turn-label').innerHTML='<b>'+(isOpenerTurn()?G.you_opener:G.your_turn)+'</b>';
-  else $('turn-label').innerHTML='<b>'+nameOf(state.turn)+'</b> '+G.ai_turn;
+  const tp=state.turn;
+  if(use2nd(tp))$('turn-label').innerHTML='<b>'+(isOpenerTurn()?G.you_opener:G.your_turn)+'</b>';
+  else if(isHuman(tp))$('turn-label').innerHTML='<b>'+esc(nameOf(tp))+'</b> '+(isOpenerTurn()?G.opener_named:G.turn_named);
+  else $('turn-label').innerHTML='<b>'+esc(nameOf(tp))+'</b> '+G.ai_turn;
   $('announce').textContent=announceText();
 }
 function renderAll(){buildTray();renderPlayers();updateControls();updateTurn();updateMyScore();}
@@ -529,12 +553,13 @@ async function doRoll(){
   if(myTurn()&&isChicDice(state.dice)){
     const roundNo=state.round_no||1;
     const opener=isOpenerTurn();
+    const who=state.turn;
     renderAll();
     // Sieg serverseitig festschreiben (Mensch ist gerettet)
     const v=await api('/api/chicago/move',Object.assign({type:'stand'},opener?{valuation:'gross',direction:'hoch'}:{}));
     if(v&&v.state)state=v.state;
     busy=false;
-    showChicagoWin(roundNo);
+    showChicagoWin(roundNo,who);
     return;
   }
   busy=false;renderAll();
@@ -570,16 +595,19 @@ async function sendStand(extra){
   afterMyStand();
 }
 function afterMyStand(){
-  // Vorlage-/Rundenmeldung & ggf. KI weiterlaufen lassen
+  // Vorlage-/Rundenmeldung; nächster Mensch übernimmt am Gerät, sonst KI weiter
   flashAnnounce();flashRound();
   if(state.status==='game_over'){showGameOver();return;}
-  if(state.turn!=='p')runAI();
+  if(!isHuman(state.turn))runAI();
 }
 function flashRound(){
   const l=state.last;
   if(!l||l.type!=='round')return;
-  if(l.phase===1&&l.loser){const me=l.loser==='p';centerBanner(nameOf(l.loser)+' '+(me?G.loser_mat_you:G.loser_mat),me?'bad':'');(me?SFX.matGet:SFX.matGetAI)();}
-  if(l.phase===2&&l.winner){const me=l.winner==='p';centerBanner(nameOf(l.winner)+' '+(me?G.winner_off_you:G.winner_off),'gold');SFX.matDrop();}
+  if(l.phase===1&&l.loser){const h=isHuman(l.loser);
+    centerBanner(nameOf(l.loser)+' '+(use2nd(l.loser)?G.loser_mat_you:G.loser_mat),h?'bad':'');
+    (h?SFX.matGet:SFX.matGetAI)();}
+  if(l.phase===2&&l.winner){
+    centerBanner(nameOf(l.winner)+' '+(use2nd(l.winner)?G.winner_off_you:G.winner_off),'gold');SFX.matDrop();}
 }
 function flashAnnounce(){
   // Vorlage des Ansagers — Banner mit der festgelegten Ansage
@@ -594,7 +622,7 @@ function flashAnnounce(){
 }
 
 async function runAI(){
-  while(state&&(state.status==='opener_roll'||state.status==='follower_roll')&&state.turn!=='p'){
+  while(state&&(state.status==='opener_roll'||state.status==='follower_roll')&&!isHuman(state.turn)){
     updateTurn();updateControls();
     await waitIfPaused();
     await sleep(Math.round(aiMs*0.5));
@@ -623,11 +651,12 @@ async function runAI(){
 function showGameOver(){
   updateTurn();
   const loser=state.loser;
-  $('over-title').innerHTML=(loser==='p')?G.you_lose:(loser?'🎲 '+nameOf(loser)+' '+G.loses:G.you_win);
+  $('over-title').innerHTML=use2nd(loser)?G.you_lose
+    :(loser?'🎲 '+esc(nameOf(loser))+' '+G.loses:G.you_win);
   $('over-list').innerHTML=state.players.map(p=>
-    '<div class="over-row'+(p===loser?' lose':'')+'"><span>'+nameOf(p)+'</span><span>'+matIcons(state.mats[p]||0)+'</span></div>').join('');
+    '<div class="over-row'+(p===loser?' lose':'')+'"><span>'+esc(nameOf(p))+'</span><span>'+matIcons(state.mats[p]||0)+'</span></div>').join('');
   $('over-modal').classList.add('show');
-  (loser==='p'?SFX.lose:SFX.win)();
+  (isHuman(loser)?SFX.lose:SFX.win)();
 }
 function closeOver(){$('over-modal').classList.remove('show');}
 
@@ -643,8 +672,9 @@ function launchConfetti(){
     el.style.animationDuration=(2+Math.random()*2)+'s';el.style.animationDelay=(Math.random()*0.6)+'s';
     document.body.appendChild(el);setTimeout(()=>el.remove(),4200);}
 }
-function showChicagoWin(roundNo){
-  $('cwin-rounds').textContent=(roundNo===1)?G.cwin_one:G.cwin_rounds.replace('{n}',roundNo);
+function showChicagoWin(roundNo,who){
+  const base=(roundNo===1)?G.cwin_one:G.cwin_rounds.replace('{n}',roundNo);
+  $('cwin-rounds').textContent=(who&&!use2nd(who))?(nameOf(who)+' · '+base):base;
   $('chicago-win').classList.add('show');
   SFX.win();launchConfetti();
 }
@@ -660,14 +690,30 @@ async function chicagoWinEnd(){
 }
 
 /* Screens */
-function selOpp(n){opp=n;document.querySelectorAll('#opp-row .opt-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.opp===n));}
+const HUMAN_IDS=['p','h2','h3'];
+const namePH=i=>i===0?G.player:(i===1?G.player2:G.player3);
+function clampAI(){ // 1 Mensch braucht mind. 1 KI (min 2 Spieler); KI max 2; gesamt max 5
+  const lo=Math.max(0,2-numHumans), hi=Math.min(2,5-numHumans);
+  if(numAI<lo)numAI=lo; if(numAI>hi)numAI=hi;
+  document.querySelectorAll('#ai-row .opt-btn').forEach(b=>{const v=+b.dataset.ai;
+    b.disabled=(v<lo||v>hi);b.style.opacity=b.disabled?'.35':'';b.classList.toggle('sel',v===numAI);});
+}
+function renderNameFields(){
+  let h='';for(let i=0;i<numHumans;i++){const id=HUMAN_IDS[i];
+    h+='<input class="name-inp" data-id="'+id+'" maxlength="20" placeholder="'+namePH(i)+'" value="'+esc(pnames[id]||'')+'" oninput="pnames[this.dataset.id]=this.value">';}
+  $('name-fields').innerHTML=h;
+}
+function selHum(n){numHumans=n;document.querySelectorAll('#hum-row .opt-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.hum===n));renderNameFields();clampAI();}
+function selAI(n){numAI=n;clampAI();}
 function selLvl(l){level=l;document.querySelectorAll('#lvl-row .opt-btn').forEach(b=>b.classList.toggle('sel',b.dataset.lvl===l));}
 function render(s){state=s;$('start-screen').style.display='none';renderAll();
-  if((state.status==='opener_roll'||state.status==='follower_roll')&&state.turn!=='p')runAI();
+  if((state.status==='opener_roll'||state.status==='follower_roll')&&!isHuman(state.turn))runAI();
   else if(state.status==='game_over')showGameOver();}
-async function startGame(){if(busy)return;busy=true;if(!await claimSession(false)){busy=false;return;}const v=await api('/api/chicago/new',{level,opponents:opp});busy=false;if(v&&v.state)render(v.state);}
+async function startGame(){if(busy)return;busy=true;if(!await claimSession(false)){busy=false;return;}
+  const names={};HUMAN_IDS.slice(0,numHumans).forEach(id=>names[id]=(pnames[id]||'').trim());
+  const v=await api('/api/chicago/new',{level,humans:numHumans,ai:numAI,names});busy=false;if(v&&v.state)render(v.state);}
 async function resumeGame(skipClaim){if(!skipClaim&&!await claimSession(false))return;const v=await api('/api/chicago/state');if(v&&v.state)render(v.state);}
-async function showStart(){$('start-screen').style.display='flex';const v=await api('/api/chicago/state');$('resume-box').style.display=(v&&v.state&&v.state.status!=='game_over')?'block':'none';renderStats();}
+async function showStart(){$('start-screen').style.display='flex';renderNameFields();clampAI();const v=await api('/api/chicago/state');$('resume-box').style.display=(v&&v.state&&v.state.status!=='game_over')?'block':'none';renderStats();}
 function toggleScore(){}
 function closeGame(){releaseSession();if(window.parent!==window)window.parent.postMessage('close-chicago',location.origin);else location.href='/bereich';}
 
@@ -685,8 +731,21 @@ async function resetStats(){await api('/api/chicago/history/reset',{});renderSta
 /* Modals */
 async function openRules(){$('rules-modal').classList.add('show');$('rules-body').innerHTML='…';const v=await api('/api/chicago/rules');$('rules-body').innerHTML=(v&&v.html)?v.html:'';}
 function closeRules(){$('rules-modal').classList.remove('show');}
-function openSettings(){syncSettings();$('settings-modal').classList.add('show');}
+function openSettings(){syncSettings();renderRenameFields();$('settings-modal').classList.add('show');}
 function closeSettings(){$('settings-modal').classList.remove('show');}
+// Namen menschlicher Spieler jederzeit ändern (nur im laufenden Spiel sichtbar)
+function renderRenameFields(){
+  const box=$('rename-box');
+  if(!state||!state.humans||$('start-screen').style.display!=='none'){box.style.display='none';return;}
+  box.style.display='';
+  $('rename-fields').innerHTML=state.humans.map((id,i)=>
+    '<input class="name-inp" data-id="'+id+'" maxlength="20" placeholder="'+namePH(i)+'" value="'+esc((state.names&&state.names[id])||'')+'" onchange="saveName(this)">').join('');
+}
+async function saveName(inp){
+  const names={};names[inp.dataset.id]=inp.value.trim();
+  const v=await api('/api/chicago/names',{names});
+  if(v&&v.state){state=v.state;renderPlayers();updateTurn();}
+}
 function fmtS(ms){return (ms/1000).toFixed(2).replace('.',',')+'s';}
 function syncSettings(){$('set-roll').value=rollMs;$('val-roll').textContent=fmtS(rollMs);$('set-pause').value=pauseMs;$('val-pause').textContent=fmtS(pauseMs);$('set-ai').value=aiMs;$('val-ai').textContent=fmtS(aiMs);$('set-sound').checked=soundOn;}
 $('set-roll').addEventListener('input',e=>{rollMs=+e.target.value;localStorage.setItem('gc_roll',rollMs);$('val-roll').textContent=fmtS(rollMs);applyRollVar();});

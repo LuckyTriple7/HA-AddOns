@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.53
+
+- 👥 **Chicago — Hotseat: bis zu 3 Menschen am selben Gerät** — Neben dir können jetzt **1–2 weitere menschliche Spieler** am selben PC mitspielen (insgesamt **2–5 Spieler**, KI weiter optional, max 2 KI). Auf dem Startbildschirm wählst du „Menschliche Spieler" und „KI-Gegner"; wer dran ist, steht oben („… ist dran"), danach gibt man das Gerät weiter.
+- ✏️ **Chicago — eigene Namen für menschliche Spieler** — Jeder Mensch bekommt einen **eigenen Namen** (Felder auf dem Startbildschirm), **jederzeit änderbar** über ⚙ Einstellungen. Mit Namen heißt es korrekt in der **3. Person** („Beate gewinnt", „Beate bekommt einen Bierfilz"); der namenlose Spieler 1 bleibt wie gewohnt „Du gewinnst/bekommst". Namen werden sicher dargestellt (kein HTML).
+- 📊 **Statistik weiterhin nur für Spieler 1** (`Du`) — wie gewünscht unverändert.
+
 ## 0.7.52
 
 - 🎲 **Chicago — „Mit ist Shit" bei Gleichstand korrigiert** — Bei gleichem Wurf (z. B. beide 12 groß) verlor fälschlich der **frühere** Spieler. Richtig ist: Wer **gleichzieht, ist „mit" und damit Shit** — also verliert der **spätere** Spieler in der Reihenfolge. Würfelst du als Vorleger 12 und die KI zieht mit 12 gleich, verliert jetzt die **KI** (und umgekehrt). Betrifft die Ermittlung des Runden-Verlierers (Phase 1 & 2), hoch wie tief.

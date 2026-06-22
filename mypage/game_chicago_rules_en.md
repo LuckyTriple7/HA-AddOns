@@ -1,7 +1,8 @@
 ## Chicago (Tschigg) — Rules
 
-A dice game with **3 dice** against **2–3 AI opponents**. Goal: don't be the last
-player holding beer mats.
+A dice game with **3 dice** for **2–5 players** — up to **3 humans on the same
+device** (each with their own, anytime-editable name) and/or **up to 2 AI**. Goal:
+don't be the last player holding beer mats.
 
 ### Scoring
 - **1** counts 100, **6** counts 60, **2–5** count their face value (the opener calls

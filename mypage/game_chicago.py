@@ -74,14 +74,26 @@ def label(dice: list[int], valuation: str, rolls: int) -> str:
 
 # ── Spiel erstellen ──────────────────────────────────────────────────────────
 
-def new_game(level: str = 'medium', opponents: int = 2, seed: int | None = None) -> dict:
+def new_game(level: str = 'medium', humans: int = 1, ai: int = 2,
+             names: dict | None = None, seed: int | None = None) -> dict:
     if seed is None:
         seed = random.randint(0, 2 ** 31)
-    if opponents not in (2, 3):
-        opponents = 2
     if level not in ('easy', 'medium', 'hard'):
         level = 'medium'
-    players = ['p'] + [f'a{i}' for i in range(1, opponents + 1)]
+    # 1–3 Menschen, 0–2 KI, mind. 2 und max 5 Spieler gesamt
+    humans = max(1, min(3, int(humans or 1)))
+    ai = max(0, min(2, int(ai or 0)))
+    if humans + ai < 2:
+        ai = 2 - humans
+    if humans + ai > 5:
+        ai = 5 - humans
+    human_ids = ['p', 'h2', 'h3'][:humans]
+    ai_ids = [f'a{i}' for i in range(1, ai + 1)]
+    players = human_ids + ai_ids       # Sitzreihenfolge: Menschen, dann KI
+    # Namen der menschlichen Spieler (bereinigt, leer erlaubt → Client zeigt
+    # „Du"/„Spieler N" und wählt 2./3. Person). Statistik bleibt nur für 'p'.
+    src = names or {}
+    pnames = {hid: str(src.get(hid, '') or '').strip()[:20] for hid in human_ids}
     rng = random.Random(seed)
     opener = rng.choice(players)
     state = {
@@ -89,7 +101,9 @@ def new_game(level: str = 'medium', opponents: int = 2, seed: int | None = None)
         'phase': 1,
         'round_no': 1,
         'level': level,
-        'opponents': opponents,
+        'opponents': ai,
+        'humans': human_ids,
+        'names': pnames,
         'seed': seed,
         'roll_step': 0,
         'players': players,           # Sitzreihenfolge
@@ -364,18 +378,32 @@ def _finish_game(state: dict) -> None:
 
 
 def human_chicago_won(state: dict) -> bool:
-    """Hat der Mensch in dieser Runde durch Chicago gewonnen (→ gerettet)?"""
-    r = state.get('results', {}).get('p')
-    return (r is not None and r.get('chic')) or ('p' not in state['active'])
+    """Hat IRGENDEIN menschlicher Spieler in dieser Runde durch Chicago gewonnen
+    (→ gerettet)? (Banner/Beenden erlaubt auch für Spieler 2/3.)"""
+    for h in state.get('humans', ['p']):
+        r = state.get('results', {}).get(h)
+        if (r is not None and r.get('chic')) or (h not in state['active']):
+            return True
+    return False
+
+
+def set_names(state: dict, names: dict) -> None:
+    """Namen menschlicher Spieler jederzeit ändern (leer erlaubt)."""
+    src = names or {}
+    for hid in state.get('humans', ['p']):
+        if hid in src:
+            state.setdefault('names', {})[hid] = str(src.get(hid) or '').strip()[:20]
 
 
 def end_after_human_chicago(state: dict) -> None:
-    """Mensch hat per Chicago gewonnen und möchte das Spiel sofort beenden."""
+    """Ein Mensch hat per Chicago gewonnen und möchte das Spiel sofort beenden.
+    Verlierer = aktuell meiste Bierfilze unter den Aktiven (sonst keiner). Die
+    „Chicago"-Statistik (`human_chicago`) wird nur in _do_stand für 'p' gesetzt."""
     state['status'] = 'game_over'
-    state['winner'] = 'p'
-    state['loser'] = None
+    holders = [p for p in state['active'] if state['mats'].get(p, 0) > 0]
+    state['loser'] = _most_mats(state) if holders else None
+    state['winner'] = 'p' if state['loser'] != 'p' else None
     state['turn'] = None
-    state['human_chicago'] = True            # für die „Chicago"-Statistik
     state['last'] = {'type': 'human_chicago_win', 'round_no': state.get('round_no', 1)}
 
 
@@ -519,6 +547,8 @@ def public_view(state: dict) -> dict:
         'round_no': state.get('round_no', 1),
         'level': state['level'],
         'opponents': state['opponents'],
+        'humans': state.get('humans', ['p']),
+        'names': state.get('names', {}),
         'players': state['players'],
         'active': state['active'],
         'mats': state['mats'],
