@@ -5680,6 +5680,24 @@ def api_chicago_move():
     return jsonify({'state': game_chicago.public_view(st)})
 
 
+@public_app.route('/api/chicago/concede', methods=['POST'])
+def api_chicago_concede():
+    """Mensch hat per Chicago gewonnen und beendet das Spiel (ohne den KIs zuzusehen)."""
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        if st.get('status') != 'game_over' and game_chicago.human_chicago_won(st):
+            game_chicago.end_after_human_chicago(st)
+            _record_chicago_if_over(member['id'], st)
+            _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
 @public_app.route('/api/chicago/ai', methods=['POST'])
 def api_chicago_ai():
     member = _require_member()

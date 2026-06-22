@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.42
+
+- 🎉 **Chicago — Sieg-Banner mit Konfetti, wenn DU Chicago würfelst** — Würfelt der Spieler drei 1er, hat er sofort gewonnen. Statt nur eines Hinweises erscheint nun ein **Sieg-Banner** mit **Gewinn-Sound** und **Konfettiregen** (wie beim Glücksrad): „CHICAGO! — Gewonnen nach X Runden". Danach die Wahl: **„KIs weiter zuschauen"** (die Runde/das Spiel läuft normal weiter) oder **„Spiel beenden"** (sofort Schluss, Sieg wird gewertet).
+
 ## 0.7.41
 
 - 🤖 **Chicago — KI spielt jetzt wertungs- & richtungsbewusst** — Bisher hielt die KI stur 1er/6er und sagte als Vorleger immer „gross" an. Jetzt richtet sie ihr **Halten** nach der angesagten Wertung (groß/klein/**ohne 1**) **und** Richtung (hoch/tief) aus und **sagt selbst sinnvoll an**: mit einer 1 → *gross hoch*, mit 6 aber ohne 1 → **ohne 1 hoch** (nimmt den Gegnern die starke 100), bei niedrigen Augen → *gross tief*. Schwierigkeitsgrade greifen wieder spürbar (leicht zufälliger, mittel reizt nicht alles aus, schwer spielt optimal inkl. 6er-Trick nur wenn es passt).

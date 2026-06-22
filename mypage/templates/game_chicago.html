@@ -138,6 +138,14 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
 .toast.gold{border-color:var(--gold);color:var(--gold)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
 
+/* Chicago-Sieg-Banner + Konfetti */
+.confetti-piece{position:fixed;width:10px;height:10px;z-index:300;pointer-events:none;animation:confettiFall 3s ease-out forwards}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
+#chicago-win .modal-box{border:2px solid var(--gold);box-shadow:0 0 40px rgba(241,196,15,0.4)}
+#chicago-win .cwin-emoji{font-size:clamp(46px,9vw,68px);animation:cwinPop .5s cubic-bezier(.3,1.4,.5,1)}
+#chicago-win h2{color:var(--gold);font-size:clamp(1.5rem,5vw,2rem);letter-spacing:2px;margin:4px 0 2px}
+@keyframes cwinPop{0%{transform:scale(0) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}
+
 #rotate-overlay{position:fixed;inset:0;z-index:200;background:var(--felt2);display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:14px}
 .rotate-icon{font-size:54px;animation:rotateHint 2.2s ease-in-out infinite}
 @keyframes rotateHint{0%,60%,100%{transform:rotate(0)}30%{transform:rotate(90deg)}}
@@ -238,6 +246,19 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
   </div>
 </div>
 
+<!-- Modal: Chicago-Sieg (Mensch) -->
+<div class="modal-overlay" id="chicago-win">
+  <div class="modal-box" style="text-align:center">
+    <div class="cwin-emoji">🎲🎉</div>
+    <h2>{{ t.gc_chicago }}</h2>
+    <p id="cwin-rounds" style="font-size:1.1rem;opacity:.9;margin-bottom:18px"></p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="chicagoWinWatch()">{{ t.gc_cwin_watch }}</button>
+      <button class="btn btn-ghost" onclick="chicagoWinEnd()">{{ t.gc_cwin_end }}</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Regeln -->
 <div class="modal-overlay" id="rules-modal"><div class="modal-box wide"><h2>📖 {{ t.gc_rulesdoc }}</h2><div class="scrollbox" id="rules-body">…</div><button class="btn btn-gold" onclick="closeRules()">✕</button></div></div>
 
@@ -255,6 +276,7 @@ const G = {
   announce:{{ t.gc_announce|tojson }}, hoch:{{ t.gc_dir_hoch_short|tojson }}, tief:{{ t.gc_dir_tief_short|tojson }},
   valh_gross:{{ t.gc_valh_gross|tojson }}, valh_klein:{{ t.gc_valh_klein|tojson }}, valh_ohne1:{{ t.gc_valh_ohne1|tojson }},
   chic:{{ t.gc_chicago|tojson }}, chicago_win:{{ t.gc_chicago_win|tojson }}, fish:{{ t.gc_fish|tojson }}, mats:{{ t.gc_mats|tojson }},
+  cwin_rounds:{{ t.gc_cwin_rounds|tojson }}, cwin_one:{{ t.gc_cwin_one|tojson }}, cwin_watch:{{ t.gc_cwin_watch|tojson }}, cwin_end:{{ t.gc_cwin_end|tojson }},
   loser_mat:{{ t.gc_round_loser_mat|tojson }}, winner_off:{{ t.gc_round_winner_off|tojson }}, safe:{{ t.gc_safe|tojson }},
   game_over:{{ t.gc_game_over|tojson }}, you_lose:{{ t.gc_you_lose|tojson }}, loses:{{ t.gc_loses|tojson }}, you_win:{{ t.gc_you_win|tojson }},
   stats_games:{{ t.gc_stats_games|tojson }}, stats_wins:{{ t.gc_stats_wins|tojson }}, stats_losses:{{ t.gc_stats_losses|tojson }},
@@ -442,12 +464,16 @@ async function doRoll(){
   if(!v||!v.state){busy=false;updateControls();return;}
   state=v.state;
   await animateRoll(state.dice,keep.map((k,i)=>k&&state.dice[i]!==0));
-  // Chicago (drei 1er) = sofort gewonnen → automatisch stehenbleiben (kein Re-Roll/Ansage nötig)
+  // Chicago (drei 1er) = sofort gewonnen → Sieg-Banner, danach Wahl: zuschauen oder beenden
   if(myTurn()&&isChicDice(state.dice)){
-    renderAll();   // busy bleibt true → Buttons gesperrt
-    toast(G.player+': '+G.chicago_win,'gold');SFX.win();
-    await sleep(Math.round(pauseMs*0.7));
-    sendStand(isOpenerTurn()?{valuation:'gross',direction:'hoch'}:{});
+    const roundNo=state.round_no||1;
+    const opener=isOpenerTurn();
+    renderAll();
+    // Sieg serverseitig festschreiben (Mensch ist gerettet)
+    const v=await api('/api/chicago/move',Object.assign({type:'stand'},opener?{valuation:'gross',direction:'hoch'}:{}));
+    if(v&&v.state)state=v.state;
+    busy=false;
+    showChicagoWin(roundNo);
     return;
   }
   busy=false;renderAll();
@@ -527,6 +553,34 @@ function showGameOver(){
   (loser==='p'?SFX.lose:SFX.win)();
 }
 function closeOver(){$('over-modal').classList.remove('show');}
+
+/* Chicago-Sieg des Menschen: Banner + Konfetti, dann zuschauen oder beenden */
+function launchConfetti(){
+  if(reduceMotion)return;
+  const colors=['#ffd700','#ff4444','#44ff44','#4488ff','#ff44ff','#ff8800','#00ffcc','#ff6699'];
+  for(let i=0;i<90;i++){const el=document.createElement('div');el.className='confetti-piece';
+    el.style.left=(Math.random()*100)+'vw';el.style.top=(-5-Math.random()*10)+'vh';
+    el.style.background=colors[Math.floor(Math.random()*colors.length)];
+    el.style.borderRadius=Math.random()>0.5?'50%':'0';
+    el.style.width=(6+Math.random()*8)+'px';el.style.height=(6+Math.random()*8)+'px';
+    el.style.animationDuration=(2+Math.random()*2)+'s';el.style.animationDelay=(Math.random()*0.6)+'s';
+    document.body.appendChild(el);setTimeout(()=>el.remove(),4200);}
+}
+function showChicagoWin(roundNo){
+  $('cwin-rounds').textContent=(roundNo===1)?G.cwin_one:G.cwin_rounds.replace('{n}',roundNo);
+  $('chicago-win').classList.add('show');
+  SFX.win();launchConfetti();
+}
+function chicagoWinWatch(){
+  $('chicago-win').classList.remove('show');
+  afterMyStand();   // Rundenmeldung + KIs weiterlaufen lassen / ggf. Spielende
+}
+async function chicagoWinEnd(){
+  $('chicago-win').classList.remove('show');
+  const v=await api('/api/chicago/concede',{});
+  if(v&&v.state)state=v.state;
+  renderAll();showGameOver();
+}
 
 /* Screens */
 function selOpp(n){opp=n;document.querySelectorAll('#opp-row .opt-btn').forEach(b=>b.classList.toggle('sel',+b.dataset.opp===n));}

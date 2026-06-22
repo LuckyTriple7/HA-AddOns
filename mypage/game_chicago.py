@@ -86,6 +86,7 @@ def new_game(level: str = 'medium', opponents: int = 2, seed: int | None = None)
     state = {
         'status': 'opener_roll',
         'phase': 1,
+        'round_no': 1,
         'level': level,
         'opponents': opponents,
         'seed': seed,
@@ -356,6 +357,21 @@ def _finish_game(state: dict) -> None:
     state['turn'] = None
 
 
+def human_chicago_won(state: dict) -> bool:
+    """Hat der Mensch in dieser Runde durch Chicago gewonnen (→ gerettet)?"""
+    r = state.get('results', {}).get('p')
+    return (r is not None and r.get('chic')) or ('p' not in state['active'])
+
+
+def end_after_human_chicago(state: dict) -> None:
+    """Mensch hat per Chicago gewonnen und möchte das Spiel sofort beenden."""
+    state['status'] = 'game_over'
+    state['winner'] = 'p'
+    state['loser'] = None
+    state['turn'] = None
+    state['last'] = {'type': 'human_chicago_win', 'round_no': state.get('round_no', 1)}
+
+
 def _check_game_over(state: dict) -> bool:
     holders = [p for p in state['active'] if state['mats'].get(p, 0) > 0]
     if state['phase'] == 2 and len(holders) <= 1:
@@ -365,6 +381,7 @@ def _check_game_over(state: dict) -> bool:
 
 
 def _setup_round(state: dict, opener: str) -> None:
+    state['round_no'] = state.get('round_no', 1) + 1
     state['opener'] = opener
     state['order'] = _round_order(state['players'], state['active'], opener)
     state['order_pos'] = 0
@@ -462,6 +479,7 @@ def public_view(state: dict) -> dict:
     return {
         'status': state['status'],
         'phase': state['phase'],
+        'round_no': state.get('round_no', 1),
         'level': state['level'],
         'opponents': state['opponents'],
         'players': state['players'],
