@@ -113,9 +113,9 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
 .opt.sel{border-color:var(--gold);background:rgba(241,196,15,0.16);color:var(--gold)}
 
 /* Start */
-#start-screen{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));padding:20px}
-.start-box{text-align:center;max-width:460px;width:100%}
+#start-screen{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;background:radial-gradient(ellipse at center,var(--felt1),var(--felt2));padding:20px}
+.start-box{text-align:center;max-width:460px;width:100%;margin:auto}
 .start-box h1{font-size:clamp(30px,6vw,46px);color:var(--gold);margin-bottom:4px}
 .start-box .sub{font-size:14px;opacity:0.8;margin-bottom:18px;line-height:1.4}
 .seclabel{font-size:12px;letter-spacing:1px;text-transform:uppercase;opacity:0.6;margin:16px 0 8px}
@@ -126,6 +126,16 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
 #btn-play{margin-top:24px;background:linear-gradient(145deg,#f4d03f,#d4a017);color:#1a1a1a;border:none;font-size:19px;font-weight:700;padding:15px 48px;border-radius:14px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,0.4)}
 #start-hint{font-size:12px;opacity:0.55;margin-top:10px;min-height:16px}
 #resume-box{margin-bottom:18px}
+/* Niedrige/Querformat-Viewports: Startbildschirm kompakter, damit alles passt bzw. scrollbar bleibt */
+@media(max-height:560px){
+  .start-box h1{font-size:26px;margin-bottom:2px}
+  .start-box .sub{margin-bottom:8px;font-size:13px}
+  .seclabel{margin:8px 0 4px}
+  .opt-btn{padding:7px 16px;font-size:14px}
+  #btn-play{margin-top:12px;padding:11px 38px;font-size:17px}
+  #start-hint{margin-top:6px}
+  #resume-box{margin-bottom:10px}
+}
 #btn-resume{background:none;border:1.5px solid var(--gold);color:var(--gold);font-size:17px;padding:13px 34px;border-radius:12px;cursor:pointer}
 #stats-box{margin-top:20px;font-size:13px;opacity:0.85}
 .btn-back{margin-top:22px;background:none;border:1.5px solid rgba(255,255,255,0.2);color:#ddd;font-size:14px;padding:9px 22px;border-radius:10px;cursor:pointer}

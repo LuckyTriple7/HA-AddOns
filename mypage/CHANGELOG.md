@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.59
+
+- 📱 **Kniffel & Chicago — Startbildschirm auf Mobilgeräten scrollbar** — Der Startbildschirm zentrierte den Inhalt in einem fixen Container und schnitt ihn auf kleinen/Querformat-Displays oben ab, ohne Scrollmöglichkeit. Jetzt ist er **scrollbar** (zentriert bei genug Platz, scrollt bei Überlauf) und wird auf niedrigen Viewports zusätzlich **kompakter** dargestellt.
+
 ## 0.7.58
 
 - 🔒 **Sicherheit** — CodeQL-Alerts geschlossen: Path-Injection bei Avatar- und DM-Anhang-Pfaden auf `safe_join` umgestellt, Open-Redirect bei den Nachrichten-Weiterleitungen über `_safe_next` (Pfad-Neuaufbau) entschärft. Außerdem `cryptography` auf 48.0.1 angehoben (OpenSSL- und SECT-Kurven-Schwachstellen).
