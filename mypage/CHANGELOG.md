@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.43
+
+- 🔌 **Kniffel & Chicago: „Hier übernehmen" repariert** — Nach dem Schließen/Beenden eines Spiels und erneutem Öffnen erschien teils der Hinweis „Auf anderem Gerät aktiv", und der **„Übernehmen"**-Knopf funktionierte nicht (man musste ~30 s warten und neu laden). Ursache: Nach der Übernahme wurde die gerade frisch beanspruchte Session **sofort erneut** angefragt und dabei als „fremd gesperrt" gewertet. Die Übernahme lädt den Spielstand jetzt direkt, ohne doppeltes Beanspruchen — wie bei den Kartenspielen.
+
 ## 0.7.42
 
 - 🎉 **Chicago — Sieg-Banner mit Konfetti, wenn DU Chicago würfelst** — Würfelt der Spieler drei 1er, hat er sofort gewonnen. Statt nur eines Hinweises erscheint nun ein **Sieg-Banner** mit **Gewinn-Sound** und **Konfettiregen** (wie beim Glücksrad): „CHICAGO! — Gewonnen nach X Runden". Danach die Wahl: **„KIs weiter zuschauen"** (die Runde/das Spiel läuft normal weiter) oder **„Spiel beenden"** (sofort Schluss, Sieg wird gewertet).

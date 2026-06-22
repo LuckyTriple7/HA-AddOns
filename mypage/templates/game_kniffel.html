@@ -570,7 +570,7 @@ try{ bc=new BroadcastChannel('mypage-kniffel'); bc.onmessage=e=>{ const m=e.data
   if(!m||m.id===TAB_ID||m.type!=='claim') return;
   if(m.ts>myClaimTs||(m.ts===myClaimTs&&m.id>TAB_ID)) becomePassive(); }; }catch(e){ bc=null; }
 $('tab-resume').onclick=becomeActive;
-$('device-takeover').onclick=async()=>{ if(await claimSession(true)) resumeGame(); };
+$('device-takeover').onclick=async()=>{ if(await claimSession(true)) resumeGame(true); };
 tabClaim();
 
 /* ── Halten ────────────────────────────────── */
@@ -784,8 +784,8 @@ async function startGame(){
   busy=false;
   if(v && v.state) render(v.state);
 }
-async function resumeGame(){
-  if(!await claimSession(false)) return;
+async function resumeGame(skipClaim){
+  if(!skipClaim && !await claimSession(false)) return;
   const v=await api('/api/kniffel/state');
   if(v && v.state) render(v.state);
 }

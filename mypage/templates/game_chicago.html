@@ -335,7 +335,7 @@ function becomePassive(){if(!tabActive)return;tabActive=false;$('tab-modal').cla
 function becomeActive(){tabActive=true;$('tab-modal').classList.remove('show');tabClaim();showStart();}
 try{bc=new BroadcastChannel('mypage-chicago');bc.onmessage=e=>{const m=e.data;if(!m||m.id===TAB_ID||m.type!=='claim')return;if(m.ts>myClaimTs||(m.ts===myClaimTs&&m.id>TAB_ID))becomePassive();};}catch(e){bc=null;}
 $('tab-resume').onclick=becomeActive;
-$('device-takeover').onclick=async()=>{if(await claimSession(true))resumeGame();};
+$('device-takeover').onclick=async()=>{if(await claimSession(true))resumeGame(true);};
 tabClaim();
 
 /* Helfer */
@@ -589,7 +589,7 @@ function render(s){state=s;$('start-screen').style.display='none';renderAll();
   if((state.status==='opener_roll'||state.status==='follower_roll')&&state.turn!=='p')runAI();
   else if(state.status==='game_over')showGameOver();}
 async function startGame(){if(busy)return;busy=true;if(!await claimSession(false)){busy=false;return;}const v=await api('/api/chicago/new',{level,opponents:opp});busy=false;if(v&&v.state)render(v.state);}
-async function resumeGame(){if(!await claimSession(false))return;const v=await api('/api/chicago/state');if(v&&v.state)render(v.state);}
+async function resumeGame(skipClaim){if(!skipClaim&&!await claimSession(false))return;const v=await api('/api/chicago/state');if(v&&v.state)render(v.state);}
 async function showStart(){$('start-screen').style.display='flex';const v=await api('/api/chicago/state');$('resume-box').style.display=(v&&v.state&&v.state.status!=='game_over')?'block':'none';renderStats();}
 function toggleScore(){}
 function closeGame(){releaseSession();if(window.parent!==window)window.parent.postMessage('close-chicago',location.origin);else location.href='/bereich';}
