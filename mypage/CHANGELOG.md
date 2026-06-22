@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.57
+
+- 🃏 **20 ab — Handsortierung korrigiert** — Innerhalb einer Farbe wird die Hand jetzt nach der echten Rangfolge sortiert (Ass > König > Dame > Bube > 10 > 9 > 8 > 7). Vorher stand die **10 fälschlich rechts vom König** (Reihenfolge versehentlich von 66 übernommen). Die Stich-Wertung war immer schon korrekt — nur die Anzeige war falsch.
+
 ## 0.7.56
 
 - 🎉 **Konfetti-Regen bei Gewinn in den Kartenspielen** — Wie beim Glücksrad regnet es jetzt auch bei **66, 20 ab, Schwimmen, Mau Mau und Präsident** Konfetti, wenn man selbst gewinnt (bei Schwimmen zusätzlich beim Turniersieg, bei 66 beim Match-Sieg). Respektiert „Reduzierte Bewegung".

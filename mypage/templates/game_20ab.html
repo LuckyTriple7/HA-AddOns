@@ -778,10 +778,11 @@ const SUIT_NAME = {h:G.suit_h, d:G.suit_d, s:G.suit_s, c:G.suit_c};
 const SUIT_COLOR = {h:'red', d:'red', s:'black', c:'black'};
 const RANK_DISP = {'7':'7','8':'8','9':'9','T':'10','J':'B','Q':'D','K':'K','A':'A'};
 const ALL_RANKS = ['7','8','9','T','J','Q','K','A'];
-// Handsortierung wie bei 66: zuerst nach Farbe, dann nach Wert; Trumpf immer ganz rechts.
+// Handsortierung: zuerst nach Farbe, dann nach Wert; Trumpf immer ganz rechts.
 // Kartenformat hier: c[0]=Farbe, c[1]=Rang.
+// Rangfolge wie in 20 ab (Engine): Ass > König > Dame > Bube > 10 > 9 > 8 > 7.
 const SUIT_ORD = {c:0, d:1, h:2, s:3};
-const RANK_ORD = {'7':0,'8':1,'9':2,'J':3,'Q':4,'K':5,'T':6,'A':7};
+const RANK_ORD = {'7':0,'8':1,'9':2,'T':3,'J':4,'Q':5,'K':6,'A':7};
 function sortedHand(hand, trump){
   return hand.slice().sort((a, b) => {
     const at = a[0] === trump, bt = b[0] === trump;
