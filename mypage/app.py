@@ -31,7 +31,7 @@ from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
 import markdown as md_lib
 from markupsafe import Markup, escape
@@ -622,7 +622,10 @@ def directory_on() -> bool:
 
 
 def _has_avatar(uid: str) -> bool:
-    return bool(_UID_RE.match(uid)) and (MEMBER_AVATARS_DIR / f'{uid}.jpg').is_file()
+    if not _UID_RE.match(uid):
+        return False
+    p = safe_under(MEMBER_AVATARS_DIR, f'{uid}.jpg')
+    return p is not None and p.is_file()
 
 
 def _save_member_avatar(uid: str, f) -> bool:
@@ -848,7 +851,7 @@ def _dm_thread(me_id: str, partner_id: str) -> list:
 
 
 def _dm_att_path(fid: str) -> Path | None:
-    return DM_FILES_DIR / fid if _FID_RE.match(fid or '') else None
+    return safe_under(DM_FILES_DIR, fid) if _FID_RE.match(fid or '') else None
 
 
 def _dm_att_store(f) -> dict | None:
@@ -1471,10 +1474,11 @@ def detect_language(req) -> str:
 def _safe_next(raw: str) -> str:
     """Nur lokale Pfade als Redirect-Ziel zulassen (Open-Redirect-Schutz)."""
     nxt = (raw or '/').replace('\\', '')
-    parsed = urlparse(nxt)
-    if parsed.scheme or parsed.netloc or not nxt.startswith('/'):
+    parts = urlsplit(nxt)
+    if parts.scheme or parts.netloc or not nxt.startswith('/'):
         return '/'
-    return nxt
+    # Aus geparsten Komponenten neu zusammensetzen → Taint-Kette unterbrochen
+    return urlunsplit(('', '', parts.path or '/', parts.query, parts.fragment))
 
 
 # ── Besucherzähler ────────────────────────────────────────────────────────────
@@ -7732,19 +7736,19 @@ def dm_send():
     if fup and fup.filename:
         att = _dm_att_store(fup)
         if att is None:
-            return redirect(f'/bereich/nachrichten/{to}?msg=dm_att_err')
+            return redirect(_safe_next(f'/bereich/nachrichten/{to}?msg=dm_att_err'))
     if not text and att is None:
-        return redirect(f'/bereich/nachrichten/{to}')
+        return redirect(_safe_next(f'/bereich/nachrichten/{to}'))
     now = time.time()
     if now - _dm_send_times.get(member['id'], 0) < 1.5:  # Spam-Bremse
         if att and att.get('fid'):
             _dm_att_delete(att['fid'])
-        return redirect(f'/bereich/nachrichten/{to}?msg=dm_slow')
+        return redirect(_safe_next(f'/bereich/nachrichten/{to}?msg=dm_slow'))
     _dm_send_times[member['id']] = now
     _dm_send(member['id'], to, text, att)
     _dm_owner_notify(to)
     log_user_event(member['id'], 'dm_send', to, get_client_ip(request))
-    return redirect(f'/bereich/nachrichten/{to}?msg=dm_sent')
+    return redirect(_safe_next(f'/bereich/nachrichten/{to}?msg=dm_sent'))
 
 
 @public_app.route('/bereich/nachrichten/datei/<mid>')
@@ -7792,7 +7796,7 @@ def dm_delete():
     else:
         return redirect('/bereich/nachrichten')
     log_user_event(me, 'dm_delete', convo or mid, get_client_ip(request))
-    return redirect(f'{dest}?msg=dm_deleted')
+    return redirect(_safe_next(f'{dest}?msg=dm_deleted'))
 
 
 @public_app.route('/bereich/upload', methods=['POST'])

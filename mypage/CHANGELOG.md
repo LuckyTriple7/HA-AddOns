@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.58
+
+- 🔒 **Sicherheit** — CodeQL-Alerts geschlossen: Path-Injection bei Avatar- und DM-Anhang-Pfaden auf `safe_join` umgestellt, Open-Redirect bei den Nachrichten-Weiterleitungen über `_safe_next` (Pfad-Neuaufbau) entschärft. Außerdem `cryptography` auf 48.0.1 angehoben (OpenSSL- und SECT-Kurven-Schwachstellen).
+
 ## 0.7.57
 
 - 🃏 **20 ab — Handsortierung korrigiert** — Innerhalb einer Farbe wird die Hand jetzt nach der echten Rangfolge sortiert (Ass > König > Dame > Bube > 10 > 9 > 8 > 7). Vorher stand die **10 fälschlich rechts vom König** (Reihenfolge versehentlich von 66 übernommen). Die Stich-Wertung war immer schon korrekt — nur die Anzeige war falsch.
