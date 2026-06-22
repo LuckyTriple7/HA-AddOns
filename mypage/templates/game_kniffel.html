@@ -223,6 +223,10 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
 .toast.gold{border-color:var(--gold);color:var(--gold)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
 
+/* ── Konfetti (Sieg) ──────────────────────── */
+.confetti-piece{position:fixed;width:10px;height:10px;z-index:300;pointer-events:none;animation:confettiFall 3s ease-out forwards}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
+
 /* ── Querformat-Hinweis ───────────────────── */
 #rotate-overlay{position:fixed;inset:0;z-index:200;background:var(--felt2);display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:14px}
 .rotate-icon{font-size:54px;animation:rotateHint 2.2s ease-in-out infinite}
@@ -825,6 +829,18 @@ function showGameOver(){
     +esc(nameOf(p))+'</span><span>'+(state.totals[p]||0)+'</span></div>').join('');
   $('over-modal').classList.add('show');
   (w==='p'?SFX.win:SFX.lose)();
+  if(w==='p')launchConfetti();
+}
+function launchConfetti(){
+  if(reduceMotion)return;
+  const colors=['#ffd700','#ff4444','#44ff44','#4488ff','#ff44ff','#ff8800','#00ffcc','#ff6699'];
+  for(let i=0;i<90;i++){const el=document.createElement('div');el.className='confetti-piece';
+    el.style.left=(Math.random()*100)+'vw';el.style.top=(-5-Math.random()*10)+'vh';
+    el.style.background=colors[Math.floor(Math.random()*colors.length)];
+    el.style.borderRadius=Math.random()>0.5?'50%':'0';
+    el.style.width=(6+Math.random()*8)+'px';el.style.height=(6+Math.random()*8)+'px';
+    el.style.animationDuration=(2+Math.random()*2)+'s';el.style.animationDelay=(Math.random()*0.6)+'s';
+    document.body.appendChild(el);setTimeout(()=>el.remove(),4200);}
 }
 function closeOver(){ $('over-modal').classList.remove('show'); }
 function toggleScore(){ $('score-col').classList.toggle('open'); }

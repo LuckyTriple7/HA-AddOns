@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.46
+
+- 🎉 **Kniffel — Konfettiregen beim Sieg** — Gewinnt der Spieler, regnet es jetzt Konfetti (wie beim Glücksrad und Chicago), zusammen mit dem Gewinn-Sound.
+
 ## 0.7.45
 
 - 🪧 **Chicago — Hinweise als Mitte-Banner statt schneller Toast** — Vorlage (Ansage), Bierfilz-Aufnahme/-Abwurf und ein KI-Chicago erscheinen jetzt als großes Banner in der Bildschirmmitte, das **langsam nach oben ausfliegt**, statt eines schnellen kleinen Hinweises oben. Eigene Bierfilz-Aufnahme wird rot, Abwurf/Vorlage golden hervorgehoben. Die Anzeigedauer skaliert mit dem **Tempo-Regler** (Pausen), damit der Hinweis bei langsamerem Spiel länger steht.
