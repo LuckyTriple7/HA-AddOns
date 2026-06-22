@@ -252,7 +252,7 @@ const G = {
   your_turn:{{ t.gc_your_turn|tojson }}, you_opener:{{ t.gc_you_opener|tojson }}, ai_turn:{{ t.gc_ai_turn|tojson }},
   opener_label:{{ t.gc_opener_label|tojson }}, phase1:{{ t.gc_phase1|tojson }}, phase2:{{ t.gc_phase2|tojson }},
   announce:{{ t.gc_announce|tojson }}, hoch:{{ t.gc_dir_hoch_short|tojson }}, tief:{{ t.gc_dir_tief_short|tojson }},
-  chic:{{ t.gc_chicago|tojson }}, fish:{{ t.gc_fish|tojson }}, mats:{{ t.gc_mats|tojson }},
+  chic:{{ t.gc_chicago|tojson }}, chicago_win:{{ t.gc_chicago_win|tojson }}, fish:{{ t.gc_fish|tojson }}, mats:{{ t.gc_mats|tojson }},
   loser_mat:{{ t.gc_round_loser_mat|tojson }}, winner_off:{{ t.gc_round_winner_off|tojson }}, safe:{{ t.gc_safe|tojson }},
   game_over:{{ t.gc_game_over|tojson }}, you_lose:{{ t.gc_you_lose|tojson }}, loses:{{ t.gc_loses|tojson }}, you_win:{{ t.gc_you_win|tojson }},
   stats_games:{{ t.gc_stats_games|tojson }}, stats_wins:{{ t.gc_stats_wins|tojson }}, stats_losses:{{ t.gc_stats_losses|tojson }},
@@ -282,6 +282,9 @@ const SFX={
   call:()=>{tone(659,0.12,'triangle',0.12);setTimeout(()=>tone(880,0.16,'triangle',0.11),100);},
   win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.22,'triangle',0.16),i*130));},
   lose:()=>{[440,370,294].forEach((f,i)=>setTimeout(()=>tone(f,0.28,'sine',0.12),i*160));},
+  matGet:()=>{[392,311,247].forEach((f,i)=>setTimeout(()=>tone(f,0.26,'sine',0.14),i*150));},      // du bekommst einen Bierfilz → negativ
+  matGetAI:()=>{tone(784,0.12,'triangle',0.10);setTimeout(()=>tone(988,0.15,'triangle',0.10),110);}, // KI bekommt einen Filz → leicht positiv
+  matDrop:()=>{[523,659,880].forEach((f,i)=>setTimeout(()=>tone(f,0.16,'triangle',0.13),i*95));},    // Abwurf eines Filzes → positiv
 };
 function toast(txt,cls){const w=$('toast-wrap');const d=document.createElement('div');d.className='toast'+(cls?' '+cls:'');d.textContent=txt;w.appendChild(d);setTimeout(()=>{d.style.transition='opacity .4s';d.style.opacity='0';setTimeout(()=>d.remove(),400);},1900);}
 
@@ -338,7 +341,13 @@ function animateRoll(target,keep){
     if(reduceMotion){slots.forEach((slot,i)=>{const d=slot.firstChild;paintDie(d,target[i]);d.classList.toggle('held',!!keep[i]);if(!keep[i])scatter(slot);});resolve();return;}
     const cup=$('cup');cup.style.setProperty('--flipdur',Math.max(240,Math.round(rollMs*0.24))+'ms');
     const shake=Math.max(220,Math.round(rollMs*0.55)),flip=Math.max(240,Math.round(rollMs*0.24)),drop=Math.max(220,Math.round(rollMs*0.30));
-    slots.forEach((slot,i)=>{if(!keep[i])slot.firstChild.style.visibility='hidden';else slot.firstChild.classList.add('held');});
+    // Ausgangsbild sauber setzen: gehaltene Würfel sichtbar (außerhalb des Bechers),
+    // alle übrigen verstecken — und per Reflow festschreiben, BEVOR der Becher erscheint
+    // (sonst blitzen die neuen Würfel kurz auf dem Tisch auf, v. a. ab dem 3. Wurf)
+    slots.forEach((slot,i)=>{const d=slot.firstChild;
+      if(keep[i]){d.style.visibility='';paintDie(d,target[i]);d.classList.add('held');slot.style.transform='';}
+      else{d.classList.remove('held');d.style.visibility='hidden';}});
+    void $('tray').offsetWidth;
     cup.className='show shake';SFX.roll();
     setTimeout(()=>{cup.className='show flip';},shake);
     setTimeout(()=>{cup.className='';
@@ -428,6 +437,14 @@ async function doRoll(){
   if(!v||!v.state){busy=false;updateControls();return;}
   state=v.state;
   await animateRoll(state.dice,keep.map((k,i)=>k&&state.dice[i]!==0));
+  // Chicago (drei 1er) = sofort gewonnen → automatisch stehenbleiben (kein Re-Roll/Ansage nötig)
+  if(myTurn()&&isChicDice(state.dice)){
+    renderAll();   // busy bleibt true → Buttons gesperrt
+    toast(G.player+': '+G.chicago_win,'gold');SFX.win();
+    await sleep(Math.round(pauseMs*0.7));
+    sendStand(isOpenerTurn()?{valuation:'gross',direction:'hoch'}:{});
+    return;
+  }
   busy=false;renderAll();
   if(state.status!=='opener_roll'&&state.status!=='follower_roll')afterMyStand();
 }
@@ -464,9 +481,9 @@ function afterMyStand(){
 }
 function flashRound(){
   const l=state.last;
-  if(!l)return;
-  if(l.type==='round'&&l.phase===1&&l.loser)toast(nameOf(l.loser)+' '+G.loser_mat);
-  if(l.type==='round'&&l.phase===2&&l.winner)toast(nameOf(l.winner)+' '+G.winner_off,'gold');
+  if(!l||l.type!=='round')return;
+  if(l.phase===1&&l.loser){toast(nameOf(l.loser)+' '+G.loser_mat);(l.loser==='p'?SFX.matGet:SFX.matGetAI)();}
+  if(l.phase===2&&l.winner){toast(nameOf(l.winner)+' '+G.winner_off,'gold');SFX.matDrop();}
 }
 
 async function runAI(){
@@ -477,11 +494,12 @@ async function runAI(){
     if(!v||!v.state){break;}
     const ev=v.event,prev=state;state=v.state;
     if(ev&&ev.type==='roll'){
-      // Becher-Animation für die KI
+      // Becher-Animation für die KI (animateRoll setzt das Ausgangsbild selbst sauber)
       const keep=(ev.held||[false,false,false]).map((k,i)=>k&&ev.dice[i]!==0);
-      buildTray();   // vorherigen Stand zeigen
       await animateRoll(ev.dice,keep);
-      renderPlayers();updateTurn();await sleep(Math.round(pauseMs*0.5));
+      renderPlayers();updateTurn();
+      if(isChicDice(ev.dice)){toast(nameOf(ev.who)+': '+G.chicago_win,'gold');SFX.win();}
+      await sleep(Math.round(pauseMs*0.5));
     }else if(ev&&ev.type==='convert6'){
       buildTray();SFX.hold();renderPlayers();await sleep(pauseMs);
     }else if(ev&&ev.type==='stand'){

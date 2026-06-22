@@ -258,7 +258,7 @@ def _best_player(state: dict) -> str:
     best = None
     for pos, pid in enumerate(order):
         r = state['results'].get(pid)
-        if r is None:
+        if r is None or r.get('chic'):
             continue
         k = tuple(r['key'])
         better_key = k if direc == 'hoch' else tuple(-x for x in k)
@@ -269,10 +269,16 @@ def _best_player(state: dict) -> str:
 
 
 def _resolve_round(state: dict) -> None:
-    # Chicago-in-einem-Wurf: Spieler sofort gerettet aus dem Spiel
-    chics = [p for p, r in state['results'].items() if r['chic'] and r['rolls'] == 1]
+    # Chicago (drei 1er) = sofort gewonnen → Spieler ist gerettet und raus,
+    # die Übrigen spielen die Runde regulär zu Ende ("Mit ist Shit").
+    chics = [p for p, r in state['results'].items() if r['chic']]
     for p in chics:
         _remove_player(state, p, saved=True)
+
+    # Bleibt nur noch ≤1 Spieler übrig (z. B. durch Chicago) → Spielende
+    if len(state['active']) <= 1:
+        _finish_game(state)
+        return
 
     if state['phase'] == 1:
         loser = _worst_player(state)
@@ -287,13 +293,21 @@ def _resolve_round(state: dict) -> None:
             return
         _setup_round(state, opener=loser)
     else:
-        winner = _best_player(state)
-        if state['mats'].get(winner, 0) > 0:
-            state['mats'][winner] -= 1
-        state['round_winner'] = winner
-        state['round_loser'] = None
-        state['last'] = {'type': 'round', 'phase': 2, 'winner': winner,
-                         'mats': dict(state['mats'])}
+        if chics:
+            # Chicago-Spieler war der Beste und ist bereits gerettet → kein
+            # zusätzlicher regulärer Abwurf in dieser Runde
+            state['round_winner'] = chics[0]
+            state['round_loser'] = None
+            state['last'] = {'type': 'round', 'phase': 2, 'winner': chics[0],
+                             'mats': dict(state['mats'])}
+        else:
+            winner = _best_player(state)
+            if state['mats'].get(winner, 0) > 0:
+                state['mats'][winner] -= 1
+            state['round_winner'] = winner
+            state['round_loser'] = None
+            state['last'] = {'type': 'round', 'phase': 2, 'winner': winner,
+                             'mats': dict(state['mats'])}
         # Spieler ohne Filze sind gerettet → raus
         for p in list(state['active']):
             if state['mats'].get(p, 0) <= 0:
@@ -325,14 +339,24 @@ def _remove_player(state: dict, pid: str, saved: bool) -> None:
     state['mats'][pid] = 0
 
 
+def _finish_game(state: dict) -> None:
+    state['status'] = 'game_over'
+    holders = [p for p in state['active'] if state['mats'].get(p, 0) > 0]
+    if holders:
+        state['loser'] = holders[0]
+    elif state['active']:
+        state['loser'] = state['active'][0]
+    else:
+        state['loser'] = None
+    # Sieger = der Mensch, falls er nicht der Verlierer ist
+    state['winner'] = 'p' if state['loser'] != 'p' else None
+    state['turn'] = None
+
+
 def _check_game_over(state: dict) -> bool:
     holders = [p for p in state['active'] if state['mats'].get(p, 0) > 0]
     if state['phase'] == 2 and len(holders) <= 1:
-        state['status'] = 'game_over'
-        state['loser'] = holders[0] if holders else None
-        # Sieger = der Mensch, falls er nicht der Verlierer ist
-        state['winner'] = 'p' if state['loser'] != 'p' else None
-        state['turn'] = None
+        _finish_game(state)
         return True
     return False
 

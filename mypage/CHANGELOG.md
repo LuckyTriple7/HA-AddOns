@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.38
+
+- 🎲 **Chicago — drei Korrekturen:**
+  - **Becher-Animation sauber** — ab und zu (v. a. beim 3. Wurf) blitzten die Würfel kurz auf dem Tisch auf, **bevor** der Becher wackelte. Das Ausgangsbild wird jetzt vor dem Schütteln festgeschrieben (gehaltene Würfel sichtbar, alle anderen verdeckt).
+  - **Chicago = sofort gewonnen** — wer **drei 1er** würfelt, ist **sofort gerettet** und raus; die übrigen Spieler spielen die Runde regulär zu Ende (**„Mit ist Shit"** bleibt). Beim Spieler wird automatisch stehengeblieben (keine Ansage/kein Re-Roll nötig), mit Jubel-Hinweis und Sound — auch für die KI.
+  - **Mehr Sound** — **negativer** Klang, wenn man selbst einen **Bierfilz aufnimmt**, ein **leicht positiver**, wenn eine **KI** einen Filz bekommt, und ein **positiver** beim **Abwurf** eines Filzes.
+
 ## 0.7.37
 
 - 🎲 **Chicago-Verbesserungen** — Würfel können **innerhalb eines Wurfs** an- und wieder **abgewählt** werden; **sobald erneut gewürfelt** wird, sind die gehaltenen Würfel fix (kein Zurück in den Becher). Beim **Stehenbleiben** wird die **tatsächliche Punktzahl** angezeigt (gross/klein direkt als Auswahl, z. B. „161" / „7"), zusätzlich live unter den Würfeln. **„Zu schlagen"** zeigt jetzt korrekt die **Ansage des Vorlegers, fix für die ganze Runde** (statt sich mit jedem KI-Wurf zu ändern). Die **restlichen Bierfilze** stehen im Phasen-Badge. Der Begriff „Fish" wurde entfernt — solche Würfe erscheinen einfach als Punktzahl.
