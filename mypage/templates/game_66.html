@@ -362,6 +362,9 @@
         box-shadow: 0 0 0 3px rgba(241,196,15,0.9), 0 3px 8px rgba(0,0,0,0.45) !important;
       }
     }
+    /* Konfetti-Regen bei Gewinn */
+    .confetti-piece{position:fixed;width:10px;height:10px;z-index:300;pointer-events:none;animation:confettiFall 3s ease-out forwards}
+    @keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
   </style>
 </head>
 <body>
@@ -1129,6 +1132,7 @@
       slot.style.visibility = 'hidden';
       const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
       const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
+      void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
       requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
       let done = false;
       const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
@@ -1167,6 +1171,7 @@
       let done = false;
       const fin = () => { if (done) return; done = true; clone.remove(); resolve(); };
       const move = () => {
+        void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
         requestAnimationFrame(() => {
           clone.style.transform = 'translate(calc(-50% + ' + dx + 'px),calc(-50% + ' + dy + 'px)) scale(1)';
           if (opts.fadeIn) clone.style.opacity = '1';
@@ -1220,6 +1225,7 @@
       const dx = (t.left + t.width / 2) - (s.left + s.width / 2);
       const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
       const startFly = () => {
+        void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
         requestAnimationFrame(() => { clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; });
       };
       if (clone.complete && clone.naturalWidth) startFly();
@@ -1288,6 +1294,7 @@
       const tdy = -jdy * (hr.height / tr.height);
 
       // Klone sind sofort dekodiert -> ohne load-Wartezeit starten
+      void trumpClone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
       requestAnimationFrame(() => {
         jackClone.style.transform = 'translate(' + jdx + 'px,' + jdy + 'px)';
         trumpClone.style.transform = 'translate(' + tdx + 'px,' + tdy + 'px)';
@@ -1418,6 +1425,7 @@
         const dy = (t.top + t.height / 2) - (s.top + s.height / 2);
         let done = false;
         const fin = () => { if (done) return; done = true; clone.remove(); allDone(); };
+        void clone.offsetWidth;  // Startposition committen → Transition startet zuverlässig (Firefox)
         requestAnimationFrame(() => {
           clone.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(0.35)';
           clone.style.opacity = '0.25';
@@ -1630,6 +1638,18 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  function launchConfetti(){
+    if (reduceMotion) return;
+    const colors=['#ffd700','#ff4444','#44ff44','#4488ff','#ff44ff','#ff8800','#00ffcc','#ff6699'];
+    for(let i=0;i<90;i++){const el=document.createElement('div');el.className='confetti-piece';
+      el.style.left=(Math.random()*100)+'vw';el.style.top=(-5-Math.random()*10)+'vh';
+      el.style.background=colors[Math.floor(Math.random()*colors.length)];
+      el.style.borderRadius=Math.random()>0.5?'50%':'0';
+      el.style.width=(6+Math.random()*8)+'px';el.style.height=(6+Math.random()*8)+'px';
+      el.style.animationDuration=(2+Math.random()*2)+'s';el.style.animationDelay=(Math.random()*0.6)+'s';
+      document.body.appendChild(el);setTimeout(()=>el.remove(),4200);}
+  }
+
   function renderBanner(v){
     const b = $('banner');
     if (v.status === 'playing' || !v.result){ b.classList.remove('show'); return; }
@@ -1637,6 +1657,7 @@
     const matchOver = (v.status === 'match_over');
     $('banner-big').textContent = matchOver ? (win ? '🏆' : '😔') : (win ? '😊' : '😞');
     if (win) SFX.win(); else SFX.lose();
+    if (win && matchOver) launchConfetti();
     $('banner-title').textContent = matchOver
       ? (win ? G.match_win : G.match_lose)
       : (win ? G.deal_win : G.deal_lose);

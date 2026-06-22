@@ -59,6 +59,12 @@
     .brand { font-weight: 700; font-size: 1.05rem; color: var(--text); }
     .brand:hover { text-decoration: none; }
     .header-actions { display: flex; align-items: center; gap: 6px; }
+    .hdr-search { display: flex; align-items: center; gap: 0; }
+    .hdr-search input { background: var(--surf); border: 1px solid var(--border); border-right: none; color: var(--text); padding: 4px 9px; border-radius: 5px 0 0 5px; font-size: 0.78rem; font-family: inherit; width: 110px; transition: width .2s; }
+    .hdr-search input:focus { outline: none; border-color: var(--accent); width: 150px; }
+    .hdr-search button { background: var(--surf); border: 1px solid var(--border); color: var(--muted); padding: 4px 8px; border-radius: 0 5px 5px 0; cursor: pointer; font-size: 0.78rem; line-height: 1.4; }
+    .hdr-search button:hover { color: var(--text); border-color: var(--accent); }
+    @media (max-width: 560px) { .hdr-search input { width: 84px; } .hdr-search input:focus { width: 110px; } }
     .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 9px; border-radius: 5px; font-size: 0.75rem; text-decoration: none; }
     .lang-btn:hover { text-decoration: none; color: var(--text); }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -478,6 +484,12 @@
     <div class="wrap header-inner">
       <a class="brand" href="/">{{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
       <div class="header-actions">
+        {% if search_on %}
+        <form class="hdr-search" action="/suche" method="get" role="search">
+          <input type="search" name="q" placeholder="{{ t.search_placeholder }}" aria-label="{{ t.search_placeholder }}">
+          <button type="submit" aria-label="{{ t.search_button }}">🔍</button>
+        </form>
+        {% endif %}
         {% if not static_export %}
         <a href="/set-lang/de?next=/" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
         <a href="/set-lang/en?next=/" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>

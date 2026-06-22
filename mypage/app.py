@@ -5,6 +5,7 @@ Zwei Server in einem Prozess:
   - Port 17760: öffentliche Homepage (kein Login, Besucherzähler)
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
+import base64
 import copy
 import errno
 import hashlib
@@ -33,6 +34,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import markdown as md_lib
+from markupsafe import Markup, escape
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps
     _HAS_PIL = True
@@ -53,6 +55,8 @@ import game_maumau
 import game_jeopardy
 import game_gluecksrad
 import game_praesident
+import game_kniffel
+import game_chicago
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -75,6 +79,9 @@ SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
+DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
+DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
+TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
 USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
@@ -93,10 +100,16 @@ WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
+# Mitglieder-Avatare fürs Verzeichnis (lokal, klein, NICHT auf dem SMB-Share)
+MEMBER_AVATARS_DIR = Path(_DATA) / 'member_avatars'
+MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+# Verschlüsselte Datei-Anhänge der Mitglieder-Nachrichten (lokal, NICHT auf SMB)
+DM_FILES_DIR = Path(_DATA) / 'dm_files'
+DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
-    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
+    r'^(?:(?:66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad|kniffel|chicago)(?:hist)?|gsessions)_[a-f0-9]{6,32}\.json$')
 # Kartendecks (mitgeliefert, austauschbar) — /app/static/cards/<deck>/<rang><farbe>.svg
 CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
@@ -142,6 +155,8 @@ _msg_lock   = threading.Lock()
 _users_lock = threading.Lock()
 _comments_lock = threading.Lock()
 _audit_lock = threading.Lock()
+_dm_lock    = threading.Lock()
+_2fa_lock   = threading.Lock()
 _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
@@ -250,6 +265,10 @@ DEFAULT_SITE = {
         'contact_enabled': False,
         'comments_enabled': False,
         'share_enabled': False,
+        'dm_enabled': False,
+        'dm_ha_notify': False,
+        'directory_enabled': False,
+        'search_enabled': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -594,6 +613,441 @@ def _member_display_name(member: dict) -> str:
     return member.get('name') or (member.get('email') or '').split('@')[0] or 'Mitglied'
 
 
+# ── Mitglieder-Verzeichnis (opt-in: Avatar + Kurz-Bio) ────────────────────────
+DIRECTORY_BIO_MAX = 300
+
+
+def directory_on() -> bool:
+    return bool(load_site()['design'].get('directory_enabled'))
+
+
+def _has_avatar(uid: str) -> bool:
+    return bool(_UID_RE.match(uid)) and (MEMBER_AVATARS_DIR / f'{uid}.jpg').is_file()
+
+
+def _save_member_avatar(uid: str, f) -> bool:
+    """Speichert ein quadratisch zugeschnittenes, verkleinertes JPEG (ohne EXIF)."""
+    if not (_HAS_PIL and _UID_RE.match(uid) and f and f.filename):
+        return False
+    if Path(f.filename).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return False
+    try:
+        img = Image.open(f.stream)
+        img = ImageOps.exif_transpose(img)            # Handy-Drehung + Metadaten weg
+        img = ImageOps.fit(img, (256, 256))           # mittig quadratisch zuschneiden
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(MEMBER_AVATARS_DIR / f'{uid}.jpg', 'JPEG', quality=85)
+        return True
+    except Exception as e:
+        log.warning("Avatar konnte nicht gespeichert werden: %s", e)
+        return False
+
+
+def _delete_member_avatar(uid: str) -> None:
+    if _UID_RE.match(uid):
+        try:
+            (MEMBER_AVATARS_DIR / f'{uid}.jpg').unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _directory_members() -> list:
+    """Alle Mitglieder, die sich fürs Verzeichnis sichtbar gemacht haben."""
+    out = [{'id': u['id'], 'name': _member_display_name(u), 'bio': u.get('bio', ''),
+            'avatar': _has_avatar(u['id']), 'can_dm': _dm_can_receive(u)}
+           for u in load_users() if u.get('dir_visible')]
+    out.sort(key=lambda x: x['name'].lower())
+    return out
+
+
+# ── Mitglieder-Direktnachrichten (Ende-zu-Ende auf der Platte verschlüsselt) ───
+# Nachrichtentexte werden mit Fernet (AES-128-CBC + HMAC) verschlüsselt in dm.json
+# abgelegt; nur Metadaten (wer/wann/gelesen) liegen im Klartext, damit Postfach und
+# Ungelesen-Zähler ohne Entschlüsseln funktionieren.
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    _HAS_CRYPTO = True
+except Exception:  # Bibliothek fehlt (z. B. Minimal-Standalone) → Funktion deaktiviert
+    _HAS_CRYPTO = False
+
+_dm_fernet = None
+DM_MAX_PER_PAIR = 500  # max. gespeicherte Nachrichten je Unterhaltung
+DM_MAX_LEN = 4000      # max. Zeichen pro Nachricht
+DM_ATT_MAX_BYTES = 25 * 1024 * 1024   # 25 MB pro Datei-Anhang
+DM_ATT_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt', '.md', '.csv',
+              '.zip', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt', '.ods',
+              '.mp3', '.m4a', '.ogg', '.wav', '.mp4', '.webm', '.mov'}
+_FID_RE = re.compile(r'^[a-f0-9]{32}$')
+ADMIN_DM_ID = '__admin__'  # Pseudo-Absender für Admin-Rundnachrichten (kein echtes Konto)
+
+
+def _admin_dm_name() -> str:
+    site = load_site()
+    return site['design'].get('site_title') or site['profile'].get('name') or 'Team'
+
+
+def _get_fernet():
+    """Lädt (oder erzeugt einmalig) den DM-Schlüssel. None, wenn cryptography fehlt."""
+    global _dm_fernet
+    if _dm_fernet is not None:
+        return _dm_fernet
+    if not _HAS_CRYPTO:
+        return None
+    try:
+        if os.path.exists(DMKEY_PATH):
+            with open(DMKEY_PATH, 'rb') as f:
+                key = f.read().strip()
+        else:
+            key = Fernet.generate_key()
+            with open(DMKEY_PATH, 'wb') as f:
+                f.write(key)
+            try:
+                os.chmod(DMKEY_PATH, 0o600)
+            except OSError:
+                pass
+            log.info("DM-Verschlüsselungsschlüssel neu erzeugt")
+        _dm_fernet = Fernet(key)
+        return _dm_fernet
+    except Exception as e:
+        log.warning("DM-Schlüssel konnte nicht geladen/erzeugt werden: %s", e)
+        return None
+
+
+def _dm_reset_fernet() -> None:
+    """Cache verwerfen — nach einem Restore kann dm.key ausgetauscht worden sein."""
+    global _dm_fernet
+    _dm_fernet = None
+
+
+def dm_feature_on() -> bool:
+    """Globaler Schalter + funktionsfähige Verschlüsselung."""
+    return bool(load_site()['design'].get('dm_enabled')) and _get_fernet() is not None
+
+
+def _dm_encrypt(text: str) -> str:
+    f = _get_fernet()
+    if f is None:
+        return ''
+    return f.encrypt(text.encode('utf-8')).decode('ascii')
+
+
+def _dm_decrypt(token: str) -> str:
+    f = _get_fernet()
+    if f is None or not token:
+        return ''
+    try:
+        return f.decrypt(token.encode('ascii')).decode('utf-8')
+    except Exception:  # InvalidToken / beschädigte Daten → leer statt Absturz
+        return ''
+
+
+def load_dm() -> list:
+    with _dm_lock:
+        try:
+            with open(DM_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, list) else []
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            log.warning("dm.json konnte nicht geladen werden: %s", e)
+            return []
+
+
+def save_dm(data: list) -> None:
+    with _dm_lock:
+        try:
+            with open(DM_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            log.warning("dm.json konnte nicht gespeichert werden: %s", e)
+
+
+def _dm_user_active(u: dict) -> bool:
+    """Konto darf Nachrichten empfangen (freigegeben + verifiziert)."""
+    return u.get('approved', True) is not False and u.get('verified', True) is not False
+
+
+def _dm_can_receive(u: dict) -> bool:
+    return _dm_user_active(u) and u.get('dm_enabled', True) is not False
+
+
+def _dm_recipients(me_id: str) -> list:
+    """Anschreibbare Mitglieder (Empfang an, ohne mich selbst), nach Name sortiert."""
+    out = [{'id': u['id'], 'name': _member_display_name(u)}
+           for u in load_users()
+           if u['id'] != me_id and _dm_can_receive(u)]
+    out.sort(key=lambda x: x['name'].lower())
+    return out
+
+
+def _dm_hidden(m: dict, me_id: str) -> bool:
+    """True, wenn das Mitglied diese Nachricht für sich gelöscht hat."""
+    return me_id in (m.get('del') or [])
+
+
+def _dm_unread(me_id: str) -> int:
+    return sum(1 for m in load_dm()
+               if m.get('to') == me_id and not m.get('read') and not _dm_hidden(m, me_id))
+
+
+def _dm_conversations(me_id: str) -> list:
+    """Unterhaltungen des Mitglieds, neueste zuerst, mit Vorschau & Ungelesen-Zähler."""
+    users = {u['id']: u for u in load_users()}
+    convo: dict[str, dict] = {}
+    for m in load_dm():
+        frm, to = m.get('frm'), m.get('to')
+        if me_id not in (frm, to) or _dm_hidden(m, me_id):
+            continue
+        partner = to if frm == me_id else frm
+        c = convo.setdefault(partner, {'partner': partner, 'last_ts': 0,
+                                       'unread': 0, '_tok': '', '_att': None, 'mine': False})
+        ts = m.get('ts', 0)
+        if ts >= c['last_ts']:
+            c['last_ts'] = ts
+            c['_tok'] = m.get('body', '')
+            c['_att'] = m.get('att')
+            c['mine'] = (frm == me_id)
+        if to == me_id and not m.get('read'):
+            c['unread'] += 1
+    out = []
+    for pid, c in convo.items():
+        if pid == ADMIN_DM_ID:
+            c['name'], c['gone'], c['admin'] = _admin_dm_name(), False, True
+        else:
+            u = users.get(pid)
+            c['name'] = _member_display_name(u) if u else '—'
+            c['gone'] = u is None
+            c['admin'] = False
+        prev = _dm_decrypt(c.pop('_tok', ''))[:90]
+        att = c.pop('_att', None)
+        c['preview'] = prev or (('📎 ' + att.get('name', '')) if att else '')
+        out.append(c)
+    out.sort(key=lambda x: x['last_ts'], reverse=True)
+    return out
+
+
+def _dm_thread(me_id: str, partner_id: str) -> list:
+    """Nachrichten zwischen mir und Partner (chronologisch). Markiert eingehende als gelesen."""
+    msgs = load_dm()
+    out, changed = [], False
+    for m in msgs:
+        if {m.get('frm'), m.get('to')} == {me_id, partner_id} and not _dm_hidden(m, me_id):
+            if m.get('to') == me_id and not m.get('read'):
+                m['read'] = True
+                changed = True
+            out.append({'id': m.get('id'), 'ts': m.get('ts', 0),
+                        'mine': m.get('frm') == me_id,
+                        'text': _dm_decrypt(m.get('body', '')),
+                        'att': m.get('att')})
+    if changed:
+        save_dm(msgs)
+    out.sort(key=lambda x: x['ts'])
+    return out
+
+
+def _dm_att_path(fid: str) -> Path | None:
+    return DM_FILES_DIR / fid if _FID_RE.match(fid or '') else None
+
+
+def _dm_att_store(f) -> dict | None:
+    """Validiert + verschlüsselt einen Datei-Anhang. Liefert {fid,name,size} oder None."""
+    if not (f and f.filename):
+        return None
+    name = secure_filename(f.filename)
+    if not name or Path(name).suffix.lower() not in DM_ATT_EXT:
+        return None
+    data = f.read(DM_ATT_MAX_BYTES + 1)
+    if not data or len(data) > DM_ATT_MAX_BYTES:
+        return None
+    fer = _get_fernet()
+    if fer is None:
+        return None
+    fid = uuid.uuid4().hex
+    try:
+        with open(DM_FILES_DIR / fid, 'wb') as out:
+            out.write(fer.encrypt(data))
+    except Exception as e:
+        log.warning("DM-Anhang konnte nicht gespeichert werden: %s", e)
+        return None
+    return {'fid': fid, 'name': name, 'size': len(data)}
+
+
+def _dm_att_read(fid: str) -> bytes | None:
+    p = _dm_att_path(fid)
+    fer = _get_fernet()
+    if p is None or fer is None or not p.is_file():
+        return None
+    try:
+        return fer.decrypt(p.read_bytes())
+    except Exception:
+        return None
+
+
+def _dm_att_delete(fid: str) -> None:
+    p = _dm_att_path(fid)
+    if p is not None:
+        try:
+            p.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _dm_purge(msgs: list) -> list:
+    """Entfernt Nachrichten endgültig, sobald kein lebendes Mitglied sie mehr behält;
+    löscht dabei auch die verschlüsselten Anhang-Dateien."""
+    uids = {u['id'] for u in load_users()}
+    keep = []
+    for m in msgs:
+        dels = set(m.get('del') or [])
+        alive = {p for p in (m.get('frm'), m.get('to')) if p in uids and p not in dels}
+        if alive:
+            keep.append(m)
+        else:
+            att = m.get('att')
+            if att and att.get('fid'):
+                _dm_att_delete(att['fid'])
+    return keep
+
+
+def _dm_delete_for(me_id: str, mid: str = '', partner_id: str = '') -> None:
+    """Markiert eine Nachricht (mid) oder eine ganze Unterhaltung (partner_id)
+    als für ``me_id`` gelöscht und räumt vollständig gelöschte Einträge auf."""
+    msgs = load_dm()
+    for m in msgs:
+        if me_id not in (m.get('frm'), m.get('to')):
+            continue
+        hit = (mid and m.get('id') == mid) or \
+              (partner_id and {m.get('frm'), m.get('to')} == {me_id, partner_id})
+        if hit:
+            d = m.setdefault('del', [])
+            if me_id not in d:
+                d.append(me_id)
+    save_dm(_dm_purge(msgs))
+
+
+def _dm_send(frm: str, to: str, text: str, att: dict | None = None) -> None:
+    msgs = load_dm()
+    msg = {'id': uuid.uuid4().hex[:12], 'frm': frm, 'to': to,
+           'ts': int(time.time()), 'read': False, 'body': _dm_encrypt(text)}
+    if att:
+        msg['att'] = att
+    msgs.append(msg)
+    # History je Unterhaltung kappen (älteste dieses Paars zuerst entfernen)
+    pair_idx = [i for i, m in enumerate(msgs)
+                if {m.get('frm'), m.get('to')} == {frm, to}]
+    if len(pair_idx) > DM_MAX_PER_PAIR:
+        for i in pair_idx[:len(pair_idx) - DM_MAX_PER_PAIR]:
+            a = (msgs[i].get('att') or {}).get('fid')
+            if a:
+                _dm_att_delete(a)
+            msgs[i] = None
+        msgs = [m for m in msgs if m is not None]
+    save_dm(msgs)
+
+
+def _dm_owner_notify(to_id: str) -> None:
+    """Optionaler HA-Push an den Betreiber: Mitglied X hat ungelesene Nachrichten.
+    Bewusst ohne Inhalt; je Empfänger zusammengefasst (gleiche notification_id)."""
+    if not load_site()['design'].get('dm_ha_notify'):
+        return
+    user = next((u for u in load_users() if u['id'] == to_id), None)
+    if user is None:
+        return
+    n = _dm_unread(to_id)
+    name = _member_display_name(user)
+    notify_ha_async('📨 MyPage: Neue Mitglieder-Nachricht',
+                    f'{name} hat {n} ungelesene Nachricht(en) im Postfach.',
+                    notification_id=f'mypage_dm_{to_id}')
+
+
+def _dm_broadcast(text: str) -> int:
+    """Admin-Rundnachricht (verschlüsselt) an alle Mitglieder. Liefert die Anzahl."""
+    text = (text or '').strip()[:DM_MAX_LEN]
+    if not text:
+        return 0
+    body = _dm_encrypt(text)          # ein Token für alle (gleicher Inhalt)
+    now = int(time.time())
+    msgs = load_dm()
+    n = 0
+    for u in load_users():
+        msgs.append({'id': uuid.uuid4().hex[:12], 'frm': ADMIN_DM_ID, 'to': u['id'],
+                     'ts': now, 'read': False, 'body': body})
+        n += 1
+    save_dm(msgs)
+    return n
+
+
+# ── DM-Erinnerung: ungelesen seit 3 h → E-Mail (ohne Inhalt, nur Link) ─────────
+DM_REMINDER_AFTER = 3 * 3600   # erst nach 3 Stunden erinnern
+DM_REMINDER_EVERY = 900        # Prüf-Intervall (15 min)
+
+
+def send_dm_reminder(email: str, name: str, base: str, lang: str = 'de') -> None:
+    """Neutrale Erinnerung – bewusst ohne Absender/Inhalt, nur Link zum Postfach."""
+    site = load_site()
+    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    esc = html_mod.escape
+    m = load_translations(lang if lang in ('de', 'en') else 'de')
+    link = f"{base}/bereich/nachrichten"
+    lines = [m['mail_dm_hello'].format(name=esc(name)),
+             m['mail_dm_body'],
+             m['mail_link'].format(link=esc(link)),
+             m['mail_dm_privacy']]
+    send_email(m['mail_dm_subject'].format(title=title),
+               _email_html(m['mail_dm_heading'].format(title=esc(title)), lines),
+               to=email,
+               from_addr=(site['design'].get('welcome_from') or '').strip() or None)
+
+
+def _dm_check_reminders() -> None:
+    """Findet je Empfänger ungelesene Nachrichten, die älter als 3 h sind und noch
+    nicht erinnert wurden, verschickt eine neutrale Mail und markiert sie (``rem``)."""
+    if not smtp_configured():
+        return
+    site = load_site()
+    if not site['design'].get('dm_enabled'):
+        return
+    base = (site['design'].get('public_url') or '').rstrip('/')
+    if not base:
+        return
+    now = time.time()
+    msgs = load_dm()
+    overdue: dict[str, list] = {}
+    for m in msgs:
+        to = m.get('to')
+        if (to and not m.get('read') and not m.get('rem')
+                and not _dm_hidden(m, to)
+                and (now - m.get('ts', 0)) >= DM_REMINDER_AFTER):
+            overdue.setdefault(to, []).append(m)
+    if not overdue:
+        return
+    users = {u['id']: u for u in load_users()}
+    changed = False
+    for to_id, items in overdue.items():
+        for m in items:               # nur einmal erinnern, egal ob Mail klappt
+            m['rem'] = True
+            changed = True
+        u = users.get(to_id)
+        if u and u.get('email'):
+            threading.Thread(target=send_dm_reminder,
+                             args=(u['email'], _member_display_name(u), base, _member_lang(u)),
+                             daemon=True).start()
+            log.info("DM-Erinnerung an '%s' (%d ungelesen)", u['email'], len(items))
+    if changed:
+        save_dm(msgs)
+
+
+def _dm_reminder_worker() -> None:
+    while True:
+        time.sleep(DM_REMINDER_EVERY)
+        try:
+            _dm_check_reminders()
+        except Exception as e:
+            log.warning("DM-Erinnerung fehlgeschlagen: %s", e)
+
+
 # ── Admin-Audit-Log ────────────────────────────────────────────────────────────
 AUDIT_MAX = 500
 
@@ -862,6 +1316,137 @@ def record_failed_attempt(ip: str) -> None:
 def clear_failed_attempts(ip: str) -> None:
     _failed_attempts.pop(ip, None)
     _blocked_ips.pop(ip, None)
+
+
+# ── Zwei-Faktor-Authentifizierung (Admin, nur Direkt-Login) ───────────────────
+# TOTP nach RFC 6238 mit der Standardbibliothek — keine externe Krypto-Lib nötig.
+# Greift NUR beim Login über Port 17761; über HA-Ingress übernimmt HA die Auth.
+TOTP_STEP = 30          # Sekunden pro Code
+TOTP_DIGITS = 6
+TOTP_WINDOW = 1         # ±1 Zeitfenster Toleranz (Uhren-Drift)
+BACKUP_CODE_COUNT = 10
+# Kurzlebige Merker zwischen Schritt 1 (Passwort) und Schritt 2 (Code)
+_pending_2fa: dict[str, float] = {}   # token → Ablaufzeit
+PENDING_2FA_TTL = 300
+
+
+def load_2fa() -> dict:
+    with _2fa_lock:
+        try:
+            with open(TWOFA_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning("admin_2fa.json konnte nicht geladen werden: %s", e)
+            return {}
+
+
+def save_2fa(data: dict) -> None:
+    with _2fa_lock:
+        try:
+            with open(TWOFA_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+            try:
+                os.chmod(TWOFA_PATH, 0o600)
+            except OSError:
+                pass
+        except Exception as e:
+            log.warning("admin_2fa.json konnte nicht gespeichert werden: %s", e)
+
+
+def twofa_enabled() -> bool:
+    d = load_2fa()
+    return bool(d.get('enabled') and d.get('secret'))
+
+
+def _new_totp_secret() -> str:
+    """Zufälliges Base32-Secret (160 Bit) ohne Padding."""
+    return base64.b32encode(secrets.token_bytes(20)).decode('ascii').rstrip('=')
+
+
+def _totp_at(secret_b32: str, t: float) -> str:
+    key = base64.b32decode(secret_b32 + '=' * (-len(secret_b32) % 8), casefold=True)
+    counter = int(t // TOTP_STEP).to_bytes(8, 'big')
+    h = hmac.new(key, counter, hashlib.sha1).digest()
+    o = h[-1] & 0x0F
+    num = int.from_bytes(h[o:o + 4], 'big') & 0x7FFFFFFF
+    return str(num % (10 ** TOTP_DIGITS)).zfill(TOTP_DIGITS)
+
+
+def totp_verify(secret_b32: str, code: str) -> bool:
+    code = (code or '').strip().replace(' ', '')
+    if not (secret_b32 and code.isdigit() and len(code) == TOTP_DIGITS):
+        return False
+    now = time.time()
+    for w in range(-TOTP_WINDOW, TOTP_WINDOW + 1):
+        if secrets.compare_digest(_totp_at(secret_b32, now + w * TOTP_STEP), code):
+            return True
+    return False
+
+
+def _otpauth_uri(secret_b32: str, account: str) -> str:
+    site = load_site()
+    issuer = (site['design'].get('site_title') or site['profile'].get('name') or 'MyPage')[:40]
+    from urllib.parse import quote
+    label = quote(f'{issuer}:{account}')
+    return (f'otpauth://totp/{label}?secret={secret_b32}'
+            f'&issuer={quote(issuer)}&digits={TOTP_DIGITS}&period={TOTP_STEP}')
+
+
+def _qr_svg(data: str) -> str:
+    """QR-Code als Inline-SVG (lokal erzeugt — Secret verlässt den Server nie)."""
+    try:
+        import qrcode
+        import qrcode.image.svg as qrsvg
+        img = qrcode.make(data, image_factory=qrsvg.SvgPathImage, box_size=9, border=2)
+        buf = io.BytesIO()
+        img.save(buf)
+        return buf.getvalue().decode('utf-8')
+    except Exception as e:
+        log.warning("QR-Code konnte nicht erzeugt werden: %s", e)
+        return ''
+
+
+def _gen_backup_codes() -> tuple[list, list]:
+    """Liefert (Klartext-Codes für die einmalige Anzeige, Hashes für die Platte)."""
+    plain = ['-'.join(secrets.token_hex(2) for _ in range(2)) for _ in range(BACKUP_CODE_COUNT)]
+    return plain, [generate_password_hash(c) for c in plain]
+
+
+def backup_code_consume(code: str) -> bool:
+    """Prüft einen Backup-Code und verbraucht ihn (Einmal-Nutzung)."""
+    code = (code or '').strip().lower()
+    if not code:
+        return False
+    d = load_2fa()
+    hashes = d.get('backup') or []
+    for i, h in enumerate(hashes):
+        if check_password_hash(h, code):
+            hashes.pop(i)
+            d['backup'] = hashes
+            save_2fa(d)
+            return True
+    return False
+
+
+def _pending_2fa_new() -> str:
+    now = time.time()
+    for k in [k for k, exp in _pending_2fa.items() if exp < now]:
+        _pending_2fa.pop(k, None)
+    token = secrets.token_hex(32)
+    _pending_2fa[token] = now + PENDING_2FA_TTL
+    return token
+
+
+def _pending_2fa_valid(token: str | None) -> bool:
+    if not token or token not in _pending_2fa:
+        return False
+    if time.time() > _pending_2fa[token]:
+        _pending_2fa.pop(token, None)
+        return False
+    return True
 
 
 # ── i18n ──────────────────────────────────────────────────────────────────────
@@ -1395,19 +1980,26 @@ def generate_member_password() -> str:
     return ''.join(chars)
 
 
+def _member_lang(user: dict | None) -> str:
+    """Bevorzugte E-Mail-Sprache eines Mitglieds (de/en), Standard Deutsch."""
+    lang = (user or {}).get('lang')
+    return lang if lang in ('de', 'en') else 'de'
+
+
 def send_welcome_email(user: dict, password: str, subject: str | None = None) -> None:
     site = load_site()
     base = (site['design'].get('public_url') or '').rstrip('/')
     url = (base + '/bereich') if base else ''
     title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
     esc = html_mod.escape
-    lines = [f'Hallo, für dich wurde ein persönlicher Dateibereich auf <b>{esc(title)}</b> eingerichtet.',
-             f'<b>Login:</b> <a href="{esc(url)}">{esc(url)}</a>' if url else '',
-             f'<b>Benutzername:</b> {esc(user["email"])}',
-             f'<b>Passwort:</b> {esc(password)}',
-             'Wenn du dieses Konto nicht erwartet hast, kannst du diese E-Mail ignorieren.']
-    send_email(subject or f'Dein Zugang zu {title}',
-               _email_html(f'🔑 Dein Zugang zu {esc(title)}', [l for l in lines if l]),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_welcome_intro'].format(title=esc(title)),
+             m['mail_welcome_login'].format(url=esc(url)) if url else '',
+             m['mail_username_label'].format(email=esc(user['email'])),
+             m['mail_password_label'].format(password=esc(password)),
+             m['mail_welcome_ignore']]
+    send_email(subject or m['mail_welcome_subject'].format(title=title),
+               _email_html(m['mail_welcome_heading'].format(title=esc(title)), [l for l in lines if l]),
                to=user['email'],
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
@@ -1441,12 +2033,13 @@ def send_reset_email(user: dict, token: str) -> None:
     link = f"{base}/bereich/reset/{user['id']}/{token}"
     title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
     esc = html_mod.escape
-    lines = [f'Für dein Konto bei <b>{esc(title)}</b> wurde ein Zurücksetzen des Passworts angefordert.',
-             'Klicke auf den folgenden Link, um ein neues Passwort zu setzen (1 Stunde gültig):',
-             f'<a href="{esc(link)}">{esc(link)}</a>',
-             'Wenn du das nicht warst, ignoriere diese E-Mail einfach — dein Passwort bleibt unverändert.']
-    send_email(f'Passwort zurücksetzen – {title}',
-               _email_html(f'🔑 Passwort zurücksetzen – {esc(title)}', lines),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_reset_intro'].format(title=esc(title)),
+             m['mail_reset_cta'],
+             m['mail_link'].format(link=esc(link)),
+             m['mail_reset_ignore']]
+    send_email(m['mail_reset_subject'].format(title=title),
+               _email_html(m['mail_reset_heading'].format(title=esc(title)), lines),
                to=user['email'],
                from_addr=(site['design'].get('welcome_from') or '').strip() or None)
 
@@ -1534,12 +2127,13 @@ def send_verify_email(user: dict, token: str) -> None:
         return
     link = f"{base}/bereich/verify/{user['id']}/{token}"
     title, esc = _site_title(), html_mod.escape
-    lines = [f'Willkommen bei <b>{esc(title)}</b>! Bitte bestätige deine E-Mail-Adresse, um die Registrierung abzuschließen (Link 24 Stunden gültig):',
-             f'<a href="{esc(link)}">{esc(link)}</a>',
-             'Danach schaltet der Betreiber dein Konto frei — du bekommst dann eine weitere E-Mail.',
-             'Wenn du dich nicht registriert hast, ignoriere diese E-Mail einfach.']
-    send_email(f'E-Mail bestätigen – {title}',
-               _email_html(f'✅ E-Mail bestätigen – {esc(title)}', lines),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_verify_intro'].format(title=esc(title)),
+             m['mail_link'].format(link=esc(link)),
+             m['mail_verify_after'],
+             m['mail_verify_ignore']]
+    send_email(m['mail_verify_subject'].format(title=title),
+               _email_html(m['mail_verify_heading'].format(title=esc(title)), lines),
                to=user['email'], from_addr=_reg_from())
 
 
@@ -1547,13 +2141,13 @@ def send_already_registered_email(user: dict) -> None:
     site = load_site()
     base = (site['design'].get('public_url') or '').rstrip('/')
     title, esc = _site_title(), html_mod.escape
-    lines = [f'Für diese E-Mail-Adresse besteht bei <b>{esc(title)}</b> bereits ein Konto.',
-             (f'Du kannst dich hier anmelden: <a href="{esc(base)}/bereich">{esc(base)}/bereich</a>'
-              if base else 'Du kannst dich im Mitgliederbereich anmelden.'),
-             'Passwort vergessen? Nutze den „Passwort vergessen?"-Link auf der Login-Seite.',
-             'Wenn du das nicht warst, kannst du diese E-Mail ignorieren.']
-    send_email(f'Konto besteht bereits – {title}',
-               _email_html(f'ℹ️ Konto besteht bereits – {esc(title)}', lines),
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_exists_intro'].format(title=esc(title)),
+             (m['mail_exists_login'].format(base=esc(base)) if base else m['mail_exists_login_nourl']),
+             m['mail_exists_forgot'],
+             m['mail_exists_ignore']]
+    send_email(m['mail_exists_subject'].format(title=title),
+               _email_html(m['mail_exists_heading'].format(title=esc(title)), lines),
                to=user['email'], from_addr=_reg_from())
 
 
@@ -1562,23 +2156,25 @@ def send_activated_email(user: dict) -> None:
     base = (site['design'].get('public_url') or '').rstrip('/')
     title, esc = _site_title(), html_mod.escape
     url = (base + '/bereich') if base else ''
-    lines = [f'Dein Konto bei <b>{esc(title)}</b> wurde freigeschaltet — du kannst dich jetzt anmelden.',
+    m = load_translations(_member_lang(user))
+    lines = [m['mail_activated_intro'].format(title=esc(title)),
              (f'<a href="{esc(url)}">{esc(url)}</a>' if url else ''),
-             f'<b>Benutzername:</b> {esc(user["email"])}']
-    send_email(f'Konto freigeschaltet – {title}',
-               _email_html(f'🎉 Konto freigeschaltet – {esc(title)}', [l for l in lines if l]),
+             m['mail_username_label'].format(email=esc(user['email']))]
+    send_email(m['mail_activated_subject'].format(title=title),
+               _email_html(m['mail_activated_heading'].format(title=esc(title)), [l for l in lines if l]),
                to=user['email'], from_addr=_reg_from())
 
 
 def send_comment_reply_email(to_email: str, post_title: str, replier: str,
-                             text: str, post_url: str) -> None:
+                             text: str, post_url: str, lang: str = 'de') -> None:
     """Benachrichtigt den Autor eines Kommentars, dass jemand geantwortet hat."""
     title, esc = _site_title(), html_mod.escape
-    lines = [f'{esc(replier)} hat auf deinen Kommentar zu „{esc(post_title)}" geantwortet:',
-             f'<i>{esc(text[:300])}</i>',
-             (f'<a href="{esc(post_url)}#comments">Zur Diskussion</a>' if post_url else '')]
-    send_email(f'Neue Antwort auf deinen Kommentar – {title}',
-               _email_html(f'💬 Neue Antwort – {esc(title)}', [l for l in lines if l]),
+    m = load_translations(lang if lang in ('de', 'en') else 'de')
+    lines = [m['mail_reply_intro'].format(replier=esc(replier), post=esc(post_title)),
+             m['mail_reply_quote'].format(text=esc(text[:300])),
+             (m['mail_reply_cta'].format(url=esc(post_url)) if post_url else '')]
+    send_email(m['mail_reply_subject'].format(title=title),
+               _email_html(m['mail_reply_heading'].format(title=esc(title)), [l for l in lines if l]),
                to=to_email, from_addr=_reg_from())
 
 
@@ -1735,13 +2331,13 @@ def _sensor_worker() -> None:
 # ── Spiel-Sensoren (Live: wer spielt gerade was) ──────────────────────────────
 _HA_GAME_LABELS = {'66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen',
                    'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy',
-                   'gluecksrad': 'Glücksrad'}
+                   'gluecksrad': 'Glücksrad', 'kniffel': 'Kniffel', 'chicago': 'Chicago'}
 
 
 def _playing_overview() -> tuple[list, dict]:
     """Liefert (spieler, pro_spiel): wer spielt gerade welches Spiel."""
     players: list = []
-    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': [], 'gluecksrad': []}
+    per_game: dict = {'66': [], '20ab': [], 'schwimmen': [], 'maumau': [], 'praesident': [], 'jeopardy': [], 'gluecksrad': [], 'kniffel': [], 'chicago': []}
     for u in load_users():
         p = _user_playing(u['id'])
         if not p:
@@ -1769,7 +2365,7 @@ def push_ha_games() -> None:
                                        'spieler': players,
                                        'pro_spiel': {_HA_GAME_LABELS[g]: len(v)
                                                      for g, v in per_game.items()}}})
-        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad'):
+        for g in ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago'):
             http.post(f'{base}/sensor.mypage_aktiv_{g}', headers=headers, timeout=10,
                       json={'state': len(per_game.get(g, [])),
                             'attributes': {'friendly_name': f'MyPage aktiv {_HA_GAME_LABELS[g]}',
@@ -1849,6 +2445,91 @@ def filter_posts(posts: list, query: str = '', tag: str = '') -> list:
             return all(word in hay for word in q.split())
         posts = [p for p in posts if hit(p)]
     return posts
+
+
+SEARCH_SNIPPET_LEN = 170
+SEARCH_MAX_RESULTS = 80
+SEARCH_MAX_WORDS = 8
+
+
+def _search_words(query: str) -> list:
+    """Suchanfrage → Liste klein geschriebener Suchwörter (begrenzt)."""
+    return [w for w in (query or '').strip().lower().split() if w][:SEARCH_MAX_WORDS]
+
+
+def _search_snippet(text: str, words: list) -> str:
+    """Klartext-Auszug rund um den ersten Treffer."""
+    plain = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', text or '')).strip()
+    if not plain:
+        return ''
+    low = plain.lower()
+    pos = -1
+    for w in words:
+        i = low.find(w)
+        if i != -1 and (pos == -1 or i < pos):
+            pos = i
+    if pos <= 0:
+        snippet = plain[:SEARCH_SNIPPET_LEN]
+        prefix = ''
+    else:
+        start = max(0, pos - SEARCH_SNIPPET_LEN // 3)
+        snippet = plain[start:start + SEARCH_SNIPPET_LEN]
+        prefix = '… ' if start > 0 else ''
+    if len(prefix) + len(snippet) < len(prefix) + len(plain[(pos if pos > 0 else 0):]):
+        snippet = snippet.rstrip() + ' …'
+    return prefix + snippet
+
+
+def _search_highlight(text: str, words: list) -> Markup:
+    """Text escapen und Suchwörter mit <mark> hervorheben (XSS-sicher)."""
+    out = str(escape(text or ''))
+    for w in sorted({w for w in words if w}, key=len, reverse=True):
+        wesc = re.escape(str(escape(w)))
+        out = re.sub(f'({wesc})', r'<mark>\1</mark>', out, flags=re.IGNORECASE)
+    return Markup(out)
+
+
+def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
+    """Seitenweite Volltextsuche über Beiträge, Projekte und Seiten.
+    Liefert eine Liste {kind, title, title_html, url, snippet, locked}."""
+    words = _search_words(query)
+    if not words:
+        return []
+    results: list = []
+
+    def consider(kind, title, url, body, members_only):
+        hay = (str(title) + ' ' + str(body)).lower()
+        if not all(w in hay for w in words):
+            return
+        locked = bool(members_only) and not viewer_is_member
+        snippet = '' if locked else _search_snippet(body, words)
+        results.append({
+            'kind': kind,
+            'title': title or '…',
+            'title_html': _search_highlight(title or '…', words),
+            'url': url,
+            'snippet': _search_highlight(snippet, words) if snippet else '',
+            'locked': locked,
+        })
+
+    for p in sorted_posts(site, public_only=True):
+        body = ' '.join([loc(p, 'text'), ' '.join(p.get('tags', []))])
+        consider('blog', loc(p, 'title'), '/blog/' + p['id'], body, p.get('members_only'))
+
+    for p in site.get('projects', []):
+        if not project_visible(p):
+            continue
+        body = ' '.join([loc(p, 'desc'), loc(p, 'long'), ' '.join(p.get('tags', []))])
+        url = '/p/' + p['id'] if _has_detail(p) else (p.get('url') or '/#projects')
+        consider('project', p.get('title', ''), url, body, False)
+
+    for p in site.get('pages', []):
+        if not p.get('visible'):
+            continue
+        consider('page', loc(p, 'title'), '/seite/' + p.get('slug', ''),
+                 loc(p, 'body'), p.get('members_only'))
+
+    return results[:SEARCH_MAX_RESULTS]
 
 
 def post_status(p: dict) -> str:
@@ -2034,6 +2715,7 @@ RESERVED_SLUGS = {
     'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
     'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
     'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
+    'suche', 'search',
 }
 
 
@@ -2257,28 +2939,54 @@ def login():
         return redirect(url_for('admin_index'))
 
     error = None
+    step = 'password'
+
+    def _grant_session(ip):
+        clear_failed_attempts(ip)
+        hours = int(cfg.get('session_hours', 24))
+        token = create_session(hours)
+        log_audit('admin_login')
+        resp = make_response(redirect(url_for('admin_index')))
+        resp.set_cookie('session', token, httponly=True, samesite='Lax', max_age=hours * 3600)
+        resp.delete_cookie('pre2fa')
+        return resp
+
     if request.method == 'POST':
         ip = get_client_ip(request)
         if is_rate_limited(ip):
             error = t.get('error_locked', 'Zu viele Fehlversuche. Bitte 15 Minuten warten.')
+        elif request.form.get('step') == 'code':
+            # Schritt 2: TOTP- oder Backup-Code (nur nach erfolgreichem Passwort)
+            if not _pending_2fa_valid(request.cookies.get('pre2fa')):
+                return redirect(url_for('login'))   # Vormerkung abgelaufen → neu starten
+            code = request.form.get('code', '')
+            secret = load_2fa().get('secret', '')
+            if totp_verify(secret, code) or backup_code_consume(code):
+                _pending_2fa.pop(request.cookies.get('pre2fa'), None)
+                return _grant_session(ip)
+            record_failed_attempt(ip)
+            log_audit('admin_login_2fa_failed')
+            error = t.get('error_2fa_code', 'Ungültiger Code.')
+            step = 'code'
         else:
+            # Schritt 1: Benutzername + Passwort
             uname = request.form.get('username', '')
             pwd   = request.form.get('password', '')
             if (secrets.compare_digest(uname, str(cfg.get('username', 'admin'))) and
                     secrets.compare_digest(pwd, str(cfg.get('password', '')))):
-                clear_failed_attempts(ip)
-                hours = int(cfg.get('session_hours', 24))
-                token = create_session(hours)
-                log_audit('admin_login')
-                resp = make_response(redirect(url_for('admin_index')))
-                resp.set_cookie('session', token, httponly=True,
-                                samesite='Lax', max_age=hours * 3600)
-                return resp
+                if twofa_enabled():
+                    pre = _pending_2fa_new()
+                    resp = make_response(render_template('login.html', t=t, lang=lang,
+                                                         error=None, step='code'))
+                    resp.set_cookie('pre2fa', pre, httponly=True, samesite='Lax',
+                                    max_age=PENDING_2FA_TTL)
+                    return resp
+                return _grant_session(ip)
             record_failed_attempt(ip)
             log_audit('admin_login_failed', uname)
             error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
-    return make_response(render_template('login.html', t=t, lang=lang, error=error))
+    return make_response(render_template('login.html', t=t, lang=lang, error=error, step=step))
 
 
 @admin_app.route('/logout')
@@ -2290,6 +2998,100 @@ def logout():
     resp = make_response(redirect(url_for('login')))
     resp.delete_cookie('session')
     return resp
+
+
+@admin_app.route('/api/2fa')
+def api_2fa_status():
+    err = _api_auth()
+    if err:
+        return err
+    d = load_2fa()
+    return jsonify({'enabled': twofa_enabled(), 'ingress': _is_ingress(),
+                    'backup_remaining': len(d.get('backup') or [])})
+
+
+@admin_app.route('/api/2fa/setup', methods=['POST'])
+def api_2fa_setup():
+    err = _api_auth()
+    if err:
+        return err
+    secret = _new_totp_secret()
+    d = load_2fa()
+    d['pending'] = secret           # erst nach Code-Bestätigung aktiv
+    save_2fa(d)
+    account = str(load_config().get('username', 'admin'))
+    uri = _otpauth_uri(secret, account)
+    return jsonify({'secret': secret, 'uri': uri, 'qr': _qr_svg(uri), 'account': account})
+
+
+@admin_app.route('/api/2fa/enable', methods=['POST'])
+def api_2fa_enable():
+    err = _api_auth()
+    if err:
+        return err
+    code = (request.get_json(silent=True) or {}).get('code', '')
+    d = load_2fa()
+    pending = d.get('pending', '')
+    if not pending:
+        return jsonify({'error': 'no setup'}), 400
+    if not totp_verify(pending, code):
+        return jsonify({'error': 'bad code'}), 400
+    plain, hashes = _gen_backup_codes()
+    save_2fa({'enabled': True, 'secret': pending, 'backup': hashes})
+    log_audit('admin_2fa_enabled')
+    log.info("Admin-2FA aktiviert")
+    return jsonify({'ok': True, 'backup_codes': plain})
+
+
+@admin_app.route('/api/2fa/disable', methods=['POST'])
+def api_2fa_disable():
+    err = _api_auth()
+    if err:
+        return err
+    code = (request.get_json(silent=True) or {}).get('code', '')
+    d = load_2fa()
+    if not twofa_enabled():
+        return jsonify({'ok': True})
+    if not (totp_verify(d.get('secret', ''), code) or backup_code_consume(code)):
+        return jsonify({'error': 'bad code'}), 400
+    save_2fa({'enabled': False, 'secret': '', 'backup': []})
+    log_audit('admin_2fa_disabled')
+    log.info("Admin-2FA deaktiviert")
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/2fa/backup', methods=['POST'])
+def api_2fa_backup():
+    err = _api_auth()
+    if err:
+        return err
+    code = (request.get_json(silent=True) or {}).get('code', '')
+    d = load_2fa()
+    if not twofa_enabled():
+        return jsonify({'error': 'not enabled'}), 400
+    if not totp_verify(d.get('secret', ''), code):
+        return jsonify({'error': 'bad code'}), 400
+    plain, hashes = _gen_backup_codes()
+    d['backup'] = hashes
+    save_2fa(d)
+    log_audit('admin_2fa_backup_regen')
+    return jsonify({'ok': True, 'backup_codes': plain})
+
+
+@admin_app.route('/api/broadcast', methods=['POST'])
+def api_broadcast():
+    err = _api_auth()
+    if err:
+        return err
+    if not dm_feature_on():
+        return jsonify({'error': 'dm disabled'}), 400
+    text = _clean_str((request.get_json(silent=True) or {}).get('text'), DM_MAX_LEN).strip()
+    if not text:
+        return jsonify({'error': 'empty'}), 400
+    n = _dm_broadcast(text)
+    log_audit('dm_broadcast', f'{n} Empfänger')
+    log.info("Admin-Rundnachricht an %d Mitglieder verschickt", n)
+    return jsonify({'ok': True, 'count': n})
 
 
 @admin_app.route('/')
@@ -2450,7 +3252,8 @@ def api_design():
     for flag in ('show_counter', 'show_nav', 'contact_enabled', 'comments_enabled',
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
-                 'banner_enabled', 'banner_dismissible', 'share_enabled'):
+                 'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
+                 'dm_ha_notify', 'directory_enabled', 'search_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -2818,7 +3621,8 @@ def api_backup():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                     'comments.json', 'audit.json', 'subscribers.json'):
+                     'comments.json', 'audit.json', 'subscribers.json',
+                     'dm.json', 'dm.key', 'admin_2fa.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -2830,6 +3634,16 @@ def api_backup():
             for f in sorted(GAMES_DIR.iterdir()):
                 if f.is_file() and _GAME_FILE_RE.match(f.name):
                     z.write(f, 'games/' + f.name)
+        # Mitglieder-Avatare (<uid>.jpg)
+        if MEMBER_AVATARS_DIR.is_dir():
+            for f in sorted(MEMBER_AVATARS_DIR.iterdir()):
+                if f.is_file() and re.fullmatch(r'[a-f0-9]{6,32}\.jpg', f.name):
+                    z.write(f, 'member_avatars/' + f.name)
+        # Verschlüsselte DM-Anhänge (<fid>)
+        if DM_FILES_DIR.is_dir():
+            for f in sorted(DM_FILES_DIR.iterdir()):
+                if f.is_file() and _FID_RE.match(f.name):
+                    z.write(f, 'dm_files/' + f.name)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
@@ -2853,7 +3667,10 @@ def api_restore():
                 # Nur bekannte Dateien zulassen; Zielpfad immer per safe_join
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
-                              'comments.json', 'audit.json', 'subscribers.json'):
+                              'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
+                              'admin_2fa.json'):
+                    target = safe_under(Path(_DATA), member)
+                elif member == 'dm.key':  # Binär-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -2869,6 +3686,16 @@ def api_restore():
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         continue
                     target = safe_under(GAMES_DIR, name)
+                elif member.startswith('member_avatars/'):
+                    name = Path(member).name
+                    if not re.fullmatch(r'[a-f0-9]{6,32}\.jpg', name):
+                        continue
+                    target = safe_under(MEMBER_AVATARS_DIR, name)
+                elif member.startswith('dm_files/'):
+                    name = Path(member).name
+                    if not _FID_RE.match(name):
+                        continue
+                    target = safe_under(DM_FILES_DIR, name)
                 else:
                     continue
                 if target is None:
@@ -2878,6 +3705,7 @@ def api_restore():
                 restored += 1
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
+    _dm_reset_fernet()  # evtl. neuen dm.key übernehmen
     log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
@@ -3139,9 +3967,11 @@ def api_users():
                     'last_login': u.get('last_login'),
                     'playing': _user_playing(u['id']),
                     'games_enabled': u.get('games_enabled', True),
+                    'dm_enabled': u.get('dm_enabled', True),
                     'self_registered': bool(u.get('self_registered')),
                     'verified': u.get('verified', True),
                     'approved': u.get('approved', True),
+                    'lang': _member_lang(u),
                     'login_message': u.get('login_message', '')})
     return jsonify({'users': out, 'smtp': smtp_configured(),
                     'storage': str(userfiles_root()) if storage_ok else '',
@@ -3183,9 +4013,10 @@ def api_user_create():
     users = load_users()
     if any(u['email'] == email for u in users):
         return jsonify({'error': 'exists'}), 409
+    lang = raw.get('lang') if raw.get('lang') in ('de', 'en') else 'de'
     user = {'id': uuid.uuid4().hex[:12], 'email': email,
             'pw_hash': generate_password_hash(password),
-            'quota_mb': quota, 'created': date.today().isoformat()}
+            'quota_mb': quota, 'lang': lang, 'created': date.today().isoformat()}
     users.append(user)
     save_users(users)
     user_dir(user)
@@ -3225,6 +4056,12 @@ def api_user_edit(uid: str):
     if 'games_enabled' in raw:
         user['games_enabled'] = bool(raw['games_enabled'])
         log_audit('user_games', f"{user['email']}: {'an' if user['games_enabled'] else 'aus'}")
+    if 'dm_enabled' in raw:
+        user['dm_enabled'] = bool(raw['dm_enabled'])
+        log_audit('user_dm', f"{user['email']}: {'an' if user['dm_enabled'] else 'aus'}")
+    if 'lang' in raw and raw['lang'] in ('de', 'en'):
+        user['lang'] = raw['lang']
+        log_audit('user_lang', f"{user['email']} → {user['lang'].upper()}")
     if 'approved' in raw:
         was = user.get('approved', True)
         user['approved'] = bool(raw['approved'])
@@ -3246,8 +4083,9 @@ def api_user_edit(uid: str):
             log.info("Passwortwechsel: %d Sitzung(en) von '%s' beendet", ended, user['email'])
         mail_sent = smtp_configured()
         if mail_sent:
+            pw_subject = load_translations(_member_lang(user))['mail_pw_subject']
             threading.Thread(target=send_welcome_email,
-                             args=(user, password, f'Neues Passwort für deinen Bereich'),
+                             args=(user, password, pw_subject),
                              daemon=True).start()
     save_users(users)
     return jsonify({'ok': True, 'mail_sent': mail_sent,
@@ -3293,7 +4131,7 @@ def api_user_journal(uid: str):
     return jsonify({'journal': list(reversed(user.get('journal', [])))})
 
 
-_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad')
+_ADMIN_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago')
 
 
 def _user_playing(uid: str):
@@ -4332,7 +5170,7 @@ _schwimmen_tour: dict = {}     # uid -> Turnierstand (in-memory, best effort)
 
 
 def _ng_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago') or not _UID_RE.match(uid or ''):
         return None
     return safe_under(GAMES_DIR, f'{game}_{uid}.json')
 
@@ -4363,7 +5201,7 @@ def _ng_save(game: str, uid: str, st: dict) -> None:
 
 
 def _ng_hist_path(game: str, uid: str) -> Path | None:
-    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad') or not _UID_RE.match(uid or ''):
+    if game not in ('20ab', 'schwimmen', 'maumau', 'praesident', 'jeopardy', 'gluecksrad', 'kniffel', 'chicago') or not _UID_RE.match(uid or ''):
         return None
     return safe_under(GAMES_DIR, f'{game}hist_{uid}.json')
 
@@ -4596,6 +5434,347 @@ def api_20ab_session():
     member = _require_member()
     data = request.get_json(silent=True) or {}
     return _sess_dispatch('20ab', member['id'], data)
+
+
+# ── Kniffel (Würfelspiel, Mitglieder) ───────────────────────────────────────────
+# Spielfeld-Seite. API/Engine folgen in der nächsten Etappe.
+
+@public_app.route('/bereich/kniffel')
+def gamekniffel_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_kniffel.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
+
+
+def _clean_kniffel_move(raw: dict) -> dict:
+    """Nur whitelisted Felder ins Regelwerk (kein ungeprüfter Client-Input)."""
+    act = {'type': str(raw.get('type', ''))[:8]}   # roll | hold | score
+    if isinstance(raw.get('held'), list):
+        act['held'] = [bool(x) for x in raw['held'][:5]]
+    if raw.get('cat') is not None:
+        act['cat'] = str(raw.get('cat'))[:16]
+    return act
+
+
+def _record_kniffel_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    totals = {p: game_kniffel.total_score(st, p) for p in st['players']}
+    games = _ng_history('kniffel', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': st.get('winner', ''),
+        'scores': totals,
+        'score': totals.get('p', 0),
+        'level': st.get('level', 'medium'),
+        'opponents': st.get('opponents', 2),
+    })
+    _ng_history_write('kniffel', uid, games)
+
+
+@public_app.route('/api/kniffel/state')
+def api_kniffel_state():
+    member = _require_member()
+    st = _ng_load('kniffel', member['id'])
+    return jsonify({'state': game_kniffel.public_view(st) if st else None})
+
+
+@public_app.route('/api/kniffel/new', methods=['POST'])
+def api_kniffel_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    opponents = 2 if int(data.get('opponents') or 2) == 2 else 1
+    with _game_lock:
+        st = game_kniffel.new_game(level, opponents)
+        _ng_undo.pop(('kniffel', member['id']), None)
+        _ng_save('kniffel', member['id'], st)
+    return jsonify({'state': game_kniffel.public_view(st)})
+
+
+@public_app.route('/api/kniffel/move', methods=['POST'])
+def api_kniffel_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_kniffel_move(data)
+    with _game_lock:
+        st = _ng_load('kniffel', member['id'])
+        if st is None:
+            abort(409)
+        snapshot = copy.deepcopy(st)
+        try:
+            game_kniffel.apply_action(st, 'p', act)
+        except game_kniffel.IllegalMove:
+            return jsonify({'state': game_kniffel.public_view(st)})
+        if act.get('type') == 'score':
+            _ng_undo[('kniffel', member['id'])] = snapshot
+        _record_kniffel_if_over(member['id'], st)
+        _ng_save('kniffel', member['id'], st)
+    return jsonify({'state': game_kniffel.public_view(st)})
+
+
+@public_app.route('/api/kniffel/ai', methods=['POST'])
+def api_kniffel_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gk')
+    with _game_lock:
+        st = _ng_load('kniffel', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        if st['status'] == 'playing' and st['turn'] != 'p':
+            who = st['turn']
+            act = game_kniffel.ai_step(st)
+            game_kniffel.apply_action(st, who, act)
+            event = {'type': act['type'], 'who': who, 'name': names.get(who, '')}
+            if act['type'] == 'roll':
+                event['dice'] = st['dice'][:]
+                event['held'] = st['held'][:]
+                event['rolls_left'] = st['rolls_left']
+            else:
+                event['cat'] = act.get('cat')
+                event['value'] = st['sheets'][who].get(act.get('cat'))
+        _record_kniffel_if_over(member['id'], st)
+        _ng_save('kniffel', member['id'], st)
+    return jsonify({'state': game_kniffel.public_view(st), 'event': event})
+
+
+@public_app.route('/api/kniffel/undo', methods=['POST'])
+def api_kniffel_undo():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('kniffel', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        snap = _ng_undo.pop(('kniffel', member['id']), None)
+        if snap is None:
+            return jsonify({'error': 'no_undo'}), 400
+        _ng_save('kniffel', member['id'], snap)
+    return jsonify({'state': game_kniffel.public_view(snap)})
+
+
+@public_app.route('/api/kniffel/rules')
+def api_kniffel_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('kniffel', detect_language(request))})
+
+
+@public_app.route('/api/kniffel/history')
+def api_kniffel_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('kniffel', member['id'])))})
+
+
+@public_app.route('/api/kniffel/history/reset', methods=['POST'])
+def api_kniffel_history_reset():
+    member = _require_member()
+    _ng_history_write('kniffel', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/kniffel/session', methods=['POST'])
+def api_kniffel_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('kniffel', member['id'], data)
+
+
+# ── Chicago / Tschigg (Würfelspiel, Mitglieder) ─────────────────────────────────
+
+@public_app.route('/bereich/chicago')
+def gamechicago_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    return render_template('game_chicago.html', t=t, lang=lang, site=site,
+                           member=member, year=datetime.now(timezone.utc).year)
+
+
+def _clean_chicago_move(raw: dict) -> dict:
+    act = {'type': str(raw.get('type', ''))[:10]}    # roll | convert6 | stand
+    if isinstance(raw.get('held'), list):
+        act['held'] = [bool(x) for x in raw['held'][:3]]
+    if raw.get('valuation') is not None:
+        act['valuation'] = str(raw.get('valuation'))[:6]   # gross | klein
+    if raw.get('direction') is not None:
+        act['direction'] = str(raw.get('direction'))[:5]   # hoch | tief
+    return act
+
+
+def _record_chicago_if_over(uid: str, st: dict) -> None:
+    if st.get('status') != 'game_over' or st.get('recorded'):
+        return
+    st['recorded'] = True
+    games = _ng_history('chicago', uid)
+    games.append({
+        'ts': int(datetime.now(timezone.utc).timestamp()),
+        'winner': 'p' if st.get('loser') != 'p' else '',   # gewonnen = nicht Verlierer
+        'loser': st.get('loser', ''),
+        'level': st.get('level', 'medium'),
+        'opponents': st.get('opponents', 2),
+        'chicago': bool(st.get('human_chicago')),           # per Chicago (drei 1er) gewonnen
+    })
+    _ng_history_write('chicago', uid, games)
+
+
+@public_app.route('/api/chicago/state')
+def api_chicago_state():
+    member = _require_member()
+    st = _ng_load('chicago', member['id'])
+    return jsonify({'state': game_chicago.public_view(st) if st else None})
+
+
+@public_app.route('/api/chicago/new', methods=['POST'])
+def api_chicago_new():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    level = data.get('level')
+    level = level if level in ('easy', 'medium', 'hard') else 'medium'
+    humans = max(1, min(3, int(data.get('humans') or 1)))
+    ai = max(0, min(3, int(data.get('ai') if data.get('ai') is not None
+                           else data.get('opponents', 2))))
+    names = data.get('names') if isinstance(data.get('names'), dict) else {}
+    with _game_lock:
+        st = game_chicago.new_game(level, humans=humans, ai=ai, names=names)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
+@public_app.route('/api/chicago/move', methods=['POST'])
+def api_chicago_move():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    if not data.get('type'):
+        abort(400)
+    act = _clean_chicago_move(data)
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        # Hotseat: der Zug gilt für den aktuell am Gerät sitzenden MENSCHEN
+        cur = st.get('turn')
+        humans = st.get('humans', ['p'])
+        if cur not in humans:
+            return jsonify({'state': game_chicago.public_view(st)})
+        try:
+            game_chicago.apply_action(st, cur, act)
+        except game_chicago.IllegalMove:
+            return jsonify({'state': game_chicago.public_view(st)})
+        _record_chicago_if_over(member['id'], st)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
+@public_app.route('/api/chicago/concede', methods=['POST'])
+def api_chicago_concede():
+    """Mensch hat per Chicago gewonnen und beendet das Spiel (ohne den KIs zuzusehen)."""
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        if st.get('status') != 'game_over' and game_chicago.human_chicago_won(st):
+            game_chicago.end_after_human_chicago(st)
+            _record_chicago_if_over(member['id'], st)
+            _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
+@public_app.route('/api/chicago/names', methods=['POST'])
+def api_chicago_names():
+    """Namen menschlicher Spieler jederzeit ändern."""
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    names = data.get('names') if isinstance(data.get('names'), dict) else {}
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        game_chicago.set_names(st, names)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st)})
+
+
+@public_app.route('/api/chicago/ai', methods=['POST'])
+def api_chicago_ai():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    if _sess_locked('chicago', member['id'], data):
+        return jsonify({'error': 'session_locked'}), 423
+    t = load_translations(detect_language(request))
+    names = _ng_names(t, 'gc')
+    names['a3'] = t.get('gc_ai3', 'KI 3')
+    with _game_lock:
+        st = _ng_load('chicago', member['id'])
+        if st is None:
+            abort(409)
+        event = None
+        humans = st.get('humans', ['p'])
+        if st['status'] in ('opener_roll', 'follower_roll') and st['turn'] not in humans:
+            who = st['turn']
+            act = game_chicago.ai_step(st)
+            game_chicago.apply_action(st, who, act)
+            event = {'type': act['type'], 'who': who, 'name': names.get(who, who),
+                     'dice': st['dice'][:], 'held': st['held'][:],
+                     'rolls_used': st['rolls_used'], 'last': st.get('last')}
+        _record_chicago_if_over(member['id'], st)
+        _ng_save('chicago', member['id'], st)
+    return jsonify({'state': game_chicago.public_view(st), 'event': event})
+
+
+@public_app.route('/api/chicago/rules')
+def api_chicago_rules():
+    _require_member()
+    return jsonify({'html': _ng_rules_html('chicago', detect_language(request))})
+
+
+@public_app.route('/api/chicago/history')
+def api_chicago_history():
+    member = _require_member()
+    return jsonify({'games': list(reversed(_ng_history('chicago', member['id'])))})
+
+
+@public_app.route('/api/chicago/history/reset', methods=['POST'])
+def api_chicago_history_reset():
+    member = _require_member()
+    _ng_history_write('chicago', member['id'], [])
+    return jsonify({'ok': True})
+
+
+@public_app.route('/api/chicago/session', methods=['POST'])
+def api_chicago_session():
+    member = _require_member()
+    data = request.get_json(silent=True) or {}
+    return _sess_dispatch('chicago', member['id'], data)
 
 
 # ── Schwimmen ──────────────────────────────────────────────────────────────────
@@ -5828,6 +7007,7 @@ def public_index():
                            has_impressum=bool(loc(legal, 'impressum').strip()),
                            has_privacy=bool(loc(legal, 'privacy').strip()),
                            has_members=bool(load_users()) and not static_export,
+                           search_on=bool(site['design'].get('search_enabled')) and not static_export,
                            year=datetime.now(timezone.utc).year)
 
 
@@ -5851,6 +7031,33 @@ def blog_index():
                            query=query, active_tag=tag,
                            newsletter_open=newsletter_open(),
                            nl=_clean_str(request.args.get('nl'), 20),
+                           meta_desc=_site_meta(site, loc),
+                           year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/suche')
+def site_search_page():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    if not site['design'].get('search_enabled'):
+        abort(404)
+    query = _clean_str(request.args.get('q'), 80)
+    loc = _loc_factory(lang)
+    member = current_member(request)
+    results = site_search(site, query, loc, member is not None) if query else []
+    count_visit(request)
+    t = load_translations(lang)
+    kind_labels = {
+        'blog':    t.get('search_kind_blog', 'Blog'),
+        'project': t.get('search_kind_project', 'Projekt'),
+        'page':    t.get('search_kind_page', 'Seite'),
+    }
+    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    return render_template('search.html', t=t, lang=lang, site=site, loc=loc,
+                           query=query, results=results, kind_labels=kind_labels,
+                           nav_items=nav_items,
                            meta_desc=_site_meta(site, loc),
                            year=datetime.now(timezone.utc).year)
 
@@ -5991,7 +7198,7 @@ def blog_comment(pid: str):
         abort(404)
     text = _clean_str(request.form.get('text'), 2000).strip()
     if not text:
-        return redirect(f'/blog/{pid}#comments')
+        return redirect(f"/blog/{post['id']}#comments")
     parent_id = _clean_str(request.form.get('parent'), 12)
     data = load_comments()
     thread = _post_thread(data, pid)
@@ -6016,12 +7223,13 @@ def blog_comment(pid: str):
             base = (site['design'].get('public_url') or '').rstrip('/')
             url = f"{base}/blog/{pid}" if base else ''
             threading.Thread(target=send_comment_reply_email,
-                             args=(author['email'], title, name, text, url), daemon=True).start()
+                             args=(author['email'], title, name, text, url, _member_lang(author)),
+                             daemon=True).start()
     notify_ha_async('💬 MyPage: Neuer Kommentar',
                     f'{name} hat „{title}" kommentiert:\n\n{text[:300]}',
                     notification_id=f'mypage_comment_{pid}')
     log.info("Mitglied '%s' kommentierte Beitrag '%s'", member['email'], pid)
-    return redirect(f'/blog/{pid}#comments')
+    return redirect(f"/blog/{post['id']}#comments")
 
 
 @public_app.route('/blog/<pid>/react', methods=['POST'])
@@ -6159,6 +7367,14 @@ def _member_page(member: dict | None, msg: str = ''):
                            can_reset=reset_enabled() if member is None else False,
                            can_register=registration_open() if member is None else False,
                            games_on=bool(member and member.get('games_enabled', True)),
+                           dm_feature=bool(member) and dm_feature_on(),
+                           dm_unread=_dm_unread(member['id']) if member else 0,
+                           dm_recv_on=bool(member) and member.get('dm_enabled', True) is not False,
+                           dir_feature=bool(member) and directory_on(),
+                           dir_visible=bool(member) and bool(member.get('dir_visible')),
+                           has_avatar=bool(member) and _has_avatar(member['id']),
+                           member_lang=_member_lang(member) if member else 'de',
+                           member_mail=bool(member) and smtp_configured(),
                            year=datetime.now(timezone.utc).year)
 
 
@@ -6302,7 +7518,8 @@ def member_register():
         quota = max(1, min(100000, int(site['design'].get('registration_quota_mb') or 500)))
         user = {'id': uuid.uuid4().hex[:12], 'email': email,
                 'pw_hash': generate_password_hash(pw),
-                'quota_mb': quota, 'created': date.today().isoformat(),
+                'quota_mb': quota, 'lang': detect_language(request),
+                'created': date.today().isoformat(),
                 'self_registered': True, 'verified': False, 'approved': False,
                 'games_enabled': False,
                 'verify': {'hash': generate_password_hash(token), 'exp': int(time.time()) + REGISTER_TTL}}
@@ -6372,6 +7589,34 @@ def member_profile():
         save_users(users)
         log_user_event(user['id'], 'profile_name', '', get_client_ip(request))
         return redirect('/bereich?msg=profile_saved')
+    if action == 'dm':
+        user['dm_enabled'] = request.form.get('dm_enabled') == '1'
+        save_users(users)
+        log_user_event(user['id'], 'profile_dm',
+                       'an' if user['dm_enabled'] else 'aus', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'lang':
+        lang = request.form.get('lang')
+        if lang in ('de', 'en'):
+            user['lang'] = lang
+            save_users(users)
+            log_user_event(user['id'], 'profile_lang', lang.upper(), get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'directory' and directory_on():
+        user['bio'] = _clean_str(request.form.get('bio'), DIRECTORY_BIO_MAX)
+        user['dir_visible'] = request.form.get('dir_visible') == '1'
+        save_users(users)
+        log_user_event(user['id'], 'profile_directory',
+                       'sichtbar' if user['dir_visible'] else 'verborgen', get_client_ip(request))
+        return redirect('/bereich?msg=profile_saved')
+    if action == 'avatar' and directory_on():
+        if _save_member_avatar(user['id'], request.files.get('avatar')):
+            log_user_event(user['id'], 'profile_avatar', '', get_client_ip(request))
+            return redirect('/bereich?msg=profile_saved')
+        return redirect('/bereich?msg=avatar_err')
+    if action == 'avatar_del':
+        _delete_member_avatar(user['id'])
+        return redirect('/bereich?msg=profile_saved')
     if action == 'password':
         cur = request.form.get('current_password') or ''
         new = request.form.get('new_password') or ''
@@ -6390,6 +7635,164 @@ def member_profile():
         log.info("Mitglied '%s' hat das Passwort selbst geändert", user['email'])
         return redirect('/bereich?msg=pw_changed')
     return redirect('/bereich')
+
+
+@public_app.route('/bereich/avatar/<uid>')
+def member_avatar(uid: str):
+    if current_member(request) is None:
+        abort(403)
+    if not _UID_RE.match(uid) or not _has_avatar(uid):
+        abort(404)
+    return send_from_directory(MEMBER_AVATARS_DIR, f'{uid}.jpg', max_age=300)
+
+
+@public_app.route('/bereich/verzeichnis')
+def member_directory():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not directory_on():
+        return redirect('/bereich')
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('directory.html', t=t, lang=lang, site=site, member=member,
+                           members=_directory_members(), me_id=member['id'],
+                           dm_on=dm_feature_on(),
+                           year=datetime.now(timezone.utc).year)
+
+
+_dm_send_times: dict[str, float] = {}  # einfache Spam-Bremse je Mitglied
+
+
+def _dm_render(member, view, **extra):
+    lang = detect_language(request)
+    t = load_translations(lang)
+    site = load_site()
+    return render_template('dm.html', view=view, t=t, lang=lang, site=site,
+                           member=member, me_name=_member_display_name(member),
+                           dm_on=member.get('dm_enabled', True) is not False,
+                           year=datetime.now(timezone.utc).year, **extra)
+
+
+@public_app.route('/bereich/nachrichten')
+def dm_inbox():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        return redirect('/bereich')
+    return _dm_render(member, 'inbox',
+                      conversations=_dm_conversations(member['id']),
+                      recipients=_dm_recipients(member['id']),
+                      msg=request.args.get('msg', ''))
+
+
+@public_app.route('/bereich/nachrichten/<uid>')
+def dm_thread(uid: str):
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    is_admin = uid == ADMIN_DM_ID
+    if not dm_feature_on() or uid == member['id'] or (not is_admin and not _UID_RE.match(uid)):
+        return redirect('/bereich/nachrichten')
+    partner = None if is_admin else next((u for u in load_users() if u['id'] == uid), None)
+    thread = _dm_thread(member['id'], uid)
+    # Ohne Verlauf nur öffnen, wenn ein echtes (anschreibbares) Mitglied dahinter steht
+    if not thread and (is_admin or partner is None):
+        return redirect('/bereich/nachrichten')
+    can_reply = (not is_admin) and partner is not None and _dm_can_receive(partner)
+    pname = _admin_dm_name() if is_admin else (_member_display_name(partner) if partner else '—')
+    return _dm_render(member, 'thread',
+                      partner={'id': uid, 'name': pname,
+                               'gone': (not is_admin) and partner is None,
+                               'admin': is_admin},
+                      thread=thread, can_reply=can_reply,
+                      msg=request.args.get('msg', ''))
+
+
+@public_app.route('/bereich/nachrichten/send', methods=['POST'])
+def dm_send():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        return redirect('/bereich')
+    to = (request.form.get('to') or '').strip()
+    text = (request.form.get('text') or '').strip()
+    if not _UID_RE.match(to) or to == member['id']:
+        return redirect('/bereich/nachrichten?msg=dm_err')
+    target = next((u for u in load_users() if u['id'] == to), None)
+    if target is None or not _dm_can_receive(target):
+        return redirect('/bereich/nachrichten?msg=dm_off')
+    text = text[:DM_MAX_LEN]
+    # optionaler Datei-Anhang (verschlüsselt abgelegt)
+    fup = request.files.get('file')
+    att = None
+    if fup and fup.filename:
+        att = _dm_att_store(fup)
+        if att is None:
+            return redirect(f'/bereich/nachrichten/{to}?msg=dm_att_err')
+    if not text and att is None:
+        return redirect(f'/bereich/nachrichten/{to}')
+    now = time.time()
+    if now - _dm_send_times.get(member['id'], 0) < 1.5:  # Spam-Bremse
+        if att and att.get('fid'):
+            _dm_att_delete(att['fid'])
+        return redirect(f'/bereich/nachrichten/{to}?msg=dm_slow')
+    _dm_send_times[member['id']] = now
+    _dm_send(member['id'], to, text, att)
+    _dm_owner_notify(to)
+    log_user_event(member['id'], 'dm_send', to, get_client_ip(request))
+    return redirect(f'/bereich/nachrichten/{to}?msg=dm_sent')
+
+
+@public_app.route('/bereich/nachrichten/datei/<mid>')
+def dm_attachment(mid: str):
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        abort(403)
+    me = member['id']
+    msg = next((m for m in load_dm() if m.get('id') == mid), None)
+    # nur Teilnehmer der Nachricht, die sie nicht für sich gelöscht haben
+    if (msg is None or me not in (msg.get('frm'), msg.get('to'))
+            or _dm_hidden(msg, me) or not msg.get('att')):
+        abort(404)
+    data = _dm_att_read(msg['att'].get('fid', ''))
+    if data is None:
+        abort(404)
+    resp = make_response(data)
+    resp.headers['Content-Type'] = 'application/octet-stream'  # nie inline ausführen
+    resp.headers['Content-Disposition'] = (
+        'attachment; filename="' + secure_filename(msg['att'].get('name') or 'datei') + '"')
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@public_app.route('/bereich/nachrichten/del', methods=['POST'])
+def dm_delete():
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    if not dm_feature_on():
+        return redirect('/bereich')
+    me = member['id']
+    mid = (request.form.get('mid') or '').strip()
+    convo = (request.form.get('convo') or '').strip()
+    if convo != ADMIN_DM_ID and not _UID_RE.match(convo):
+        convo = ''
+    if mid:
+        _dm_delete_for(me, mid=mid[:32])
+        dest = f'/bereich/nachrichten/{convo}' if convo else '/bereich/nachrichten'
+    elif convo:
+        _dm_delete_for(me, partner_id=convo)
+        dest = '/bereich/nachrichten'
+    else:
+        return redirect('/bereich/nachrichten')
+    log_user_event(me, 'dm_delete', convo or mid, get_client_ip(request))
+    return redirect(f'{dest}?msg=dm_deleted')
 
 
 @public_app.route('/bereich/upload', methods=['POST'])
@@ -6735,6 +8138,7 @@ if __name__ == '__main__':
     threading.Thread(target=_ha_games_worker, daemon=True).start()
     threading.Thread(target=_geoip_worker, daemon=True).start()
     threading.Thread(target=_smb_watchdog, daemon=True).start()
+    threading.Thread(target=_dm_reminder_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)

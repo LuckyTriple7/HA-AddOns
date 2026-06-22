@@ -84,6 +84,12 @@
     .proj-name { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
     .proj-meta { font-size: 0.76rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .proj-actions { display: flex; gap: 5px; flex-shrink: 0; }
+    @media (max-width: 640px) {
+      .logo-text { display: none; }
+      .proj-item { flex-direction: column; align-items: stretch; gap: 10px; }
+      .proj-actions { flex-wrap: wrap; flex-shrink: 1; }
+      .proj-meta { white-space: normal; }
+    }
     .badge { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
     /* Live-Spielstatus: grün = spielt gerade, grau = inaktiv */
     .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
@@ -237,7 +243,7 @@
     <div class="wrap header-inner">
       <div class="logo">
         <svg viewBox="0 0 24 24"><path d="M12 2 2 9h2v11h6v-6h4v6h6V9h2L12 2zm0 2.5L18 9v9h-2v-6H8v6H6V9l6-4.5z"/></svg>
-        MyPage
+        <span class="logo-text">MyPage</span>
       </div>
       <div class="nav-wrap">
       <button type="button" class="nav-arrow nav-left" aria-label="◄" onclick="navScroll(-1)">‹</button>
@@ -755,6 +761,42 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_dm_enabled }}</label>
+            <select id="d-dm_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.dm_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_dm_ha_notify }}</label>
+            <select id="d-dm_ha_notify">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.dm_ha_notify_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_directory_enabled }}</label>
+            <select id="d-directory_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.directory_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_search_enabled }}</label>
+            <select id="d-search_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.search_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_registration_enabled }}</label>
             <select id="d-registration_enabled">
               <option value="0">{{ t.no }}</option>
@@ -967,8 +1009,19 @@
         </div>
         <label>{{ t.user_quota }}</label>
         <input type="number" id="u-quota" value="500" min="1">
+        <label>{{ t.user_lang }}</label>
+        <select id="u-lang">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+        </select>
         <div><button class="btn" onclick="createUser()">{{ t.user_create }}</button></div>
         <p class="hint" id="u-storage"></p>
+      </div>
+      <div class="panel" id="broadcast-panel">
+        <h3>📢 {{ t.broadcast_heading }}</h3>
+        <p class="hint">{{ t.broadcast_hint }}</p>
+        <textarea id="bc-text" rows="3" maxlength="4000" placeholder="{{ t.broadcast_ph }}"></textarea>
+        <div><button class="btn" onclick="sendBroadcast()">{{ t.broadcast_send }}</button></div>
       </div>
       <div class="panel" id="storage-warn" style="display:none;border-color:var(--red)">
         <h3 style="color:var(--red)">⚠ {{ t.storage_down_admin_title }}</h3>
@@ -998,6 +1051,35 @@
 
     <!-- System -->
     <section class="tab" id="tab-system">
+      <div class="panel" id="twofa-panel">
+        <h3>🔐 {{ t.twofa_heading }}</h3>
+        <p class="hint">{{ t.twofa_hint }}</p>
+        <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
+        <div id="twofa-off" style="display:none">
+          <button class="btn" onclick="twofaSetup()">{{ t.twofa_enable_btn }}</button>
+        </div>
+        <div id="twofa-setup" style="display:none">
+          <p class="hint">{{ t.twofa_scan_hint }}</p>
+          <div id="twofa-qr" style="background:#fff;padding:12px;border-radius:8px;display:inline-block;max-width:230px"></div>
+          <p class="hint" style="margin-top:10px">{{ t.twofa_secret_label }}: <code id="twofa-secret" style="user-select:all"></code></p>
+          <label>{{ t.twofa_confirm_label }}</label>
+          <input type="text" id="twofa-code" inputmode="numeric" maxlength="6" style="max-width:160px" placeholder="123456">
+          <div style="margin-top:12px">
+            <button class="btn" onclick="twofaEnable()">{{ t.twofa_confirm_btn }}</button>
+            <button class="btn secondary" onclick="twofaCancel()">{{ t.cancel }}</button>
+          </div>
+        </div>
+        <div id="twofa-on" style="display:none">
+          <p class="hint" id="twofa-backup-count"></p>
+          <button class="btn secondary" onclick="twofaRegen()">{{ t.twofa_regen_btn }}</button>
+          <button class="btn danger" onclick="twofaDisable()">{{ t.twofa_disable_btn }}</button>
+        </div>
+        <div id="twofa-codes" style="display:none;margin-top:14px">
+          <p class="hint" style="color:var(--accent)">{{ t.twofa_codes_hint }}</p>
+          <pre id="twofa-codes-list" style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-all"></pre>
+          <button class="btn secondary small" onclick="el('twofa-codes').style.display='none'">{{ t.twofa_codes_done }}</button>
+        </div>
+      </div>
       <div class="panel">
         <h3>{{ t.maintenance_heading }} <span id="maint-state"></span></h3>
         <p class="hint">{{ t.maintenance_hint }}</p>
@@ -1493,7 +1575,7 @@
 
   <script>
     const T = {{ t|tojson }};
-    const GAME_NAMES = { '66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen', 'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy', 'gluecksrad': 'Glücksrad' };
+    const GAME_NAMES = { '66': '66', '20ab': '20 AB', 'schwimmen': 'Schwimmen', 'maumau': 'Mau Mau', 'praesident': 'Präsident', 'jeopardy': 'Jeopardy', 'gluecksrad': 'Glücksrad', 'kniffel': 'Kniffel', 'chicago': 'Chicago' };
     let SITE = null;
     let editingId = null;
     let uploadCb = null;
@@ -1513,6 +1595,81 @@
       t.textContent = msg;
       t.className = 'toast show' + (isErr ? ' err' : '');
       setTimeout(() => t.className = 'toast', 2200);
+    }
+
+    // ── Zwei-Faktor-Authentifizierung ──
+    async function loadTwofa() {
+      const r = await api('api/2fa');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('twofa-setup').style.display = 'none';
+      el('twofa-codes').style.display = 'none';
+      if (d.enabled) {
+        el('twofa-status').innerHTML = '✅ ' + T.twofa_state_on;
+        el('twofa-off').style.display = 'none';
+        el('twofa-on').style.display = '';
+        el('twofa-backup-count').textContent = T.twofa_backup_left.replace('{n}', d.backup_remaining);
+      } else {
+        el('twofa-status').innerHTML = '⚪ ' + T.twofa_state_off;
+        el('twofa-off').style.display = '';
+        el('twofa-on').style.display = 'none';
+      }
+    }
+    async function twofaSetup() {
+      const r = await apiJson('api/2fa/setup', 'POST', {});
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(T.error_save, true); return; }
+      el('twofa-qr').innerHTML = d.qr || '';
+      el('twofa-secret').textContent = d.secret || '';
+      el('twofa-code').value = '';
+      el('twofa-off').style.display = 'none';
+      el('twofa-on').style.display = 'none';
+      el('twofa-setup').style.display = '';
+    }
+    function twofaCancel() { el('twofa-setup').style.display = 'none'; loadTwofa(); }
+    async function twofaEnable() {
+      const code = el('twofa-code').value.trim();
+      if (!code) return;
+      const r = await apiJson('api/2fa/enable', 'POST', { code });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(d.error === 'bad code' ? T.twofa_bad_code : T.error_save, true); return; }
+      toast(T.twofa_enabled_ok);
+      await loadTwofa();            // Status auf "aktiv" umstellen …
+      showBackupCodes(d.backup_codes);  // … erst danach die Codes zeigen (sonst überdeckt)
+    }
+    async function twofaDisable() {
+      const code = prompt(T.twofa_prompt_code);
+      if (!code) return;
+      const r = await apiJson('api/2fa/disable', 'POST', { code });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(d.error === 'bad code' ? T.twofa_bad_code : T.error_save, true); return; }
+      toast(T.twofa_disabled_ok);
+      loadTwofa();
+    }
+    async function twofaRegen() {
+      const code = prompt(T.twofa_prompt_code);
+      if (!code) return;
+      const r = await apiJson('api/2fa/backup', 'POST', { code });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(d.error === 'bad code' ? T.twofa_bad_code : T.error_save, true); return; }
+      await loadTwofa();
+      showBackupCodes(d.backup_codes);
+    }
+    function showBackupCodes(codes) {
+      el('twofa-codes-list').textContent = (codes || []).join('\n');
+      el('twofa-codes').style.display = '';
+    }
+
+    // ── Admin-Rundnachricht ──
+    async function sendBroadcast() {
+      const text = el('bc-text').value.trim();
+      if (!text) return;
+      if (!confirm(T.broadcast_confirm)) return;
+      const r = await apiJson('api/broadcast', 'POST', { text });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(d.error === 'dm disabled' ? T.broadcast_dm_off : T.error_save, true); return; }
+      el('bc-text').value = '';
+      toast(T.broadcast_sent.replace('{n}', d.count));
     }
     // Mini-Kachel größer anzeigen (Vorschau, nicht volle Auflösung)
     function openThumbPreview(src) {
@@ -1789,7 +1946,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') loadAudit();
+        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
       });
     });
@@ -2954,16 +3111,18 @@
         div.dataset.uid = u.id;
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
-            <button class="btn small" title="${T.user_approve_title}" style="${(u.self_registered && u.verified && !u.approved) ? 'background:var(--green);border-color:var(--green-h);color:#fff' : 'display:none'}">✅ ${T.user_approve}</button>
+            <button class="btn small" title="${T.user_approve_title}" style="${(u.self_registered && u.verified && !u.approved) ? 'background:var(--green);border-color:var(--green-h);color:#fff' : 'display:none'}">✅</button>
             <button class="btn secondary small" title="${T.user_files_btn}">📁</button>
             <button class="btn secondary small" title="${T.user_msg_btn}">💬${u.login_message ? ' •' : ''}</button>
             <button class="btn secondary small" title="${T.user_journal_btn}">📜</button>
             <button class="btn secondary small" title="${T.user_games_btn}">🎮</button>
             <button class="btn ${u.games_enabled === false ? 'danger' : 'secondary'} small" title="${u.games_enabled === false ? T.user_games_off_title : T.user_games_on_title}">${u.games_enabled === false ? '🚫' : '🕹️'}</button>
+            <button class="btn ${u.dm_enabled === false ? 'danger' : 'secondary'} small" title="${u.dm_enabled === false ? T.user_dm_off_title : T.user_dm_on_title}">${u.dm_enabled === false ? '🔕' : '✉️'}</button>
+            <button class="btn secondary small" title="${T.user_lang_title}">${(u.lang || 'de').toUpperCase()}</button>
             <button class="btn secondary small" title="${T.user_resend_title}">✉</button>
-            <button class="btn secondary small">${T.user_reset_pw}</button>
-            <button class="btn secondary small">${T.user_quota_btn}</button>
-            <button class="btn danger small">✕</button>
+            <button class="btn secondary small" title="${T.user_reset_pw}">🔑</button>
+            <button class="btn secondary small" title="${T.user_quota_btn}">💾</button>
+            <button class="btn danger small" title="${T.user_delete_title}">✕</button>
           </div>`;
         const nameEl = div.querySelector('.proj-name');
         const dot = document.createElement('span');
@@ -2992,7 +3151,7 @@
         }
         div.querySelector('.proj-meta').textContent =
           `${u.used_mb} / ${u.quota_mb} MB · ${u.files} ${T.user_files} · ${T.user_since} ${u.created} · ${lastLogin}`;
-        const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
+        const [approveBtn, filesBtn, msgBtn, journalBtn, gamesBtn, gamesToggleBtn, dmToggleBtn, langBtn, resendBtn, pwBtn, quotaBtn, delBtn] = div.querySelectorAll('.proj-actions button');
         approveBtn.onclick = async () => {
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { approved: true });
           toast(r2.ok ? T.user_approved : T.error_save, !r2.ok);
@@ -3004,6 +3163,16 @@
         gamesBtn.onclick = () => openGames(u);
         gamesToggleBtn.onclick = async () => {
           const r2 = await apiJson('api/users/' + u.id, 'PUT', { games_enabled: u.games_enabled === false });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        dmToggleBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { dm_enabled: u.dm_enabled === false });
+          toast(r2.ok ? T.saved : T.error_save, !r2.ok);
+          if (r2.ok) loadUsers();
+        };
+        langBtn.onclick = async () => {
+          const r2 = await apiJson('api/users/' + u.id, 'PUT', { lang: u.lang === 'en' ? 'de' : 'en' });
           toast(r2.ok ? T.saved : T.error_save, !r2.ok);
           if (r2.ok) loadUsers();
         };
@@ -3053,6 +3222,7 @@
       if (password.length < 8) { toast(T.user_pw_short, true); return; }
       const r = await apiJson('api/users', 'POST', {
         email, password, quota_mb: parseInt(el('u-quota').value) || 500,
+        lang: el('u-lang').value,
       });
       if (r.ok) {
         const d = await r.json();
@@ -3458,6 +3628,10 @@
       el('d-contact_enabled').value = d.contact_enabled ? '1' : '0';
       el('d-comments_enabled').value = d.comments_enabled ? '1' : '0';
       el('d-share_enabled').value = d.share_enabled ? '1' : '0';
+      el('d-dm_enabled').value = d.dm_enabled ? '1' : '0';
+      el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
+      el('d-directory_enabled').value = d.directory_enabled ? '1' : '0';
+      el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
@@ -3590,6 +3764,10 @@
         contact_enabled: el('d-contact_enabled').value === '1',
         comments_enabled: el('d-comments_enabled').value === '1',
         share_enabled:    el('d-share_enabled').value === '1',
+        dm_enabled:       el('d-dm_enabled').value === '1',
+        dm_ha_notify:     el('d-dm_ha_notify').value === '1',
+        directory_enabled: el('d-directory_enabled').value === '1',
+        search_enabled:    el('d-search_enabled').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         newsletter_enabled: el('d-newsletter_enabled').value === '1',

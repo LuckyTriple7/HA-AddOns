@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8.4] - 2026-06-22
+
+build(deps): Bump fastapi from 0.137.0 to 0.138.0 in /cardboard/rootfs/app
+
+
 ## [1.0.8.3] - 2026-06-09
 
 chore(deps): Bump pyyaml from 6.0.1 to 6.0.3 in /cardboard/rootfs/app

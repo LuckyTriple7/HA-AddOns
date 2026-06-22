@@ -96,6 +96,13 @@ Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**
 - **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
 - **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
 
+### Volltextsuche
+Eine seitenweite Suche über **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+
+- **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
+- **Mitglieder-Inhalte**: Gesperrte (Mitglieder-only) Beiträge und Seiten erscheinen für Gäste nur als **Titel mit 🔒, ohne Inhalts-Vorschau** — angemeldete Mitglieder sehen die volle Vorschau. So wird kein geschützter Text geleakt.
+- **Hinweis**: Die Suchseite ist auf `noindex` gesetzt (keine Indexierung durch Suchmaschinen). Sie nutzt ausschließlich vorhandene Inhalte aus `site.json` — kein zusätzlicher Speicher, kein externer Dienst.
+
 ### Formulare
 Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. **Veranstaltungs-Anmeldung, Umfrage oder Anfrage**. Jedes Formular ist unter `/formular/<slug>` erreichbar (optional als Navi-Eintrag).
 
@@ -129,9 +136,11 @@ Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass a
 Unter `/bereich` (Login-Link im Footer) gibt es einen passwortgeschützten Dateibereich pro Benutzer — praktisch zum einfachen Teilen von Dateien mit Familie und Freunden.
 
 - **Benutzer anlegen** im Admin-Tab „Benutzer": E-Mail (= Benutzername), Passwort (min. 8 Zeichen), Speicher-Quota. Ist ein Mailserver konfiguriert, bekommt der Benutzer die Zugangsdaten **automatisch per E-Mail** (ebenso bei Passwort-Reset).
+- **E-Mail-Sprache pro Mitglied (DE/EN)**: Jedes Konto hat eine bevorzugte Sprache, in der **alle automatischen E-Mails** ankommen (Zugangsdaten, neues Passwort, Passwort-Reset, E-Mail-Bestätigung, Konto-Freischaltung, Kommentar-Antworten, Postfach-Erinnerung). Beim Anlegen im Admin wählbar, jederzeit über den **🌐-Knopf** in der Benutzerliste umschaltbar; bei der Selbst-Registrierung wird die aktuelle Seitensprache übernommen. Mitglieder können ihre Sprache auch **selbst im Profil** ändern (nur sichtbar, wenn ein Mailserver konfiguriert ist). Standard ist Deutsch.
 - **Selbst-Registrierung**: Besucher können sich (optional) selbst ein Konto anlegen — Details siehe Abschnitt [Selbst-Registrierung](#selbst-registrierung) unten.
 - **Passwort vergessen (Self-Service)**: Sind ein Mailserver (`smtp_host`) **und** die öffentliche URL gesetzt, erscheint auf der Login-Seite ein „Passwort vergessen?"-Link. Das Mitglied erhält einen zeitlich begrenzten Link (1 Stunde gültig) und setzt selbst ein neues Passwort — ohne Admin. Aus Sicherheitsgründen: stets dieselbe neutrale Rückmeldung (keine Rückschlüsse, ob eine E-Mail existiert), Einmal-Token, Rate-Limit pro IP, und nach dem Zurücksetzen werden alle bestehenden Sitzungen beendet.
 - **Spiele pro Mitglied abschaltbar**: In der Benutzerliste schaltet ein Button (🕹️/🚫) die Mitglieder-Spiele für ein Konto frei oder sperrt sie. Gesperrte Mitglieder sehen keine Spiel-Kacheln mehr, und die Spiel-Seiten/-APIs sind serverseitig blockiert — der Dateibereich bleibt normal nutzbar.
+- **Nachrichten zwischen Mitgliedern** (verschlüsselt): siehe Abschnitt [Mitglieder-Nachrichten](#mitglieder-nachrichten) unten.
 - **Sicherheit**: Passwörter werden ausschließlich als scrypt-Hash gespeichert; Brute-Force-Schutz (5 Fehlversuche → 15 Min. Sperre); jeder Benutzer sieht nur den eigenen Bereich; Downloads werden immer als Datei-Anhang ausgeliefert, hochgeladene HTML-Dateien können also nie im Browser ausgeführt werden.
 - **Limits**: `user_upload_max_mb` begrenzt die Größe pro Datei (Standard 200 MB), die Quota pro Benutzer ist im Admin einstellbar.
 
@@ -154,6 +163,33 @@ Statt jeden Benutzer von Hand anzulegen, können sich Besucher selbst registrier
 **Schutz vor Missbrauch:** Rechen-Captcha, unsichtbares Honeypot-Feld, Rate-Limit (5 Versuche/Stunde pro IP) und **keine E-Mail-Enumeration** — die Rückmeldung ist immer gleich („Prüfe dein Postfach"); existiert die Adresse bereits, bekommt sie stattdessen eine Hinweis-Mail.
 
 **Im Blick behalten:** Bei jeder Registrierung und Bestätigung gibt es eine **Home-Assistant-Benachrichtigung** (`ha_notify`). Zusätzlich zählt `sensor.mypage_pending_approvals`, wie viele bestätigte Konten auf deine Freigabe warten, und solange welche offen sind, bleibt eine **stehende HA-Benachrichtigung** sichtbar (sie verschwindet automatisch, sobald alles freigegeben ist).
+
+### Mitglieder-Nachrichten
+
+Eingeloggte Mitglieder können sich gegenseitig **private Nachrichten** schreiben — ohne dass E-Mail-Adressen sichtbar werden.
+
+**Aktivieren:** Im Tab **Design** den Schalter **„Mitglieder-Nachrichten"** auf **Ja** stellen. Im persönlichen Bereich (`/bereich`) erscheint dann die Karte **„Nachrichten"** mit Ungelesen-Zähler.
+
+- **Postfach** (`/bereich/nachrichten`): Liste der Unterhaltungen (neueste oben), Vorschau und Ungelesen-Markierung. Zum Schreiben einen Empfänger über das **durchsuchbare Dropdown** wählen — gelistet werden nur Mitglieder, die Nachrichten empfangen.
+- **Pro Mitglied abschaltbar**: Jedes Mitglied kann im **eigenen Profil** den Empfang deaktivieren („Andere Mitglieder dürfen mir schreiben"). Wer das abschaltet, taucht in keiner Empfängerliste mehr auf; bestehende Unterhaltungen bleiben für beide sichtbar. Der **Admin** kann den Empfang zusätzlich pro Mitglied erzwingen/sperren (✉️/🔕-Button in der Benutzerliste).
+- **Löschen**: Einzelne Nachrichten (✕ an der Sprechblase) oder eine ganze Unterhaltung (🗑 in der Kopfzeile) lassen sich entfernen. Das gilt **nur für einen selbst** — die Gegenseite behält ihre Sicht. Erst wenn beide gelöscht haben (oder ein Konto entfernt wurde), verschwindet der Eintrag endgültig aus `dm.json`.
+- **Erinnerung**: Bleibt eine neue Nachricht **3 Stunden ungelesen**, erhält der Empfänger eine **E-Mail** (nur wenn `smtp_host` **und** die öffentliche URL gesetzt sind). Die Mail enthält **bewusst keinen Inhalt und keinen Absendernamen** — nur einen Hinweis und den **Link zum Postfach**. Je ungelesener Nachricht wird höchstens **einmal** erinnert.
+- **Verschlüsselung**: Die **Nachrichtentexte** werden mit Fernet (AES-128 + HMAC) verschlüsselt in `dm.json` gespeichert; der Schlüssel liegt in `dm.key` (wird beim ersten Start automatisch erzeugt, Dateirechte 600). Metadaten wie Absender, Empfänger und Zeitstempel bleiben im Klartext, damit das Postfach ohne Entschlüsseln funktioniert.
+- **Backup**: `dm.json` **und** `dm.key` werden vom Add-on-Backup mitgesichert und beim Restore wiederhergestellt — verschlüsselte Nachrichten bleiben so lesbar. Achtung: Dadurch ist das Backup-Archiv so vertraulich wie der Klartext (es enthält ohnehin schon Passwort-Hashes) — entsprechend sicher aufbewahren.
+- **Datei-Anhänge:** An eine Nachricht lässt sich eine **Datei anhängen** (max. 25 MB; Bilder, PDF, Office-Dokumente, Archive, Audio/Video). Anhänge werden — wie der Text — **mit Fernet verschlüsselt** in `dm_files/` gespeichert und nur für die Gesprächsteilnehmer beim Download entschlüsselt; sie werden stets als Datei-Download ausgeliefert (nie im Browser ausgeführt). Eine Nachricht darf auch nur aus einem Anhang bestehen. Beim endgültigen Löschen wird die Anhang-Datei mitentfernt; das Backup sichert die verschlüsselten Anhänge mit.
+- **Limits**: max. 4000 Zeichen pro Nachricht, kurze Sende-Bremse gegen Spam, je Unterhaltung werden die letzten 500 Nachrichten behalten.
+- **Rundnachricht (Admin):** Im Tab **Benutzer** gibt es ein Feld **„Rundnachricht an alle Mitglieder"**. Damit landet eine **Ankündigung** im Postfach jedes Mitglieds — verschlüsselt wie normale Nachrichten, mit deinem Seitentitel und 📢-Markierung. Mitglieder können sie lesen und für sich löschen, aber nicht beantworten. (Bei aktiviertem 3h-Reminder erinnert die ungelesene Ankündigung wie jede andere Nachricht.)
+
+### Mitglieder-Verzeichnis
+
+Damit Mitglieder wissen, wem sie schreiben, gibt es ein optionales internes **Verzeichnis** mit Avatar und Kurzvorstellung.
+
+**Aktivieren:** Tab **Design → „Mitglieder-Verzeichnis"** auf **Ja**. Im persönlichen Bereich erscheint dann die Karte **„Mitglieder-Verzeichnis"**.
+
+- **Opt-in pro Mitglied:** Jedes Mitglied entscheidet im **Profil** selbst, ob es im Verzeichnis erscheint („Mich im Mitglieder-Verzeichnis anzeigen", Standard aus), und hinterlegt optional **Profilbild** und **Kurzvorstellung** (max. 300 Zeichen).
+- **Profilbilder** werden quadratisch zugeschnitten, auf 256 px verkleinert und **ohne EXIF-Metadaten** (also ohne GPS/Kamera-Infos) als JPEG gespeichert — lokal im Add-on-Ordner, nicht auf dem SMB-Share. Sie werden vom Backup mitgesichert.
+- **Verknüpfung mit Nachrichten:** Aus dem Verzeichnis führt ein **„Schreiben"-Knopf** direkt in die Unterhaltung — sofern das Mitglied Nachrichten empfängt und die Nachrichten-Funktion aktiv ist.
+- Das Verzeichnis ist **nur für eingeloggte Mitglieder** sichtbar und zeigt ausschließlich Mitglieder, die sich freiwillig sichtbar gemacht haben.
 
 ### Optionaler SMB-Speicher
 
@@ -246,6 +282,23 @@ Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, I
 - Hinter Cloudflare wird die echte Besucher-IP (`CF-Connecting-IP`) verwendet
 - Session-Cookies sind `HttpOnly` + `SameSite=Lax`
 - Uploads: nur PNG/JPG/GIF/WebP, max. 8 MB, zufällige Dateinamen
+
+### Zwei-Faktor-Authentifizierung (2FA)
+
+Der **direkte Login** (Port 17761) lässt sich optional mit einem zeitbasierten Einmalcode (TOTP) absichern — zusätzlich zu Benutzername und Passwort.
+
+- **Einrichten:** Tab **System → Zwei-Faktor-Authentifizierung → „2FA aktivieren"**. Den angezeigten **QR-Code** mit einer Authenticator-App scannen (z. B. Google Authenticator, Aegis, 1Password) oder das **Geheimnis** manuell eintragen, dann mit einem aktuellen Code bestätigen.
+- **Backup-Codes:** Beim Aktivieren werden **10 einmalige Backup-Codes** angezeigt (nur dieses eine Mal). Damit kommst du auch ohne die App rein. Jeder Code funktioniert genau einmal; sie lassen sich jederzeit neu erzeugen.
+- **Über Home Assistant (Ingress) ist 2FA nicht erforderlich** und wird dort nicht abgefragt — HA authentifiziert dich bereits. Die 2FA greift ausschließlich beim direkten Zugriff auf Port 17761.
+- **Technik:** TOTP nach RFC 6238 (30 s, 6 Stellen, ±1 Fenster Toleranz), umgesetzt mit der Python-Standardbibliothek. Das Geheimnis und die **gehashten** Backup-Codes liegen in `admin_2fa.json` (Dateirechte 600) und werden vom Backup mitgesichert.
+
+#### Zugang verloren? (Wiederherstellung)
+
+Du kannst dich praktisch nie wirklich aussperren — vom bequemsten zum letzten Weg:
+
+1. **Über Home Assistant (einfachster Weg).** Die 2FA gilt **nur** für den direkten Login auf Port 17761. Über die **MyPage-Seitenleiste in HA (Ingress) wird nie ein Code verlangt** — dort authentifiziert dich HA bereits. Du kommst also jederzeit über HA ins Admin-Panel und kannst 2FA dort deaktivieren oder neu einrichten. Das ist dein eingebauter Wiederherstellungs-Pfad.
+2. **Backup-Code verwenden.** Beim Login statt des App-Codes einen der 10 Backup-Codes eingeben (jeder genau einmal gültig). Neue Codes gibt es im Panel über „Backup-Codes neu erzeugen".
+3. **Notnagel: Datei löschen.** Sind App **und** Backup-Codes weg und es gibt keinen HA-Zugang: `admin_2fa.json` im Add-on-Konfigurationsordner (`\\<host>\addon_configs\XXX_mypage\admin_2fa.json`) löschen und das Add-on neu starten — der Login geht dann wieder nur mit Passwort.
 
 ## Veröffentlichen (Cloudflare Tunnel)
 

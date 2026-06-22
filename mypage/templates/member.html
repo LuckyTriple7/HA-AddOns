@@ -71,7 +71,29 @@
     input[type="file"] { font-size: 0.82rem; color: var(--muted); }
     .empty { color: var(--muted); text-align: center; padding: 28px 0; font-size: 0.88rem; }
     .logout { font-size: 0.8rem; }
+    .dm-badge { display: inline-block; background: var(--red); color: #fff; font-size: 0.7rem; font-weight: 700; border-radius: 10px; padding: 1px 8px; vertical-align: middle; }
+    .dm-toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; margin-top: 6px; font-size: 0.9rem; color: var(--text); }
+    .dm-toggle input { width: auto; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+    .games-wrap { margin-top: 18px; }
+    .game-cat { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+    .game-cat > summary { padding: 16px 22px; font-size: 1.05rem; font-weight: 700; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; user-select: none; }
+    .game-cat > summary::-webkit-details-marker { display: none; }
+    .game-cat > summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .15s; }
+    .game-cat[open] > summary::after { transform: rotate(180deg); }
+    .game-cat > summary:hover { background: var(--surf2); }
+    .cat-count { background: var(--surf2); color: var(--muted); font-size: 0.72rem; font-weight: 600; border-radius: 10px; padding: 1px 9px; }
+    .game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 18px 18px; }
+    .game-tile { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; cursor: pointer; color: var(--text); font: inherit; margin: 0; transition: border-color .15s, background .15s; }
+    .game-tile:hover { border-color: var(--accent); background: var(--surf2); }
+    .gt-ico { font-size: 1.6rem; flex-shrink: 0; line-height: 1; }
+    .gt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .gt-name { font-weight: 600; font-size: 0.92rem; }
+    .gt-desc { font-size: 0.76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    @media (max-width: 560px) { .game-grid { grid-template-columns: 1fr; } }
+    .profile-acc { margin-top: 18px; }
+    .acc-body { padding: 4px 22px 22px; }
+    .acc-body hr:first-child { display: none; }
   </style>
 </head>
 <body>
@@ -223,9 +245,28 @@
       {% endif %}
     </div>
 
+    {% if dm_feature %}
     <div class="card" style="margin-top:18px">
-      <h1>{{ t.member_profile_title }}</h1>
+      <h1>✉️ {{ t.dm_title }}{% if dm_unread %} <span class="dm-badge">{{ dm_unread }}</span>{% endif %}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.dm_intro }}</p>
+      <a class="btn" href="/bereich/nachrichten">{{ t.dm_open }}{% if dm_unread %} ({{ dm_unread }}){% endif %}</a>
+    </div>
+    {% endif %}
+
+    {% if dir_feature %}
+    <div class="card" style="margin-top:18px">
+      <h1>👥 {{ t.dir_title }}</h1>
+      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.dir_intro }}</p>
+      <a class="btn" href="/bereich/verzeichnis">{{ t.dir_open }}</a>
+    </div>
+    {% endif %}
+
+    {% set profile_msg = msg in ['profile_saved','avatar_err','pw_changed','pw_wrong','pw_short','pw_mismatch'] %}
+    <details class="game-cat profile-acc" data-cat="profile"{% if profile_msg %} open data-force-open{% endif %}>
+      <summary>👤 {{ t.member_profile_title }}</summary>
+      <div class="acc-body">
       {% if msg == 'profile_saved' %}<div class="msg ok">{{ t.member_profile_saved }}</div>{% endif %}
+      {% if msg == 'avatar_err' %}<div class="msg err">{{ t.dir_avatar_err }}</div>{% endif %}
       {% if msg == 'pw_changed' %}<div class="msg ok">{{ t.member_pw_changed }}</div>{% endif %}
       {% if msg == 'pw_wrong' %}<div class="msg err">{{ t.member_pw_wrong }}</div>{% endif %}
       {% if msg == 'pw_short' %}<div class="msg err">{{ t.member_reset_short }}</div>{% endif %}
@@ -237,6 +278,59 @@
         <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_name_hint }}</p>
         <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
       </form>
+      {% if member_mail %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile">
+        <input type="hidden" name="action" value="lang">
+        <label for="pf-lang">{{ t.member_profile_lang }}</label>
+        <select id="pf-lang" name="lang" onchange="this.form.submit()"
+                style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:0.9rem;font-family:inherit">
+          <option value="de" {% if member_lang == 'de' %}selected{% endif %}>Deutsch</option>
+          <option value="en" {% if member_lang == 'en' %}selected{% endif %}>English</option>
+        </select>
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.member_profile_lang_hint }}</p>
+      </form>
+      {% endif %}
+      {% if dm_feature %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile">
+        <input type="hidden" name="action" value="dm">
+        <label class="dm-toggle">
+          <input type="checkbox" name="dm_enabled" value="1" {% if dm_recv_on %}checked{% endif %} onchange="this.form.submit()">
+          {{ t.dm_receive_label }}
+        </label>
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.dm_receive_hint }}</p>
+      </form>
+      {% endif %}
+      {% if dir_feature %}
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <form method="post" action="/bereich/profile" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="avatar">
+        <label>{{ t.dir_avatar_label }}</label>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          {% if has_avatar %}<img src="/bereich/avatar/{{ member.id }}" alt="" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">{% endif %}
+          <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif">
+          <button class="btn small" type="submit">{{ t.dir_avatar_upload }}</button>
+        </div>
+      </form>
+      {% if has_avatar %}
+      <form method="post" action="/bereich/profile" style="margin-top:8px">
+        <input type="hidden" name="action" value="avatar_del">
+        <button class="btn danger small" type="submit">{{ t.dir_avatar_remove }}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/bereich/profile" style="margin-top:14px">
+        <input type="hidden" name="action" value="directory">
+        <label for="pf-bio">{{ t.dir_bio_label }}</label>
+        <textarea id="pf-bio" name="bio" rows="2" maxlength="300" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:6px;font-size:0.9rem;font-family:inherit;resize:vertical">{{ member.bio|default('') }}</textarea>
+        <label class="dm-toggle">
+          <input type="checkbox" name="dir_visible" value="1" {% if dir_visible %}checked{% endif %}>
+          {{ t.dir_visible_label }}
+        </label>
+        <p style="font-size:0.78rem;color:var(--muted);margin:6px 0 0">{{ t.dir_visible_hint }}</p>
+        <button class="btn small" type="submit">{{ t.member_profile_save }}</button>
+      </form>
+      {% endif %}
       <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
       <form method="post" action="/bereich/profile" autocomplete="off">
         <input type="hidden" name="action" value="password">
@@ -248,43 +342,62 @@
         <input type="password" id="pf-new2" name="new_password2" minlength="8" autocomplete="new-password" required>
         <button class="btn small" type="submit">{{ t.member_pw_change_btn }}</button>
       </form>
-    </div>
+      </div>
+    </details>
 
     {% if games_on %}
-    <div class="card" style="margin-top:18px">
-      <h1>🃏 {{ t.g66_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g66_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('66')">▶ {{ t.g66_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎴 {{ t.g20_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g20_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('20ab')">▶ {{ t.g20_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🏊 {{ t.gs_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gs_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('schwimmen')">▶ {{ t.gs_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎲 {{ t.gmm_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gmm_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('maumau')">▶ {{ t.gmm_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>👑 {{ t.gp_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gp_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('praesident')">▶ {{ t.gp_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎯 {{ t.gj_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gj_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('jeopardy')">▶ {{ t.gj_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎡 {{ t.ggr_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.ggr_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('gluecksrad')">▶ {{ t.ggr_play }}</button>
+    <div class="games-wrap">
+      <details class="game-cat" data-cat="cards" open>
+        <summary>🃏 {{ t.games_cat_cards }} <span class="cat-count">5</span></summary>
+        <div class="game-grid">
+          <button class="game-tile" type="button" onclick="openGame('66')">
+            <span class="gt-ico">🃏</span>
+            <span class="gt-body"><span class="gt-name">{{ t.g66_title }}</span><span class="gt-desc">{{ t.g66_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('20ab')">
+            <span class="gt-ico">🎴</span>
+            <span class="gt-body"><span class="gt-name">{{ t.g20_title }}</span><span class="gt-desc">{{ t.g20_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('schwimmen')">
+            <span class="gt-ico">🏊</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gs_title }}</span><span class="gt-desc">{{ t.gs_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('maumau')">
+            <span class="gt-ico">🐱</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gmm_title }}</span><span class="gt-desc">{{ t.gmm_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('praesident')">
+            <span class="gt-ico">👑</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gp_title }}</span><span class="gt-desc">{{ t.gp_intro }}</span></span>
+          </button>
+        </div>
+      </details>
+      <details class="game-cat" data-cat="quiz">
+        <summary>🧠 {{ t.games_cat_quiz }} <span class="cat-count">2</span></summary>
+        <div class="game-grid">
+          <button class="game-tile" type="button" onclick="openGame('jeopardy')">
+            <span class="gt-ico">🎯</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gj_title }}</span><span class="gt-desc">{{ t.gj_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('gluecksrad')">
+            <span class="gt-ico">🎡</span>
+            <span class="gt-body"><span class="gt-name">{{ t.ggr_title }}</span><span class="gt-desc">{{ t.ggr_intro }}</span></span>
+          </button>
+        </div>
+      </details>
+      <details class="game-cat" data-cat="dice">
+        <summary>🎲 {{ t.games_cat_dice }} <span class="cat-count">2</span></summary>
+        <div class="game-grid">
+          <button class="game-tile" type="button" onclick="openGame('kniffel')">
+            <span class="gt-ico">🎲</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gk_title }}</span><span class="gt-desc">{{ t.gk_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('chicago')">
+            <span class="gt-ico">🌆</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gc_title }}</span><span class="gt-desc">{{ t.gc_intro }}</span></span>
+          </button>
+        </div>
+      </details>
     </div>
     {% endif %}
     {% endif %}
@@ -300,6 +413,16 @@
         document.documentElement.setAttribute('data-theme',
           window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     })();
+    // Aufgeklappten Zustand der Spiel-Kategorien merken
+    document.querySelectorAll('.game-cat').forEach(function(d){
+      var key = 'mp-gamecat-' + d.dataset.cat;
+      if (!d.hasAttribute('data-force-open')) {
+        var saved = localStorage.getItem(key);
+        if (saved === 'open') d.open = true;
+        else if (saved === 'closed') d.open = false;
+      }
+      d.addEventListener('toggle', function(){ localStorage.setItem(key, d.open ? 'open' : 'closed'); });
+    });
     // Kartenspiel als Vollfenster-Iframe öffnen (kein Browser-Vollbild)
     function openGame(slug){
       const id = 'game-frame-' + slug;
@@ -312,7 +435,7 @@
     }
     window.addEventListener('message', function(e){
       if (e.origin !== location.origin) return;
-      const m = /^close-(66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad)$/.exec(e.data);
+      const m = /^close-(66|20ab|schwimmen|maumau|praesident|jeopardy|gluecksrad|kniffel|chicago)$/.exec(e.data);
       if (!m) return;
       const f = document.getElementById('game-frame-' + m[1]);
       if (f){ f.remove(); document.body.style.overflow = ''; }

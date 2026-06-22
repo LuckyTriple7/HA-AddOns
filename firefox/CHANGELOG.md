@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.3.1] - 2026-06-22
+
+build(deps): Bump jlesage/baseimage-gui from debian-12-v4.12.4 to debian-12-v4.12.5 in /firefox
+
+
 ## [1.0.3] - 2026-06-16
 
 ### Geändert

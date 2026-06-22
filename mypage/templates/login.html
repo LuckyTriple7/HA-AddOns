@@ -60,6 +60,16 @@
     </div>
     <p class="subtitle">{{ t.subtitle }}</p>
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% if step == 'code' %}
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="step" value="code">
+      <label for="code">{{ t.twofa_login_label }}</label>
+      <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code"
+             pattern="[0-9A-Fa-f -]*" autofocus required placeholder="123456">
+      <p style="font-size:0.74rem;color:var(--muted);margin:-8px 0 16px">{{ t.twofa_login_hint }}</p>
+      <button type="submit">{{ t.twofa_login_btn }}</button>
+    </form>
+    {% else %}
     <form method="post" autocomplete="on">
       <label for="username">{{ t.username }}</label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus required>
@@ -67,6 +77,7 @@
       <input type="password" id="password" name="password" autocomplete="current-password" required>
       <button type="submit">{{ t.login }}</button>
     </form>
+    {% endif %}
     <footer>MyPage &mdash; {{ t.subtitle }}</footer>
   </div>
   <script>

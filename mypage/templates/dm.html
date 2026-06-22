@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ 'light' if site.design.mode == 'light' else 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t.dm_title }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="robots" content="noindex">
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
+      --green:#238636; --green-h:#2ea043; --red:#f85149;
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e;
+    }
+    {{ font_faces|safe }}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+    header { border-bottom: 1px solid var(--border); }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; color: var(--text); } .brand:hover { text-decoration: none; }
+    .logout { font-size: 0.8rem; }
+    main { padding: 30px 0 60px; }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; }
+    h1 { font-size: 1.25rem; margin-bottom: 6px; }
+    h1 .dm-badge { background: var(--red); color:#fff; font-size:0.7rem; font-weight:700; border-radius:10px; padding:1px 8px; vertical-align:middle; }
+    .sub { color: var(--muted); font-size: 0.86rem; margin-bottom: 16px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 12px 0 4px; }
+    select, textarea, input[type="text"] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: 6px; font-size: 0.9rem; font-family: inherit;
+    }
+    select:focus, textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 76px; }
+    .btn {
+      background: var(--green); border: 1px solid var(--green-h); color: #fff;
+      padding: 9px 18px; border-radius: 6px; font-size: 0.88rem; font-weight: 600; cursor: pointer; margin-top: 14px;
+    }
+    .btn:hover { background: var(--green-h); }
+    .btn.secondary { background: none; border-color: var(--border); color: var(--text); }
+    .msg { padding: 9px 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 16px; }
+    .msg.err { background: rgba(207,34,46,.12); border: 1px solid var(--red); color: var(--red); }
+    .msg.ok { background: rgba(46,160,67,.12); border: 1px solid var(--green-h); color: var(--green-h); }
+    .conv { display: block; padding: 14px 4px; border-bottom: 1px solid var(--border); color: var(--text); }
+    .conv:hover { text-decoration: none; background: var(--surf2); border-radius: 6px; }
+    .conv:last-child { border-bottom: none; }
+    .conv-top { display: flex; align-items: center; gap: 8px; }
+    .conv-name { font-weight: 600; }
+    .conv-badge { background: var(--red); color:#fff; font-size:0.7rem; font-weight:700; border-radius:10px; padding:1px 8px; }
+    .conv-time { margin-left: auto; color: var(--muted); font-size: 0.76rem; white-space: nowrap; }
+    .conv-prev { color: var(--muted); font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .empty { color: var(--muted); text-align: center; padding: 26px 0; font-size: 0.88rem; }
+    .thread { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 18px; }
+    .b-row { display: flex; align-items: center; gap: 6px; max-width: 86%; }
+    .b-row.me { flex-direction: row-reverse; align-self: flex-end; }
+    .b-row.them { align-self: flex-start; }
+    .bubble { padding: 9px 13px; border-radius: 12px; font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
+    .bubble .b-time { display: block; font-size: 0.68rem; opacity: .7; margin-top: 4px; }
+    .bubble .att { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; font-weight: 600; word-break: break-all; }
+    .bubble.me .att { color: #fff; }
+    .bubble .att-sz { font-weight: 400; opacity: .8; font-size: 0.76rem; }
+    .att-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .att-row input[type="file"] { font-size: 0.8rem; color: var(--muted); max-width: 100%; }
+    .bubble.them { background: var(--surf2); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+    .bubble.me { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+    .b-del { margin: 0; }
+    .b-del button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.82rem; opacity: .35; transition: opacity .15s, color .15s; padding: 2px 4px; margin: 0; }
+    .b-row:hover .b-del button { opacity: .9; } .b-del button:hover { color: var(--red); }
+    .thread-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .btn-del-convo { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer; margin: 0; white-space: nowrap; }
+    .btn-del-convo:hover { border-color: var(--red); color: var(--red); }
+    .search { margin-bottom: 6px; }
+    footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/bereich">&larr; {{ t.member_area }}</a>
+      <a class="logout" href="/bereich/logout">{{ t.member_logout }} ({{ member.email }})</a>
+    </div>
+  </header>
+  <main class="wrap">
+
+    {% if view == 'thread' %}
+    <div class="card">
+      <p style="margin-bottom:10px"><a href="/bereich/nachrichten">&larr; {{ t.dm_back_inbox }}</a></p>
+      <div class="thread-head">
+        <div>
+          <h1>{% if partner.admin %}📢 {% endif %}{{ partner.name }}</h1>
+          <p class="sub">{% if partner.admin %}{{ t.dm_broadcast_label }}{% else %}{{ t.dm_with }} {{ partner.name }}{% endif %}</p>
+        </div>
+        {% if thread %}
+        <form method="post" action="/bereich/nachrichten/del" onsubmit="return confirm({{ t.dm_delete_convo_confirm|tojson }})">
+          <input type="hidden" name="convo" value="{{ partner.id }}">
+          <button type="submit" class="btn-del-convo">🗑 {{ t.dm_delete_convo }}</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if msg == 'dm_sent' %}<div class="msg ok">{{ t.dm_sent }}</div>{% endif %}
+      {% if msg == 'dm_deleted' %}<div class="msg ok">{{ t.dm_deleted }}</div>{% endif %}
+      {% if msg == 'dm_slow' %}<div class="msg err">{{ t.dm_slow }}</div>{% endif %}
+      {% if msg == 'dm_att_err' %}<div class="msg err">{{ t.dm_att_err }}</div>{% endif %}
+      {% if thread %}
+      <div class="thread">
+        {% for m in thread %}
+        <div class="b-row {{ 'me' if m.mine else 'them' }}">
+          <div class="bubble {{ 'me' if m.mine else 'them' }}">{% if m.text %}{{ m.text }}{% endif %}{% if m.att %}<a class="att" href="/bereich/nachrichten/datei/{{ m.id }}">📎 {{ m.att.name }} <span class="att-sz">{% if m.att.size >= 1048576 %}{{ (m.att.size / 1048576)|round(1) }} MB{% else %}{{ (m.att.size / 1024)|round|int }} KB{% endif %}</span></a>{% endif %}<span class="b-time" data-ts="{{ m.ts }}"></span></div>
+          <form method="post" action="/bereich/nachrichten/del" class="b-del" onsubmit="return confirm({{ t.dm_delete_confirm|tojson }})">
+            <input type="hidden" name="mid" value="{{ m.id }}">
+            <input type="hidden" name="convo" value="{{ partner.id }}">
+            <button type="submit" title="{{ t.dm_delete_msg }}">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty">{{ t.dm_thread_empty }}</p>
+      {% endif %}
+      {% if partner.admin %}
+      <div class="msg" style="background:var(--surf2);border:1px solid var(--border)">📢 {{ t.dm_broadcast_note }}</div>
+      {% elif partner.gone %}
+      <div class="msg err">{{ t.dm_partner_gone }}</div>
+      {% elif can_reply %}
+      <form method="post" action="/bereich/nachrichten/send" enctype="multipart/form-data">
+        <input type="hidden" name="to" value="{{ partner.id }}">
+        <label for="t-text">{{ t.dm_reply_label }}</label>
+        <textarea id="t-text" name="text" maxlength="4000"></textarea>
+        <div class="att-row">
+          <label for="t-file" style="margin:0">📎 {{ t.dm_attach }}</label>
+          <input type="file" id="t-file" name="file">
+        </div>
+        <button class="btn" type="submit">{{ t.dm_send }}</button>
+      </form>
+      {% else %}
+      <div class="msg err">{{ t.dm_partner_off }}</div>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <div class="card">
+      <h1>✉️ {{ t.dm_title }}</h1>
+      <p class="sub">{{ t.dm_intro }}</p>
+      {% if msg == 'dm_off' %}<div class="msg err">{{ t.dm_off_err }}</div>{% endif %}
+      {% if msg == 'dm_err' %}<div class="msg err">{{ t.dm_generic_err }}</div>{% endif %}
+      {% if msg == 'dm_deleted' %}<div class="msg ok">{{ t.dm_deleted }}</div>{% endif %}
+
+      {% if recipients %}
+      <form method="post" action="/bereich/nachrichten/send" enctype="multipart/form-data">
+        <label for="r-search">{{ t.dm_new_to }}</label>
+        <input type="text" id="r-search" class="search" placeholder="{{ t.dm_search_ph }}" autocomplete="off">
+        <select name="to" id="r-select" required>
+          {% for r in recipients %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+        </select>
+        <label for="n-text">{{ t.dm_message }}</label>
+        <textarea id="n-text" name="text" maxlength="4000" placeholder="{{ t.dm_message_ph }}"></textarea>
+        <div class="att-row">
+          <label for="n-file" style="margin:0">📎 {{ t.dm_attach }}</label>
+          <input type="file" id="n-file" name="file">
+        </div>
+        <button class="btn" type="submit">{{ t.dm_send }}</button>
+      </form>
+      {% else %}
+      <p class="empty">{{ t.dm_no_recipients }}</p>
+      {% endif %}
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h1>{{ t.dm_conversations }}</h1>
+      {% if conversations %}
+      <div style="margin-top:8px">
+        {% for c in conversations %}
+        <a class="conv" href="/bereich/nachrichten/{{ c.partner }}">
+          <div class="conv-top">
+            <span class="conv-name">{% if c.admin %}📢 {% endif %}{{ c.name }}</span>
+            {% if c.unread %}<span class="conv-badge">{{ c.unread }}</span>{% endif %}
+            <span class="conv-time" data-ts="{{ c.last_ts }}"></span>
+          </div>
+          <div class="conv-prev">{% if c.mine %}{{ t.dm_you_prefix }} {% endif %}{{ c.preview or '…' }}</div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty">{{ t.dm_no_conversations }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </main>
+  <footer>
+    <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
+  </footer>
+  <script>
+    (function(){
+      const saved = localStorage.getItem('mp-public-theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+      else if ({{ site.design.mode|tojson }} === 'auto')
+        document.documentElement.setAttribute('data-theme',
+          window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    })();
+    // Zeitstempel lokal formatieren
+    document.querySelectorAll('[data-ts]').forEach(function(el){
+      const ts = parseInt(el.dataset.ts, 10);
+      if (!ts) return;
+      const d = new Date(ts * 1000), now = new Date();
+      el.textContent = (d.toDateString() === now.toDateString())
+        ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+    // Empfänger-Suche filtert das Dropdown
+    const search = document.getElementById('r-search'), sel = document.getElementById('r-select');
+    if (search && sel) {
+      const opts = Array.from(sel.options);
+      search.addEventListener('input', function(){
+        const q = search.value.toLowerCase();
+        let first = null;
+        opts.forEach(function(o){
+          const hit = o.text.toLowerCase().includes(q);
+          o.hidden = !hit;
+          if (hit && first === null) first = o;
+        });
+        if (first && (sel.selectedOptions[0] || {}).hidden) sel.value = first.value;
+      });
+    }
+    // Thread ans Ende scrollen
+    const thread = document.querySelector('.thread');
+    if (thread) thread.scrollIntoView({ block: 'end' });
+  </script>
+</body>
+</html>

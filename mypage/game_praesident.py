@@ -622,14 +622,14 @@ def ai_swap_choose(state: dict, who: str) -> list[str]:
 
 
 def hint_for_player(state: dict) -> dict | None:
-    if state['status'] == 'playing' and state['turn'] == 'p':
-        saved = state.get('level')
-        state['level'] = 'hard'
-        try:
-            action = ai_play(state, 'p')
-        finally:
-            state['level'] = saved
-        return action
+    """Konkreter, erklärender Tipp für den Menschen.
+
+    Folgt der Standard-Strategie: kleine Karten zuerst loswerden, beim
+    Ausspielen Paare/Drillinge legen um Gegner zum Passen zu zwingen,
+    günstig überbieten statt zu passen, hohe Karten für die Endphase
+    aufsparen und Gegner blockieren, die kurz vorm Ausspielen stehen.
+    Jeder Tipp enthält ein ``reason`` zur Erklärung.
+    """
     if state['status'] == 'swap_choose' and state.get('swap_receiving') == 'p':
         saved = state.get('level')
         state['level'] = 'hard'
@@ -637,5 +637,52 @@ def hint_for_player(state: dict) -> dict | None:
             cards = ai_swap_choose(state, 'p')
         finally:
             state['level'] = saved
-        return {'type': 'swap_choose', 'cards': cards}
-    return None
+        return {'type': 'swap_choose', 'cards': cards, 'reason': 'swap'}
+
+    if not (state['status'] == 'playing' and state['turn'] == 'p'):
+        return None
+
+    plays = legal_plays(state, 'p')
+    revolution = state['revolution']
+    hand = state['hands']['p']
+
+    if not plays:
+        return {'type': 'pass', 'reason': 'no_play'}
+
+    def play_value(cards: list[str]) -> int:
+        v = RANK_VAL[rank(cards[0])]
+        return -v if revolution else v
+
+    plays_sorted = sorted(plays, key=play_value)
+
+    # Endphase: lassen sich alle restlichen Karten in einem Zug ablegen?
+    finishers = sorted((p for p in plays if len(p) == len(hand)), key=play_value)
+    if finishers:
+        return {'type': 'play', 'cards': finishers[0], 'reason': 'endgame'}
+
+    # Ausspielen (Kontrolle): kleine Karten zuerst, Paare/Drillinge bevorzugt
+    if state['trick_rank'] is None:
+        low_rank = rank(plays_sorted[0][0])
+        multi = [p for p in plays if rank(p[0]) == low_rank and len(p) > 1]
+        if multi:
+            multi.sort(key=len, reverse=True)
+            return {'type': 'play', 'cards': multi[0], 'reason': 'lead_multi'}
+        return {'type': 'play', 'cards': plays_sorted[0], 'reason': 'lead_low'}
+
+    # Auf einen Stich reagieren
+    active = _active_players(state)
+    opp_counts = [len(state['hands'][p]) for p in active if p != 'p']
+    min_opp = min(opp_counts) if opp_counts else 99
+
+    # Gegner kurz vorm Ausspielen -> jetzt blockieren
+    if min_opp <= 2:
+        return {'type': 'play', 'cards': plays_sorted[0], 'reason': 'block'}
+
+    # Günstige Karte (7–10) zum Überbieten -> Karten abbauen
+    lowest_val = RANK_VAL[rank(plays_sorted[0][0])]
+    effective = (RANK_VAL['A'] - lowest_val) if revolution else lowest_val
+    if effective <= RANK_VAL['T']:
+        return {'type': 'play', 'cards': plays_sorted[0], 'reason': 'beat_low'}
+
+    # sonst: hohe Karten für später aufsparen
+    return {'type': 'pass', 'reason': 'save_high'}

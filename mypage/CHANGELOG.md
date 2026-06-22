@@ -1,5 +1,178 @@
 # Changelog
 
+## 0.7.57
+
+- 🃏 **20 ab — Handsortierung korrigiert** — Innerhalb einer Farbe wird die Hand jetzt nach der echten Rangfolge sortiert (Ass > König > Dame > Bube > 10 > 9 > 8 > 7). Vorher stand die **10 fälschlich rechts vom König** (Reihenfolge versehentlich von 66 übernommen). Die Stich-Wertung war immer schon korrekt — nur die Anzeige war falsch.
+
+## 0.7.56
+
+- 🎉 **Konfetti-Regen bei Gewinn in den Kartenspielen** — Wie beim Glücksrad regnet es jetzt auch bei **66, 20 ab, Schwimmen, Mau Mau und Präsident** Konfetti, wenn man selbst gewinnt (bei Schwimmen zusätzlich beim Turniersieg, bei 66 beim Match-Sieg). Respektiert „Reduzierte Bewegung".
+
+## 0.7.55
+
+- 🎲 **Chicago — gleicher Wert ist echter Gleichstand („Mit ist Shit")** — Der Vergleich nutzt jetzt den **angezeigten Gesamtwert** (z. B. „12") statt der einzelnen Würfel-Kombination. Dadurch sind zwei gleiche Anzeigen (z. B. 6·4·2 und 5·4·3 = beide 12) ein **echter Gleichstand** → der **spätere** Spieler verliert — unabhängig von Würfel-Kombination **und Wurfzahl** (eine 12 in einem Wurf schlägt eine 12 in zwei Würfen nicht). Vorher konnte eine „bessere" 12 die andere schlagen.
+
+## 0.7.54
+
+- 🤖 **Chicago — alleine wieder bis zu 3 KI** — Die KI-Auswahl reicht jetzt bis **3** (alleine also 1–3 KI wie früher). Gesamtgrenze bleibt **5 Spieler**, daher bei 3 Menschen weiterhin max 2 KI. Die Bierfilze skalieren automatisch mit (immer Spielerzahl + 1): 4 Spieler = 5 Filze, 5 Spieler = 6 Filze.
+
+## 0.7.53
+
+- 👥 **Chicago — Hotseat: bis zu 3 Menschen am selben Gerät** — Neben dir können jetzt **1–2 weitere menschliche Spieler** am selben PC mitspielen (insgesamt **2–5 Spieler**, KI weiter optional, max 2 KI). Auf dem Startbildschirm wählst du „Menschliche Spieler" und „KI-Gegner"; wer dran ist, steht oben („… ist dran"), danach gibt man das Gerät weiter.
+- ✏️ **Chicago — eigene Namen für menschliche Spieler** — Jeder Mensch bekommt einen **eigenen Namen** (Felder auf dem Startbildschirm), **jederzeit änderbar** über ⚙ Einstellungen. Mit Namen heißt es korrekt in der **3. Person** („Beate gewinnt", „Beate bekommt einen Bierfilz"); der namenlose Spieler 1 bleibt wie gewohnt „Du gewinnst/bekommst". Namen werden sicher dargestellt (kein HTML).
+- 📊 **Statistik weiterhin nur für Spieler 1** (`Du`) — wie gewünscht unverändert.
+
+## 0.7.52
+
+- 🎲 **Chicago — „Mit ist Shit" bei Gleichstand korrigiert** — Bei gleichem Wurf (z. B. beide 12 groß) verlor fälschlich der **frühere** Spieler. Richtig ist: Wer **gleichzieht, ist „mit" und damit Shit** — also verliert der **spätere** Spieler in der Reihenfolge. Würfelst du als Vorleger 12 und die KI zieht mit 12 gleich, verliert jetzt die **KI** (und umgekehrt). Betrifft die Ermittlung des Runden-Verlierers (Phase 1 & 2), hoch wie tief.
+
+## 0.7.51
+
+- 👤 **„Mein Profil" als Accordion** — die Profil-Karte (Name, E-Mail-Sprache, Nachrichten-Empfang, Verzeichnis/Avatar, Passwort ändern) ist jetzt **aufklappbar** und standardmässig **zugeklappt** — das verkürzt den Mitgliederbereich weiter. Der Zustand wird gemerkt (localStorage). Nach dem **Speichern** (oder bei einem Fehler, z. B. falsches Passwort) klappt das Profil **automatisch auf**, damit die Rückmeldung sichtbar ist.
+
+## 0.7.50
+
+- 🎲 **Chicago — nur 1 und 6 dürfen stehen bleiben** — Beim Halten zwischen den Würfen können jetzt **nur 1en und 6en** liegen bleiben; **2–5 wandern immer zurück in den Becher** und werden neu geworfen. Gilt für dich **und** die KI, ist in den Spielregeln ergänzt und der Halte-Hinweis wurde angepasst.
+- 📊 **Chicago — „Chicago"-Zähler in der Statistik** — Die Statistik auf dem Startbildschirm zeigt neben Spiele/Siege/Niederlagen jetzt einen vierten Wert **„Chicago"**: wie oft du per Chicago (drei 1er) gewonnen hast.
+
+## 0.7.49
+
+- ⏸ **Kniffel & Chicago — echte Pause (wie Glücksrad)** — Wird der Tab in den Hintergrund geschoben, pausiert das Spiel jetzt automatisch: laufende Wartezeiten, KI-Züge und die Würfelbecher-Animation werden **eingefroren** und beim Zurückkehren exakt dort fortgesetzt (kein Vorspringen mehr, kein Auseinanderlaufen von Anzeige und echtem Spielstand). Zusätzlich ein **manueller Pause-Button** ⏸ in der Kopfzeile (auch per Taste **P**); fortsetzen per Klick auf die Pause-Anzeige, den Button oder P. Während der Pause ist alles stumm.
+
+## 0.7.48
+
+- 🤖 **Chicago — KI sagt jetzt chancenoptimal an (inkl. „klein")** — Bisher sagte die KI als Vorleger nie „klein" an und ließ damit starke Tief-Ansagen liegen. Jetzt bewertet sie alle Kombinationen aus Wertung (groß/klein/ohne 1) und Richtung (hoch/tief) über die tatsächliche Gegner-Schlagwahrscheinlichkeit und nimmt die am schwersten zu schlagende Ansage. Beispiel: **1·1·2** wird als **„4 tief (klein)"** angesagt (nur durch Chicago schlagbar) statt „202 hoch (groß)". Mit einer 6 bleibt es bei der natürlichen Lesart, z. B. **6·2·4 → „66 hoch (ohne 1)"**.
+- 🪧 **Chicago — Ansage zeigt immer die Wertung** — In der „Zu schlagen"-Zeile stand bei „groß" bisher kein Wertungs-Wort (nur „… (hoch)"). Jetzt steht die Wertung immer dabei, z. B. „Zu schlagen: 12 auf 3 (tief · groß)", damit klar ist, wie 1 und 6 zählen.
+
+## 0.7.47
+
+- 🐛 **Chicago — Grammatik in den Bierfilz-Bannern** — Wenn DU einen Bierfilz bekamst oder abwarfst, stand fälschlich „Du bekommt einen Bierfilz" / „Du wirft einen Bierfilz ab". Jetzt korrekt in der 2. Person: „Du bekommst einen Bierfilz" / „Du wirfst einen Bierfilz ab" (KI bleibt „… bekommt/wirft"). DE und EN. Kniffel wurde geprüft — Sieg-/Niederlagentexte waren bereits korrekt.
+
+## 0.7.46
+
+- 🎉 **Kniffel — Konfettiregen beim Sieg** — Gewinnt der Spieler, regnet es jetzt Konfetti (wie beim Glücksrad und Chicago), zusammen mit dem Gewinn-Sound.
+
+## 0.7.45
+
+- 🪧 **Chicago — Hinweise als Mitte-Banner statt schneller Toast** — Vorlage (Ansage), Bierfilz-Aufnahme/-Abwurf und ein KI-Chicago erscheinen jetzt als großes Banner in der Bildschirmmitte, das **langsam nach oben ausfliegt**, statt eines schnellen kleinen Hinweises oben. Eigene Bierfilz-Aufnahme wird rot, Abwurf/Vorlage golden hervorgehoben. Die Anzeigedauer skaliert mit dem **Tempo-Regler** (Pausen), damit der Hinweis bei langsamerem Spiel länger steht.
+
+## 0.7.44
+
+- 🎲 **Chicago — „ohne 1" nur bei einer 6** — Die Ansage „ohne 1" unterscheidet sich von „klein" nur durch die 6 (zählt 60 statt 6). Ohne eine 6 im Wurf ist sie identisch mit „klein" und damit sinnlos (z. B. 3 4 1: groß 107, klein 8, ohne 1 8). Der Knopf und die Vorschau zeigen „ohne 1" jetzt nur noch, wenn tatsächlich eine 6 dabei ist. Die KI hat das ohnehin schon so gehandhabt.
+
+## 0.7.43
+
+- 🔌 **Kniffel & Chicago: „Hier übernehmen" repariert** — Nach dem Schließen/Beenden eines Spiels und erneutem Öffnen erschien teils der Hinweis „Auf anderem Gerät aktiv", und der **„Übernehmen"**-Knopf funktionierte nicht (man musste ~30 s warten und neu laden). Ursache: Nach der Übernahme wurde die gerade frisch beanspruchte Session **sofort erneut** angefragt und dabei als „fremd gesperrt" gewertet. Die Übernahme lädt den Spielstand jetzt direkt, ohne doppeltes Beanspruchen — wie bei den Kartenspielen.
+
+## 0.7.42
+
+- 🎉 **Chicago — Sieg-Banner mit Konfetti, wenn DU Chicago würfelst** — Würfelt der Spieler drei 1er, hat er sofort gewonnen. Statt nur eines Hinweises erscheint nun ein **Sieg-Banner** mit **Gewinn-Sound** und **Konfettiregen** (wie beim Glücksrad): „CHICAGO! — Gewonnen nach X Runden". Danach die Wahl: **„KIs weiter zuschauen"** (die Runde/das Spiel läuft normal weiter) oder **„Spiel beenden"** (sofort Schluss, Sieg wird gewertet).
+
+## 0.7.41
+
+- 🤖 **Chicago — KI spielt jetzt wertungs- & richtungsbewusst** — Bisher hielt die KI stur 1er/6er und sagte als Vorleger immer „gross" an. Jetzt richtet sie ihr **Halten** nach der angesagten Wertung (groß/klein/**ohne 1**) **und** Richtung (hoch/tief) aus und **sagt selbst sinnvoll an**: mit einer 1 → *gross hoch*, mit 6 aber ohne 1 → **ohne 1 hoch** (nimmt den Gegnern die starke 100), bei niedrigen Augen → *gross tief*. Schwierigkeitsgrade greifen wieder spürbar (leicht zufälliger, mittel reizt nicht alles aus, schwer spielt optimal inkl. 6er-Trick nur wenn es passt).
+- 🗣️ **„Zu schlagen" zeigt die Wertung** — bei einer „ohne 1"- oder „klein"-Ansage steht sie jetzt mit in der Klammer, z. B. **„Zu schlagen: 69 auf 3 (hoch · ohne 1)"**.
+
+## 0.7.40
+
+- 🎲 **Chicago — neue Ansage „Ohne 1"** — Der Vorleger kann jetzt zusätzlich zu *groß* (1 = 100, 6 = 60) und *klein* (1 = 1, 6 = 6) auch **„ohne 1"** ansagen: dann zählt die **1** in der ganzen Runde **nur 1** (statt 100), die **6** bleibt **60**. **Chicago (drei 1er)** ist davon ausgenommen und gewinnt weiterhin sofort. Die Ansage-Auswahl zeigt alle drei Wertungen mit der jeweils tatsächlichen Punktzahl, und die laufende Ansage weist *„ohne 1"* bzw. *„klein"* für die Mitspieler aus.
+
+## 0.7.39
+
+- 🗂️ **Spiele im Mitgliederbereich gruppiert** — die lange Liste einzelner Karten ist jetzt in **drei aufklappbare Kategorien** (Accordion) gegliedert: **Kartenspiele** (66, Schnapsen 20-Ab, Schwimmen, Mau-Mau, Präsident), **Quizspiele** (Jeopardy, Glücksrad) und **Würfelspiele** (Kniffel, Chicago). Innerhalb jeder Kategorie liegen die Spiele als kompakte Kacheln (Icon, Titel, Kurzbeschreibung) im 2-spaltigen Raster — auf dem Handy einspaltig. Der **auf-/zugeklappte Zustand wird pro Kategorie gemerkt** (localStorage). Standardmässig sind die Kartenspiele offen, der Rest zugeklappt — das verkürzt die Seite deutlich.
+
+## 0.7.38
+
+- 🎲 **Chicago — drei Korrekturen:**
+  - **Becher-Animation sauber** — ab und zu (v. a. beim 3. Wurf) blitzten die Würfel kurz auf dem Tisch auf, **bevor** der Becher wackelte. Das Ausgangsbild wird jetzt vor dem Schütteln festgeschrieben (gehaltene Würfel sichtbar, alle anderen verdeckt).
+  - **Chicago = sofort gewonnen** — wer **drei 1er** würfelt, ist **sofort gerettet** und raus; die übrigen Spieler spielen die Runde regulär zu Ende (**„Mit ist Shit"** bleibt). Beim Spieler wird automatisch stehengeblieben (keine Ansage/kein Re-Roll nötig), mit Jubel-Hinweis und Sound — auch für die KI.
+  - **Mehr Sound** — **negativer** Klang, wenn man selbst einen **Bierfilz aufnimmt**, ein **leicht positiver**, wenn eine **KI** einen Filz bekommt, und ein **positiver** beim **Abwurf** eines Filzes.
+
+## 0.7.37
+
+- 🎲 **Chicago-Verbesserungen** — Würfel können **innerhalb eines Wurfs** an- und wieder **abgewählt** werden; **sobald erneut gewürfelt** wird, sind die gehaltenen Würfel fix (kein Zurück in den Becher). Beim **Stehenbleiben** wird die **tatsächliche Punktzahl** angezeigt (gross/klein direkt als Auswahl, z. B. „161" / „7"), zusätzlich live unter den Würfeln. **„Zu schlagen"** zeigt jetzt korrekt die **Ansage des Vorlegers, fix für die ganze Runde** (statt sich mit jedem KI-Wurf zu ändern). Die **restlichen Bierfilze** stehen im Phasen-Badge. Der Begriff „Fish" wurde entfernt — solche Würfe erscheinen einfach als Punktzahl.
+- 🃏 **Button-Darstellung korrigiert (Kniffel & Chicago)** — Die Buttons **„Schließen"** (Spielende) und **„Zurücksetzen"** (Einstellungen) erhielten die fehlende Basis-Stilklasse und werden nun korrekt dargestellt.
+
+## 0.7.36
+
+- 🔧 **Kniffel & Chicago vollständig integriert** — Beide Würfelspiele waren in zentralen Registern noch nicht eingetragen. Jetzt nachgezogen: **Admin-Anzeige „wer spielt gerade"** (Benutzerliste), **Home-Assistant-Sensoren** (`sensor.mypage_aktiv_kniffel` / `…_chicago` + Gesamtübersicht) und — am wichtigsten — die **Backup-Aufnahme**: Spielstände/Verläufe von Kniffel und Chicago werden nun in Sicherungen ein- und zurückgespielt (vorher fehlten sie im Backup-Filter). Die Spielregeln (📖) waren bereits angebunden.
+
+## 0.7.35
+
+- 🎲 **Neues Spiel: Chicago (Tschigg)** — Der Kneipen-Würfelklassiker gegen **2–3 KI** (Schwierigkeit wählbar). Mit **3 Würfeln** und bis zu 3 Würfen; **1 = 100, 6 = 60**. Der **Vorleger** bestimmt das **Wurf-Limit der Runde** und sagt **hoch/tief** sowie die Wertung (**gross/klein**) an. Mit **Becher-Tricks** (zwei 6er → eine 1; drei 6er → zwei 1er), **Chicago** (drei 1er = sofort gerettet) und **Fish**, Regel **„Mit ist Shit"**. **Bierfilz-Match (n+1)**: Phase 1 sammelt der Schlechteste, Phase 2 wirft der Beste ab — wer zuletzt Filze hat, verliert. Würfelbecher-Animation, Bierfilz-Anzeige, Ansage-UI, Spielende-Dialog, Statistik, Regeln DE/EN, Menü-Kachel, Tab-/Geräte-Schutz — alles server-autoritativ & fortsetzbar.
+
+## 0.7.34
+
+- 🛠️ **Startfehler behoben** — Das Add-on startete in v0.7.33 nicht (`ModuleNotFoundError: game_kniffel`), weil die neuen Dateien `game_dice.py`, `game_kniffel.py` und die Kniffel-Regeln **nicht ins Docker-Image kopiert** wurden (das Dockerfile listet jedes Spielmodul einzeln auf). Die fehlenden `COPY`-Zeilen wurden ergänzt.
+
+## 0.7.33
+
+- 🎲 **Neues Spiel: Kniffel** — Der Würfelklassiker gegen **1–2 KI-Gegner** (Schwierigkeit Leicht/Mittel/Schwer). Pro Zug bis zu **dreimal würfeln**, beliebige Würfel **halten** und in eines der **13 Felder** eintragen — mit **63er-Bonus** und **Kniffel-Bonus** (inkl. Joker). Server-autoritativ und seed-deterministisch (manipulationssicher, auf jedem Gerät fortsetzbar). Highlights:
+  - **Würfelbecher-Animation**: Becher erscheint, **schüttelt**, **kippt um** und die Würfel **fallen** mit Bounce und Zufalls-Streuung auf den Tisch — Tempo über die **Würfeldauer** einstellbar, dazu Regler für **Pause zwischen Aktionen**, **KI-Geschwindigkeit** und **Sound** (materialechtes Würfel-„Tok" statt Pieptöne).
+  - **Wertungsblock** zentral neben den Würfeln (auf schmalen/niedrigen Schirmen als ein-/ausklappbares Overlay), **Spielende-Dialog** mit Endklassement, **Statistik** (Spiele/Siege/Niederlagen/Bestwert) auf dem Startbildschirm.
+  - **Tab-/Geräte-Schutz** wie bei den anderen Spielen, Regeln-Doku DE/EN, vollständig lokalisiert.
+
+## 0.7.32
+
+- 🧹 **Aufgeräumte Benutzerliste** — Die Aktions-Buttons pro Konto sind jetzt durchgehend **kompakte Icons** statt teils Text: „Passwort" → 🔑, „Quota" → 💾, „Freigeben" → ✅. Der **Sprach-Knopf** zeigt nur noch **DE/EN** (ohne 🌐-Kugel). Die Beschriftung steckt jeweils im **Mouseover-Tooltip** — so passt die Zeile auch bei vielen Optionen wieder sauber nebeneinander.
+
+## 0.7.31
+
+- 🃏 **Kartenflug des Spielers in Firefox repariert (66 & 20AB)** — Auf manchen Browsern (v. a. **Firefox**, auch auf älteren Tablets) **sprang die selbst gespielte Karte ohne Flug-Animation sofort auf den Tisch**, während die KI-Karten korrekt flogen. Ursache: Der Spieler-Flug stieß die CSS-Transition nur per `requestAnimationFrame` an — Firefox fasst „Klon erscheint" und „Ziel gesetzt" dann zu einem Schritt zusammen, sodass kein Flug entsteht. Jetzt wird (wie bei den bereits funktionierenden KI-Flügen) vor dem Start ein **Reflow erzwungen**, damit die Startposition zuverlässig festgeschrieben wird. Betrifft Spieler-Flug, Stich-Einzug und Trumpf-/Bube-Tausch in beiden Spielen.
+
+## 0.7.30
+
+- 🌐 **Zweisprachige Mitglieder-Mails (DE/EN)** — Jedes Mitglied hat jetzt ein **Sprachfeld** (Deutsch/Englisch), das bestimmt, in welcher Sprache **alle automatischen E-Mails** ankommen: Zugangsdaten/Willkommen, neues Passwort, Passwort-Zurücksetzen, E-Mail-Bestätigung, „Konto besteht bereits", Konto-Freischaltung, Kommentar-Antworten und die Postfach-Erinnerung. Bei der **Selbst-Registrierung** wird die Sprache automatisch aus der gewählten Seitensprache übernommen; beim **Anlegen im Admin** ist sie wählbar und lässt sich jederzeit über den neuen **🌐-Knopf** in der Benutzerliste umschalten. Mitglieder können ihre Mail-Sprache zudem **selbst im Profil** einstellen. Sämtliche Mailtexte liegen nun lokalisiert in `de.json`/`en.json`.
+
+## 0.7.29
+
+- 🃏 **Präsident: klarerer Spiel-Hinweis & hilfreichere Tipps** — Der verwirrende Platzhalter „Gleichen Rang wählen, dann Spielen drücken" wurde ersetzt durch **„Karte(n) antippen, dann ‚Spielen' – mehrere nur gleichen Werts"**. Die **💡 Tipp-Funktion** wurde von Grund auf überarbeitet: Statt überwiegend „Passen" zu empfehlen, folgt sie jetzt einer echten Strategie (kleine Karten zuerst loswerden, beim Ausspielen **Paare/Drillinge** legen um Gegner zum Passen zu zwingen, günstig überbieten statt zu passen, hohe Karten für die Endphase aufsparen, Gegner blockieren die kurz vorm Ausspielen stehen). Jeder Tipp zeigt zusätzlich eine **kurze Begründung** an (z. B. „— niedrige Karten zuerst loswerden", „— hohe Karten für später aufsparen").
+
+## 0.7.28
+
+- 📱 **Mobile Admin-Ansicht korrigiert** — Im **Benutzer-Tab** (und allen anderen Listen wie Projekte, Seiten, Formulare, Alben, Dateien) lagen auf schmalen Bildschirmen die vielen Aktions-Buttons über dem Namen und waren nicht bedienbar. Die Listenzeilen werden auf Handys jetzt **vertikal gestapelt**: Name/Info oben, die Aktions-Buttons darunter mit **Umbruch** — alles wieder antippbar. Zudem wird im **mobilen Admin-Header** der Schriftzug „MyPage" ausgeblendet (das Haus-Icon bleibt), damit mehr Platz für die Tab-Navigation bleibt.
+
+## 0.7.27
+
+- 🔍 **Volltextsuche** — Eine neue, optionale Suche durchsucht **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Ist sie im Design-Tab aktiviert, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisseite (`/suche`) zeigt pro Treffer die Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. **Mitglieder-Inhalte** (gesperrte Beiträge/Seiten) erscheinen für Gäste nur als Titel mit 🔒, **ohne Inhalts-Vorschau** — Mitglieder sehen nach Anmeldung die volle Vorschau. Die Suchseite ist auf `noindex` gesetzt.
+
+## 0.7.26
+
+- 📎 **Verschlüsselte Datei-Anhänge in Nachrichten** — Mitglieder können an eine Nachricht eine **Datei anhängen** (max. 25 MB; Bilder, PDF, Office-Dokumente, Archive, Audio/Video). Anhänge werden — wie der Nachrichtentext — **mit Fernet verschlüsselt** auf der Platte abgelegt (`dm_files/`) und nur für die Gesprächsteilnehmer beim Download wieder entschlüsselt; sie werden immer als Datei-Download ausgeliefert (nie inline ausgeführt). Eine Nachricht darf auch **nur aus einem Anhang** bestehen. Beim endgültigen Löschen einer Nachricht wird die Anhang-Datei mitentfernt; Backups sichern die verschlüsselten Anhänge mit.
+
+## 0.7.25
+
+- 📢 **Admin-Rundnachricht an alle Mitglieder** — Im Benutzer-Tab kannst du eine **Ankündigung** verfassen, die im **Postfach aller Mitglieder** landet (verschlüsselt wie normale Nachrichten). Sie erscheint als Unterhaltung mit deinem Seitentitel und 📢-Markierung; Mitglieder können sie lesen und für sich löschen, aber **nicht beantworten**. Setzt aktivierte Mitglieder-Nachrichten voraus.
+
+## 0.7.24
+
+- 👥 **Mitglieder-Verzeichnis (opt-in)** — Mitglieder können sich freiwillig mit **Avatar** und **Kurzvorstellung** in einem internen Verzeichnis zeigen, damit man weiß, wem man schreibt. Sichtbarkeit steuert jedes Mitglied selbst im Profil (Standard: verborgen). Vom Verzeichnis führt ein **„Schreiben"-Knopf** direkt in die Nachrichten (sofern das Mitglied Nachrichten empfängt). Avatare werden quadratisch zugeschnitten, auf 256 px verkleinert und **ohne EXIF-Metadaten** als JPEG gespeichert. Global im Design-Tab ein-/ausschaltbar; das Verzeichnis ist nur für eingeloggte Mitglieder sichtbar.
+
+## 0.7.23
+
+- 🐛 **2FA: Backup-Codes wurden nach dem Einrichten nicht angezeigt** — Nach dem Aktivieren (und beim Neu-Erzeugen) wurden die Backup-Codes sofort wieder ausgeblendet, weil die anschließende Status-Aktualisierung sie überdeckte. Reihenfolge korrigiert: Status zuerst, Codes danach — sie bleiben jetzt sichtbar. Wer 2FA bereits aktiviert hat, holt sich über **„Backup-Codes neu erzeugen"** einen sichtbaren Satz.
+
+## 0.7.22
+
+- 🔔 **HA-Benachrichtigung bei neuer Mitglieder-Nachricht** — Optionaler Schalter (Design-Tab): Bekommt ein Mitglied eine neue Nachricht, erhält der **Betreiber** sofort eine Home-Assistant-Benachrichtigung — ohne Inhalt, je Empfänger zusammengefasst (gleiche Notification-ID, kein Zuspammen). Standard aus; greift nur unter Home Assistant.
+
+## 0.7.21
+
+- 🔐 **Zwei-Faktor-Authentifizierung (2FA) für den Admin** — Der direkte Login (Port 17761) lässt sich optional mit einem zeitbasierten Einmalcode (TOTP, RFC 6238) absichern. Einrichtung im Tab **System → 2FA**: QR-Code scannen (Google Authenticator, Aegis, 1Password …) oder Geheimnis manuell eintragen, mit einem Code bestätigen — danach verlangt der Login nach Benutzername/Passwort zusätzlich den Code. Es gibt **10 einmalige Backup-Codes** (für den Fall eines verlorenen Geräts), neu erzeugbar. **Über Home Assistant (Ingress) ist 2FA bewusst nicht erforderlich**, da HA die Authentifizierung dort bereits übernimmt. Das TOTP-Verfahren ist mit der Standardbibliothek umgesetzt; Secret und (gehashte) Backup-Codes liegen in `admin_2fa.json` und werden vom Backup mitgesichert.
+
+## 0.7.20
+
+- 🗑 **Nachrichten löschen** — Mitglieder können einzelne Nachrichten (✕ an der Sprechblase) oder eine ganze Unterhaltung (🗑 in der Kopfzeile) löschen. Das Löschen wirkt **nur für einen selbst** — die Gegenseite behält ihre Sicht; erst wenn beide gelöscht haben (oder ein Konto entfernt wurde), wird der Eintrag endgültig aus `dm.json` entfernt.
+- ⏰ **Erinnerungs-Mail bei ungelesenen Nachrichten** — Bleibt eine neue Nachricht **3 Stunden ungelesen**, bekommt der Empfänger eine **E-Mail** (sofern Mailserver + öffentliche URL gesetzt). Die Mail enthält **bewusst keinen Inhalt und keinen Absender** — nur einen Hinweis und den **Link zum Postfach**. Pro ungelesener Nachricht wird höchstens **einmal** erinnert; ein Hintergrund-Dienst prüft das alle 15 Minuten.
+
+## 0.7.19
+
+- ✉️ **Mitglieder-Nachrichten (verschlüsselt)** — Eingeloggte Mitglieder können sich im geschützten Bereich gegenseitig private Nachrichten schreiben: neues **Postfach** mit Unterhaltungen, Ungelesen-Zähler und Empfänger-Auswahl per **durchsuchbarem Dropdown** (zeigt nur Mitglieder, die Nachrichten empfangen). Die **Nachrichtentexte werden verschlüsselt** auf der Platte gespeichert (Fernet/AES, Schlüssel in `dm.key`) — Metadaten wie Zeitstempel bleiben für die Listenansicht im Klartext. **Pro Mitglied abschaltbar**: jedes Mitglied kann den Empfang im eigenen Profil deaktivieren, der Admin kann es zusätzlich pro Mitglied erzwingen. Global im Design-Tab ein-/ausschaltbar. **Backup/Restore** sichern `dm.json` und `dm.key` mit, sodass verschlüsselte Nachrichten nach einer Wiederherstellung lesbar bleiben.
+
+## 0.7.18
+
+- 🔒 **CodeQL: Open-Redirect-Warnungen behoben** — Beim Absenden eines Blog-Kommentars wird das Redirect-Ziel jetzt aus dem **validierten Beitrag** (`post['id']`) statt direkt aus dem URL-Parameter gebildet. Funktional identisch, aber ohne Taint-Fluss von der Anfrage in `redirect()` (2 MEDIUM-Findings).
+
 ## 0.7.17
 
 - ✏️ **Markdown-Editor an weiteren Feldern** — Der Editor-Button (Werkzeugleiste + Live-Vorschau) ist jetzt überall verfügbar, wo Text als Markdown gerendert wird: **Wartungsmodus-Text**, **Formular-Danke-Text**, **Login-Nachricht je Benutzer** und **Standort-Öffnungszeiten** (zusätzlich zu Blog, Seiten, Projekten, Bio, Newsletter, Formular-Einleitung, Tipps und FAQ-Antworten).
