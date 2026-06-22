@@ -429,10 +429,10 @@ function announceText(){
   const r=state.results[state.opener];
   if(!r)return '';
   const dl=state.direction==='hoch'?G.hoch:G.tief;
-  let extra='';
-  if(state.valuation==='ohne1')extra=' · '+G.valh_ohne1;
-  else if(state.valuation==='klein')extra=' · '+G.valh_klein;
-  return G.announce+': '+r.label+' ('+dl+extra+')';
+  let vh=G.valh_gross;
+  if(state.valuation==='ohne1')vh=G.valh_ohne1;
+  else if(state.valuation==='klein')vh=G.valh_klein;
+  return G.announce+': '+r.label+' ('+dl+' · '+vh+')';
 }
 
 /* Render */

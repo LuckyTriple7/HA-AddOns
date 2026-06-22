@@ -28,6 +28,7 @@ Zustand (Würfeln über game_dice), KI-Schritte einzeln abrufbar (animationsgetr
 """
 from __future__ import annotations
 
+import itertools
 import random
 
 import game_dice
@@ -401,20 +402,49 @@ _EXP = {
 }
 
 
-def _ai_plan(dice: list[int]) -> tuple:
-    """Plan des KI-Vorlegers aus den aktuellen Würfeln (Wertung, Richtung).
+# Alle 216 möglichen Würfe + vorberechnete Vergleichsschlüssel je Wertung
+_ALL_ROLLS = [list(r) for r in itertools.product(range(1, 7), repeat=3)]
+_ROLL_KEYS = {v: [roll_key(r, v) for r in _ALL_ROLLS]
+              for v in ('gross', 'klein', 'ohne1')}
+_ROLL_CHIC = [is_chicago(r) for r in _ALL_ROLLS]
 
-    * Hat sie eine 1 → „gross hoch" (1 = 100 ist Trumpf).
-    * Hat sie eine 6, aber keine 1 → „ohne 1 hoch": die eigenen Sechsen zählen 60
-      und den Gegnern wird gleichzeitig die starke 1 (=100) genommen.
-    * Sonst (niedrige Augen) → „gross tief": niedrig gewinnt, und gegnerische
-      1er/6er werden zur Last.
+def _beat_count(dice: list[int], valuation: str, direction: str) -> int:
+    """Wie viele der 216 Gegner-Einzelwürfe schlagen diese Hand?
+
+    Der Vorleger gewinnt Gleichstände (Mit ist Shit → spätere Position verliert),
+    daher nur ECHTES Schlagen zählen. Chicago (drei 1er) schlägt immer.
     """
-    if 1 in dice:
-        return ('gross', 'hoch')
-    if 6 in dice:
-        return ('ohne1', 'hoch')
-    return ('gross', 'tief')
+    ai_key = roll_key(dice, valuation)
+    keys = _ROLL_KEYS[valuation]
+    beaten = 0
+    for i, ok in enumerate(keys):
+        if _ROLL_CHIC[i]:
+            beaten += 1
+        elif (ok > ai_key) if direction == 'hoch' else (ok < ai_key):
+            beaten += 1
+    return beaten
+
+
+def _ai_plan(dice: list[int]) -> tuple:
+    """Plan des KI-Vorlegers: Wertung + Richtung, die am schwersten zu schlagen
+    sind. Bewertet alle Kombinationen über die Gegner-Schlagwahrscheinlichkeit
+    (z. B. 1·1·2 → „klein tief" = 4, nur durch Chicago schlagbar, statt „gross
+    hoch" = 202).
+
+    Bei Gleichstand der Chance entscheidet eine 6-bewusste Vorliebe: mit einer 6
+    lieber „ohne 1" (z. B. 6·2·4 → „66 hoch") als „klein"; ohne 6 lieber „klein"
+    (dann ist „ohne 1" identisch und nur verwirrend). „gross" zuerst, „hoch" vor
+    „tief"."""
+    valrank = ({'gross': 0, 'ohne1': 1, 'klein': 2} if 6 in dice
+               else {'gross': 0, 'klein': 1, 'ohne1': 2})
+    best = None
+    for val in ('gross', 'klein', 'ohne1'):
+        for direc in ('hoch', 'tief'):
+            cand = (_beat_count(dice, val, direc), valrank[val],
+                    0 if direc == 'hoch' else 1)
+            if best is None or cand < best[0]:
+                best = (cand, (val, direc))
+    return best[1]
 
 
 def _keep_mask(dice: list[int], valuation: str, direction: str) -> list[bool]:

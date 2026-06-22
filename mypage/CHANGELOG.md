@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.48
+
+- 🤖 **Chicago — KI sagt jetzt chancenoptimal an (inkl. „klein")** — Bisher sagte die KI als Vorleger nie „klein" an und ließ damit starke Tief-Ansagen liegen. Jetzt bewertet sie alle Kombinationen aus Wertung (groß/klein/ohne 1) und Richtung (hoch/tief) über die tatsächliche Gegner-Schlagwahrscheinlichkeit und nimmt die am schwersten zu schlagende Ansage. Beispiel: **1·1·2** wird als **„4 tief (klein)"** angesagt (nur durch Chicago schlagbar) statt „202 hoch (groß)". Mit einer 6 bleibt es bei der natürlichen Lesart, z. B. **6·2·4 → „66 hoch (ohne 1)"**.
+- 🪧 **Chicago — Ansage zeigt immer die Wertung** — In der „Zu schlagen"-Zeile stand bei „groß" bisher kein Wertungs-Wort (nur „… (hoch)"). Jetzt steht die Wertung immer dabei, z. B. „Zu schlagen: 12 auf 3 (tief · groß)", damit klar ist, wie 1 und 6 zählen.
+
 ## 0.7.47
 
 - 🐛 **Chicago — Grammatik in den Bierfilz-Bannern** — Wenn DU einen Bierfilz bekamst oder abwarfst, stand fälschlich „Du bekommt einen Bierfilz" / „Du wirft einen Bierfilz ab". Jetzt korrekt in der 2. Person: „Du bekommst einen Bierfilz" / „Du wirfst einen Bierfilz ab" (KI bleibt „… bekommt/wirft"). DE und EN. Kniffel wurde geprüft — Sieg-/Niederlagentexte waren bereits korrekt.
