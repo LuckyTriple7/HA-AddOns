@@ -254,7 +254,9 @@ def _worst_player(state: dict) -> str:
         k = tuple(r['key'])              # JSON-Roundtrip macht aus Tuple eine Liste
         # „schlechter" = bei hoch kleiner Key, bei tief größerer Key
         worse_key = k if direc == 'hoch' else tuple(-x for x in k)
-        cand = (worse_key, pos)          # kleinster worse_key = schlechtester; Tie → spätere pos
+        # kleinster Wert = schlechtester; bei Gleichstand der SPÄTERE (Mit ist Shit) →
+        # größere Position muss „schlechter" zählen, daher -pos
+        cand = (worse_key, -pos)
         if best is None or cand < best[0]:
             best = (cand, pid)
     return best[1] if best else order[-1]

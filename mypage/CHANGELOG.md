@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.52
+
+- 🎲 **Chicago — „Mit ist Shit" bei Gleichstand korrigiert** — Bei gleichem Wurf (z. B. beide 12 groß) verlor fälschlich der **frühere** Spieler. Richtig ist: Wer **gleichzieht, ist „mit" und damit Shit** — also verliert der **spätere** Spieler in der Reihenfolge. Würfelst du als Vorleger 12 und die KI zieht mit 12 gleich, verliert jetzt die **KI** (und umgekehrt). Betrifft die Ermittlung des Runden-Verlierers (Phase 1 & 2), hoch wie tief.
+
 ## 0.7.51
 
 - 👤 **„Mein Profil" als Accordion** — die Profil-Karte (Name, E-Mail-Sprache, Nachrichten-Empfang, Verzeichnis/Avatar, Passwort ändern) ist jetzt **aufklappbar** und standardmässig **zugeklappt** — das verkürzt den Mitgliederbereich weiter. Der Zustand wird gemerkt (localStorage). Nach dem **Speichern** (oder bei einem Fehler, z. B. falsches Passwort) klappt das Profil **automatisch auf**, damit die Rückmeldung sichtbar ist.
