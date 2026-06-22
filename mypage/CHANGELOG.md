@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.55
+
+- 🎲 **Chicago — gleicher Wert ist echter Gleichstand („Mit ist Shit")** — Der Vergleich nutzt jetzt den **angezeigten Gesamtwert** (z. B. „12") statt der einzelnen Würfel-Kombination. Dadurch sind zwei gleiche Anzeigen (z. B. 6·4·2 und 5·4·3 = beide 12) ein **echter Gleichstand** → der **spätere** Spieler verliert — unabhängig von Würfel-Kombination **und Wurfzahl** (eine 12 in einem Wurf schlägt eine 12 in zwei Würfen nicht). Vorher konnte eine „bessere" 12 die andere schlagen.
+
 ## 0.7.54
 
 - 🤖 **Chicago — alleine wieder bis zu 3 KI** — Die KI-Auswahl reicht jetzt bis **3** (alleine also 1–3 KI wie früher). Gesamtgrenze bleibt **5 Spieler**, daher bei 3 Menschen weiterhin max 2 KI. Die Bierfilze skalieren automatisch mit (immer Spielerzahl + 1): 4 Spieler = 5 Filze, 5 Spieler = 6 Filze.

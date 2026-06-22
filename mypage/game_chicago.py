@@ -52,9 +52,11 @@ def _die_value(d: int, valuation: str) -> int:
     return d
 
 
-def roll_key(dice: list[int], valuation: str) -> tuple:
-    """Vergleichsschlüssel: Werte absteigend, lexikografisch vergleichbar."""
-    return tuple(sorted((_die_value(d, valuation) for d in dice), reverse=True))
+def roll_key(dice: list[int], valuation: str) -> int:
+    """Vergleichswert = angezeigter Gesamtwert (Summe der Würfelwerte). Gleiche
+    Anzeige (z. B. zweimal „12") ist damit ein ECHTER Gleichstand → „Mit ist Shit"
+    (der spätere Spieler verliert), unabhängig von Würfel-Kombination und Wurfzahl."""
+    return sum(_die_value(d, valuation) for d in dice)
 
 
 def is_chicago(dice: list[int]) -> bool:
@@ -266,9 +268,9 @@ def _worst_player(state: dict) -> str:
         r = state['results'].get(pid)
         if r is None or r['chic']:
             continue
-        k = tuple(r['key'])              # JSON-Roundtrip macht aus Tuple eine Liste
-        # „schlechter" = bei hoch kleiner Key, bei tief größerer Key
-        worse_key = k if direc == 'hoch' else tuple(-x for x in k)
+        k = r['key']                     # Gesamtwert (Summe)
+        # „schlechter" = bei hoch kleinerer Wert, bei tief größerer Wert
+        worse_key = k if direc == 'hoch' else -k
         # kleinster Wert = schlechtester; bei Gleichstand der SPÄTERE (Mit ist Shit) →
         # größere Position muss „schlechter" zählen, daher -pos
         cand = (worse_key, -pos)
@@ -285,8 +287,8 @@ def _best_player(state: dict) -> str:
         r = state['results'].get(pid)
         if r is None or r.get('chic'):
             continue
-        k = tuple(r['key'])
-        better_key = k if direc == 'hoch' else tuple(-x for x in k)
+        k = r['key']
+        better_key = k if direc == 'hoch' else -k
         cand = (better_key, -pos)        # größter better_key = bester; Tie → frühere pos
         if best is None or cand > best[0]:
             best = (cand, pid)
