@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.39
+
+- 🗂️ **Spiele im Mitgliederbereich gruppiert** — die lange Liste einzelner Karten ist jetzt in **drei aufklappbare Kategorien** (Accordion) gegliedert: **Kartenspiele** (66, Schnapsen 20-Ab, Schwimmen, Mau-Mau, Präsident), **Quizspiele** (Jeopardy, Glücksrad) und **Würfelspiele** (Kniffel, Chicago). Innerhalb jeder Kategorie liegen die Spiele als kompakte Kacheln (Icon, Titel, Kurzbeschreibung) im 2-spaltigen Raster — auf dem Handy einspaltig. Der **auf-/zugeklappte Zustand wird pro Kategorie gemerkt** (localStorage). Standardmässig sind die Kartenspiele offen, der Rest zugeklappt — das verkürzt die Seite deutlich.
+
 ## 0.7.38
 
 - 🎲 **Chicago — drei Korrekturen:**

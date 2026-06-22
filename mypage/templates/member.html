@@ -75,6 +75,22 @@
     .dm-toggle { display: flex; align-items: center; gap: 9px; cursor: pointer; margin-top: 6px; font-size: 0.9rem; color: var(--text); }
     .dm-toggle input { width: auto; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+    .games-wrap { margin-top: 18px; }
+    .game-cat { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+    .game-cat > summary { padding: 16px 22px; font-size: 1.05rem; font-weight: 700; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; user-select: none; }
+    .game-cat > summary::-webkit-details-marker { display: none; }
+    .game-cat > summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .15s; }
+    .game-cat[open] > summary::after { transform: rotate(180deg); }
+    .game-cat > summary:hover { background: var(--surf2); }
+    .cat-count { background: var(--surf2); color: var(--muted); font-size: 0.72rem; font-weight: 600; border-radius: 10px; padding: 1px 9px; }
+    .game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 18px 18px; }
+    .game-tile { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; cursor: pointer; color: var(--text); font: inherit; margin: 0; transition: border-color .15s, background .15s; }
+    .game-tile:hover { border-color: var(--accent); background: var(--surf2); }
+    .gt-ico { font-size: 1.6rem; flex-shrink: 0; line-height: 1; }
+    .gt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .gt-name { font-weight: 600; font-size: 0.92rem; }
+    .gt-desc { font-size: 0.76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    @media (max-width: 560px) { .game-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -324,50 +340,58 @@
     </div>
 
     {% if games_on %}
-    <div class="card" style="margin-top:18px">
-      <h1>🃏 {{ t.g66_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g66_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('66')">▶ {{ t.g66_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎴 {{ t.g20_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.g20_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('20ab')">▶ {{ t.g20_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🏊 {{ t.gs_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gs_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('schwimmen')">▶ {{ t.gs_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎲 {{ t.gmm_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gmm_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('maumau')">▶ {{ t.gmm_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>👑 {{ t.gp_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gp_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('praesident')">▶ {{ t.gp_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎯 {{ t.gj_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gj_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('jeopardy')">▶ {{ t.gj_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎡 {{ t.ggr_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.ggr_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('gluecksrad')">▶ {{ t.ggr_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎲 {{ t.gk_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gk_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('kniffel')">▶ {{ t.gk_play }}</button>
-    </div>
-    <div class="card" style="margin-top:18px">
-      <h1>🎲 {{ t.gc_title }}</h1>
-      <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.gc_intro }}</p>
-      <button class="btn" type="button" onclick="openGame('chicago')">▶ {{ t.gc_play }}</button>
+    <div class="games-wrap">
+      <details class="game-cat" data-cat="cards" open>
+        <summary>🃏 {{ t.games_cat_cards }} <span class="cat-count">5</span></summary>
+        <div class="game-grid">
+          <button class="game-tile" type="button" onclick="openGame('66')">
+            <span class="gt-ico">🃏</span>
+            <span class="gt-body"><span class="gt-name">{{ t.g66_title }}</span><span class="gt-desc">{{ t.g66_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('20ab')">
+            <span class="gt-ico">🎴</span>
+            <span class="gt-body"><span class="gt-name">{{ t.g20_title }}</span><span class="gt-desc">{{ t.g20_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('schwimmen')">
+            <span class="gt-ico">🏊</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gs_title }}</span><span class="gt-desc">{{ t.gs_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('maumau')">
+            <span class="gt-ico">🐱</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gmm_title }}</span><span class="gt-desc">{{ t.gmm_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('praesident')">
+            <span class="gt-ico">👑</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gp_title }}</span><span class="gt-desc">{{ t.gp_intro }}</span></span>
+          </button>
+        </div>
+      </details>
+      <details class="game-cat" data-cat="quiz">
+        <summary>🧠 {{ t.games_cat_quiz }} <span class="cat-count">2</span></summary>
+        <div class="game-grid">
+          <button class="game-tile" type="button" onclick="openGame('jeopardy')">
+            <span class="gt-ico">🎯</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gj_title }}</span><span class="gt-desc">{{ t.gj_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('gluecksrad')">
+            <span class="gt-ico">🎡</span>
+            <span class="gt-body"><span class="gt-name">{{ t.ggr_title }}</span><span class="gt-desc">{{ t.ggr_intro }}</span></span>
+          </button>
+        </div>
+      </details>
+      <details class="game-cat" data-cat="dice">
+        <summary>🎲 {{ t.games_cat_dice }} <span class="cat-count">2</span></summary>
+        <div class="game-grid">
+          <button class="game-tile" type="button" onclick="openGame('kniffel')">
+            <span class="gt-ico">🎲</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gk_title }}</span><span class="gt-desc">{{ t.gk_intro }}</span></span>
+          </button>
+          <button class="game-tile" type="button" onclick="openGame('chicago')">
+            <span class="gt-ico">🌆</span>
+            <span class="gt-body"><span class="gt-name">{{ t.gc_title }}</span><span class="gt-desc">{{ t.gc_intro }}</span></span>
+          </button>
+        </div>
+      </details>
     </div>
     {% endif %}
     {% endif %}
@@ -383,6 +407,14 @@
         document.documentElement.setAttribute('data-theme',
           window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     })();
+    // Aufgeklappten Zustand der Spiel-Kategorien merken
+    document.querySelectorAll('.game-cat').forEach(function(d){
+      var key = 'mp-gamecat-' + d.dataset.cat;
+      var saved = localStorage.getItem(key);
+      if (saved === 'open') d.open = true;
+      else if (saved === 'closed') d.open = false;
+      d.addEventListener('toggle', function(){ localStorage.setItem(key, d.open ? 'open' : 'closed'); });
+    });
     // Kartenspiel als Vollfenster-Iframe öffnen (kein Browser-Vollbild)
     function openGame(slug){
       const id = 'game-frame-' + slug;
