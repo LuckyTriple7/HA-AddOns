@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.49
+
+- ⏸ **Kniffel & Chicago — echte Pause (wie Glücksrad)** — Wird der Tab in den Hintergrund geschoben, pausiert das Spiel jetzt automatisch: laufende Wartezeiten, KI-Züge und die Würfelbecher-Animation werden **eingefroren** und beim Zurückkehren exakt dort fortgesetzt (kein Vorspringen mehr, kein Auseinanderlaufen von Anzeige und echtem Spielstand). Zusätzlich ein **manueller Pause-Button** ⏸ in der Kopfzeile (auch per Taste **P**); fortsetzen per Klick auf die Pause-Anzeige, den Button oder P. Während der Pause ist alles stumm.
+
 ## 0.7.48
 
 - 🤖 **Chicago — KI sagt jetzt chancenoptimal an (inkl. „klein")** — Bisher sagte die KI als Vorleger nie „klein" an und ließ damit starke Tief-Ansagen liegen. Jetzt bewertet sie alle Kombinationen aus Wertung (groß/klein/ohne 1) und Richtung (hoch/tief) über die tatsächliche Gegner-Schlagwahrscheinlichkeit und nimmt die am schwersten zu schlagende Ansage. Beispiel: **1·1·2** wird als **„4 tief (klein)"** angesagt (nur durch Chicago schlagbar) statt „202 hoch (groß)". Mit einer 6 bleibt es bei der natürlichen Lesart, z. B. **6·2·4 → „66 hoch (ohne 1)"**.

@@ -12,13 +12,23 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
   color:#f0f0f0;overflow:hidden;user-select:none;display:flex;flex-direction:column}
 
 #topbar{display:flex;align-items:center;gap:14px;padding:6px 14px;background:rgba(0,0,0,0.4);
-  border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0}
+  border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;position:relative;z-index:160}
 #brand{font-weight:700;font-size:1.05rem;color:var(--gold);white-space:nowrap}
 #phase-badge{font-size:11px;opacity:0.7;border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:2px 10px;white-space:nowrap}
 #topbtns{display:flex;gap:6px;margin-left:auto}
 .top-btn{background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:1.05rem;width:34px;height:34px;
   border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
 .top-btn:hover{background:rgba(255,255,255,0.22)}
+.top-btn.pause-on{background:#a33;color:#fff;animation:pausePulse 1s ease-in-out infinite}
+@keyframes pausePulse{0%,100%{opacity:1}50%{opacity:.5}}
+#pause-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:150;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px;cursor:pointer}
+#pause-overlay.show{display:flex}
+#pause-overlay .pic{font-size:54px;color:var(--gold)}
+#pause-overlay h2{font-size:clamp(1.8rem,6vw,2.6rem);color:var(--gold);margin:0}
+#pause-overlay .ph{opacity:.75;font-size:1rem}
+body.gpaused #game-area *{animation-play-state:paused!important}
+body.gpaused .confetti-piece{animation-play-state:paused!important}
 
 #game-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   gap:clamp(8px,2vh,20px);padding:12px;min-height:0;overflow-y:auto}
@@ -168,6 +178,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
   <div id="brand">🎲 {{ t.gc_title }}</div>
   <div id="phase-badge"></div>
   <div id="topbtns">
+    <button class="top-btn" id="pause-btn" title="{{ t.gc_pause }}" onclick="togglePause()">⏸</button>
     <button class="top-btn" title="{{ t.gc_rulesdoc }}" onclick="openRules()">📖</button>
     <button class="top-btn" title="{{ t.gc_settings }}" onclick="openSettings()">⚙</button>
     <button class="top-btn" title="{{ t.gc_new_game }}" onclick="showStart()">↻</button>
@@ -274,6 +285,8 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
 <div class="modal-overlay" id="tab-modal"><div class="modal-box"><h2>🔌 {{ t.gc_tab_title }}</h2><p style="opacity:.85;line-height:1.5;margin-bottom:16px">{{ t.gc_tab_text }}</p><button class="btn btn-gold" id="tab-resume">{{ t.gc_tab_resume }}</button></div></div>
 <div class="modal-overlay" id="device-modal"><div class="modal-box"><h2>📵 {{ t.gc_device_title }}</h2><p style="opacity:.85;line-height:1.5;margin-bottom:16px">{{ t.gc_device_text }}</p><button class="btn btn-gold" id="device-takeover">{{ t.gc_device_takeover }}</button></div></div>
 
+<div id="pause-overlay" onclick="togglePause(false)"><div class="pic">⏸</div><h2>{{ t.gc_paused }}</h2><div class="ph">{{ t.gc_pause_hint }}</div></div>
+
 <div id="toast-wrap"></div>
 <div id="cbanner-wrap"></div>
 
@@ -306,8 +319,8 @@ let declVal='gross', declDir='hoch';
 
 /* Sound */
 let actx=null;const getA=()=>actx||(actx=new(window.AudioContext||window.webkitAudioContext)());
-function tone(f,d,type,v){if(!soundOn)return;try{const c=getA(),o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.value=v||0.1;g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);}catch(e){}}
-function clack(vol,freq){if(!soundOn)return;try{const c=getA(),t=c.currentTime;vol=vol||0.5;const len=Math.floor(c.sampleRate*0.028);const buf=c.createBuffer(1,len,c.sampleRate),d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);const src=c.createBufferSource();src.buffer=buf;const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq||(1000+Math.random()*1400);bp.Q.value=0.9+Math.random()*1.2;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=3500;const g=c.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+0.05);src.connect(bp);bp.connect(lp);lp.connect(g);g.connect(c.destination);src.start(t);src.stop(t+0.06);}catch(e){}}
+function tone(f,d,type,v){if(!soundOn||gamePaused)return;try{const c=getA(),o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.value=f;g.gain.value=v||0.1;g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);}catch(e){}}
+function clack(vol,freq){if(!soundOn||gamePaused)return;try{const c=getA(),t=c.currentTime;vol=vol||0.5;const len=Math.floor(c.sampleRate*0.028);const buf=c.createBuffer(1,len,c.sampleRate),d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);const src=c.createBufferSource();src.buffer=buf;const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq||(1000+Math.random()*1400);bp.Q.value=0.9+Math.random()*1.2;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=3500;const g=c.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+0.05);src.connect(bp);bp.connect(lp);lp.connect(g);g.connect(c.destination);src.start(t);src.stop(t+0.06);}catch(e){}}
 const SFX={
   roll:()=>{if(!soundOn)return;const dur=rollMs,n=Math.max(5,Math.round(dur/140));let t=0;for(let i=0;i<n;i++){const pr=i/n;t+=45+Math.random()*100*(0.4+pr);if(t>dur)break;setTimeout(()=>clack(0.45*(1-0.45*pr)),t);}},
   settle:()=>{clack(0.55,700);setTimeout(()=>clack(0.4,520),60);},
@@ -336,7 +349,30 @@ async function api(path,body){
   try{const opt=body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})};
     const r=await fetch(path,opt);if(r.status===423){$('device-modal').classList.add('show');return null;}return r.ok?await r.json():null;}catch(e){return null;}
 }
-const sleep=ms=>new Promise(r=>setTimeout(r,reduceMotion?Math.min(ms,30):ms));
+/* Echte Pause: laufende Wartezeiten EINFRIEREN und genau dort fortsetzen.
+   Tab im Hintergrund → automatisch Pause (Browser drosselt sonst Timer/Animationen
+   und Spiel/Anzeige laufen auseinander); zusätzlich manueller Pause-Button. */
+let gamePaused=false,_pauseResolve=null;const _sleepers=new Set();
+function pauseSleepers(){_sleepers.forEach(o=>{if(o.id!=null){clearTimeout(o.id);o.id=null;o.remaining-=(performance.now()-o.startTs);if(o.remaining<0)o.remaining=0;}});}
+function resumeSleepers(){_sleepers.forEach(o=>{if(o.id==null)o.arm();});}
+function sleep(ms){if(reduceMotion)ms=Math.min(ms,30);
+  return new Promise(resolve=>{const o={resolve,remaining:ms};
+    o.arm=()=>{o.startTs=performance.now();o.id=setTimeout(()=>{_sleepers.delete(o);resolve();},o.remaining);};
+    _sleepers.add(o);if(!gamePaused)o.arm();else o.id=null;});}
+function waitIfPaused(){return gamePaused?new Promise(r=>{_pauseResolve=r;}):Promise.resolve();}
+function inGame(){return $('start-screen').style.display==='none'&&state&&state.status!=='game_over';}
+function togglePause(force){
+  const want=(force===undefined)?!gamePaused:force;
+  if(want===gamePaused)return;
+  if(want&&!inGame())return;
+  gamePaused=want;
+  const btn=$('pause-btn');btn.classList.toggle('pause-on',gamePaused);btn.textContent=gamePaused?'▶':'⏸';
+  if(gamePaused){$('pause-overlay').classList.add('show');document.body.classList.add('gpaused');pauseSleepers();}
+  else{$('pause-overlay').classList.remove('show');document.body.classList.remove('gpaused');resumeSleepers();
+    if(_pauseResolve){_pauseResolve();_pauseResolve=null;}}
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&!gamePaused&&inGame())togglePause(true);});
+document.addEventListener('keydown',e=>{if((e.key==='p'||e.key==='P')&&inGame()&&!/^(INPUT|TEXTAREA)$/.test((e.target||{}).tagName||''))togglePause();});
 async function claimSession(force){
   try{const r=await fetch('/api/chicago/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:force?'force':'claim'})});const d=await r.json();
     if(d.locked){$('device-modal').classList.add('show');return false;}
@@ -376,28 +412,31 @@ function toggleHold(i){
   if(state.held[i]){slot.style.transform='';SFX.hold();}else{scatter(slot);}
 }
 
-function animateRoll(target,keep){
-  return new Promise(resolve=>{
-    const slots=Array.from($('tray').children);
-    if(reduceMotion){slots.forEach((slot,i)=>{const d=slot.firstChild;paintDie(d,target[i]);d.classList.toggle('held',!!keep[i]);if(!keep[i])scatter(slot);});resolve();return;}
-    const cup=$('cup');cup.style.setProperty('--flipdur',Math.max(240,Math.round(rollMs*0.24))+'ms');
-    const shake=Math.max(220,Math.round(rollMs*0.55)),flip=Math.max(240,Math.round(rollMs*0.24)),drop=Math.max(220,Math.round(rollMs*0.30));
-    // Ausgangsbild sauber setzen: gehaltene Würfel sichtbar (außerhalb des Bechers),
-    // alle übrigen verstecken — und per Reflow festschreiben, BEVOR der Becher erscheint
-    // (sonst blitzen die neuen Würfel kurz auf dem Tisch auf, v. a. ab dem 3. Wurf)
-    slots.forEach((slot,i)=>{const d=slot.firstChild;
-      if(keep[i]){d.style.visibility='';paintDie(d,target[i]);d.classList.add('held');slot.style.transform='';}
-      else{d.classList.remove('held');d.style.visibility='hidden';}});
-    void $('tray').offsetWidth;
-    cup.className='show shake';SFX.roll();
-    setTimeout(()=>{cup.className='show flip';},shake);
-    setTimeout(()=>{cup.className='';
-      slots.forEach((slot,i)=>{if(keep[i])return;const d=slot.firstChild;d.style.visibility='';d.classList.remove('held');d.style.setProperty('--dropdur',drop+'ms');d.classList.add('dropping');
-        const fl=setInterval(()=>paintDie(d,1+Math.floor(Math.random()*6)),60);
-        setTimeout(()=>{clearInterval(fl);d.classList.remove('dropping');paintDie(d,target[i]);scatter(slot);},drop);});
-      SFX.settle();setTimeout(resolve,drop+40);
-    },shake+flip);
-  });
+async function animateRoll(target,keep){
+  const slots=Array.from($('tray').children);
+  if(reduceMotion){slots.forEach((slot,i)=>{const d=slot.firstChild;paintDie(d,target[i]);d.classList.toggle('held',!!keep[i]);if(!keep[i])scatter(slot);});return;}
+  const cup=$('cup');cup.style.setProperty('--flipdur',Math.max(240,Math.round(rollMs*0.24))+'ms');
+  const shake=Math.max(220,Math.round(rollMs*0.55)),flip=Math.max(240,Math.round(rollMs*0.24)),drop=Math.max(220,Math.round(rollMs*0.30));
+  // Ausgangsbild sauber setzen: gehaltene Würfel sichtbar (außerhalb des Bechers),
+  // alle übrigen verstecken — und per Reflow festschreiben, BEVOR der Becher erscheint
+  // (sonst blitzen die neuen Würfel kurz auf dem Tisch auf, v. a. ab dem 3. Wurf)
+  slots.forEach((slot,i)=>{const d=slot.firstChild;
+    if(keep[i]){d.style.visibility='';paintDie(d,target[i]);d.classList.add('held');slot.style.transform='';}
+    else{d.classList.remove('held');d.style.visibility='hidden';}});
+  void $('tray').offsetWidth;
+  cup.className='show shake';SFX.roll();
+  await sleep(shake);                       // pausierbar: Becher-Phasen frieren ein
+  cup.className='show flip';
+  await sleep(flip);
+  cup.className='';
+  const flickers=[];
+  slots.forEach((slot,i)=>{if(keep[i])return;const d=slot.firstChild;d.style.visibility='';d.classList.remove('held');d.style.setProperty('--dropdur',drop+'ms');d.classList.add('dropping');
+    flickers.push(setInterval(()=>{if(!gamePaused)paintDie(d,1+Math.floor(Math.random()*6));},60));});
+  SFX.settle();
+  await sleep(drop);
+  flickers.forEach(clearInterval);
+  slots.forEach((slot,i)=>{if(keep[i])return;const d=slot.firstChild;d.classList.remove('dropping');paintDie(d,target[i]);scatter(slot);});
+  await sleep(40);
 }
 
 /* Schlüssel/Ansage (Client-Spiegel der Wertung) */
@@ -556,7 +595,9 @@ function flashAnnounce(){
 async function runAI(){
   while(state&&(state.status==='opener_roll'||state.status==='follower_roll')&&state.turn!=='p'){
     updateTurn();updateControls();
+    await waitIfPaused();
     await sleep(Math.round(aiMs*0.5));
+    await waitIfPaused();
     const v=await api('/api/chicago/ai',{});
     if(!v||!v.state){break;}
     const ev=v.event,prev=state;state=v.state;

@@ -20,6 +20,7 @@ body{
   display:flex; align-items:center; gap:14px;
   padding:6px 14px; background:rgba(0,0,0,0.4);
   border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0;
+  position:relative; z-index:160;
 }
 #brand{font-weight:700;font-size:1.05rem;letter-spacing:0.5px;color:var(--gold);white-space:nowrap}
 #players{display:flex;gap:10px;flex:1;justify-content:center;flex-wrap:wrap}
@@ -39,7 +40,17 @@ body{
   display:flex;align-items:center;justify-content:center;transition:background .2s;
 }
 .top-btn:hover{background:rgba(255,255,255,0.22)}
+.top-btn.pause-on{background:#a33;color:#fff;animation:pausePulse 1s ease-in-out infinite}
+@keyframes pausePulse{0%,100%{opacity:1}50%{opacity:.5}}
 #btn-scorecard{display:none}
+#pause-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:150;
+  flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px;cursor:pointer}
+#pause-overlay.show{display:flex}
+#pause-overlay .pic{font-size:54px;color:var(--gold)}
+#pause-overlay h2{font-size:clamp(1.8rem,6vw,2.6rem);color:var(--gold);margin:0}
+#pause-overlay .ph{opacity:.75;font-size:1rem}
+body.gpaused #game-area *{animation-play-state:paused!important}
+body.gpaused .confetti-piece{animation-play-state:paused!important}
 
 /* ── Layout ───────────────────────────────── */
 #game-area{flex:1;display:flex;min-height:0}
@@ -265,6 +276,7 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
   <div id="players"></div>
   <div id="topbtns">
     <button class="top-btn" id="btn-scorecard" title="{{ t.gk_scorecard }}" onclick="toggleScore()">📋</button>
+    <button class="top-btn" id="pause-btn" title="{{ t.gk_pause }}" onclick="togglePause()">⏸</button>
     <button class="top-btn" title="{{ t.gk_rulesdoc }}" onclick="openRules()">📖</button>
     <button class="top-btn" title="{{ t.gk_settings }}" onclick="openSettings()">⚙</button>
     <button class="top-btn" title="{{ t.gk_new_game }}" onclick="showStart()">↻</button>
@@ -389,6 +401,8 @@ tr.row:hover td{background:rgba(255,255,255,0.03)}
   </div>
 </div>
 
+<div id="pause-overlay" onclick="togglePause(false)"><div class="pic">⏸</div><h2>{{ t.gk_paused }}</h2><div class="ph">{{ t.gk_pause_hint }}</div></div>
+
 <div id="toast-wrap"></div>
 
 <script>
@@ -440,18 +454,18 @@ let dice=[0,0,0,0,0], held=[false,false,false,false,false], rollsLeft=3, sheet={
 
 /* ── Sound (Web Audio) ─────────────────────── */
 let actx=null; const getA=()=>actx||(actx=new (window.AudioContext||window.webkitAudioContext)());
-function tone(f,d,type,v){ if(!soundOn)return; try{const c=getA(),o=c.createOscillator(),g=c.createGain();
+function tone(f,d,type,v){ if(!soundOn||gamePaused)return; try{const c=getA(),o=c.createOscillator(),g=c.createGain();
   o.type=type||'sine';o.frequency.value=f;g.gain.value=v||0.1;
   g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);o.connect(g);g.connect(c.destination);
   o.start();o.stop(c.currentTime+d);}catch(e){} }
-function noise(d,v){ if(!soundOn)return; try{const c=getA(),b=c.createBuffer(1,c.sampleRate*d,c.sampleRate),dat=b.getChannelData(0);
+function noise(d,v){ if(!soundOn||gamePaused)return; try{const c=getA(),b=c.createBuffer(1,c.sampleRate*d,c.sampleRate),dat=b.getChannelData(0);
   for(let i=0;i<dat.length;i++)dat[i]=(Math.random()*2-1)*(v||0.1);
   const s=c.createBufferSource();s.buffer=b;const g=c.createGain();g.gain.value=1;
   g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);s.connect(g);g.connect(c.destination);s.start();}catch(e){} }
 /* Würfel-„Tok": ganz kurzes, bandpass-gefiltertes Rauschen = Anschlag auf dem Tisch
    (kein Ton/Oszillator → klingt nach Material, nicht nach Piepsen). */
 function clack(vol, freq){
-  if(!soundOn) return;
+  if(!soundOn||gamePaused) return;
   try{
     const c=getA(), t=c.currentTime; vol=(vol||0.5);
     const len=Math.floor(c.sampleRate*0.028);
@@ -536,7 +550,30 @@ async function api(path, body){
     return r.ok ? await r.json() : null;
   }catch(e){ return null; }
 }
-const sleep = ms => new Promise(r=>setTimeout(r, reduceMotion?Math.min(ms,30):ms));
+/* Echte Pause: laufende Wartezeiten EINFRIEREN und genau dort fortsetzen.
+   Tab im Hintergrund → automatisch Pause (Browser drosselt sonst Timer/Animationen
+   und Spiel/Anzeige laufen auseinander); zusätzlich manueller Pause-Button. */
+let gamePaused=false,_pauseResolve=null;const _sleepers=new Set();
+function pauseSleepers(){_sleepers.forEach(o=>{if(o.id!=null){clearTimeout(o.id);o.id=null;o.remaining-=(performance.now()-o.startTs);if(o.remaining<0)o.remaining=0;}});}
+function resumeSleepers(){_sleepers.forEach(o=>{if(o.id==null)o.arm();});}
+function sleep(ms){if(reduceMotion)ms=Math.min(ms,30);
+  return new Promise(resolve=>{const o={resolve,remaining:ms};
+    o.arm=()=>{o.startTs=performance.now();o.id=setTimeout(()=>{_sleepers.delete(o);resolve();},o.remaining);};
+    _sleepers.add(o);if(!gamePaused)o.arm();else o.id=null;});}
+function waitIfPaused(){return gamePaused?new Promise(r=>{_pauseResolve=r;}):Promise.resolve();}
+function inGame(){return $('start-screen').style.display==='none'&&state&&state.status!=='game_over';}
+function togglePause(force){
+  const want=(force===undefined)?!gamePaused:force;
+  if(want===gamePaused)return;
+  if(want&&!inGame())return;
+  gamePaused=want;
+  const btn=$('pause-btn');btn.classList.toggle('pause-on',gamePaused);btn.textContent=gamePaused?'▶':'⏸';
+  if(gamePaused){$('pause-overlay').classList.add('show');document.body.classList.add('gpaused');pauseSleepers();}
+  else{$('pause-overlay').classList.remove('show');document.body.classList.remove('gpaused');resumeSleepers();
+    if(_pauseResolve){_pauseResolve();_pauseResolve=null;}}
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&!gamePaused&&inGame())togglePause(true);});
+document.addEventListener('keydown',e=>{if((e.key==='p'||e.key==='P')&&inGame()&&!/^(INPUT|TEXTAREA)$/.test((e.target||{}).tagName||''))togglePause();});
 
 /* ── Geräte-/Tab-Schutz (server + BroadcastChannel) ── */
 async function claimSession(force){
@@ -602,60 +639,59 @@ async function doRoll(){
 
 /* Würfel-Animation: Becher schütteln → umkippen → Würfel fallen auf den Tisch.
    Gehaltene Würfel bleiben liegen; nur die übrigen kommen „aus dem Becher". */
-function animateRoll(target, mask){
-  return new Promise(resolve=>{
-    const slots=Array.from($('tray').children);
-    slots.forEach((slot,i)=>{ if(mask[i]) slot.firstChild.classList.add('held'); });
+async function animateRoll(target, mask){
+  const slots=Array.from($('tray').children);
+  slots.forEach((slot,i)=>{ if(mask[i]) slot.firstChild.classList.add('held'); });
 
-    if(reduceMotion){
-      slots.forEach((slot,i)=>{ if(!mask[i]){ const d=slot.firstChild;
-        d.classList.remove('held'); paintDie(d,target[i]); scatter(slot); } });
-      resolve(); return;
-    }
+  if(reduceMotion){
+    slots.forEach((slot,i)=>{ if(!mask[i]){ const d=slot.firstChild;
+      d.classList.remove('held'); paintDie(d,target[i]); scatter(slot); } });
+    return;
+  }
 
-    // Phasen aus der Würfeldauer ableiten
-    const shake = Math.max(220, Math.round(rollMs*0.55));
-    const flip  = Math.max(240, Math.round(rollMs*0.24));
-    const drop  = Math.max(220, Math.round(rollMs*0.30));
-    const cup=$('cup');
-    cup.style.setProperty('--flipdur', flip+'ms');
+  // Phasen aus der Würfeldauer ableiten
+  const shake = Math.max(220, Math.round(rollMs*0.55));
+  const flip  = Math.max(240, Math.round(rollMs*0.24));
+  const drop  = Math.max(220, Math.round(rollMs*0.30));
+  const cup=$('cup');
+  cup.style.setProperty('--flipdur', flip+'ms');
 
-    // nicht gehaltene Würfel „in den Becher" (verstecken)
-    slots.forEach((slot,i)=>{ if(!mask[i]) slot.firstChild.style.visibility='hidden'; });
+  // nicht gehaltene Würfel „in den Becher" (verstecken)
+  slots.forEach((slot,i)=>{ if(!mask[i]) slot.firstChild.style.visibility='hidden'; });
 
-    // Phase 1: Becher zeigen + schütteln (mit Rattern)
-    cup.className='show shake';
-    SFX.roll();
-
-    // Phase 2: kippen
-    setTimeout(()=>{ cup.className='show flip'; }, shake);
-
-    // Phase 3: Würfel fallen lassen
-    setTimeout(()=>{
-      cup.className='';   // verbirgt den Becher (Klasse statt Inline-Style!)
-      slots.forEach((slot,i)=>{
-        if(mask[i]) return;
-        const d=slot.firstChild;
-        d.style.visibility=''; d.classList.remove('held');
-        d.style.setProperty('--dropdur', drop+'ms');
-        d.classList.add('dropping');
-        const fl=setInterval(()=>paintDie(d,1+Math.floor(Math.random()*6)),60);
-        setTimeout(()=>{
-          clearInterval(fl); d.classList.remove('dropping');
-          paintDie(d, target[i]); scatter(slot);
-        }, drop);
-      });
-      SFX.settle();
-      setTimeout(resolve, drop+40);
-    }, shake+flip);
+  // Phase 1: Becher zeigen + schütteln (mit Rattern)
+  cup.className='show shake';
+  SFX.roll();
+  await sleep(shake);                              // pausierbar: Becher-Phasen frieren ein
+  // Phase 2: kippen
+  cup.className='show flip';
+  await sleep(flip);
+  // Phase 3: Würfel fallen lassen
+  cup.className='';   // verbirgt den Becher (Klasse statt Inline-Style!)
+  const flickers=[];
+  slots.forEach((slot,i)=>{
+    if(mask[i]) return;
+    const d=slot.firstChild;
+    d.style.visibility=''; d.classList.remove('held');
+    d.style.setProperty('--dropdur', drop+'ms');
+    d.classList.add('dropping');
+    flickers.push(setInterval(()=>{ if(!gamePaused) paintDie(d,1+Math.floor(Math.random()*6)); },60));
   });
+  SFX.settle();
+  await sleep(drop);
+  flickers.forEach(clearInterval);
+  slots.forEach((slot,i)=>{ if(mask[i]) return; const d=slot.firstChild;
+    d.classList.remove('dropping'); paintDie(d, target[i]); scatter(slot); });
+  await sleep(40);
 }
 
 /* ── KI-Zug (einzeln vom Server, animiert) ─── */
 async function runAI(){
   while(state && state.status==='playing' && state.turn!=='p'){
     updateTurn(); updateRollUI();
+    await waitIfPaused();
     await sleep(Math.round(aiMs*0.5));            // „überlegt"
+    await waitIfPaused();
     const v = await api('/api/kniffel/ai', {});
     if(!v || !v.state){ break; }
     const ev=v.event, prev=state; state=v.state;
