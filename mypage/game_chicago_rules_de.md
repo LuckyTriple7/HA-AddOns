@@ -7,9 +7,11 @@ Spieler mit Bierfilzen zu sein.
 - **1** zählt 100, **6** zählt 60, **2–5** zählen ihren Augenwert (so wählt der
   Vorleger „gross"). Alternativ kann der Vorleger **„klein"** ansagen: dann zählt
   1 = 1 und 6 = 6.
-- **Drei Einser = „Chicago"** — das Höchste; in einem Wurf erzielt bist du sofort
-  **gerettet** und aus dem Spiel.
-- Kein Einser und keine Sechs = **„Fish"** — das Niedrigste.
+- **„Ohne 1"** — der Vorleger kann auch ansagen, dass die **1 nur 1** zählt (statt 100),
+  die **6** aber weiterhin **60**. Gilt für die ganze Runde; **Chicago (drei 1er)** ist
+  davon **ausgenommen** und gewinnt trotzdem sofort.
+- **Drei Einser = „Chicago"** — das Höchste; **sobald gewürfelt bist du sofort
+  gerettet** und aus dem Spiel; die übrigen spielen die Runde zu Ende.
 
 ### Ein Zug
 - Bis zu **drei Würfe**. Nach jedem Wurf darfst du Würfel **herauslegen** (halten);

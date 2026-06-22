@@ -178,8 +178,9 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
   <div id="declare">
     <div class="dlabel">{{ t.gc_declare_title }}</div>
     <div class="drow" id="val-row">
-      <button class="opt sel" data-val="gross" onclick="selVal('gross')" style="min-width:74px;font-size:17px;font-weight:700">–</button>
-      <button class="opt" data-val="klein" onclick="selVal('klein')" style="min-width:74px;font-size:17px;font-weight:700">–</button>
+      <button class="opt sel" data-val="gross" onclick="selVal('gross')" style="min-width:84px;font-size:17px;font-weight:700">–</button>
+      <button class="opt" data-val="klein" onclick="selVal('klein')" style="min-width:84px;font-size:17px;font-weight:700">–</button>
+      <button class="opt" data-val="ohne1" onclick="selVal('ohne1')" style="min-width:84px;font-size:17px;font-weight:700">–</button>
     </div>
     <div class="drow" id="dir-row">
       <button class="opt sel" data-dir="hoch" onclick="selDir('hoch')">{{ t.gc_dir_hoch }}</button>
@@ -252,6 +253,7 @@ const G = {
   your_turn:{{ t.gc_your_turn|tojson }}, you_opener:{{ t.gc_you_opener|tojson }}, ai_turn:{{ t.gc_ai_turn|tojson }},
   opener_label:{{ t.gc_opener_label|tojson }}, phase1:{{ t.gc_phase1|tojson }}, phase2:{{ t.gc_phase2|tojson }},
   announce:{{ t.gc_announce|tojson }}, hoch:{{ t.gc_dir_hoch_short|tojson }}, tief:{{ t.gc_dir_tief_short|tojson }},
+  valh_gross:{{ t.gc_valh_gross|tojson }}, valh_klein:{{ t.gc_valh_klein|tojson }}, valh_ohne1:{{ t.gc_valh_ohne1|tojson }},
   chic:{{ t.gc_chicago|tojson }}, chicago_win:{{ t.gc_chicago_win|tojson }}, fish:{{ t.gc_fish|tojson }}, mats:{{ t.gc_mats|tojson }},
   loser_mat:{{ t.gc_round_loser_mat|tojson }}, winner_off:{{ t.gc_round_winner_off|tojson }}, safe:{{ t.gc_safe|tojson }},
   game_over:{{ t.gc_game_over|tojson }}, you_lose:{{ t.gc_you_lose|tojson }}, loses:{{ t.gc_loses|tojson }}, you_win:{{ t.gc_you_win|tojson }},
@@ -360,7 +362,7 @@ function animateRoll(target,keep){
 }
 
 /* Schlüssel/Ansage (Client-Spiegel der Wertung) */
-function dval(d,val){return val==='klein'?d:(d===1?100:(d===6?60:d));}
+function dval(d,val){if(val==='klein')return d;if(val==='ohne1')return d===6?60:d;return d===1?100:(d===6?60:d);}
 function keyOf(dice,val){return dice.map(d=>dval(d,val)).sort((a,b)=>b-a);}
 function cmpKey(a,b){for(let i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]-b[i];}return 0;}
 function isChicDice(d){return d[0]===1&&d[1]===1&&d[2]===1;}
@@ -375,7 +377,7 @@ function updateMyScore(){
   const el=$('myscore');if(!el)return;
   if(!myTurn()||!state||state.rolls_used<1||state.dice.indexOf(0)>=0){el.textContent='';return;}
   if(isChicDice(state.dice)){el.textContent=G.chic;return;}
-  if(isOpenerTurn())el.textContent='gross: '+scoreLabel(state.dice,'gross')+'  ·  klein: '+scoreLabel(state.dice,'klein');
+  if(isOpenerTurn())el.textContent=G.valh_gross+' '+scoreLabel(state.dice,'gross')+'  ·  '+G.valh_klein+' '+scoreLabel(state.dice,'klein')+'  ·  '+G.valh_ohne1+' '+scoreLabel(state.dice,'ohne1');
   else el.textContent=scoreLabel(state.dice,state.valuation);
 }
 function announceText(){
@@ -384,7 +386,10 @@ function announceText(){
   const r=state.results[state.opener];
   if(!r)return '';
   const dl=state.direction==='hoch'?G.hoch:G.tief;
-  return G.announce+': '+r.label+' ('+dl+')';
+  let extra='';
+  if(state.valuation==='ohne1')extra=' · '+G.valh_ohne1;
+  else if(state.valuation==='klein')extra=' · '+G.valh_klein;
+  return G.announce+': '+r.label+' ('+dl+')'+extra;
 }
 
 /* Render */
@@ -457,8 +462,9 @@ async function doConvert(){
 function onStand(){
   if(busy||!myTurn()||state.rolls_used<1)return;
   if(isOpenerTurn()){declVal='gross';declDir='hoch';selVal('gross');selDir('hoch');
-    document.querySelector('#val-row .opt[data-val="gross"]').textContent=scoreLabel(state.dice,'gross');
-    document.querySelector('#val-row .opt[data-val="klein"]').textContent=scoreLabel(state.dice,'klein');
+    const setOpt=(v,lbl)=>{const b=document.querySelector('#val-row .opt[data-val="'+v+'"]');
+      if(b)b.innerHTML='<span style="font-size:11px;font-weight:600;opacity:.7;display:block">'+lbl+'</span>'+scoreLabel(state.dice,v);};
+    setOpt('gross',G.valh_gross);setOpt('klein',G.valh_klein);setOpt('ohne1',G.valh_ohne1);
     $('declare').classList.add('show');return;}
   sendStand({});
 }

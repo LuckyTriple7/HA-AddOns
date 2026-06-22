@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.40
+
+- 🎲 **Chicago — neue Ansage „Ohne 1"** — Der Vorleger kann jetzt zusätzlich zu *groß* (1 = 100, 6 = 60) und *klein* (1 = 1, 6 = 6) auch **„ohne 1"** ansagen: dann zählt die **1** in der ganzen Runde **nur 1** (statt 100), die **6** bleibt **60**. **Chicago (drei 1er)** ist davon ausgenommen und gewinnt weiterhin sofort. Die Ansage-Auswahl zeigt alle drei Wertungen mit der jeweils tatsächlichen Punktzahl, und die laufende Ansage weist *„ohne 1"* bzw. *„klein"* für die Mitspieler aus.
+
 ## 0.7.39
 
 - 🗂️ **Spiele im Mitgliederbereich gruppiert** — die lange Liste einzelner Karten ist jetzt in **drei aufklappbare Kategorien** (Accordion) gegliedert: **Kartenspiele** (66, Schnapsen 20-Ab, Schwimmen, Mau-Mau, Präsident), **Quizspiele** (Jeopardy, Glücksrad) und **Würfelspiele** (Kniffel, Chicago). Innerhalb jeder Kategorie liegen die Spiele als kompakte Kacheln (Icon, Titel, Kurzbeschreibung) im 2-spaltigen Raster — auf dem Handy einspaltig. Der **auf-/zugeklappte Zustand wird pro Kategorie gemerkt** (localStorage). Standardmässig sind die Kartenspiele offen, der Rest zugeklappt — das verkürzt die Seite deutlich.

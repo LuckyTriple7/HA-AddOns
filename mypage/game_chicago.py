@@ -6,8 +6,9 @@ Zustand (Würfeln über game_dice), KI-Schritte einzeln abrufbar (animationsgetr
 ── Digitale Modell-Entscheidungen (bewusst, ggf. anpassbar) ──────────────────────
 * 3 Würfel, pro Zug bis zu 3 Würfe. Der VORLEGER bestimmt mit seiner Wurfzahl das
   Wurf-Limit der Runde (steht er nach Wurf k, dürfen alle nur k-mal werfen) und legt
-  beim Stehenbleiben die WERTUNG fest: Einser/Sechser = 100/60 ("gross") oder 1/6
-  ("klein"), sowie Richtung "hoch" (höher gewinnt) oder "tief" (tiefer gewinnt).
+  beim Stehenbleiben die WERTUNG fest: Einser/Sechser = 100/60 ("gross"), 1/6
+  ("klein") oder "ohne1" (6→60, die 1 zählt nur 1 — Chicago/drei 1er bleibt davon
+  ausgenommen), sowie Richtung "hoch" (höher gewinnt) oder "tief" (tiefer gewinnt).
 * Bewertung eines Wurfs = Tupel der Würfelwerte (gross: 1→100, 6→60, sonst Augen;
   klein: 1→1, 6→6, sonst Augen), absteigend sortiert, lexikografisch verglichen.
   Drei Einser = "Chicago". "Fish" (keine 1, keine 6) ergibt sich automatisch als
@@ -41,7 +42,9 @@ class IllegalMove(Exception):
 def _die_value(d: int, valuation: str) -> int:
     if valuation == 'klein':
         return d                       # 1→1, 6→6, sonst Augen
-    if d == 1:
+    if valuation == 'ohne1':
+        return 60 if d == 6 else d     # „Ohne 1": 6→60, 1 zählt nur 1, sonst Augen
+    if d == 1:                         # „gross": 1→100, 6→60, sonst Augen
         return 100
     if d == 6:
         return 60
@@ -202,7 +205,7 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
     if state['status'] == 'opener_roll':
         val = action.get('valuation')
         direc = action.get('direction')
-        state['valuation'] = val if val in ('gross', 'klein') else 'gross'
+        state['valuation'] = val if val in ('gross', 'klein', 'ohne1') else 'gross'
         state['direction'] = direc if direc in ('hoch', 'tief') else 'hoch'
         state['roll_cap'] = state['rolls_used']      # Wurf-Limit der Runde
 

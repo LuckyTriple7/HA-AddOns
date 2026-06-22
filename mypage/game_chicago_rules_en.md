@@ -6,9 +6,11 @@ player holding beer mats.
 ### Scoring
 - **1** counts 100, **6** counts 60, **2–5** count their face value (the opener calls
   this "gross"). Alternatively the opener may call **"klein"**: then 1 = 1 and 6 = 6.
-- **Three ones = "Chicago"** — the highest; rolled in a single throw you are instantly
-  **saved** and out of the game.
-- No one and no six = **"Fish"** — the lowest.
+- **"Without 1"** — the opener may also call that the **1 counts only 1** (instead of 100),
+  while the **6** still counts **60**. Applies for the whole round; **Chicago (three ones)**
+  is **exempt** and still wins instantly.
+- **Three ones = "Chicago"** — the highest; **as soon as it is rolled you are instantly
+  saved** and out of the game; the others finish the round.
 
 ### A turn
 - Up to **three rolls**. After each roll you may **set aside** (hold) dice; **what is
