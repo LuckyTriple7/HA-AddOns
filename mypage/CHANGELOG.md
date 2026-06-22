@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.44
+
+- 🎲 **Chicago — „ohne 1" nur bei einer 6** — Die Ansage „ohne 1" unterscheidet sich von „klein" nur durch die 6 (zählt 60 statt 6). Ohne eine 6 im Wurf ist sie identisch mit „klein" und damit sinnlos (z. B. 3 4 1: groß 107, klein 8, ohne 1 8). Der Knopf und die Vorschau zeigen „ohne 1" jetzt nur noch, wenn tatsächlich eine 6 dabei ist. Die KI hat das ohnehin schon so gehandhabt.
+
 ## 0.7.43
 
 - 🔌 **Kniffel & Chicago: „Hier übernehmen" repariert** — Nach dem Schließen/Beenden eines Spiels und erneutem Öffnen erschien teils der Hinweis „Auf anderem Gerät aktiv", und der **„Übernehmen"**-Knopf funktionierte nicht (man musste ~30 s warten und neu laden). Ursache: Nach der Übernahme wurde die gerade frisch beanspruchte Session **sofort erneut** angefragt und dabei als „fremd gesperrt" gewertet. Die Übernahme lädt den Spielstand jetzt direkt, ohne doppeltes Beanspruchen — wie bei den Kartenspielen.

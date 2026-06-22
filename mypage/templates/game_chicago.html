@@ -399,7 +399,11 @@ function updateMyScore(){
   const el=$('myscore');if(!el)return;
   if(!myTurn()||!state||state.rolls_used<1||state.dice.indexOf(0)>=0){el.textContent='';return;}
   if(isChicDice(state.dice)){el.textContent=G.chic;return;}
-  if(isOpenerTurn())el.textContent=G.valh_gross+' '+scoreLabel(state.dice,'gross')+'  ·  '+G.valh_klein+' '+scoreLabel(state.dice,'klein')+'  ·  '+G.valh_ohne1+' '+scoreLabel(state.dice,'ohne1');
+  if(isOpenerTurn()){
+    let s=G.valh_gross+' '+scoreLabel(state.dice,'gross')+'  ·  '+G.valh_klein+' '+scoreLabel(state.dice,'klein');
+    if(state.dice.indexOf(6)>=0)s+='  ·  '+G.valh_ohne1+' '+scoreLabel(state.dice,'ohne1');
+    el.textContent=s;
+  }
   else el.textContent=scoreLabel(state.dice,state.valuation);
 }
 function announceText(){
@@ -491,6 +495,9 @@ function onStand(){
     const setOpt=(v,lbl)=>{const b=document.querySelector('#val-row .opt[data-val="'+v+'"]');
       if(b)b.innerHTML='<span style="font-size:11px;font-weight:600;opacity:.7;display:block">'+lbl+'</span>'+scoreLabel(state.dice,v);};
     setOpt('gross',G.valh_gross);setOpt('klein',G.valh_klein);setOpt('ohne1',G.valh_ohne1);
+    // „ohne 1" ist nur sinnvoll, wenn eine 6 dabei ist (sonst identisch mit „klein")
+    const o1=document.querySelector('#val-row .opt[data-val="ohne1"]');
+    if(o1)o1.style.display=(state.dice.indexOf(6)>=0)?'':'none';
     $('declare').classList.add('show');return;}
   sendStand({});
 }
