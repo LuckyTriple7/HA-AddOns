@@ -389,7 +389,7 @@ function announceText(){
   let extra='';
   if(state.valuation==='ohne1')extra=' · '+G.valh_ohne1;
   else if(state.valuation==='klein')extra=' · '+G.valh_klein;
-  return G.announce+': '+r.label+' ('+dl+')'+extra;
+  return G.announce+': '+r.label+' ('+dl+extra+')';
 }
 
 /* Render */

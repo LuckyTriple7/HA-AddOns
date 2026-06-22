@@ -376,40 +376,83 @@ def _setup_round(state: dict, opener: str) -> None:
 
 # ── KI ───────────────────────────────────────────────────────────────────────
 
+# Erwartungswert eines neu geworfenen Würfels je Wertung (für die Halte-Logik)
+_EXP = {
+    'gross': (100 + 2 + 3 + 4 + 5 + 60) / 6,   # 29.0
+    'ohne1': (1 + 2 + 3 + 4 + 5 + 60) / 6,     # 12.5
+    'klein': (1 + 2 + 3 + 4 + 5 + 6) / 6,      # 3.5
+}
+
+
+def _ai_plan(dice: list[int]) -> tuple:
+    """Plan des KI-Vorlegers aus den aktuellen Würfeln (Wertung, Richtung).
+
+    * Hat sie eine 1 → „gross hoch" (1 = 100 ist Trumpf).
+    * Hat sie eine 6, aber keine 1 → „ohne 1 hoch": die eigenen Sechsen zählen 60
+      und den Gegnern wird gleichzeitig die starke 1 (=100) genommen.
+    * Sonst (niedrige Augen) → „gross tief": niedrig gewinnt, und gegnerische
+      1er/6er werden zur Last.
+    """
+    if 1 in dice:
+        return ('gross', 'hoch')
+    if 6 in dice:
+        return ('ohne1', 'hoch')
+    return ('gross', 'tief')
+
+
+def _keep_mask(dice: list[int], valuation: str, direction: str) -> list[bool]:
+    """Würfel halten, die den Neuwurf-Erwartungswert in die gewünschte Richtung
+    schlagen (hoch → höher behalten, tief → tiefer behalten)."""
+    exp = _EXP.get(valuation, _EXP['gross'])
+    mask = []
+    for d in dice:
+        if d == 0:
+            mask.append(False)
+            continue
+        v = _die_value(d, valuation)
+        mask.append(v >= exp if direction == 'hoch' else v <= exp)
+    return mask
+
+
 def ai_step(state: dict) -> dict:
-    who = state['turn']
     is_opener = (state['status'] == 'opener_roll')
     dice = state['dice']
 
     if state['rolls_used'] == 0:
         return {'type': 'roll'}
 
+    val, direc = (_ai_plan(dice) if is_opener
+                  else (state['valuation'], state['direction']))
+
     # Nach einer Transformation liegt ein zurückgelegter Würfel (0) → neu werfen
     if 0 in dice:
-        return {'type': 'roll', 'held': [d in (1, 6) for d in dice]}
+        return {'type': 'roll', 'held': _keep_mask(dice, val, direc)}
 
     cap = 3 if is_opener else state['roll_cap']
-    # Zwei 6er in eine 1 umwandeln (mittel/schwer), wenn noch ein Wurf übrig & keine 1 vorhanden
-    if (dice.count(6) == 2 and 1 not in dice
-            and state['rolls_used'] < cap and state['level'] != 'easy'):
+
+    # Chicago (drei 1er) ist immer das Beste → sofort stehenbleiben
+    if is_chicago(dice):
+        if is_opener:
+            return {'type': 'stand', 'valuation': 'gross', 'direction': 'hoch'}
+        return {'type': 'stand'}
+
+    # Zwei 6er → eine 1: nur sinnvoll, wenn die 1 hoch zählt und hoch gespielt wird
+    if (dice.count(6) == 2 and 1 not in dice and state['rolls_used'] < cap
+            and state['level'] == 'hard' and val == 'gross' and direc == 'hoch'):
         return {'type': 'convert6'}
 
-    # Würfel halten: 1er und 6er sichern (gross-Denke)
-    held = [d in (1, 6) for d in dice]
-    good = is_chicago(dice) or dice.count(1) >= 1
-    want_more = state['rolls_used'] < cap and not good
+    mask = _keep_mask(dice, val, direc)
+    want_more = state['rolls_used'] < cap and not all(mask)
     if state['level'] == 'easy':
-        want_more = state['rolls_used'] < cap and random.random() < 0.5
+        want_more = state['rolls_used'] < cap and random.random() < 0.45
+    elif state['level'] == 'medium' and want_more and random.random() < 0.25:
+        want_more = False          # mittel reizt nicht immer das Maximum aus
 
     if want_more:
-        return {'type': 'roll', 'held': held}
+        return {'type': 'roll', 'held': mask}
 
     if is_opener:
-        # Richtung nach eigener Stärke wählen; Wertung gross
-        k_gross = roll_key(dice, 'gross')
-        strong = k_gross[0] >= 60          # hat 1 oder 6
-        direction = 'hoch' if strong else 'tief'
-        return {'type': 'stand', 'valuation': 'gross', 'direction': direction}
+        return {'type': 'stand', 'valuation': val, 'direction': direc}
     return {'type': 'stand'}
 
 

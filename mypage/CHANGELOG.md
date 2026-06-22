@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.41
+
+- 🤖 **Chicago — KI spielt jetzt wertungs- & richtungsbewusst** — Bisher hielt die KI stur 1er/6er und sagte als Vorleger immer „gross" an. Jetzt richtet sie ihr **Halten** nach der angesagten Wertung (groß/klein/**ohne 1**) **und** Richtung (hoch/tief) aus und **sagt selbst sinnvoll an**: mit einer 1 → *gross hoch*, mit 6 aber ohne 1 → **ohne 1 hoch** (nimmt den Gegnern die starke 100), bei niedrigen Augen → *gross tief*. Schwierigkeitsgrade greifen wieder spürbar (leicht zufälliger, mittel reizt nicht alles aus, schwer spielt optimal inkl. 6er-Trick nur wenn es passt).
+- 🗣️ **„Zu schlagen" zeigt die Wertung** — bei einer „ohne 1"- oder „klein"-Ansage steht sie jetzt mit in der Klammer, z. B. **„Zu schlagen: 69 auf 3 (hoch · ohne 1)"**.
+
 ## 0.7.40
 
 - 🎲 **Chicago — neue Ansage „Ohne 1"** — Der Vorleger kann jetzt zusätzlich zu *groß* (1 = 100, 6 = 60) und *klein* (1 = 1, 6 = 6) auch **„ohne 1"** ansagen: dann zählt die **1** in der ganzen Runde **nur 1** (statt 100), die **6** bleibt **60**. **Chicago (drei 1er)** ist davon ausgenommen und gewinnt weiterhin sofort. Die Ansage-Auswahl zeigt alle drei Wertungen mit der jeweils tatsächlichen Punktzahl, und die laufende Ansage weist *„ohne 1"* bzw. *„klein"* für die Mitspieler aus.
