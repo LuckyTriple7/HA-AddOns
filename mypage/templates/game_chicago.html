@@ -138,6 +138,14 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
 .toast.gold{border-color:var(--gold);color:var(--gold)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
 
+/* Mitte-Banner (Vorlage / Bierfilz) — fliegt langsam nach oben aus */
+#cbanner-wrap{position:fixed;left:50%;top:42%;transform:translateX(-50%);z-index:140;display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none}
+.cbanner{background:rgba(0,0,0,0.9);border:2px solid rgba(255,255,255,0.22);padding:14px 30px;border-radius:16px;font-size:clamp(17px,3.6vw,26px);font-weight:700;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,0.55);text-align:center;white-space:nowrap;opacity:0;transform:scale(0.5) translateY(12px)}
+.cbanner.gold{border-color:var(--gold);color:var(--gold)}
+.cbanner.bad{border-color:#e0564e;color:#ffb3ad}
+.cbanner.in{transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);opacity:1;transform:scale(1) translateY(0)}
+.cbanner.out{transition:opacity .9s ease-in,transform .9s ease-in;opacity:0;transform:scale(1.06) translateY(-140px)}
+
 /* Chicago-Sieg-Banner + Konfetti */
 .confetti-piece{position:fixed;width:10px;height:10px;z-index:300;pointer-events:none;animation:confettiFall 3s ease-out forwards}
 @keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
@@ -267,6 +275,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:radial-gradient(ellipse
 <div class="modal-overlay" id="device-modal"><div class="modal-box"><h2>📵 {{ t.gc_device_title }}</h2><p style="opacity:.85;line-height:1.5;margin-bottom:16px">{{ t.gc_device_text }}</p><button class="btn btn-gold" id="device-takeover">{{ t.gc_device_takeover }}</button></div></div>
 
 <div id="toast-wrap"></div>
+<div id="cbanner-wrap"></div>
 
 <script>
 const G = {
@@ -311,6 +320,14 @@ const SFX={
   matDrop:()=>{[523,659,880].forEach((f,i)=>setTimeout(()=>tone(f,0.16,'triangle',0.13),i*95));},    // Abwurf eines Filzes → positiv
 };
 function toast(txt,cls){const w=$('toast-wrap');const d=document.createElement('div');d.className='toast'+(cls?' '+cls:'');d.textContent=txt;w.appendChild(d);setTimeout(()=>{d.style.transition='opacity .4s';d.style.opacity='0';setTimeout(()=>d.remove(),400);},1900);}
+// Banner in der Mitte, das langsam nach oben ausfliegt; Haltedauer skaliert mit dem Tempo-Regler
+function centerBanner(txt,cls){
+  const w=$('cbanner-wrap');const d=document.createElement('div');
+  d.className='cbanner'+(cls?' '+cls:'');d.textContent=txt;w.appendChild(d);
+  void d.offsetWidth;d.classList.add('in');
+  const hold=reduceMotion?900:Math.max(1100,Math.round(pauseMs*1.6));
+  setTimeout(()=>{d.classList.remove('in');d.classList.add('out');setTimeout(()=>d.remove(),1000);},hold);
+}
 
 /* Session-Schutz */
 let sessionToken=null,heartbeatTimer=null,tabActive=true;
@@ -513,16 +530,27 @@ async function sendStand(extra){
   afterMyStand();
 }
 function afterMyStand(){
-  // Rundenmeldung & ggf. KI weiterlaufen lassen
-  flashRound();
+  // Vorlage-/Rundenmeldung & ggf. KI weiterlaufen lassen
+  flashAnnounce();flashRound();
   if(state.status==='game_over'){showGameOver();return;}
   if(state.turn!=='p')runAI();
 }
 function flashRound(){
   const l=state.last;
   if(!l||l.type!=='round')return;
-  if(l.phase===1&&l.loser){toast(nameOf(l.loser)+' '+G.loser_mat);(l.loser==='p'?SFX.matGet:SFX.matGetAI)();}
-  if(l.phase===2&&l.winner){toast(nameOf(l.winner)+' '+G.winner_off,'gold');SFX.matDrop();}
+  if(l.phase===1&&l.loser){centerBanner(nameOf(l.loser)+' '+G.loser_mat,(l.loser==='p')?'bad':'');(l.loser==='p'?SFX.matGet:SFX.matGetAI)();}
+  if(l.phase===2&&l.winner){centerBanner(nameOf(l.winner)+' '+G.winner_off,'gold');SFX.matDrop();}
+}
+function flashAnnounce(){
+  // Vorlage des Ansagers — Banner mit der festgelegten Ansage
+  const l=state.last;
+  if(!l||l.type!=='stand'||l.who!==state.opener)return;
+  const r=state.results[state.opener];if(!r)return;
+  const dl=state.direction==='hoch'?G.hoch:G.tief;
+  let extra='';
+  if(state.valuation==='ohne1')extra=' · '+G.valh_ohne1;
+  else if(state.valuation==='klein')extra=' · '+G.valh_klein;
+  centerBanner(nameOf(state.opener)+' · '+r.label+' ('+dl+extra+')','gold');
 }
 
 async function runAI(){
@@ -537,12 +565,12 @@ async function runAI(){
       const keep=(ev.held||[false,false,false]).map((k,i)=>k&&ev.dice[i]!==0);
       await animateRoll(ev.dice,keep);
       renderPlayers();updateTurn();
-      if(isChicDice(ev.dice)){toast(nameOf(ev.who)+': '+G.chicago_win,'gold');SFX.win();}
+      if(isChicDice(ev.dice)){centerBanner(nameOf(ev.who)+': '+G.chicago_win,'gold');SFX.win();}
       await sleep(Math.round(pauseMs*0.5));
     }else if(ev&&ev.type==='convert6'){
       buildTray();SFX.hold();renderPlayers();await sleep(pauseMs);
     }else if(ev&&ev.type==='stand'){
-      SFX.call();renderAll();flashRound();await sleep(pauseMs);
+      SFX.call();renderAll();flashAnnounce();flashRound();await sleep(pauseMs);
     }else{renderAll();await sleep(pauseMs);}
   }
   renderAll();

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.45
+
+- 🪧 **Chicago — Hinweise als Mitte-Banner statt schneller Toast** — Vorlage (Ansage), Bierfilz-Aufnahme/-Abwurf und ein KI-Chicago erscheinen jetzt als großes Banner in der Bildschirmmitte, das **langsam nach oben ausfliegt**, statt eines schnellen kleinen Hinweises oben. Eigene Bierfilz-Aufnahme wird rot, Abwurf/Vorlage golden hervorgehoben. Die Anzeigedauer skaliert mit dem **Tempo-Regler** (Pausen), damit der Hinweis bei langsamerem Spiel länger steht.
+
 ## 0.7.44
 
 - 🎲 **Chicago — „ohne 1" nur bei einer 6** — Die Ansage „ohne 1" unterscheidet sich von „klein" nur durch die 6 (zählt 60 statt 6). Ohne eine 6 im Wurf ist sie identisch mit „klein" und damit sinnlos (z. B. 3 4 1: groß 107, klein 8, ohne 1 8). Der Knopf und die Vorschau zeigen „ohne 1" jetzt nur noch, wenn tatsächlich eine 6 dabei ist. Die KI hat das ohnehin schon so gehandhabt.
