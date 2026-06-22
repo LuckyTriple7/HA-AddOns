@@ -445,6 +445,9 @@ body{
   /* gemeinsame Kartengröße (Hand + Tisch) an die Höhe koppeln */
   .card{width:clamp(44px,15vh,60px);height:clamp(60px,19vh,80px)}
 }
+/* Konfetti-Regen bei Gewinn */
+.confetti-piece{position:fixed;width:10px;height:10px;z-index:300;pointer-events:none;animation:confettiFall 3s ease-out forwards}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
 </style>
 </head>
 <body>
@@ -2055,6 +2058,17 @@ function showRoundResult(){
 }
 
 /* ── Spielende ─────────────────────────────── */
+function launchConfetti(){
+  if(reduceMotion)return;
+  const colors=['#ffd700','#ff4444','#44ff44','#4488ff','#ff44ff','#ff8800','#00ffcc','#ff6699'];
+  for(let i=0;i<90;i++){const el=document.createElement('div');el.className='confetti-piece';
+    el.style.left=(Math.random()*100)+'vw';el.style.top=(-5-Math.random()*10)+'vh';
+    el.style.background=colors[Math.floor(Math.random()*colors.length)];
+    el.style.borderRadius=Math.random()>0.5?'50%':'0';
+    el.style.width=(6+Math.random()*8)+'px';el.style.height=(6+Math.random()*8)+'px';
+    el.style.animationDuration=(2+Math.random()*2)+'s';el.style.animationDelay=(Math.random()*0.6)+'s';
+    document.body.appendChild(el);setTimeout(()=>el.remove(),4200);}
+}
 function showGameOver(){
   if(!gameState) return;
 
@@ -2071,7 +2085,7 @@ function showGameOver(){
       ? G.you_win
       : NAMES[winner] + ' ' + G.you_lose;
 
-    if(isPlayerWin) SFX.win(); else SFX.lose();
+    if(isPlayerWin){ SFX.win(); launchConfetti(); } else SFX.lose();
 
     let scoresHtml = '<p style="margin-top:10px;font-size:13px;opacity:0.7">' + G.end_scores + ':</p><p>';
     for(const p of ['p','a1','a2']){

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.56
+
+- 🎉 **Konfetti-Regen bei Gewinn in den Kartenspielen** — Wie beim Glücksrad regnet es jetzt auch bei **66, 20 ab, Schwimmen, Mau Mau und Präsident** Konfetti, wenn man selbst gewinnt (bei Schwimmen zusätzlich beim Turniersieg, bei 66 beim Match-Sieg). Respektiert „Reduzierte Bewegung".
+
 ## 0.7.55
 
 - 🎲 **Chicago — gleicher Wert ist echter Gleichstand („Mit ist Shit")** — Der Vergleich nutzt jetzt den **angezeigten Gesamtwert** (z. B. „12") statt der einzelnen Würfel-Kombination. Dadurch sind zwei gleiche Anzeigen (z. B. 6·4·2 und 5·4·3 = beide 12) ein **echter Gleichstand** → der **spätere** Spieler verliert — unabhängig von Würfel-Kombination **und Wurfzahl** (eine 12 in einem Wurf schlägt eine 12 in zwei Würfen nicht). Vorher konnte eine „bessere" 12 die andere schlagen.
