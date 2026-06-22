@@ -238,6 +238,7 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
       <button class="opt-btn" data-ai="0" onclick="selAI(0)">0</button>
       <button class="opt-btn" data-ai="1" onclick="selAI(1)">1</button>
       <button class="opt-btn sel" data-ai="2" onclick="selAI(2)">2</button>
+      <button class="opt-btn" data-ai="3" onclick="selAI(3)">3</button>
     </div>
     <div class="seclabel">{{ t.gc_level }}</div>
     <div class="optrow" id="lvl-row">
@@ -692,8 +693,8 @@ async function chicagoWinEnd(){
 /* Screens */
 const HUMAN_IDS=['p','h2','h3'];
 const namePH=i=>i===0?G.player:(i===1?G.player2:G.player3);
-function clampAI(){ // 1 Mensch braucht mind. 1 KI (min 2 Spieler); KI max 2; gesamt max 5
-  const lo=Math.max(0,2-numHumans), hi=Math.min(2,5-numHumans);
+function clampAI(){ // 1 Mensch braucht mind. 1 KI (min 2 Spieler); KI bis 3; gesamt max 5
+  const lo=Math.max(0,2-numHumans), hi=Math.min(3,5-numHumans);
   if(numAI<lo)numAI=lo; if(numAI>hi)numAI=hi;
   document.querySelectorAll('#ai-row .opt-btn').forEach(b=>{const v=+b.dataset.ai;
     b.disabled=(v<lo||v>hi);b.style.opacity=b.disabled?'.35':'';b.classList.toggle('sel',v===numAI);});

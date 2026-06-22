@@ -5653,7 +5653,7 @@ def api_chicago_new():
     level = data.get('level')
     level = level if level in ('easy', 'medium', 'hard') else 'medium'
     humans = max(1, min(3, int(data.get('humans') or 1)))
-    ai = max(0, min(2, int(data.get('ai') if data.get('ai') is not None
+    ai = max(0, min(3, int(data.get('ai') if data.get('ai') is not None
                            else data.get('opponents', 2))))
     names = data.get('names') if isinstance(data.get('names'), dict) else {}
     with _game_lock:

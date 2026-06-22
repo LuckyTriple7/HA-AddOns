@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.54
+
+- 🤖 **Chicago — alleine wieder bis zu 3 KI** — Die KI-Auswahl reicht jetzt bis **3** (alleine also 1–3 KI wie früher). Gesamtgrenze bleibt **5 Spieler**, daher bei 3 Menschen weiterhin max 2 KI. Die Bierfilze skalieren automatisch mit (immer Spielerzahl + 1): 4 Spieler = 5 Filze, 5 Spieler = 6 Filze.
+
 ## 0.7.53
 
 - 👥 **Chicago — Hotseat: bis zu 3 Menschen am selben Gerät** — Neben dir können jetzt **1–2 weitere menschliche Spieler** am selben PC mitspielen (insgesamt **2–5 Spieler**, KI weiter optional, max 2 KI). Auf dem Startbildschirm wählst du „Menschliche Spieler" und „KI-Gegner"; wer dran ist, steht oben („… ist dran"), danach gibt man das Gerät weiter.

@@ -80,9 +80,10 @@ def new_game(level: str = 'medium', humans: int = 1, ai: int = 2,
         seed = random.randint(0, 2 ** 31)
     if level not in ('easy', 'medium', 'hard'):
         level = 'medium'
-    # 1–3 Menschen, 0–2 KI, mind. 2 und max 5 Spieler gesamt
+    # 1–3 Menschen, 0–3 KI, mind. 2 und max 5 Spieler gesamt
+    # (alleine also bis zu 3 KI; bei 3 Menschen bleiben max 2 KI)
     humans = max(1, min(3, int(humans or 1)))
-    ai = max(0, min(2, int(ai or 0)))
+    ai = max(0, min(3, int(ai or 0)))
     if humans + ai < 2:
         ai = 2 - humans
     if humans + ai > 5:
