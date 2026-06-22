@@ -91,6 +91,9 @@
     .gt-name { font-weight: 600; font-size: 0.92rem; }
     .gt-desc { font-size: 0.76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     @media (max-width: 560px) { .game-grid { grid-template-columns: 1fr; } }
+    .profile-acc { margin-top: 18px; }
+    .acc-body { padding: 4px 22px 22px; }
+    .acc-body hr:first-child { display: none; }
   </style>
 </head>
 <body>
@@ -258,8 +261,10 @@
     </div>
     {% endif %}
 
-    <div class="card" style="margin-top:18px">
-      <h1>{{ t.member_profile_title }}</h1>
+    {% set profile_msg = msg in ['profile_saved','avatar_err','pw_changed','pw_wrong','pw_short','pw_mismatch'] %}
+    <details class="game-cat profile-acc" data-cat="profile"{% if profile_msg %} open data-force-open{% endif %}>
+      <summary>👤 {{ t.member_profile_title }}</summary>
+      <div class="acc-body">
       {% if msg == 'profile_saved' %}<div class="msg ok">{{ t.member_profile_saved }}</div>{% endif %}
       {% if msg == 'avatar_err' %}<div class="msg err">{{ t.dir_avatar_err }}</div>{% endif %}
       {% if msg == 'pw_changed' %}<div class="msg ok">{{ t.member_pw_changed }}</div>{% endif %}
@@ -337,7 +342,8 @@
         <input type="password" id="pf-new2" name="new_password2" minlength="8" autocomplete="new-password" required>
         <button class="btn small" type="submit">{{ t.member_pw_change_btn }}</button>
       </form>
-    </div>
+      </div>
+    </details>
 
     {% if games_on %}
     <div class="games-wrap">
@@ -410,9 +416,11 @@
     // Aufgeklappten Zustand der Spiel-Kategorien merken
     document.querySelectorAll('.game-cat').forEach(function(d){
       var key = 'mp-gamecat-' + d.dataset.cat;
-      var saved = localStorage.getItem(key);
-      if (saved === 'open') d.open = true;
-      else if (saved === 'closed') d.open = false;
+      if (!d.hasAttribute('data-force-open')) {
+        var saved = localStorage.getItem(key);
+        if (saved === 'open') d.open = true;
+        else if (saved === 'closed') d.open = false;
+      }
       d.addEventListener('toggle', function(){ localStorage.setItem(key, d.open ? 'open' : 'closed'); });
     });
     // Kartenspiel als Vollfenster-Iframe öffnen (kein Browser-Vollbild)

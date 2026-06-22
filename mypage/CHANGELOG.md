@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.51
+
+- 👤 **„Mein Profil" als Accordion** — die Profil-Karte (Name, E-Mail-Sprache, Nachrichten-Empfang, Verzeichnis/Avatar, Passwort ändern) ist jetzt **aufklappbar** und standardmässig **zugeklappt** — das verkürzt den Mitgliederbereich weiter. Der Zustand wird gemerkt (localStorage). Nach dem **Speichern** (oder bei einem Fehler, z. B. falsches Passwort) klappt das Profil **automatisch auf**, damit die Rückmeldung sichtbar ist.
+
 ## 0.7.50
 
 - 🎲 **Chicago — nur 1 und 6 dürfen stehen bleiben** — Beim Halten zwischen den Würfen können jetzt **nur 1en und 6en** liegen bleiben; **2–5 wandern immer zurück in den Becher** und werden neu geworfen. Gilt für dich **und** die KI, ist in den Spielregeln ergänzt und der Halte-Hinweis wurde angepasst.
