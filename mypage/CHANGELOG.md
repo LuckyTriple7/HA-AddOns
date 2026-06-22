@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.47
+
+- 🐛 **Chicago — Grammatik in den Bierfilz-Bannern** — Wenn DU einen Bierfilz bekamst oder abwarfst, stand fälschlich „Du bekommt einen Bierfilz" / „Du wirft einen Bierfilz ab". Jetzt korrekt in der 2. Person: „Du bekommst einen Bierfilz" / „Du wirfst einen Bierfilz ab" (KI bleibt „… bekommt/wirft"). DE und EN. Kniffel wurde geprüft — Sieg-/Niederlagentexte waren bereits korrekt.
+
 ## 0.7.46
 
 - 🎉 **Kniffel — Konfettiregen beim Sieg** — Gewinnt der Spieler, regnet es jetzt Konfetti (wie beim Glücksrad und Chicago), zusammen mit dem Gewinn-Sound.
