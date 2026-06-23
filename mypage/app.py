@@ -5743,7 +5743,7 @@ def api_chicago_ai():
             abort(409)
         event = None
         humans = st.get('humans', ['p'])
-        if st['status'] in ('opener_roll', 'follower_roll') and st['turn'] not in humans:
+        if st['status'] in ('opener_roll', 'follower_roll', 'follower_choose') and st['turn'] not in humans:
             who = st['turn']
             act = game_chicago.ai_step(st)
             game_chicago.apply_action(st, who, act)

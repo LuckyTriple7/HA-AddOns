@@ -22,6 +22,10 @@ Ziel: nicht der letzte Spieler mit Bierfilzen zu sein.
 - Der **Vorleger** bestimmt mit seiner Wurfzahl das **Wurf-Limit der Runde**: bleibt
   er nach dem 1./2. Wurf stehen, dürfen alle nur 1×/2× würfeln. Er sagt außerdem an,
   ob **„hoch"** (höher gewinnt) oder **„tief"** (tiefer gewinnt) gewertet wird.
+- **„Zur Wahl":** Bleibt der Vorleger mit einem **Fish** stehen (keine 1, keine 6 —
+  also ein reiner Mittelwert), darf er die Richtung **offen lassen**. Dann muss der
+  **nächste Spieler vor seinem ersten Wurf** „hoch" oder „tief" festlegen — und das
+  gilt dann für die ganze Runde.
 
 ### Becher-Tricks
 - **Zwei Sechser** können in eine **1** umgewandelt werden: eine 6 wird zur 1, die

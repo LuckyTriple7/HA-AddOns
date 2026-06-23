@@ -225,8 +225,16 @@ body.gpaused .confetti-piece{animation-play-state:paused!important}
     <div class="drow" id="dir-row">
       <button class="opt sel" data-dir="hoch" onclick="selDir('hoch')">{{ t.gc_dir_hoch }}</button>
       <button class="opt" data-dir="tief" onclick="selDir('tief')">{{ t.gc_dir_tief }}</button>
+      <button class="opt" data-dir="wahl" onclick="selDir('wahl')" style="display:none">{{ t.gc_dir_wahl }}</button>
     </div>
     <button class="btn btn-gold" onclick="confirmDeclare()">{{ t.gc_declare_confirm }}</button>
+  </div>
+  <div id="choosedir" style="display:none;flex-direction:column;gap:10px;align-items:center;background:rgba(0,0,0,0.3);border:1px solid var(--gold);border-radius:14px;padding:14px 18px;max-width:360px">
+    <div class="dlabel" style="font-size:12px;opacity:0.85;text-align:center">{{ t.gc_choosedir_title }}</div>
+    <div class="drow" style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-gold" onclick="chooseDir('hoch')">{{ t.gc_dir_hoch }}</button>
+      <button class="btn btn-gold" onclick="chooseDir('tief')">{{ t.gc_dir_tief }}</button>
+    </div>
   </div>
 </div>
 
@@ -319,7 +327,7 @@ const G = {
   player:{{ t.gc_player|tojson }}, player2:{{ t.gc_player2|tojson }}, player3:{{ t.gc_player3|tojson }}, ai1:{{ t.gc_ai1|tojson }}, ai2:{{ t.gc_ai2|tojson }}, ai3:{{ t.gc_ai3|tojson }},
   your_turn:{{ t.gc_your_turn|tojson }}, you_opener:{{ t.gc_you_opener|tojson }}, ai_turn:{{ t.gc_ai_turn|tojson }}, turn_named:{{ t.gc_turn_named|tojson }}, opener_named:{{ t.gc_opener_named|tojson }},
   opener_label:{{ t.gc_opener_label|tojson }}, phase1:{{ t.gc_phase1|tojson }}, phase2:{{ t.gc_phase2|tojson }},
-  announce:{{ t.gc_announce|tojson }}, hoch:{{ t.gc_dir_hoch_short|tojson }}, tief:{{ t.gc_dir_tief_short|tojson }},
+  announce:{{ t.gc_announce|tojson }}, hoch:{{ t.gc_dir_hoch_short|tojson }}, tief:{{ t.gc_dir_tief_short|tojson }}, wahl:{{ t.gc_dir_wahl_short|tojson }}, choosedir_title:{{ t.gc_choosedir_title|tojson }},
   valh_gross:{{ t.gc_valh_gross|tojson }}, valh_klein:{{ t.gc_valh_klein|tojson }}, valh_ohne1:{{ t.gc_valh_ohne1|tojson }},
   chic:{{ t.gc_chicago|tojson }}, chicago_win:{{ t.gc_chicago_win|tojson }}, fish:{{ t.gc_fish|tojson }}, mats:{{ t.gc_mats|tojson }},
   cwin_rounds:{{ t.gc_cwin_rounds|tojson }}, cwin_one:{{ t.gc_cwin_one|tojson }}, cwin_watch:{{ t.gc_cwin_watch|tojson }}, cwin_end:{{ t.gc_cwin_end|tojson }},
@@ -501,7 +509,7 @@ function announceText(){
   if(!state||!state.results)return '';
   const r=state.results[state.opener];
   if(!r)return '';
-  const dl=state.direction==='hoch'?G.hoch:G.tief;
+  const dl=state.direction==='wahl'?G.wahl:(state.direction==='hoch'?G.hoch:G.tief);
   let vh=G.valh_gross;
   if(state.valuation==='ohne1')vh=G.valh_ohne1;
   else if(state.valuation==='klein')vh=G.valh_klein;
@@ -526,6 +534,8 @@ function renderPlayers(){
 }
 function updateControls(){
   const mt=myTurn();
+  const choosing=state&&state.status==='follower_choose'&&isHuman(state.turn);
+  $('choosedir').style.display=(choosing&&!busy)?'flex':'none';
   const pending0=state&&state.dice.indexOf(0)>=0;     // zurückgelegter Würfel → muss neu
   $('btn-roll').style.display=mt?'':'none';
   $('btn-roll').disabled=!(mt&&state.rolls_used<cap()&&!busy);
@@ -591,12 +601,29 @@ function onStand(){
     // „ohne 1" ist nur sinnvoll, wenn eine 6 dabei ist (sonst identisch mit „klein")
     const o1=document.querySelector('#val-row .opt[data-val="ohne1"]');
     if(o1)o1.style.display=(state.dice.indexOf(6)>=0)?'':'none';
+    // „Zur Wahl" nur bei einem Fish (keine 1, keine 6) — dann entscheidet der Nächste
+    const wb=document.querySelector('#dir-row .opt[data-dir="wahl"]');
+    if(wb)wb.style.display=isFishDice(state.dice)?'':'none';
     $('declare').classList.add('show');return;}
   sendStand({});
 }
 function selVal(v){declVal=v;document.querySelectorAll('#val-row .opt').forEach(b=>b.classList.toggle('sel',b.dataset.val===v));}
 function selDir(d){declDir=d;document.querySelectorAll('#dir-row .opt').forEach(b=>b.classList.toggle('sel',b.dataset.dir===d));}
 function confirmDeclare(){$('declare').classList.remove('show');sendStand({valuation:declVal,direction:declDir});}
+// Folgespieler legt nach „zur Wahl" die Richtung für die Runde fest (vor dem Wurf)
+function chooseDir(d){
+  if(busy||!state||state.status!=='follower_choose'||!isHuman(state.turn))return;
+  $('choosedir').style.display='none';sendChooseDir(d);
+}
+async function sendChooseDir(d){
+  busy=true;updateControls();
+  const v=await api('/api/chicago/move',{type:'choosedir',direction:d});
+  busy=false;
+  if(!v||!v.state)return;
+  state=v.state;SFX.call();
+  centerBanner(nameOf(state.turn)+' · '+(d==='hoch'?G.hoch:G.tief),'gold');
+  renderAll();
+}
 async function sendStand(extra){
   busy=true;updateControls();
   const v=await api('/api/chicago/move',Object.assign({type:'stand'},extra));
@@ -625,7 +652,7 @@ function flashAnnounce(){
   const l=state.last;
   if(!l||l.type!=='stand'||l.who!==state.opener)return;
   const r=state.results[state.opener];if(!r)return;
-  const dl=state.direction==='hoch'?G.hoch:G.tief;
+  const dl=state.direction==='wahl'?G.wahl:(state.direction==='hoch'?G.hoch:G.tief);
   let extra='';
   if(state.valuation==='ohne1')extra=' · '+G.valh_ohne1;
   else if(state.valuation==='klein')extra=' · '+G.valh_klein;
@@ -633,7 +660,7 @@ function flashAnnounce(){
 }
 
 async function runAI(){
-  while(state&&(state.status==='opener_roll'||state.status==='follower_roll')&&!isHuman(state.turn)){
+  while(state&&(state.status==='opener_roll'||state.status==='follower_roll'||state.status==='follower_choose')&&!isHuman(state.turn)){
     updateTurn();updateControls();
     await waitIfPaused();
     await sleep(Math.round(aiMs*0.5));
@@ -641,7 +668,10 @@ async function runAI(){
     const v=await api('/api/chicago/ai',{});
     if(!v||!v.state){break;}
     const ev=v.event,prev=state;state=v.state;
-    if(ev&&ev.type==='roll'){
+    if(ev&&ev.type==='choosedir'){
+      SFX.call();centerBanner(nameOf(ev.who)+' · '+(state.direction==='hoch'?G.hoch:G.tief),'gold');
+      renderAll();await sleep(pauseMs);
+    }else if(ev&&ev.type==='roll'){
       // Becher-Animation für die KI (animateRoll setzt das Ausgangsbild selbst sauber)
       const keep=(ev.held||[false,false,false]).map((k,i)=>k&&ev.dice[i]!==0);
       await animateRoll(ev.dice,keep);
@@ -718,7 +748,7 @@ function selHum(n){numHumans=n;document.querySelectorAll('#hum-row .opt-btn').fo
 function selAI(n){numAI=n;clampAI();}
 function selLvl(l){level=l;document.querySelectorAll('#lvl-row .opt-btn').forEach(b=>b.classList.toggle('sel',b.dataset.lvl===l));}
 function render(s){state=s;$('start-screen').style.display='none';renderAll();
-  if((state.status==='opener_roll'||state.status==='follower_roll')&&!isHuman(state.turn))runAI();
+  if((state.status==='opener_roll'||state.status==='follower_roll'||state.status==='follower_choose')&&!isHuman(state.turn))runAI();
   else if(state.status==='game_over')showGameOver();}
 async function startGame(){if(busy)return;busy=true;if(!await claimSession(false)){busy=false;return;}
   const names={};HUMAN_IDS.slice(0,numHumans).forEach(id=>names[id]=(pnames[id]||'').trim());

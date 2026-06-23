@@ -21,6 +21,9 @@ don't be the last player holding beer mats.
 - The **opener** sets the **roll limit for the round** by their number of rolls: if
   they stop after the 1st/2nd roll, everyone may roll only once/twice. They also call
   **"high"** (higher wins) or **"low"** (lower wins).
+- **"Open choice":** If the opener stands on a **Fish** (no 1, no 6 — a pure middle
+  value), they may **leave the direction open**. Then the **next player must call**
+  "high" or "low" **before their first roll** — and that holds for the whole round.
 
 ### Cup tricks
 - **Two sixes** can be turned into a **1**: one six becomes the one, the other returns

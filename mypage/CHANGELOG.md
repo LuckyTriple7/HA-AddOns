@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.61
+
+- 🎲 **Chicago — „Zur Wahl" (Richtung offen lassen)** — Bleibt der Vorleger mit einem **Fish** stehen (keine 1, keine 6 — ein reiner Mittelwert), darf er die Richtung **offen lassen** statt selbst hoch/tief anzusagen. Dann legt der **nächste Spieler vor seinem ersten Wurf** „hoch" oder „tief" fest — und das gilt für die ganze Runde. Die KI beherrscht beides: sie gibt als harter Vorleger bei einem mittleren Fish die Wahl ab und entscheidet als Folgespieler die Richtung. Regeltexte (DE/EN) ergänzt.
+
 ## 0.7.60
 
 - 🎲 **Chicago — 6→1-Umwandlung nur innerhalb eines Wurfs** — Zwei Sechser dürfen nur dann in eine 1 umgewandelt werden (und drei Sechser nur dann automatisch zu zwei Einsern), wenn sie **im selben Wurf** fallen. Lag schon eine 6 und im nächsten Wurf kommt eine dazu, zählt das **nicht** mehr. Gilt für Mensch (Button erscheint nicht) und KI; Regeltexte ergänzt.

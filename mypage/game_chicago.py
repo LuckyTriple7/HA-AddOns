@@ -162,6 +162,8 @@ def apply_action(state: dict, player: str, action: dict) -> None:
         _do_convert6(state, player)
     elif t == 'stand':
         _do_stand(state, player, action)
+    elif t == 'choosedir':
+        _do_choose_direction(state, player, action.get('direction'))
     else:
         raise IllegalMove('unknown action')
 
@@ -240,7 +242,13 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
         val = action.get('valuation')
         direc = action.get('direction')
         state['valuation'] = val if val in ('gross', 'klein', 'ohne1') else 'gross'
-        state['direction'] = direc if direc in ('hoch', 'tief') else 'hoch'
+        # „Zur Wahl": Richtung offen lassen — nur erlaubt bei einem Fish (keine 1,
+        # keine 6, also ein Mittelwert). Dann legt der NÄCHSTE Spieler vor seinem
+        # ersten Wurf „hoch"/„tief" für die ganze Runde fest.
+        if direc == 'wahl' and is_fish(state['dice']):
+            state['direction'] = 'wahl'
+        else:
+            state['direction'] = direc if direc in ('hoch', 'tief') else 'hoch'
         state['roll_cap'] = state['rolls_used']      # Wurf-Limit der Runde
 
     res = {
@@ -262,9 +270,28 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
         _begin_turn(state, state['order'][state['order_pos']], opener=False)
 
 
+def _do_choose_direction(state: dict, player: str, direc: str | None) -> None:
+    """Nach „zur Wahl" des Vorlegers legt der nächste Spieler vor dem Würfeln die
+    Richtung („hoch"/„tief") für die ganze Runde fest."""
+    if state['turn'] != player or state['status'] != 'follower_choose':
+        raise IllegalMove('cannot choose direction')
+    if direc not in ('hoch', 'tief'):
+        raise IllegalMove('bad direction')
+    state['direction'] = direc
+    state['status'] = 'follower_roll'
+    state['last'] = {'type': 'choosedir', 'who': player, 'direction': direc}
+
+
 def _begin_turn(state: dict, who: str, opener: bool) -> None:
     state['turn'] = who
-    state['status'] = 'opener_roll' if opener else 'follower_roll'
+    if opener:
+        state['status'] = 'opener_roll'
+    elif state.get('direction') == 'wahl':
+        # Vorleger hat „zur Wahl" angesagt → dieser (nächste) Spieler muss zuerst
+        # die Richtung festlegen, bevor er würfeln darf.
+        state['status'] = 'follower_choose'
+    else:
+        state['status'] = 'follower_roll'
     state['dice'] = [0, 0, 0]
     state['held'] = [False, False, False]
     state['locked'] = [False, False, False]
@@ -514,7 +541,21 @@ def _keep_mask(dice: list[int], valuation: str, direction: str) -> list[bool]:
     return mask
 
 
+def _ai_choose_dir(state: dict) -> str:
+    """Folgespieler legt nach „zur Wahl" blind (vor dem Wurf) die Richtung fest.
+    Heuristik: die Richtung wählen, in der die FESTSTEHENDE Fish-Vorlage des
+    Vorlegers möglichst schlecht dasteht — hoher Vorleger-Wert → „tief",
+    niedriger → „hoch". (Fish-Summe liegt zwischen 6 und 15, Mitte ≈ 10,5.)"""
+    r = state['results'].get(state['opener'])
+    total = r['key'] if r else 10
+    return 'tief' if total >= 11 else 'hoch'
+
+
 def ai_step(state: dict) -> dict:
+    # Folgespieler nach „zur Wahl": zuerst die Richtung für die Runde ansagen
+    if state['status'] == 'follower_choose':
+        return {'type': 'choosedir', 'direction': _ai_choose_dir(state)}
+
     is_opener = (state['status'] == 'opener_roll')
     dice = state['dice']
 
@@ -553,6 +594,12 @@ def ai_step(state: dict) -> dict:
         return {'type': 'roll', 'held': mask}
 
     if is_opener:
+        # „Zur Wahl": bei einem Fish mit echtem Mittelwert (weder klar hoch noch
+        # tief) gibt der starke (harte) Vorleger die Richtungs-Entscheidung blind
+        # an den nächsten Spieler ab.
+        if (state['level'] == 'hard' and is_fish(dice)
+                and 9 <= roll_key(dice, val) <= 12):
+            direc = 'wahl'
         return {'type': 'stand', 'valuation': val, 'direction': direc}
     return {'type': 'stand'}
 
