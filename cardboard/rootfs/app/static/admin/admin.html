@@ -616,6 +616,12 @@
     const t = i18n[lang];
     document.getElementById('html-root').lang = lang;
 
+    // Über HA-Ingress übernimmt Home Assistant die Authentifizierung — Logout ausblenden
+    if (location.pathname.includes('/hassio_ingress/')) {
+      const lo = document.getElementById('btn-logout');
+      if (lo) lo.style.display = 'none';
+    }
+
     function applyI18n() {
       document.getElementById('btn-logout').textContent  = t.logout;
       document.getElementById('h-users').textContent     = t.users;

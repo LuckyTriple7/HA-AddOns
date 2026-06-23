@@ -251,9 +251,14 @@ def get_admin_session(request: Request) -> bool:
 
 
 def admin_panel_allowed(request: Request) -> bool:
-    """Ingress oder LAN-Zugang ohne Passwort = automatisch eingeloggt."""
+    """Über HA-Ingress hat der Supervisor den Benutzer bereits authentifiziert →
+    kein Admin-Passwort nötig (wie MyPage). Der Ingress-Port ist nicht im LAN
+    erreichbar, daher kann x-ingress-path nicht von außen gefälscht werden.
+    Ohne gesetztes Passwort ist auch der LAN-Zugang frei; sonst Passwort-Session."""
+    if _is_ingress(request):
+        return True
     if not admin_password_set():
-        return is_private_ip(request) or _is_ingress(request)
+        return is_private_ip(request)
     return get_admin_session(request)
 
 
