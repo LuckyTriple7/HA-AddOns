@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.17] - 2026-06-23
+- HA-Benachrichtigungen: kein manueller `ha_token` mehr nötig — das Add-on nutzt jetzt `homeassistant_api` und den automatisch vom Supervisor bereitgestellten Token (wie MyPage). Option `ha_token` entfernt, Aufrufe laufen über `http://supervisor/core/api`
+- AppArmor-Profil hinzugefügt (`whatsapp_addon`)
+
 ## [1.7.16] - 2026-06-10
 - UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — Caption und Bild haben immer dieselbe Breite, max-height 360px verhindert sehr hohe Bilder
 

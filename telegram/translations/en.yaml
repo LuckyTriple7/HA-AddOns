@@ -38,6 +38,3 @@ configuration:
   ha_notifications_skip_bots:
     name: Skip Bot Notifications
     description: Do not show HA notifications for messages from bots.
-  ha_token:
-    name: HA Long-Lived Access Token
-    description: Required for HA notifications. Create one in your HA user profile under Long-lived access tokens.

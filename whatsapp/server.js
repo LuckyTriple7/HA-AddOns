@@ -103,6 +103,9 @@ const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_NOTIFY_SKIP_GROUPS = process.env.HA_NOTIFICATIONS_SKIP_GROUPS === 'true';
+// SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
+// kein manuell eingetragener Token mehr nötig.
+const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
@@ -119,7 +122,7 @@ console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
 console.log(`[INFO]   ha_notify_skip_groups  = ${HA_NOTIFY_SKIP_GROUPS}`);
-console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'set' : 'not set'}`);
+console.log(`[INFO]   home_assistant_api     = ${SUPERVISOR_TOKEN ? 'available' : 'not available'}`);
 console.log(`[INFO]   initial_chats          = ${INITIAL_CHATS}`);
 console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
 console.log(`[INFO]   webhook_incoming       = ${WEBHOOK ? WEBHOOK : 'not set'}`);
@@ -721,9 +724,8 @@ process.on('unhandledRejection', (reason) => {
 
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
-  const token = process.env.HA_TOKEN;
-  if (!token) {
-    console.warn('[WARN] HA_NOTIFICATIONS: ha_token not set in add-on configuration');
+  if (!SUPERVISOR_TOKEN) {
+    console.warn('[WARN] HA_NOTIFICATIONS: SUPERVISOR_TOKEN not available (homeassistant_api missing?)');
     return;
   }
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
@@ -738,10 +740,10 @@ function sendHANotification(chatId, senderName, body) {
     notification_id: `whatsapp_${safeId}`,
   });
   console.log(`[INFO] HA notification: WhatsApp${HA_PRIVACY ? '' : `: ${senderName}`}`);
-  const req = http.request('http://homeassistant:8123/api/services/persistent_notification/create', {
+  const req = http.request('http://supervisor/core/api/services/persistent_notification/create', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
+      'Authorization': `Bearer ${SUPERVISOR_TOKEN}`,
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(payload),
     },

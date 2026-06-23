@@ -13,7 +13,6 @@ export VIDEO_MAX_MB=$(jq -r '.video_max_mb // 50' /data/options.json)
 export DEBUG_MODE=$(jq -r 'if .debug_mode == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
-export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
 export SESSION_DIR=/config/session
 export PORT=17776
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.16] - 2026-06-23
+- HA-Benachrichtigungen: kein manueller `ha_token` mehr nötig — das Add-on nutzt jetzt `homeassistant_api` und den automatisch vom Supervisor bereitgestellten Token (wie MyPage). Option `ha_token` entfernt, Aufrufe laufen über `http://supervisor/core/api`
+- AppArmor-Profil hinzugefügt (`telegram_addon`)
+
 ## [1.6.15] - 2026-06-10
 - UI: Foto-Bubble auf max-width 280px begrenzt, Bild füllt Bubble-Breite (width:100%) — einheitlich mit WhatsApp und Signal
 
