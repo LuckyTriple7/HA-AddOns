@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.62
+
+- 📱 **Chicago — kompaktes Querformat-Layout (kein Scrollen mehr)** — Auf dem Handy passt das Spielfeld jetzt auf eine Seite: Bei niedriger Höhe werden Spieler-Chips, Würfel, Punkte und Buttons verdichtet, der Halten-Hinweis ausgeblendet, und das Ansage- bzw. Richtungs-Panel schwebt mittig ein, statt die Ansicht in die Höhe zu treiben. Kein Hoch-/Runterscrollen mehr während der Partie.
+
 ## 0.7.61
 
 - 🎲 **Chicago — „Zur Wahl" (Richtung offen lassen)** — Bleibt der Vorleger mit einem **Fish** stehen (keine 1, keine 6 — ein reiner Mittelwert), darf er die Richtung **offen lassen** statt selbst hoch/tief anzusagen. Dann legt der **nächste Spieler vor seinem ersten Wurf** „hoch" oder „tief" fest — und das gilt für die ganze Runde. Die KI beherrscht beides: sie gibt als harter Vorleger bei einem mittleren Fish die Wahl ab und entscheidet als Folgespieler die Richtung. Regeltexte (DE/EN) ergänzt.
