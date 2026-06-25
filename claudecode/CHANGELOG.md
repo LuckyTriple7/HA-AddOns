@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.41] - 2026-06-25
+
+Update Claude Code 2.1.191 (Add-on v1.0.40)
+
+
 ## [1.0.40] - 2026-06-25
 
 ### Changed
