@@ -821,6 +821,16 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_weekly_review }}</label>
+            <select id="d-weekly_review">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.weekly_review_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_font }}</label>
             <select id="d-font">
               <optgroup label="{{ t.font_group_system }}">
@@ -3635,6 +3645,7 @@
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
+      el('d-weekly_review').value = d.weekly_review ? '1' : '0';
       el('d-favicon').value = d.favicon || '';
       el('d-layout').value = d.layout || 'cards';
       el('d-public_url').value = d.public_url || '';
@@ -3771,6 +3782,7 @@
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         newsletter_enabled: el('d-newsletter_enabled').value === '1',
+        weekly_review:    el('d-weekly_review').value === '1',
         favicon:         el('d-favicon').value,
         footer_text:     el('d-footer_text').value,
         banner_enabled:  el('d-banner_enabled').checked,

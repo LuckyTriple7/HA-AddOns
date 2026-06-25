@@ -59,8 +59,12 @@
     .notice-card ul, .notice-card ol { margin: 4px 0 8px 20px; }
     .meta-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
     .quota-bar { flex: 1; min-width: 180px; background: var(--surf2); border-radius: 6px; height: 10px; overflow: hidden; }
-    .quota-fill { height: 100%; background: var(--accent); }
+    .quota-fill { height: 100%; background: var(--accent); transition: width .3s; }
+    .quota-fill.warn { background: #d29922; }
+    .quota-fill.full { background: #da3633; }
     .quota-text { font-size: 0.76rem; color: var(--muted); }
+    .quota-warn { font-size: 0.78rem; color: #d29922; margin: -8px 0 14px; }
+    .quota-warn.full { color: #da3633; }
     table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
     th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.76rem; }
     td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
@@ -187,6 +191,7 @@
       {% if msg == 'pwchanged' %}<div class="msg ok">{{ t.member_pwchanged }}</div>{% endif %}
       {% if msg == 'unverified' %}<div class="msg err">{{ t.member_login_unverified }}</div>{% endif %}
       {% if msg == 'pending' %}<div class="msg err">{{ t.member_login_pending }}</div>{% endif %}
+      {% if msg == 'account_deleted' %}<div class="msg ok">{{ t.member_account_deleted }}</div>{% endif %}
       <form method="post" action="/bereich/login" autocomplete="on">
         <label for="email">{{ t.member_email }}</label>
         <input type="email" id="email" name="email" autocomplete="username" autofocus required>
@@ -212,10 +217,13 @@
       {% if msg == 'storage' %}<div class="msg err">{{ t.member_err_storage }}</div>{% endif %}
       {% if msg == 'quota' %}<div class="msg err">{{ t.member_err_quota }}</div>{% endif %}
       {% if msg == 'nofile' %}<div class="msg err">{{ t.member_err_nofile }}</div>{% endif %}
+      {% set pct = (used / quota * 100) if quota else 0 %}
       <div class="meta-row">
-        <div class="quota-bar"><div class="quota-fill" style="width:{{ (used / quota * 100)|round|int if quota else 0 }}%"></div></div>
-        <span class="quota-text">{{ (used / 1048576)|round(1) }} / {{ (quota / 1048576)|round|int }} MB</span>
+        <div class="quota-bar"><div class="quota-fill{% if pct >= 95 %} full{% elif pct >= 80 %} warn{% endif %}" style="width:{{ [pct, 100]|min|round|int }}%"></div></div>
+        <span class="quota-text">{{ (used / 1048576)|round(1) }} / {{ (quota / 1048576)|round|int }} MB · {{ pct|round|int }}%</span>
       </div>
+      {% if pct >= 95 %}<p class="quota-warn full">{{ t.member_quota_full }}</p>
+      {% elif pct >= 80 %}<p class="quota-warn">{{ t.member_quota_near }}</p>{% endif %}
       {% if files %}
       <table>
         <thead><tr><th>{{ t.member_col_name }}</th><th>{{ t.member_col_size }}</th><th>{{ t.member_col_date }}</th><th></th></tr></thead>
@@ -261,7 +269,7 @@
     </div>
     {% endif %}
 
-    {% set profile_msg = msg in ['profile_saved','avatar_err','pw_changed','pw_wrong','pw_short','pw_mismatch'] %}
+    {% set profile_msg = msg in ['profile_saved','avatar_err','pw_changed','pw_wrong','pw_short','pw_mismatch','del_pw_wrong'] %}
     <details class="game-cat profile-acc" data-cat="profile"{% if profile_msg %} open data-force-open{% endif %}>
       <summary>👤 {{ t.member_profile_title }}</summary>
       <div class="acc-body">
@@ -342,6 +350,22 @@
         <input type="password" id="pf-new2" name="new_password2" minlength="8" autocomplete="new-password" required>
         <button class="btn small" type="submit">{{ t.member_pw_change_btn }}</button>
       </form>
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0">
+      <h2 style="font-size:0.95rem;margin:0 0 6px">{{ t.member_privacy_title }}</h2>
+      {% if msg == 'del_pw_wrong' %}<div class="msg err">{{ t.member_pw_wrong }}</div>{% endif %}
+      <p style="font-size:0.82rem;color:var(--muted);margin:0 0 10px">{{ t.member_export_hint }}</p>
+      <a class="btn small" href="/bereich/export">⬇ {{ t.member_export_btn }}</a>
+      <details style="margin-top:16px">
+        <summary style="cursor:pointer;color:var(--danger,#da3633);font-size:0.88rem">⚠ {{ t.member_delete_title }}</summary>
+        <p style="font-size:0.82rem;color:var(--muted);margin:8px 0 10px">{{ t.member_delete_hint }}</p>
+        <form method="post" action="/bereich/profile" autocomplete="off"
+              onsubmit="return confirm({{ t.member_delete_confirm|tojson }})">
+          <input type="hidden" name="action" value="delete_account">
+          <label for="pf-del-pw">{{ t.member_pw_current }}</label>
+          <input type="password" id="pf-del-pw" name="current_password" autocomplete="current-password" required>
+          <button class="btn danger small" type="submit">{{ t.member_delete_btn }}</button>
+        </form>
+      </details>
       </div>
     </details>
 

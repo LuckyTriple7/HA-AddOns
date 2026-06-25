@@ -2196,5 +2196,19 @@
   "ggr_intro": "Drehe das Glücksrad, rate Buchstaben und löse das Wort-Rätsel gegen zwei KI-Gegner.",
   "ggr_play": "Spielen",
   "ggr_rules": "Regeln",
-  "ggr_solving": "🧠 {player} versucht zu lösen …"
+  "ggr_solving": "🧠 {player} versucht zu lösen …",
+  "read_min_unit": "Min. Lesezeit",
+  "related_title": "Ähnliche Beiträge",
+  "member_quota_near": "Dein Speicher ist zu über 80 % belegt.",
+  "member_quota_full": "Dein Speicher ist fast voll — bitte alte Dateien löschen.",
+  "field_weekly_review": "Wöchentlicher Rückblick",
+  "weekly_review_hint": "Schickt montags eine Zusammenfassung der Vorwoche (Aufrufe, Besucher, Top-Seite, neue Mitglieder und Nachrichten) als Home-Assistant-Benachrichtigung – und, falls SMTP eingerichtet ist, zusätzlich per E-Mail.",
+  "member_privacy_title": "Datenschutz",
+  "member_export_hint": "Lade alle Daten herunter, die zu deinem Konto gespeichert sind (Kontodaten, Dateien, Kommentare, gesendete Nachrichten).",
+  "member_export_btn": "Meine Daten exportieren",
+  "member_delete_title": "Konto löschen",
+  "member_delete_hint": "Löscht dein Konto und alle deine Dateien unwiderruflich. Gib zur Bestätigung dein Passwort ein.",
+  "member_delete_confirm": "Konto und alle Dateien wirklich unwiderruflich löschen?",
+  "member_delete_btn": "Konto endgültig löschen",
+  "member_account_deleted": "Dein Konto und alle Daten wurden gelöscht. Schade, dass du gehst!"
 }

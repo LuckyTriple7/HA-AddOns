@@ -29,7 +29,7 @@ import zipfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
@@ -272,6 +272,7 @@ DEFAULT_SITE = {
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
+        'weekly_review': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'banner_enabled': False, 'banner_dismissible': True,
@@ -353,6 +354,31 @@ def _locked_teaser(html: str, cap: int = 280) -> str:
     if len(teaser) < len(plain):
         teaser += ' …'
     return teaser
+
+
+def _reading_minutes(html: str) -> int:
+    """Geschätzte Lesezeit in Minuten aus dem Klartext (≈200 Wörter/Min, min. 1)."""
+    plain = re.sub(r'<[^>]+>', ' ', html or '')
+    words = len(plain.split())
+    return max(1, round(words / 200))
+
+
+def _related_posts(site: dict, post: dict, loc, limit: int = 3) -> list:
+    """Bis zu `limit` sichtbare andere Beiträge, die Schlagwörter mit `post` teilen
+    (nach Anzahl gemeinsamer Tags, dann Datum sortiert)."""
+    tags = {str(t).lower() for t in (post.get('tags') or [])}
+    if not tags:
+        return []
+    scored = []
+    for p in site.get('posts', []):
+        if p.get('id') == post.get('id') or not post_visible(p):
+            continue
+        shared = tags & {str(t).lower() for t in (p.get('tags') or [])}
+        if shared:
+            scored.append((len(shared), p.get('date') or '', p))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [{'id': p['id'], 'title': loc(p, 'title'), 'date': p.get('date') or '',
+             'image': p.get('image') or ''} for _, _, p in scored[:limit]]
 
 
 def _site_meta(site: dict, loc) -> str:
@@ -2398,6 +2424,92 @@ def _ha_games_worker() -> None:
         time.sleep(30)  # Spielstatus ändert sich schneller als Besucherzahlen
 
 
+# ── Wöchentlicher Statistik-Rückblick (HA-Benachrichtigung + optional E-Mail) ──
+
+def _iso_week(d: date) -> str:
+    iso = d.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _weekly_summary() -> dict:
+    """Kennzahlen der letzten 7 Tage inkl. Trend gegenüber der Vorwoche."""
+    stats = load_stats()
+    days = stats.get('days', {})
+    today = date.today()
+
+    def _sum(a: int, b: int) -> tuple[int, int]:
+        v = u = 0
+        for i in range(a, b):
+            d = days.get((today - timedelta(days=i)).isoformat())
+            if d:
+                v += d.get('views', 0)
+                u += d.get('uniques', 0)
+        return v, u
+
+    views, uniques = _sum(0, 7)          # letzte 7 Tage (heute … −6)
+    prev_views, _ = _sum(7, 14)          # Vorwoche
+    cutoff = int(time.time()) - 7 * 86400
+    log_week = [v for v in stats.get('log', []) if v.get('ts', 0) >= cutoff]
+    pages = top_pages(load_site(), log_week, limit=1)
+    cutoff_day = (today - timedelta(days=7)).isoformat()
+    new_members = sum(1 for u in load_users() if (u.get('created') or '') >= cutoff_day)
+    new_messages = sum(1 for m in load_messages() if m.get('ts', 0) >= cutoff)
+    trend = round((views - prev_views) / prev_views * 100) if prev_views else None
+    return {'views': views, 'uniques': uniques, 'trend': trend,
+            'top_page': (pages[0] if pages else None),
+            'new_members': new_members, 'new_messages': new_messages}
+
+
+def _send_weekly_review() -> None:
+    """Verschickt den Wochenrückblick als HA-Benachrichtigung und (falls SMTP
+    konfiguriert) als E-Mail an die Admin-Adresse. Texte bewusst auf Deutsch —
+    konsistent zu den übrigen HA-Benachrichtigungen."""
+    s = _weekly_summary()
+    if s['trend'] is None:
+        trend_txt = '—'
+    else:
+        arrow = '▲' if s['trend'] > 0 else ('▼' if s['trend'] < 0 else '■')
+        trend_txt = f"{arrow} {abs(s['trend'])} % ggü. Vorwoche"
+    tp = s['top_page']
+    top_txt = (f"{tp.get('title') or tp.get('path')} ({tp['count']})") if tp else '—'
+    lines = [
+        f"Aufrufe: {s['views']}  ({trend_txt})",
+        f"Eindeutige Besucher: {s['uniques']}",
+        f"Top-Seite: {top_txt}",
+        f"Neue Mitglieder: {s['new_members']}",
+        f"Neue Nachrichten: {s['new_messages']}",
+    ]
+    notify_ha('📊 MyPage: Wochenrückblick', '\n'.join(lines),
+              notification_id='mypage_weekly_review')
+    if smtp_configured():
+        title = (load_site()['design'].get('site_title') or 'MyPage')
+        html = _email_html(f'📊 Wochenrückblick — {title}', lines)
+        send_email(f'📊 Wochenrückblick — {title}', html)
+    log.info("Wochenrückblick verschickt (Aufrufe %d, Besucher %d)", s['views'], s['uniques'])
+
+
+def _weekly_review_worker() -> None:
+    """Schickt montags ab 8 Uhr einen Wochenrückblick — höchstens einmal pro
+    ISO-Woche, nur wenn im Design-Tab aktiviert."""
+    while True:
+        time.sleep(3600)
+        try:
+            if not load_site()['design'].get('weekly_review'):
+                continue
+            now = datetime.now()
+            if now.weekday() != 0 or now.hour < 8:   # Montag, ab 8 Uhr
+                continue
+            wk = _iso_week(date.today())
+            if load_stats().get('weekly_review_sent') == wk:
+                continue
+            _send_weekly_review()
+            stats = load_stats()
+            stats['weekly_review_sent'] = wk
+            save_stats(stats)
+        except Exception as e:
+            log.warning("Wochenrückblick-Worker: %s", e)
+
+
 # ── Blog-Posts ────────────────────────────────────────────────────────────────
 
 def _normalize_post(raw: dict, existing: dict | None = None) -> dict:
@@ -3257,7 +3369,7 @@ def api_design():
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
-                 'dm_ha_notify', 'directory_enabled', 'search_enabled'):
+                 'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -7157,6 +7269,8 @@ def blog_post(pid: str):
     share_on = bool(site['design'].get('share_enabled')) and not locked
     return render_template('post.html', t=t, lang=lang, site=site, loc=loc, p=post,
                            text_html=text_html, locked=locked,
+                           read_min=_reading_minutes(full_html),
+                           related=([] if locked else _related_posts(site, post, loc)),
                            share_on=share_on, share_url=f"{_base_url()}/blog/{pid}",
                            share_title=loc(post, 'title'),
                            meta_desc=(loc(post, 'meta') or _plain_excerpt(text_html) or _site_meta(site, loc)),
@@ -7638,7 +7752,68 @@ def member_profile():
         log_user_event(user['id'], 'pw_change_self', '', get_client_ip(request))
         log.info("Mitglied '%s' hat das Passwort selbst geändert", user['email'])
         return redirect('/bereich?msg=pw_changed')
+    if action == 'delete_account':
+        # DSGVO Art. 17 — Konto + alle eigenen Daten unwiderruflich löschen
+        if not check_password_hash(user['pw_hash'], request.form.get('current_password') or ''):
+            return redirect('/bereich?msg=del_pw_wrong')
+        uid, email = user['id'], user['email']
+        save_users([u for u in users if u['id'] != uid])
+        invalidate_user_sessions(uid)
+        shutil.rmtree(user_dir(user), ignore_errors=True)
+        _delete_member_avatar(uid)
+        log_audit('user_self_delete', email)
+        log.info("Mitglied '%s' hat sein Konto selbst gelöscht", email)
+        resp = make_response(redirect('/bereich?msg=account_deleted'))
+        resp.delete_cookie('usession')
+        return resp
     return redirect('/bereich')
+
+
+@public_app.route('/bereich/export')
+def member_export():
+    """DSGVO-Datenauskunft (Art. 15/20): ZIP mit allen eigenen Daten."""
+    member = current_member(request)
+    if member is None:
+        abort(403)
+    user = next((u for u in load_users() if u['id'] == member['id']), None)
+    if user is None:
+        abort(403)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        account = {k: user.get(k) for k in
+                   ('id', 'email', 'name', 'created', 'lang', 'quota_mb',
+                    'dir_visible', 'bio', 'dm_enabled', 'games_enabled')}
+        z.writestr('konto.json', json.dumps(account, ensure_ascii=False, indent=2))
+        # Eigene Blog-Kommentare
+        mine = []
+        for pid, data in load_comments().items():
+            for c in data.get('comments', []):
+                if c.get('uid') == user['id']:
+                    mine.append({'beitrag': pid, 'text': c.get('text'), 'ts': c.get('ts'),
+                                 'datum': datetime.fromtimestamp(c.get('ts', 0)).isoformat()})
+        z.writestr('kommentare.json', json.dumps(mine, ensure_ascii=False, indent=2))
+        # Von mir gesendete Nachrichten (entschlüsselt) — empfangene exportiert der Absender
+        sent = [{'an': m.get('to'), 'ts': m.get('ts'),
+                 'datum': datetime.fromtimestamp(m.get('ts', 0)).isoformat(),
+                 'text': _dm_decrypt(m.get('body', ''))}
+                for m in load_dm() if m.get('frm') == user['id']]
+        z.writestr('gesendete_nachrichten.json', json.dumps(sent, ensure_ascii=False, indent=2))
+        # Hochgeladene Dateien
+        if storage_available():
+            try:
+                for f in user_dir(user).iterdir():
+                    if f.is_file():
+                        z.write(f, f'dateien/{f.name}')
+            except OSError as e:
+                log.warning("Export: Dateien für '%s' nicht lesbar: %s", user['email'], e)
+        av = MEMBER_AVATARS_DIR / f"{user['id']}.jpg"
+        if av.exists():
+            z.write(av, 'profilbild.jpg')
+    buf.seek(0)
+    log_user_event(user['id'], 'data_export', '', get_client_ip(request))
+    log.info("Mitglied '%s' hat seine Daten exportiert", user['email'])
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name=f'meine-daten-{date.today().isoformat()}.zip')
 
 
 @public_app.route('/bereich/avatar/<uid>')
@@ -8143,6 +8318,7 @@ if __name__ == '__main__':
     threading.Thread(target=_geoip_worker, daemon=True).start()
     threading.Thread(target=_smb_watchdog, daemon=True).start()
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
+    threading.Thread(target=_weekly_review_worker, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)

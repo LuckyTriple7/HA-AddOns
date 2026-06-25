@@ -239,3 +239,47 @@ geteilter State, Per-Spieler-Sicht, Zug-Auth, Disconnect-Grundfall) mit dem
 geringsten Spiel-Risiko und ist robust gegenüber Ingress/Cloudflare. Der ehrliche
 Mehraufwand steckt nicht im „Zug machen", sondern in **Lobby + Disconnect-
 Robustheit**.
+
+---
+
+# Produkt-Verbesserungen (keine Spiele)
+
+Ideen abseits der Spiele. Bereits umgesetzt (v0.7.63): **Lesezeit & ähnliche
+Beiträge**, **Speicher-Balken mit Warnfarben**, **wöchentlicher Statistik-
+Rückblick**, **DSGVO-Self-Service** (Datenexport + Konto-Selbstlöschung).
+
+## 🟢 Schnelle Gewinne
+
+- **Auto-OG-Image pro Blog-Beitrag** — Hat ein Beitrag kein Titelbild, ein
+  Share-Vorschaubild aus Titel + Akzentfarbe rendern (Pillow ist schon im Stack).
+  Bessere Teilen-Vorschau ohne manuelle Arbeit. *Kleiner, abgegrenzter Umfang.*
+
+## 🟡 Mittlerer Aufwand
+
+- **Web-Push-Benachrichtigungen** — *Höchster Nutzer-Effekt.* Die PWA-
+  Infrastruktur (Service Worker, Cloudflare, siehe [[project_pwa_cloudflare]])
+  steht bereits; nur E-Mail-Newsletter wird genutzt. Push für „neuer Blog-
+  Beitrag" / „neue DM" wäre ein großer Bindungs-Hebel (VAPID-Keys +
+  `pushManager`). Funktioniert über den Cloudflare-Tunnel; bei HA-Ingress
+  eingeschränkt. **Empfehlung, wenn als Nächstes _ein_ Feature gebaut wird.**
+- **Öffentliche Freigabe-Links für Mitglieder-Dateien** — Mitglied teilt eine
+  Datei aus seinem Bereich per Einmal-/Ablauf-Link (optional passwortgeschützt)
+  mit Externen. Macht aus dem Dateibereich ein „WeTransfer light". Nutzt die
+  vorhandene Quota-/Speicher-Schicht.
+
+## 🟠 Strategisch (kein User-Feature, zahlt sich aber aus)
+
+- **`app.py` refaktorieren** — Die Datei ist inzwischen **~8.300 Zeilen**. Eine
+  Aufteilung in Flask-Blueprints (`public`, `admin`, `member`, `games`) würde
+  Wartbarkeit und Testbarkeit deutlich verbessern und CodeQL-/Autofix-Risiken
+  entschärfen (siehe [[feedback_codeql_autofix_danger]]). Zahlt sich bei jedem
+  weiteren Spiel/Feature aus.
+- **Test-Abdeckung erhöhen** — Aktuell nur `test_game66.py`. Ein paar Tests für
+  die sicherheits­kritischen Auth-/Redirect-Pfade (siehe
+  [[feedback_security_patterns]]) fangen Regressionen früh — passt zu „nicht
+  blind iterieren" ([[feedback_no_blind_iteration]]).
+
+## Bewusst nicht umgesetzt (existiert bereits)
+
+- **RSS/Atom-Feed**, **OpenGraph-/Twitter-Cards**, **Datei-Vorschau im
+  Mitglieder­bereich** — sind im Code schon vorhanden, daher keine neuen Ideen.

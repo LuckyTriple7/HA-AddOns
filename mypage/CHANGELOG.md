@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.63
+
+- 📖 **Blog: Lesezeit & ähnliche Beiträge** — Jeder Beitrag zeigt jetzt neben dem Datum eine geschätzte **Lesezeit** (≈200 Wörter/Min). Unter dem Beitrag erscheint außerdem ein Block **„Ähnliche Beiträge"** mit bis zu drei verwandten Beiträgen, ermittelt über gemeinsame Schlagwörter (nach Anzahl gemeinsamer Tags und Datum). Hat ein Beitrag keine Tags oder keine Verwandten, bleibt der Block aus. Für Mitglieder-only-Anrisse wird nichts angezeigt.
+- 💾 **Mitglieder-Speicher: Warnfarben & Prozentanzeige** — Der Speicherbalken im persönlichen Bereich zeigt jetzt die **Auslastung in Prozent** und färbt sich ab 80 % **orange** bzw. ab 95 % **rot**; zusätzlich erscheint ein kurzer Hinweis, wenn der Speicher fast voll ist.
+- 📊 **Wöchentlicher Statistik-Rückblick** — Optionaler Schalter im **Design-Tab** („Wöchentlicher Rückblick", Standard aus): Montags ab 8 Uhr verschickt MyPage eine Zusammenfassung der Vorwoche (Aufrufe inkl. Trend ggü. Vorwoche, eindeutige Besucher, Top-Seite, neue Mitglieder und neue Nachrichten) als **Home-Assistant-Benachrichtigung** und — falls SMTP eingerichtet ist — zusätzlich **per E-Mail**. Höchstens einmal pro Kalenderwoche.
+- 🛡️ **DSGVO-Self-Service für Mitglieder** — Im Profil gibt es jetzt zwei neue Funktionen: **„Meine Daten exportieren"** lädt ein ZIP mit allen eigenen Daten (Kontodaten, hochgeladene Dateien, eigene Blog-Kommentare, gesendete Nachrichten, Profilbild) — Art. 15/20 DSGVO. **„Konto löschen"** entfernt nach Passwort-Bestätigung das Konto und alle eigenen Dateien unwiderruflich (Art. 17 DSGVO) und meldet das Mitglied ab.
+
 ## 0.7.62
 
 - 📱 **Chicago — kompaktes Querformat-Layout (kein Scrollen mehr)** — Auf dem Handy passt das Spielfeld jetzt auf eine Seite: Bei niedriger Höhe werden Spieler-Chips, Würfel, Punkte und Buttons verdichtet, der Halten-Hinweis ausgeblendet, und das Ansage- bzw. Richtungs-Panel schwebt mittig ein, statt die Ansicht in die Höhe zu treiben. Kein Hoch-/Runterscrollen mehr während der Partie.
