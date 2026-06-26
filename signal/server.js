@@ -570,6 +570,8 @@ app.get('/api/media/:filename', (req, res) => {
   const ext = filename.split('.').pop().toLowerCase();
   const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', aac: 'audio/aac', mp3: 'audio/mpeg' };
   res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+  // Dateiname leitet sich aus der stabilen Message-ID ab → Inhalt ändert sich nie
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   fs.createReadStream(filepath).pipe(res);
 });
 
@@ -610,16 +612,24 @@ app.get('/api/logs', (req, res) => {
   res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
 });
 
+// Rekursiver Sync-Scan über /config — kurz cachen, damit der Event-Loop nicht blockiert
+let _storageCache = null;
+const STORAGE_CACHE_MS = 15000;
 app.get('/api/storage', (req, res) => {
+  if (_storageCache && Date.now() - _storageCache.ts < STORAGE_CACHE_MS) {
+    return res.json(_storageCache.data);
+  }
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
   const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
+  const data = {
     bytes, mb: (bytes / 1024 / 1024).toFixed(1),
     mediaMb: mediaMb.toFixed(1),
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  };
+  _storageCache = { ts: Date.now(), data };
+  res.json(data);
 });
 
 app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
@@ -1542,11 +1552,14 @@ async function refresh() {
   }
 }
 
-setInterval(refresh, 3000);
+// Im Hintergrund (Tab versteckt) nicht weiterpollen — spart Last/Requests
+setInterval(() => { if (!document.hidden) refresh(); }, 3000);
 if (!navigator.onLine) showOfflineBanner();
 refresh();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refresh();
+  if (document.visibilityState !== 'visible') return;
+  refresh();
+  if (currentStatus === 'linked') loadChats(); // sofort nachziehen beim Zurückkehren
 });
 window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
 window.addEventListener('offline', () => showOfflineBanner());
@@ -1598,7 +1611,8 @@ async function loadChats() {
     if (selectedChatId) loadMessages(selectedChatId);
   } catch (e) {}
 }
-setInterval(loadChats, 5000);
+// Im Hintergrund pausieren — treibt Liste + offenen Chat
+setInterval(() => { if (!document.hidden) loadChats(); }, 5000);
 
 function setFilter(f) {
   currentFilter = f;

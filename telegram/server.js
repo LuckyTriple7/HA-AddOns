@@ -983,16 +983,24 @@ app.get('/api/logs', (req, res) => {
   res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
 });
 
+// Rekursiver Sync-Scan über /config — kurz cachen, damit der Event-Loop nicht blockiert
+let _storageCache = null;
+const STORAGE_CACHE_MS = 15000;
 app.get('/api/storage', (req, res) => {
+  if (_storageCache && Date.now() - _storageCache.ts < STORAGE_CACHE_MS) {
+    return res.json(_storageCache.data);
+  }
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
   const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
+  const data = {
     bytes, mb: (bytes / 1024 / 1024).toFixed(1),
     mediaMb: mediaMb.toFixed(1),
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  };
+  _storageCache = { ts: Date.now(), data };
+  res.json(data);
 });
 
 app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
@@ -1022,7 +1030,8 @@ app.get('/api/media/:filename', (req, res) => {
   const ext = filename.split('.').pop();
   const mime = ext==='webp'?'image/webp':ext==='png'?'image/png':ext==='ogg'?'audio/ogg':ext==='mp4'?'video/mp4':ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'image/jpeg';
   res.setHeader('Content-Type', mime);
-  res.setHeader('Cache-Control', 'max-age=86400');
+  // Dateiname leitet sich aus der stabilen Message-ID ab → Inhalt ändert sich nie
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   res.sendFile(filePath);
 });
 
@@ -1969,11 +1978,15 @@ async function refresh() {
     if (_offlineFails >= 3) showOfflineBanner();
   }
 }
-setInterval(refresh, 2000);
+// Im Hintergrund (Tab versteckt) nicht weiterpollen — spart Last/Requests;
+// visibilitychange unten aktualisiert sofort beim Zurückkehren
+setInterval(() => { if (!document.hidden) refresh(); }, 2000);
 if (!navigator.onLine) showOfflineBanner();
 refresh();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refresh();
+  if (document.visibilityState !== 'visible') return;
+  refresh();
+  if (currentStatus === 'connected') loadChats(); // sofort nachziehen beim Zurückkehren
 });
 window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
 window.addEventListener('offline', () => showOfflineBanner());
@@ -2042,7 +2055,9 @@ async function loadChats() {
     if (selectedChatId) loadMessages(selectedChatId);
   } catch(e) {}
 }
-setInterval(loadChats, 5000);
+// Im Hintergrund pausieren — refresh() ruft loadChats() nur beim Statuswechsel auf,
+// dieses Intervall ist der eigentliche Treiber für Liste + offenen Chat
+setInterval(() => { if (!document.hidden) loadChats(); }, 5000);
 
 let currentFilter = 'all';
 function setFilter(f) {
