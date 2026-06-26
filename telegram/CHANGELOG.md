@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.18] - 2026-06-26
+- Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
+
 ## [1.6.17] - 2026-06-26
 - Performance: Polling pausiert, wenn der Browser-Tab im Hintergrund ist (`document.hidden`) — Status (2 s) und Chat-Liste/Nachrichten (5 s) laufen nicht mehr 24/7 weiter; beim Zurückkehren wird sofort aktualisiert (`visibilitychange` zieht Status + Chats nach)
 - Performance: `/api/storage` cacht das Ergebnis 15 s — der rekursive Verzeichnis-Scan blockiert den Event-Loop nicht mehr

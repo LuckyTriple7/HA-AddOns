@@ -49,6 +49,9 @@ const { existsSync, rmSync } = fs;
 
 const rateLimit = require('express-rate-limit');
 const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
+// Einmal beim Start erzeugen — express-rate-limit verbietet das Anlegen im
+// Request-Handler (ERR_ERL_CREATED_IN_REQUEST_HANDLER)
+const mutatingRateLimit = rateLimit({ windowMs: 60_000, limit: 200 });
 
 // ── Chromium detection ────────────────────────────────────────────────────────
 
@@ -74,10 +77,13 @@ console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const app = express();
+// Hinter dem HA-Ingress-Reverse-Proxy (genau ein Hop) — sonst warnt
+// express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  return rateLimit({ windowMs: 60_000, limit: 200 })(req, res, next);
+  return mutatingRateLimit(req, res, next);
 });
 app.use((req, res, next) => {
   if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();

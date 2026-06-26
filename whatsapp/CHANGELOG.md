@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.22] - 2026-06-26
+- Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
+
 ## [1.7.21] - 2026-06-26
 - Fix: Die Kontaktliste links aktualisiert Vorschau und Sortierung jetzt sofort, wenn im offenen Chat eine Nachricht ankommt oder gesendet wird — vorher hinkte sie bis zu 10 s hinterher (Chat-View pollt alle 2 s, Liste nur alle 10 s). `loadMessages` stößt bei neuen Nachrichten direkt ein `pollChats()` an
 
