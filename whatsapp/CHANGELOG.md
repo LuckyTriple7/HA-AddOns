@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.20] - 2026-06-26
+- Performance: Polling pausiert jetzt, wenn der Browser-Tab im Hintergrund ist (`document.hidden`) — Nachrichten (2 s), Reaktionen (5 s), Chats (10 s) und Status (5 s) laufen nicht mehr 24/7 weiter; beim Zurückkehren wird sofort aktualisiert (`visibilitychange`)
+- Performance: `/api/stats` wird nur noch abgefragt, wenn tatsächlich neue Nachrichten ankamen (vorher bei jedem Message-Poll alle 2 s)
+- Performance: `/api/storage` cacht das Ergebnis 15 s — der rekursive Verzeichnis-Scan blockiert den Event-Loop nicht mehr bei häufigen Aufrufen
+- Fix: `media_max_mb`-Limit greift jetzt auch beim automatischen Foto-/Medien-Download (gedrosselt alle 30 s), nicht mehr nur bei Video-Downloads
+- Watchdog: Supervisor startet das Add-on bei nicht erreichbarem Port automatisch neu (`watchdog: tcp://[HOST]:[PORT:17776]`)
+- Media-Responses mit `Cache-Control: immutable` (Dateiname ist über die stabile Message-ID eindeutig)
+
 ## [1.7.19] - 2026-06-26
 - Fix: Weitergeleitete Bilder erscheinen jetzt zuverlässig als Bild statt „Foto"-Platzhalter. Ursache: das `message`-Objekt direkt nach dem Weiterleiten ist „stale" und liefert dauerhaft keine Mediendaten (erst nach Neustart sichtbar). Jetzt wird das Medium im Hintergrund über bis zu ~45 s mit einem **frisch via `getMessageById` geholten** Objekt nachgeladen; die Bubble tauscht den Platzhalter ohne Neustart in-place gegen das Bild (`mediaUpdatedAt` im `since`-Filter). Gilt für gesendete (weitergeleitete) und empfangene Fotos; nur bei `download_media: true`
 

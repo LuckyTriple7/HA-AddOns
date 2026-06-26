@@ -294,6 +294,7 @@ async function downloadWAMedia(msg, msgId) {
       if (media?.data) {
         fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
         _logSilent('DEBUG', `downloadWAMedia: ok ${safeId}.${ext} ${(Buffer.from(media.data,'base64').length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
+        enforceMediaLimitThrottled(); // Speicherlimit auch beim Foto-/Auto-Download wahren
       } else {
         _logSilent('WARN', `downloadWAMedia: no data for ${safeId}.${ext}`);
       }
@@ -999,7 +1000,8 @@ app.get('/api/media/:filename', (req, res) => {
   const ext = filename.split('.').pop();
   const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'image/jpeg';
   res.setHeader('Content-Type', mime);
-  res.setHeader('Cache-Control', 'max-age=86400');
+  // Dateiname leitet sich aus der stabilen Message-ID ab → Inhalt ändert sich nie
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   res.sendFile(filePath);
 });
 
@@ -1013,6 +1015,16 @@ function getDirSize(dir) {
     }
   } catch (e) {}
   return total;
+}
+
+// Gedrosselt: höchstens alle 30 s das ganze Media-Verzeichnis scannen, damit
+// häufige Downloads den Event-Loop nicht belasten.
+let _lastMediaEnforce = 0;
+function enforceMediaLimitThrottled() {
+  const now = Date.now();
+  if (now - _lastMediaEnforce < 30000) return;
+  _lastMediaEnforce = now;
+  try { enforceMediaLimit(); } catch (e) { console.error('[ERROR] enforceMediaLimit:', e.message); }
 }
 
 function enforceMediaLimit() {
@@ -1034,16 +1046,25 @@ function enforceMediaLimit() {
   }
 }
 
+// Speicher-Scan ist ein rekursiver Sync-Walk über /config — kurz cachen, damit
+// häufige Aufrufe den Event-Loop nicht blockieren.
+let _storageCache = null;
+const STORAGE_CACHE_MS = 15000;
 app.get('/api/storage', (req, res) => {
+  if (_storageCache && Date.now() - _storageCache.ts < STORAGE_CACHE_MS) {
+    return res.json(_storageCache.data);
+  }
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
   const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
+  const data = {
     bytes, mb: (bytes / 1024 / 1024).toFixed(1),
     mediaMb: mediaMb.toFixed(1),
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  };
+  _storageCache = { ts: Date.now(), data };
+  res.json(data);
 });
 
 app.get('/api/logs', (req, res) => {
@@ -2598,8 +2619,8 @@ app.get('/', (req, res) => {
       try {
         const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&since=' + since)
           .then(r => r.json());
-        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
-        updateChatStats(chatId);
+        // Stats nur neu laden, wenn tatsächlich neue Nachrichten kamen
+        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); updateChatStats(chatId); }
       } catch(e) {}
     }
 
@@ -3057,12 +3078,12 @@ app.get('/', (req, res) => {
     }
 
     async function pollMessages() {
-      if (currentStatus !== 'connected' || !selectedChatId) return;
+      if (document.hidden || currentStatus !== 'connected' || !selectedChatId) return;
       await loadMessages(selectedChatId);
     }
 
     async function pollChats() {
-      if (currentStatus !== 'connected') return;
+      if (document.hidden || currentStatus !== 'connected') return;
       try {
         const chats = await fetch('api/chats').then(r => r.json());
         chats.forEach(c => {
@@ -3280,7 +3301,9 @@ app.get('/', (req, res) => {
     applyLang();
     if (!navigator.onLine) showOfflineBanner();
     refresh();
-    setInterval(refresh, 5000);
+    // Intervalle pausieren, wenn der Tab im Hintergrund ist (spart Last/Requests);
+    // visibilitychange unten aktualisiert sofort beim Zurückkehren
+    setInterval(() => { if (!document.hidden) refresh(); }, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
     setInterval(pollReactions, 5000);
@@ -3394,7 +3417,7 @@ app.get('/', (req, res) => {
     }
 
     async function pollReactions() {
-      if (!selectedChatId) return;
+      if (document.hidden || !selectedChatId) return;
       try {
         const data = await fetch('api/reactions/' + encodeURIComponent(selectedChatId)).then(r => r.json());
         updateReactionsInDOM(data);
