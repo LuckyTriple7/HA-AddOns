@@ -308,6 +308,34 @@ async function downloadWAMedia(msg, msgId) {
   }
 }
 
+// Lädt das Medium einer Nachricht im Hintergrund nach, wenn es zum Zeitpunkt
+// der Erstellung noch nicht verfügbar war (typisch beim Weiterleiten: das
+// message-Objekt aus message_create ist „stale" und liefert dauerhaft keine
+// Daten — erst ein frisch via getMessageById geholtes Objekt funktioniert,
+// genau wie nach einem Add-on-Neustart).
+async function ensureMediaLater(chatId, msgId) {
+  const delays = [1500, 2500, 4000, 6000, 8000, 10000, 12000];
+  for (const d of delays) {
+    await new Promise(r => setTimeout(r, d));
+    const list = messagesByChatId.get(chatId);
+    const stored = list && list.find(m => m.id === msgId);
+    if (!stored || stored.mediaFile || stored.deleted) return; // schon da / weg / gelöscht
+    try {
+      const fresh = await client.getMessageById(msgId).catch(() => null);
+      if (!fresh) continue;
+      const file = await downloadWAMedia(fresh, msgId);
+      if (file) {
+        stored.mediaFile = file;
+        stored.mediaUpdatedAt = Date.now();
+        saveMsgs();
+        _logSilent('INFO', `ensureMediaLater: media ready for ${msgId} after retry`);
+        return;
+      }
+    } catch (e) { dbg('ensureMediaLater:', e.message); }
+  }
+  _logSilent('WARN', `ensureMediaLater: media still unavailable for ${msgId}`);
+}
+
 // ── WhatsApp Client ───────────────────────────────────────────────────────────
 
 // Store Chromium profile directly in the persistent addon_config volume.
@@ -539,6 +567,10 @@ client.on('message', async (msg) => {
     quotedMsg: quotedMsgData,
   });
   _logSilent('DEBUG', `msg_in: from=${contactName} chat=${chatId} type=${type}${msg.body?' body="'+msg.body.slice(0,60)+'"':''}`);
+  // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
+  if (added && type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+    ensureMediaLater(chatId, msg.id._serialized);
+  }
   if (added) {
     const _ci = chatMap.get(chatId);
     const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
@@ -580,20 +612,7 @@ client.on('message_create', async (msg) => {
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
-    if (DOWNLOAD_MEDIA) {
-      mediaFile = await downloadWAMedia(msg, msg.id._serialized);
-      // Beim Weiterleiten liefert downloadMedia() direkt nach message_create oft
-      // noch keine Daten — kurz warten und erneut versuchen, damit das Bild statt
-      // eines „Foto"-Platzhalters erscheint.
-      if (!mediaFile && msg.isForwarded) {
-        for (let i = 0; i < 4 && !mediaFile; i++) {
-          await new Promise(r => setTimeout(r, 1200));
-          mediaFile = await downloadWAMedia(msg, msg.id._serialized);
-        }
-        if (mediaFile) dbg(`message_create: forwarded image media downloaded after retry for ${msg.id._serialized}`);
-        else dbg(`message_create: forwarded image media still unavailable for ${msg.id._serialized}`);
-      }
-    }
+    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
@@ -624,6 +643,10 @@ client.on('message_create', async (msg) => {
     forwardingScore: msg.forwardingScore || 0,
     quotedMsg: quotedMsgDataOut,
   });
+  // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
+  if (type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+    ensureMediaLater(chatId, msg.id._serialized);
+  }
 });
 
 client.on('message_reaction', (reaction) => {
@@ -828,7 +851,7 @@ app.get('/api/messages', (req, res) => {
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts)) : msgs);
+  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts) || (m.mediaUpdatedAt && m.mediaUpdatedAt > since_ts)) : msgs);
 });
 
 app.post('/api/send', async (req, res) => {
@@ -2580,6 +2603,29 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
 
+    function fillPhotoBubble(bub, m, ack) {
+      bub.classList.add('bubble-photo');
+      if (m.isForwarded) {
+        const fwdEl = document.createElement('span');
+        fwdEl.className = 'forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '');
+        fwdEl.textContent = m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded');
+        bub.appendChild(fwdEl);
+      }
+      if (m.quotedMsg) bub.insertAdjacentHTML('beforeend', renderQuotedBlock(m.quotedMsg));
+      const ph = document.createElement('span');
+      ph.className = 'photo-placeholder'; ph.textContent = t('photo');
+      bub.appendChild(ph);
+      const img = document.createElement('img');
+      img.className = 'msg-img';
+      img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+      img.style.cssText = 'width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in;';
+      img.loading = 'lazy';
+      img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
+      bub.appendChild(img);
+      if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.innerHTML = formatText(m.body); bub.appendChild(cap); }
+      const timeEl = document.createElement('span'); timeEl.className = 'time'; timeEl.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(timeEl);
+    }
+
     function renderMessages(msgs, chatId) {
       if (chatId !== selectedChatId) return;
       if (!msgs.length) return;
@@ -2592,6 +2638,20 @@ app.get('/', (req, res) => {
         // lastMsgTime mit deletedAt aktualisieren (deletedAt kann neuer sein als timestamp)
         const effectiveTs = (m.deleted && m.deletedAt) ? Math.max(m.timestamp, m.deletedAt) : m.timestamp;
         if (effectiveTs > (lastMsgTime[selectedChatId] || 0)) lastMsgTime[selectedChatId] = effectiveTs;
+
+        // Foto nachgeladen (z.B. nach Weiterleiten): Platzhalter-Bubble in-place
+        // durch Bild ersetzen, statt eine doppelte Bubble zu erzeugen
+        if (m.type === 'photo' && m.mediaFile) {
+          const existingWrap = msgList.querySelector('.bubble-wrap[data-msgid="' + m.id + '"]');
+          if (existingWrap && !existingWrap.querySelector('img.msg-img')) {
+            const bub = existingWrap.querySelector('.bubble');
+            if (bub) {
+              bub.innerHTML = '';
+              fillPhotoBubble(bub, m, m.fromMe ? ackMark(m.ack || 0) : '');
+            }
+            return;
+          }
+        }
 
         // ACK-Update: Häkchen in-place aktualisieren ohne Bubble neu zu erstellen
         if (m.fromMe && m.ackUpdatedAt) {
@@ -2671,26 +2731,7 @@ app.get('/', (req, res) => {
             : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>')
             + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'photo' && m.mediaFile) {
-          bub.classList.add('bubble-photo');
-          if (m.isForwarded) {
-            const fwdEl = document.createElement('span');
-            fwdEl.className = 'forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '');
-            fwdEl.textContent = m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded');
-            bub.appendChild(fwdEl);
-          }
-          if (m.quotedMsg) bub.insertAdjacentHTML('beforeend', renderQuotedBlock(m.quotedMsg));
-          const ph = document.createElement('span');
-          ph.className = 'photo-placeholder'; ph.textContent = t('photo');
-          bub.appendChild(ph);
-          const img = document.createElement('img');
-          img.className = 'msg-img';
-          img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
-          img.style.cssText = 'width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in;';
-          img.loading = 'lazy';
-          img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
-          bub.appendChild(img);
-          if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.innerHTML = formatText(m.body); bub.appendChild(cap); }
-          const timeEl = document.createElement('span'); timeEl.className = 'time'; timeEl.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(timeEl);
+          fillPhotoBubble(bub, m, ack);
         } else {
           const fwdHtml = m.isForwarded
             ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded')) + '</span>'

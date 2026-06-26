@@ -1,7 +1,10 @@
 # Changelog
 
+## [1.7.19] - 2026-06-26
+- Fix: Weitergeleitete Bilder erscheinen jetzt zuverlässig als Bild statt „Foto"-Platzhalter. Ursache: das `message`-Objekt direkt nach dem Weiterleiten ist „stale" und liefert dauerhaft keine Mediendaten (erst nach Neustart sichtbar). Jetzt wird das Medium im Hintergrund über bis zu ~45 s mit einem **frisch via `getMessageById` geholten** Objekt nachgeladen; die Bubble tauscht den Platzhalter ohne Neustart in-place gegen das Bild (`mediaUpdatedAt` im `since`-Filter). Gilt für gesendete (weitergeleitete) und empfangene Fotos; nur bei `download_media: true`
+
 ## [1.7.18] - 2026-06-26
-- Fix: Weitergeleitete Bilder erscheinen jetzt als Bild statt nur als „Foto"-Platzhalter — direkt nach dem Weiterleiten liefert `downloadMedia()` oft noch keine Daten, daher wird der Medien-Download für weitergeleitete Bilder mehrmals mit kurzer Pause wiederholt (nur bei `download_media: true`)
+- Fix: erster Versuch, weitergeleitete Bilder statt „Foto"-Platzhalter zu laden (Retry mit demselben Objekt — wirkungslos, ersetzt durch 1.7.19)
 
 ## [1.7.17] - 2026-06-23
 - HA-Benachrichtigungen: kein manueller `ha_token` mehr nötig — das Add-on nutzt jetzt `homeassistant_api` und den automatisch vom Supervisor bereitgestellten Token (wie MyPage). Option `ha_token` entfernt, Aufrufe laufen über `http://supervisor/core/api`
