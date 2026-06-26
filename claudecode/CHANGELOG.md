@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.42] - 2026-06-26
+
+### Changed
+- Rebuild für Claude Code 2.1.193
+
+
 ## [1.0.41] - 2026-06-25
 
 Update Claude Code 2.1.191 (Add-on v1.0.40)
