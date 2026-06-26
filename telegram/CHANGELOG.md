@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.20] - 2026-06-26
+- Performance: Große Chats (tausende Nachrichten) öffnen jetzt sofort — der Server sendet initial nur die **neuesten 60** Nachrichten statt der kompletten Liste, das Frontend rendert also nicht mehr tausende Bubbles auf einmal (kein Spinner/Ruckeln mehr). Ältere Nachrichten werden beim **Hochscrollen** automatisch aus dem Cache nachgeladen und vorne angefügt, ohne die Scrollposition zu verlieren. Neue/geänderte Nachrichten im sichtbaren Bereich werden weiterhin live aktualisiert, bereits nachgeladene ältere bleiben erhalten
+
 ## [1.6.19] - 2026-06-26
 - UX: Beim Chat-Wechsel wird das Chatfenster jetzt sofort geleert und die gecachten Nachrichten praktisch ohne Verzögerung angezeigt — vorher blieb der vorherige Chat stehen, bis der (bei Erstöffnung mehrere Sekunden dauernde) Live-Telegram-Fetch zurückkam. Ein Lade-Spinner erscheint nur noch, wenn wirklich nichts gecacht ist und der Server live von Telegram holt (>200 ms)
 
