@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.34] — 2026-06-26
+
+### Geändert
+- Rebuild für yt-dlp null
+
+
 ## [1.0.33] — 2026-06-10
 
 ### Geändert
