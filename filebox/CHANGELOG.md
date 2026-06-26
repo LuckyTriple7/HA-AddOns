@@ -1,11 +1,6 @@
 # Changelog
 
-## [1.2.15] - 2026-06-25
-
-Update FileBrowser 2.63.16 (Add-on v1.2.14)
-
-
-## [1.2.14] - 2026-06-25
+## [1.2.14] - 2026-06-26
 
 ### Geändert
 - Rebuild für FileBrowser 2.63.16
