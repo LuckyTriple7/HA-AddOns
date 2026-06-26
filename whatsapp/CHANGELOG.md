@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.18] - 2026-06-26
+- Fix: Weitergeleitete Bilder erscheinen jetzt als Bild statt nur als „Foto"-Platzhalter — direkt nach dem Weiterleiten liefert `downloadMedia()` oft noch keine Daten, daher wird der Medien-Download für weitergeleitete Bilder mehrmals mit kurzer Pause wiederholt (nur bei `download_media: true`)
+
 ## [1.7.17] - 2026-06-23
 - HA-Benachrichtigungen: kein manueller `ha_token` mehr nötig — das Add-on nutzt jetzt `homeassistant_api` und den automatisch vom Supervisor bereitgestellten Token (wie MyPage). Option `ha_token` entfernt, Aufrufe laufen über `http://supervisor/core/api`
 - AppArmor-Profil hinzugefügt (`whatsapp_addon`)

@@ -580,7 +580,20 @@ client.on('message_create', async (msg) => {
   let type = 'text', mediaFile = null, filename = null;
   if (isImage) {
     type = 'photo';
-    if (DOWNLOAD_MEDIA) mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+    if (DOWNLOAD_MEDIA) {
+      mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+      // Beim Weiterleiten liefert downloadMedia() direkt nach message_create oft
+      // noch keine Daten — kurz warten und erneut versuchen, damit das Bild statt
+      // eines „Foto"-Platzhalters erscheint.
+      if (!mediaFile && msg.isForwarded) {
+        for (let i = 0; i < 4 && !mediaFile; i++) {
+          await new Promise(r => setTimeout(r, 1200));
+          mediaFile = await downloadWAMedia(msg, msg.id._serialized);
+        }
+        if (mediaFile) dbg(`message_create: forwarded image media downloaded after retry for ${msg.id._serialized}`);
+        else dbg(`message_create: forwarded image media still unavailable for ${msg.id._serialized}`);
+      }
+    }
   } else if (isDocument) {
     type = 'document';
     filename = msg._data?.filename || msg.filename || 'Dokument';
