@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.21] - 2026-06-26
+- Fix: Die Kontaktliste links aktualisiert Vorschau und Sortierung jetzt sofort, wenn im offenen Chat eine Nachricht ankommt oder gesendet wird — vorher hinkte sie bis zu 10 s hinterher (Chat-View pollt alle 2 s, Liste nur alle 10 s). `loadMessages` stößt bei neuen Nachrichten direkt ein `pollChats()` an
+
 ## [1.7.20] - 2026-06-26
 - Performance: Polling pausiert jetzt, wenn der Browser-Tab im Hintergrund ist (`document.hidden`) — Nachrichten (2 s), Reaktionen (5 s), Chats (10 s) und Status (5 s) laufen nicht mehr 24/7 weiter; beim Zurückkehren wird sofort aktualisiert (`visibilitychange`)
 - Performance: `/api/stats` wird nur noch abgefragt, wenn tatsächlich neue Nachrichten ankamen (vorher bei jedem Message-Poll alle 2 s)

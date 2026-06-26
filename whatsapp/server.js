@@ -2620,7 +2620,13 @@ app.get('/', (req, res) => {
         const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&since=' + since)
           .then(r => r.json());
         // Stats nur neu laden, wenn tatsächlich neue Nachrichten kamen
-        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); updateChatStats(chatId); }
+        if (msgs.length) {
+          renderMessages(msgs, chatId); pollReactions(); updateChatStats(chatId);
+          // Kontaktliste links sofort aktualisieren (Vorschau + Sortierung),
+          // statt bis zum nächsten pollChats-Intervall (10 s) zu warten — gilt für
+          // empfangene wie gesendete Nachrichten im offenen Chat
+          pollChats();
+        }
       } catch(e) {}
     }
 
