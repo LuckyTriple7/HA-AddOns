@@ -592,6 +592,18 @@ app.get('/api/messages/:chatId', async (req, res) => {
     return res.json(older.slice(-limit));
   }
 
+  // Sprung-Fenster: Nachrichten rund um `around` (für „zu Suchtreffer springen")
+  if (req.query.around) {
+    const aroundTs = Number(req.query.around);
+    const all = messagesByChatId.get(chatId) || [];
+    const half = Math.floor(limit / 2);
+    let idx = all.findIndex(m => m.timestamp >= aroundTs);
+    if (idx === -1) idx = all.length - 1;
+    const start = Math.max(0, idx - half);
+    const end = Math.min(all.length, idx + half + 1);
+    return res.json(all.slice(start, end));
+  }
+
   if (req.query.refresh === '1' && status === 'connected') {
     const prevMsgs = messagesByChatId.get(chatId) || [];
     const savedData = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction, mediaFile: m.mediaFile || null, videoSize: m.videoSize }]));
@@ -614,6 +626,20 @@ app.get('/api/messages/:chatId', async (req, res) => {
     return res.json((messagesByChatId.get(chatId) || []).slice(-limit));
   }
   res.json(existing.slice(-limit));
+});
+
+// Volltextsuche über den gesamten gecachten Verlauf eines Chats (neueste zuerst)
+app.get('/api/search/:chatId', (req, res) => {
+  const { chatId } = req.params;
+  const q = (req.query.q || '').toString().trim().toLowerCase();
+  if (!q) return res.json([]);
+  const all = messagesByChatId.get(chatId) || [];
+  const out = [];
+  for (let i = all.length - 1; i >= 0 && out.length < 300; i--) {
+    const m = all[i];
+    if (m.body && m.body.toLowerCase().includes(q)) out.push({ id: m.id, timestamp: m.timestamp });
+  }
+  res.json(out);
 });
 
 app.get('/api/export/:chatId', (req, res) => {
@@ -1718,7 +1744,9 @@ async function confirmDeleteSelected() {
   await loadMessages(chatId);
 }
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
-let _msgSearchMatches = [], _msgSearchIdx = -1;
+// _msgSearchMatches: serverseitige Treffer [{id, timestamp}] (neueste zuerst)
+let _msgSearchMatches = [], _msgSearchIdx = -1, _msgSearchQuery = '', _searchTimer = null;
+const _historyMode = {}; // chatId → true, wenn gerade ein altes Verlauf-Fenster angezeigt wird (Live-Poll pausiert)
 function toggleMsgSearch() {
   const bar = document.getElementById('msg-search-bar');
   if (!bar) return;
@@ -1737,9 +1765,21 @@ function closeMsgSearch() {
   if (btn) btn.classList.remove('active');
   const inp = document.getElementById('msg-search-input');
   if (inp) inp.value = '';
+  clearTimeout(_searchTimer);
   clearMsgHighlights();
-  _msgSearchMatches = []; _msgSearchIdx = -1;
+  _msgSearchMatches = []; _msgSearchIdx = -1; _msgSearchQuery = '';
   updateMsgSearchCount();
+  exitHistoryMode(); // zurück in den Live-Modus, falls ein altes Verlauf-Fenster offen war
+}
+// Verlauf-Modus verlassen → neueste Nachrichten wieder live laden
+function exitHistoryMode() {
+  const cid = selectedChatId;
+  if (cid && _historyMode[cid]) {
+    _historyMode[cid] = false;
+    _view[cid] = null; _oldestTs[cid] = null; _noMoreOlder[cid] = false;
+    _lastMsgFingerprint[cid] = '';
+    loadMessages(cid, true);
+  }
 }
 function clearMsgHighlights() {
   document.querySelectorAll('#messages .msg-highlight, #messages .msg-highlight-active').forEach(function(el) {
@@ -1752,20 +1792,25 @@ function updateMsgSearchCount() {
   if (!el) return;
   el.textContent = _msgSearchMatches.length === 0 ? '' : (_msgSearchIdx + 1) + ' / ' + _msgSearchMatches.length;
 }
+// Serverseitige Suche über den gesamten Verlauf (debounced)
 function onMsgSearchInput() {
-  clearMsgHighlights();
-  _msgSearchMatches = []; _msgSearchIdx = -1;
   const inp = document.getElementById('msg-search-input');
   if (!inp) return;
   const q = inp.value.trim();
-  if (!q) { updateMsgSearchCount(); return; }
-  const qLow = q.toLowerCase();
-  document.querySelectorAll('#messages .bubble, #messages .voice-wrap').forEach(function(bubble) {
-    highlightInNode(bubble, qLow, q);
-  });
-  _msgSearchMatches = Array.from(document.querySelectorAll('#messages .msg-highlight'));
-  if (_msgSearchMatches.length > 0) { _msgSearchIdx = 0; activateMsgSearchMatch(0); }
-  updateMsgSearchCount();
+  _msgSearchQuery = q;
+  clearTimeout(_searchTimer);
+  clearMsgHighlights();
+  if (!q) { _msgSearchMatches = []; _msgSearchIdx = -1; updateMsgSearchCount(); return; }
+  _searchTimer = setTimeout(async function() {
+    if (!selectedChatId) return;
+    try {
+      const results = await fetch(api('/api/search/'+encodeURIComponent(selectedChatId)+'?q='+encodeURIComponent(q))).then(r=>r.json());
+      _msgSearchMatches = Array.isArray(results) ? results : [];
+      _msgSearchIdx = _msgSearchMatches.length ? 0 : -1;
+      updateMsgSearchCount();
+      if (_msgSearchMatches.length) jumpToResult(0);
+    } catch(e) {}
+  }, 250);
 }
 function highlightInNode(node, qLow, q) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -1787,19 +1832,39 @@ function highlightInNode(node, qLow, q) {
     Array.from(node.childNodes).forEach(function(child) { highlightInNode(child, qLow, q); });
   }
 }
-function activateMsgSearchMatch(idx) {
-  if (_msgSearchMatches.length === 0) return;
-  _msgSearchMatches.forEach(function(el) { el.className = 'msg-highlight'; });
-  const el = _msgSearchMatches[idx];
-  if (!el) return;
-  el.className = 'msg-highlight-active';
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// Zu einem Treffer springen: ist die Nachricht geladen → markieren+scrollen,
+// sonst ein Verlauf-Fenster um sie laden (Live-Poll pausiert bis Suche zu)
+async function jumpToResult(idx) {
+  const r = _msgSearchMatches[idx];
+  if (!r || !selectedChatId) return;
+  clearMsgHighlights();
+  let row = document.querySelector('.bubble-row[data-msgid="'+r.id+'"]');
+  if (!row) {
+    try {
+      const win = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?around='+r.timestamp+'&limit=60')).then(r=>r.json());
+      if (Array.isArray(win) && win.length) {
+        _view[selectedChatId] = win;
+        _oldestTs[selectedChatId] = win[0].timestamp;
+        _noMoreOlder[selectedChatId] = false;
+        _historyMode[selectedChatId] = true;
+        renderMessages(win);
+        row = document.querySelector('.bubble-row[data-msgid="'+r.id+'"]');
+      }
+    } catch(e) {}
+  }
+  if (row) {
+    const bubble = row.querySelector('.bubble, .voice-wrap');
+    if (bubble && _msgSearchQuery) highlightInNode(bubble, _msgSearchQuery.toLowerCase(), _msgSearchQuery);
+    const mark = row.querySelector('.msg-highlight');
+    if (mark) mark.className = 'msg-highlight-active';
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 function stepMsgSearch(dir) {
   if (_msgSearchMatches.length === 0) return;
   _msgSearchIdx = (_msgSearchIdx + dir + _msgSearchMatches.length) % _msgSearchMatches.length;
-  activateMsgSearchMatch(_msgSearchIdx);
   updateMsgSearchCount();
+  jumpToResult(_msgSearchIdx);
 }
 
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
@@ -2138,7 +2203,7 @@ function openChat(chat) {
   closeMsgSearch();
   selectedChatId = chat.id;
   _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
-  _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; // Pagination zurücksetzen
+  _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
   lastMsgCount[chat.id] = 0;
   document.body.classList.add('chat-open');
@@ -2244,8 +2309,12 @@ function updateAckMarksInPlace(msgs) {
 
 async function loadMessages(chatId, forceRender = false) {
   if (!chatId) return;
+  // Im Verlauf-Modus (Suchtreffer-Sprung) den Live-Poll nicht rendern lassen,
+  // sonst würde das alte Fenster überschrieben
+  if (_historyMode[chatId] && !forceRender) return;
   try {
     const recent = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId !== selectedChatId) return; // Chat zwischenzeitlich gewechselt → nicht rendern
     const fp = msgFingerprint(recent);
     if (!forceRender && _lastMsgFingerprint[chatId] === fp) return; // nichts geändert
     const prev = _lastMsgFingerprint[chatId] || '';

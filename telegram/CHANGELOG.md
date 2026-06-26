@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.21] - 2026-06-26
+- Suche: Die Nachrichtensuche durchsucht jetzt den **gesamten gecachten Verlauf** serverseitig (neuer Endpoint `/api/search`), nicht mehr nur die geladenen Bubbles — wichtig seit der Pagination. Ein Klick bzw. ▲▼ springt zum Treffer; liegt er außerhalb des aktuellen Fensters, wird automatisch ein Verlauf-Fenster um ihn geladen und hervorgehoben. Schließen der Suche kehrt zum Live-Modus zurück. Während der Verlauf-Ansicht pausiert der Live-Poll, damit das Fenster nicht überschrieben wird
+
 ## [1.6.20] - 2026-06-26
 - Performance: Große Chats (tausende Nachrichten) öffnen jetzt sofort — der Server sendet initial nur die **neuesten 60** Nachrichten statt der kompletten Liste, das Frontend rendert also nicht mehr tausende Bubbles auf einmal (kein Spinner/Ruckeln mehr). Ältere Nachrichten werden beim **Hochscrollen** automatisch aus dem Cache nachgeladen und vorne angefügt, ohne die Scrollposition zu verlieren. Neue/geänderte Nachrichten im sichtbaren Bereich werden weiterhin live aktualisiert, bereits nachgeladene ältere bleiben erhalten
 
