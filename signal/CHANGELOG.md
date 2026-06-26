@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.20] - 2026-06-26
+- Performance: Große Chats öffnen jetzt sofort — der Server sendet initial nur die **neuesten 60** Nachrichten statt der kompletten Liste; ältere werden beim **Hochscrollen** aus dem Cache nachgeladen und vorne angefügt (Scrollposition bleibt erhalten)
+- Suche: Die Nachrichtensuche durchsucht jetzt den **gesamten gecachten Verlauf** serverseitig (neuer Endpoint `/api/search`), nicht mehr nur die geladenen Bubbles. Klick bzw. ▲▼ springt zum Treffer; liegt er außerhalb des Fensters, wird automatisch ein Verlauf-Fenster um ihn geladen und hervorgehoben. Schließen der Suche kehrt zum Live-Modus zurück
+
 ## [1.6.19] - 2026-06-26
 - Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
 
