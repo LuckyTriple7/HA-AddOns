@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.10] - 2026-06-23
+
+- Admin-Panel über HA-Ingress ohne Passwort: Da Home Assistant beim Ingress-Zugriff bereits authentifiziert, entfällt die Passwort-Abfrage (wie MyPage). Das gesetzte `admin_password` schützt weiterhin den direkten LAN-Zugriff auf Port 17773. Der Ingress-Port 17774 ist nicht im LAN gemappt → `x-ingress-path` kann nicht von außen gefälscht werden
+- Logout-Button im Admin-Panel wird über Ingress ausgeblendet
+
+
+## [1.0.9] - 2026-06-23
+
+- HA-Zugriff ohne manuellen Token: `homeassistant_api: true` ergänzt, alle HA-API-Aufrufe (`/api/template`, `/api/config`, `/api/states`, `persistent_notification`) laufen jetzt über den Supervisor-Proxy `http://supervisor/core/api` mit dem automatisch bereitgestellten `SUPERVISOR_TOKEN` — wie MyPage. Der Supervisor-Token hat die für `/api/template` nötigen Admin-Rechte
+- Optionen `ha_token` und `ha_url` entfernt
+- Session-Signing-Secret nicht mehr aus `ha_token` abgeleitet, sondern als zufälliges Secret in `/config/addons_config/cardboard/.session_secret` persistiert (überlebt Neustarts)
+
+
 ## [1.0.8.4] - 2026-06-22
 
 build(deps): Bump fastapi from 0.137.0 to 0.138.0 in /cardboard/rootfs/app

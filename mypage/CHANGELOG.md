@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.63
+
+- 📖 **Blog: Lesezeit & ähnliche Beiträge** — Jeder Beitrag zeigt jetzt neben dem Datum eine geschätzte **Lesezeit** (≈200 Wörter/Min). Unter dem Beitrag erscheint außerdem ein Block **„Ähnliche Beiträge"** mit bis zu drei verwandten Beiträgen, ermittelt über gemeinsame Schlagwörter (nach Anzahl gemeinsamer Tags und Datum). Hat ein Beitrag keine Tags oder keine Verwandten, bleibt der Block aus. Für Mitglieder-only-Anrisse wird nichts angezeigt.
+- 💾 **Mitglieder-Speicher: Warnfarben & Prozentanzeige** — Der Speicherbalken im persönlichen Bereich zeigt jetzt die **Auslastung in Prozent** und färbt sich ab 80 % **orange** bzw. ab 95 % **rot**; zusätzlich erscheint ein kurzer Hinweis, wenn der Speicher fast voll ist.
+- 📊 **Wöchentlicher Statistik-Rückblick** — Optionaler Schalter im **Design-Tab** („Wöchentlicher Rückblick", Standard aus): Montags ab 8 Uhr verschickt MyPage eine Zusammenfassung der Vorwoche (Aufrufe inkl. Trend ggü. Vorwoche, eindeutige Besucher, Top-Seite, neue Mitglieder und neue Nachrichten) als **Home-Assistant-Benachrichtigung** und — falls SMTP eingerichtet ist — zusätzlich **per E-Mail**. Höchstens einmal pro Kalenderwoche.
+- 🛡️ **DSGVO-Self-Service für Mitglieder** — Im Profil gibt es jetzt zwei neue Funktionen: **„Meine Daten exportieren"** lädt ein ZIP mit allen eigenen Daten (Kontodaten, hochgeladene Dateien, eigene Blog-Kommentare, gesendete Nachrichten, Profilbild) — Art. 15/20 DSGVO. **„Konto löschen"** entfernt nach Passwort-Bestätigung das Konto und alle eigenen Dateien unwiderruflich (Art. 17 DSGVO) und meldet das Mitglied ab.
+
+## 0.7.62
+
+- 📱 **Chicago — kompaktes Querformat-Layout (kein Scrollen mehr)** — Auf dem Handy passt das Spielfeld jetzt auf eine Seite: Bei niedriger Höhe werden Spieler-Chips, Würfel, Punkte und Buttons verdichtet, der Halten-Hinweis ausgeblendet, und das Ansage- bzw. Richtungs-Panel schwebt mittig ein, statt die Ansicht in die Höhe zu treiben. Kein Hoch-/Runterscrollen mehr während der Partie.
+
+## 0.7.61
+
+- 🎲 **Chicago — „Zur Wahl" (Richtung offen lassen)** — Bleibt der Vorleger mit einem **Fish** stehen (keine 1, keine 6 — ein reiner Mittelwert), darf er die Richtung **offen lassen** statt selbst hoch/tief anzusagen. Dann legt der **nächste Spieler vor seinem ersten Wurf** „hoch" oder „tief" fest — und das gilt für die ganze Runde. Die KI beherrscht beides: sie gibt als harter Vorleger bei einem mittleren Fish die Wahl ab und entscheidet als Folgespieler die Richtung. Regeltexte (DE/EN) ergänzt.
+
+## 0.7.60
+
+- 🎲 **Chicago — 6→1-Umwandlung nur innerhalb eines Wurfs** — Zwei Sechser dürfen nur dann in eine 1 umgewandelt werden (und drei Sechser nur dann automatisch zu zwei Einsern), wenn sie **im selben Wurf** fallen. Lag schon eine 6 und im nächsten Wurf kommt eine dazu, zählt das **nicht** mehr. Gilt für Mensch (Button erscheint nicht) und KI; Regeltexte ergänzt.
+
+## 0.7.59
+
+- 📱 **Kniffel & Chicago — Startbildschirm auf Mobilgeräten scrollbar** — Der Startbildschirm zentrierte den Inhalt in einem fixen Container und schnitt ihn auf kleinen/Querformat-Displays oben ab, ohne Scrollmöglichkeit. Jetzt ist er **scrollbar** (zentriert bei genug Platz, scrollt bei Überlauf) und wird auf niedrigen Viewports zusätzlich **kompakter** dargestellt.
+
 ## 0.7.58
 
 - 🔒 **Sicherheit** — CodeQL-Alerts geschlossen: Path-Injection bei Avatar- und DM-Anhang-Pfaden auf `safe_join` umgestellt, Open-Redirect bei den Nachrichten-Weiterleitungen über `_safe_next` (Pfad-Neuaufbau) entschärft. Außerdem `cryptography` auf 48.0.1 angehoben (OpenSSL- und SECT-Kurven-Schwachstellen).

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import time
@@ -120,6 +121,12 @@ COOKIE_NAME       = "cb_session"
 ADMIN_COOKIE_NAME = "cb_admin"
 ADMIN_SESSION_AGE = 4 * 3600  # 4 Stunden
 
+# SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
+# kein manuell eingetragener ha_token mehr nötig. HA-API läuft über den Supervisor-Proxy.
+SUPERVISOR_TOKEN    = os.environ.get("SUPERVISOR_TOKEN", "")
+HA_API_BASE         = "http://supervisor/core/api"
+SESSION_SECRET_FILE = CONFIG_DIR / ".session_secret"
+
 
 def session_max_age() -> int:
     try:
@@ -170,10 +177,35 @@ def write_users(yaml_data: dict):
     tmp.replace(users_file)
 
 
+_session_secret_cache: str | None = None
+
+
+def get_session_secret() -> str:
+    """Stabiles Signing-Secret für Session-Cookies, persistiert in /config (überlebt
+    Neustarts). Früher wurde dafür ha_token genutzt — seit der Umstellung auf den
+    Supervisor-Token gibt es keinen manuellen Token mehr."""
+    global _session_secret_cache
+    if _session_secret_cache:
+        return _session_secret_cache
+    try:
+        s = SESSION_SECRET_FILE.read_text(encoding="utf-8").strip() if SESSION_SECRET_FILE.exists() else ""
+        if not s:
+            s = secrets.token_hex(32)
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            SESSION_SECRET_FILE.write_text(s, encoding="utf-8")
+            try:
+                os.chmod(SESSION_SECRET_FILE, 0o600)
+            except OSError:
+                pass
+    except OSError:
+        # /config nicht beschreibbar: prozesslokales Secret (Sessions überleben keinen Neustart)
+        s = secrets.token_hex(32)
+    _session_secret_cache = s
+    return s
+
+
 def get_serializer() -> URLSafeTimedSerializer:
-    opts = load_options()
-    secret = (opts.get("ha_token") or "cardboard-fallback-secret")[:50]
-    return URLSafeTimedSerializer(secret)
+    return URLSafeTimedSerializer(get_session_secret())
 
 
 _SAFE_PATH_PART = re.compile(r'^[a-zA-Z0-9_\-][a-zA-Z0-9._\-]{0,254}$')
@@ -204,9 +236,7 @@ def admin_password_set() -> bool:
 
 
 def get_admin_serializer() -> URLSafeTimedSerializer:
-    opts = load_options()
-    secret = ((opts.get("ha_token") or "cardboard-admin-secret") + "-admin")[:60]
-    return URLSafeTimedSerializer(secret)
+    return URLSafeTimedSerializer(get_session_secret() + "-admin")
 
 
 def get_admin_session(request: Request) -> bool:
@@ -221,9 +251,14 @@ def get_admin_session(request: Request) -> bool:
 
 
 def admin_panel_allowed(request: Request) -> bool:
-    """Ingress oder LAN-Zugang ohne Passwort = automatisch eingeloggt."""
+    """Über HA-Ingress hat der Supervisor den Benutzer bereits authentifiziert →
+    kein Admin-Passwort nötig (wie MyPage). Der Ingress-Port ist nicht im LAN
+    erreichbar, daher kann x-ingress-path nicht von außen gefälscht werden.
+    Ohne gesetztes Passwort ist auch der LAN-Zugang frei; sonst Passwort-Session."""
+    if _is_ingress(request):
+        return True
     if not admin_password_set():
-        return is_private_ip(request) or _is_ingress(request)
+        return is_private_ip(request)
     return get_admin_session(request)
 
 
@@ -459,22 +494,20 @@ async def public_ha_status():
     last_check = _ha_status_cache.get("checked_at")
     if last_check is None or (now - last_check).total_seconds() > 30:
         opts = load_options()
-        ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
-        ha_token = opts.get("ha_token") or ""
         uptime_entity = (opts.get("uptime_sensor") or "sensor.uptime").strip()
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
-                    f"{ha_url}/api/config",
-                    headers={"Authorization": f"Bearer {ha_token}"},
+                    f"{HA_API_BASE}/config",
+                    headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
                 )
                 if resp.status_code == 200:
                     version = resp.json().get("version", "")
                     since = None
                     try:
                         up = await client.get(
-                            f"{ha_url}/api/states/{uptime_entity}",
-                            headers={"Authorization": f"Bearer {ha_token}"},
+                            f"{HA_API_BASE}/states/{uptime_entity}",
+                            headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
                         )
                         if up.status_code == 200:
                             state = up.json().get("state", "")
@@ -498,14 +531,12 @@ async def _notify_failed_login(username: str, ip: str | None):
     opts = load_options()
     if not opts.get("notify_failed_login", True):
         return
-    ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
-    ha_token = opts.get("ha_token") or ""
     timestamp = datetime.utcnow().strftime("%d.%m.%Y %H:%M:%S")
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
-                f"{ha_url}/api/services/persistent_notification/create",
-                headers={"Authorization": f"Bearer {ha_token}"},
+                f"{HA_API_BASE}/services/persistent_notification/create",
+                headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
                 json={
                     "title": "⚠️ CardBoard: Login fehlgeschlagen",
                     "message": f"Benutzer: **{username}**\nIP: {ip or 'unbekannt'}\nZeit: {timestamp} UTC",
@@ -680,8 +711,6 @@ async def api_render(request: Request):
     if not user:
         return JSONResponse({"error": "Benutzer nicht gefunden"}, status_code=404)
 
-    ha_url = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
-    ha_token = opts.get("ha_token") or ""
     max_cards = max(1, int(opts.get("max_cards") or 3))
     templates = (user.get("templates") or [])[:max_cards]
 
@@ -697,9 +726,9 @@ async def api_render(request: Request):
             content = tpl_path.read_text(encoding="utf-8")
             try:
                 resp = await client.post(
-                    f"{ha_url}/api/template",
+                    f"{HA_API_BASE}/template",
                     headers={
-                        "Authorization": f"Bearer {ha_token}",
+                        "Authorization": f"Bearer {SUPERVISOR_TOKEN}",
                         "Content-Type": "application/json",
                     },
                     json={"template": content},
@@ -822,15 +851,11 @@ async def admin_health(request: Request):
     if not admin_allowed(request):
         return JSONResponse({"error": "forbidden"}, status_code=403)
 
-    opts = load_options()
-    ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
-    ha_token = opts.get("ha_token") or ""
-
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"{ha_url}/api/",
-                headers={"Authorization": f"Bearer {ha_token}"},
+                f"{HA_API_BASE}/",
+                headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}"},
             )
         ha_ok  = resp.status_code == 200
         ha_msg = "ok" if ha_ok else f"HTTP {resp.status_code}"
@@ -1233,14 +1258,11 @@ async def _admin_preview(request: Request):
     except Exception:
         return JSONResponse({"error": "invalid_request"}, status_code=400)
     content = body.get("template", "")
-    opts = load_options()
-    ha_url   = (opts.get("ha_url") or "http://homeassistant.local:8123").rstrip("/")
-    ha_token = opts.get("ha_token") or ""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
-                f"{ha_url}/api/template",
-                headers={"Authorization": f"Bearer {ha_token}", "Content-Type": "application/json"},
+                f"{HA_API_BASE}/template",
+                headers={"Authorization": f"Bearer {SUPERVISOR_TOKEN}", "Content-Type": "application/json"},
                 json={"template": content},
             )
         if resp.status_code == 200:

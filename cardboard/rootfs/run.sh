@@ -2,32 +2,28 @@
 set -e
 
 echo "=== CardBoard Optionen ==="
-jq 'to_entries | map(if (.key == "ha_token" or .key == "admin_password") and (.value != "") then .value = "***" else . end) | from_entries' \
+jq 'to_entries | map(if (.key == "admin_password") and (.value != "") then .value = "***" else . end) | from_entries' \
     /data/options.json 2>/dev/null || echo "FEHLER: /data/options.json nicht gefunden"
 echo "=========================="
 
 PORT=17772
 ADMIN_PORT=17773
-HA_URL=$(jq -r '.ha_url // "http://homeassistant.local:8123"' /data/options.json 2>/dev/null || echo "http://homeassistant.local:8123")
-HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json 2>/dev/null || echo "")
 
-echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Prüfe HA Token ..."
-if [ -z "$HA_TOKEN" ]; then
-    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] ha_token ist nicht konfiguriert — bitte in den Add-on Optionen eintragen!"
-else
+# SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
+# kein manuell eingetragener Token mehr nötig.
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Prüfe Home-Assistant-API ..."
+if [ -n "$SUPERVISOR_TOKEN" ]; then
     HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
         --max-time 5 \
-        -H "Authorization: Bearer ${HA_TOKEN}" \
-        "${HA_URL}/api/" 2>/dev/null || echo "000")
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        "http://supervisor/core/api/" 2>/dev/null || echo "000")
     if [ "$HTTP_STATUS" = "200" ]; then
-        echo "[OK] [$(date '+%Y-%m-%d %H:%M:%S')] HA Token ist gültig (${HA_URL})"
-    elif [ "$HTTP_STATUS" = "401" ]; then
-        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] HA Token ungültig oder abgelaufen — HTTP 401"
-    elif [ "$HTTP_STATUS" = "000" ]; then
-        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] HA nicht erreichbar unter ${HA_URL} — Timeout oder Verbindungsfehler"
+        echo "[OK] [$(date '+%Y-%m-%d %H:%M:%S')] Home-Assistant-API erreichbar (Supervisor-Token)"
     else
-        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] HA Token-Prüfung: unerwarteter HTTP-Status ${HTTP_STATUS}"
+        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] Home-Assistant-API antwortet mit HTTP ${HTTP_STATUS}"
     fi
+else
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] SUPERVISOR_TOKEN nicht verfügbar — läuft 'homeassistant_api: true' und das Add-on im Supervisor?"
 fi
 
 mkdir -p /config/addons_config/cardboard

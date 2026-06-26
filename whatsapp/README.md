@@ -34,7 +34,6 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 | `ha_notifications_privacy` | `false` | Nur „WhatsApp / Neue Nachricht" anzeigen — kein Absender, kein Inhalt |
-| `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen (siehe unten) |
 
 ### Nachrichten-Speicher verstehen
 
@@ -45,9 +44,7 @@ Alle Nachrichten werden dauerhaft auf Disk gespeichert (`/config/messages.json`)
 
 ### HA-Benachrichtigungen einrichten
 
-1. In HA das **Benutzerprofil** öffnen (Benutzerbild unten links)
-2. Ganz nach unten scrollen → **Langlebige Zugangstokens** → Token erstellen
-3. Den Token in der Add-on-Konfiguration unter `ha_token` eintragen
+Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automatisch den vom Supervisor bereitgestellten Zugriff auf die Home-Assistant-API (`homeassistant_api`); ein manuell erstellter Access Token ist nicht mehr nötig.
 
 ## REST-API
 
@@ -213,7 +210,6 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 | `ha_notifications_privacy` | `false` | Show only "WhatsApp / New message" — no sender name, no content |
-| `ha_token` | — | Long-lived access token for HA notifications (see below) |
 
 ### Understanding the message storage options
 
@@ -224,9 +220,7 @@ All messages are stored persistently on disk (`/config/messages.json`) and survi
 
 ### Setting up HA notifications
 
-1. Open your **user profile** in HA (user icon, bottom left)
-2. Scroll to the bottom → **Long-lived access tokens** → Create token
-3. Enter the token in the add-on configuration under `ha_token`
+Just enable `ha_notifications` — nothing else. The add-on automatically uses the Home Assistant API access provided by the Supervisor (`homeassistant_api`); a manually created access token is no longer required.
 
 ## REST API
 

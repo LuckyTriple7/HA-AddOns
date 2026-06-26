@@ -21,11 +21,17 @@ don't be the last player holding beer mats.
 - The **opener** sets the **roll limit for the round** by their number of rolls: if
   they stop after the 1st/2nd roll, everyone may roll only once/twice. They also call
   **"high"** (higher wins) or **"low"** (lower wins).
+- **"Open choice":** If the opener stands on a **Fish** (no 1, no 6 — a pure middle
+  value), they may **leave the direction open**. Then the **next player must call**
+  "high" or "low" **before their first roll** — and that holds for the whole round.
 
 ### Cup tricks
 - **Two sixes** can be turned into a **1**: one six becomes the one, the other returns
   to the cup (needs another roll). Or keep two sixes as **120**.
 - **Three sixes** automatically become **two ones**; the third die returns to the cup.
+- **Within a single roll only:** the conversion applies only to sixes thrown together
+  in **one** roll. If a six is already lying and another comes up on the next roll,
+  that does **not** count as "two sixes".
 
 ### "Mit ist Shit" (tie loses)
 A tie does **not** beat: whoever only ties becomes "low". So you can even get away

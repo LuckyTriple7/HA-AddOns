@@ -54,13 +54,10 @@ Bei aktivierter 2-Faktor-Authentifizierung wird danach das Cloud-Passwort abgefr
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten (ein pro Chat, wird überschrieben) |
 | `ha_notifications_privacy` | `false` | Nur „Telegram / Neue Nachricht" anzeigen — kein Absender, kein Inhalt |
 | `ha_notifications_skip_bots` | `false` | Keine HA-Benachrichtigung für Nachrichten von Bots |
-| `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen (siehe unten) |
 
 ### HA-Benachrichtigungen einrichten
 
-1. In HA das **Benutzerprofil** öffnen (Benutzerbild unten links)
-2. Ganz nach unten scrollen → **Langlebige Zugangstokens** → Token erstellen
-3. Den Token in der Add-on-Konfiguration unter `ha_token` eintragen
+Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automatisch den vom Supervisor bereitgestellten Zugriff auf die Home-Assistant-API (`homeassistant_api`); ein manuell erstellter Access Token ist nicht mehr nötig.
 
 ## REST-API
 
@@ -248,13 +245,10 @@ If two-factor authentication is enabled, the cloud password will be requested af
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages (one per chat, overwritten by newer messages) |
 | `ha_notifications_privacy` | `false` | Show only "Telegram / New message" — no sender name, no content |
 | `ha_notifications_skip_bots` | `false` | Skip HA notifications for messages from bots |
-| `ha_token` | — | Long-lived access token for HA notifications (see below) |
 
 ### Setting up HA notifications
 
-1. Open your **user profile** in HA (user icon, bottom left)
-2. Scroll to the bottom → **Long-lived access tokens** → Create token
-3. Enter the token in the add-on configuration under `ha_token`
+Just enable `ha_notifications` — nothing else. The add-on automatically uses the Home Assistant API access provided by the Supervisor (`homeassistant_api`); a manually created access token is no longer required.
 
 ## REST API
 

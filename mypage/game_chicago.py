@@ -67,6 +67,14 @@ def is_fish(dice: list[int]) -> bool:
     return all(d not in (1, 6) for d in dice)
 
 
+def _fresh_six_idx(state: dict) -> list[int]:
+    """Indizes der Sechser, die IM AKTUELLEN Wurf geworfen wurden (nicht bereits
+    liegende/gehaltene). Die 6→1-Umwandlung gilt nur innerhalb eines Wurfs:
+    liegt schon eine 6 und im nächsten Wurf kommt eine dazu, zählt das nicht."""
+    thrown = state.get('thrown', [True, True, True])
+    return [i for i, d in enumerate(state['dice']) if d == 6 and thrown[i]]
+
+
 def label(dice: list[int], valuation: str, rolls: int) -> str:
     if is_chicago(dice):
         return f'Chicago auf {rolls}'
@@ -123,6 +131,7 @@ def new_game(level: str = 'medium', humans: int = 1, ai: int = 2,
         'dice': [0, 0, 0],
         'held': [False, False, False],
         'locked': [False, False, False],   # über einen Wurf gehalten → fix
+        'thrown': [False, False, False],   # welche Würfel diesen Wurf geworfen wurden
         'rolls_used': 0,
         'results': {},                # pid -> {key,label,chic,rolls}
         'tief': None,                 # aktuell „tief" (zu schlagen)
@@ -153,6 +162,8 @@ def apply_action(state: dict, player: str, action: dict) -> None:
         _do_convert6(state, player)
     elif t == 'stand':
         _do_stand(state, player, action)
+    elif t == 'choosedir':
+        _do_choose_direction(state, player, action.get('direction'))
     else:
         raise IllegalMove('unknown action')
 
@@ -177,12 +188,16 @@ def _do_roll(state: dict, player: str, held=None) -> None:
             dice[i] = fresh[i]
     state['dice'] = dice
     state['rolls_used'] += 1
+    # Welche Würfel wurden DIESEN Wurf geworfen (= nicht gehalten)? Für die 6→1-Regel
+    thrown = [not (state['rolls_used'] > 1 and mask[i]) for i in range(3)]
+    state['thrown'] = thrown
     # Was bei diesem Wurf gehalten wurde, ist nun „gelegt" → nicht mehr abwählbar
     state['locked'] = [locked[i] or mask[i] for i in range(3)]
     state['last'] = {'type': 'roll', 'who': player, 'dice': dice[:], 'held': mask[:],
                      'rolls_used': state['rolls_used']}
-    # Drei Sechser → automatisch zwei (gehaltene) Einser, dritter zurück in den Becher
-    if dice.count(6) == 3:
+    # Drei Sechser → automatisch zwei (gehaltene) Einser, dritter zurück in den Becher.
+    # Nur wenn alle drei IN DIESEM Wurf fielen (liegende 6er zählen nicht mit).
+    if dice.count(6) == 3 and all(thrown):
         dice[0] = 1
         dice[1] = 1
         if state['rolls_used'] < state['roll_cap']:
@@ -202,7 +217,8 @@ def _do_convert6(state: dict, player: str) -> None:
     if state['rolls_used'] < 1 or state['rolls_used'] >= state['roll_cap']:
         raise IllegalMove('no roll left to return a die')
     dice = state['dice']
-    six_idx = [i for i, d in enumerate(dice) if d == 6]
+    # Nur Sechser, die IN DIESEM Wurf fielen, dürfen umgewandelt werden
+    six_idx = _fresh_six_idx(state)
     if len(six_idx) != 2 or 0 in dice:
         raise IllegalMove('need exactly two sixes')
     a, b = six_idx
@@ -226,7 +242,13 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
         val = action.get('valuation')
         direc = action.get('direction')
         state['valuation'] = val if val in ('gross', 'klein', 'ohne1') else 'gross'
-        state['direction'] = direc if direc in ('hoch', 'tief') else 'hoch'
+        # „Zur Wahl": Richtung offen lassen — nur erlaubt bei einem Fish (keine 1,
+        # keine 6, also ein Mittelwert). Dann legt der NÄCHSTE Spieler vor seinem
+        # ersten Wurf „hoch"/„tief" für die ganze Runde fest.
+        if direc == 'wahl' and is_fish(state['dice']):
+            state['direction'] = 'wahl'
+        else:
+            state['direction'] = direc if direc in ('hoch', 'tief') else 'hoch'
         state['roll_cap'] = state['rolls_used']      # Wurf-Limit der Runde
 
     res = {
@@ -248,12 +270,32 @@ def _do_stand(state: dict, player: str, action: dict) -> None:
         _begin_turn(state, state['order'][state['order_pos']], opener=False)
 
 
+def _do_choose_direction(state: dict, player: str, direc: str | None) -> None:
+    """Nach „zur Wahl" des Vorlegers legt der nächste Spieler vor dem Würfeln die
+    Richtung („hoch"/„tief") für die ganze Runde fest."""
+    if state['turn'] != player or state['status'] != 'follower_choose':
+        raise IllegalMove('cannot choose direction')
+    if direc not in ('hoch', 'tief'):
+        raise IllegalMove('bad direction')
+    state['direction'] = direc
+    state['status'] = 'follower_roll'
+    state['last'] = {'type': 'choosedir', 'who': player, 'direction': direc}
+
+
 def _begin_turn(state: dict, who: str, opener: bool) -> None:
     state['turn'] = who
-    state['status'] = 'opener_roll' if opener else 'follower_roll'
+    if opener:
+        state['status'] = 'opener_roll'
+    elif state.get('direction') == 'wahl':
+        # Vorleger hat „zur Wahl" angesagt → dieser (nächste) Spieler muss zuerst
+        # die Richtung festlegen, bevor er würfeln darf.
+        state['status'] = 'follower_choose'
+    else:
+        state['status'] = 'follower_roll'
     state['dice'] = [0, 0, 0]
     state['held'] = [False, False, False]
     state['locked'] = [False, False, False]
+    state['thrown'] = [False, False, False]
     state['rolls_used'] = 0
 
 
@@ -499,7 +541,21 @@ def _keep_mask(dice: list[int], valuation: str, direction: str) -> list[bool]:
     return mask
 
 
+def _ai_choose_dir(state: dict) -> str:
+    """Folgespieler legt nach „zur Wahl" blind (vor dem Wurf) die Richtung fest.
+    Heuristik: die Richtung wählen, in der die FESTSTEHENDE Fish-Vorlage des
+    Vorlegers möglichst schlecht dasteht — hoher Vorleger-Wert → „tief",
+    niedriger → „hoch". (Fish-Summe liegt zwischen 6 und 15, Mitte ≈ 10,5.)"""
+    r = state['results'].get(state['opener'])
+    total = r['key'] if r else 10
+    return 'tief' if total >= 11 else 'hoch'
+
+
 def ai_step(state: dict) -> dict:
+    # Folgespieler nach „zur Wahl": zuerst die Richtung für die Runde ansagen
+    if state['status'] == 'follower_choose':
+        return {'type': 'choosedir', 'direction': _ai_choose_dir(state)}
+
     is_opener = (state['status'] == 'opener_roll')
     dice = state['dice']
 
@@ -521,8 +577,9 @@ def ai_step(state: dict) -> dict:
             return {'type': 'stand', 'valuation': 'gross', 'direction': 'hoch'}
         return {'type': 'stand'}
 
-    # Zwei 6er → eine 1: nur sinnvoll, wenn die 1 hoch zählt und hoch gespielt wird
-    if (dice.count(6) == 2 and 1 not in dice and state['rolls_used'] < cap
+    # Zwei 6er → eine 1: nur sinnvoll, wenn die 1 hoch zählt und hoch gespielt wird;
+    # zudem nur, wenn beide 6er IN DIESEM Wurf fielen (liegende zählen nicht)
+    if (len(_fresh_six_idx(state)) == 2 and 1 not in dice and state['rolls_used'] < cap
             and state['level'] == 'hard' and val == 'gross' and direc == 'hoch'):
         return {'type': 'convert6'}
 
@@ -537,6 +594,12 @@ def ai_step(state: dict) -> dict:
         return {'type': 'roll', 'held': mask}
 
     if is_opener:
+        # „Zur Wahl": bei einem Fish mit echtem Mittelwert (weder klar hoch noch
+        # tief) gibt der starke (harte) Vorleger die Richtungs-Entscheidung blind
+        # an den nächsten Spieler ab.
+        if (state['level'] == 'hard' and is_fish(dice)
+                and 9 <= roll_key(dice, val) <= 12):
+            direc = 'wahl'
         return {'type': 'stand', 'valuation': val, 'direction': direc}
     return {'type': 'stand'}
 
@@ -569,7 +632,7 @@ def public_view(state: dict) -> dict:
         'rolls_used': state['rolls_used'],
         'can_convert6': (state['status'] in ('opener_roll', 'follower_roll')
                          and 1 <= state['rolls_used'] < state['roll_cap']
-                         and state['dice'].count(6) == 2 and 0 not in state['dice']),
+                         and len(_fresh_six_idx(state)) == 2 and 0 not in state['dice']),
         'results': {p: {'label': r['label'], 'dice': r['dice'], 'chic': r['chic'],
                         'rolls': r['rolls']}
                     for p, r in state['results'].items()},

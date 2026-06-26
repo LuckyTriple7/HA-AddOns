@@ -103,6 +103,9 @@ const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
 const HA_NOTIFY_SKIP_GROUPS = process.env.HA_NOTIFICATIONS_SKIP_GROUPS === 'true';
+// SUPERVISOR_TOKEN wird vom Supervisor automatisch injiziert (homeassistant_api: true) —
+// kein manuell eingetragener Token mehr nötig.
+const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
@@ -119,7 +122,7 @@ console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
 console.log(`[INFO]   ha_notify_skip_groups  = ${HA_NOTIFY_SKIP_GROUPS}`);
-console.log(`[INFO]   ha_token               = ${process.env.HA_TOKEN ? 'set' : 'not set'}`);
+console.log(`[INFO]   home_assistant_api     = ${SUPERVISOR_TOKEN ? 'available' : 'not available'}`);
 console.log(`[INFO]   initial_chats          = ${INITIAL_CHATS}`);
 console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
 console.log(`[INFO]   webhook_incoming       = ${WEBHOOK ? WEBHOOK : 'not set'}`);
@@ -303,6 +306,34 @@ async function downloadWAMedia(msg, msgId) {
     console.error('[ERROR] downloadWAMedia:', e.message);
     return null;
   }
+}
+
+// Lädt das Medium einer Nachricht im Hintergrund nach, wenn es zum Zeitpunkt
+// der Erstellung noch nicht verfügbar war (typisch beim Weiterleiten: das
+// message-Objekt aus message_create ist „stale" und liefert dauerhaft keine
+// Daten — erst ein frisch via getMessageById geholtes Objekt funktioniert,
+// genau wie nach einem Add-on-Neustart).
+async function ensureMediaLater(chatId, msgId) {
+  const delays = [1500, 2500, 4000, 6000, 8000, 10000, 12000];
+  for (const d of delays) {
+    await new Promise(r => setTimeout(r, d));
+    const list = messagesByChatId.get(chatId);
+    const stored = list && list.find(m => m.id === msgId);
+    if (!stored || stored.mediaFile || stored.deleted) return; // schon da / weg / gelöscht
+    try {
+      const fresh = await client.getMessageById(msgId).catch(() => null);
+      if (!fresh) continue;
+      const file = await downloadWAMedia(fresh, msgId);
+      if (file) {
+        stored.mediaFile = file;
+        stored.mediaUpdatedAt = Date.now();
+        saveMsgs();
+        _logSilent('INFO', `ensureMediaLater: media ready for ${msgId} after retry`);
+        return;
+      }
+    } catch (e) { dbg('ensureMediaLater:', e.message); }
+  }
+  _logSilent('WARN', `ensureMediaLater: media still unavailable for ${msgId}`);
 }
 
 // ── WhatsApp Client ───────────────────────────────────────────────────────────
@@ -536,6 +567,10 @@ client.on('message', async (msg) => {
     quotedMsg: quotedMsgData,
   });
   _logSilent('DEBUG', `msg_in: from=${contactName} chat=${chatId} type=${type}${msg.body?' body="'+msg.body.slice(0,60)+'"':''}`);
+  // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
+  if (added && type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+    ensureMediaLater(chatId, msg.id._serialized);
+  }
   if (added) {
     const _ci = chatMap.get(chatId);
     const isGroup = _ci?.isGroup ?? chatId.endsWith('@g.us');
@@ -608,6 +643,10 @@ client.on('message_create', async (msg) => {
     forwardingScore: msg.forwardingScore || 0,
     quotedMsg: quotedMsgDataOut,
   });
+  // Foto ohne Medium (typisch beim Weiterleiten) im Hintergrund nachladen
+  if (type === 'photo' && DOWNLOAD_MEDIA && !mediaFile) {
+    ensureMediaLater(chatId, msg.id._serialized);
+  }
 });
 
 client.on('message_reaction', (reaction) => {
@@ -721,9 +760,8 @@ process.on('unhandledRejection', (reason) => {
 
 function sendHANotification(chatId, senderName, body) {
   if (!HA_NOTIFY) return;
-  const token = process.env.HA_TOKEN;
-  if (!token) {
-    console.warn('[WARN] HA_NOTIFICATIONS: ha_token not set in add-on configuration');
+  if (!SUPERVISOR_TOKEN) {
+    console.warn('[WARN] HA_NOTIFICATIONS: SUPERVISOR_TOKEN not available (homeassistant_api missing?)');
     return;
   }
   const safeId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
@@ -738,10 +776,10 @@ function sendHANotification(chatId, senderName, body) {
     notification_id: `whatsapp_${safeId}`,
   });
   console.log(`[INFO] HA notification: WhatsApp${HA_PRIVACY ? '' : `: ${senderName}`}`);
-  const req = http.request('http://homeassistant:8123/api/services/persistent_notification/create', {
+  const req = http.request('http://supervisor/core/api/services/persistent_notification/create', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${token}`,
+      'Authorization': `Bearer ${SUPERVISOR_TOKEN}`,
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(payload),
     },
@@ -813,7 +851,7 @@ app.get('/api/messages', (req, res) => {
   if (!chatId) return res.json([]);
   const msgs = getChatMsgs(chatId);
   const since_ts = parseInt(since || '0', 10);
-  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts)) : msgs);
+  res.json(since_ts ? msgs.filter(m => m.timestamp > since_ts || (m.deletedAt && m.deletedAt > since_ts) || (m.ackUpdatedAt && m.ackUpdatedAt > since_ts) || (m.mediaUpdatedAt && m.mediaUpdatedAt > since_ts)) : msgs);
 });
 
 app.post('/api/send', async (req, res) => {
@@ -2565,6 +2603,29 @@ app.get('/', (req, res) => {
       } catch(e) {}
     }
 
+    function fillPhotoBubble(bub, m, ack) {
+      bub.classList.add('bubble-photo');
+      if (m.isForwarded) {
+        const fwdEl = document.createElement('span');
+        fwdEl.className = 'forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '');
+        fwdEl.textContent = m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded');
+        bub.appendChild(fwdEl);
+      }
+      if (m.quotedMsg) bub.insertAdjacentHTML('beforeend', renderQuotedBlock(m.quotedMsg));
+      const ph = document.createElement('span');
+      ph.className = 'photo-placeholder'; ph.textContent = t('photo');
+      bub.appendChild(ph);
+      const img = document.createElement('img');
+      img.className = 'msg-img';
+      img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
+      img.style.cssText = 'width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in;';
+      img.loading = 'lazy';
+      img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
+      bub.appendChild(img);
+      if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.innerHTML = formatText(m.body); bub.appendChild(cap); }
+      const timeEl = document.createElement('span'); timeEl.className = 'time'; timeEl.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(timeEl);
+    }
+
     function renderMessages(msgs, chatId) {
       if (chatId !== selectedChatId) return;
       if (!msgs.length) return;
@@ -2577,6 +2638,20 @@ app.get('/', (req, res) => {
         // lastMsgTime mit deletedAt aktualisieren (deletedAt kann neuer sein als timestamp)
         const effectiveTs = (m.deleted && m.deletedAt) ? Math.max(m.timestamp, m.deletedAt) : m.timestamp;
         if (effectiveTs > (lastMsgTime[selectedChatId] || 0)) lastMsgTime[selectedChatId] = effectiveTs;
+
+        // Foto nachgeladen (z.B. nach Weiterleiten): Platzhalter-Bubble in-place
+        // durch Bild ersetzen, statt eine doppelte Bubble zu erzeugen
+        if (m.type === 'photo' && m.mediaFile) {
+          const existingWrap = msgList.querySelector('.bubble-wrap[data-msgid="' + m.id + '"]');
+          if (existingWrap && !existingWrap.querySelector('img.msg-img')) {
+            const bub = existingWrap.querySelector('.bubble');
+            if (bub) {
+              bub.innerHTML = '';
+              fillPhotoBubble(bub, m, m.fromMe ? ackMark(m.ack || 0) : '');
+            }
+            return;
+          }
+        }
 
         // ACK-Update: Häkchen in-place aktualisieren ohne Bubble neu zu erstellen
         if (m.fromMe && m.ackUpdatedAt) {
@@ -2656,26 +2731,7 @@ app.get('/', (req, res) => {
             : '<span style="opacity:0.6">' + t('voiceMsg') + '</span>')
             + '<span class="time">' + fmtTime(m.timestamp) + ack + '</span>';
         } else if (m.type === 'photo' && m.mediaFile) {
-          bub.classList.add('bubble-photo');
-          if (m.isForwarded) {
-            const fwdEl = document.createElement('span');
-            fwdEl.className = 'forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '');
-            fwdEl.textContent = m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded');
-            bub.appendChild(fwdEl);
-          }
-          if (m.quotedMsg) bub.insertAdjacentHTML('beforeend', renderQuotedBlock(m.quotedMsg));
-          const ph = document.createElement('span');
-          ph.className = 'photo-placeholder'; ph.textContent = t('photo');
-          bub.appendChild(ph);
-          const img = document.createElement('img');
-          img.className = 'msg-img';
-          img.src = 'api/media/' + encodeURIComponent(m.mediaFile);
-          img.style.cssText = 'width:100%;height:auto;max-height:360px;display:block;cursor:zoom-in;';
-          img.loading = 'lazy';
-          img.addEventListener('click', function(e) { e.stopPropagation(); openLightbox(this.src); });
-          bub.appendChild(img);
-          if (m.body) { const cap = document.createElement('div'); cap.className = 'caption'; cap.innerHTML = formatText(m.body); bub.appendChild(cap); }
-          const timeEl = document.createElement('span'); timeEl.className = 'time'; timeEl.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(timeEl);
+          fillPhotoBubble(bub, m, ack);
         } else {
           const fwdHtml = m.isForwarded
             ? '<span class="forwarded-label' + (m.forwardingScore >= 5 ? ' frequent' : '') + '">' + (m.forwardingScore >= 5 ? t('frequentForwarded') : t('forwarded')) + '</span>'

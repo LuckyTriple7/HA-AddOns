@@ -35,6 +35,3 @@ configuration:
   ha_notifications_skip_groups:
     name: HA Notifications Skip Groups
     description: No HA notification and no REST API update for messages from group chats.
-  ha_token:
-    name: HA Long-Lived Access Token
-    description: Required for HA notifications. Create one in your HA user profile under Long-lived access tokens.

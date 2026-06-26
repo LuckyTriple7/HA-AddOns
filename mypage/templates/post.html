@@ -79,6 +79,16 @@
     .content pre code { border: none; background: none; padding: 0; }
     .content blockquote { border-left: 3px solid var(--accent); padding-left: 14px; color: var(--muted); margin-bottom: 14px; }
     .back { display: inline-block; margin-top: 28px; }
+    /* Ähnliche Beiträge */
+    .related { margin-top: 40px; border-top: 1px solid var(--border); padding-top: 24px; }
+    .related h2 { font-size: 1.2rem; margin-bottom: 16px; }
+    .related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .related-card { display: flex; flex-direction: column; background: var(--surf); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .15s, transform .15s; }
+    .related-card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+    .related-card img { width: 100%; height: 110px; object-fit: cover; }
+    .related-body { padding: 11px 13px; display: flex; flex-direction: column; gap: 5px; }
+    .related-post-title { font-weight: 600; font-size: 0.9rem; color: var(--text); line-height: 1.35; }
+    .related-date { font-size: 0.74rem; color: var(--muted); }
     /* Reaktionen & Kommentare */
     .engage { margin-top: 40px; border-top: 1px solid var(--border); padding-top: 24px; }
     .react-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
@@ -120,7 +130,7 @@
     </div>
   </header>
   <main class="wrap">
-    {% if p.date or (views and not preview) %}<div class="post-date">{{ p.date }}{% if views and not preview %}{% if p.date %} · {% endif %}👁 {{ views }}{% endif %}</div>{% endif %}
+    {% if p.date or read_min or (views and not preview) %}<div class="post-date">{{ p.date }}{% if read_min %}{% if p.date %} · {% endif %}📖 {{ read_min }} {{ t.read_min_unit }}{% endif %}{% if views and not preview %}{% if p.date or read_min %} · {% endif %}👁 {{ views }}{% endif %}</div>{% endif %}
     <h1>{{ loc(p, 'title') }}</h1>
     {% if p.members_only %}<div style="margin:-6px 0 14px"><span style="display:inline-block;background:var(--surf);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 9px;font-size:.78rem">🔒 {{ t.members_only_badge }}</span></div>{% endif %}
     {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ loc(p, 'title') }}" onclick="openLightbox(this.src)">{% endif %}
@@ -150,6 +160,22 @@
     </div>
     {% endif %}
     {% include '_share.html' %}
+    {% if related and not preview %}
+    <section class="related">
+      <h2>{{ t.related_title }}</h2>
+      <div class="related-grid">
+        {% for r in related %}
+        <a class="related-card" href="/blog/{{ r.id }}">
+          {% if r.image %}<img src="{{ r.image }}" alt="" loading="lazy">{% endif %}
+          <span class="related-body">
+            <span class="related-post-title">{{ r.title }}</span>
+            {% if r.date %}<span class="related-date">{{ r.date }}</span>{% endif %}
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
     {% if comments_enabled and not preview %}
     <section class="engage" id="comments">
       <div class="react-bar">

@@ -26,6 +26,3 @@ configuration:
   ha_notifications_privacy:
     name: HA Notifications Privacy Mode
     description: When enabled, notifications only show "Signal / New message" — no sender name or message content.
-  ha_token:
-    name: HA Long-Lived Access Token
-    description: Required for HA notifications. Create one in your HA user profile under Long-lived access tokens.

@@ -29,15 +29,10 @@ Nach dem Start erscheint ein Code-Eingabefeld in der Web-UI. Den Code aus der Te
 | `ha_notifications` | `false` | Persistente HA-Benachrichtigung bei neuen Nachrichten |
 | `ha_notifications_privacy` | `false` | Nur „Telegram / Neue Nachricht" — kein Absender, kein Inhalt |
 | `ha_notifications_skip_bots` | `false` | Keine HA-Benachrichtigung für Bot-Nachrichten |
-| `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen (kein Admin-Benutzer erforderlich) |
 
 ### HA-Benachrichtigungen einrichten
 
-1. HA-Benutzerprofil öffnen (Benutzerbild unten links)
-2. Ganz nach unten → **Langlebige Zugangstokens** → Token erstellen
-3. Token unter `ha_token` eintragen
-
-> Der Token kann von jedem HA-Benutzer stammen — Admin-Rechte sind nicht erforderlich.
+Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automatisch den vom Supervisor bereitgestellten Zugriff auf die Home-Assistant-API (`homeassistant_api`); ein manuell erstellter Access Token ist nicht mehr nötig.
 
 ## REST-API
 
@@ -175,15 +170,10 @@ After starting, a code input field appears in the Web UI. Enter the code from th
 | `ha_notifications` | `false` | Persistent HA notification for new incoming messages |
 | `ha_notifications_privacy` | `false` | Show only "Telegram / New message" — no sender, no content |
 | `ha_notifications_skip_bots` | `false` | Skip HA notifications for bot messages |
-| `ha_token` | — | Long-lived access token for HA notifications (no admin user required) |
 
 ### Setting up HA Notifications
 
-1. Open your HA user profile (user icon, bottom left)
-2. Scroll to the bottom → **Long-lived access tokens** → Create token
-3. Enter the token under `ha_token`
-
-> The token can be created by any HA user — admin privileges are not required.
+Just enable `ha_notifications` — nothing else. The add-on automatically uses the Home Assistant API access provided by the Supervisor (`homeassistant_api`); a manually created access token is no longer required.
 
 ## REST API
 

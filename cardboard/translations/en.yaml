@@ -1,10 +1,4 @@
 configuration:
-  ha_token:
-    name: HA Long-Lived Access Token
-    description: Long-lived access token from Home Assistant (Profile → Security → Long-Lived Access Tokens). Required for the template rendering API.
-  ha_url:
-    name: Home Assistant URL
-    description: Internal URL of your HA instance, e.g. http://homeassistant.local:8123. Used for API calls.
   refresh_interval:
     name: Refresh Interval (seconds)
     description: How often the cards are automatically reloaded. Default 30.
@@ -19,7 +13,7 @@ configuration:
     description: How many days a login session stays valid. Default 7.
   notify_failed_login:
     name: Notify on Failed Login
-    description: Sends an HA notification on failed login attempts. Requires ha_token.
+    description: Sends an HA notification on failed login attempts.
   pw_min_length:
     name: Minimum Password Length
     description: Minimum number of characters for user passwords. Default 8.

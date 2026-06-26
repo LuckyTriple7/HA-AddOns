@@ -12,7 +12,6 @@ export DOWNLOAD_MEDIA=$(jq -r 'if .download_media == true then "true" else "fals
 export MEDIA_MAX_MB=$(jq -r '.media_max_mb // 500' /data/options.json)
 export HA_NOTIFICATIONS=$(jq -r 'if .ha_notifications == true then "true" else "false" end' /data/options.json)
 export HA_NOTIFICATIONS_PRIVACY=$(jq -r 'if .ha_notifications_privacy == true then "true" else "false" end' /data/options.json)
-export HA_TOKEN=$(jq -r '.ha_token // ""' /data/options.json)
 
 export SIGNAL_CLI_CONFIG_DIR=/config/signal-cli
 mkdir -p /config/signal-cli

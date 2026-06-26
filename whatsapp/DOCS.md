@@ -22,15 +22,10 @@ WhatsApp Web als persistente Session direkt in Home Assistant — mit Web-UI, RE
 | `debug_mode` | `false` | Ausführliches Logging für die Fehlersuche |
 | `ha_notifications` | `false` | HA-Benachrichtigung bei neuen Nachrichten |
 | `ha_notifications_privacy` | `false` | Nur „WhatsApp / Neue Nachricht" — kein Absender, kein Inhalt |
-| `ha_token` | — | Long-Lived Access Token für HA-Benachrichtigungen (kein Admin-Benutzer erforderlich) |
 
 ### HA-Benachrichtigungen einrichten
 
-1. HA-Benutzerprofil öffnen (Benutzerbild unten links)
-2. Ganz nach unten → **Langlebige Zugangstokens** → Token erstellen
-3. Token unter `ha_token` in der Konfiguration eintragen
-
-> Der Token kann von jedem HA-Benutzer stammen — Admin-Rechte sind nicht erforderlich.
+Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automatisch den vom Supervisor bereitgestellten Zugriff auf die Home-Assistant-API (`homeassistant_api`); ein manuell erstellter Access Token ist nicht mehr nötig.
 
 ## REST-API
 
@@ -190,15 +185,10 @@ WhatsApp Web as a persistent session directly in Home Assistant — with Web UI,
 | `debug_mode` | `false` | Verbose logging for troubleshooting |
 | `ha_notifications` | `false` | HA notification for new incoming messages |
 | `ha_notifications_privacy` | `false` | Show only "WhatsApp / New message" — no sender, no content |
-| `ha_token` | — | Long-lived access token for HA notifications (no admin user required) |
 
 ### Setting up HA notifications
 
-1. Open your HA user profile (user icon, bottom left)
-2. Scroll to the bottom → **Long-lived access tokens** → Create token
-3. Enter the token under `ha_token` in the configuration
-
-> The token can be created by any HA user — admin privileges are not required.
+Just enable `ha_notifications` — nothing else. The add-on automatically uses the Home Assistant API access provided by the Supervisor (`homeassistant_api`); a manually created access token is no longer required.
 
 ## REST API
 
