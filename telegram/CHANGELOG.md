@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.19] - 2026-06-26
+- UX: Beim Chat-Wechsel wird das Chatfenster jetzt sofort geleert und die gecachten Nachrichten praktisch ohne Verzögerung angezeigt — vorher blieb der vorherige Chat stehen, bis der (bei Erstöffnung mehrere Sekunden dauernde) Live-Telegram-Fetch zurückkam. Ein Lade-Spinner erscheint nur noch, wenn wirklich nichts gecacht ist und der Server live von Telegram holt (>200 ms)
+
 ## [1.6.18] - 2026-06-26
 - Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
 

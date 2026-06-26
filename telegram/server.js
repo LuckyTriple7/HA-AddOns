@@ -2144,7 +2144,19 @@ function openChat(chat) {
   av.onclick = () => openContactInfo(chat.id, chat.name);
   av.style.cursor = 'pointer';
   renderChats(allChats);
-  loadMessages(chat.id);
+  // Altes Chatfenster sofort leeren, damit nicht der vorherige Chat stehen bleibt.
+  // Gecachte Nachrichten kommen praktisch sofort zurück (kein Spinner-Flackern);
+  // nur bei der Erstöffnung (Live-Telegram-Fetch, mehrere Sekunden) erscheint nach
+  // 200 ms ein Spinner. forceRender umgeht den Fingerprint-Guard, damit auch leere
+  // Chats den Spinner wieder ersetzen.
+  const _msgsEl = document.getElementById('messages');
+  _msgsEl.innerHTML = '';
+  const _openId = chat.id;
+  const _spinTimer = setTimeout(() => {
+    if (selectedChatId === _openId && !_msgsEl.children.length)
+      _msgsEl.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;padding:48px"><div class="spinner" style="width:32px;height:32px;border-width:3px"></div></div>';
+  }, 200);
+  loadMessages(chat.id, true).finally(() => clearTimeout(_spinTimer));
 }
 
 function closeChat() {
