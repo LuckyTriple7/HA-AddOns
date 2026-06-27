@@ -880,11 +880,27 @@
       return blobType || 'application/octet-stream';
     }
 
+    // Dateinamen für den Share auf sichere ASCII-Zeichen reduzieren. yt-dlp-Namen
+    // enthalten oft Sonderzeichen/Emojis (｜ ？ ： …), an denen Android Chrome beim
+    // Teilen mit „Permission denied" scheitert. Inhalt/Endung bleiben unverändert.
+    function safeShareName(name) {
+      const dot = name.lastIndexOf('.');
+      let base = dot > 0 ? name.slice(0, dot) : name;
+      let ext  = dot > 0 ? name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+      base = base.normalize('NFKD')
+                 .replace(/[^\x20-\x7E]/g, '')        // alles außerhalb ASCII raus
+                 .replace(/[^\w \-()]+/g, '_')        // Rest auf sichere Zeichen
+                 .replace(/_+/g, '_').replace(/ +/g, ' ').trim();
+      if (!base) base = 'video';
+      if (base.length > 80) base = base.slice(0, 80).trim();
+      return ext ? base + '.' + ext : base;
+    }
+
     async function shareFile(name, btn) {
       if (!navigator.share) { toast(T.share_not_available, true); return; }
       const streamUrl = '/stream/' + encodeURIComponent(name);
 
-      // Datei holen (oder aus Cache) und mit korrektem MIME-Typ als File aufbereiten.
+      // Datei holen (oder aus Cache) und mit korrektem MIME-Typ + sicherem Namen als File.
       let file = shareFileCache.get(name);
       let justFetched = false;
       if (!file) {
@@ -894,7 +910,7 @@
           const resp = await fetch(streamUrl);
           if (!resp.ok) { toast(T.error_network, true); return; }
           const blob = await resp.blob();
-          file = new File([blob], name, { type: pickMime(name, blob.type) });
+          file = new File([blob], safeShareName(name), { type: pickMime(name, blob.type) });
           shareFileCache.set(name, file);
           justFetched = true;
         } catch(e) {
@@ -911,13 +927,14 @@
       }
 
       try {
-        await navigator.share({ files: [file], title: name });
+        await navigator.share({ files: [file], title: file.name });
       } catch(e) {
         if (e && e.name === 'AbortError') return;
         // Bei frisch geladener (großer) Datei kann die User-Aktivierung während des
         // Downloads abgelaufen sein → Datei ist nun gecacht, ein erneutes Tippen teilt sofort.
         if (e && e.name === 'NotAllowedError' && justFetched) { toast(T.share_ready, false); return; }
-        toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
+        const mb = Math.round((file.size || 0) / 1048576);
+        toast(T.share_not_available + ' (' + ((e && e.name) || '') + ', ' + mb + ' MB)', true);
       }
     }
 

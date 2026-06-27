@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.40] — 2026-06-27
+
+### Behoben
+- Teilen scheiterte bei MP4-Dateien mit Sonderzeichen/Emojis im Namen (`｜ ？ ：` …) weiterhin mit `NotAllowedError`: Der Dateiname wird für den Share jetzt auf sichere ASCII-Zeichen reduziert (Inhalt/Endung unverändert)
+- Fehler-Toast zeigt zur Sicherheit zusätzlich die Dateigröße, falls doch noch ein Fall scheitert
+
+
 ## [1.0.39] — 2026-06-27
 
 ### Behoben
