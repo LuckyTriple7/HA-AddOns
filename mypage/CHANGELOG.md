@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.65
+
+- ✍️ **Neues Freitext-Modul** — Ein frei gestaltbarer Startseiten-Abschnitt: Über den eingebauten **Markdown-Editor** lassen sich beliebig **Text und Bilder** einfügen (Formatierung, Listen, Tabellen, Links, Bild-Upload per Klick). Die **Überschrift ist optional** (DE/EN) — bleibt sie leer, wird keine Titelzeile angezeigt und der Inhalt gestaltet sich komplett selbst. Der Block lässt sich wie jede andere Sektion **per Drag & Drop anordnen, aus-/einblenden** und auf „nur Mitglieder" stellen.
+
 ## 0.7.64
 
 - 🃏 **20 AB — Regeln verfeinert** — Drei Anpassungen beim Reizen: (1) Bei der **„Nächste Karte"** als Trumpf müssen jetzt nur noch alle mitspielen, wenn ein **Kreuz** gezogen wird — bei jeder anderen Farbe wird **normal gereizt**, man darf also aussteigen. (2) **Aussteigen nach Aussteigen verboten:** Wer in einer Runde passt, **muss die nächste Runde mitspielen**. (3) **Punkte-Sperre:** Wer **weniger als 6 Punkte** hat, **darf nicht mehr aussteigen**. KI und Bedienung (Passen-Button wird ausgeblendet) halten sich daran; Regeltexte (DE/EN) ergänzt.

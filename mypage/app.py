@@ -312,12 +312,13 @@ DEFAULT_SITE = {
         'location': {},
         'tips': [],
         'countdown': {},
+        'freetext': {},
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
     'section_order': [
-        'news', 'countdown', 'tips', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'news', 'countdown', 'tips', 'freetext', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
@@ -3529,6 +3530,14 @@ def api_sections():
             'lat':      _coord(L.get('lat')),
             'lng':      _coord(L.get('lng')),
             'show_map': bool(L.get('show_map')),
+        }
+    if isinstance(raw.get('freetext'), dict):
+        ft = raw['freetext']
+        sec['freetext'] = {
+            'title_de':   _clean_str(ft.get('title_de'), 160),
+            'title_en':   _clean_str(ft.get('title_en'), 160),
+            'content_de': _clean_str(ft.get('content_de'), 20000),
+            'content_en': _clean_str(ft.get('content_en'), 20000),
         }
     if isinstance(raw.get('section_order'), list):
         order = [k for k in raw['section_order'] if isinstance(k, str) and k in SECTION_KEYS]
@@ -7050,11 +7059,14 @@ def public_index():
 
     cd = sections.get('countdown') or {}
     countdown_title = loc(cd, 'title')
+    ft = sections.get('freetext') or {}
+    freetext_title = loc(ft, 'title')
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
         'countdown':    ('countdown',    'countdown_heading',    bool(cd.get('target'))),
         'tips':         ('tips',         'tips_heading_week' if tips_weekly else 'tips_heading', bool(tips)),
+        'freetext':     ('freetext',     'freetext_heading',     bool(loc(ft, 'content'))),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
@@ -7092,6 +7104,8 @@ def public_index():
                     label = timeline_title
                 elif key == 'countdown' and countdown_title:
                     label = countdown_title
+                elif key == 'freetext' and freetext_title:
+                    label = freetext_title
                 else:
                     label = t.get(label_key, label_key)
                 nav_items.append({'anchor': anchor, 'label': label})
