@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.23] - 2026-06-27
+- Neu: **@-Erwähnungen in Gruppen** — tippst du `@` in einem Gruppenchat, öffnet sich eine Mitglieder-Auswahl (Filtern beim Weitertippen, ▲▼/Enter/Tab zur Auswahl). Die gesendete Nachricht enthält eine echte Erwähnung, der Erwähnte wird benachrichtigt wie bei der App. Neuer Endpoint `/api/participants/:chatId`; `/api/send` akzeptiert jetzt `mentions`
+
 ## [1.7.22] - 2026-06-26
 - Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
 
