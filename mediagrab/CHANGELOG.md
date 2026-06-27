@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.1.3] — 2026-06-27
+
+### Behoben
+- Build-Fehler endgültig gelöst: AtomicParsley existiert nicht als Alpine-Paket. Für MP4/M4A-Cover nutzt yt-dlp bevorzugt die Python-Bibliothek `mutagen` (pure Python, läuft auf amd64 + aarch64) — diese wird jetzt installiert; AtomicParsley entfällt
+- MP3-Cover macht weiterhin ffmpeg
+
+
 ## [1.1.2] — 2026-06-27
 
 ### Behoben

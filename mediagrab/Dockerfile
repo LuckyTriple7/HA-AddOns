@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.description="yt-dlp Web-GUI for Home Assistant"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-RUN apk add --no-cache ffmpeg curl AtomicParsley
+RUN apk add --no-cache ffmpeg curl
 
 WORKDIR /app
 
