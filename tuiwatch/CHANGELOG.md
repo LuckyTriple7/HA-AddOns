@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.2] - 2026-06-27
+
+### Added
+- **Home-Assistant-Sensoren**: je Angebot ein Sensor `sensor.tuiwatch_<hotelname>`
+  (bei gleichem Hotelnamen `_2`, `_3` …). Wert = aktueller Preis in €, bei Fehler
+  `unavailable`. Attribute u. a. `description` (Reise-Eckdaten), `hotel`, `old_price`,
+  `discount`, `last_checked`, `url`. Per Option `ha_sensors` abschaltbar.
+  Verwaiste Sensoren werden automatisch entfernt.
+- **Übersetzungen der Add-on-Konfiguration** (DE/EN) für die HA-Optionsseite.
+
 ## [0.1.1] - 2026-06-27
 
 ### Fixed

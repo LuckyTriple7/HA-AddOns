@@ -8,6 +8,7 @@ SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 import json
 import logging
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -16,6 +17,7 @@ from collections import defaultdict, deque
 from datetime import datetime
 from urllib.parse import urlparse
 
+import requests as http
 from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -221,6 +223,81 @@ def _last_two_prices(con, offer_id: int) -> list:
     return [r['price'] for r in rows]
 
 
+# ── Home-Assistant-Sensoren ────────────────────────────────────────────────────
+
+SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
+HA_BASE = 'http://supervisor/core/api'
+
+
+def _ha_enabled() -> bool:
+    return bool(SUPERVISOR_TOKEN) and bool(load_config().get('ha_sensors', True))
+
+
+def _slug(s: str) -> str:
+    s = (s or '').lower()
+    s = (s.replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue')
+          .replace('ß', 'ss'))
+    s = re.sub(r'[^a-z0-9]+', '_', s).strip('_')
+    return s or 'angebot'
+
+
+def _entity_ids() -> dict[int, str]:
+    """offer_id → entity_id: sensor.tuiwatch_<hotelslug>, bei gleichem Hotel _2/_3 …"""
+    with db() as con:
+        offers = con.execute('SELECT id, hotel, url FROM offers ORDER BY id').fetchall()
+    counts: dict[str, int] = {}
+    mapping: dict[int, str] = {}
+    for o in offers:
+        base = 'tuiwatch_' + _slug(o['hotel'] or hotel_from_url(o['url']) or f"angebot_{o['id']}")
+        counts[base] = counts.get(base, 0) + 1
+        n = counts[base]
+        mapping[o['id']] = 'sensor.' + (base if n == 1 else f'{base}_{n}')
+    return mapping
+
+
+def push_ha_sensors() -> None:
+    """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unavailable',
+    Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf."""
+    if not _ha_enabled():
+        return
+    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    mapping = _entity_ids()
+    try:
+        with db() as con:
+            for oid, eid in mapping.items():
+                o = con.execute('SELECT * FROM offers WHERE id=?', (oid,)).fetchone()
+                last = con.execute('SELECT * FROM price_history WHERE offer_id=? '
+                                   'ORDER BY ts DESC LIMIT 1', (oid,)).fetchone()
+                ok = bool(last and last['ok'] and last['price'] is not None)
+                state = int(round(last['price'])) if ok else 'unavailable'
+                attrs = {
+                    'friendly_name': o['label'] or o['hotel'] or f'TUI-Angebot #{oid}',
+                    'icon': 'mdi:airplane-clock',
+                    'description': o['details'] or '',
+                    'hotel': o['hotel'] or '',
+                    'url': o['url'],
+                }
+                if ok:
+                    attrs['unit_of_measurement'] = '€'
+                    if last['old_price']:
+                        attrs['old_price'] = int(round(last['old_price']))
+                    if last['discount']:
+                        attrs['discount'] = last['discount']
+                if last and last['ts']:
+                    attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
+                http.post(f'{HA_BASE}/states/{eid}', headers=headers, timeout=10,
+                          json={'state': state, 'attributes': attrs})
+        # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
+        valid = set(mapping.values())
+        states = http.get(f'{HA_BASE}/states', headers=headers, timeout=10).json()
+        for st in states:
+            ent = st.get('entity_id', '')
+            if ent.startswith('sensor.tuiwatch_') and ent not in valid:
+                http.delete(f'{HA_BASE}/states/{ent}', headers=headers, timeout=10)
+    except Exception as e:
+        log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
+
+
 # ── Scraping-Worker ────────────────────────────────────────────────────────────
 
 def check_offer(offer_id: int) -> None:
@@ -259,6 +336,7 @@ def check_offer(offer_id: int) -> None:
     finally:
         with _checking_lock:
             _checking.discard(offer_id)
+    push_ha_sensors()
 
 
 def check_all(reason: str = '') -> None:
@@ -429,6 +507,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     log.info("Angebot #%d gelöscht", offer_id)
+    push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
     return jsonify({'deleted': offer_id})
 
 
@@ -482,6 +561,7 @@ def api_console():
 def main() -> None:
     init_db()
     load_sessions()
+    _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
     threading.Thread(target=_poll_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

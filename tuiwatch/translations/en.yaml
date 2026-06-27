@@ -1,0 +1,19 @@
+configuration:
+  username:
+    name: Username
+    description: Username for the web interface (only relevant for direct access on port 17794 — behind HA Ingress, HA handles authentication).
+  password:
+    name: Password
+    description: Password for the web interface (only relevant for direct access on port 17794). Please change it!
+  session_hours:
+    name: Session duration (hours)
+    description: How many hours a login session stays valid. Default 24.
+  poll_interval:
+    name: Check interval (seconds)
+    description: "Delay between two automatic price checks. Travel prices change slowly — default 21600 (6 hours), minimum 600 (10 minutes). Please keep it fair, not every minute."
+  ha_sensors:
+    name: Home Assistant sensors
+    description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unavailable' on error; trip details are in the 'description' attribute. Default on."
+  verbose_log:
+    name: Verbose logging
+    description: Logs more detail per check. Default off — only errors and important events are logged.

@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.1.1"
+version: "0.1.2"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -12,6 +12,8 @@ arch:
 startup: application
 boot: manual
 init: false
+
+homeassistant_api: true
 
 panel_icon: mdi:airplane-clock
 panel_title: TUIWatch
@@ -34,6 +36,7 @@ options:
   password: "secret"
   session_hours: 24
   poll_interval: 21600
+  ha_sensors: true
   verbose_log: false
 
 schema:
@@ -41,4 +44,5 @@ schema:
   password: str
   session_hours: int
   poll_interval: int?
+  ha_sensors: bool?
   verbose_log: bool?

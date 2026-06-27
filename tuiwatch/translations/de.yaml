@@ -1,0 +1,19 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Benutzername für das Web-Interface (nur beim Direktzugriff auf Port 17794 relevant — hinter HA Ingress übernimmt HA die Authentifizierung).
+  password:
+    name: Passwort
+    description: Passwort für das Web-Interface (nur beim Direktzugriff auf Port 17794 relevant). Bitte ändern!
+  session_hours:
+    name: Session-Dauer (Stunden)
+    description: Wie viele Stunden eine Login-Session gültig bleibt. Standard 24.
+  poll_interval:
+    name: Prüfintervall (Sekunden)
+    description: "Pause zwischen zwei automatischen Preisprüfungen. Reisepreise ändern sich langsam — Standard 21600 (6 Stunden), Minimum 600 (10 Minuten). Bitte fair wählen, nicht im Minutentakt."
+  ha_sensors:
+    name: Home-Assistant-Sensoren
+    description: "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unavailable'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."
+  verbose_log:
+    name: Ausführliches Logging
+    description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.
