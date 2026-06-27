@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.4] - 2026-06-27
+
+### Added
+- **Benachrichtigungen** bei Preisänderung und erreichtem Wunschpreis — über
+  **Home Assistant** (persistent_notification) und/oder **Telegram** (Bot-Token +
+  Chat-ID). Optionen: `notify_ha`, `notify_price_change`, `telegram_bot_token`,
+  `telegram_chat_id`.
+- **Wunschpreis (Zielpreis) pro Angebot** — im UI eingebbar; wird der Preis ≤ Wunsch,
+  kommt eine Benachrichtigung. Auch als Sensor-Attribut `target_price`.
+- **Statistik je Angebot**: niedrigster/höchster/Durchschnittspreis + „Bestpreis"-Badge
+  (UI) sowie Sensor-Attribute `min_price`, `max_price`, `avg_price`.
+
+### Changed
+- **Robusterer Abruf**: bis zu 2 Versuche bei Fehlschlag; bestätigter Gesamtpreis nach
+  Verfügbarkeitsprüfung; die Haupt-Angebotskarte wird zuverlässiger getroffen
+  (keine „Empfehlungs"-Karte).
+
+### Security
+- Technische Exception-Texte werden nicht mehr im UI/Sensor angezeigt, sondern nur
+  noch ins Log geschrieben (generische Meldung nach außen).
+
 ## [0.1.3] - 2026-06-27
 
 ### Changed

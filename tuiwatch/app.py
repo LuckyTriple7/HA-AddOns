@@ -194,6 +194,7 @@ def init_db() -> None:
             dep_airport TEXT DEFAULT '',
             flight_out  TEXT DEFAULT '',
             flight_ret  TEXT DEFAULT '',
+            target_price REAL,
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -214,6 +215,8 @@ def init_db() -> None:
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
+        if 'target_price' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN target_price REAL")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
@@ -277,6 +280,10 @@ def push_ha_sensors() -> None:
                 o = con.execute('SELECT * FROM offers WHERE id=?', (oid,)).fetchone()
                 last = con.execute('SELECT * FROM price_history WHERE offer_id=? '
                                    'ORDER BY ts DESC LIMIT 1', (oid,)).fetchone()
+                stats = con.execute(
+                    'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av '
+                    'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
+                    (oid,)).fetchone()
                 ok = bool(last and last['ok'] and last['price'] is not None)
                 state = int(round(last['price'])) if ok else 'unavailable'
                 attrs = {
@@ -292,12 +299,18 @@ def push_ha_sensors() -> None:
                 }
                 if last and last['available'] is not None:
                     attrs['available'] = bool(last['available'])
+                if o['target_price']:
+                    attrs['target_price'] = int(round(o['target_price']))
                 if ok:
                     attrs['unit_of_measurement'] = '€'
                     if last['old_price']:
                         attrs['old_price'] = int(round(last['old_price']))
                     if last['discount']:
                         attrs['discount'] = last['discount']
+                    if stats and stats['mn'] is not None:
+                        attrs['min_price'] = int(round(stats['mn']))
+                        attrs['max_price'] = int(round(stats['mx']))
+                        attrs['avg_price'] = int(round(stats['av']))
                 if last and last['ts']:
                     attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
                 http.post(f'{HA_BASE}/states/{eid}', headers=headers, timeout=10,
@@ -313,6 +326,73 @@ def push_ha_sensors() -> None:
         log.warning("HA-Sensoren aktualisieren fehlgeschlagen: %s", e)
 
 
+# ── Benachrichtigungen (HA + Telegram) ─────────────────────────────────────────
+
+def _notify_ha(title: str, message: str, tag: str) -> None:
+    if not (SUPERVISOR_TOKEN and load_config().get('notify_ha', True)):
+        return
+    try:
+        http.post(f'{HA_BASE}/services/persistent_notification/create',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
+    except Exception as e:
+        log.warning("HA-Benachrichtigung fehlgeschlagen: %s", e)
+
+
+def _notify_telegram(text: str) -> None:
+    cfg = load_config()
+    token = (cfg.get('telegram_bot_token') or '').strip()
+    chat = (cfg.get('telegram_chat_id') or '').strip()
+    if not (token and chat):
+        return
+    try:
+        http.post(f'https://api.telegram.org/bot{token}/sendMessage', timeout=10,
+                  json={'chat_id': chat, 'text': text, 'parse_mode': 'HTML',
+                        'disable_web_page_preview': True})
+    except Exception as e:
+        log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+
+
+def _eur(v) -> str:
+    try:
+        return f"{int(round(v)):,}".replace(',', '.') + ' €'
+    except Exception:
+        return '–'
+
+
+def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None,
+                  target: float | None) -> None:
+    """Schickt Benachrichtigungen bei Preisänderung und erreichtem Wunschpreis."""
+    if new_price is None:
+        return
+    cfg = load_config()
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
+    url = offer.get('url', '')
+
+    # 1) Wunschpreis erreicht (nur beim Übergang über die Schwelle)
+    if target and new_price <= target and (prev_price is None or prev_price > target):
+        title = f"🎯 Wunschpreis erreicht: {name}"
+        msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}\n{url}"
+        _notify_ha(title, msg, f"target_{offer['id']}")
+        _notify_telegram(f"🎯 <b>Wunschpreis erreicht</b>\n{name}\nJetzt <b>{_eur(new_price)}</b> "
+                         f"(Ziel {_eur(target)})\n{url}")
+        return  # nicht zusätzlich die Änderungsmeldung senden
+
+    # 2) Preisänderung
+    if cfg.get('notify_price_change', True) and prev_price is not None and new_price != prev_price:
+        diff = new_price - prev_price
+        if diff < 0:
+            title = f"📉 Preis gefallen: {name}"
+            arrow = f"▼ {_eur(abs(diff))}"
+        else:
+            title = f"📈 Preis gestiegen: {name}"
+            arrow = f"▲ {_eur(diff)}"
+        msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow})\n{url}"
+        _notify_ha(title, msg, f"change_{offer['id']}")
+        _notify_telegram(f"{'📉' if diff<0 else '📈'} <b>{name}</b>\n"
+                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}")
+
+
 # ── Scraping-Worker ────────────────────────────────────────────────────────────
 
 def check_offer(offer_id: int) -> None:
@@ -323,13 +403,29 @@ def check_offer(offer_id: int) -> None:
         _checking.add(offer_id)
     try:
         with db() as con:
-            row = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
-        if not row:
+            offer = con.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
+            prev_price = con.execute(
+                'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+                'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+        if not offer:
             return
-        url = row['url']
+        offer = dict(offer)
+        prev_price = prev_price['price'] if prev_price else None
+        url = offer['url']
         log.info("Prüfe Angebot #%d …", offer_id)
-        with _scrape_lock:
-            res = fetch_price(url, verbose=_verbose())
+
+        # bis zu 2 Versuche (gegen sporadische Timeouts/Bot-Drosselung)
+        res = {}
+        for attempt in (1, 2):
+            with _scrape_lock:
+                res = fetch_price(url, verbose=_verbose())
+            if res.get('ok'):
+                break
+            if res.get('detail'):
+                log.warning("Angebot #%d Versuch %d: %s", offer_id, attempt, res['detail'])
+            if attempt == 1:
+                time.sleep(3)
+
         ts = int(time.time())
         avail = res.get('available')
         with db() as con:
@@ -339,13 +435,15 @@ def check_offer(offer_id: int) -> None:
                 (offer_id, ts, res.get('price'), res.get('old_price'), res.get('discount'),
                  (1 if avail else 0) if avail is not None else None,
                  1 if res.get('ok') else 0, res.get('note', '')))
-            # Snapshot der Eckdaten aktualisieren (nur was erkannt wurde)
             for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret'):
                 if res.get(col):
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
+
         if res.get('ok'):
             log.info("Angebot #%d: %.0f € (%s)", offer_id, res['price'], res.get('details', '')[:60])
+            _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
         else:
+            # nach außen nur generische Note (bereits in res['note']); Detail steht im Log
             log.warning("Angebot #%d fehlgeschlagen: %s", offer_id, res.get('note'))
     except Exception as e:
         log.error("check_offer(#%d) Fehler: %s", offer_id, e)
@@ -468,6 +566,10 @@ def api_offers():
             delta = None
             if len(prices) == 2:
                 delta = prices[0] - prices[1]
+            stats = con.execute(
+                'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
+                'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
+                (o['id'],)).fetchone()
             checking = o['id'] in _checking
             avail = None
             if last and last['available'] is not None:
@@ -477,6 +579,7 @@ def api_offers():
                 'hotel': o['hotel'], 'details': o['details'], 'room': o['room'],
                 'dep_airport': o['dep_airport'],
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
+                'target_price': o['target_price'],
                 'price': last['price'] if last else None,
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
@@ -485,6 +588,9 @@ def api_offers():
                 'note': last['note'] if last else '',
                 'last_ts': last['ts'] if last else None,
                 'delta': delta,
+                'min_price': stats['mn'], 'max_price': stats['mx'],
+                'avg_price': round(stats['av']) if stats['av'] is not None else None,
+                'samples': stats['c'],
                 'checking': checking,
             })
     return jsonify({'offers': out})
@@ -534,14 +640,22 @@ def api_delete_offer(offer_id: int):
 
 
 @app.route('/api/offers/<int:offer_id>', methods=['PATCH'])
-def api_rename_offer(offer_id: int):
+def api_update_offer(offer_id: int):
     if (err := _require_api()):
         return err
     data = request.get_json(silent=True) or {}
-    label = (data.get('label') or '').strip()
     with db() as con:
-        con.execute('UPDATE offers SET label=? WHERE id=?', (label, offer_id))
-    return jsonify({'id': offer_id, 'label': label})
+        if 'label' in data:
+            con.execute('UPDATE offers SET label=? WHERE id=?',
+                        ((data.get('label') or '').strip(), offer_id))
+        if 'target_price' in data:
+            tp = data.get('target_price')
+            try:
+                tp = float(tp) if tp not in (None, '', 0) else None
+            except (TypeError, ValueError):
+                tp = None
+            con.execute('UPDATE offers SET target_price=? WHERE id=?', (tp, offer_id))
+    return jsonify({'id': offer_id, 'ok': True})
 
 
 @app.route('/api/history/<int:offer_id>', methods=['GET'])

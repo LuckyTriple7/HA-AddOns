@@ -14,6 +14,18 @@ configuration:
   ha_sensors:
     name: Home Assistant sensors
     description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unavailable' on error; trip details are in the 'description' attribute. Default on."
+  notify_ha:
+    name: HA notifications
+    description: "Show a persistent Home Assistant notification on price change or when a target price is reached. Default on."
+  notify_price_change:
+    name: Notify on every price change
+    description: "Notify whenever a price changes (up/down). Target-price notifications are always sent regardless. Default on."
+  telegram_bot_token:
+    name: Telegram bot token
+    description: "Token of a Telegram bot (format 123456789:ABC-...) to receive notifications via Telegram. Leave empty to disable Telegram. Create a bot via @BotFather."
+  telegram_chat_id:
+    name: Telegram chat ID
+    description: "Chat ID of the recipient for Telegram messages. Find it via @userinfobot or by sending /start to the bot."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

@@ -144,7 +144,8 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
     r = {"ok": False, "price": None, "currency": "EUR", "old_price": None,
          "discount": None, "hotel": "", "room": "", "board": "", "nights": "",
          "travellers": "", "dep_airport": "", "flight_out": "", "flight_ret": "",
-         "details": "", "available": None, "total_price": None, "note": ""}
+         "details": "", "available": None, "total_price": None,
+         "note": "", "detail": ""}
     chromium_path = os.environ.get("CHROMIUM_PATH") or None
     try:
         with sync_playwright() as p:
@@ -184,16 +185,28 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
                 name_el = page.query_selector(HOTEL_NAME_SELECTOR)
                 r["hotel"] = (name_el.inner_text().strip() if name_el else '') or hotel_from_url(url)
 
-                # Erste Angebotskarte mit Preis (= günstigste, da aufsteigend sortiert)
+                # Erste echte Angebotskarte (= günstigste, da aufsteigend sortiert).
+                # Muss Preis UND Flug/Verfügbarkeit enthalten, damit keine
+                # "Empfehlungs"-Karte (anderes Hotel) erwischt wird.
+                cards = page.query_selector_all(OFFER_CARD_SELECTOR)
                 card = None
-                for el in page.query_selector_all(OFFER_CARD_SELECTOR):
+                for el in cards:
                     try:
                         t = el.inner_text() or ""
                     except Exception:
                         continue
-                    if "pro Person" in t and "€" in t:
+                    if "pro Person" in t and "€" in t and \
+                            ("Verfügbarkeit" in t or _FLIGHTLINE_RE.search(t)):
                         card = el
                         break
+                if not card:  # Fallback: erste Karte mit Preis
+                    for el in cards:
+                        try:
+                            if "pro Person" in (el.inner_text() or ""):
+                                card = el
+                                break
+                        except Exception:
+                            continue
                 if not card:
                     r["note"] = "Keine Angebotskarte gefunden (Layout geändert oder kein Angebot)"
                     return r
@@ -230,7 +243,14 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
                                 r["available"] = False
                             elif "verfügbar" in ct.lower() or "Gesamtpreis" in ct:
                                 r["available"] = True
+                            # Gesamtpreis kann außerhalb der Karte stehen → seitenweit suchen
                             tm = _TOTAL_RE.search(ct)
+                            if not tm:
+                                gp = page.query_selector("text=/Gesamtpreis/")
+                                if gp:
+                                    parent = gp.evaluate_handle("e => e.parentElement").as_element()
+                                    if parent:
+                                        tm = _TOTAL_RE.search(parent.inner_text() or "")
                             if tm:
                                 r["total_price"] = _to_amount(tm.group(1))
                             if verbose:
@@ -244,7 +264,10 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
             finally:
                 browser.close()
     except Exception as e:  # pragma: no cover
-        r["note"] = f"{type(e).__name__}: {e}"[:200]
+        # Security: keine Exception-Details nach außen (UI/Sensor) — nur generisch.
+        # Das technische Detail wird vom Aufrufer ins Log geschrieben.
+        r["note"] = "Abruf fehlgeschlagen"
+        r["detail"] = f"{type(e).__name__}: {e}"[:300]
         return r
 
 

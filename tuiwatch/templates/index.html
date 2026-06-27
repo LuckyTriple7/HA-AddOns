@@ -41,6 +41,12 @@
     .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
     .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
+    .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .stats .best { color:var(--green); font-weight:700; }
+    .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem; color:var(--muted); flex-wrap:wrap; }
+    .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:.78rem; }
+    .target-row input:focus { outline:none; border-color:var(--accent); }
+    .target-set { color:var(--accent); font-weight:600; }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
     .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
@@ -203,6 +209,9 @@
     }
 
     function renderAll(offers){
+      // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
+      const ae = document.activeElement;
+      if(ae && ae.id && ae.id.indexOf('tgt-')===0) return;
       $('#iv').textContent = Math.round(G.iv/3600*10)/10 + ' Std';
       const box = $('#offers');
       if(!offers.length){ box.innerHTML = '<div class="empty">Noch keine Angebote. Füge oben eine TUI-URL hinzu.</div>'; return; }
@@ -227,6 +236,16 @@
         let availBadge = '';
         if(o.available===true) availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
         else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
+        let statsLine = '';
+        if(o.min_price!=null && o.samples>1){
+          const best = (o.price!=null && o.price<=o.min_price);
+          statsLine = `<div class="stats">Tief ${eur(o.min_price)} · Hoch ${eur(o.max_price)} · Ø ${eur(o.avg_price)}${best?' · <span class="best">✓ Bestpreis</span>':''}</div>`;
+        }
+        const tgt = o.target_price!=null ? Math.round(o.target_price) : '';
+        const tgtLabel = o.target_price!=null ? `<span class="target-set">🎯 Wunschpreis ${eur(o.target_price)}</span>` : '🎯 Wunschpreis:';
+        const targetRow = `<div class="target-row">${tgtLabel}
+            <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
+            <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
         return `<div class="offer" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
@@ -243,6 +262,8 @@
               ${availBadge}
             </div>
           </div>
+          ${statsLine}
+          ${targetRow}
           <canvas class="spark" id="spark-${o.id}"></canvas>
           <div class="offer-foot">
             <span class="when">${o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts))}</span>
@@ -332,6 +353,14 @@
     async function delOffer(id){
       if(!confirm('Dieses Angebot inklusive Verlauf löschen?')) return;
       await fetch(api('/api/offers/'+id), {method:'DELETE'});
+      loadOffers();
+    }
+    async function setTarget(id){
+      const el = document.getElementById('tgt-'+id);
+      const val = el && el.value.trim() ? parseFloat(el.value) : null;
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({target_price: val})});
+      toast(val ? ('Wunschpreis gesetzt: '+eur(val)) : 'Wunschpreis entfernt');
       loadOffers();
     }
     async function checkOne(id){ await fetch(api('/api/check/'+id), {method:'POST'}); toast('Prüfung gestartet…'); loadOffers(); }

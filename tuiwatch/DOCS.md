@@ -35,6 +35,17 @@ Verpflegung), **Hin- und Rückflug** (Datum/Uhrzeit/Airline/Direkt), der konkret
 > Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
 > der unverbindliche „ab"-Lockpreis.
 
+## Wunschpreis & Benachrichtigungen
+
+- Pro Angebot kannst du im UI einen **Wunschpreis** setzen. Fällt der Preis auf
+  oder unter diesen Wert, wirst du benachrichtigt.
+- Bei **jeder Preisänderung** (steigt/fällt) kommt ebenfalls eine Meldung
+  (abschaltbar über `notify_price_change`).
+- Kanäle:
+  - **Home Assistant**: persistente Benachrichtigung (Option `notify_ha`, Standard an).
+  - **Telegram**: `telegram_bot_token` + `telegram_chat_id` setzen (Bot via @BotFather,
+    Chat-ID via @userinfobot).
+
 ## Home-Assistant-Sensoren
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
@@ -42,7 +53,8 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Wert** = aktueller Preis in € (bei Fehler `unavailable`)
 - **Attribute**: `description`, `hotel`, `room`, `departure_airport`,
   `flight_outbound`, `flight_return`, `available` (true/false), `old_price`,
-  `discount`, `last_checked`, `url`
+  `discount`, `min_price`, `max_price`, `avg_price`, `target_price`,
+  `last_checked`, `url`
 
 ## Bedienung
 
