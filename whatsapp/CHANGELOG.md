@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.24] - 2026-06-27
+- Erwähnungen werden jetzt **als Name angezeigt** statt als Nummer — `@<nummer>` wird beim Rendern zu `@Name` aufgelöst und blau hervorgehoben, sowohl bei **eigenen gesendeten** als auch bei **eingehenden** Nachrichten. Gruppenmitglieder werden beim Öffnen des Chats vorgeladen; ist für eine Nummer kein Name bekannt, wird sie als `@+<nummer>` formatiert
+- Erwähnungen funktionieren jetzt auch beim **Antworten** (Reply), nicht nur beim normalen Senden
+- Namensauflösung der Gruppenmitglieder verbessert (zusätzlich `verifiedName`/`shortName`)
+
 ## [1.7.23] - 2026-06-27
 - Neu: **@-Erwähnungen in Gruppen** — tippst du `@` in einem Gruppenchat, öffnet sich eine Mitglieder-Auswahl (Filtern beim Weitertippen, ▲▼/Enter/Tab zur Auswahl). Die gesendete Nachricht enthält eine echte Erwähnung, der Erwähnte wird benachrichtigt wie bei der App. Neuer Endpoint `/api/participants/:chatId`; `/api/send` akzeptiert jetzt `mentions`
 

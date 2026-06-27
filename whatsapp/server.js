@@ -881,7 +881,7 @@ app.post('/api/send', async (req, res) => {
     }
     addMsg(targetChatId, {
       id: result.id._serialized,
-      body: displayBody || message, // lokal die @Name-Variante zeigen
+      body: message, // enthält @<nummer>; das Frontend löst zu @Name auf (wie bei eingehenden)
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
@@ -909,7 +909,7 @@ app.get('/api/participants/:chatId', async (req, res) => {
       if (!jid || !number || number === myUser) continue; // sich selbst nicht erwähnen
       let name = number;
       const c = await client.getContactById(jid).catch(() => null);
-      if (c) name = c.name || c.pushname || number;
+      if (c) name = c.name || c.pushname || c.verifiedName || c.shortName || number;
       out.push({ jid, number, name });
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
@@ -1329,17 +1329,21 @@ app.post('/api/send-location', async (req, res) => {
 });
 
 app.post('/api/reply', async (req, res) => {
-  const { quotedMsgId, chatId, message } = req.body;
+  const { quotedMsgId, chatId, message, mentions, displayBody } = req.body;
   if (!quotedMsgId || !chatId || !message) return res.status(400).json({ error: 'quotedMsgId, chatId and message required' });
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   try {
     const qMsg = await client.getMessageById(quotedMsgId);
     if (!qMsg) throw new Error('Quoted message not found');
-    const result = await qMsg.reply(message);
+    const opts = {};
+    if (Array.isArray(mentions) && mentions.length) {
+      opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
+    }
+    const result = await qMsg.reply(message, undefined, opts);
     result.__logged = true;
     addMsg(chatId, {
       id: result.id._serialized,
-      body: message,
+      body: message, // @<nummer>; Frontend löst zu @Name auf
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
@@ -1883,6 +1887,8 @@ app.get('/', (req, res) => {
     .mention-item.active, .mention-item:hover { background: #2a3942; }
     .mention-av { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #fff; background: #5b6b7a; flex-shrink: 0; }
     .mention-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mention-ref { color: #53bdeb; font-weight: 500; }
+    html.light .mention-ref { color: #1f7aad; }
     html.light #mention-dropdown { background: #fff; border-color: #ddd; }
     html.light .mention-item { color: #111; }
     html.light .mention-item.active, html.light .mention-item:hover { background: #f0f2f5; }
@@ -2413,6 +2419,12 @@ app.get('/', (req, res) => {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
     }
+    function mentionName(num) {
+      const list = _mentionParticipants[selectedChatId] || [];
+      const p = list.find(x => x.number === num);
+      if (p && p.name && p.name !== num) return p.name;
+      return '+' + num; // kein Name bekannt → wenigstens mit + formatieren
+    }
     function formatText(s) {
       let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
       html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
@@ -2420,6 +2432,11 @@ app.get('/', (req, res) => {
         const trail = m.slice(url.length);
         const href = url.startsWith('www.') ? 'https://' + url : url;
         return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
+      });
+      // Erwähnungen: @<nummer> → @Name (deckt eingehende wie eigene Nachrichten ab);
+      // Lookbehind verhindert Treffer in URLs wie user@12345.com
+      html = html.replace(/(?<!\\w)@(\\d{5,})/g, function(_m, num) {
+        return '<span class="mention-ref">@' + esc(mentionName(num)) + '</span>';
       });
       return html;
     }
@@ -2637,6 +2654,7 @@ app.get('/', (req, res) => {
       lastMsgTime[chat.id] = 0;
       atBottom = true;
       _pendingMentions = []; hideMentionDropdown(); // Erwähnungen vom vorherigen Chat verwerfen
+      if (isGroupChat(chat.id)) ensureParticipants(chat.id); // Namen für @-Auflösung vorladen
       document.getElementById('ch-stats').textContent = '';
       await loadMessages(chat.id);
     }
@@ -3323,7 +3341,7 @@ app.get('/', (req, res) => {
       try {
         const endpoint = quotedMsgId ? 'api/reply' : 'api/send';
         const payload = quotedMsgId
-          ? { quotedMsgId, chatId: selectedChatId, message: txt }
+          ? { quotedMsgId, chatId: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt }
           : { to: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt };
         const r = await fetch(endpoint, {
           method: 'POST',
