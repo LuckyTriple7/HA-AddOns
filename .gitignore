@@ -2,6 +2,8 @@
 gitpulse/dev_data/
 mypage/dev_data/
 mypage/.venv/
+tuiwatch/dev_data/
+tuiwatch/_*
 __pycache__/
 *.pyc
 .env

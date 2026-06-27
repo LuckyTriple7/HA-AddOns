@@ -1,0 +1,44 @@
+name: TUIWatch
+description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
+version: "0.1.0"
+slug: tuiwatch
+url: https://github.com/LuckyTriple7/HA-AddOns
+image: "ghcr.io/luckytriple7/tuiwatch"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: false
+
+panel_icon: mdi:airplane-clock
+panel_title: TUIWatch
+
+ingress: true
+ingress_port: 17794
+ingress_stream: true
+
+map:
+  - addon_config:rw
+
+ports:
+  17794/tcp: 17794
+
+ports_description:
+  17794/tcp: TUIWatch Web-UI (direkt)
+
+options:
+  username: "admin"
+  password: "secret"
+  session_hours: 24
+  poll_interval: 21600
+  verbose_log: false
+
+schema:
+  username: str
+  password: str
+  session_hours: int
+  poll_interval: int?
+  verbose_log: bool?

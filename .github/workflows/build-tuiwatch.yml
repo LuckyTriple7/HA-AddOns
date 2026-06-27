@@ -1,0 +1,63 @@
+name: Build TUIWatch Image
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'tuiwatch/config.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Get add-on version
+        id: ver
+        run: |
+          VERSION=$(grep '^version:' tuiwatch/config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Baue Image für Add-on v${VERSION}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: tuiwatch
+          platforms: linux/amd64,linux/arm64
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/luckytriple7/tuiwatch:${{ steps.ver.outputs.version }}
+            ghcr.io/luckytriple7/tuiwatch:latest
+
+      - name: Alte Image-Versionen aufräumen
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: tuiwatch
+          package-type: container
+          min-versions-to-keep: 20
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,39 @@
+FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.title="TUIWatch"
+LABEL org.opencontainers.image.description="TUI Reisepreis-Tracker für Home Assistant"
+LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
+LABEL org.opencontainers.image.licenses="MIT"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    CHROMIUM_PATH=/usr/bin/chromium
+
+# Chromium + Python + Schriften (für korrektes Rendering der Preise)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        chromium \
+        python3 \
+        python3-pip \
+        curl \
+        ca-certificates \
+        fonts-liberation \
+        fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+# Playwright nutzt das System-Chromium (CHROMIUM_PATH) → kein 'playwright install' nötig
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+COPY app.py scraper.py ./
+COPY templates/ templates/
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
+
+EXPOSE 17794
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=25s --retries=3 \
+    CMD curl -sf http://localhost:17794/health || exit 1
+
+CMD ["/run.sh"]
