@@ -323,6 +323,10 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 '--merge-output-format', 'mp4']
 
+    # Metadaten, Cover/Poster und Kapitelmarken auch in Videos einbetten
+    if fmt not in ('mp3', 'm4a'):
+        cmd += ['--embed-metadata', '--embed-thumbnail', '--embed-chapters']
+
     cmd += ['--', url]
     return cmd
 

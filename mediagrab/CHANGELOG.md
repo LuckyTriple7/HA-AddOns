@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.1.1] — 2026-06-27
+
+### Hinzugefügt
+- Auch Video-Downloads (MP4) bekommen jetzt Metadaten, Cover/Poster und Kapitelmarken eingebettet (`--embed-metadata`, `--embed-thumbnail`, `--embed-chapters`)
+
+
 ## [1.1.0] — 2026-06-27
 
 ### Hinzugefügt
