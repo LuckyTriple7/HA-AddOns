@@ -16,29 +16,38 @@ kalibriert werden). Damit muss niemand bei null anfangen.
 
 ## Was wird ausgelesen (Stand: 2026-06, funktioniert)
 
-Auf einer Angebots-URL wie
-`https://www.tui.com/pauschalreisen/suchen/angebote/Riu-Papayas/2781/offer/?...`
-ist die **„Dein Angebot"-Box** das relevante Angebot (passt exakt zu den
-URL-Parametern: Datum, Personen, Zimmer, Abflughafen). **Alles darunter sind
-Alternativen** und werden ignoriert.
+Wichtig: Es gibt **zwei** Preise auf der Seite.
+- Die **„Dein Angebot"-Box** (`div.tui-hotel-best-offer`) zeigt nur einen
+  *„ab"-Lockpreis* (z. B. 1.933 €) — **den nutzen wir NICHT mehr**, nur als
+  Lade-Signal, dass die Seite fertig ist.
+- Getrackt wird die **erste (= günstigste) konkrete Angebotskarte**
+  `div.offer-card__content` (Liste ist aufsteigend sortiert via URL-Param
+  `sortOffersAsc=1`). Das ist der echte, buchbare „Günstigster Preis"
+  (z. B. 1.978 €) inkl. Flugdetails.
 
 | Datum | Selektor / Logik | Beispielwert |
 |---|---|---|
-| Container „Dein Angebot" | `div.tui-hotel-best-offer` | – |
-| Endpreis p. P. | Text der Box, Regex `ab <Zahl> €` | `1933` |
-| Alter Preis | letzter €-Betrag **vor** dem Endpreis | `2079` |
-| Rabatt | Regex `-<N> %` in der Box | `7` |
-| Reise-Eckdaten | Box-Zeilen ohne `€`/`%`, ohne „Dein Angebot" | `10 Nächte ab 07.05.2027 · 1 Erwachsener · …` |
+| Lade-Signal | `div.tui-hotel-best-offer` (nur warten) | – |
+| Konkrete Karte | erste `div.offer-card__content` mit „pro Person" + € | – |
+| Preis p. P. | Regex `pro Person <Zahl> €` in der Karte | `1978` |
+| Alter Preis + Rabatt | Regex `<N>% <Zahl> €` (z. B. „- 7% 2.129 €") | `2129`, `7` |
+| Zimmer | Kartenzeile mit Raumcode `(…\d…)`, z. B. `(DZX1)` | `Double Room with Garden View (DZX1)` |
+| Verpflegung | Zeile aus `BOARD_TYPES` | `Alles Inklusive` |
+| Nächte / Reisende | Regex `\d+ Nächte` / `\d+ Erwachsene(r)` | `10 Nächte`, `1 Erwachsener` |
+| Abflughafen | erste Zeile `… (XXX)` (3 Großbuchstaben) | `Stuttgart (STR)` |
+| Flug Hin/Rück | Zeilen mit `TT.MM.JJJJ, HH:MM` + Airline + `Direktflug`/Stopps | `Fr., 07.05.2027, 13:30 Uhr · TUIfly · Direktflug` |
 | Hotelname | `h1.tui-hotel-name__title` | `Riu Papayas` |
+| Verfügbarkeit | Button `button:has-text('Verfügbarkeit')` in der Karte klicken → Text „verfügbar"/„nicht verfügbar" | `true`/`false` |
 | Cookie-Consent | erster sichtbarer aus `#cmm-accept-all`, `#onetrust-accept-btn-handler`, `button:has-text('Alle akzeptieren')` u. a. | – |
 
 Hotelname-**Fallback**, falls die Überschrift fehlt: aus der URL ableiten – das
 Segment hinter `/angebote/` (`Riu-Papayas` → `Riu Papayas`). Siehe
 `hotel_from_url()` in [scraper.py](scraper.py).
 
-Alle Selektoren stehen als Konstanten oben in [scraper.py](scraper.py)
-(`BEST_OFFER_SELECTOR`, `HOTEL_NAME_SELECTOR`, `CONSENT_SELECTORS`,
-`_FINAL_RE`, `_ANY_PRICE_RE`, `_DISCOUNT_RE`).
+Alle Selektoren/Regexe stehen als Konstanten oben in [scraper.py](scraper.py)
+(`OFFER_CARD_SELECTOR`, `BEST_OFFER_SELECTOR`, `HOTEL_NAME_SELECTOR`,
+`CONSENT_SELECTORS`, `_PRICE_RE`, `_OLDPRICE_RE`, `_AIRPORT_RE`, `_ROOMCODE_RE`,
+`_FLIGHTLINE_RE`, `BOARD_TYPES`). Parsing-Logik: `_parse_card()` / `_parse_flights()`.
 
 ## Stolperfallen (wichtig fürs Debuggen)
 

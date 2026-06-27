@@ -26,9 +26,23 @@ verbose_log: false       # ausführliche Logs
    `https://www.tui.com/pauschalreisen/suchen/angebote/<Hotel>/<id>/offer/?...`).
 3. Im Web-UI einfügen → **Hinzufügen**. Der erste Preis wird sofort geprüft.
 
-Für jedes Angebot werden angezeigt: Hotelname, Reise-Eckdaten, aktueller Preis,
-durchgestrichener Vergleichspreis + Rabatt, Veränderung zum letzten Check und ein
-Preisverlauf-Diagramm (Klick auf **Verlauf** für die volle Historie).
+Für jedes Angebot werden angezeigt: Hotelname, Reise-Eckdaten (Nächte, Zimmer,
+Verpflegung), **Hin- und Rückflug** (Datum/Uhrzeit/Airline/Direkt), der konkrete
+**„Günstigster Preis"** (buchbar), durchgestrichener Vergleichspreis + Rabatt,
+**Verfügbarkeit** (✓/✗), Veränderung zum letzten Check und ein Preisverlauf-Diagramm
+(Klick auf **Verlauf** für die volle Historie).
+
+> Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
+> der unverbindliche „ab"-Lockpreis.
+
+## Home-Assistant-Sensoren
+
+Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
+`sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):
+- **Wert** = aktueller Preis in € (bei Fehler `unavailable`)
+- **Attribute**: `description`, `hotel`, `room`, `departure_airport`,
+  `flight_outbound`, `flight_return`, `available` (true/false), `old_price`,
+  `discount`, `last_checked`, `url`
 
 ## Bedienung
 

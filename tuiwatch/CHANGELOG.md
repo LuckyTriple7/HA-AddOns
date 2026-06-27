@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.3] - 2026-06-27
+
+### Changed
+- **Getrackt wird jetzt der konkrete „Günstigster Preis"** (erste Angebotskarte,
+  z. B. 1.978 €) statt des unverbindlichen „ab"-Lockpreises der Dein-Angebot-Box.
+  Genauer und buchungsnah.
+
+### Added
+- **Flugdetails**: Hin- und Rückflug (Datum, Uhrzeit, Airline, Direkt/Umstieg)
+  sowie Zimmer und Abflughafen werden ausgelesen, in der Karte angezeigt und als
+  HA-Sensor-Attribute (`flight_outbound`, `flight_return`, `room`,
+  `departure_airport`) gespeichert.
+- **Verfügbarkeitsprüfung**: TUIWatch klickt „Verfügbarkeit prüfen" und erfasst,
+  ob das Angebot verfügbar ist. Anzeige als Badge (✓/✗) und als HA-Sensor-Attribut
+  `available` (true/false).
+
 ## [0.1.2] - 2026-06-27
 
 ### Added

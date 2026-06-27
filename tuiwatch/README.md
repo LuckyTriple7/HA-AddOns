@@ -7,9 +7,9 @@ ob er **gestiegen oder gefallen** ist — inklusive Preisverlauf-Diagramm.
 
 TUI bietet keine öffentliche Preis-API, und der Preis wird auf der Webseite erst
 per JavaScript geladen. TUIWatch rendert die Angebotsseite daher mit einem
-echten (Headless-)Browser und liest den Preis der **„Dein Angebot"-Box** aus —
-also genau das Angebot, das zu deiner Suche (Datum, Personen, Zimmer,
-Abflughafen) passt.
+echten (Headless-)Browser und liest die **günstigste konkrete Angebotskarte** aus —
+den buchbaren „Günstigster Preis" inkl. **Flugdetails** (Hin-/Rückflug), Zimmer und
+**Verfügbarkeit**, passend zu deiner Suche (Datum, Personen, Zimmer, Abflughafen).
 
 ## Benutzung
 

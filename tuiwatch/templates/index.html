@@ -34,6 +34,13 @@
     .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
     .offer-details { font-size:.8rem; color:var(--muted); line-height:1.45; }
     .offer-url { font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; }
+    .flights { margin:8px 0 2px; display:flex; flex-direction:column; gap:3px; }
+    .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
+    .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
+    .flight .fdir { color:var(--muted); }
+    .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
+    .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
+    .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
     .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
@@ -211,11 +218,21 @@
         if(o.old_price && o.old_price>o.price){ priceSub = '<span class="old">'+eur(o.old_price)+'</span>' + (o.discount?'<span class="disc">-'+o.discount+'%</span>':''); }
         const hasPrice = o.price!=null;
         const priceNow = hasPrice ? eur(o.price) : (o.checking?'…':'–');
+        const plane = '<svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>';
+        let flights = '';
+        if(o.flight_out || o.flight_ret){
+          const fl = (label, v) => v?`<div class="flight">${plane}<span><span class="fdir">${label}:</span> ${esc(v)}</span></div>`:'';
+          flights = `<div class="flights">${fl('Hin',o.flight_out)}${fl('Rück',o.flight_ret)}</div>`;
+        }
+        let availBadge = '';
+        if(o.available===true) availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+        else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
         return `<div class="offer" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label">${esc(title)}</div>
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
+              ${flights}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
@@ -223,6 +240,7 @@
               <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               <div>${deltaBadge(o)}</div>
+              ${availBadge}
             </div>
           </div>
           <canvas class="spark" id="spark-${o.id}"></canvas>
