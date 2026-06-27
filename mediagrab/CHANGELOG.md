@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.36] — 2026-06-27
+
+### Geändert
+- Temporäre Diagnose: Bei Teilen-Fehler erscheint ein `alert()` mit Kontext-Infos (Plattform, secureContext, top-level, canShare(files), Fehlername) zur Fehlersuche auf dem Handy
+
+
 ## [1.0.35] — 2026-06-27
 
 ### Behoben

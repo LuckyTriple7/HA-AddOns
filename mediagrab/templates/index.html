@@ -865,6 +865,23 @@
       return navigator.share({ title: name, url: window.location.origin + streamUrl });
     }
 
+    // TEMPORÄR: Diagnose-Ausgabe bei Teilen-Fehler
+    function shareDiag(stage, canShareFiles, err) {
+      const info = {
+        stage,
+        secureContext: window.isSecureContext,
+        topLevel: (window.self === window.top),
+        origin: window.location.origin,
+        hasShare: !!navigator.share,
+        hasCanShare: !!navigator.canShare,
+        canShareFiles: canShareFiles,
+        errName: err && err.name,
+        errMsg: err && err.message,
+        ua: navigator.userAgent
+      };
+      alert('Teilen-Diagnose:\n' + JSON.stringify(info, null, 2));
+    }
+
     async function shareFile(name, btn) {
       if (!navigator.share) { toast(T.share_not_available, true); return; }
       const streamUrl = '/stream/' + encodeURIComponent(name);
@@ -872,22 +889,21 @@
       // 1) Datei schon vorbereitet → sofort teilen (frische User-Aktivierung, kein Fetch davor)
       const cached = shareFileCache.get(name);
       if (cached) {
+        const canFiles = !!(navigator.canShare && navigator.canShare({ files: [cached] }));
         try {
-          if (navigator.canShare && navigator.canShare({ files: [cached] })) {
+          if (canFiles) {
             await navigator.share({ files: [cached], title: name });
           } else {
             await shareUrlFallback(name, streamUrl);
           }
         } catch(e) {
-          if (!e || e.name !== 'AbortError')
-            toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
+          if (e && e.name === 'AbortError') return;
+          shareDiag('cached', canFiles, e);
         }
         return;
       }
 
       // 2) Noch nicht vorbereitet → Datei laden, dann direkt versuchen zu teilen.
-      //    Dauert der Download zu lange, ist die Aktivierung abgelaufen (NotAllowedError) →
-      //    Datei ist nun gecacht, Nutzer tippt einfach erneut.
       const origHTML = btn.innerHTML;
       btn.disabled = true; btn.innerHTML = '…';
       try {
@@ -897,20 +913,20 @@
         const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
         shareFileCache.set(name, file);
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        const canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+        if (canFiles) {
           try {
             await navigator.share({ files: [file], title: name });
           } catch(e) {
             if (e && e.name === 'AbortError') return;
             if (e && e.name === 'NotAllowedError') { toast(T.share_ready, false); return; }
-            toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
+            shareDiag('fresh-file', canFiles, e);
           }
         } else {
-          // File-Share nicht unterstützt → URL-Fallback
           try { await shareUrlFallback(name, streamUrl); }
           catch(e) {
-            if (!e || e.name !== 'AbortError')
-              toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
+            if (e && e.name === 'AbortError') return;
+            shareDiag('fresh-url', canFiles, e);
           }
         }
       } catch(e) {
