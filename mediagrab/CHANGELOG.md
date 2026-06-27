@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.1.2] — 2026-06-27
+
+### Behoben
+- Build schlug fehl (`apk add atomicparsley`): Das Alpine-Paket heißt korrekt `AtomicParsley` (Großschreibung, case-sensitiv)
+
+
 ## [1.1.1] — 2026-06-27
 
 ### Hinzugefügt
