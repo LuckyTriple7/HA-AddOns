@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.0.38] — 2026-06-27
+
+### Geändert
+- Diagnose erweitert: zeigt jetzt zusätzlich `featurePolicy.allowsFeature('web-share')` und den tatsächlichen `Permissions-Policy`-Response-Header, um den web-share-Block zu lokalisieren
+
+
 ## [1.0.37] — 2026-06-27
 
 ### Behoben

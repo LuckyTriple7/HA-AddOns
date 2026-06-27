@@ -866,18 +866,27 @@
     }
 
     // TEMPORÄR: Diagnose-Ausgabe bei Teilen-Fehler
-    function shareDiag(stage, canShareFiles, err) {
+    async function shareDiag(stage, canShareFiles, err) {
+      let fpWebShare = 'n/a';
+      try {
+        if (document.featurePolicy && document.featurePolicy.allowsFeature)
+          fpWebShare = document.featurePolicy.allowsFeature('web-share');
+      } catch(_) {}
+      let polHeader = '?';
+      try {
+        const r = await fetch(window.location.pathname, { method: 'GET', cache: 'no-store' });
+        polHeader = r.headers.get('permissions-policy') || '(kein Header)';
+      } catch(e) { polHeader = 'fetch-fehler: ' + (e && e.name); }
       const info = {
         stage,
         secureContext: window.isSecureContext,
         topLevel: (window.self === window.top),
         origin: window.location.origin,
-        hasShare: !!navigator.share,
-        hasCanShare: !!navigator.canShare,
         canShareFiles: canShareFiles,
+        featurePolicyWebShare: fpWebShare,
+        permissionsPolicyHeader: polHeader,
         errName: err && err.name,
-        errMsg: err && err.message,
-        ua: navigator.userAgent
+        errMsg: err && err.message
       };
       alert('Teilen-Diagnose:\n' + JSON.stringify(info, null, 2));
     }
