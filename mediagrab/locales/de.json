@@ -67,6 +67,7 @@
   "btn_share": "Teilen",
   "share_not_available": "Teilen nicht verfügbar",
   "share_ready": "Datei bereit – zum Teilen erneut tippen",
+  "share_type_unsupported": "Dieser Dateityp kann nicht direkt geteilt werden – bitte Download nutzen",
   "confirm_delete": "Datei \"{name}\" wirklich löschen?",
   "lbl_search": "Suchen...",
   "sort_date": "Datum",

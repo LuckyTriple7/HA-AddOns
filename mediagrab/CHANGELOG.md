@@ -1,5 +1,14 @@
 # Changelog — MediaGrab
 
+## [1.0.39] — 2026-06-27
+
+### Behoben
+- **Teilen scheiterte bei manchen Dateien** mit `NotAllowedError: Permission denied`: Ursache war der MIME-Typ — `/stream` lieferte bei manchen Endungen `application/octet-stream`, das Android Chrome beim Teilen ablehnt
+- Beim Teilen wird der File jetzt mit korrektem MIME-Typ aus der Dateiendung gebaut (mp4, m4a, webm, opus, mp3, jpg … )
+- Echter Hinweis bei nicht-teilbaren Containern (z. B. `.mkv`): „Dieser Dateityp kann nicht direkt geteilt werden – bitte Download nutzen" (DE/EN)
+- Temporäre Teilen-Diagnose (`alert()`) wieder entfernt
+
+
 ## [1.0.38] — 2026-06-27
 
 ### Geändert

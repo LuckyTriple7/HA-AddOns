@@ -358,6 +358,7 @@
       btn_share:         {{ t.btn_share | tojson }},
       share_not_available: {{ t.share_not_available | tojson }},
       share_ready:       {{ t.share_ready | tojson }},
+      share_type_unsupported: {{ t.share_type_unsupported | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
       lbl_eta:        {{ t.lbl_eta | tojson }},
       lbl_encoding:   {{ t.lbl_encoding | tojson }},
@@ -861,75 +862,62 @@
     // Zwischenspeicher für bereits geladene Dateien (Zwei-Schritt-Teilen auf Mobil)
     const shareFileCache = new Map();
 
-    function shareUrlFallback(name, streamUrl) {
-      return navigator.share({ title: name, url: window.location.origin + streamUrl });
-    }
-
-    // TEMPORÄR: Diagnose-Ausgabe bei Teilen-Fehler
-    async function shareDiag(stage, canShareFiles, err) {
-      let fpWebShare = 'n/a';
-      try {
-        if (document.featurePolicy && document.featurePolicy.allowsFeature)
-          fpWebShare = document.featurePolicy.allowsFeature('web-share');
-      } catch(_) {}
-      let polHeader = '?';
-      try {
-        const r = await fetch(window.location.pathname, { method: 'GET', cache: 'no-store' });
-        polHeader = r.headers.get('permissions-policy') || '(kein Header)';
-      } catch(e) { polHeader = 'fetch-fehler: ' + (e && e.name); }
-      const info = {
-        stage,
-        secureContext: window.isSecureContext,
-        topLevel: (window.self === window.top),
-        origin: window.location.origin,
-        canShareFiles: canShareFiles,
-        featurePolicyWebShare: fpWebShare,
-        permissionsPolicyHeader: polHeader,
-        errName: err && err.name,
-        errMsg: err && err.message
+    // Korrekten MIME-Typ aus der Dateiendung ableiten. Der Browser akzeptiert beim
+    // Teilen nur Dateien mit bekanntem Typ — ein vom Server geliefertes
+    // application/octet-stream führt sonst zu „Permission denied".
+    function pickMime(name, blobType) {
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      const map = {
+        mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', webm:'video/webm',
+        mkv:'video/x-matroska', avi:'video/x-msvideo', flv:'video/x-flv', '3gp':'video/3gpp',
+        mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', opus:'audio/opus',
+        ogg:'audio/ogg', oga:'audio/ogg', wav:'audio/wav', flac:'audio/flac', weba:'audio/webm',
+        jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp',
+        pdf:'application/pdf'
       };
-      alert('Teilen-Diagnose:\n' + JSON.stringify(info, null, 2));
+      if (map[ext]) return map[ext];
+      if (blobType && blobType !== 'application/octet-stream') return blobType;
+      return blobType || 'application/octet-stream';
     }
 
     async function shareFile(name, btn) {
       if (!navigator.share) { toast(T.share_not_available, true); return; }
       const streamUrl = '/stream/' + encodeURIComponent(name);
 
-      // Schritt 2: Datei ist vorbereitet → JETZT teilen. Das ist der allererste
-      // share()-Aufruf für diese Datei, direkt in der User-Aktivierung, ohne
-      // vorhergehenden (scheiternden) share() und ohne langen Fetch davor.
-      const cached = shareFileCache.get(name);
-      if (cached) {
-        const canFiles = !!(navigator.canShare && navigator.canShare({ files: [cached] }));
+      // Datei holen (oder aus Cache) und mit korrektem MIME-Typ als File aufbereiten.
+      let file = shareFileCache.get(name);
+      let justFetched = false;
+      if (!file) {
+        const origHTML = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '…';
         try {
-          if (canFiles) {
-            await navigator.share({ files: [cached], title: name });
-          } else {
-            await shareUrlFallback(name, streamUrl);
-          }
+          const resp = await fetch(streamUrl);
+          if (!resp.ok) { toast(T.error_network, true); return; }
+          const blob = await resp.blob();
+          file = new File([blob], name, { type: pickMime(name, blob.type) });
+          shareFileCache.set(name, file);
+          justFetched = true;
         } catch(e) {
-          if (e && e.name === 'AbortError') return;
-          shareDiag('cached', canFiles, e);
+          toast(T.error_network, true); return;
+        } finally {
+          btn.disabled = false; btn.innerHTML = origHTML;
         }
+      }
+
+      // Kann der Browser diesen Dateityp überhaupt teilen?
+      if (!(navigator.canShare && navigator.canShare({ files: [file] }))) {
+        toast(T.share_type_unsupported, true);
         return;
       }
 
-      // Schritt 1: Datei NUR laden und cachen — KEIN share()-Aufruf hier. Ein hier
-      // scheiternder share() (Aktivierung läuft während des Downloads ab) würde sonst
-      // die Seite vergiften, sodass auch der nächste Versuch „Permission denied" wirft.
-      const origHTML = btn.innerHTML;
-      btn.disabled = true; btn.innerHTML = '…';
       try {
-        const resp = await fetch(streamUrl);
-        if (!resp.ok) { toast(T.error_network, true); return; }
-        const blob = await resp.blob();
-        const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
-        shareFileCache.set(name, file);
-        toast(T.share_ready, false);
+        await navigator.share({ files: [file], title: name });
       } catch(e) {
-        toast(T.error_network, true);
-      } finally {
-        btn.disabled = false; btn.innerHTML = origHTML;
+        if (e && e.name === 'AbortError') return;
+        // Bei frisch geladener (großer) Datei kann die User-Aktivierung während des
+        // Downloads abgelaufen sein → Datei ist nun gecacht, ein erneutes Tippen teilt sofort.
+        if (e && e.name === 'NotAllowedError' && justFetched) { toast(T.share_ready, false); return; }
+        toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
       }
     }
 
