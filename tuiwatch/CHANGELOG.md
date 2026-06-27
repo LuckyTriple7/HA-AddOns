@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1] - 2026-06-27
+
+### Fixed
+- **Konsole leer hinter Ingress**: Die Konsole hängte beim Aufruf von `/api/console`
+  den Ingress-Pfad nicht an (G war nicht über `window` erreichbar) → 401, keine
+  Ausgabe. `G` wird jetzt an `window` gehängt, sodass der korrekte Ingress-Pfad
+  verwendet wird.
+
 ## [0.1.0] - 2026-06-27
 
 ### Added
