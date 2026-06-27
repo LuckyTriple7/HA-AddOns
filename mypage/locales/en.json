@@ -1637,6 +1637,7 @@
   "g20_suit_s": "Spades",
   "g20_suit_c": "Clubs",
   "g20_kreuz_forced": "Clubs is trump — everyone must play!",
+  "g20_must_play_info": "You must play (dropping out not allowed)",
   "g20_starts": "starts",
   "g20_starts_you": "start",
   "g20_who_starts": "Who starts?",

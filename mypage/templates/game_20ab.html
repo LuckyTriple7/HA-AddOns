@@ -723,6 +723,7 @@ const G = {
   undo:         {{ t.g20_undo|tojson }},
   undo_toast:   {{ t.g20_undo_toast|tojson }},
   kreuz_forced: {{ t.g20_kreuz_forced|tojson }},
+  must_play_info: {{ t.g20_must_play_info|tojson }},
   starts:       {{ t.g20_starts|tojson }},
   who_starts:   {{ t.g20_who_starts|tojson }},
   active:       {{ t.g20_active|tojson }},
@@ -1561,9 +1562,11 @@ function renderActions(st){
       '<button class="btn-next" onclick="chooseTrump(\'next\')"><span>🎲</span><span>' + G.next_card + '</span></button>';
   }
   else if(st.status === 'bidding' && st.bid_turn === 'p'){
-    el.innerHTML =
-      '<button class="btn btn-gold" onclick="doBid(\'play\')">' + G.play + '</button>' +
-      '<button class="btn btn-red" onclick="doBid(\'pass\')">' + G.pass_bid + '</button>';
+    let html = '<button class="btn btn-gold" onclick="doBid(\'play\')">' + G.play + '</button>';
+    if(st.can_pass !== false){
+      html += '<button class="btn btn-red" onclick="doBid(\'pass\')">' + G.pass_bid + '</button>';
+    }
+    el.innerHTML = html;
   }
   else if(st.status === 'exchanging' && st.exchange_turn === 'p'){
     const count = exchangeSelected.size;
@@ -1592,7 +1595,7 @@ function renderInfo(st){
     }
   } else if(st.status === 'bidding'){
     if(st.bid_turn === 'p'){
-      el.textContent = G.your_bid;
+      el.textContent = st.can_pass === false ? G.must_play_info : G.your_bid;
     } else {
       el.textContent = NAMES[st.bid_turn] + ' ' + G.ai_thinking;
     }
@@ -1786,7 +1789,7 @@ async function chooseTrump(suit){
     gameState = v.state;
     render(gameState);
     if(v.state.trump === 'h') showToast(G.hearts_double, 'gold');
-    if(suit === 'c') showToast(G.kreuz_forced, 'gold');
+    if(v.state.trump === 'c') showToast(G.kreuz_forced, 'gold');
     if(detectDealExtra(gameState)) await dealCards();
     await advanceAI();
   }
@@ -2281,7 +2284,7 @@ document.addEventListener('keydown', e => {
     if($('rules-modal').classList.contains('show')){ closeRules(); return; }
     if($('played-modal').classList.contains('show')){ closePlayed(); return; }
     if($('settings-modal').classList.contains('show')){ closeSettings(); return; }
-    if(gameState && gameState.status === 'bidding' && gameState.bid_turn === 'p'){ doBid('pass'); return; }
+    if(gameState && gameState.status === 'bidding' && gameState.bid_turn === 'p' && gameState.can_pass !== false){ doBid('pass'); return; }
     return;
   }
   if(anyModal) return;
@@ -2306,7 +2309,7 @@ document.addEventListener('keydown', e => {
   }
   if(st.status === 'bidding' && st.bid_turn === 'p'){
     if(e.key === 's' || e.key === 'S' || e.key === 'Enter') doBid('play');
-    if(e.key === 'p' || e.key === 'P') doBid('pass');
+    if((e.key === 'p' || e.key === 'P') && st.can_pass !== false) doBid('pass');
     return;
   }
   if(st.status === 'exchanging' && st.exchange_turn === 'p'){

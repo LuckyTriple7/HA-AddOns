@@ -1637,6 +1637,7 @@
   "g20_suit_s": "Pik",
   "g20_suit_c": "Kreuz",
   "g20_kreuz_forced": "Kreuz ist Trumpf — alle spielen mit!",
+  "g20_must_play_info": "Du musst mitspielen (kein Aussteigen erlaubt)",
   "g20_starts": "fängt an",
   "g20_starts_you": "fängst an",
   "g20_who_starts": "Wer fängt an?",

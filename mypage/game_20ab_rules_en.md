@@ -28,12 +28,12 @@ Each player initially receives only **2 cards** (revealed now, unless Hearts Bli
 ### 3. Choose Trump
 The **starting player** chooses a trump suit or a special option:
 - ♥ Hearts, ♦ Diamonds, ♠ Spades or ♣ Clubs
-- 🎲 **Next card** — a card is drawn from the deck, its suit becomes trump. The card goes to the starting player. Everyone must play!
+- 🎲 **Next card** — a card is drawn from the deck, its suit becomes trump. The card goes to the starting player.
 - The choice is based on the 2 hand cards — a tactical risk!
 
 **Clubs special rule:** When **Clubs** is chosen as trump, **everyone must play** — no opting out!
 
-**Next card special rule:** The drawn card goes to the starting player's hand. Everyone must play — no opting out!
+**Next card special rule:** The drawn card goes to the starting player's hand. If the drawn card is **Clubs**, everyone must play (like clubs trump). For any other suit there is **normal bidding** — so you may opt out.
 
 ### 4. Bidding — with only 2 cards!
 The other players (clockwise after the starting player) decide "Play" or "Pass":
@@ -41,7 +41,9 @@ The other players (clockwise after the starting player) decide "Play" or "Pass":
 - Playing means you're **active** — your tricks count for scoring
 - Passing means you're **inactive** — your score stays unchanged
 - **At most 1 player may pass** — if the first passes, the second must play
-- With **Clubs trump** or **Next card**, bidding is skipped — everyone is automatically active
+- With **Clubs trump** (including when the "Next card" is a club), bidding is skipped — everyone is automatically active
+- **No opting out twice in a row:** Whoever opts out (passes) in a round **must play the next round**
+- **Points lock:** Whoever has **fewer than 6 points** **may no longer opt out** and must always play
 - **Important:** You decide with only 2 cards — this makes bidding a gamble!
 
 ### 5. Second Deal (3 more cards)
@@ -111,8 +113,8 @@ You have 16 points, Hearts Blind (×4), you take 0 tricks:
 ## Strategy Tips
 - **Trump choice is power** — the starting player sets the suit and always plays
 - **Choosing Clubs = risk for all** — forces all players to participate, good when you're strong
-- **Next card = gamble** — good with a weak hand, forces everyone to play
-- **Passing is safe** — your score stays unchanged
+- **Next card = gamble** — good with a weak hand; only when a club is drawn must everyone play, otherwise there is normal bidding
+- **Passing is safe** — your score stays unchanged. But beware: you must play the next round, and below 6 points passing is fully locked
 - **Hearts trump is double risky** — double reward but also double penalty
 - **Hearts Blind is the nuclear option** — quadruple points without seeing your cards. Only choose when desperate or when opponents are close to winning!
 - **Plan precisely:** If you're at 3 points, you need exactly 3 tricks (or 1½ with Hearts) — too many tricks bounce you back

@@ -28,12 +28,12 @@ Jeder bekommt zunächst nur **2 Karten** (werden jetzt aufgedeckt, falls kein He
 ### 3. Trumpf wählen
 Der **Startspieler** wählt eine Trumpffarbe oder eine Sonderoption:
 - ♥ Herz, ♦ Karo, ♠ Pik oder ♣ Kreuz
-- 🎲 **Nächste Karte** — eine Karte wird vom Stapel gezogen, deren Farbe ist Trumpf. Die Karte geht an den Startspieler. Alle müssen mitspielen!
+- 🎲 **Nächste Karte** — eine Karte wird vom Stapel gezogen, deren Farbe ist Trumpf. Die Karte geht an den Startspieler.
 - Die Wahl basiert auf den 2 Handkarten — ein taktisches Risiko!
 
 **Kreuz-Sonderregel:** Wenn **Kreuz** als Trumpf gewählt wird, **müssen alle mitspielen** — kein Aussteigen möglich!
 
-**Nächste-Karte-Sonderregel:** Die gezogene Karte kommt auf die Hand des Startspielers. Alle müssen mitspielen — kein Aussteigen!
+**Nächste-Karte-Sonderregel:** Die gezogene Karte kommt auf die Hand des Startspielers. Ist die gezogene Karte **Kreuz**, müssen alle mitspielen (wie bei Kreuz-Trumpf). Bei jeder anderen Farbe wird **normal gereizt** — man darf also aussteigen.
 
 ### 4. Reizen (Bieten) — mit nur 2 Karten!
 Die anderen Spieler (im Uhrzeigersinn nach dem Startspieler) entscheiden "Spielen" oder "Passen":
@@ -41,7 +41,9 @@ Die anderen Spieler (im Uhrzeigersinn nach dem Startspieler) entscheiden "Spiele
 - Wer spielt, ist **aktiv** — seine Stiche zählen für die Wertung
 - Wer passt, ist **inaktiv** — sein Punktestand bleibt unverändert
 - **Maximal 1 Spieler darf passen** — wenn der erste passt, muss der zweite mitspielen
-- Bei **Kreuz-Trumpf** oder **Nächste Karte** entfällt das Reizen — alle sind automatisch aktiv
+- Bei **Kreuz-Trumpf** (auch wenn die "Nächste Karte" ein Kreuz ist) entfällt das Reizen — alle sind automatisch aktiv
+- **Aussteigen nach Aussteigen verboten:** Wer in einer Runde aussteigt (passt), **muss die nächste Runde mitspielen**
+- **Punkte-Sperre:** Wer **weniger als 6 Punkte** hat, **darf nicht mehr aussteigen** und muss immer mitspielen
 - **Wichtig:** Man entscheidet sich mit nur 2 Karten — das macht das Reizen zum Risiko!
 
 ### 5. Zweite Austeilung (3 weitere Karten)
@@ -111,8 +113,8 @@ Du hast 16 Punkte, Herz Blind (×4), machst 0 Stiche:
 ## Strategie-Tipps
 - **Trumpfwahl ist Macht** — der Startspieler bestimmt die Farbe und spielt immer mit
 - **Kreuz wählen = Risiko für alle** — erzwingt Teilnahme aller Spieler, gut wenn man stark steht
-- **Nächste Karte = Glücksspiel** — gut bei schwacher Hand, zwingt alle mitzuspielen
-- **Passen ist sicher** — dein Punktestand ändert sich nicht
+- **Nächste Karte = Glücksspiel** — gut bei schwacher Hand; nur wenn ein Kreuz gezogen wird müssen alle mitspielen, sonst wird normal gereizt
+- **Passen ist sicher** — dein Punktestand ändert sich nicht. Aber Achtung: nächste Runde musst du mitspielen, und unter 6 Punkten ist Passen ganz gesperrt
 - **Herz-Trumpf ist doppelt riskant** — doppelte Belohnung, aber auch doppelte Strafe
 - **Herz Blind ist die Atombombe** — vierfache Punkte ohne die Karten zu kennen. Nur wählen wenn man verzweifelt ist oder die Gegner schon fast gewonnen haben!
 - **Genau planen:** Wenn du bei 3 Punkten stehst, brauchst du genau 3 Stiche (oder 1½ bei Herz) — zu viele Stiche bouncen dich zurück
