@@ -66,6 +66,7 @@
   "btn_download_file": "Download",
   "btn_share": "Share",
   "share_not_available": "Sharing not available",
+  "share_ready": "File ready — tap share again",
   "confirm_delete": "Really delete \"{name}\"?",
   "lbl_search": "Search...",
   "sort_date": "Date",

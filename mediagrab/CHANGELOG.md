@@ -1,5 +1,13 @@
 # Changelog — MediaGrab
 
+## [1.0.35] — 2026-06-27
+
+### Behoben
+- Teilen auf dem Handy schlug mit `NotAllowedError: Permission denied` fehl: Der Datei-Download dauerte länger als das Zeitfenster der User-Aktivierung für die Web Share API
+- Neues Zwei-Schritt-Teilen: Beim ersten Tippen wird die Datei geladen (kleine Dateien werden sofort geteilt); ist die Aktivierung beim großen Download abgelaufen, ist die Datei zwischengespeichert und ein erneutes Tippen teilt sofort
+- Hinweis-Toast „Datei bereit – zum Teilen erneut tippen" (DE/EN)
+
+
 ## [1.0.34] — 2026-06-27
 
 ### Geändert

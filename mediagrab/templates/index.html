@@ -357,6 +357,7 @@
       btn_download_file: {{ t.btn_download_file | tojson }},
       btn_share:         {{ t.btn_share | tojson }},
       share_not_available: {{ t.share_not_available | tojson }},
+      share_ready:       {{ t.share_ready | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
       lbl_eta:        {{ t.lbl_eta | tojson }},
       lbl_encoding:   {{ t.lbl_encoding | tojson }},
@@ -857,35 +858,66 @@
       } catch(e) { toast(T.error_network, true); }
     }
 
+    // Zwischenspeicher für bereits geladene Dateien (Zwei-Schritt-Teilen auf Mobil)
+    const shareFileCache = new Map();
+
+    function shareUrlFallback(name, streamUrl) {
+      return navigator.share({ title: name, url: window.location.origin + streamUrl });
+    }
+
     async function shareFile(name, btn) {
       if (!navigator.share) { toast(T.share_not_available, true); return; }
+      const streamUrl = '/stream/' + encodeURIComponent(name);
+
+      // 1) Datei schon vorbereitet → sofort teilen (frische User-Aktivierung, kein Fetch davor)
+      const cached = shareFileCache.get(name);
+      if (cached) {
+        try {
+          if (navigator.canShare && navigator.canShare({ files: [cached] })) {
+            await navigator.share({ files: [cached], title: name });
+          } else {
+            await shareUrlFallback(name, streamUrl);
+          }
+        } catch(e) {
+          if (!e || e.name !== 'AbortError')
+            toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
+        }
+        return;
+      }
+
+      // 2) Noch nicht vorbereitet → Datei laden, dann direkt versuchen zu teilen.
+      //    Dauert der Download zu lange, ist die Aktivierung abgelaufen (NotAllowedError) →
+      //    Datei ist nun gecacht, Nutzer tippt einfach erneut.
       const origHTML = btn.innerHTML;
       btn.disabled = true; btn.innerHTML = '…';
-      const streamUrl = '/stream/' + encodeURIComponent(name);
-      let shared = false, lastShareErr = null;
       try {
         const resp = await fetch(streamUrl);
-        if (resp.ok) {
-          const blob = await resp.blob();
-          const file = new File([blob], name, { type: blob.type });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (!resp.ok) { toast(T.error_network, true); return; }
+        const blob = await resp.blob();
+        const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+        shareFileCache.set(name, file);
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
             await navigator.share({ files: [file], title: name });
-            shared = true;
+          } catch(e) {
+            if (e && e.name === 'AbortError') return;
+            if (e && e.name === 'NotAllowedError') { toast(T.share_ready, false); return; }
+            toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
+          }
+        } else {
+          // File-Share nicht unterstützt → URL-Fallback
+          try { await shareUrlFallback(name, streamUrl); }
+          catch(e) {
+            if (!e || e.name !== 'AbortError')
+              toast(T.share_not_available + ' (' + ((e && e.name) || '') + ')', true);
           }
         }
       } catch(e) {
-        if (e && e.name === 'AbortError') { btn.disabled = false; btn.innerHTML = origHTML; return; }
-        lastShareErr = e;
+        toast(T.error_network, true);
+      } finally {
+        btn.disabled = false; btn.innerHTML = origHTML;
       }
-      if (!shared) {
-        try { await navigator.share({ title: name, url: window.location.origin + streamUrl }); }
-        catch(e) {
-          if (e && e.name === 'AbortError') { btn.disabled = false; btn.innerHTML = origHTML; return; }
-          const detail = (lastShareErr || e) ? ' (' + ((lastShareErr || e).name || '') + ': ' + ((lastShareErr || e).message || '') + ')' : '';
-          toast(T.share_not_available + detail, true);
-        }
-      }
-      btn.disabled = false; btn.innerHTML = origHTML;
     }
 
     // ── Settings: yt-dlp ─────────────────────────────────────────────────────
