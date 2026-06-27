@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.1.0] — 2026-06-27
+
+### Hinzugefügt
+- MP3- und M4A-Downloads bekommen jetzt automatisch ID3-Tags (`--embed-metadata`: Titel, Künstler/Uploader, Album, Jahr …) und das Vorschaubild als Cover (`--embed-thumbnail`)
+- `atomicparsley` im Image ergänzt (für Cover-Einbettung in M4A; MP3 nutzt ffmpeg)
+
+
 ## [1.0.40] — 2026-06-27
 
 ### Behoben
