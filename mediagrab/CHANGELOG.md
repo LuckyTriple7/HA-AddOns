@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.37] — 2026-06-27
+
+### Behoben
+- Teilen auf Android Chrome warf `NotAllowedError: Permission denied`: Ein beim Datei-Download gescheiterter `share()`-Aufruf blockierte alle weiteren Versuche auf der Seite
+- Striktes Zwei-Schritt-Teilen: Erstes Tippen lädt die Datei NUR (kein `share()`), zweites Tippen teilt sofort — so ist der erste echte `share()`-Aufruf garantiert sauber in der User-Aktivierung
+
+
 ## [1.0.36] — 2026-06-27
 
 ### Geändert

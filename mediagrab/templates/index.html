@@ -886,7 +886,9 @@
       if (!navigator.share) { toast(T.share_not_available, true); return; }
       const streamUrl = '/stream/' + encodeURIComponent(name);
 
-      // 1) Datei schon vorbereitet → sofort teilen (frische User-Aktivierung, kein Fetch davor)
+      // Schritt 2: Datei ist vorbereitet → JETZT teilen. Das ist der allererste
+      // share()-Aufruf für diese Datei, direkt in der User-Aktivierung, ohne
+      // vorhergehenden (scheiternden) share() und ohne langen Fetch davor.
       const cached = shareFileCache.get(name);
       if (cached) {
         const canFiles = !!(navigator.canShare && navigator.canShare({ files: [cached] }));
@@ -903,7 +905,9 @@
         return;
       }
 
-      // 2) Noch nicht vorbereitet → Datei laden, dann direkt versuchen zu teilen.
+      // Schritt 1: Datei NUR laden und cachen — KEIN share()-Aufruf hier. Ein hier
+      // scheiternder share() (Aktivierung läuft während des Downloads ab) würde sonst
+      // die Seite vergiften, sodass auch der nächste Versuch „Permission denied" wirft.
       const origHTML = btn.innerHTML;
       btn.disabled = true; btn.innerHTML = '…';
       try {
@@ -912,23 +916,7 @@
         const blob = await resp.blob();
         const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
         shareFileCache.set(name, file);
-
-        const canFiles = !!(navigator.canShare && navigator.canShare({ files: [file] }));
-        if (canFiles) {
-          try {
-            await navigator.share({ files: [file], title: name });
-          } catch(e) {
-            if (e && e.name === 'AbortError') return;
-            if (e && e.name === 'NotAllowedError') { toast(T.share_ready, false); return; }
-            shareDiag('fresh-file', canFiles, e);
-          }
-        } else {
-          try { await shareUrlFallback(name, streamUrl); }
-          catch(e) {
-            if (e && e.name === 'AbortError') return;
-            shareDiag('fresh-url', canFiles, e);
-          }
-        }
+        toast(T.share_ready, false);
       } catch(e) {
         toast(T.error_network, true);
       } finally {
