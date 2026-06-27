@@ -1,5 +1,12 @@
 # Changelog — MediaGrab
 
+## [1.0.34] — 2026-06-27
+
+### Geändert
+- Teilen-Button: echter Fehlergrund wird im Toast angezeigt (z. B. `NotAllowedError`), um „Teilen nicht möglich" auf dem Handy zu diagnostizieren
+- AbortError (Teilen abgebrochen) zeigt keinen Fehler-Toast mehr und stellt das Icon korrekt wieder her (Bugfix: `orig` → `origHTML`)
+
+
 ## [1.0.33] — 2026-06-10
 
 ### Geändert

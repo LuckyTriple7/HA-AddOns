@@ -862,7 +862,7 @@
       const origHTML = btn.innerHTML;
       btn.disabled = true; btn.innerHTML = '…';
       const streamUrl = '/stream/' + encodeURIComponent(name);
-      let shared = false;
+      let shared = false, lastShareErr = null;
       try {
         const resp = await fetch(streamUrl);
         if (resp.ok) {
@@ -874,11 +874,16 @@
           }
         }
       } catch(e) {
-        if (e && e.name === 'AbortError') { btn.disabled = false; btn.textContent = orig; return; }
+        if (e && e.name === 'AbortError') { btn.disabled = false; btn.innerHTML = origHTML; return; }
+        lastShareErr = e;
       }
       if (!shared) {
         try { await navigator.share({ title: name, url: window.location.origin + streamUrl }); }
-        catch(e) { if (!e || e.name !== 'AbortError') toast(T.share_not_available, true); }
+        catch(e) {
+          if (e && e.name === 'AbortError') { btn.disabled = false; btn.innerHTML = origHTML; return; }
+          const detail = (lastShareErr || e) ? ' (' + ((lastShareErr || e).name || '') + ': ' + ((lastShareErr || e).message || '') + ')' : '';
+          toast(T.share_not_available + detail, true);
+        }
       }
       btn.disabled = false; btn.innerHTML = origHTML;
     }
