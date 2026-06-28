@@ -16,7 +16,7 @@ Details zur Wartung bei TUI-Layout-Änderungen: siehe SCRAPING.md.
 import os
 import re
 import time
-from urllib.parse import unquote, urlparse
+from urllib.parse import (parse_qsl, unquote, urlencode, urlparse, urlunparse)
 
 from playwright.sync_api import sync_playwright
 
@@ -59,6 +59,57 @@ def hotel_from_url(url: str) -> str:
     except Exception:
         pass
     return ''
+
+
+def travellers_from_url(url: str) -> int:
+    """Liest die Reisendenzahl aus dem URL-Parameter `travellers=` (Default 1)."""
+    try:
+        for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True):
+            if k == 'travellers':
+                n = int(v)
+                return n if n > 0 else 1
+    except Exception:
+        pass
+    return 1
+
+
+def _replace_query(url: str, *, set_params: dict | None = None,
+                   drop_keys: tuple = ()) -> str:
+    """Baut die URL mit veränderter Query neu auf (Reihenfolge bleibt erhalten)."""
+    p = urlparse(url)
+    pairs = parse_qsl(p.query, keep_blank_values=True)
+    set_params = set_params or {}
+    seen: set[str] = set()
+    out = []
+    for k, v in pairs:
+        if k in drop_keys:
+            continue
+        if k in set_params:
+            out.append((k, str(set_params[k])))
+            seen.add(k)
+        else:
+            out.append((k, v))
+    for k, v in set_params.items():
+        if k not in seen:
+            out.append((k, str(v)))
+    return urlunparse(p._replace(query=urlencode(out)))
+
+
+def with_travellers(url: str, n: int) -> str:
+    """Gibt die URL mit `travellers=n` zurück."""
+    return _replace_query(url, set_params={'travellers': n})
+
+
+def without_room_code(url: str) -> str:
+    """Entfernt `roomTypeOpCodes` (Fallback, falls fester Zimmercode eine andere
+    Belegung verhindert)."""
+    return _replace_query(url, drop_keys=('roomTypeOpCodes',))
+
+
+def is_single_room(text: str) -> bool:
+    """True, wenn der Text auf ein Einzelzimmer hindeutet (kein 2-Personen-Vergleich)."""
+    t = (text or '').lower()
+    return 'einzelzimmer' in t or 'single room' in t or 'single-room' in t
 
 
 def _to_amount(raw: str) -> float | None:

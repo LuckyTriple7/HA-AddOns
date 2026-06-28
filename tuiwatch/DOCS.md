@@ -47,6 +47,19 @@ Verpflegung), **Hin- und Rückflug** (Datum/Uhrzeit/Airline/Direkt), der konkret
     Chat-ID via @userinfobot). Ist Telegram aktiv, kommt beim Start des Add-ons eine
     kurze Statusmeldung („TUIWatch gestartet — N Reisen geladen").
 
+## Pro-Person-Vergleich
+
+Am Diagramm jedes Angebots gibt es den Button **Vergleich**. Er fragt das Angebot
+live für die aktuell getrackte Reisendenzahl **und** für 2 Personen ab (ist es bereits
+für 2, wird gegen 1 verglichen) und zeigt eine Tabelle mit **Preis pro Person**,
+**Gesamtpreis** und der **Differenz pro Person** — für 2 Personen ist der Preis pro
+Person oft günstiger (kein Einzelzimmer-Zuschlag). Der günstigste Preis pro Person wird
+grün hervorgehoben.
+
+Der Vergleich läuft nur auf Knopfdruck (zwei Live-Abrufe, dauert 1–2 Minuten) und wird
+**nicht gespeichert**. Bei **Einzelzimmer**-Angeboten erscheint kein Vergleichs-Button,
+da ein 2-Personen-Abruf nicht möglich ist.
+
 ## Home-Assistant-Sensoren
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor

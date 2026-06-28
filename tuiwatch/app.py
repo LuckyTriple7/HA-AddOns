@@ -22,7 +22,8 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import fetch_price, hotel_from_url
+from scraper import (fetch_price, hotel_from_url, is_single_room,
+                     travellers_from_url, with_travellers, without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -86,6 +87,8 @@ sessions: dict[str, float] = {}
 _scrape_lock = threading.Lock()      # nur ein Chromium gleichzeitig
 _checking: set[int] = set()          # offer_ids, die gerade geprüft werden
 _checking_lock = threading.Lock()
+_compare_jobs: dict[int, dict] = {}  # offer_id → On-demand-Vergleichsergebnis
+_compare_lock = threading.Lock()
 
 # einfache Login-Drossel
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -477,6 +480,53 @@ def check_all(reason: str = '') -> None:
         check_offer(oid)
 
 
+# ── Pro-Person-Vergleich (on-demand, nicht persistiert) ─────────────────────────
+
+def _run_compare(offer_id: int) -> None:
+    """Ruft dasselbe Angebot live für die aktuelle Reisendenzahl und für 2 Personen
+    ab (bei aktuell=2: 2 ↔ 1) und legt das Ergebnis in _compare_jobs ab."""
+    try:
+        with db() as con:
+            offer = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not offer:
+            with _compare_lock:
+                _compare_jobs[offer_id] = {'status': 'error', 'ts': int(time.time()),
+                                           'note': 'Angebot nicht gefunden', 'rows': []}
+            return
+        url = offer['url']
+        base = travellers_from_url(url)
+        counts = sorted({base, 2} if base != 2 else {2, 1})
+        rows = []
+        for n in counts:
+            target = with_travellers(url, n)
+            with _scrape_lock:
+                res = fetch_price(target, check_availability=False, verbose=_verbose())
+            if not res.get('ok'):
+                # Fallback: fester Zimmercode kann eine andere Belegung verhindern
+                with _scrape_lock:
+                    res = fetch_price(without_room_code(target),
+                                      check_availability=False, verbose=_verbose())
+            price = res.get('price')
+            rows.append({
+                'travellers': n,
+                'ok': bool(res.get('ok') and price is not None),
+                'price': price,
+                'total': round(price * n) if price is not None else None,
+                'is_base': n == base,
+                'note': '' if res.get('ok') else 'nicht abrufbar',
+            })
+        with _compare_lock:
+            _compare_jobs[offer_id] = {'status': 'done', 'ts': int(time.time()),
+                                       'base': base, 'rows': rows, 'note': ''}
+        log.info("Vergleich #%d fertig: %s", offer_id,
+                 ', '.join(f"{r['travellers']}P={r['price']}" for r in rows))
+    except Exception as e:
+        log.error("Vergleich #%d Fehler: %s", offer_id, e)
+        with _compare_lock:
+            _compare_jobs[offer_id] = {'status': 'error', 'ts': int(time.time()),
+                                       'note': 'Vergleich fehlgeschlagen', 'rows': []}
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -628,6 +678,7 @@ def api_offers():
                 'avg_price': round(stats['av']) if stats['av'] is not None else None,
                 'samples': stats['c'],
                 'checking': checking,
+                'comparable': not is_single_room(f"{o['room']} {o['details']}"),
             })
     return jsonify({'offers': out})
 
@@ -719,6 +770,35 @@ def api_check_now():
         return err
     _spawn(check_all, 'manuell')
     return jsonify({'started': True})
+
+
+@app.route('/api/compare/<int:offer_id>', methods=['POST'])
+def api_compare_start(offer_id: int):
+    if (err := _require_api()):
+        return err
+    with _compare_lock:
+        running = _compare_jobs.get(offer_id, {}).get('status') == 'running'
+    if running:
+        return jsonify({'started': True, 'already': True})
+    with db() as con:
+        o = con.execute('SELECT room, details FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return jsonify({'error': 'not_found'}), 404
+    if is_single_room(f"{o['room']} {o['details']}"):
+        return jsonify({'error': 'single_room'}), 409
+    with _compare_lock:
+        _compare_jobs[offer_id] = {'status': 'running', 'ts': int(time.time()), 'rows': []}
+    _spawn(_run_compare, offer_id)
+    return jsonify({'started': True})
+
+
+@app.route('/api/compare/<int:offer_id>', methods=['GET'])
+def api_compare_get(offer_id: int):
+    if (err := _require_api()):
+        return err
+    with _compare_lock:
+        job = _compare_jobs.get(offer_id)
+    return jsonify(job or {'status': 'idle', 'rows': []})
 
 
 @app.route('/api/console')

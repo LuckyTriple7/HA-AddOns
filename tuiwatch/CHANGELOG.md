@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0] - 2026-06-28
+
+### Added
+- **Pro-Person-Vergleich**: Button „Vergleich" am Diagramm öffnet einen Live-Vergleich
+  des Preises pro Person für die aktuelle Reisendenzahl gegenüber 2 Personen (bei
+  aktuell 2 → 2 ↔ 1). Tabelle mit Preis p. P., Gesamt und Differenz; günstigster
+  Preis pro Person grün hervorgehoben. Rein on-demand — nichts wird gespeichert.
+- **Einzelzimmer-Riegel**: Bei Einzelzimmer-Angeboten („Einzelzimmer"/„Single Room")
+  wird kein Vergleichs-Button angezeigt (2-Personen-Abruf nicht möglich).
+- Robuster Vergleichs-Abruf: schlägt der feste Zimmercode für eine andere Belegung
+  fehl, wird einmalig ohne `roomTypeOpCodes` erneut versucht.
+
 ## [0.1.6] - 2026-06-28
 
 ### Fixed
