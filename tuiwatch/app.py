@@ -396,7 +396,7 @@ def _notify_ha(title: str, message: str, tag: str) -> None:
                   headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
                   json={'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
     except Exception as e:
-        log.warning("HA-Benachrichtigung fehlgeschlagen: %s", e)
+        log.error("HA-Benachrichtigung fehlgeschlagen: %s", e)
 
 
 def _notify_telegram(text: str) -> None:
@@ -410,7 +410,7 @@ def _notify_telegram(text: str) -> None:
                   json={'chat_id': chat, 'text': text, 'parse_mode': 'HTML',
                         'disable_web_page_preview': True})
     except Exception as e:
-        log.warning("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+        log.error("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
 
 
 def _eur(v) -> str:
@@ -448,6 +448,8 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
     if target and new_price <= target and (prev_price is None or prev_price > target):
         title = f"🎯 Wunschpreis erreicht: {name}"
         msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}\n{url}"
+        log.info("🎯 Wunschpreis erreicht (#%d %s): %s ≤ %s → Benachrichtigung",
+                 offer['id'], name, _eur(new_price), _eur(target))
         _notify_ha(title, msg, f"target_{offer['id']}")
         _notify_telegram(f"🎯 <b>Wunschpreis erreicht</b>\n{name}\nJetzt <b>{_eur(new_price)}</b> "
                          f"(Ziel {_eur(target)})\n{url}")
@@ -463,6 +465,8 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
             title = f"📈 Preis gestiegen: {name}"
             arrow = f"▲ {_eur(diff)}"
         msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow})\n{url}"
+        log.info("Benachrichtigung (#%d %s): %s → %s gesendet", offer['id'], name,
+                 _eur(prev_price), _eur(new_price))
         _notify_ha(title, msg, f"change_{offer['id']}")
         _notify_telegram(f"{'📉' if diff<0 else '📈'} <b>{name}</b>\n"
                          f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}")
@@ -494,6 +498,8 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
     _cheaper_notified[offer['id']] = sig
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     d_de = '.'.join(reversed(cd.split('-')))  # YYYY-MM-DD → DD.MM.YYYY
+    log.info("💡 Günstigerer Termin (#%d %s): %s am %s (%s günstiger) → Benachrichtigung",
+             offer['id'], name, _eur(cp), d_de, _eur(diff))
     _notify_ha(f"💡 Günstigerer Termin: {name}",
                f"{name}\nAm {d_de} nur {_eur(cp)} — {_eur(diff)} günstiger als dein "
                f"Termin ({_eur(current_price)})\n{offer.get('url','')}",
@@ -520,6 +526,8 @@ def _check_error_alarm(offer: dict) -> None:
         return
     _fail_notified.add(oid)
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    log.warning("⚠ Ausverkauft-/Fehler-Alarm (#%d %s): %d× kein Ergebnis → Benachrichtigung",
+                oid, name, streak)
     _notify_ha(f"⚠ Kein Angebot: {name}",
                f"{name}\nSeit {streak} Prüfungen kein Preis/Angebot — evtl. ausgebucht "
                f"oder die URL ist veraltet.\n{offer.get('url','')}", f"error_{oid}")
@@ -534,6 +542,7 @@ def _clear_error_alarm(offer: dict) -> None:
         return
     _fail_notified.discard(oid)
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    log.info("✅ Entwarnung (#%d %s): wieder verfügbar → Benachrichtigung", oid, name)
     _notify_ha(f"✅ Wieder verfügbar: {name}",
                f"{name} liefert wieder einen Preis.\n{offer.get('url','')}", f"error_{oid}")
     _notify_telegram(f"✅ <b>Wieder verfügbar: {name}</b>")
@@ -558,7 +567,8 @@ def check_offer(offer_id: int) -> None:
         offer = dict(offer)
         prev_price = prev_price['price'] if prev_price else None
         url = offer['url']
-        log.info("Prüfe Angebot #%d …", offer_id)
+        name = offer.get('label') or offer.get('hotel') or hotel_from_url(url) or f"#{offer_id}"
+        log.info("Prüfe Angebot #%d: %s …", offer_id, name)
 
         # bis zu 2 Versuche (gegen sporadische Timeouts/Bot-Drosselung)
         res = {}
@@ -568,7 +578,7 @@ def check_offer(offer_id: int) -> None:
             if res.get('ok'):
                 break
             if res.get('detail'):
-                log.warning("Angebot #%d Versuch %d: %s", offer_id, attempt, res['detail'])
+                log.error("Angebot #%d (%s) Versuch %d: %s", offer_id, name, attempt, res['detail'])
             if attempt == 1:
                 time.sleep(3)
 
@@ -590,14 +600,27 @@ def check_offer(offer_id: int) -> None:
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
 
         if res.get('ok'):
-            log.info("Angebot #%d: %.0f € (%s)", offer_id, res['price'], res.get('details', '')[:60])
+            extra = []
+            if res.get('travellers_count') and res['travellers_count'] > 1 and res.get('total_price'):
+                extra.append(f"Gesamt {res['total_price']:.0f} €")
+            if res.get('available') is not None:
+                extra.append('verfügbar' if res['available'] else 'nicht verfügbar')
+            log.info("Angebot #%d (%s): %.0f € pro Person%s [%s]", offer_id, name, res['price'],
+                     (' · ' + ' · '.join(extra)) if extra else '', res.get('source', '?'))
+            if prev_price is not None and res['price'] != prev_price:
+                log.info("Angebot #%d (%s): Preis %s → %.0f € (%+.0f €)", offer_id, name,
+                         f"{prev_price:.0f}", res['price'], res['price'] - prev_price)
             _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
             _clear_error_alarm(offer)
             if load_config().get('notify_cheaper_date', True) and res.get('price'):
                 _check_cheaper_date(offer, res['price'])
+        elif (res.get('note') or '').startswith('Kein Angebot'):
+            # kein Crash, sondern ausgebucht/kein Treffer im Zeitraum → gelb
+            log.warning("Angebot #%d (%s): kein Angebot im Zeitraum", offer_id, name)
+            _check_error_alarm(offer)
         else:
-            # nach außen nur generische Note (bereits in res['note']); Detail steht im Log
-            log.warning("Angebot #%d fehlgeschlagen: %s", offer_id, res.get('note'))
+            # echter Abruf-Fehler → rot (Detail steht ggf. schon oben im Log)
+            log.error("Angebot #%d (%s): Abruf fehlgeschlagen – %s", offer_id, name, res.get('note'))
             _check_error_alarm(offer)
     except Exception as e:
         log.error("check_offer(#%d) Fehler: %s", offer_id, e)
@@ -698,6 +721,7 @@ def _run_calendar(offer_id: int) -> None:
             return
         res = fetch_calendar(offer['url'], verbose=_verbose())
         if not res or not res.get('ok'):
+            log.warning("Preiskalender #%d: keine Daten/nicht abrufbar", offer_id)
             with _calendar_lock:
                 _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
             return
@@ -975,7 +999,8 @@ def api_add_offer():
             offer_id = cur.lastrowid
     except sqlite3.IntegrityError:
         return jsonify({'error': 'duplicate'}), 409
-    log.info("Neues Angebot #%d hinzugefügt", offer_id)
+    log.info("Neues Angebot #%d hinzugefügt: %s", offer_id,
+             label or hotel_from_url(url) or url)
     _spawn(check_offer, offer_id)  # sofort einmal prüfen
     return jsonify({'id': offer_id, 'started': True})
 
@@ -1003,8 +1028,9 @@ def api_update_offer(offer_id: int):
     data = request.get_json(silent=True) or {}
     with db() as con:
         if 'label' in data:
-            con.execute('UPDATE offers SET label=? WHERE id=?',
-                        ((data.get('label') or '').strip(), offer_id))
+            lbl = (data.get('label') or '').strip()
+            con.execute('UPDATE offers SET label=? WHERE id=?', (lbl, offer_id))
+            log.info("Angebot #%d umbenannt: %s", offer_id, lbl or '(Hotelname)')
         if 'target_price' in data:
             tp = data.get('target_price')
             try:
@@ -1012,9 +1038,13 @@ def api_update_offer(offer_id: int):
             except (TypeError, ValueError):
                 tp = None
             con.execute('UPDATE offers SET target_price=? WHERE id=?', (tp, offer_id))
+            log.info("Wunschpreis #%d %s", offer_id,
+                     f"gesetzt: {tp:.0f} €" if tp else "entfernt")
         if 'paused' in data:
             con.execute('UPDATE offers SET paused=? WHERE id=?',
                         (1 if data.get('paused') else 0, offer_id))
+            log.info("Angebot #%d %s", offer_id,
+                     "pausiert" if data.get('paused') else "fortgesetzt")
     return jsonify({'id': offer_id, 'ok': True})
 
 
@@ -1060,6 +1090,7 @@ def api_history_csv(offer_id: int):
 def api_check_one(offer_id: int):
     if (err := _require_api()):
         return err
+    log.info("Manuelle Prüfung angefordert: Angebot #%d", offer_id)
     _spawn(check_offer, offer_id)
     return jsonify({'started': True})
 
@@ -1110,6 +1141,7 @@ def api_compare_start(offer_id: int):
         return jsonify({'error': 'single_room'}), 409
     with _compare_lock:
         _compare_state[offer_id] = {'status': 'running'}
+    log.info("Pro-Person-Vergleich gestartet: Angebot #%d", offer_id)
     _spawn(_run_compare, offer_id)
     return jsonify({'started': True})
 
@@ -1134,6 +1166,7 @@ def api_calendar_start(offer_id: int):
         return jsonify({'error': 'not_found'}), 404
     with _calendar_lock:
         _calendar_state[offer_id] = {'status': 'running'}
+    log.info("Preiskalender-Abruf gestartet: Angebot #%d", offer_id)
     _spawn(_run_calendar, offer_id)
     return jsonify({'started': True})
 

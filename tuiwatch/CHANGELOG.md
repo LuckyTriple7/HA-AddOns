@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.1] - 2026-06-28
+
+### Changed
+- **Konsole deutlich gesprächiger**: Prüfungen zeigen jetzt Name, Preis pro Person,
+  Gesamtpreis, Verfügbarkeit und Quelle (API/Browser) sowie Preisänderungen. Zusätzlich
+  protokolliert: Hinzufügen, Umbenennen, Pausieren/Fortsetzen, Wunschpreis, manuelle
+  Prüfung, Vergleich-/Kalender-Start und gesendete Benachrichtigungen/Alarme.
+- **Fehler werden rot markiert** (Log-Level ERROR), echte Ausfälle deutlich sichtbar;
+  Ausweichen auf den Browser-Fallback erscheint gelb (WARNING). Verbose-Log zeigt die
+  API-URLs zusätzlich.
+
 ## [0.7.0] - 2026-06-28
 
 ### Added

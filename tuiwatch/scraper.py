@@ -329,12 +329,12 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         resp = requests.get(cal_url, headers=_API_HEADERS, timeout=25)
         if resp.status_code != 200:
             if verbose:
-                log.info(f"Kalender HTTP {resp.status_code}")
+                log.warning(f"Kalender HTTP {resp.status_code}")
             return None
         data = resp.json()
     except Exception as e:
         if verbose:
-            log.info(f"Kalender-Fehler: {type(e).__name__}: {e}")
+            log.warning(f"Kalender-Fehler: {type(e).__name__}: {e}")
         return None
 
     days: dict[str, float] = {}
@@ -467,12 +467,12 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
         resp = requests.get(api, headers=_API_HEADERS, timeout=25)
         if resp.status_code != 200:
             if verbose:
-                log.info(f"API HTTP {resp.status_code}")
+                log.warning(f"API HTTP {resp.status_code}")
             return None
         data = resp.json()
     except Exception as e:
         if verbose:
-            log.info(f"API-Fehler: {type(e).__name__}: {e}")
+            log.warning(f"API-Fehler: {type(e).__name__}: {e}")
         return None
 
     r = _empty_result()
@@ -579,8 +579,8 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
     api = fetch_price_api(url, verbose=verbose)
     if api is not None:
         return api  # API hat gültig geantwortet (Treffer oder echte Leermenge)
-    if verbose:
-        log.info("→ Browser-Fallback")
+    # API technisch fehlgeschlagen → Browser-Fallback (immer sichtbar, gelb)
+    log.warning("JSON-API nicht erreichbar → Browser-Fallback (langsamer)")
     rb = _fetch_price_browser(url, timeout_ms=timeout_ms,
                               check_availability=check_availability, verbose=verbose)
     rb["source"] = "browser"
