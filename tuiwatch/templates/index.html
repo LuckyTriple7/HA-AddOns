@@ -626,6 +626,22 @@
 
     function fmtD(iso){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m?`${m[3]}.${m[2]}.${m[1]}`:iso; }
     function dayUrl(base, iso){ try{ const u=new URL(base); u.searchParams.set('startDate',iso); u.searchParams.set('endDate',iso); return u.toString(); }catch(e){ return base; } }
+    async function saveCalDay(ev, iso){
+      ev.preventDefault();
+      const offer = (curOffers||[]).find(x=>x.id===calId) || {};
+      const base = offer.url || '';
+      if(!base) return false;
+      const name = (offer.hotel || offer.label || 'TUI-Angebot') + ' · ' + fmtD(iso);
+      if(!confirm('Diesen Termin als neues Angebot tracken?\n\n'+name)) return false;
+      const r = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url: dayUrl(base, iso), label: name})});
+      if(r.status===409){ toast('Dieser Termin wird bereits verfolgt'); return false; }
+      if(r.status===400){ toast('Keine gültige tui.com-URL'); return false; }
+      if(!r.ok){ toast('Fehler beim Hinzufügen'); return false; }
+      toast('Termin als neues Angebot gespeichert – wird geprüft…');
+      loadOffers();
+      return false;
+    }
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
@@ -677,7 +693,7 @@
           + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
-          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso))}" target="_blank" rel="noopener" title="Diesen Termin auf tui.com öffnen"${style}>${inner}</a>`;
+          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
         } else {
           cells += `<div class="${cls.join(' ')}"${style}>${inner}</div>`;
         }
@@ -700,7 +716,7 @@
           <span><i class="lg-cheap"></i>günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
-          <span>🟩→🟥 günstig→teuer · Klick öffnet den Termin auf tui.com</span>
+          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken</span>
         </div>${calFooter(job)}`;
     }
 

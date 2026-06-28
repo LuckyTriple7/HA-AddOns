@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1] - 2026-06-28
+
+### Added
+- **Preiskalender → Rechtsklick** auf einen Tag speichert genau diesen Termin als
+  **neues, eigenständiges Angebot** (mit fixiertem Datum) und prüft ihn sofort. Linksklick
+  öffnet den Termin weiterhin auf tui.com.
+
 ## [0.8.0] - 2026-06-28
 
 ### Added

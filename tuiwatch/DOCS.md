@@ -80,7 +80,8 @@ pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Hervorgehoben 
 der **günstigste Termin insgesamt** (grün) und der **günstigste Termin in deinem
 gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Die Tage sind als
 **Heatmap** eingefärbt (grün = günstig, rot = teuer); ein **Klick auf einen Tag öffnet
-genau diesen Termin auf tui.com**. Es wird die
+genau diesen Termin auf tui.com**, ein **Rechtsklick speichert den Termin als neues,
+eigenständiges Angebot** (mit fixiertem Datum) und prüft ihn sofort. Es wird die
 **volle buchbare Spanne** angezeigt (heute bis ~12–14 Monate, je nach Verfügbarkeit);
 mit den Pfeilen blätterst du durch die Monate. Das Ergebnis wird **gespeichert** (Zeitstempel + „Neu
 abfragen") und respektiert alle Filter deiner Angebots-URL (Verpflegung, Veranstalter,
