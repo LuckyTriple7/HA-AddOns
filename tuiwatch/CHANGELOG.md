@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.2] - 2026-06-28
+
+### Fixed
+- **Kein unnötiger (langsamer) Browser-Fallback bei „kein Angebot".** Liefert die
+  Offer-API **HTTP 400/404/422** (z. B. beim Nächte-Vergleich für eine Dauer ohne Flüge),
+  wird das jetzt als gültige Leermenge „Kein Angebot" behandelt — vorher wurde
+  fälschlich der minutenlange Chromium-Fallback gestartet. Echte Serverfehler (5xx) /
+  Netzwerkfehler lösen weiterhin den Fallback aus.
+
 ## [0.10.1] - 2026-06-28
 
 ### Fixed

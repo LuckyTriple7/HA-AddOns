@@ -496,6 +496,15 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
         if resp.status_code != 200:
             if verbose:
                 log.warning(f"API HTTP {resp.status_code}")
+            if resp.status_code in (400, 404, 422):
+                # Kein Angebot für diese Parameter (z. B. Dauer ohne Flüge) — das ist
+                # KEIN technischer Fehler, daher kein (langsamer) Browser-Fallback.
+                r = _empty_result()
+                r["source"] = "api"
+                r["available"] = False
+                r["note"] = "Kein Angebot im gewählten Zeitraum"
+                r["hotel"] = hotel_from_url(url)
+                return r
             return None
         data = resp.json()
     except Exception as e:
