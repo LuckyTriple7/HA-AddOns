@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.1] - 2026-06-28
+
+### Fixed
+- **Kalender-Icon der Datumsfelder im Dark Mode sichtbar** (aufgehellt); im Light Mode
+  unverändert. Klick aufs Feld öffnet weiterhin den Kalender, Direkteingabe bleibt möglich.
+
 ## [0.14.0] - 2026-06-28
 
 ### Added

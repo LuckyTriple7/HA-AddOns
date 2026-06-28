@@ -150,6 +150,8 @@
     .srch-field.srch-xs { flex:0 0 90px; }
     .srch-field label { font-size:.72rem; color:var(--muted); }
     .srch-field input, .srch-field select, .srch-dest { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; width:100%; }
+    input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.85); opacity:.9; cursor:pointer; }
+    [data-theme="light"] input[type=date]::-webkit-calendar-picker-indicator { filter:none; }
     .srch-dest { cursor:pointer; text-align:left; }
     .srch-dest.set { border-color:var(--accent); color:var(--text); font-weight:600; }
     .srch-adv { margin-bottom:10px; }
