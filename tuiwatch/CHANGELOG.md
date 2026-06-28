@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.1] - 2026-06-28
+
+### Fixed
+- **Preiskalender-Klick erzeugte ein ungültiges Datum** (HTTP 400 auf tui.com): Es wurde
+  `startDate` = `endDate` = angeklickter Tag gesetzt, sodass der Reisezeitraum z. B.
+  „21.05.2027 – 21.05.2027, 10 Nächte" lautete. Jetzt wird `endDate = Anreise + Nächte`
+  berechnet (Hin- bis Rückreise), passend zur Reisedauer. Gilt für Links- und Rechtsklick
+  (Termin öffnen / als neues Angebot speichern). Die Dauer kommt aus dem Preiskalender
+  (`duration`).
+
 ## [0.9.0] - 2026-06-28
 
 ### Added

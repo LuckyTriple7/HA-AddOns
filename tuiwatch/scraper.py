@@ -349,10 +349,17 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
 
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
     ws, we = q.get('startDate', ''), q.get('endDate', '')
+    # Nächte (für die Rückreise-Berechnung beim Klick: endDate = Anreise + Nächte).
+    # Aus Dauer-Bereichen wie "7-"/"9-12" die untere Zahl, wie es auch tui.com nutzt.
+    try:
+        nights = int(_single_duration(q.get('duration', '')))
+    except (TypeError, ValueError):
+        nights = None
     res = {
         'ok': bool(days),
         'currency': data.get('currency', 'EUR'),
         'window_start': ws, 'window_end': we,
+        'duration': nights,
         'days': [{'date': d, 'price': int(round(days[d]))} for d in sorted(days)],
     }
     in_window = {d: pr for d, pr in days.items()
