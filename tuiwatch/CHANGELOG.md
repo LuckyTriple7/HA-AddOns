@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0] - 2026-06-28
+
+### Added
+- **Eigene Suchmaske mit Reiseziel-Picker** — kein URL-Kopieren mehr nötig: **Reiseziel**
+  per Drilldown (Land → Region → Insel) wählen, **Abflughafen** (TUI-Liste), **Zeitraum
+  von–bis + Nächte**, **Reisende** und die Filter setzen → **Suchen**. Nutzt die offenen
+  TUI-APIs `search-destination` (Regionen/Unterregionen) und `search-departure-airport`.
+- **Such-Favoriten**: komplette Maskeneingaben unter einem Namen speichern und wieder
+  laden (Dropdown + „★ Speichern" / „Löschen").
+- **Sortierung der Trefferliste**: Preis, Preis/Nacht, Weiterempfehlung, Sterne.
+- Die bisherigen Wege (TUI-URL einfügen, „Region" aus einem Angebot) bleiben erhalten.
+
 ## [0.12.0] - 2026-06-28
 
 ### Added

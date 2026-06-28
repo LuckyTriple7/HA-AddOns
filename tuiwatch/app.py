@@ -27,8 +27,9 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import (_giata_from_url, duration_from_url, fetch_calendar, fetch_price,
-                     fetch_search, hotel_from_url, is_single_room,
+from scraper import (_giata_from_url, duration_from_url, fetch_airports,
+                     fetch_calendar, fetch_destinations, fetch_price, fetch_search,
+                     fetch_search_params, hotel_from_url, is_single_room,
                      region_giata_from_breadcrumb, travellers_from_url,
                      with_duration, with_travellers, without_room_code)
 
@@ -1586,6 +1587,7 @@ def api_search():
 
     region = None
     offer_id = data.get('offer_id')
+    search_region = data.get('region')  # Param-Modus aus der Suchmaske
     if offer_id:
         with db() as con:
             o = con.execute('SELECT url, label, hotel FROM offers WHERE id=?',
@@ -1599,15 +1601,33 @@ def api_search():
                 return jsonify({'error': 'no_region',
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
+        res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
+                           verbose=_verbose())
+    elif search_region:
+        try:
+            region = int(search_region)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'no_region'}), 400
+        airports = [str(a).strip() for a in (data.get('airport') and [data.get('airport')]
+                    or data.get('airports') or []) if str(a).strip()]
+        log.info("Suche: Region %s %s–%s/%sN, %s Reisende, ab %s (TUI=%s, Verpfl.=%s)",
+                 region, data.get('start'), data.get('end'), data.get('duration'),
+                 data.get('travellers'), ','.join(airports) or '-', operator_tui,
+                 ','.join(boards) or '-')
+        res = fetch_search_params(region=region, start=(data.get('start') or '').strip(),
+                                  end=(data.get('end') or '').strip(),
+                                  duration=data.get('duration'),
+                                  travellers=data.get('travellers'), airports=airports,
+                                  operator_tui=operator_tui, boards=boards,
+                                  verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
             return jsonify({'error': 'invalid_url'}), 400
-        src = url
-    log.info("Suche: %s region=%s (TUI=%s, Verpflegung=%s, >=%g Sterne, >=%g%%)", src,
-             region or '-', operator_tui, ','.join(boards) or '-', min_stars, min_recommend)
-    res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
-                       verbose=_verbose())
+        log.info("Suche: %s (TUI=%s, Verpflegung=%s)", url, operator_tui,
+                 ','.join(boards) or '-')
+        res = fetch_search(url, operator_tui=operator_tui, boards=boards,
+                           verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -1627,6 +1647,35 @@ def api_search():
     log.info("Suche: %d Treffer, %d nach Filter", len(res['results']), len(out))
     return jsonify({'results': out, 'total': res.get('total', len(out)),
                     'matched': len(out)})
+
+
+_dest_cache: dict = {}     # parent → {parentName, items}
+_airports_cache: list = []  # einmalig geladen
+
+
+@app.route('/api/destinations', methods=['GET'])
+def api_destinations():
+    """Reiseziele für den Picker (Top-Level oder Unterregionen zu ?parent=…)."""
+    if (err := _require_api()):
+        return err
+    parent = (request.args.get('parent') or '').strip() or None
+    if parent not in _dest_cache:
+        d = fetch_destinations(parent)
+        if d is None:
+            return jsonify({'error': 'unavailable'}), 502
+        _dest_cache[parent] = d
+    return jsonify(_dest_cache[parent])
+
+
+@app.route('/api/airports', methods=['GET'])
+def api_airports():
+    """Abflughäfen (TUI-Liste, einmalig gecacht)."""
+    if (err := _require_api()):
+        return err
+    global _airports_cache
+    if not _airports_cache:
+        _airports_cache = fetch_airports()
+    return jsonify({'airports': _airports_cache})
 
 
 @app.route('/api/calendar/<int:offer_id>', methods=['POST'])

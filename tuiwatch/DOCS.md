@@ -28,28 +28,29 @@ verbose_log: false       # ausführliche Logs
 
 ## Hotels suchen
 
-Statt einzelne Hotels von Hand einzufügen, kannst du über **🔍 Hotels suchen** eine
-ganze **Region** durchsuchen:
+Über **🔍 Hotels suchen** kannst du eine ganze **Region** durchsuchen — auf drei Wegen:
 
-1. Auf tui.com **zuerst eine Region/ein Ziel** wählen (z. B. „Kapverdische Inseln") und
-   Datum, Personen & Abflughafen setzen.
-2. Die **Ergebnis-URL** (enthält `regionGiataIds=…`) kopieren und in TUIWatch unter
-   „Hotels suchen" einfügen.
-3. Optional die Filter setzen: **nur Veranstalter TUI**, **Verpflegung** (AI/HP/VP/
-   Frühstück), **Sterne ≥** und **Weiterempfehlung ≥ %** → **Suchen**.
+**1. Suchmaske (empfohlen, ohne URL):**
+- **Reiseziel** über den Picker wählen — Drilldown **Land → Region → Insel** (z. B.
+  Spanien → Kanarische Inseln → Gran Canaria); „Ganze Region wählen" auf jeder Ebene.
+- **Abflughafen** (TUI-Liste, zuletzt genutzter wird gemerkt), **Zeitraum von–bis** +
+  **Nächte**, **Reisende**.
+- Filter: **nur Veranstalter TUI**, **Verpflegung** (AI/HP/VP/Frühstück), **Sterne ≥**,
+  **Weiterempfehlung ≥ %** → **Suchen**.
+- **Favoriten:** die kompletten Eingaben unter einem Namen speichern („★ Speichern") und
+  später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
 
-Du bekommst eine Trefferliste mit Hotelname, Sternen, Ort, **HolidayCheck-
-Weiterempfehlung**, Verpflegung, Nächten und **Preis pro Person**. Je Treffer:
-**Tracken** (übernimmt das Hotel ins Tracking) oder **Öffnen** (auf tui.com). Mit
-**Alle tracken** werden alle angezeigten Treffer auf einmal übernommen. Der Abflughafen
-kommt aus der eingefügten URL.
+**2. Aus einem Angebot:** Bei jedem aktiven Angebot der Button **Region** sucht **weitere
+Hotels derselben Region** für dieselben Reisedaten/Dauer/Reisende/Abflughafen; Veranstalter
+und Verpflegung werden aus dem Angebot vorbelegt.
 
-**Bequemer — Suche direkt aus einem Angebot:** Bei jedem aktiven Angebot gibt es den
-Button **Region**. Ein Klick sucht **weitere Hotels derselben Region** (z. B. Gran
-Canaria) für **dieselben Reisedaten, Dauer, Reisende und denselben Abflughafen** wie das
-Angebot. Veranstalter und Verpflegung des Angebots werden als Filter **vorbelegt**
-(änderbar); Sterne/Weiterempfehlung kannst du zusätzlich setzen. So musst du keine URL
-einfügen.
+**3. TUI-URL einfügen:** Unter „Alternativ: TUI-Such-URL einfügen" eine Ergebnis-URL von
+tui.com (mit `regionGiataIds=…`) einfügen.
+
+Die Trefferliste zeigt Hotelname, Sterne, Ort, **HolidayCheck-Weiterempfehlung**,
+Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/Nacht,
+Weiterempfehlung oder Sternen. Je Treffer **Tracken** oder **Öffnen** (tui.com), dazu
+**Alle tracken**. Bereits getrackte Hotels sind markiert.
 
 Für jedes Angebot werden angezeigt: Hotelname, **Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,

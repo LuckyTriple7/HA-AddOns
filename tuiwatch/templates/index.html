@@ -137,6 +137,25 @@
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
     .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
     .srch-from b { color:var(--text); }
+    .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
+    .srch-fav select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 9px; border-radius:6px; font-size:.82rem; min-width:200px; }
+    .srch-mask { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:flex-end; }
+    .srch-field { display:flex; flex-direction:column; gap:4px; }
+    .srch-field.srch-grow { flex:1 1 200px; }
+    .srch-field.srch-sm { flex:0 0 140px; }
+    .srch-field.srch-xs { flex:0 0 90px; }
+    .srch-field label { font-size:.72rem; color:var(--muted); }
+    .srch-field input, .srch-field select, .srch-dest { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; width:100%; }
+    .srch-dest { cursor:pointer; text-align:left; }
+    .srch-dest.set { border-color:var(--accent); color:var(--text); font-weight:600; }
+    .srch-adv { margin-bottom:10px; }
+    .srch-adv summary { cursor:pointer; font-size:.8rem; color:var(--muted); }
+    .dest-panel { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
+    .dest-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:.84rem; }
+    .dest-head b { color:var(--text); }
+    .dest-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:.86rem; }
+    .dest-row:hover { background:var(--surf); }
+    .dest-row .chev { color:var(--muted); }
     /* Preiskalender */
     .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
     .cal-title { font-weight:700; font-size:1rem; }
@@ -261,11 +280,40 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>Hotels suchen</h2>
-      <div class="sub">Auf tui.com eine <b>Region</b> mit Datum, Personen &amp; Abflughafen suchen, dann die Ergebnis-URL hier einfügen — oder bei einem Angebot auf <b>„Region"</b> klicken.</div>
-      <div id="srch-from" class="srch-from" style="display:none"></div>
-      <div class="add-row" id="srch-urlrow" style="margin-bottom:10px">
-        <input type="text" id="srch-url" placeholder="TUI-Such-/Region-URL einfügen (mit regionGiataIds=…)" autocomplete="off">
+      <div class="sub">Reiseziel wählen, Eckdaten setzen, suchen — oder bei einem Angebot auf <b>„Region"</b> klicken bzw. unten eine TUI-URL einfügen.</div>
+
+      <div class="srch-fav" id="srch-favbar">
+        <span>★ Favorit</span>
+        <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als Favorit speichern">★ Speichern</button>
+        <button class="btn sec" onclick="delFav()" title="Gewählten Favoriten löschen">Löschen</button>
       </div>
+
+      <div id="srch-from" class="srch-from" style="display:none"></div>
+
+      <div class="srch-mask" id="srch-mask">
+        <div class="srch-field srch-grow">
+          <label>Reiseziel</label>
+          <button type="button" class="srch-dest" id="srch-dest" onclick="openDestPicker()">Reiseziel wählen…</button>
+        </div>
+        <div class="srch-field">
+          <label>Abflughafen</label>
+          <select id="srch-airport"></select>
+        </div>
+        <div class="srch-field srch-sm">
+          <label>von</label><input type="date" id="srch-vom">
+        </div>
+        <div class="srch-field srch-sm">
+          <label>bis</label><input type="date" id="srch-bis">
+        </div>
+        <div class="srch-field srch-xs">
+          <label>Nächte</label><input type="number" id="srch-dur" min="1" max="30" value="7">
+        </div>
+        <div class="srch-field srch-xs">
+          <label>Reisende</label><input type="number" id="srch-trav" min="1" max="9" value="2">
+        </div>
+      </div>
+
       <div class="srch-filters">
         <label class="srch-chk"><input type="checkbox" id="srch-tui" checked> nur Veranstalter TUI</label>
         <span class="srch-boards">Verpflegung:
@@ -278,6 +326,14 @@
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" placeholder="0" style="width:60px">%</label>
         <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
+
+      <details class="srch-adv" id="srch-adv"><summary>Alternativ: TUI-Such-URL einfügen</summary>
+        <div class="add-row" style="margin-top:8px">
+          <input type="text" id="srch-url" placeholder="TUI-Such-/Region-URL (mit regionGiataIds=…)" autocomplete="off">
+        </div>
+      </details>
+
+      <div id="dest-panel" class="dest-panel" style="display:none"></div>
       <div id="srch-body"></div>
     </div>
   </div>
@@ -770,24 +826,47 @@
         + nigFooter(job);
     }
 
-    // ── Hotelsuche (Region → Trefferliste) ────────────────────────────────────
-    let srchResults = [], srchOfferId = null;
+    // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
+    let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0;
+    let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
+    let airportsLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
-    function openSearch(){           // URL-Modus (Toolbar)
+    function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
+    function jsArg(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
+
+    async function ensureAirports(){
+      if(airportsLoaded) return;
+      try {
+        const d = await fetch(api('/api/airports')).then(r=>r.json());
+        const sel = $('#srch-airport'); const saved = localStorage.getItem('tw-airport');
+        const pre = (d.airports||[]).find(a=>a.preselected);
+        const def = saved || (pre&&pre.code) || 'STR';
+        sel.innerHTML = (d.airports||[]).map(a=>`<option value="${esc(a.code)}"${a.code===def?' selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('');
+        airportsLoaded = true;
+      } catch(e){}
+    }
+    function setSearchMode(mode){     // 'mask' | 'offer'
+      const off = (mode==='offer');
+      $('#srch-favbar').style.display = off?'none':'';
+      $('#srch-mask').style.display   = off?'none':'';
+      $('#srch-adv').style.display    = off?'none':'';
+      $('#srch-from').style.display   = off?'block':'none';
+      $('#dest-panel').style.display  = 'none';
+    }
+    function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
-      $('#srch-from').style.display='none';
-      $('#srch-urlrow').style.display='';
+      setSearchMode('mask'); ensureAirports(); renderFavs();
+      if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
+      if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
       $('#srch-bg').classList.add('show');
     }
-    function openSearchFromOffer(id){   // Region-Modus (aus Angebot)
+    function openSearchFromOffer(id){ // Region-Modus (aus Angebot)
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       srchOfferId = id;
-      $('#srch-from').style.display='block';
+      setSearchMode('offer');
       $('#srch-from').innerHTML = 'Region aus Angebot: <b>'+esc(o.hotel||o.label||('#'+id))+'</b>'
         + (o.location?(' · '+esc(o.location)):'') + ' — Reisedaten &amp; Abflughafen werden übernommen.';
-      $('#srch-urlrow').style.display='none';
       $('#srch-url').value='';
-      // Filter aus dem Angebot vorbelegen (sichtbar + änderbar)
       const ops = urlParam(o.url,'operators');
       $('#srch-tui').checked = (!ops || /TUID/i.test(ops));
       const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/).map(s=>s.trim().toUpperCase());
@@ -800,28 +879,127 @@
     function closeSearch(){ $('#srch-bg').classList.remove('show'); }
     $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
 
+    // — Reiseziel-Picker (Drilldown) —
+    async function loadDest(parent){
+      try { return await fetch(api('/api/destinations'+(parent?('?parent='+parent):''))).then(r=>r.json()); }
+      catch(e){ return null; }
+    }
+    async function openDestPicker(){
+      const p = $('#dest-panel'); p.style.display='block';
+      p.innerHTML = '<div class="cmp-load">Lade Reiseziele…</div>';
+      destStack = []; destNode = null;
+      destData = await loadDest(null);
+      if(!destData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
+      renderDest();
+    }
+    function renderDest(){
+      const p = $('#dest-panel');
+      const back = destStack.length?'<button class="btn sec" onclick="destBack()">‹ zurück</button>':'';
+      const title = destNode?('<b>'+esc(destNode.label)+'</b>'):'<b>Reiseziel wählen</b>';
+      const whole = destNode?(`<button class="btn" onclick="selectDest(${destNode.giata}, '${jsArg(destNode.label)}')">✓ Ganze Region wählen</button>`):'';
+      const rows = (destData.items||[]).map(it=>
+        `<div class="dest-row" onclick="destDrill(${it.giata}, '${jsArg(it.label)}')">
+           <span>${esc(it.label)}</span>
+           <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
+         </div>`).join('');
+      p.innerHTML = `<div class="dest-head">${back}${title}${whole}
+          <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>${rows||'<div class="cmp-load">Keine Unterregionen.</div>'}`;
+    }
+    async function destDrill(giata, label){
+      const sub = await loadDest(giata);
+      if(!sub || !(sub.items&&sub.items.length)){ selectDest(giata, label); return; }
+      destStack.push({node:destNode, data:destData});
+      destNode = {giata, label}; destData = sub; renderDest();
+    }
+    function destBack(){ const prev=destStack.pop(); if(!prev) return; destNode=prev.node; destData=prev.data; renderDest(); }
+    function selectDest(giata, label){
+      srchDest = {giata, label};
+      const b = $('#srch-dest'); b.textContent = label; b.classList.add('set');
+      $('#dest-panel').style.display='none';
+    }
+
+    // — Favoriten (localStorage) —
+    function getFavs(){ try { return JSON.parse(localStorage.getItem('tw-search-favs')||'[]'); } catch(e){ return []; } }
+    function setFavs(f){ localStorage.setItem('tw-search-favs', JSON.stringify(f)); }
+    function renderFavs(){
+      const favs = getFavs();
+      $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
+        + favs.map((f,i)=>`<option value="${i}">${esc(f.name)}</option>`).join('');
+    }
+    function curFav(){
+      return { dest: srchDest, airport: $('#srch-airport').value,
+        vom: $('#srch-vom').value, bis: $('#srch-bis').value,
+        dur: $('#srch-dur').value, trav: $('#srch-trav').value,
+        tui: $('#srch-tui').checked,
+        boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
+        stars: $('#srch-stars').value, rec: $('#srch-rec').value };
+    }
+    function saveFav(){
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      const name = prompt('Name für den Favoriten:', srchDest.label||'Suche');
+      if(name===null) return;
+      const favs = getFavs(); const f = curFav(); f.name = name.trim()||srchDest.label;
+      const ix = favs.findIndex(x=>x.name===f.name);
+      if(ix>=0) favs[ix]=f; else favs.push(f);
+      setFavs(favs); renderFavs(); toast('Favorit gespeichert');
+    }
+    function loadFav(){
+      const i = $('#srch-favsel').value; if(i==='') return;
+      const f = getFavs()[+i]; if(!f) return;
+      if(f.dest){ srchDest=f.dest; const b=$('#srch-dest'); b.textContent=f.dest.label; b.classList.add('set'); }
+      if(f.airport){ ensureAirports().then(()=>{ $('#srch-airport').value=f.airport; }); }
+      $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||'';
+      $('#srch-dur').value=f.dur||7; $('#srch-trav').value=f.trav||2;
+      $('#srch-tui').checked=f.tui!==false;
+      document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
+      $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
+    }
+    function delFav(){
+      const i = $('#srch-favsel').value; if(i===''){ toast('Bitte einen Favoriten wählen'); return; }
+      const favs=getFavs(); favs.splice(+i,1); setFavs(favs); renderFavs(); toast('Favorit gelöscht');
+    }
+
     async function runSearch(){
       const url = $('#srch-url').value.trim();
-      const fromOffer = (srchOfferId!=null && !url);
-      if(!fromOffer && !url){ toast('Bitte eine TUI-Such-URL einfügen'); return; }
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const body = { operator_tui: $('#srch-tui').checked, boards,
         min_stars: parseFloat($('#srch-stars').value)||0,
         min_recommend: parseFloat($('#srch-rec').value)||0 };
-      if(fromOffer) body.offer_id = srchOfferId; else body.url = url;
+      if(srchOfferId!=null){ body.offer_id = srchOfferId; }
+      else if(url){ body.url = url; }
+      else {
+        if(!srchDest){ toast('Bitte ein Reiseziel wählen'); return; }
+        const vom=$('#srch-vom').value, bis=$('#srch-bis').value;
+        if(!vom||!bis){ toast('Bitte Zeitraum (von/bis) wählen'); return; }
+        if(bis<vom){ toast('„bis" muss nach „von" liegen'); return; }
+        localStorage.setItem('tw-airport', $('#srch-airport').value);
+        Object.assign(body, { region: srchDest.giata, start: vom, end: bis,
+          duration: parseInt($('#srch-dur').value)||7, travellers: parseInt($('#srch-trav').value)||2,
+          airport: $('#srch-airport').value });
+      }
       $('#srch-body').innerHTML = '<div class="cmp-load">⏳ Suche läuft…</div>';
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
       catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
-      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(fromOffer?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region in der URL. Auf tui.com erst ein Ziel/eine Region wählen und die Ergebnis-URL einfügen.')+'</div>'; return; }
+      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
       if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
-      if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige tui.com-URL.</div>'; return; }
+      if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
-      srchResults = d.results||[];
-      renderSearch(d);
+      srchResults = d.results||[]; srchTotal = d.total||srchResults.length;
+      sortSearchResults(); renderSearch();
     }
 
-    function renderSearch(d){
+    function sortSearchResults(){
+      const num=(v,d)=>v==null?d:v;
+      const a=srchResults;
+      if(srchSort==='price') a.sort((x,y)=>num(x.price,1e9)-num(y.price,1e9));
+      else if(srchSort==='rec') a.sort((x,y)=>num(y.recommendation,-1)-num(x.recommendation,-1));
+      else if(srchSort==='stars') a.sort((x,y)=>num(y.stars,-1)-num(x.stars,-1));
+      else if(srchSort==='pernight') a.sort((x,y)=>(num(x.price,1e9)/(x.nights||1))-(num(y.price,1e9)/(y.nights||1)));
+    }
+    function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearch(); }
+
+    function renderSearch(){
       if(!srchResults.length){ $('#srch-body').innerHTML = '<div class="cmp-load">Keine Treffer für die gewählten Filter.</div>'; return; }
       const rows = srchResults.map((r,i)=>{
         const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
@@ -845,8 +1023,14 @@
           </div>
         </div>`;
       }).join('');
-      const head = `<div class="srch-head"><b>${srchResults.length}</b> Treffer${(d&&d.total&&d.total>srchResults.length)?(' (von '+d.total+' in der Region)'):''}
-         <span style="flex:1"></span>
+      const sortSel = `<select onchange="changeSrchSort(this.value)" title="Sortierung">
+          <option value="price"${srchSort==='price'?' selected':''}>Preis aufsteigend</option>
+          <option value="pernight"${srchSort==='pernight'?' selected':''}>Preis/Nacht</option>
+          <option value="rec"${srchSort==='rec'?' selected':''}>Weiterempfehlung</option>
+          <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
+        </select>`;
+      const head = `<div class="srch-head"><b>${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}
+         <span style="flex:1"></span>Sortieren: ${sortSel}
          <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>`;
       $('#srch-body').innerHTML = head + rows;
     }
@@ -871,7 +1055,7 @@
       for(const r of todo){
         try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); r.tracked=true; } catch(e){}
       }
-      toast(todo.length+' Hotels getrackt'); renderSearch({total:srchResults.length}); loadOffers();
+      toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────

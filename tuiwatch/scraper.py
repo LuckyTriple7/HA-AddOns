@@ -232,6 +232,9 @@ BREADCRUMB_API = "https://api.cloud.tui.com/breadcrumb/v1/data/TUICOM/de-DE/3/"
 HOTELINFO_PDF = "https://www.tui.com/api/hotelInfoPdf"  # Hotelbeschreibung als PDF
 # Hotelsuche (Region → Trefferliste). POST mit JSON-Body, stabiler API-Host.
 SEARCH_API = "https://api.cloud.tui.com/hotel-offer-cards/v2/search/TUICOM"
+# Reiseziel-Picker (Regionen/Unterregionen) + Abflughäfen.
+DEST_API = "https://api.cloud.tui.com/search-destination/v2"
+AIRPORTS_API = "https://api.cloud.tui.com/search-departure-airport/v2"
 _API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 _SEARCH_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json",
                    "Content-Type": "application/json", "Origin": "https://www.tui.com",
@@ -434,81 +437,84 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
         return None
 
 
-def build_search_payload(url: str, *, operator_tui: bool = True,
-                         boards: list | None = None,
-                         region: int | None = None) -> dict | None:
-    """POST-Body für die Hotelsuche aus den Parametern einer TUI-Such-/Region-URL.
-    `region` überschreibt die Region aus der URL (für die Suche aus einem Angebot).
-    None, wenn weder `region` noch `regionGiataIds` vorhanden sind."""
+def _search_params_from_url(url: str, *, region: int | None = None,
+                            operator_tui: bool = True,
+                            boards: list | None = None) -> dict:
+    """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
+    Angebots-Modus). `region` überschreibt `regionGiataIds`."""
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
     if region:
         regions = [int(region)]
     else:
         regions = [int(x) for x in _split_multi(q.get("regionGiataIds", "")) if x.isdigit()]
-    if not regions:
-        return None
     try:
         adults = int(q.get("travellers", "1") or "1")
     except ValueError:
         adults = 1
     dur = _single_duration(q.get("duration", ""))
-    duration = [int(dur)] if dur.isdigit() else []
     ops = (["TUID"] if operator_tui
            else _split_multi(q.get("operators", q.get("tourOperators", ""))))
     board_codes = [b for b in (boards or []) if b] or _split_multi(q.get("boardTypes", ""))
-    return {"parameters": {
+    return {
         "searchScope": q.get("searchScope", "PACKAGE"),
         "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
-        "duration": duration,
-        "rooms": [{"numberOfAdults": adults, "childAges": [], "roomCodes": [],
-                   "boardCodes": board_codes}],
-        "airports": _split_multi(q.get("departureAirports", "")),
-        "airlines": [], "tourOperators": ops, "logicalExpression": "",
+        "duration": int(dur) if dur.isdigit() else None,
+        "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
+        "operators": ops, "boards": board_codes, "regions": regions,
+    }
+
+
+def _build_search_payload(p: dict) -> dict:
+    """POST-Body aus kanonischen Suchparametern."""
+    return {"parameters": {
+        "searchScope": p.get("searchScope") or "PACKAGE",
+        "startDate": p.get("startDate", ""), "endDate": p.get("endDate", ""),
+        "duration": [p["duration"]] if p.get("duration") else [],
+        "rooms": [{"numberOfAdults": p.get("travellers") or 2, "childAges": [],
+                   "roomCodes": [], "boardCodes": p.get("boards") or []}],
+        "airports": p.get("airports") or [], "airlines": [],
+        "tourOperators": p.get("operators") or [], "logicalExpression": "",
         "transferIncluded": False, "sortingOrder": "qualifier2DESC",
         "secondarySortingOrder": "", "identifier": "HLP",
-        "giataRegions": regions, "resultsTotal": 300, "resultsFrom": 0,
-        "resultsPerPage": 50,
+        "giataRegions": p.get("regions") or [],
+        "resultsTotal": 300, "resultsFrom": 0, "resultsPerPage": 50,
     }}
 
 
-def offer_url_for(item: dict, search_url: str) -> str:
-    """Trackbare Hotel-Angebots-URL aus einem Such-Treffer (gleiche Form wie sonst vom
-    Nutzer eingefügte URLs), inkl. der Eckdaten aus der Such-URL."""
-    q = {k: v[0] for k, v in parse_qs(urlparse(search_url).query, keep_blank_values=True).items()}
+def offer_url_for(item: dict, params: dict) -> str:
+    """Trackbare Hotel-Angebots-URL aus einem Such-Treffer + den Suchparametern (gleiche
+    Form wie sonst vom Nutzer eingefügte URLs)."""
     h = item.get("hotel") or {}
     giata = str(h.get("giataId", ""))
     slug = _slugify(h.get("name", "") or "hotel")
     boards = item.get("boardCodes") or []
-    params = {
-        "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
-        "duration": q.get("duration", "") or (str(item.get("numberOfNights") or "")),
-        "travellers": q.get("travellers", "1") or "1",
-        "searchScope": q.get("searchScope", "PACKAGE"),
-        "departureAirports": q.get("departureAirports", ""),
-        "operators": q.get("operators", q.get("tourOperators", "")) or "TUID",
+    dur = params.get("duration") or item.get("numberOfNights")
+    q = {
+        "startDate": params.get("startDate", ""), "endDate": params.get("endDate", ""),
+        "duration": str(dur or ""), "travellers": str(params.get("travellers") or 1),
+        "searchScope": params.get("searchScope") or "PACKAGE",
+        "departureAirports": ",".join(params.get("airports") or []),
+        "operators": ",".join(params.get("operators") or []) or "TUID",
         "sortOffersAsc": "1", "sortOffersField": "campaignOffers",
     }
-    if q.get("regionGiataIds"):
-        params["regionGiataIds"] = q["regionGiataIds"]
+    regions = params.get("regions") or []
+    if regions:
+        q["regionGiataIds"] = ",".join(str(r) for r in regions)
     if boards:
-        params["boardTypes"] = boards[0]
-    query = urlencode({k: v for k, v in params.items() if v != ""})
+        q["boardTypes"] = boards[0]
+    query = urlencode({k: v for k, v in q.items() if v != ""})
     return f"https://www.tui.com/pauschalreisen/suchen/angebote/{slug}/{giata}/offer/?{query}"
 
 
-def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
-                 region: int | None = None, verbose: bool = False) -> dict | None:
-    """Ruft die TUI-Hotelsuche für eine Region-URL ab → normalisierte Treffer.
-    `region` überschreibt die Region aus der URL (Suche aus einem Angebot).
+def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
+    """Führt die Hotelsuche für kanonische Parameter aus → normalisierte Treffer.
     {ok,total,results[]}; None bei technischem Fehler; {ok:False,note} ohne Region."""
-    payload = build_search_payload(url, operator_tui=operator_tui, boards=boards,
-                                   region=region)
-    if payload is None:
-        return {"ok": False, "total": 0, "results": [], "note": "Keine Region in der URL"}
+    if not params.get("regions"):
+        return {"ok": False, "total": 0, "results": [], "note": "Keine Region gewählt"}
+    payload = _build_search_payload(params)
     try:
         if verbose:
-            log.info("Such-API POST %s regionen=%s", SEARCH_API,
-                     payload["parameters"]["giataRegions"])
+            log.info("Such-API POST %s regionen=%s", SEARCH_API, params["regions"])
         resp = requests.post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
         if resp.status_code != 200:
             if verbose:
@@ -540,11 +546,80 @@ def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = N
             "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),
             "date": (it.get("startDate") or "")[:10],
             "image": (h.get("images") or [{}])[0].get("url", ""),
-            "offer_url": offer_url_for(it, url),
+            "offer_url": offer_url_for(it, params),
         })
     if verbose:
         log.info("Such-API: %d Treffer (gesamt %s)", len(results), data.get("resultsTotal"))
     return {"ok": True, "total": data.get("resultsTotal", len(results)), "results": results}
+
+
+def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
+                 region: int | None = None, verbose: bool = False) -> dict | None:
+    """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
+    params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
+                                     boards=boards)
+    return _run_search(params, verbose=verbose)
+
+
+def fetch_search_params(*, region: int, start: str, end: str, duration, travellers,
+                        airports: list | None = None, operator_tui: bool = True,
+                        boards: list | None = None, verbose: bool = False) -> dict | None:
+    """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
+    try:
+        dur = int(duration)
+    except (TypeError, ValueError):
+        dur = None
+    try:
+        adults = int(travellers)
+    except (TypeError, ValueError):
+        adults = 2
+    params = {
+        "searchScope": "PACKAGE", "startDate": start or "", "endDate": end or "",
+        "duration": dur, "travellers": adults,
+        "airports": [a for a in (airports or []) if a],
+        "operators": ["TUID"] if operator_tui else [],
+        "boards": [b for b in (boards or []) if b],
+        "regions": [int(region)] if region else [],
+    }
+    return _run_search(params, verbose=verbose)
+
+
+def fetch_destinations(parent=None) -> dict | None:
+    """Reiseziel-Liste für den Picker. `parent=None` → Top-Level-Regionen, sonst die
+    Unterregionen zu `parent`. Rückgabe {parentName, items:[{giata,label,level}]}."""
+    base = f"{DEST_API}/de/package/TUICOM/giata"
+    url = f"{base}/regions" if not parent else f"{base}/subregions/{parent}"
+    try:
+        resp = requests.get(url, headers=_API_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    except Exception:
+        return None
+    raw = (data.get("items") or {}) if isinstance(data, dict) else {}
+    items = [{"giata": int(g) if str(g).isdigit() else g,
+              "label": v.get("label", ""), "level": v.get("level")}
+             for g, v in raw.items() if isinstance(v, dict)]
+    items.sort(key=lambda x: (x.get("label") or "").lower())
+    return {"parentName": data.get("parentName", "") if isinstance(data, dict) else "",
+            "items": items}
+
+
+def fetch_airports() -> list:
+    """Abflughäfen aus der TUI-API: [{code,name,preselected}]."""
+    try:
+        resp = requests.get(f"{AIRPORTS_API}/departureAirports/TUICOM/de-DE",
+                            headers=_API_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+    except Exception:
+        return []
+    out = [{"code": a.get("key", ""), "name": a.get("name", ""),
+            "preselected": bool(a.get("preselected"))}
+           for a in data if isinstance(a, dict) and a.get("key")]
+    out.sort(key=lambda x: x["name"].lower())
+    return out
 
 
 def _de_date(iso: str) -> str:
