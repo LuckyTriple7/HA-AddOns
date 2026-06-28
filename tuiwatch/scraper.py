@@ -17,7 +17,7 @@ import logging
 import os
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
                           urlunparse)
 
@@ -265,7 +265,10 @@ def build_offer_api_url(url: str, travellers: int | None = None) -> str:
         'returnMaxTime': '',
         'minPrice': q.get('minPrice', ''), 'maxPrice': q.get('maxPrice', ''),
         'campaignGlobalTypes': 'GT07-DISC;GT07-TOY;GT07-SAVE',
-        'lang': 'de_DE', 'transferIncluded': 'false',
+        'lang': 'de_DE',
+        # Pauschalreise inkl. Transfer: Standard true (so wie tui.com), Wert aus der
+        # Original-URL hat aber Vorrang, falls dort explizit gesetzt.
+        'transferIncluded': q.get('transferIncluded', 'true'),
     }
     return f"{OFFER_API}?{urlencode(params)}"
 
@@ -531,6 +534,21 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
 
     if offer.get("cancellationType") == "FREE_REFUNDABLE":
         r["cancellation"] = "kostenlos stornierbar"
+
+    # Rückreisedatum (ISO) — für das automatische Archivieren abgelaufener Reisen.
+    # Bevorzugt der Rückflug; sonst Anreisedatum + Nächte.
+    ret = offer.get("return") or {}
+    m = re.match(r"(\d{4}-\d{2}-\d{2})", ret.get("departureDateTime", "") or "")
+    if m:
+        r["return_date"] = m.group(1)
+    else:
+        am = re.match(r"(\d{4}-\d{2}-\d{2})", offer.get("arrivalDate", "") or "")
+        if am and nights:
+            try:
+                d = datetime.strptime(am.group(1), "%Y-%m-%d") + timedelta(days=int(nights))
+                r["return_date"] = d.strftime("%Y-%m-%d")
+            except (TypeError, ValueError):
+                pass
 
     date_de = _de_date(offer.get("arrivalDate", ""))
     r["details"] = " · ".join(x for x in (

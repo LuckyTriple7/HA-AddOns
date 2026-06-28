@@ -16,7 +16,7 @@
     [data-theme="light"] { --bg:#eef2f8; --surf:#ffffff; --surf2:#f3f6fb; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --blue:#0b65d8; --blue-h:#1f7ce8; --green:#1a7f37; --red:#cf222e; --amber:#9a6700; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
-    .wrap { max-width: 920px; margin: 0 auto; padding: 16px; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
     header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
     .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
     .logo svg { width:26px; height:26px; fill:var(--accent); }
@@ -45,7 +45,12 @@
     .rename-btn:hover { color:var(--accent); }
     .offer { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
     .offer.paused { opacity:.65; }
+    .offer.archived { opacity:.78; border-style:dashed; }
     .paused-badge { color:var(--amber); font-weight:700; }
+    .archived-badge { color:var(--muted); font-weight:700; }
+    .arch-head { font-size:.95rem; font-weight:700; color:var(--muted); margin:22px 0 10px; padding-top:6px; border-top:1px solid var(--border); }
+    .arch-toggle { display:inline-flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); cursor:pointer; user-select:none; padding:9px 4px; }
+    .arch-toggle input { accent-color:var(--accent); cursor:pointer; }
     .offer-top { display:flex; align-items:flex-start; gap:12px; }
     .offer-main { flex:1; min-width:0; }
     .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
@@ -190,6 +195,9 @@
         <option value="rating">Beste Bewertung</option>
         <option value="name">Name A–Z</option>
       </select>
+      <label class="arch-toggle" title="Archivierte (abgelaufene/nicht mehr verfügbare) Angebote einblenden">
+        <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
+      </label>
     </div>
     <div id="offers"></div>
     <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span></footer>
@@ -290,6 +298,7 @@
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
 
     let curOffers = null, lastSig = null, searchTerm = '';
+    let showArchived = localStorage.getItem('tw-show-archived')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
     function sortOffers(list){
@@ -342,8 +351,21 @@
         ((o.label||'')+' '+(o.hotel||'')+' '+(o.location||'')+' '+(o.details||'')+' '+(o.dep_airport||'')+' '+(o.room||'')).toLowerCase().includes(q)
       ) : offers;
       if(!list.length){ box.innerHTML = '<div class="empty">Keine Treffer für „'+esc(searchTerm.trim())+'".</div>'; return; }
-      const sorted = sortOffers(list);
-      box.innerHTML = sorted.map(o => {
+      const active = sortOffers(list.filter(o=>!o.archived));
+      const arch = sortOffers(list.filter(o=>o.archived));
+      let html = active.map(offerCard).join('');
+      if(!active.length && arch.length && !showArchived){
+        html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
+      }
+      if(showArchived && arch.length){
+        html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
+      }
+      box.innerHTML = html;
+      active.forEach(o => drawSpark(o.id));
+      if(showArchived) arch.forEach(o => drawSpark(o.id));
+    }
+
+    function offerCard(o){
         const hotel = o.hotel || '';
         const title = o.label || hotel || 'TUI-Angebot #'+o.id;
         // Untertitel: Hotel (falls eigenes Label gesetzt) + Reise-Eckdaten
@@ -385,7 +407,7 @@
         const targetRow = `<div class="target-row">${tgtLabel}
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
-        return `<div class="offer${o.paused?' paused':''}" data-id="${o.id}">
+        return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
@@ -407,21 +429,25 @@
             </div>
           </div>
           ${statsLine}
-          ${targetRow}
+          ${o.archived?'':targetRow}
           <canvas class="spark" id="spark-${o.id}"></canvas>
           <div class="offer-foot">
-            <span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
-            <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
-            <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
-            <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
-            ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
-            <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
-            <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
-            <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>
+            ${o.archived
+              ? `<span class="when"><span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}</span>
+                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
+                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`
+              : `<span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
+                 <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
+                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
+                 ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+                 <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
+                 <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
+                 <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
+                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`}
           </div>
         </div>`;
-      }).join('');
-      sorted.forEach(o => drawSpark(o.id));
     }
 
     function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -756,6 +782,14 @@
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paused: !paused})});
       toast(paused ? 'Tracking fortgesetzt' : 'Tracking pausiert'); loadOffers();
     }
+    async function archiveOffer(id){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({archived: true})});
+      toast('Ins Archiv gelegt'); loadOffers();
+    }
+    async function unarchiveOffer(id){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({archived: false})});
+      toast('Reaktiviert – wird wieder verfolgt'); loadOffers();
+    }
     async function exportCsv(){
       if(histId==null) return;
       try {
@@ -806,17 +840,23 @@
 
     function renderOverview(offers){
       const el = $('#overview'); if(!el) return;
-      if(!offers || !offers.length){ el.style.display='none'; el.innerHTML=''; return; }
-      const ok = offers.filter(o=>o.price!=null && o.ok);
-      let html = '<b>'+offers.length+'</b> Angebote';
+      offers = offers || [];
+      const archived = offers.filter(o=>o.archived);
+      const active = offers.filter(o=>!o.archived);
+      // Archiv-Zähler am Umschalter
+      const ac = $('#arch-count'); if(ac) ac.textContent = archived.length ? '('+archived.length+')' : '';
+      if(!offers.length){ el.style.display='none'; el.innerHTML=''; return; }
+      const ok = active.filter(o=>o.price!=null && o.ok);
+      let html = '<b>'+active.length+'</b> Angebote';
       if(ok.length){
         const cheap = ok.reduce((a,b)=>b.price<a.price?b:a);
         html += ' · günstigstes: <b>'+esc(cheap.label||cheap.hotel||'')+'</b> '+eur(cheap.price);
         const below = ok.filter(o=>o.target_price && o.price<=o.target_price).length;
         if(below) html += ' · <span style="color:var(--green);font-weight:600">'+below+' unter Wunschpreis</span>';
       }
-      const paused = offers.filter(o=>o.paused).length;
+      const paused = active.filter(o=>o.paused).length;
       if(paused) html += ' · '+paused+' pausiert';
+      if(archived.length) html += ' · '+archived.length+' archiviert';
       el.innerHTML = html; el.style.display='block';
     }
 
@@ -827,6 +867,8 @@
     $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
     $('#sort').value = sortMode;
     $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
+    $('#show-archived').checked = showArchived;
+    $('#show-archived').addEventListener('change', e=>{ showArchived = e.target.checked; localStorage.setItem('tw-show-archived', showArchived?'1':'0'); renderAll(curOffers||[]); });
 
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 

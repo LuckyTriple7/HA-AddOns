@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0] - 2026-06-28
+
+### Added
+- **Archiv**: Angebote können archiviert werden — als Überblick über ältere/abgelaufene
+  Reisen, ohne dass weiter live abgefragt wird.
+  - **Automatisch**: sobald das Rückreisedatum in der Vergangenheit liegt, wandert ein
+    Angebot ins Archiv (es ist ohnehin nicht mehr buchbar/abfragbar).
+  - **Manuell**: Button „Archivieren" je Angebot (z. B. wenn ausgebucht / nicht mehr
+    verfügbar) bzw. „Reaktivieren" zum Zurückholen.
+  - Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar (eigener
+    Abschnitt, gedämpft dargestellt) und werden im Poller/„Alle prüfen", in der
+    Übersicht (eigener Zähler + `archived_offers` am Summary-Sensor) und im E-Mail-Versand
+    ausgenommen. Backup/Wiederherstellen nimmt den Archiv-Status mit.
+
+### Fixed
+- **Pauschalreise inkl. Transfer**: Offer-Abfrage nutzt jetzt `transferIncluded=true`
+  (vorher `false`) — passend zur Buchung auf tui.com. Ein in der Original-URL gesetzter
+  Wert hat weiterhin Vorrang.
+
 ## [0.8.1] - 2026-06-28
 
 ### Added
