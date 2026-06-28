@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0] - 2026-06-28
+
+### Added
+- **Regionssuche direkt aus einem Angebot**: neuer Button **„Region"** je aktivem
+  Angebot listet weitere Hotels **derselben Region** (z. B. Gran Canaria) für dieselben
+  Reisedaten/Dauer/Reisende/Abflughafen — ohne URL-Einfügen. Die Region kommt aus der
+  Angebots-URL (`regionGiataIds`) oder per Breadcrumb über die giataId. Veranstalter und
+  Verpflegung des Angebots werden als Filter **vorbelegt** (änderbar), Sterne/
+  Weiterempfehlung optional.
+
+### Changed
+- **Such-Dialog breiter** (übersichtlichere Trefferliste).
+
 ## [0.11.0] - 2026-06-28
 
 ### Added

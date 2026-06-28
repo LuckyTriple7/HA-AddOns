@@ -414,12 +414,37 @@ def _split_multi(val: str) -> list:
     return [x.strip() for x in re.split(r"[;,]", val or "") if x.strip()]
 
 
+def region_giata_from_breadcrumb(giata: str) -> int | None:
+    """Ermittelt die Region-/Insel-giataId zu einem Hotel über die Breadcrumb-API:
+    der **letzte `level==1`-Eintrag** ist die konkrete Region (z. B. Gran Canaria=128,
+    Kap Verde=88). None, wenn nicht ermittelbar."""
+    if not giata:
+        return None
+    try:
+        resp = requests.get(f"{BREADCRUMB_API}{giata}", headers=_API_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return None
+        bc = resp.json()
+        if not isinstance(bc, list):
+            return None
+        regions = [e.get("giataId") for e in bc if e.get("level") == 1
+                   and isinstance(e.get("giataId"), int)]
+        return regions[-1] if regions else None
+    except Exception:
+        return None
+
+
 def build_search_payload(url: str, *, operator_tui: bool = True,
-                         boards: list | None = None) -> dict | None:
+                         boards: list | None = None,
+                         region: int | None = None) -> dict | None:
     """POST-Body für die Hotelsuche aus den Parametern einer TUI-Such-/Region-URL.
-    None, wenn keine Region (`regionGiataIds`) enthalten ist."""
+    `region` überschreibt die Region aus der URL (für die Suche aus einem Angebot).
+    None, wenn weder `region` noch `regionGiataIds` vorhanden sind."""
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
-    regions = [int(x) for x in _split_multi(q.get("regionGiataIds", "")) if x.isdigit()]
+    if region:
+        regions = [int(region)]
+    else:
+        regions = [int(x) for x in _split_multi(q.get("regionGiataIds", "")) if x.isdigit()]
     if not regions:
         return None
     try:
@@ -472,10 +497,12 @@ def offer_url_for(item: dict, search_url: str) -> str:
 
 
 def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
-                 verbose: bool = False) -> dict | None:
+                 region: int | None = None, verbose: bool = False) -> dict | None:
     """Ruft die TUI-Hotelsuche für eine Region-URL ab → normalisierte Treffer.
+    `region` überschreibt die Region aus der URL (Suche aus einem Angebot).
     {ok,total,results[]}; None bei technischem Fehler; {ok:False,note} ohne Region."""
-    payload = build_search_payload(url, operator_tui=operator_tui, boards=boards)
+    payload = build_search_payload(url, operator_tui=operator_tui, boards=boards,
+                                   region=region)
     if payload is None:
         return {"ok": False, "total": 0, "results": [], "note": "Keine Region in der URL"}
     try:

@@ -44,6 +44,13 @@ Weiterempfehlung**, Verpflegung, Nächten und **Preis pro Person**. Je Treffer:
 **Alle tracken** werden alle angezeigten Treffer auf einmal übernommen. Der Abflughafen
 kommt aus der eingefügten URL.
 
+**Bequemer — Suche direkt aus einem Angebot:** Bei jedem aktiven Angebot gibt es den
+Button **Region**. Ein Klick sucht **weitere Hotels derselben Region** (z. B. Gran
+Canaria) für **dieselben Reisedaten, Dauer, Reisende und denselben Abflughafen** wie das
+Angebot. Veranstalter und Verpflegung des Angebots werden als Filter **vorbelegt**
+(änderbar); Sterne/Weiterempfehlung kannst du zusätzlich setzen. So musst du keine URL
+einfügen.
+
 Für jedes Angebot werden angezeigt: Hotelname, **Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**

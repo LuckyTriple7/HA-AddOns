@@ -135,6 +135,8 @@
     .sr-disc { color:var(--green); font-size:.72rem; font-weight:600; margin-left:4px; }
     .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
+    .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
+    .srch-from b { color:var(--text); }
     /* Preiskalender */
     .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
     .cal-title { font-weight:700; font-size:1rem; }
@@ -254,13 +256,14 @@
 
   <!-- Hotelsuche-Modal -->
   <div class="modal-bg" id="srch-bg">
-    <div class="modal" style="max-width:760px">
+    <div class="modal" style="max-width:960px">
       <button class="icon-btn modal-close" onclick="closeSearch()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>Hotels suchen</h2>
-      <div class="sub">Auf tui.com eine <b>Region</b> mit Datum, Personen &amp; Abflughafen suchen, dann die Ergebnis-URL hier einfügen.</div>
-      <div class="add-row" style="margin-bottom:10px">
+      <div class="sub">Auf tui.com eine <b>Region</b> mit Datum, Personen &amp; Abflughafen suchen, dann die Ergebnis-URL hier einfügen — oder bei einem Angebot auf <b>„Region"</b> klicken.</div>
+      <div id="srch-from" class="srch-from" style="display:none"></div>
+      <div class="add-row" id="srch-urlrow" style="margin-bottom:10px">
         <input type="text" id="srch-url" placeholder="TUI-Such-/Region-URL einfügen (mit regionGiataIds=…)" autocomplete="off">
       </div>
       <div class="srch-filters">
@@ -516,6 +519,7 @@
                  <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
+                 <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
                  <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
                  <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
                  <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
@@ -767,23 +771,50 @@
     }
 
     // ── Hotelsuche (Region → Trefferliste) ────────────────────────────────────
-    let srchResults = [];
-    function openSearch(){ $('#srch-bg').classList.add('show'); }
+    let srchResults = [], srchOfferId = null;
+    function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
+    function openSearch(){           // URL-Modus (Toolbar)
+      srchOfferId = null;
+      $('#srch-from').style.display='none';
+      $('#srch-urlrow').style.display='';
+      $('#srch-bg').classList.add('show');
+    }
+    function openSearchFromOffer(id){   // Region-Modus (aus Angebot)
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      srchOfferId = id;
+      $('#srch-from').style.display='block';
+      $('#srch-from').innerHTML = 'Region aus Angebot: <b>'+esc(o.hotel||o.label||('#'+id))+'</b>'
+        + (o.location?(' · '+esc(o.location)):'') + ' — Reisedaten &amp; Abflughafen werden übernommen.';
+      $('#srch-urlrow').style.display='none';
+      $('#srch-url').value='';
+      // Filter aus dem Angebot vorbelegen (sichtbar + änderbar)
+      const ops = urlParam(o.url,'operators');
+      $('#srch-tui').checked = (!ops || /TUID/i.test(ops));
+      const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/).map(s=>s.trim().toUpperCase());
+      document.querySelectorAll('.srch-board').forEach(c=>{ c.checked = bt.includes(c.value.toUpperCase()); });
+      $('#srch-stars').value=''; $('#srch-rec').value='';
+      $('#srch-body').innerHTML='';
+      $('#srch-bg').classList.add('show');
+      runSearch();
+    }
     function closeSearch(){ $('#srch-bg').classList.remove('show'); }
     $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
 
     async function runSearch(){
       const url = $('#srch-url').value.trim();
-      if(!url){ toast('Bitte eine TUI-Such-URL einfügen'); return; }
+      const fromOffer = (srchOfferId!=null && !url);
+      if(!fromOffer && !url){ toast('Bitte eine TUI-Such-URL einfügen'); return; }
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
-      const body = { url, operator_tui: $('#srch-tui').checked, boards,
+      const body = { operator_tui: $('#srch-tui').checked, boards,
         min_stars: parseFloat($('#srch-stars').value)||0,
         min_recommend: parseFloat($('#srch-rec').value)||0 };
+      if(fromOffer) body.offer_id = srchOfferId; else body.url = url;
       $('#srch-body').innerHTML = '<div class="cmp-load">⏳ Suche läuft…</div>';
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
       catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
-      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine Region in der URL. Auf tui.com erst ein Ziel/eine Region wählen und die Ergebnis-URL einfügen.</div>'; return; }
+      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(fromOffer?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region in der URL. Auf tui.com erst ein Ziel/eine Region wählen und die Ergebnis-URL einfügen.')+'</div>'; return; }
+      if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige tui.com-URL.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[];

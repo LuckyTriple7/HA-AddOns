@@ -28,7 +28,8 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from scraper import (_giata_from_url, duration_from_url, fetch_calendar, fetch_price,
-                     fetch_search, hotel_from_url, is_single_room, travellers_from_url,
+                     fetch_search, hotel_from_url, is_single_room,
+                     region_giata_from_breadcrumb, travellers_from_url,
                      with_duration, with_travellers, without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -1566,15 +1567,13 @@ def api_nights_get(offer_id: int):
 
 @app.route('/api/search', methods=['POST'])
 def api_search():
-    """Hotelsuche über eine eingefügte TUI-Such-/Region-URL. Wendet die Add-on-Filter
-    (Veranstalter TUI, Verpflegung) in der Such-Query an und filtert das Ergebnis nach
-    Mindest-Sternen/-Weiterempfehlung."""
+    """Hotelsuche — entweder über eine eingefügte TUI-Such-/Region-URL oder über ein
+    bestehendes Angebot (`offer_id`): dann werden Region (URL bzw. Breadcrumb) und die
+    Reiseparameter aus dem Angebot übernommen. Add-on-Filter (Veranstalter TUI,
+    Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung."""
     if (err := _require_api()):
         return err
     data = request.get_json(silent=True) or {}
-    url = (data.get('url') or '').strip()
-    if not _valid_tui_url(url):
-        return jsonify({'error': 'invalid_url'}), 400
     operator_tui = bool(data.get('operator_tui', True))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
 
@@ -1584,9 +1583,31 @@ def api_search():
         except (TypeError, ValueError):
             return 0
     min_stars, min_recommend = _num('min_stars'), _num('min_recommend')
-    log.info("Suche: %s (TUI=%s, Verpflegung=%s, >=%g Sterne, >=%g%%)", url,
-             operator_tui, ','.join(boards) or '-', min_stars, min_recommend)
-    res = fetch_search(url, operator_tui=operator_tui, boards=boards, verbose=_verbose())
+
+    region = None
+    offer_id = data.get('offer_id')
+    if offer_id:
+        with db() as con:
+            o = con.execute('SELECT url, label, hotel FROM offers WHERE id=?',
+                            (offer_id,)).fetchone()
+        if not o:
+            return jsonify({'error': 'not_found'}), 404
+        url = o['url']
+        if 'regionGiataIds=' not in (urlparse(url).query or ''):
+            region = region_giata_from_breadcrumb(_giata_from_url(url))
+            if not region:
+                return jsonify({'error': 'no_region',
+                                'note': 'Region zum Angebot nicht ermittelbar'}), 400
+        src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
+    else:
+        url = (data.get('url') or '').strip()
+        if not _valid_tui_url(url):
+            return jsonify({'error': 'invalid_url'}), 400
+        src = url
+    log.info("Suche: %s region=%s (TUI=%s, Verpflegung=%s, >=%g Sterne, >=%g%%)", src,
+             region or '-', operator_tui, ','.join(boards) or '-', min_stars, min_recommend)
+    res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
+                       verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
