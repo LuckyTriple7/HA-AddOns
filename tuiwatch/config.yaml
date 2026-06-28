@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.15.0"
+version: "0.16.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -42,6 +42,9 @@ options:
   notify_cheaper_date: true
   cheaper_date_min_diff: 50
   notify_errors: true
+  notify_api_errors: true
+  digest_enabled: false
+  digest_weekday: 1
   telegram_bot_token: ""
   telegram_chat_id: ""
   smtp_host: ""
@@ -64,6 +67,9 @@ schema:
   notify_cheaper_date: bool?
   cheaper_date_min_diff: int?
   notify_errors: bool?
+  notify_api_errors: bool?
+  digest_enabled: bool?
+  digest_weekday: int?
   telegram_bot_token: str?
   telegram_chat_id: str?
   smtp_host: str?

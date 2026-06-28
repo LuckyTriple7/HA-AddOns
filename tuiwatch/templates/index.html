@@ -35,6 +35,9 @@
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
     .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .bulk-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
+    .bulk-bar #bulk-count { font-weight:600; font-size:.88rem; }
+    .bulk-check { width:16px; height:16px; vertical-align:middle; cursor:pointer; accent-color:var(--accent); }
     .overview { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:14px; font-size:.84rem; color:var(--muted); }
     .overview b { color:var(--text); }
     .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
@@ -88,6 +91,10 @@
     .delta.down { color:var(--green); background:rgba(46,160,67,.14); }
     .delta.flat { color:var(--muted); background:var(--surf2); }
     .delta.none { color:var(--amber); background:rgba(210,153,34,.13); }
+    .trend { display:inline-block; font-size:.72rem; font-weight:600; padding:2px 6px; border-radius:10px; margin-top:6px; }
+    .trend.up { color:var(--red); background:rgba(248,81,73,.10); }
+    .trend.down { color:var(--green); background:rgba(46,160,67,.11); }
+    .trend.flat { color:var(--muted); background:var(--surf2); }
     .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
     .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
     .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
@@ -245,6 +252,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Hotels suchen</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
+      <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
       <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Angebote aus Backup importieren">⬆ Wiederherstellen</button>
       <input type="file" id="restore-file" accept="application/json,.json" style="display:none" onchange="restoreOffers(this)">
@@ -264,6 +272,13 @@
       <label class="arch-toggle" title="Archivierte (abgelaufene/nicht mehr verfügbare) Angebote einblenden">
         <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
       </label>
+    </div>
+    <div id="bulk-bar" class="bulk-bar" style="display:none">
+      <span id="bulk-count"></span>
+      <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
+      <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
+      <button class="btn danger" onclick="bulkDelete()">Löschen</button>
+      <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>
     <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
@@ -508,6 +523,13 @@
       if(o.delta<0) return '<span class="delta down">▼ '+eur(o.delta)+'</span>';
       return '<span class="delta flat">unverändert</span>';
     }
+    // Tendenz aus dem bisherigen Verlauf (kein Orakel, nur ein Hinweis)
+    function trendBadge(o){
+      const t=o.trend; if(!t || !t.dir) return '';
+      if(t.dir==='down') return '<span class="trend down" title="Tendenz aus dem bisherigen Verlauf">↘ fällt</span>';
+      if(t.dir==='up')   return '<span class="trend up" title="Tendenz aus dem bisherigen Verlauf">↗ steigt</span>';
+      return '<span class="trend flat" title="Tendenz aus dem bisherigen Verlauf">→ stabil</span>';
+    }
 
     function renderAll(offers){
       renderOverview(offers);
@@ -535,7 +557,40 @@
       box.innerHTML = html;
       active.forEach(o => drawSpark(o.id));
       if(showArchived) arch.forEach(o => drawSpark(o.id));
+      pruneSelection();
     }
+
+    // ── Sammelaktionen ────────────────────────────────────────────────────────
+    let selected = new Set();
+    function bulkToggle(id, on){ if(on) selected.add(id); else selected.delete(id); renderBulkBar(); }
+    function pruneSelection(){
+      const ids = new Set((curOffers||[]).map(o=>o.id));
+      selected.forEach(id=>{ if(!ids.has(id)) selected.delete(id); });
+      renderBulkBar();
+    }
+    function renderBulkBar(){
+      const bar=$('#bulk-bar'); if(!bar) return;
+      if(!selected.size){ bar.style.display='none'; return; }
+      bar.style.display='flex';
+      $('#bulk-count').textContent = selected.size+' ausgewählt';
+    }
+    function bulkClear(){ selected.clear(); document.querySelectorAll('.bulk-check').forEach(c=>c.checked=false); renderBulkBar(); }
+    async function bulkRun(fn, msg){
+      const ids=[...selected]; if(!ids.length) return;
+      toast(msg);
+      for(const id of ids){ try{ await fn(id); }catch(e){} }
+      selected.clear(); lastSig=null; loadOffers();
+    }
+    function bulkCheck(){ bulkRun(id=>fetch(api('/api/check/'+id),{method:'POST'}), ids_msg('werden geprüft…')); }
+    function bulkArchive(){
+      if(!confirm(selected.size+' Angebot(e) ins Archiv legen?')) return;
+      bulkRun(id=>fetch(api('/api/offers/'+id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({archived:true})}), ids_msg('werden archiviert…'));
+    }
+    function bulkDelete(){
+      if(!confirm(selected.size+' Angebot(e) inklusive Verlauf unwiderruflich löschen?')) return;
+      bulkRun(id=>fetch(api('/api/offers/'+id),{method:'DELETE'}), ids_msg('werden gelöscht…'));
+    }
+    function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
 
     function offerCard(o){
         const hotel = o.hotel || '';
@@ -582,7 +637,7 @@
         return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
-              <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
+              <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
@@ -596,7 +651,7 @@
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
-              <div>${deltaBadge(o)}</div>
+              <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
               ${availBadge}
             </div>
           </div>
@@ -1325,6 +1380,15 @@
       const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim()})});
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
+    async function sendDigest(){
+      toast('Wochenüberblick wird gesendet…');
+      try{
+        const r = await fetch(api('/api/digest'), {method:'POST'});
+        const d = await r.json().catch(()=>({}));
+        if(d.sent) toast('Wochenüberblick gesendet');
+        else toast(d.note || 'Nichts zu senden');
+      }catch(e){ toast('Versand fehlgeschlagen'); }
     }
     async function backupOffers(){
       try {

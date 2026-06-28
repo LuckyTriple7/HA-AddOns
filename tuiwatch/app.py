@@ -107,6 +107,7 @@ _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Feh
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
+_api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -276,6 +277,11 @@ def init_db() -> None:
             ts       INTEGER NOT NULL,
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Kleiner Schlüssel-Wert-Speicher (z. B. letzter Digest-Versand, ISO-Woche).
+        con.execute('''CREATE TABLE IF NOT EXISTS meta (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
@@ -306,6 +312,28 @@ def _last_two_prices(con, offer_id: int) -> list:
         'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
         'ORDER BY ts DESC LIMIT 2', (offer_id,)).fetchall()
     return [r['price'] for r in rows]
+
+
+def _trend_for(con, offer_id: int) -> dict | None:
+    """Grobe Tendenz aus dem Preisverlauf: vergleicht den Mittelwert der älteren mit der
+    jüngeren Hälfte der letzten Messpunkte. Rückgabe {dir:'up'|'down'|'flat', pct} oder
+    None bei zu wenigen Daten (kein Hellsehen, nur ein Hinweis aus der eigenen History)."""
+    rows = con.execute(
+        'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+        'ORDER BY ts DESC LIMIT 12', (offer_id,)).fetchall()
+    prices = [r['price'] for r in rows][::-1]  # ältester → neuester
+    if len(prices) < 4:
+        return None
+    half = len(prices) // 2
+    old = prices[:half]
+    new = prices[half:]
+    a = sum(old) / len(old)
+    b = sum(new) / len(new)
+    if not a:
+        return None
+    pct = (b - a) / a * 100
+    direction = 'down' if pct <= -2 else ('up' if pct >= 2 else 'flat')
+    return {'dir': direction, 'pct': round(pct, 1)}
 
 
 # ── Home-Assistant-Sensoren ────────────────────────────────────────────────────
@@ -727,6 +755,44 @@ def _clear_error_alarm(offer: dict) -> None:
     _notify_telegram(f"✅ <b>Wieder verfügbar: {name}</b>")
 
 
+def _meta_get(key: str, default=None):
+    with db() as con:
+        row = con.execute('SELECT value FROM meta WHERE key=?', (key,)).fetchone()
+    return row['value'] if row else default
+
+
+def _meta_set(key: str, value: str) -> None:
+    with db() as con:
+        con.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)', (key, str(value)))
+
+
+def _check_api_alarm(res: dict) -> None:
+    """Meldet, wenn ein KRITISCHER TUI-Endpunkt im Selbsttest ausfällt (TUI hat evtl. die
+    API geändert) — und gibt Entwarnung, sobald wieder alles läuft. Zustand persistent."""
+    global _api_down_notified
+    if not load_config().get('notify_api_errors', True):
+        return
+    bad = [c['name'] for c in res.get('checks', []) if c.get('critical') and not c['ok']]
+    was_down = _meta_get('api_down') == '1'
+    if bad and not was_down:
+        _api_down_notified = True
+        _meta_set('api_down', '1')
+        names = ', '.join(bad)
+        log.warning("⚠ API-Alarm: kritische Endpunkte gestört: %s → Benachrichtigung", names)
+        _notify_ha("⚠ TUIWatch: TUI-API gestört",
+                   f"Kritische TUI-Endpunkte antworten nicht: {names}.\nPreisprüfungen "
+                   f"schlagen vermutlich fehl — evtl. hat TUI die API geändert.", "api")
+        _notify_telegram(f"⚠ <b>TUI-API gestört</b>\nKritische Endpunkte: {names}\n"
+                         f"Preisprüfungen schlagen vermutlich fehl.")
+    elif not bad and was_down:
+        _api_down_notified = False
+        _meta_set('api_down', '0')
+        log.info("✅ API-Entwarnung: alle Endpunkte wieder OK → Benachrichtigung")
+        _notify_ha("✅ TUIWatch: TUI-API wieder OK",
+                   "Alle kritischen TUI-Endpunkte antworten wieder.", "api")
+        _notify_telegram("✅ <b>TUI-API wieder OK</b>")
+
+
 # ── Scraping-Worker ────────────────────────────────────────────────────────────
 
 def check_offer(offer_id: int) -> None:
@@ -1053,6 +1119,8 @@ def _poll_worker() -> None:
         next_in = interval
         try:
             now = int(time.time())
+            _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
+            _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(
@@ -1078,6 +1146,19 @@ def _poll_worker() -> None:
         time.sleep(max(30, min(next_in, interval)))
 
 
+def _maybe_periodic_health() -> None:
+    """Führt den API-Selbsttest höchstens 1×/Tag aus (am Anfang eines Poll-Zyklus,
+    also noch vor den Preisprüfungen). So ist die Footer-Ampel stets aktuell und ein
+    API-Ausfall wird gemeldet, bevor die Preisabfragen daran scheitern."""
+    with _health_lock:
+        last = _health_state.get('ts', 0)
+        running = _health_state.get('running')
+    if running:
+        return
+    if time.time() - (last or 0) >= 86400:
+        _run_healthcheck()
+
+
 def _run_healthcheck() -> dict:
     """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
     with _health_lock:
@@ -1098,7 +1179,141 @@ def _run_healthcheck() -> dict:
         log.warning("API-Selbsttest: Probleme bei %s", ', '.join(bad))
     else:
         log.info("API-Selbsttest: alle Endpunkte OK")
+    try:
+        _check_api_alarm(res)
+    except Exception as e:
+        log.error("API-Alarm-Prüfung fehlgeschlagen: %s", e)
     return res
+
+
+def _week_change(con, offer_id: int, current: float, days: int = 7):
+    """Preisänderung des Angebots über die letzten `days` Tage (current − ältester Preis
+    im Fenster). None, wenn im Fenster kein Vergleichswert vorliegt."""
+    if current is None:
+        return None
+    since = int(time.time()) - days * 86400
+    row = con.execute(
+        'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+        'AND ts>=? ORDER BY ts ASC LIMIT 1', (offer_id, since)).fetchone()
+    if not row or row['price'] is None:
+        return None
+    return current - row['price']
+
+
+def _build_digest() -> dict | None:
+    """Baut die wöchentliche Zusammenfassung (größte Rückgänge, neue Tiefstwerte, unter
+    Wunschpreis). Rückgabe {subject, html, text} oder None, wenn es nichts zu melden gibt."""
+    offers = [o for o in _collect_offers() if not o['archived'] and o.get('price') is not None]
+    if not offers:
+        return None
+    with db() as con:
+        for o in offers:
+            o['_wk'] = _week_change(con, o['id'], o['price'])
+    drops = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] < 0],
+                   key=lambda o: o['_wk'])
+    rises = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] > 0],
+                   key=lambda o: -o['_wk'])
+    lows = [o for o in offers if o.get('min_price') is not None
+            and o.get('samples', 0) > 2 and o['price'] <= o['min_price']]
+    under = [o for o in offers if o.get('target_price') and o['price'] <= o['target_price']]
+
+    def nm(o):
+        return o.get('label') or o.get('hotel') or f"Angebot #{o['id']}"
+
+    # ── Text (Telegram) ──
+    tl = [f"📊 <b>TUIWatch — Wochenüberblick</b> ({datetime.now():%d.%m.%Y})",
+          f"{len(offers)} aktive Reise(n) beobachtet."]
+    if under:
+        tl.append("\n🎯 <b>Unter Wunschpreis:</b>")
+        tl += [f"• {nm(o)}: <b>{_eur(o['price'])}</b> (Ziel {_eur(o['target_price'])})" for o in under[:8]]
+    if lows:
+        tl.append("\n📉 <b>Neuer Tiefstwert:</b>")
+        tl += [f"• {nm(o)}: <b>{_eur(o['price'])}</b>" for o in lows[:8]]
+    if drops:
+        tl.append("\n▼ <b>Größte Rückgänge (7 Tage):</b>")
+        tl += [f"• {nm(o)}: {_eur(o['price'])} ({_eur(o['_wk'])})" for o in drops[:8]]
+    if rises:
+        tl.append("\n▲ <b>Gestiegen (7 Tage):</b>")
+        tl += [f"• {nm(o)}: {_eur(o['price'])} (+{_eur(abs(o['_wk']))})" for o in rises[:5]]
+    text = "\n".join(tl)
+
+    # ── HTML (E-Mail) ──
+    def esc(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def section(title, items, fmt):
+        if not items:
+            return ''
+        rows = ''.join(f'<li style="margin:4px 0">{fmt(o)}</li>' for o in items)
+        return (f'<h3 style="margin:18px 0 6px;color:#10243e;font-size:15px">{title}</h3>'
+                f'<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">{rows}</ul>')
+
+    def link(o):
+        return f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none">{esc(nm(o))}</a>'
+
+    html = (
+        '<div style="font-family:system-ui,Arial,sans-serif;max-width:640px;margin:0 auto">'
+        f'<h2 style="color:#10243e">📊 TUIWatch — Wochenüberblick</h2>'
+        f'<p style="color:#555;font-size:13px">{datetime.now():%d.%m.%Y} · {len(offers)} aktive Reise(n) beobachtet.</p>'
+        + section('🎯 Unter Wunschpreis', under,
+                  lambda o: f'{link(o)}: <b>{_eur(o["price"])}</b> <span style="color:#777">(Ziel {_eur(o["target_price"])})</span>')
+        + section('📉 Neuer Tiefstwert', lows,
+                  lambda o: f'{link(o)}: <b>{_eur(o["price"])}</b>')
+        + section('▼ Größte Rückgänge (7 Tage)', drops[:8],
+                  lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#1a7f37;font-weight:600">({_eur(o["_wk"])})</span>')
+        + section('▲ Gestiegen (7 Tage)', rises[:5],
+                  lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#cf222e">(+{_eur(abs(o["_wk"]))})</span>')
+        + '</div>'
+    )
+    return {'subject': f'TUIWatch — Wochenüberblick {datetime.now():%d.%m.%Y}',
+            'html': html, 'text': text}
+
+
+def send_digest_now() -> bool:
+    """Baut und verschickt den Digest sofort über alle konfigurierten Kanäle
+    (Telegram + E-Mail). True, wenn mindestens ein Kanal bedient wurde."""
+    digest = _build_digest()
+    if not digest:
+        log.info("Digest: nichts zu berichten")
+        return False
+    sent = False
+    cfg = load_config()
+    if (cfg.get('telegram_bot_token') or '').strip() and (cfg.get('telegram_chat_id') or '').strip():
+        _notify_telegram(digest['text'])
+        sent = True
+    to = (cfg.get('smtp_to') or '').strip()
+    if smtp_configured() and to:
+        try:
+            send_email(digest['subject'], digest['html'], to)
+            sent = True
+        except Exception as e:
+            log.error("Digest-E-Mail fehlgeschlagen: %s", e)
+    if sent:
+        log.info("Digest verschickt")
+    else:
+        log.info("Digest: kein Kanal konfiguriert (Telegram/SMTP)")
+    return sent
+
+
+def _maybe_send_digest() -> None:
+    """Verschickt den Wochen-Digest am eingestellten Wochentag, höchstens 1×/ISO-Woche.
+    War das Add-on am Stichtag aus, wird später in der Woche nachgeholt."""
+    cfg = load_config()
+    if not cfg.get('digest_enabled'):
+        return
+    today = date.today()
+    target = min(7, max(1, int(cfg.get('digest_weekday', 1) or 1)))
+    if today.isoweekday() < target:
+        return
+    y, w, _ = today.isocalendar()
+    wk = f"{y}-W{w:02d}"
+    if _meta_get('last_digest') == wk:
+        return
+    if send_digest_now():
+        _meta_set('last_digest', wk)
+    else:
+        # Kein Kanal konfiguriert → nicht jede Runde neu versuchen
+        _meta_set('last_digest', wk)
 
 
 def _spawn(fn, *args) -> None:
@@ -1267,6 +1482,7 @@ def _collect_offers() -> list[dict]:
                 'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
                 'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
                 (o['id'],)).fetchone()
+            trend = _trend_for(con, o['id'])
             checking = o['id'] in _checking
             avail = None
             if last and last['available'] is not None:
@@ -1299,6 +1515,7 @@ def _collect_offers() -> list[dict]:
                 'min_price': stats['mn'], 'max_price': stats['mx'],
                 'avg_price': round(stats['av']) if stats['av'] is not None else None,
                 'samples': stats['c'],
+                'trend': trend,
                 'checking': checking,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
             })
@@ -1769,6 +1986,18 @@ def api_healthcheck_route():
     with _health_lock:
         st = dict(_health_state)
     return jsonify(st)
+
+
+@app.route('/api/digest', methods=['POST'])
+def api_digest():
+    """Verschickt den Wochenüberblick sofort (Test/Sofortversand)."""
+    if (err := _require_api()):
+        return err
+    sent = send_digest_now()
+    if sent:
+        return jsonify({'sent': True})
+    return jsonify({'sent': False, 'note': 'Nichts zu berichten oder kein Kanal '
+                    '(Telegram/SMTP) konfiguriert.'})
 
 
 @app.route('/api/console')

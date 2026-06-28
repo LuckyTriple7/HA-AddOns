@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0] - 2026-06-28
+
+### Added
+- **API-Ausfall-Alarm**: Fällt im Selbsttest ein *kritischer* TUI-Endpunkt aus (z. B.
+  weil TUI die API geändert hat), meldet TUIWatch das über HA/Telegram und gibt
+  Entwarnung, sobald wieder alles läuft. Zustand übersteht Neustarts. Abschaltbar über
+  `notify_api_errors`.
+- **Selbsttest läuft automatisch ~1×/Tag** und jeweils **vor den Preisprüfungen**, damit
+  die Footer-Ampel aktuell bleibt und ein API-Problem erkannt wird, bevor die Abfragen
+  daran scheitern.
+- **Wochenüberblick (Digest)**: optionale wöchentliche Zusammenfassung per Telegram/E-Mail
+  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis). Aktivierung über
+  `digest_enabled` + `digest_weekday` (1 = Mo … 7 = So); Sofortversand über den Button
+  **„📊 Wochenüberblick"**.
+- **Trend-Hinweis** je Angebot (↘ fällt / ↗ steigt / → stabil) aus dem bisherigen
+  Preisverlauf — als kleines Badge neben der Preisänderung.
+- **Sammelaktionen**: Angebote per Checkbox auswählen und gemeinsam **prüfen,
+  archivieren oder löschen** (Aktionsleiste erscheint bei Auswahl).
+
 ## [0.15.0] - 2026-06-28
 
 ### Added

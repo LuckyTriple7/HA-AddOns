@@ -16,6 +16,9 @@ username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
+notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
+digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
+digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 verbose_log: false       # ausführliche Logs
 ```
 
@@ -81,6 +84,14 @@ für die volle Historie).
   Abschalten `notify_cheaper_date: false` setzen.
 - **Ausverkauft-/Fehler-Alarm** (`notify_errors`): meldet, wenn ein Angebot mehrmals in
   Folge kein Ergebnis liefert, und gibt Entwarnung, sobald es wieder klappt.
+- **API-Ausfall-Alarm** (`notify_api_errors`): meldet, wenn der API-Selbsttest einen
+  kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und gibt
+  Entwarnung, sobald wieder alles läuft.
+- **Wochenüberblick / Digest** (`digest_enabled`): optionale wöchentliche Zusammenfassung
+  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis) per Telegram und/oder
+  E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag … 7 = Sonntag); war das
+  Add-on am Stichtag aus, wird der Versand später in der Woche nachgeholt. Sofort testen
+  über den Button **„📊 Wochenüberblick"**.
 - Kanäle:
   - **Home Assistant**: persistente Benachrichtigung (Option `notify_ha`, Standard an).
   - **Telegram**: `telegram_bot_token` + `telegram_chat_id` setzen (Bot via @BotFather,
@@ -146,6 +157,8 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Übersicht** über der Liste: Anzahl, günstigstes Angebot, Anzahl unter Wunschpreis.
 - **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ort, Ziel/Abflughafen und Details.
 - **Sortierung** — Liste nach Hinzugefügt, **Reisebeginn**, Preis, größter Preisänderung, Bewertung oder Name ordnen.
+- **Sammelaktionen** — Angebote per Checkbox auswählen; in der erscheinenden Leiste lassen sich die ausgewählten gemeinsam **prüfen, archivieren oder löschen**.
+- **Trend-Hinweis** — je Angebot zeigt ein kleines Badge die Tendenz aus dem bisherigen Verlauf (↘ fällt / ↗ steigt / → stabil).
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
