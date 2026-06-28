@@ -84,8 +84,9 @@
     .booked-since.down { color:var(--green); background:rgba(46,160,67,.14); }
     .booked-since.up { color:var(--muted); background:var(--surf2); }
     .booked-since.flat { color:var(--muted); background:var(--surf2); }
-    .offer-img { width:104px; height:78px; object-fit:cover; border-radius:8px; flex:0 0 auto; background:var(--bg); }
-    @media(max-width:560px){ .offer-img { width:72px; height:56px; } }
+    .offer-img { display:block; width:170px; height:112px; object-fit:cover; border-radius:8px; margin-top:10px; margin-left:auto; background:var(--bg); }
+    @media(max-width:560px){ .offer-img { width:130px; height:88px; } }
+    .price-rows { display:flex; gap:10px 22px; flex-wrap:wrap; }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
     .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
@@ -674,7 +675,6 @@
         }
         return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
-            ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             <div class="offer-main">
               <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
@@ -693,11 +693,11 @@
               <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
               ${bookedSince?`<div>${bookedSince}</div>`:''}
               ${availBadge}
+              ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             </div>
           </div>
           ${statsLine}
-          ${o.archived?'':targetRow}
-          ${o.archived?'':bookedRow}
+          ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
           <canvas class="spark" id="spark-${o.id}"></canvas>
           <div class="offer-foot">
             ${o.archived

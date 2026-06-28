@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1] - 2026-06-28
+
+### Changed
+- **Karten-Layout** mit Hotelbild aufgeräumt: das Bild sitzt jetzt **unter dem Preis**
+  (rechte Spalte) statt links, und **Wunschpreis + gebuchter Preis** stehen
+  **nebeneinander** (umbrechend auf schmalen Bildschirmen).
+
 ## [0.19.0] - 2026-06-28
 
 ### Added
