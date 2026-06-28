@@ -44,7 +44,8 @@ Verpflegung), **Hin- und Rückflug** (Datum/Uhrzeit/Airline/Direkt), der konkret
 - Kanäle:
   - **Home Assistant**: persistente Benachrichtigung (Option `notify_ha`, Standard an).
   - **Telegram**: `telegram_bot_token` + `telegram_chat_id` setzen (Bot via @BotFather,
-    Chat-ID via @userinfobot).
+    Chat-ID via @userinfobot). Ist Telegram aktiv, kommt beim Start des Add-ons eine
+    kurze Statusmeldung („TUIWatch gestartet — N Reisen geladen").
 
 ## Home-Assistant-Sensoren
 

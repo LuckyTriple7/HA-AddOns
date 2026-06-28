@@ -360,6 +360,21 @@ def _eur(v) -> str:
         return '–'
 
 
+def _notify_startup() -> None:
+    """Kurze Telegram-Statusmeldung beim Start (nur wenn Telegram konfiguriert ist)."""
+    cfg = load_config()
+    if not ((cfg.get('telegram_bot_token') or '').strip()
+            and (cfg.get('telegram_chat_id') or '').strip()):
+        return
+    try:
+        with db() as con:
+            n = con.execute('SELECT COUNT(*) c FROM offers').fetchone()['c']
+    except Exception:
+        n = 0
+    word = 'Reise' if n == 1 else 'Reisen'
+    _notify_telegram(f"✈️ <b>TUIWatch gestartet</b>\n{n} {word} geladen")
+
+
 def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None,
                   target: float | None) -> None:
     """Schickt Benachrichtigungen bei Preisänderung und erreichtem Wunschpreis."""
@@ -698,6 +713,7 @@ def main() -> None:
     init_db()
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
+    _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
     threading.Thread(target=_poll_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

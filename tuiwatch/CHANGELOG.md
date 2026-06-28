@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.5] - 2026-06-28
+
+### Added
+- **Favicon** (TUI-Flugzeug-Icon) in Web-UI und Login-Seite.
+- **AppArmor-Profil** (`apparmor.txt`, `tuiwatch_addon`) — schränkt das Add-on ein;
+  Chromium-konform (inkl. `/dev/shm`).
+- **Telegram-Startmeldung**: ist Telegram konfiguriert, kommt beim Start eine kurze
+  Statusnachricht („TUIWatch gestartet — N Reisen geladen").
+
+### Fixed
+- **Preisdiagramme flackerten** alle paar Sekunden: das UI rendert jetzt nur noch bei
+  tatsächlich geänderten Daten neu, statt bei jedem 5-Sekunden-Poll die Canvas neu zu
+  zeichnen.
+
 ## [0.1.4] - 2026-06-27
 
 ### Added
