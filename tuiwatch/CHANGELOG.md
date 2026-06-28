@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.2] - 2026-06-28
+
+### Added
+- **Ort öffnet Google Maps**: Klick auf den Ort (📍) öffnet das Hotel in Google Maps
+  (Suchanfrage Hotelname + Ort; TUI liefert keine Koordinaten).
+
 ## [0.7.1] - 2026-06-28
 
 ### Changed

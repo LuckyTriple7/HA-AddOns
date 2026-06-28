@@ -46,7 +46,8 @@
     .offer-top { display:flex; align-items:flex-start; gap:12px; }
     .offer-main { flex:1; min-width:0; }
     .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
-    .offer-loc { font-size:.8rem; color:var(--text); margin:1px 0 3px; }
+    .offer-loc { display:inline-block; font-size:.8rem; color:var(--text); margin:1px 0 3px; text-decoration:none; }
+    .offer-loc:hover { color:var(--accent); text-decoration:underline; }
     .offer-details { font-size:.8rem; color:var(--muted); line-height:1.45; }
     .offer-url { display:inline-block; font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; margin-right:14px; }
     .offer-url.pdf { word-break:normal; }
@@ -374,7 +375,7 @@
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
-              ${o.location?`<div class="offer-loc">📍 ${esc(o.location)}</div>`:''}
+              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}

@@ -27,7 +27,7 @@ verbose_log: false       # ausführliche Logs
 3. Im Web-UI einfügen → **Hinzufügen**. Der erste Preis wird sofort geprüft.
 
 Für jedes Angebot werden angezeigt: Hotelname, **Ort/Region** (z. B. „Playa del
-Ingles, Gran Canaria"), **Sterne & HolidayCheck-Bewertung**,
+Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
 (Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
 durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
