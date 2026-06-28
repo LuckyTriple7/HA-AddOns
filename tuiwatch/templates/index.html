@@ -16,7 +16,7 @@
     [data-theme="light"] { --bg:#eef2f8; --surf:#ffffff; --surf2:#f3f6fb; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --blue:#0b65d8; --blue-h:#1f7ce8; --green:#1a7f37; --red:#cf222e; --amber:#9a6700; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
-    .wrap { max-width: 920px; margin: 0 auto; padding: 16px; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
     header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
     .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
     .logo svg { width:26px; height:26px; fill:var(--accent); }
@@ -45,7 +45,12 @@
     .rename-btn:hover { color:var(--accent); }
     .offer { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
     .offer.paused { opacity:.65; }
+    .offer.archived { opacity:.78; border-style:dashed; }
     .paused-badge { color:var(--amber); font-weight:700; }
+    .archived-badge { color:var(--muted); font-weight:700; }
+    .arch-head { font-size:.95rem; font-weight:700; color:var(--muted); margin:22px 0 10px; padding-top:6px; border-top:1px solid var(--border); }
+    .arch-toggle { display:inline-flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); cursor:pointer; user-select:none; padding:9px 4px; }
+    .arch-toggle input { accent-color:var(--accent); cursor:pointer; }
     .offer-top { display:flex; align-items:flex-start; gap:12px; }
     .offer-main { flex:1; min-width:0; }
     .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
@@ -83,8 +88,9 @@
     .delta.down { color:var(--green); background:rgba(46,160,67,.14); }
     .delta.flat { color:var(--muted); background:var(--surf2); }
     .delta.none { color:var(--amber); background:rgba(210,153,34,.13); }
-    .offer-foot { display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap; }
+    .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
     .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
+    .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
     .spark { width:100%; height:70px; margin-top:10px; display:block; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
@@ -100,6 +106,10 @@
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
     .cmp-load { color:var(--muted); font-size:.86rem; padding:18px 4px; text-align:center; }
+    .twprog { height:7px; background:var(--border); border-radius:5px; overflow:hidden; max-width:320px; margin:10px auto 0; }
+    .twprog > i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s ease; }
+    .twprog.indet > i { width:40%; animation:twindet 1.1s ease-in-out infinite; }
+    @keyframes twindet { 0%{margin-left:-42%} 100%{margin-left:104%} }
     .cmp-base { color:var(--accent); font-size:.74rem; font-weight:600; }
     .cmp-best td { background:rgba(46,160,67,.10); }
     .cmp-best .best { color:var(--green); font-weight:700; }
@@ -107,6 +117,51 @@
     .cmp-down { color:var(--green); font-weight:600; }
     .cmp-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .cmp-foot .hint { margin-top:0; }
+    .nig-ctrl { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:.85rem; color:var(--muted); margin-bottom:4px; }
+    .stepper { display:inline-flex; align-items:center; gap:8px; }
+    .stepper button { min-width:34px; padding:4px 10px; font-size:1rem; line-height:1; }
+    .stepper #nig-span { min-width:18px; text-align:center; font-weight:700; color:var(--text); font-size:1rem; }
+    .srch-filters { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px; font-size:.82rem; color:var(--muted); }
+    .srch-filters label { display:inline-flex; align-items:center; gap:5px; }
+    .srch-boards label { margin-left:8px; }
+    .srch-filters input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
+    .srch-filters input[type=number] { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 7px; border-radius:6px; }
+    .sr-item { display:flex; gap:12px; padding:10px 2px; border-bottom:1px solid var(--border); align-items:center; }
+    .sr-img { width:86px; height:62px; object-fit:cover; border-radius:6px; flex:0 0 auto; background:var(--bg); }
+    .sr-main { flex:1; min-width:0; }
+    .sr-name { font-weight:700; font-size:.92rem; }
+    .sr-name .tracked { color:var(--green); font-size:.72rem; font-weight:600; margin-left:6px; }
+    .sr-meta { font-size:.77rem; color:var(--muted); line-height:1.5; }
+    .sr-meta .stars { color:#e3b341; }
+    .sr-pricecol { text-align:right; white-space:nowrap; }
+    .sr-price { font-weight:700; font-size:.95rem; }
+    .sr-old { color:var(--muted); text-decoration:line-through; font-size:.72rem; }
+    .sr-disc { color:var(--green); font-size:.72rem; font-weight:600; margin-left:4px; }
+    .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
+    .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
+    .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
+    .srch-from b { color:var(--text); }
+    .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
+    .srch-fav select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 9px; border-radius:6px; font-size:.82rem; min-width:200px; }
+    .srch-mask { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:flex-end; }
+    .srch-field { display:flex; flex-direction:column; gap:4px; }
+    .srch-field.srch-grow { flex:1 1 200px; }
+    .srch-field.srch-sm { flex:0 0 140px; }
+    .srch-field.srch-xs { flex:0 0 90px; }
+    .srch-field label { font-size:.72rem; color:var(--muted); }
+    .srch-field input, .srch-field select, .srch-dest { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; width:100%; }
+    input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.85); opacity:.9; cursor:pointer; }
+    [data-theme="light"] input[type=date]::-webkit-calendar-picker-indicator { filter:none; }
+    .srch-dest { cursor:pointer; text-align:left; }
+    .srch-dest.set { border-color:var(--accent); color:var(--text); font-weight:600; }
+    .srch-adv { margin-bottom:10px; }
+    .srch-adv summary { cursor:pointer; font-size:.8rem; color:var(--muted); }
+    .dest-panel { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
+    .dest-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:.84rem; }
+    .dest-head b { color:var(--text); }
+    .dest-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:.86rem; }
+    .dest-row:hover { background:var(--surf); }
+    .dest-row .chev { color:var(--muted); }
     /* Preiskalender */
     .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
     .cal-title { font-weight:700; font-size:1rem; }
@@ -174,6 +229,7 @@
     </div>
 
     <div class="toolbar">
+      <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Hotels suchen</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
       <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Angebote aus Backup importieren">⬆ Wiederherstellen</button>
@@ -190,6 +246,9 @@
         <option value="rating">Beste Bewertung</option>
         <option value="name">Name A–Z</option>
       </select>
+      <label class="arch-toggle" title="Archivierte (abgelaufene/nicht mehr verfügbare) Angebote einblenden">
+        <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
+      </label>
     </div>
     <div id="offers"></div>
     <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span></footer>
@@ -217,6 +276,94 @@
       <h2>Pro-Person-Vergleich</h2>
       <div class="sub" id="cmp-sub"></div>
       <div id="cmp-body"></div>
+    </div>
+  </div>
+
+  <!-- Hotelsuche-Modal -->
+  <div class="modal-bg" id="srch-bg">
+    <div class="modal" style="max-width:960px">
+      <button class="icon-btn modal-close" onclick="closeSearch()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Hotels suchen</h2>
+      <div class="sub">Reiseziel wählen, Eckdaten setzen, suchen — oder bei einem Angebot auf <b>„Region"</b> klicken bzw. unten eine TUI-URL einfügen.</div>
+
+      <div class="srch-fav" id="srch-favbar">
+        <span>★ Favorit</span>
+        <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als Favorit speichern">★ Speichern</button>
+        <button class="btn sec" onclick="delFav()" title="Gewählten Favoriten löschen">Löschen</button>
+      </div>
+
+      <div id="srch-from" class="srch-from" style="display:none"></div>
+
+      <div class="srch-mask" id="srch-mask">
+        <div class="srch-field srch-grow">
+          <label>Reiseziel</label>
+          <button type="button" class="srch-dest" id="srch-dest" onclick="openDestPicker()">Reiseziel wählen…</button>
+        </div>
+        <div class="srch-field">
+          <label>Abflughafen</label>
+          <select id="srch-airport"></select>
+        </div>
+        <div class="srch-field srch-sm">
+          <label>von</label><input type="date" id="srch-vom" onclick="this.showPicker&&this.showPicker()">
+        </div>
+        <div class="srch-field srch-sm">
+          <label>bis</label><input type="date" id="srch-bis" onclick="this.showPicker&&this.showPicker()">
+        </div>
+        <div class="srch-field srch-xs">
+          <label>Nächte</label><input type="number" id="srch-dur" min="1" max="30" value="7">
+        </div>
+        <div class="srch-field srch-xs">
+          <label>Reisende</label><input type="number" id="srch-trav" min="1" max="9" value="2">
+        </div>
+      </div>
+
+      <div class="srch-filters">
+        <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
+        <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
+        <span class="srch-boards">Verpflegung:
+          <label><input type="checkbox" class="srch-board" value="AI"> AI</label>
+          <label><input type="checkbox" class="srch-board" value="HP"> HP</label>
+          <label><input type="checkbox" class="srch-board" value="VP"> VP</label>
+          <label><input type="checkbox" class="srch-board" value="F"> Frühstück</label>
+        </span>
+        <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" placeholder="0" style="width:54px"></label>
+        <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" placeholder="0" style="width:60px">%</label>
+        <button class="btn" onclick="runSearch()" style="margin-left:auto">Suchen</button>
+      </div>
+
+      <details class="srch-adv" id="srch-adv"><summary>Alternativ: TUI-Such-URL einfügen</summary>
+        <div class="add-row" style="margin-top:8px">
+          <input type="text" id="srch-url" placeholder="TUI-Such-/Region-URL (mit regionGiataIds=…)" autocomplete="off">
+        </div>
+      </details>
+
+      <div id="dest-panel" class="dest-panel" style="display:none"></div>
+      <div id="srch-body"></div>
+    </div>
+  </div>
+
+  <!-- Nächte-Vergleich-Modal -->
+  <div class="modal-bg" id="nig-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeNights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Nächte-Vergleich</h2>
+      <div class="sub" id="nig-sub"></div>
+      <div class="nig-ctrl">
+        <span>Spanne ±</span>
+        <div class="stepper">
+          <button class="btn sec" onclick="nightsStep(-1)" title="weniger">−</button>
+          <span id="nig-span">3</span>
+          <button class="btn sec" onclick="nightsStep(1)" title="mehr">+</button>
+        </div>
+        <span class="hint" style="margin:0">Nächte kürzer & länger</span>
+        <button class="btn" onclick="runNights()">Vergleichen</button>
+      </div>
+      <div id="nig-body"></div>
     </div>
   </div>
 
@@ -290,6 +437,7 @@
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
 
     let curOffers = null, lastSig = null, searchTerm = '';
+    let showArchived = localStorage.getItem('tw-show-archived')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
     function sortOffers(list){
@@ -342,8 +490,21 @@
         ((o.label||'')+' '+(o.hotel||'')+' '+(o.location||'')+' '+(o.details||'')+' '+(o.dep_airport||'')+' '+(o.room||'')).toLowerCase().includes(q)
       ) : offers;
       if(!list.length){ box.innerHTML = '<div class="empty">Keine Treffer für „'+esc(searchTerm.trim())+'".</div>'; return; }
-      const sorted = sortOffers(list);
-      box.innerHTML = sorted.map(o => {
+      const active = sortOffers(list.filter(o=>!o.archived));
+      const arch = sortOffers(list.filter(o=>o.archived));
+      let html = active.map(offerCard).join('');
+      if(!active.length && arch.length && !showArchived){
+        html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
+      }
+      if(showArchived && arch.length){
+        html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
+      }
+      box.innerHTML = html;
+      active.forEach(o => drawSpark(o.id));
+      if(showArchived) arch.forEach(o => drawSpark(o.id));
+    }
+
+    function offerCard(o){
         const hotel = o.hotel || '';
         const title = o.label || hotel || 'TUI-Angebot #'+o.id;
         // Untertitel: Hotel (falls eigenes Label gesetzt) + Reise-Eckdaten
@@ -385,7 +546,7 @@
         const targetRow = `<div class="target-row">${tgtLabel}
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
-        return `<div class="offer${o.paused?' paused':''}" data-id="${o.id}">
+        return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
@@ -407,21 +568,27 @@
             </div>
           </div>
           ${statsLine}
-          ${targetRow}
+          ${o.archived?'':targetRow}
           <canvas class="spark" id="spark-${o.id}"></canvas>
           <div class="offer-foot">
-            <span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
-            <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
-            <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
-            <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
-            ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
-            <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
-            <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
-            <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>
+            ${o.archived
+              ? `<span class="when"><span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}</span>
+                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
+                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`
+              : `<span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
+                 <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
+                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
+                 ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+                 <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
+                 <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
+                 <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
+                 <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
+                 <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
+                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`}
           </div>
         </div>`;
-      }).join('');
-      sorted.forEach(o => drawSpark(o.id));
     }
 
     function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -514,7 +681,12 @@
 
     // ── Pro-Person-Vergleich (gespeichert) ────────────────────────────────────
     let cmpTimer = null, cmpId = null;
-    function cmpSpinner(){ $('#cmp-body').innerHTML = '<div class="cmp-load">⏳ Live-Abruf läuft… einen Moment.</div>'; }
+    function progBar(label, done, total){
+      if(total){ const pct=Math.max(4,Math.round(done/total*100));
+        return `<div class="cmp-load">${esc(label)} (${done}/${total})<div class="twprog"><i style="width:${pct}%"></i></div></div>`; }
+      return `<div class="cmp-load">${esc(label)}<div class="twprog indet"><i></i></div></div>`;
+    }
+    function cmpSpinner(){ $('#cmp-body').innerHTML = progBar('Live-Abruf läuft… einen Moment.'); }
     function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(cmpPoll, 2000); }
 
     async function openCompare(id){
@@ -587,9 +759,322 @@
         + cmpFooter(job);
     }
 
+    // ── Nächte-Vergleich (Reisedauer ±N, gespeichert) ─────────────────────────
+    let nigTimer = null, nigId = null;
+    let nightsSpan = Math.max(1, Math.min(7, parseInt(localStorage.getItem('tw-nights-span')||'3',10)||3));
+    function nigSpinner(){ $('#nig-body').innerHTML = progBar('Live-Abruf läuft… mehrere Dauern werden geprüft.'); }
+    function nigSetSpan(v){ nightsSpan = Math.max(1, Math.min(7, v)); $('#nig-span').textContent = nightsSpan; localStorage.setItem('tw-nights-span', String(nightsSpan)); }
+    function nightsStep(d){ nigSetSpan(nightsSpan + d); }
+    function startNigPolling(){ clearInterval(nigTimer); nigPoll(); nigTimer = setInterval(nigPoll, 2000); }
+
+    async function openNights(id){
+      nigId = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#nig-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#nig-span').textContent = nightsSpan;
+      $('#nig-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#nig-bg').classList.add('show');
+      clearInterval(nigTimer); nigTimer=null;
+      let job;
+      try { job = await fetch(api('/api/nights/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle',rows:[]}; }
+      if(job.status==='running'){ nigSpinner(); startNigPolling(); }
+      else if(job.status==='done' && job.rows && job.rows.length){ if(job.span) nigSetSpan(job.span); renderNights(job); }
+      else { $('#nig-body').innerHTML = '<div class="cmp-load">Spanne einstellen und auf <b>Vergleichen</b> klicken.</div>'; }
+    }
+    async function runNights(){
+      if(nigId==null) return;
+      nigSpinner();
+      try { await fetch(api('/api/nights/'+nigId), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({span: nightsSpan})}); } catch(e){}
+      startNigPolling();
+    }
+    function closeNights(){ clearInterval(nigTimer); nigTimer=null; nigId=null; $('#nig-bg').classList.remove('show'); }
+    $('#nig-bg').addEventListener('click', e=>{ if(e.target.id==='nig-bg') closeNights(); });
+
+    async function nigPoll(){
+      if(nigId==null) return;
+      let job;
+      try { job = await fetch(api('/api/nights/'+nigId)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running'){ $('#nig-body').innerHTML = progBar('Dauern werden geprüft…', job.done||0, job.total||0); return; }
+      clearInterval(nigTimer); nigTimer=null;
+      renderNights(job);
+    }
+    function nigFooter(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      return `<div class="cmp-foot">
+          <span class="hint" style="flex:1;min-width:180px">${esc(when)} „Gesamt" = Preis p. P. × Reisende. Nicht jede Dauer hat Flüge.</span>
+          <button class="btn sec" onclick="runNights()">Neu abfragen</button>
+        </div>${err}`;
+    }
+    function renderNights(job){
+      if(!(job.rows && job.rows.length)){
+        const msg = job.error || job.note || 'Nächte-Vergleich fehlgeschlagen';
+        $('#nig-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + nigFooter(job);
+        return;
+      }
+      const ok = job.rows.filter(r=>r.ok && r.price!=null);
+      const cheapest = ok.length ? Math.min(...ok.map(r=>r.price)) : null;
+      const baseRow = job.rows.find(r=>r.is_base && r.price!=null);
+      const basePrice = baseRow ? baseRow.price : null;
+      const rows = job.rows.map(r=>{
+        const lbl = `${r.nights} Nächte${r.is_base?' <span class="cmp-base">(aktuell)</span>':''}`;
+        if(!r.ok || r.price==null) return `<tr><td>${lbl}</td><td colspan="4" style="color:var(--amber)">nicht abrufbar</td></tr>`;
+        const best = (cheapest!=null && r.price<=cheapest);
+        let diff = '';
+        if(r.is_base){ diff = '<span style="color:var(--muted)">Basis</span>'; }
+        else if(basePrice!=null){
+          const d = r.price - basePrice;
+          diff = d===0 ? '±0' : (d<0 ? '<span class="cmp-down">▼ '+eur(Math.abs(d))+'</span>' : '<span class="cmp-up">▲ +'+eur(d)+'</span>');
+        }
+        return `<tr${best?' class="cmp-best"':''}>
+          <td>${lbl}</td>
+          <td><b>${eur(r.price)}</b>${best?' <span class="best">✓</span>':''}</td>
+          <td>${eur(r.per_night)}</td>
+          <td>${eur(r.total)}</td>
+          <td>${diff}</td></tr>`;
+      }).join('');
+      $('#nig-body').innerHTML =
+        `<table class="hist"><tr><th>Dauer</th><th>Preis p.&nbsp;P.</th><th>€/Nacht</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
+        + nigFooter(job);
+    }
+
+    // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
+    let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0;
+    let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
+    let airportsLoaded = false, destNode = null, destData = null, destStack = [];
+    function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
+    function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
+    function jsArg(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
+
+    async function ensureAirports(){
+      if(airportsLoaded) return;
+      try {
+        const d = await fetch(api('/api/airports')).then(r=>r.json());
+        const sel = $('#srch-airport'); const saved = localStorage.getItem('tw-airport');
+        const pre = (d.airports||[]).find(a=>a.preselected);
+        const def = saved || (pre&&pre.code) || 'STR';
+        sel.innerHTML = (d.airports||[]).map(a=>`<option value="${esc(a.code)}"${a.code===def?' selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('');
+        airportsLoaded = true;
+      } catch(e){}
+    }
+    function setSearchMode(mode){     // 'mask' | 'offer'
+      const off = (mode==='offer');
+      $('#srch-favbar').style.display = off?'none':'';
+      $('#srch-mask').style.display   = off?'none':'';
+      $('#srch-adv').style.display    = off?'none':'';
+      $('#srch-from').style.display   = off?'block':'none';
+      $('#dest-panel').style.display  = 'none';
+    }
+    function openSearch(){            // Maske (Toolbar)
+      srchOfferId = null;
+      setSearchMode('mask'); ensureAirports(); renderFavs();
+      if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
+      if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
+      $('#srch-bg').classList.add('show');
+    }
+    function openSearchFromOffer(id){ // Region-Modus (aus Angebot)
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      srchOfferId = id;
+      setSearchMode('offer');
+      $('#srch-from').innerHTML = 'Region aus Angebot: <b>'+esc(o.hotel||o.label||('#'+id))+'</b>'
+        + (o.location?(' · '+esc(o.location)):'') + ' — Reisedaten &amp; Abflughafen werden übernommen.';
+      $('#srch-url').value='';
+      const ops = urlParam(o.url,'operators');
+      $('#srch-tui').checked = (!ops || /TUID/i.test(ops));
+      const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/).map(s=>s.trim().toUpperCase());
+      document.querySelectorAll('.srch-board').forEach(c=>{ c.checked = bt.includes(c.value.toUpperCase()); });
+      $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
+      $('#srch-stars').value=''; $('#srch-rec').value='';
+      $('#srch-body').innerHTML='';
+      $('#srch-bg').classList.add('show');
+      runSearch();
+    }
+    function closeSearch(){ $('#srch-bg').classList.remove('show'); }
+    $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
+
+    // — Reiseziel-Picker (Drilldown) —
+    async function loadDest(parent){
+      try { return await fetch(api('/api/destinations'+(parent?('?parent='+parent):''))).then(r=>r.json()); }
+      catch(e){ return null; }
+    }
+    async function openDestPicker(){
+      const p = $('#dest-panel'); p.style.display='block';
+      p.innerHTML = '<div class="cmp-load">Lade Reiseziele…</div>';
+      destStack = []; destNode = null;
+      destData = await loadDest(null);
+      if(!destData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
+      renderDest();
+    }
+    function renderDest(){
+      const p = $('#dest-panel');
+      const back = destStack.length?'<button class="btn sec" onclick="destBack()">‹ zurück</button>':'';
+      const title = destNode?('<b>'+esc(destNode.label)+'</b>'):'<b>Reiseziel wählen</b>';
+      const whole = destNode?(`<button class="btn" onclick="selectDest(${destNode.giata}, '${jsArg(destNode.label)}')">✓ Ganze Region wählen</button>`):'';
+      const rows = (destData.items||[]).map(it=>
+        `<div class="dest-row" onclick="destDrill(${it.giata}, '${jsArg(it.label)}')">
+           <span>${esc(it.label)}</span>
+           <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
+         </div>`).join('');
+      p.innerHTML = `<div class="dest-head">${back}${title}${whole}
+          <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>${rows||'<div class="cmp-load">Keine Unterregionen.</div>'}`;
+    }
+    async function destDrill(giata, label){
+      const sub = await loadDest(giata);
+      if(!sub || !(sub.items&&sub.items.length)){ selectDest(giata, label); return; }
+      destStack.push({node:destNode, data:destData});
+      destNode = {giata, label}; destData = sub; renderDest();
+    }
+    function destBack(){ const prev=destStack.pop(); if(!prev) return; destNode=prev.node; destData=prev.data; renderDest(); }
+    function selectDest(giata, label){
+      srchDest = {giata, label};
+      const b = $('#srch-dest'); b.textContent = label; b.classList.add('set');
+      $('#dest-panel').style.display='none';
+    }
+
+    // — Favoriten (localStorage) —
+    function getFavs(){ try { return JSON.parse(localStorage.getItem('tw-search-favs')||'[]'); } catch(e){ return []; } }
+    function setFavs(f){ localStorage.setItem('tw-search-favs', JSON.stringify(f)); }
+    function renderFavs(){
+      const favs = getFavs();
+      $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
+        + favs.map((f,i)=>`<option value="${i}">${esc(f.name)}</option>`).join('');
+    }
+    function curFav(){
+      return { dest: srchDest, airport: $('#srch-airport').value,
+        vom: $('#srch-vom').value, bis: $('#srch-bis').value,
+        dur: $('#srch-dur').value, trav: $('#srch-trav').value,
+        tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
+        boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
+        stars: $('#srch-stars').value, rec: $('#srch-rec').value };
+    }
+    function saveFav(){
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      const name = prompt('Name für den Favoriten:', srchDest.label||'Suche');
+      if(name===null) return;
+      const favs = getFavs(); const f = curFav(); f.name = name.trim()||srchDest.label;
+      const ix = favs.findIndex(x=>x.name===f.name);
+      if(ix>=0) favs[ix]=f; else favs.push(f);
+      setFavs(favs); renderFavs(); toast('Favorit gespeichert');
+    }
+    function loadFav(){
+      const i = $('#srch-favsel').value; if(i==='') return;
+      const f = getFavs()[+i]; if(!f) return;
+      if(f.dest){ srchDest=f.dest; const b=$('#srch-dest'); b.textContent=f.dest.label; b.classList.add('set'); }
+      if(f.airport){ ensureAirports().then(()=>{ $('#srch-airport').value=f.airport; }); }
+      $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||'';
+      $('#srch-dur').value=f.dur||7; $('#srch-trav').value=f.trav||2;
+      $('#srch-tui').checked=f.tui!==false;
+      $('#srch-direct').checked=!!f.direct;
+      document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
+      $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
+    }
+    function delFav(){
+      const i = $('#srch-favsel').value; if(i===''){ toast('Bitte einen Favoriten wählen'); return; }
+      const favs=getFavs(); favs.splice(+i,1); setFavs(favs); renderFavs(); toast('Favorit gelöscht');
+    }
+
+    async function runSearch(){
+      const url = $('#srch-url').value.trim();
+      const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
+      const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked, boards,
+        min_stars: parseFloat($('#srch-stars').value)||0,
+        min_recommend: parseFloat($('#srch-rec').value)||0 };
+      if(srchOfferId!=null){ body.offer_id = srchOfferId; }
+      else if(url){ body.url = url; }
+      else {
+        if(!srchDest){ toast('Bitte ein Reiseziel wählen'); return; }
+        const vom=$('#srch-vom').value, bis=$('#srch-bis').value;
+        if(!vom||!bis){ toast('Bitte Zeitraum (von/bis) wählen'); return; }
+        if(bis<vom){ toast('„bis" muss nach „von" liegen'); return; }
+        localStorage.setItem('tw-airport', $('#srch-airport').value);
+        Object.assign(body, { region: srchDest.giata, start: vom, end: bis,
+          duration: parseInt($('#srch-dur').value)||7, travellers: parseInt($('#srch-trav').value)||2,
+          airport: $('#srch-airport').value });
+      }
+      $('#srch-body').innerHTML = progBar('Suche läuft…');
+      let r, d;
+      try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
+      catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
+      if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
+      if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
+      if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+      srchResults = d.results||[]; srchTotal = d.total||srchResults.length;
+      sortSearchResults(); renderSearch();
+    }
+
+    function sortSearchResults(){
+      const num=(v,d)=>v==null?d:v;
+      const a=srchResults;
+      if(srchSort==='price') a.sort((x,y)=>num(x.price,1e9)-num(y.price,1e9));
+      else if(srchSort==='rec') a.sort((x,y)=>num(y.recommendation,-1)-num(x.recommendation,-1));
+      else if(srchSort==='stars') a.sort((x,y)=>num(y.stars,-1)-num(x.stars,-1));
+      else if(srchSort==='pernight') a.sort((x,y)=>(num(x.price,1e9)/(x.nights||1))-(num(y.price,1e9)/(y.nights||1)));
+    }
+    function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearch(); }
+
+    function renderSearch(){
+      if(!srchResults.length){ $('#srch-body').innerHTML = '<div class="cmp-load">Keine Treffer für die gewählten Filter.</div>'; return; }
+      const rows = srchResults.map((r,i)=>{
+        const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
+        const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
+        const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
+        const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
+        return `<div class="sr-item">
+          ${img}
+          <div class="sr-main">
+            <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
+            <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
+            <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
+          </div>
+          <div class="sr-pricecol">
+            <div class="sr-price">${eur(r.price)}</div>
+            <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
+            <div class="sr-acts">
+              <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
+              <button class="btn" id="srt-${i}" onclick="trackResult(${i})" ${r.tracked?'disabled':''}>${r.tracked?'getrackt':'Tracken'}</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      const sortSel = `<select onchange="changeSrchSort(this.value)" title="Sortierung">
+          <option value="price"${srchSort==='price'?' selected':''}>Preis aufsteigend</option>
+          <option value="pernight"${srchSort==='pernight'?' selected':''}>Preis/Nacht</option>
+          <option value="rec"${srchSort==='rec'?' selected':''}>Weiterempfehlung</option>
+          <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
+        </select>`;
+      const head = `<div class="srch-head"><b>${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}
+         <span style="flex:1"></span>Sortieren: ${sortSel}
+         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>`;
+      $('#srch-body').innerHTML = head + rows;
+    }
+
+    async function trackResult(i){
+      const r = srchResults[i]; if(!r) return;
+      const btn = document.getElementById('srt-'+i);
+      if(btn){ btn.disabled=true; btn.textContent='…'; }
+      let resp;
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); }
+      catch(e){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
+      if(resp.status===409){ toast('Wird bereits verfolgt'); }
+      else if(!resp.ok){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
+      else { toast('Getrackt – wird geprüft…'); }
+      r.tracked=true; if(btn){ btn.textContent='getrackt'; }
+      loadOffers();
+    }
+    async function trackAll(){
+      const todo = srchResults.filter(r=>!r.tracked);
+      if(!todo.length){ toast('Alle bereits getrackt'); return; }
+      if(!confirm(todo.length+' Hotels ins Tracking übernehmen?')) return;
+      for(const r of todo){
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); r.tracked=true; } catch(e){}
+      }
+      toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
+    }
+
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
     let calTimer = null, calId = null, calData = null, calMonth = null;
-    function calSpinner(){ $('#cal-body').innerHTML = '<div class="cmp-load">⏳ Preiskalender wird geladen…</div>'; }
+    function calSpinner(){ $('#cal-body').innerHTML = progBar('Preiskalender wird geladen…'); }
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
     async function openCalendar(id){
@@ -625,7 +1110,26 @@
     }
 
     function fmtD(iso){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m?`${m[3]}.${m[2]}.${m[1]}`:iso; }
-    function dayUrl(base, iso){ try{ const u=new URL(base); u.searchParams.set('startDate',iso); u.searchParams.set('endDate',iso); return u.toString(); }catch(e){ return base; } }
+    function addDays(iso, n){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); if(!m) return iso; const d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3])); d.setUTCDate(d.getUTCDate()+(n||0)); return d.toISOString().slice(0,10); }
+    // TUI erwartet als Reisezeitraum Hin- bis Rückreise: endDate = Anreise + Nächte.
+    function dayUrl(base, iso, nights){ try{ const u=new URL(base); u.searchParams.set('startDate',iso); u.searchParams.set('endDate', nights>0?addDays(iso,nights):iso); return u.toString(); }catch(e){ return base; } }
+    async function saveCalDay(ev, iso){
+      ev.preventDefault();
+      const offer = (curOffers||[]).find(x=>x.id===calId) || {};
+      const base = offer.url || '';
+      if(!base) return false;
+      const nights = (calData && calData.duration) || 0;
+      const name = (offer.hotel || offer.label || 'TUI-Angebot') + ' · ' + fmtD(iso);
+      if(!confirm('Diesen Termin als neues Angebot tracken?\n\n'+name)) return false;
+      const r = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url: dayUrl(base, iso, nights), label: name})});
+      if(r.status===409){ toast('Dieser Termin wird bereits verfolgt'); return false; }
+      if(r.status===400){ toast('Keine gültige tui.com-URL'); return false; }
+      if(!r.ok){ toast('Fehler beim Hinzufügen'); return false; }
+      toast('Termin als neues Angebot gespeichert – wird geprüft…');
+      loadOffers();
+      return false;
+    }
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
@@ -658,6 +1162,7 @@
       const pmin = Math.min(...allP), pmax = Math.max(...allP);
       const offer = (curOffers||[]).find(x=>x.id===calId) || {};
       const base = offer.url || '';
+      const nights = (job.duration) || 0;
       let cells = '';
       for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
       for(let d=1; d<=dim; d++){
@@ -677,7 +1182,7 @@
           + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
-          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso))}" target="_blank" rel="noopener" title="Diesen Termin auf tui.com öffnen"${style}>${inner}</a>`;
+          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
         } else {
           cells += `<div class="${cls.join(' ')}"${style}>${inner}</div>`;
         }
@@ -700,7 +1205,7 @@
           <span><i class="lg-cheap"></i>günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
-          <span>🟩→🟥 günstig→teuer · Klick öffnet den Termin auf tui.com</span>
+          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken</span>
         </div>${calFooter(job)}`;
     }
 
@@ -739,6 +1244,14 @@
     async function togglePause(id, paused){
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paused: !paused})});
       toast(paused ? 'Tracking fortgesetzt' : 'Tracking pausiert'); loadOffers();
+    }
+    async function archiveOffer(id){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({archived: true})});
+      toast('Ins Archiv gelegt'); loadOffers();
+    }
+    async function unarchiveOffer(id){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({archived: false})});
+      toast('Reaktiviert – wird wieder verfolgt'); loadOffers();
     }
     async function exportCsv(){
       if(histId==null) return;
@@ -790,17 +1303,23 @@
 
     function renderOverview(offers){
       const el = $('#overview'); if(!el) return;
-      if(!offers || !offers.length){ el.style.display='none'; el.innerHTML=''; return; }
-      const ok = offers.filter(o=>o.price!=null && o.ok);
-      let html = '<b>'+offers.length+'</b> Angebote';
+      offers = offers || [];
+      const archived = offers.filter(o=>o.archived);
+      const active = offers.filter(o=>!o.archived);
+      // Archiv-Zähler am Umschalter
+      const ac = $('#arch-count'); if(ac) ac.textContent = archived.length ? '('+archived.length+')' : '';
+      if(!offers.length){ el.style.display='none'; el.innerHTML=''; return; }
+      const ok = active.filter(o=>o.price!=null && o.ok);
+      let html = '<b>'+active.length+'</b> Angebote';
       if(ok.length){
         const cheap = ok.reduce((a,b)=>b.price<a.price?b:a);
         html += ' · günstigstes: <b>'+esc(cheap.label||cheap.hotel||'')+'</b> '+eur(cheap.price);
         const below = ok.filter(o=>o.target_price && o.price<=o.target_price).length;
         if(below) html += ' · <span style="color:var(--green);font-weight:600">'+below+' unter Wunschpreis</span>';
       }
-      const paused = offers.filter(o=>o.paused).length;
+      const paused = active.filter(o=>o.paused).length;
       if(paused) html += ' · '+paused+' pausiert';
+      if(archived.length) html += ' · '+archived.length+' archiviert';
       el.innerHTML = html; el.style.display='block';
     }
 
@@ -811,6 +1330,8 @@
     $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
     $('#sort').value = sortMode;
     $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
+    $('#show-archived').checked = showArchived;
+    $('#show-archived').addEventListener('change', e=>{ showArchived = e.target.checked; localStorage.setItem('tw-show-archived', showArchived?'1':'0'); renderAll(curOffers||[]); });
 
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 

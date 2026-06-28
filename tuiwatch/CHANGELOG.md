@@ -1,5 +1,130 @@
 # Changelog
 
+## [0.14.1] - 2026-06-28
+
+### Fixed
+- **Kalender-Icon der Datumsfelder im Dark Mode sichtbar** (aufgehellt); im Light Mode
+  unverändert. Klick aufs Feld öffnet weiterhin den Kalender, Direkteingabe bleibt möglich.
+
+## [0.14.0] - 2026-06-28
+
+### Added
+- **Suche: „Nur Direktflug"-Filter** — zeigt nur Angebote ohne Zwischenstopp
+  (Such-API-Parameter `stopOver=0`; wird auch in getrackte Angebote übernommen).
+
+### Changed
+- **Fortschrittsanzeige statt Sanduhr**: Nächte-Vergleich zeigt einen echten
+  Fortschrittsbalken (geprüfte Dauern X/N); Pro-Person-Vergleich, Suche und Preiskalender
+  zeigen einen animierten Balken statt des ⏳-Symbols.
+- Suche: Datumsfelder öffnen den Kalender beim Klick aufs ganze Feld; „Suchen"-Button
+  rechtsbündig; Filter **„nur Veranstalter TUI"** kürzer als **„TUI"** beschriftet
+  (mit erklärendem Tooltip).
+
+## [0.13.0] - 2026-06-28
+
+### Added
+- **Eigene Suchmaske mit Reiseziel-Picker** — kein URL-Kopieren mehr nötig: **Reiseziel**
+  per Drilldown (Land → Region → Insel) wählen, **Abflughafen** (TUI-Liste), **Zeitraum
+  von–bis + Nächte**, **Reisende** und die Filter setzen → **Suchen**. Nutzt die offenen
+  TUI-APIs `search-destination` (Regionen/Unterregionen) und `search-departure-airport`.
+- **Such-Favoriten**: komplette Maskeneingaben unter einem Namen speichern und wieder
+  laden (Dropdown + „★ Speichern" / „Löschen").
+- **Sortierung der Trefferliste**: Preis, Preis/Nacht, Weiterempfehlung, Sterne.
+- Die bisherigen Wege (TUI-URL einfügen, „Region" aus einem Angebot) bleiben erhalten.
+
+## [0.12.0] - 2026-06-28
+
+### Added
+- **Regionssuche direkt aus einem Angebot**: neuer Button **„Region"** je aktivem
+  Angebot listet weitere Hotels **derselben Region** (z. B. Gran Canaria) für dieselben
+  Reisedaten/Dauer/Reisende/Abflughafen — ohne URL-Einfügen. Die Region kommt aus der
+  Angebots-URL (`regionGiataIds`) oder per Breadcrumb über die giataId. Veranstalter und
+  Verpflegung des Angebots werden als Filter **vorbelegt** (änderbar), Sterne/
+  Weiterempfehlung optional.
+
+### Changed
+- **Such-Dialog breiter** (übersichtlichere Trefferliste).
+
+## [0.11.0] - 2026-06-28
+
+### Added
+- **Hotelsuche** über **🔍 Hotels suchen**: eine TUI-Such-/Region-URL (mit
+  `regionGiataIds`) einfügen → TUIWatch listet alle passenden Hotels der Region mit
+  **Sternen, Ort, HolidayCheck-Weiterempfehlung, Verpflegung, Nächten und Preis p. P.**
+  Filter direkt im Add-on: **nur Veranstalter TUI**, **Verpflegung** (AI/HP/VP/Frühstück),
+  **Sterne ≥** und **Weiterempfehlung ≥ %**. Je Treffer **Tracken**/**Öffnen**, dazu
+  **Alle tracken**. Abflughafen/Zeitraum kommen aus der eingefügten URL. Nutzt den neuen
+  TUI-Such-Endpoint `hotel-offer-cards/v2/search` (siehe SCRAPING.md).
+
+## [0.10.2] - 2026-06-28
+
+### Fixed
+- **Kein unnötiger (langsamer) Browser-Fallback bei „kein Angebot".** Liefert die
+  Offer-API **HTTP 400/404/422** (z. B. beim Nächte-Vergleich für eine Dauer ohne Flüge),
+  wird das jetzt als gültige Leermenge „Kein Angebot" behandelt — vorher wurde
+  fälschlich der minutenlange Chromium-Fallback gestartet. Echte Serverfehler (5xx) /
+  Netzwerkfehler lösen weiterhin den Fallback aus.
+
+## [0.10.1] - 2026-06-28
+
+### Fixed
+- **Nächte-Vergleich: falsche Preise bei nicht buchbaren Dauern.** Bei Bereichs-Dauern
+  wie `7-` lieferte TUI für nicht verfügbare Dauern (z. B. 8–10 Nächte) ersatzweise das
+  nächstliegende Angebot (das 7-Nächte-Paket) zurück — diese Zeilen zeigten denselben
+  Gesamtpreis und nur eine heruntergerechnete €/Nacht. Es wird nun geprüft, ob die
+  **tatsächliche Reisedauer** der angefragten entspricht; weicht sie ab, erscheint
+  korrekt „nicht abrufbar".
+
+### Changed
+- **Kleinere Buttons** in der Angebots-Fußzeile (kompaktere Schrift/Abstände), damit die
+  Aktionsleiste weniger Platz braucht.
+
+## [0.10.0] - 2026-06-28
+
+### Added
+- **Nächte-Vergleich**: neuer Button „Nächte" je Angebot öffnet einen Dialog, in dem
+  sich per **− / +** eine Spanne einstellen lässt (Default 3, max ±7). Es werden live
+  die Preise für **kürzere und längere Reisedauern** abgefragt (z. B. bei 10 Nächten:
+  7–9 und 11–13) und als Tabelle gezeigt: **Preis p. P., € pro Nacht, Gesamt, Differenz**.
+  Günstigste Zeile grün, aktuelle Dauer markiert; Dauern ohne Flug/Angebot erscheinen
+  als „nicht abrufbar". Das Ergebnis wird gespeichert (mit „Neu abfragen").
+
+## [0.9.1] - 2026-06-28
+
+### Fixed
+- **Preiskalender-Klick erzeugte ein ungültiges Datum** (HTTP 400 auf tui.com): Es wurde
+  `startDate` = `endDate` = angeklickter Tag gesetzt, sodass der Reisezeitraum z. B.
+  „21.05.2027 – 21.05.2027, 10 Nächte" lautete. Jetzt wird `endDate = Anreise + Nächte`
+  berechnet (Hin- bis Rückreise), passend zur Reisedauer. Gilt für Links- und Rechtsklick
+  (Termin öffnen / als neues Angebot speichern). Die Dauer kommt aus dem Preiskalender
+  (`duration`).
+
+## [0.9.0] - 2026-06-28
+
+### Added
+- **Archiv**: Angebote können archiviert werden — als Überblick über ältere/abgelaufene
+  Reisen, ohne dass weiter live abgefragt wird.
+  - **Automatisch**: sobald das Rückreisedatum in der Vergangenheit liegt, wandert ein
+    Angebot ins Archiv (es ist ohnehin nicht mehr buchbar/abfragbar).
+  - **Manuell**: Button „Archivieren" je Angebot (z. B. wenn ausgebucht / nicht mehr
+    verfügbar) bzw. „Reaktivieren" zum Zurückholen.
+  - Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar (eigener
+    Abschnitt, gedämpft dargestellt) und werden im Poller/„Alle prüfen", in der
+    Übersicht (eigener Zähler + `archived_offers` am Summary-Sensor) und im E-Mail-Versand
+    ausgenommen. Backup/Wiederherstellen nimmt den Archiv-Status mit.
+
+### Fixed
+- **Pauschalreise inkl. Transfer**: Offer-Abfrage nutzt jetzt `transferIncluded=true`
+  (vorher `false`) — passend zur Buchung auf tui.com. Ein in der Original-URL gesetzter
+  Wert hat weiterhin Vorrang.
+
+## [0.8.1] - 2026-06-28
+
+### Added
+- **Preiskalender → Rechtsklick** auf einen Tag speichert genau diesen Termin als
+  **neues, eigenständiges Angebot** (mit fixiertem Datum) und prüft ihn sofort. Linksklick
+  öffnet den Termin weiterhin auf tui.com.
+
 ## [0.8.0] - 2026-06-28
 
 ### Added
