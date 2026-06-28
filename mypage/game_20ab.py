@@ -6,8 +6,12 @@ Regeln:
 - Ziel: als erster genau 0 Punkte erreichen
 - Jede Runde: Startspieler wählt Trumpf → Reizen → 5 Stiche
 - Kreuz als Trumpf: alle müssen mitspielen
+- "Nächste Karte" als Trumpf: nur wenn Kreuz gezogen wird müssen alle mitspielen,
+  sonst darf normal gereizt (ausgestiegen) werden
 - Herz als Trumpf: alle Punkte doppelt
 - Überschuss prallt zurück (Bounce-Regel)
+- Wer in einer Runde aussteigt, muss in der nächsten Runde mitspielen
+- Wer weniger als 6 Punkte hat, darf nicht mehr aussteigen
 """
 from __future__ import annotations
 
@@ -124,6 +128,8 @@ def deal_round(state: dict) -> None:
     state['bid_turn'] = None
     state['active'] = []
     state['forced'] = False
+    # Wer letzte Runde ausgestiegen ist, muss diese Runde mitspielen
+    state['must_play'] = list(state.get('passed_last', []))
     state['table'] = []
     state['tricks'] = {p: 0 for p in PLAYERS}
     state['trick_nr'] = 0
@@ -145,6 +151,20 @@ def legal_cards(state: dict, player: str) -> list[str]:
     lead_s = suit(state['table'][0]['card'])
     follow = [c for c in hand if suit(c) == lead_s]
     return follow if follow else list(hand)
+
+
+# ── Aussteige-Regeln ──────────────────────────────────
+def can_pass(state: dict, player: str) -> bool:
+    """Darf der Spieler beim Reizen aussteigen (passen)?
+
+    Nein, wenn er weniger als 6 Punkte hat oder letzte Runde schon
+    ausgestiegen ist (dann muss er diese Runde mitspielen).
+    """
+    if state['scores'].get(player, 0) < 6:
+        return False
+    if player in state.get('must_play', []):
+        return False
+    return True
 
 
 # ── Stich-Auswertung ──────────────────────────────────
@@ -246,12 +266,19 @@ def _apply_trump(state: dict, player: str, chosen: str) -> list:
             returned = extras.pop(0)
             state['extra_cards'][player] = extras
             state['exchange_deck'].append(returned)
-        for p in PLAYERS:
-            if p not in state['active']:
-                state['active'].append(p)
-                state['bids'][p] = 'play'
-        _deal_extra(state)
-        _start_exchange(state)
+        if suit(drawn) == 'c':
+            # Kreuz gezogen → alle müssen mitspielen
+            for p in PLAYERS:
+                if p not in state['active']:
+                    state['active'].append(p)
+                    state['bids'][p] = 'play'
+            _deal_extra(state)
+            _start_exchange(state)
+        else:
+            # Kein Kreuz → normal reizen, man darf aussteigen
+            order = state['bid_order']
+            state['bid_turn'] = order[1]
+            state['status'] = 'bidding'
     elif chosen == 'c':
         state['trump'] = chosen
         for p in PLAYERS:
@@ -273,6 +300,8 @@ def _apply_bid(state: dict, player: str, value: str) -> list:
         raise IllegalMove('Nicht dein Zug zum Reizen')
     if value not in ('play', 'pass'):
         raise IllegalMove('Ungültiges Gebot')
+    if value == 'pass' and not can_pass(state, player):
+        raise IllegalMove('Du musst in dieser Runde mitspielen')
 
     state['bids'][player] = value
     if value == 'play':
@@ -438,6 +467,9 @@ def _score_round(state: dict) -> None:
 
     state['round_result'] = result
 
+    # Wer ausgestiegen ist, muss nächste Runde mitspielen
+    state['passed_last'] = [p for p in PLAYERS if p not in state['active']]
+
     winners = [p for p in PLAYERS if state['scores'][p] == 0]
     if winners:
         if state['trump_chooser'] in winners:
@@ -491,6 +523,10 @@ def ai_herz_blind(state: dict, who: str) -> str:
 def ai_bid(state: dict, who: str) -> str:
     caps = _caps(state)
     hand = state['hands'][who]
+
+    # Aussteigen verboten (< 6 Punkte oder letzte Runde gepasst) → spielen
+    if not can_pass(state, who):
+        return 'play'
 
     if not caps['smart_bid']:
         return 'play' if random.random() < 0.5 else 'pass'
@@ -728,4 +764,6 @@ def public_view(state: dict) -> dict:
     v.pop('exchange_deck', None)
     if state.get('status') == 'playing' and state.get('turn') == 'p':
         v['legal'] = legal_cards(state, 'p')
+    if state.get('status') == 'bidding' and state.get('bid_turn') == 'p':
+        v['can_pass'] = can_pass(state, 'p')
     return v

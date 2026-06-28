@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.21] - 2026-06-26
+- Suche: Die Nachrichtensuche durchsucht jetzt den **gesamten gecachten Verlauf** serverseitig (neuer Endpoint `/api/search`), nicht mehr nur die geladenen Bubbles — wichtig seit der Pagination. Ein Klick bzw. ▲▼ springt zum Treffer; liegt er außerhalb des aktuellen Fensters, wird automatisch ein Verlauf-Fenster um ihn geladen und hervorgehoben. Schließen der Suche kehrt zum Live-Modus zurück. Während der Verlauf-Ansicht pausiert der Live-Poll, damit das Fenster nicht überschrieben wird
+
+## [1.6.20] - 2026-06-26
+- Performance: Große Chats (tausende Nachrichten) öffnen jetzt sofort — der Server sendet initial nur die **neuesten 60** Nachrichten statt der kompletten Liste, das Frontend rendert also nicht mehr tausende Bubbles auf einmal (kein Spinner/Ruckeln mehr). Ältere Nachrichten werden beim **Hochscrollen** automatisch aus dem Cache nachgeladen und vorne angefügt, ohne die Scrollposition zu verlieren. Neue/geänderte Nachrichten im sichtbaren Bereich werden weiterhin live aktualisiert, bereits nachgeladene ältere bleiben erhalten
+
+## [1.6.19] - 2026-06-26
+- UX: Beim Chat-Wechsel wird das Chatfenster jetzt sofort geleert und die gecachten Nachrichten praktisch ohne Verzögerung angezeigt — vorher blieb der vorherige Chat stehen, bis der (bei Erstöffnung mehrere Sekunden dauernde) Live-Telegram-Fetch zurückkam. Ein Lade-Spinner erscheint nur noch, wenn wirklich nichts gecacht ist und der Server live von Telegram holt (>200 ms)
+
+## [1.6.18] - 2026-06-26
+- Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
+
+## [1.6.17] - 2026-06-26
+- Performance: Polling pausiert, wenn der Browser-Tab im Hintergrund ist (`document.hidden`) — Status (2 s) und Chat-Liste/Nachrichten (5 s) laufen nicht mehr 24/7 weiter; beim Zurückkehren wird sofort aktualisiert (`visibilitychange` zieht Status + Chats nach)
+- Performance: `/api/storage` cacht das Ergebnis 15 s — der rekursive Verzeichnis-Scan blockiert den Event-Loop nicht mehr
+- Watchdog: Supervisor startet das Add-on bei nicht erreichbarem Port automatisch neu (`watchdog: tcp://[HOST]:[PORT:17778]`)
+- Media-Responses mit `Cache-Control: immutable` (Dateiname ist über die stabile Message-ID eindeutig)
+
 ## [1.6.16] - 2026-06-23
 - HA-Benachrichtigungen: kein manueller `ha_token` mehr nötig — das Add-on nutzt jetzt `homeassistant_api` und den automatisch vom Supervisor bereitgestellten Token (wie MyPage). Option `ha_token` entfernt, Aufrufe laufen über `http://supervisor/core/api`
 - AppArmor-Profil hinzugefügt (`telegram_addon`)

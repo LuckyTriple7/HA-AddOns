@@ -25,6 +25,7 @@ body:
         - MediaGrab
         - GitPulse
         - MyPage
+        - TUIWatch
         - Sonstiges
     validations:
       required: true

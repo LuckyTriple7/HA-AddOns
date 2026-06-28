@@ -40,12 +40,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 const rateLimit = require('express-rate-limit');
 const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
 const cleanupRateLimit = rateLimit({ windowMs: 60_000, limit: 5 });
+// Einmal beim Start erzeugen — express-rate-limit verbietet das Anlegen im
+// Request-Handler (ERR_ERL_CREATED_IN_REQUEST_HANDLER)
+const mutatingRateLimit = rateLimit({ windowMs: 60_000, limit: 200 });
 
 const app = express();
+// Hinter dem HA-Ingress-Reverse-Proxy (genau ein Hop) — sonst warnt
+// express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  return rateLimit({ windowMs: 60_000, limit: 200 })(req, res, next);
+  return mutatingRateLimit(req, res, next);
 });
 app.use((req, res, next) => {
   if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
@@ -489,8 +495,37 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: msgs.length, sent, received, photos, first });
 });
 
+// Initial nur die neuesten N senden (große Chats nicht komplett rendern);
+// ältere lädt das Frontend per ?before nach, Sprung-Fenster per ?around
+const INITIAL_MSG_LIMIT = 60;
 app.get('/api/messages/:chatId', (req, res) => {
-  res.json(messagesByChatId.get(req.params.chatId) || []);
+  const all = messagesByChatId.get(req.params.chatId) || [];
+  const limit = Math.min(Math.max(parseInt(req.query.limit || INITIAL_MSG_LIMIT, 10) || INITIAL_MSG_LIMIT, 1), 200);
+  if (req.query.before) {
+    const beforeTs = Number(req.query.before);
+    return res.json(all.filter(m => Number(m.timestamp) < beforeTs).slice(-limit));
+  }
+  if (req.query.around) {
+    const aroundTs = Number(req.query.around);
+    const half = Math.floor(limit / 2);
+    let idx = all.findIndex(m => Number(m.timestamp) >= aroundTs);
+    if (idx === -1) idx = all.length - 1;
+    return res.json(all.slice(Math.max(0, idx - half), Math.min(all.length, idx + half + 1)));
+  }
+  res.json(all.slice(-limit));
+});
+
+// Volltextsuche über den gesamten gecachten Verlauf (neueste zuerst)
+app.get('/api/search/:chatId', (req, res) => {
+  const q = (req.query.q || '').toString().trim().toLowerCase();
+  if (!q) return res.json([]);
+  const all = messagesByChatId.get(req.params.chatId) || [];
+  const out = [];
+  for (let i = all.length - 1; i >= 0 && out.length < 300; i--) {
+    const m = all[i];
+    if (m.body && m.body.toLowerCase().includes(q)) out.push({ id: m.id, timestamp: m.timestamp });
+  }
+  res.json(out);
 });
 
 app.get('/api/last-received', (req, res) => {
@@ -570,6 +605,8 @@ app.get('/api/media/:filename', (req, res) => {
   const ext = filename.split('.').pop().toLowerCase();
   const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', ogg: 'audio/ogg', aac: 'audio/aac', mp3: 'audio/mpeg' };
   res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+  // Dateiname leitet sich aus der stabilen Message-ID ab → Inhalt ändert sich nie
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   fs.createReadStream(filepath).pipe(res);
 });
 
@@ -610,16 +647,24 @@ app.get('/api/logs', (req, res) => {
   res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
 });
 
+// Rekursiver Sync-Scan über /config — kurz cachen, damit der Event-Loop nicht blockiert
+let _storageCache = null;
+const STORAGE_CACHE_MS = 15000;
 app.get('/api/storage', (req, res) => {
+  if (_storageCache && Date.now() - _storageCache.ts < STORAGE_CACHE_MS) {
+    return res.json(_storageCache.data);
+  }
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
   const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
+  const data = {
     bytes, mb: (bytes / 1024 / 1024).toFixed(1),
     mediaMb: mediaMb.toFixed(1),
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  };
+  _storageCache = { ts: Date.now(), data };
+  res.json(data);
 });
 
 app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
@@ -1320,7 +1365,12 @@ const LANG = {
 const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
 let lang = localStorage.getItem('signal_lang') || _browserLang;
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
-let _msgSearchMatches = [], _msgSearchIdx = -1;
+// _msgSearchMatches: serverseitige Treffer [{id, timestamp}] (neueste zuerst)
+let _msgSearchMatches = [], _msgSearchIdx = -1, _msgSearchQuery = '', _searchTimer = null;
+// Pagination: aktuell geladene Nachrichten je Chat; ältere werden beim
+// Hochscrollen nachgeladen. _historyMode pausiert den Live-Poll beim Treffer-Sprung.
+const _view = {}, _oldestTs = {}, _noMoreOlder = {}, _historyMode = {};
+let _loadingOlder = false;
 function toggleMsgSearch() {
   const bar = document.getElementById('msg-search-bar');
   if (!bar) return;
@@ -1339,9 +1389,20 @@ function closeMsgSearch() {
   if (btn) btn.classList.remove('active');
   const inp = document.getElementById('msg-search-input');
   if (inp) inp.value = '';
+  clearTimeout(_searchTimer);
   clearMsgHighlights();
-  _msgSearchMatches = []; _msgSearchIdx = -1;
+  _msgSearchMatches = []; _msgSearchIdx = -1; _msgSearchQuery = '';
   updateMsgSearchCount();
+  exitHistoryMode(); // zurück in den Live-Modus, falls ein altes Verlauf-Fenster offen war
+}
+function exitHistoryMode() {
+  const cid = selectedChatId;
+  if (cid && _historyMode[cid]) {
+    _historyMode[cid] = false;
+    _view[cid] = null; _oldestTs[cid] = null; _noMoreOlder[cid] = false;
+    _lastMsgFingerprint[cid] = '';
+    loadMessages(cid, true);
+  }
 }
 function clearMsgHighlights() {
   document.querySelectorAll('#messages .msg-highlight, #messages .msg-highlight-active').forEach(function(el) {
@@ -1354,18 +1415,25 @@ function updateMsgSearchCount() {
   if (!el) return;
   el.textContent = _msgSearchMatches.length === 0 ? '' : (_msgSearchIdx + 1) + ' / ' + _msgSearchMatches.length;
 }
+// Serverseitige Suche über den gesamten Verlauf (debounced)
 function onMsgSearchInput() {
-  clearMsgHighlights();
-  _msgSearchMatches = []; _msgSearchIdx = -1;
   const inp = document.getElementById('msg-search-input');
   if (!inp) return;
   const q = inp.value.trim();
-  if (!q) { updateMsgSearchCount(); return; }
-  const qLow = q.toLowerCase();
-  document.querySelectorAll('#messages .bubble').forEach(function(bubble) { highlightInNode(bubble, qLow, q); });
-  _msgSearchMatches = Array.from(document.querySelectorAll('#messages .msg-highlight'));
-  if (_msgSearchMatches.length > 0) { _msgSearchIdx = 0; activateMsgSearchMatch(0); }
-  updateMsgSearchCount();
+  _msgSearchQuery = q;
+  clearTimeout(_searchTimer);
+  clearMsgHighlights();
+  if (!q) { _msgSearchMatches = []; _msgSearchIdx = -1; updateMsgSearchCount(); return; }
+  _searchTimer = setTimeout(async function() {
+    if (!selectedChatId) return;
+    try {
+      const results = await fetch(api('/api/search/' + encodeURIComponent(selectedChatId) + '?q=' + encodeURIComponent(q))).then(r => r.json());
+      _msgSearchMatches = Array.isArray(results) ? results : [];
+      _msgSearchIdx = _msgSearchMatches.length ? 0 : -1;
+      updateMsgSearchCount();
+      if (_msgSearchMatches.length) jumpToResult(0);
+    } catch(e) {}
+  }, 250);
 }
 function highlightInNode(node, qLow, q) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -1387,19 +1455,38 @@ function highlightInNode(node, qLow, q) {
     Array.from(node.childNodes).forEach(function(child) { highlightInNode(child, qLow, q); });
   }
 }
-function activateMsgSearchMatch(idx) {
-  if (_msgSearchMatches.length === 0) return;
-  _msgSearchMatches.forEach(function(el) { el.className = 'msg-highlight'; });
-  const el = _msgSearchMatches[idx];
-  if (!el) return;
-  el.className = 'msg-highlight-active';
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// Zu einem Treffer springen: geladen → markieren+scrollen, sonst Verlauf-Fenster laden
+async function jumpToResult(idx) {
+  const r = _msgSearchMatches[idx];
+  if (!r || !selectedChatId) return;
+  clearMsgHighlights();
+  let row = document.querySelector('.bubble-row[data-msgid="' + r.id + '"]');
+  if (!row) {
+    try {
+      const win = await fetch(api('/api/messages/' + encodeURIComponent(selectedChatId) + '?around=' + r.timestamp + '&limit=60')).then(r => r.json());
+      if (Array.isArray(win) && win.length) {
+        _view[selectedChatId] = win;
+        _oldestTs[selectedChatId] = win[0].timestamp;
+        _noMoreOlder[selectedChatId] = false;
+        _historyMode[selectedChatId] = true;
+        renderMessages(win);
+        row = document.querySelector('.bubble-row[data-msgid="' + r.id + '"]');
+      }
+    } catch(e) {}
+  }
+  if (row) {
+    const bubble = row.querySelector('.bubble');
+    if (bubble && _msgSearchQuery) highlightInNode(bubble, _msgSearchQuery.toLowerCase(), _msgSearchQuery);
+    const mark = row.querySelector('.msg-highlight');
+    if (mark) mark.className = 'msg-highlight-active';
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 function stepMsgSearch(dir) {
   if (_msgSearchMatches.length === 0) return;
   _msgSearchIdx = (_msgSearchIdx + dir + _msgSearchMatches.length) % _msgSearchMatches.length;
-  activateMsgSearchMatch(_msgSearchIdx);
   updateMsgSearchCount();
+  jumpToResult(_msgSearchIdx);
 }
 
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
@@ -1542,14 +1629,21 @@ async function refresh() {
   }
 }
 
-setInterval(refresh, 3000);
+// Im Hintergrund (Tab versteckt) nicht weiterpollen — spart Last/Requests
+setInterval(() => { if (!document.hidden) refresh(); }, 3000);
 if (!navigator.onLine) showOfflineBanner();
 refresh();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refresh();
+  if (document.visibilityState !== 'visible') return;
+  refresh();
+  if (currentStatus === 'linked') loadChats(); // sofort nachziehen beim Zurückkehren
 });
 window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
 window.addEventListener('offline', () => showOfflineBanner());
+// Hochscrollen → ältere Nachrichten nachladen
+document.getElementById('messages').addEventListener('scroll', function() {
+  if (this.scrollTop < 80) loadOlder();
+}, { passive: true });
 
 // Chat list
 const COLORS = ['#e53935','#8e24aa','#1e88e5','#00897b','#43a047','#fb8c00','#d81b60','#6d4c41'];
@@ -1598,7 +1692,8 @@ async function loadChats() {
     if (selectedChatId) loadMessages(selectedChatId);
   } catch (e) {}
 }
-setInterval(loadChats, 5000);
+// Im Hintergrund pausieren — treibt Liste + offenen Chat
+setInterval(() => { if (!document.hidden) loadChats(); }, 5000);
 
 function setFilter(f) {
   currentFilter = f;
@@ -1673,7 +1768,8 @@ function openChat(chat) {
   }
   renderChats(allChats);
   _lastMsgFingerprint[chat.id] = '';
-  loadMessages(chat.id);
+  _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
+  loadMessages(chat.id, true);
 }
 
 function closeChat() {
@@ -1703,22 +1799,57 @@ function updateAckMarksInPlace(msgs) {
   });
 }
 
-async function loadMessages(chatId) {
+async function loadMessages(chatId, forceRender = false) {
   if (!chatId) return;
+  // Im Verlauf-Modus (Suchtreffer-Sprung) den Live-Poll nicht rendern lassen
+  if (_historyMode[chatId] && !forceRender) return;
   try {
-    const msgs = await fetch(api('/api/messages/' + encodeURIComponent(chatId))).then(r => r.json());
-    const fp = msgFingerprint(msgs);
-    if (_lastMsgFingerprint[chatId] === fp) return;
+    const recent = await fetch(api('/api/messages/' + encodeURIComponent(chatId))).then(r => r.json());
+    if (chatId !== selectedChatId) return; // Chat zwischenzeitlich gewechselt
+    const fp = msgFingerprint(recent);
+    if (!forceRender && _lastMsgFingerprint[chatId] === fp) return;
     const prev = _lastMsgFingerprint[chatId] || '';
     _lastMsgFingerprint[chatId] = fp;
     // Nur ACK geändert? In-Place-Update statt Full-Re-Render
-    if (prev && fp.slice(0, fp.lastIndexOf(':')) === prev.slice(0, prev.lastIndexOf(':'))) {
-      updateAckMarksInPlace(msgs);
+    if (!forceRender && prev && fp.slice(0, fp.lastIndexOf(':')) === prev.slice(0, prev.lastIndexOf(':'))) {
+      updateAckMarksInPlace(recent);
       return;
     }
-    renderMessages(msgs);
+    // Bereits per Hochscrollen geladene ältere Nachrichten erhalten, nur den
+    // neuesten Teil auffrischen
+    let view = _view[chatId];
+    if (view && view.length && recent.length) {
+      const cut = Number(recent[0].timestamp);
+      view = view.filter(m => Number(m.timestamp) < cut).concat(recent);
+    } else {
+      view = recent;
+    }
+    _view[chatId] = view;
+    _oldestTs[chatId] = view.length ? view[0].timestamp : null;
+    renderMessages(view);
     updateChatStats(chatId);
   } catch (e) {}
+}
+
+// Ältere Nachrichten beim Hochscrollen aus dem Cache nachladen und vorne anfügen
+async function loadOlder() {
+  const chatId = selectedChatId;
+  if (!chatId || _loadingOlder || _noMoreOlder[chatId]) return;
+  const view = _view[chatId];
+  if (!view || !view.length) return;
+  _loadingOlder = true;
+  try {
+    const before = view[0].timestamp;
+    const older = await fetch(api('/api/messages/' + encodeURIComponent(chatId) + '?before=' + before + '&limit=60')).then(r => r.json());
+    if (!Array.isArray(older) || !older.length) { _noMoreOlder[chatId] = true; return; }
+    const have = new Set(_view[chatId].map(m => m.id));
+    const add = older.filter(m => !have.has(m.id));
+    if (!add.length) { _noMoreOlder[chatId] = true; return; }
+    _view[chatId] = add.concat(_view[chatId]);
+    _oldestTs[chatId] = _view[chatId][0].timestamp;
+    if (older.length < 60) _noMoreOlder[chatId] = true;
+    renderMessages(_view[chatId], { preserveScroll: true });
+  } catch(e) {} finally { _loadingOlder = false; }
 }
 
 async function updateChatStats(chatId) {
@@ -1732,9 +1863,11 @@ async function updateChatStats(chatId) {
   } catch(e) {}
 }
 
-function renderMessages(msgs) {
+function renderMessages(msgs, opts) {
   const el = document.getElementById('messages');
   if (!msgs.length) { el.innerHTML = '<div id="no-chat">' + t('noMessages') + '</div>'; return; }
+  const preserve = opts && opts.preserveScroll; // beim Vorne-Anfügen (Hochscrollen) Position halten
+  const _prevH = el.scrollHeight, _prevT = el.scrollTop;
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   let lastDate = '';
   el.innerHTML = msgs.map(m => {
@@ -1782,7 +1915,8 @@ function renderMessages(msgs) {
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
     return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
-  if (atBottom) el.scrollTop = el.scrollHeight;
+  if (preserve) el.scrollTop = _prevT + (el.scrollHeight - _prevH);
+  else if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;

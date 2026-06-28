@@ -395,6 +395,24 @@
           <p class="hint">{{ t.tips_import_hint }}</p>
         </div>
       </div>
+      <div class="panel acc" data-key="freetext">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.freetext_section }}</div>
+        <p class="hint">{{ t.freetext_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.freetext_title_label }} (DE)</label><input type="text" id="ft-title_de" placeholder="{{ t.freetext_title_ph }}"></div>
+          <div><label>{{ t.freetext_title_label }} (EN)</label><input type="text" id="ft-title_en" placeholder="{{ t.freetext_title_ph }}"></div>
+        </div>
+        <div>
+          <label for="ft-content_de">{{ t.freetext_content_label }} (DE)</label>
+          <textarea id="ft-content_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
+          <button type="button" class="btn secondary small" onclick="ftInsertImage('ft-content_de')">🖼️ {{ t.freetext_upload }}</button>
+        </div>
+        <div>
+          <label for="ft-content_en">{{ t.freetext_content_label }} (EN)</label>
+          <textarea id="ft-content_en" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
+          <button type="button" class="btn secondary small" onclick="ftInsertImage('ft-content_en')">🖼️ {{ t.freetext_upload }}</button>
+        </div>
+      </div>
       <div class="panel acc" data-key="blog">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></div>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
@@ -1774,6 +1792,11 @@
       if (url.trim()) { mdInsertImage(ta, url.trim()); }
       else { pickUpload(u => mdInsertImage(ta, u)); }   // leer → hochladen
     }
+    // Freitext-Panel: direkt hochladen und als Markdown-Bild an Cursorposition einfügen
+    function ftInsertImage(id) {
+      const ta = el(id);
+      if (ta) pickUpload(u => mdInsertImage(ta, u));
+    }
     function mdTable(ta) {
       const h = T.md_tbl_head, c = T.md_tbl_cell;
       mdReplaceSel(ta, '\n\n| ' + h + ' 1 | ' + h + ' 2 |\n| --- | --- |\n| ' + c + ' | ' + c + ' |\n| ' + c + ' | ' + c + ' |\n\n');
@@ -1888,7 +1911,7 @@
     }
     function initMdEditors() {
       ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en',
-       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en'].forEach(id => attachMd(el(id)));
+       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en', 'ft-content_de', 'ft-content_en'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -2396,6 +2419,11 @@
       el('cd-expired_en').value = CD.expired_en || '';
       el('cd-image').value = CD.image || '';
       el('cd-notify').checked = !!CD.notify;
+      const FT = s.freetext || {};
+      el('ft-title_de').value = FT.title_de || '';
+      el('ft-title_en').value = FT.title_en || '';
+      el('ft-content_de').value = FT.content_de || '';
+      el('ft-content_en').value = FT.content_en || '';
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
@@ -2864,8 +2892,14 @@
         image:       el('cd-image').value,
         notify:      el('cd-notify').checked,
       };
+      const freetext = {
+        title_de:   el('ft-title_de').value,
+        title_en:   el('ft-title_en').value,
+        content_de: el('ft-content_de').value,
+        content_en: el('ft-content_en').value,
+      };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown,
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown, freetext,
           timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);

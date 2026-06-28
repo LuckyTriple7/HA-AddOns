@@ -49,6 +49,9 @@ const { existsSync, rmSync } = fs;
 
 const rateLimit = require('express-rate-limit');
 const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
+// Einmal beim Start erzeugen — express-rate-limit verbietet das Anlegen im
+// Request-Handler (ERR_ERL_CREATED_IN_REQUEST_HANDLER)
+const mutatingRateLimit = rateLimit({ windowMs: 60_000, limit: 200 });
 
 // ── Chromium detection ────────────────────────────────────────────────────────
 
@@ -74,10 +77,13 @@ console.log(`[INFO] Using Chromium: ${CHROMIUM}`);
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const app = express();
+// Hinter dem HA-Ingress-Reverse-Proxy (genau ein Hop) — sonst warnt
+// express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  return rateLimit({ windowMs: 60_000, limit: 200 })(req, res, next);
+  return mutatingRateLimit(req, res, next);
 });
 app.use((req, res, next) => {
   if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
@@ -294,6 +300,7 @@ async function downloadWAMedia(msg, msgId) {
       if (media?.data) {
         fs.writeFileSync(filePath, Buffer.from(media.data, 'base64'));
         _logSilent('DEBUG', `downloadWAMedia: ok ${safeId}.${ext} ${(Buffer.from(media.data,'base64').length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
+        enforceMediaLimitThrottled(); // Speicherlimit auch beim Foto-/Auto-Download wahren
       } else {
         _logSilent('WARN', `downloadWAMedia: no data for ${safeId}.${ext}`);
       }
@@ -855,13 +862,18 @@ app.get('/api/messages', (req, res) => {
 });
 
 app.post('/api/send', async (req, res) => {
-  const { to, message } = req.body;
+  const { to, message, mentions, displayBody } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'to and message required' });
   if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
   try {
     const jid = formatNumber(to);
     dbg(`Sending message to ${jid}: "${message.slice(0,60)}${message.length>60?'…':''}"`);
-    const result = await client.sendMessage(jid, message);
+    // Erwähnungen: Body enthält @<nummer>, mentions = Liste der JIDs
+    const opts = {};
+    if (Array.isArray(mentions) && mentions.length) {
+      opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
+    }
+    const result = await client.sendMessage(jid, message, opts);
     result.__logged = true;
     const targetChatId = jid;
     if (!chatMap.has(targetChatId)) {
@@ -869,7 +881,7 @@ app.post('/api/send', async (req, res) => {
     }
     addMsg(targetChatId, {
       id: result.id._serialized,
-      body: message,
+      body: message, // enthält @<nummer>; das Frontend löst zu @Name auf (wie bei eingehenden)
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
@@ -878,6 +890,32 @@ app.post('/api/send', async (req, res) => {
     res.json({ success: true, id: result.id._serialized });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Gruppenmitglieder (für @-Erwähnungen) — JID, Nummer und Anzeigename
+app.get('/api/participants/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (!chatId.endsWith('@g.us')) return res.json([]);
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const chat = await client.getChatById(chatId);
+    const parts = (chat && chat.participants) || [];
+    const myUser = (connectedPhone || '').replace(/:\d+$/, '');
+    const out = [];
+    for (const p of parts) {
+      const jid = p.id?._serialized;
+      const number = p.id?.user;
+      if (!jid || !number || number === myUser) continue; // sich selbst nicht erwähnen
+      let name = number;
+      const c = await client.getContactById(jid).catch(() => null);
+      if (c) name = c.name || c.pushname || c.verifiedName || c.shortName || number;
+      out.push({ jid, number, name });
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -999,7 +1037,8 @@ app.get('/api/media/:filename', (req, res) => {
   const ext = filename.split('.').pop();
   const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'image/jpeg';
   res.setHeader('Content-Type', mime);
-  res.setHeader('Cache-Control', 'max-age=86400');
+  // Dateiname leitet sich aus der stabilen Message-ID ab → Inhalt ändert sich nie
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   res.sendFile(filePath);
 });
 
@@ -1013,6 +1052,16 @@ function getDirSize(dir) {
     }
   } catch (e) {}
   return total;
+}
+
+// Gedrosselt: höchstens alle 30 s das ganze Media-Verzeichnis scannen, damit
+// häufige Downloads den Event-Loop nicht belasten.
+let _lastMediaEnforce = 0;
+function enforceMediaLimitThrottled() {
+  const now = Date.now();
+  if (now - _lastMediaEnforce < 30000) return;
+  _lastMediaEnforce = now;
+  try { enforceMediaLimit(); } catch (e) { console.error('[ERROR] enforceMediaLimit:', e.message); }
 }
 
 function enforceMediaLimit() {
@@ -1034,16 +1083,25 @@ function enforceMediaLimit() {
   }
 }
 
+// Speicher-Scan ist ein rekursiver Sync-Walk über /config — kurz cachen, damit
+// häufige Aufrufe den Event-Loop nicht blockieren.
+let _storageCache = null;
+const STORAGE_CACHE_MS = 15000;
 app.get('/api/storage', (req, res) => {
+  if (_storageCache && Date.now() - _storageCache.ts < STORAGE_CACHE_MS) {
+    return res.json(_storageCache.data);
+  }
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
   const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
+  const data = {
     bytes, mb: (bytes / 1024 / 1024).toFixed(1),
     mediaMb: mediaMb.toFixed(1),
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  };
+  _storageCache = { ts: Date.now(), data };
+  res.json(data);
 });
 
 app.get('/api/logs', (req, res) => {
@@ -1271,17 +1329,21 @@ app.post('/api/send-location', async (req, res) => {
 });
 
 app.post('/api/reply', async (req, res) => {
-  const { quotedMsgId, chatId, message } = req.body;
+  const { quotedMsgId, chatId, message, mentions, displayBody } = req.body;
   if (!quotedMsgId || !chatId || !message) return res.status(400).json({ error: 'quotedMsgId, chatId and message required' });
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   try {
     const qMsg = await client.getMessageById(quotedMsgId);
     if (!qMsg) throw new Error('Quoted message not found');
-    const result = await qMsg.reply(message);
+    const opts = {};
+    if (Array.isArray(mentions) && mentions.length) {
+      opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
+    }
+    const result = await qMsg.reply(message, undefined, opts);
     result.__logged = true;
     addMsg(chatId, {
       id: result.id._serialized,
-      body: message,
+      body: message, // @<nummer>; Frontend löst zu @Name auf
       timestamp: Date.now(),
       fromMe: true,
       contact: 'Ich',
@@ -1820,6 +1882,17 @@ app.get('/', (req, res) => {
     .overlay h2 { font-size: 20px; }
     #qr-overlay img { background: #fff; padding: 16px; border-radius: 12px; max-width: 280px; }
 
+    #mention-dropdown { position: fixed; z-index: 200; background: #233138; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; max-height: 240px; overflow-y: auto; box-shadow: 0 6px 20px rgba(0,0,0,0.45); padding: 4px 0; }
+    .mention-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; font-size: 14px; color: #e9edef; }
+    .mention-item.active, .mention-item:hover { background: #2a3942; }
+    .mention-av { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #fff; background: #5b6b7a; flex-shrink: 0; }
+    .mention-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mention-ref { color: #53bdeb; font-weight: 500; }
+    html.light .mention-ref { color: #1f7aad; }
+    html.light #mention-dropdown { background: #fff; border-color: #ddd; }
+    html.light .mention-item { color: #111; }
+    html.light .mention-item.active, html.light .mention-item:hover { background: #f0f2f5; }
+
     html.light body { background: #f0f2f5; color: #111; }
     html.light .overlay { background: #f0f2f5; }
     html.light .overlay p { color: #555; }
@@ -1969,8 +2042,8 @@ app.get('/', (req, res) => {
           <button id="location-btn" onclick="openLocationModal()" data-i18n-title="btnLocation" title="Standort senden">${_SVG.pin}</button>
         </div>
         <textarea id="msg-input" rows="1" data-i18n-pl="msgInput" placeholder="Nachricht…"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"
-          oninput="autoResize(this)"></textarea>
+          onkeydown="onMsgInputKeydown(event)"
+          oninput="autoResize(this);onMentionInput(this)"></textarea>
         <button onclick="sendMsg()" data-i18n-title="btnSend" title="Senden">➤</button>
       </div>
     </div>
@@ -2346,6 +2419,12 @@ app.get('/', (req, res) => {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/\\n/g,'<br>');
     }
+    function mentionName(num) {
+      const list = _mentionParticipants[selectedChatId] || [];
+      const p = list.find(x => x.number === num);
+      if (p && p.name && p.name !== num) return p.name;
+      return '+' + num; // kein Name bekannt → wenigstens mit + formatieren
+    }
     function formatText(s) {
       let html = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\n/g,'<br>');
       html = html.replace(/((https?:\\/\\/|www\\.)[^\\s<>"&]+)/gi, function(m) {
@@ -2353,6 +2432,11 @@ app.get('/', (req, res) => {
         const trail = m.slice(url.length);
         const href = url.startsWith('www.') ? 'https://' + url : url;
         return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;text-decoration:underline;">' + url + '</a>' + trail;
+      });
+      // Erwähnungen: @<nummer> → @Name (deckt eingehende wie eigene Nachrichten ab);
+      // Lookbehind verhindert Treffer in URLs wie user@12345.com
+      html = html.replace(/(?<!\\w)@(\\d{5,})/g, function(_m, num) {
+        return '<span class="mention-ref">@' + esc(mentionName(num)) + '</span>';
       });
       return html;
     }
@@ -2569,6 +2653,8 @@ app.get('/', (req, res) => {
       msgList.innerHTML = '';
       lastMsgTime[chat.id] = 0;
       atBottom = true;
+      _pendingMentions = []; hideMentionDropdown(); // Erwähnungen vom vorherigen Chat verwerfen
+      if (isGroupChat(chat.id)) ensureParticipants(chat.id); // Namen für @-Auflösung vorladen
       document.getElementById('ch-stats').textContent = '';
       await loadMessages(chat.id);
     }
@@ -2598,8 +2684,14 @@ app.get('/', (req, res) => {
       try {
         const msgs = await fetch('api/messages?chat=' + encodeURIComponent(chatId) + '&since=' + since)
           .then(r => r.json());
-        if (msgs.length) { renderMessages(msgs, chatId); pollReactions(); }
-        updateChatStats(chatId);
+        // Stats nur neu laden, wenn tatsächlich neue Nachrichten kamen
+        if (msgs.length) {
+          renderMessages(msgs, chatId); pollReactions(); updateChatStats(chatId);
+          // Kontaktliste links sofort aktualisieren (Vorschau + Sortierung),
+          // statt bis zum nächsten pollChats-Intervall (10 s) zu warten — gilt für
+          // empfangene wie gesendete Nachrichten im offenen Chat
+          pollChats();
+        }
       } catch(e) {}
     }
 
@@ -3057,12 +3149,12 @@ app.get('/', (req, res) => {
     }
 
     async function pollMessages() {
-      if (currentStatus !== 'connected' || !selectedChatId) return;
+      if (document.hidden || currentStatus !== 'connected' || !selectedChatId) return;
       await loadMessages(selectedChatId);
     }
 
     async function pollChats() {
-      if (currentStatus !== 'connected') return;
+      if (document.hidden || currentStatus !== 'connected') return;
       try {
         const chats = await fetch('api/chats').then(r => r.json());
         chats.forEach(c => {
@@ -3139,18 +3231,118 @@ app.get('/', (req, res) => {
       } catch(e) { alert(t('errNetwork')); }
     }
 
+    // ── @-Erwähnungen in Gruppen ───────────────────────────────────────────────
+    let _mentionParticipants = {}; // chatId -> [{jid, number, name}]
+    let _pendingMentions = [];     // bereits gewählte Erwähnungen [{name, number, jid}]
+    let _mentionFiltered = [], _mentionSelIdx = 0, _mentionStart = -1, _mentionActive = false;
+
+    function isGroupChat(chatId) {
+      const c = allChats.find(x => x.id === chatId);
+      return c ? !!c.isGroup : (chatId || '').endsWith('@g.us');
+    }
+    async function ensureParticipants(chatId) {
+      if (_mentionParticipants[chatId]) return _mentionParticipants[chatId];
+      try {
+        const list = await fetch('api/participants/' + encodeURIComponent(chatId)).then(r => r.json());
+        _mentionParticipants[chatId] = Array.isArray(list) ? list : [];
+      } catch(e) { _mentionParticipants[chatId] = []; }
+      return _mentionParticipants[chatId];
+    }
+    function getMentionDropdown() {
+      let d = document.getElementById('mention-dropdown');
+      if (!d) { d = document.createElement('div'); d.id = 'mention-dropdown'; d.style.display = 'none'; document.body.appendChild(d); }
+      return d;
+    }
+    function hideMentionDropdown() {
+      const d = document.getElementById('mention-dropdown');
+      if (d) d.style.display = 'none';
+      _mentionActive = false; _mentionStart = -1; _mentionFiltered = [];
+    }
+    async function onMentionInput(ta) {
+      if (!selectedChatId || !isGroupChat(selectedChatId)) { hideMentionDropdown(); return; }
+      const pos = ta.selectionStart;
+      const before = ta.value.slice(0, pos);
+      const m = before.match(/(?:^|\\s)@([^\\s@]*)$/);
+      if (!m) { hideMentionDropdown(); return; }
+      _mentionStart = pos - m[1].length - 1;
+      const query = m[1].toLowerCase();
+      const parts = await ensureParticipants(selectedChatId);
+      if (selectedChatId && ta.selectionStart !== pos) return; // Cursor hat sich verschoben
+      _mentionFiltered = parts.filter(p => (p.name||'').toLowerCase().includes(query) || (p.number||'').includes(query)).slice(0, 8);
+      if (!_mentionFiltered.length) { hideMentionDropdown(); return; }
+      _mentionSelIdx = 0;
+      renderMentionDropdown();
+    }
+    function renderMentionDropdown() {
+      const d = getMentionDropdown();
+      d.innerHTML = _mentionFiltered.map((p, i) =>
+        '<div class="mention-item' + (i === _mentionSelIdx ? ' active' : '') + '" data-i="' + i + '">' +
+        '<span class="mention-av">' + esc((p.name || p.number || '?').charAt(0).toUpperCase()) + '</span>' +
+        '<span class="mention-name">' + esc(p.name || p.number) + '</span></div>').join('');
+      d.querySelectorAll('.mention-item').forEach(el => {
+        el.addEventListener('mousedown', ev => { ev.preventDefault(); pickMention(parseInt(el.dataset.i, 10)); });
+      });
+      const bar = document.getElementById('send-bar').getBoundingClientRect();
+      d.style.display = 'block';
+      d.style.left = bar.left + 'px';
+      d.style.width = bar.width + 'px';
+      d.style.bottom = (window.innerHeight - bar.top + 4) + 'px';
+      _mentionActive = true;
+    }
+    function pickMention(i) {
+      const ta = document.getElementById('msg-input');
+      const p = _mentionFiltered[i];
+      if (!p || _mentionStart < 0) return;
+      const pos = ta.selectionStart;
+      const beforeTxt = ta.value.slice(0, _mentionStart);
+      const afterTxt = ta.value.slice(pos);
+      const token = '@' + (p.name || p.number);
+      ta.value = beforeTxt + token + ' ' + afterTxt;
+      const newPos = (beforeTxt + token + ' ').length;
+      ta.setSelectionRange(newPos, newPos);
+      if (!_pendingMentions.some(x => x.jid === p.jid)) _pendingMentions.push({ name: p.name || p.number, number: p.number, jid: p.jid });
+      hideMentionDropdown();
+      autoResize(ta);
+      ta.focus();
+    }
+    function onMsgInputKeydown(event) {
+      if (_mentionActive && _mentionFiltered.length) {
+        if (event.key === 'ArrowDown') { event.preventDefault(); _mentionSelIdx = (_mentionSelIdx + 1) % _mentionFiltered.length; renderMentionDropdown(); return; }
+        if (event.key === 'ArrowUp')   { event.preventDefault(); _mentionSelIdx = (_mentionSelIdx - 1 + _mentionFiltered.length) % _mentionFiltered.length; renderMentionDropdown(); return; }
+        if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); pickMention(_mentionSelIdx); return; }
+        if (event.key === 'Escape') { event.preventDefault(); hideMentionDropdown(); return; }
+      }
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMsg(); }
+    }
+    // Ersetzt sichtbare @Name-Tokens durch @<nummer> und sammelt die JIDs
+    function buildMentions(text) {
+      const out = { text, mentions: [] };
+      const sorted = [..._pendingMentions].sort((a, b) => (b.name||'').length - (a.name||'').length);
+      for (const mn of sorted) {
+        const token = '@' + mn.name;
+        if (out.text.includes(token)) {
+          out.text = out.text.split(token).join('@' + mn.number);
+          if (!out.mentions.includes(mn.jid)) out.mentions.push(mn.jid);
+        }
+      }
+      return out;
+    }
+
     async function sendMsg() {
       if (!selectedChatId) return;
       if (_attachFile) { await sendFile(); return; }
       const txt = document.getElementById('msg-input').value.trim();
       if (!txt) return;
+      hideMentionDropdown();
       const quotedMsgId = _replyMsgId;
       clearReply();
+      const built = buildMentions(txt);
+      _pendingMentions = [];
       try {
         const endpoint = quotedMsgId ? 'api/reply' : 'api/send';
         const payload = quotedMsgId
-          ? { quotedMsgId, chatId: selectedChatId, message: txt }
-          : { to: selectedChatId, message: txt };
+          ? { quotedMsgId, chatId: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt }
+          : { to: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt };
         const r = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3280,10 +3472,17 @@ app.get('/', (req, res) => {
     applyLang();
     if (!navigator.onLine) showOfflineBanner();
     refresh();
-    setInterval(refresh, 5000);
+    // Intervalle pausieren, wenn der Tab im Hintergrund ist (spart Last/Requests);
+    // visibilitychange unten aktualisiert sofort beim Zurückkehren
+    setInterval(() => { if (!document.hidden) refresh(); }, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
     setInterval(pollReactions, 5000);
+
+    // Mentions-Dropdown schließen, wenn außerhalb geklickt wird
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#mention-dropdown') && e.target.id !== 'msg-input') hideMentionDropdown();
+    });
 
     // Tab wird wieder sichtbar (Laptop aufgeklappt, Tab-Wechsel) → sofort aktualisieren
     document.addEventListener('visibilitychange', () => {
@@ -3394,7 +3593,7 @@ app.get('/', (req, res) => {
     }
 
     async function pollReactions() {
-      if (!selectedChatId) return;
+      if (document.hidden || !selectedChatId) return;
       try {
         const data = await fetch('api/reactions/' + encodeURIComponent(selectedChatId)).then(r => r.json());
         updateReactionsInDOM(data);

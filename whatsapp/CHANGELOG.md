@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.7.24] - 2026-06-27
+- Erwähnungen werden jetzt **als Name angezeigt** statt als Nummer — `@<nummer>` wird beim Rendern zu `@Name` aufgelöst und blau hervorgehoben, sowohl bei **eigenen gesendeten** als auch bei **eingehenden** Nachrichten. Gruppenmitglieder werden beim Öffnen des Chats vorgeladen; ist für eine Nummer kein Name bekannt, wird sie als `@+<nummer>` formatiert
+- Erwähnungen funktionieren jetzt auch beim **Antworten** (Reply), nicht nur beim normalen Senden
+- Namensauflösung der Gruppenmitglieder verbessert (zusätzlich `verifiedName`/`shortName`)
+
+## [1.7.23] - 2026-06-27
+- Neu: **@-Erwähnungen in Gruppen** — tippst du `@` in einem Gruppenchat, öffnet sich eine Mitglieder-Auswahl (Filtern beim Weitertippen, ▲▼/Enter/Tab zur Auswahl). Die gesendete Nachricht enthält eine echte Erwähnung, der Erwähnte wird benachrichtigt wie bei der App. Neuer Endpoint `/api/participants/:chatId`; `/api/send` akzeptiert jetzt `mentions`
+
+## [1.7.22] - 2026-06-26
+- Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
+
+## [1.7.21] - 2026-06-26
+- Fix: Die Kontaktliste links aktualisiert Vorschau und Sortierung jetzt sofort, wenn im offenen Chat eine Nachricht ankommt oder gesendet wird — vorher hinkte sie bis zu 10 s hinterher (Chat-View pollt alle 2 s, Liste nur alle 10 s). `loadMessages` stößt bei neuen Nachrichten direkt ein `pollChats()` an
+
+## [1.7.20] - 2026-06-26
+- Performance: Polling pausiert jetzt, wenn der Browser-Tab im Hintergrund ist (`document.hidden`) — Nachrichten (2 s), Reaktionen (5 s), Chats (10 s) und Status (5 s) laufen nicht mehr 24/7 weiter; beim Zurückkehren wird sofort aktualisiert (`visibilitychange`)
+- Performance: `/api/stats` wird nur noch abgefragt, wenn tatsächlich neue Nachrichten ankamen (vorher bei jedem Message-Poll alle 2 s)
+- Performance: `/api/storage` cacht das Ergebnis 15 s — der rekursive Verzeichnis-Scan blockiert den Event-Loop nicht mehr bei häufigen Aufrufen
+- Fix: `media_max_mb`-Limit greift jetzt auch beim automatischen Foto-/Medien-Download (gedrosselt alle 30 s), nicht mehr nur bei Video-Downloads
+- Watchdog: Supervisor startet das Add-on bei nicht erreichbarem Port automatisch neu (`watchdog: tcp://[HOST]:[PORT:17776]`)
+- Media-Responses mit `Cache-Control: immutable` (Dateiname ist über die stabile Message-ID eindeutig)
+
 ## [1.7.19] - 2026-06-26
 - Fix: Weitergeleitete Bilder erscheinen jetzt zuverlässig als Bild statt „Foto"-Platzhalter. Ursache: das `message`-Objekt direkt nach dem Weiterleiten ist „stale" und liefert dauerhaft keine Mediendaten (erst nach Neustart sichtbar). Jetzt wird das Medium im Hintergrund über bis zu ~45 s mit einem **frisch via `getMessageById` geholten** Objekt nachgeladen; die Bubble tauscht den Platzhalter ohne Neustart in-place gegen das Bild (`mediaUpdatedAt` im `since`-Filter). Gilt für gesendete (weitergeleitete) und empfangene Fotos; nur bei `download_media: true`
 

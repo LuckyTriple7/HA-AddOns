@@ -1,0 +1,61 @@
+configuration:
+  username:
+    name: Username
+    description: Username for the web interface (only relevant for direct access on port 17794 — behind HA Ingress, HA handles authentication).
+  password:
+    name: Password
+    description: Password for the web interface (only relevant for direct access on port 17794). Please change it!
+  session_hours:
+    name: Session duration (hours)
+    description: How many hours a login session stays valid. Default 24.
+  poll_interval:
+    name: Check interval (seconds)
+    description: "Delay between two automatic price checks. Travel prices change slowly — default 21600 (6 hours), minimum 600 (10 minutes). Please keep it fair, not every minute."
+  ha_sensors:
+    name: Home Assistant sensors
+    description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unavailable' on error; trip details are in the 'description' attribute. Default on."
+  notify_ha:
+    name: HA notifications
+    description: "Show a persistent Home Assistant notification on price change or when a target price is reached. Default on."
+  notify_price_change:
+    name: Notify on every price change
+    description: "Notify whenever a price changes (up/down). Target-price notifications are always sent regardless. Default on."
+  notify_cheaper_date:
+    name: Cheaper-date alert
+    description: "Notify when the price calendar shows another departure date (also outside your range) that is clearly cheaper than your tracked price. Default on."
+  cheaper_date_min_diff:
+    name: Minimum saving for date alert (€)
+    description: "Minimum saving per person before the cheaper-date alert triggers. Default 50 €."
+  notify_errors:
+    name: Sold-out / error alert
+    description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."
+  telegram_bot_token:
+    name: Telegram bot token
+    description: "Token of a Telegram bot (format 123456789:ABC-...) to receive notifications via Telegram. Leave empty to disable Telegram. Create a bot via @BotFather."
+  telegram_chat_id:
+    name: Telegram chat ID
+    description: "Chat ID of the recipient for Telegram messages. Find it via @userinfobot or by sending /start to the bot."
+  smtp_host:
+    name: SMTP server
+    description: "Mail server for sending the offers e-mail (e.g. smtp.gmail.com). Leave empty to disable e-mail."
+  smtp_port:
+    name: SMTP port
+    description: "Mail server port. 587 for STARTTLS (default), 465 for SSL."
+  smtp_user:
+    name: SMTP user
+    description: "Username/login for the mail server (often the e-mail address)."
+  smtp_password:
+    name: SMTP password
+    description: "Password or app password for the mail server."
+  smtp_from:
+    name: Sender address
+    description: "Visible sender address. Empty = the SMTP user is used."
+  smtp_to:
+    name: Default recipient
+    description: "Pre-filled recipient for the offers e-mail (can be changed in the UI before sending)."
+  smtp_tls:
+    name: Use STARTTLS
+    description: "On = STARTTLS (port 587). Off = direct SSL/TLS (port 465)."
+  verbose_log:
+    name: Verbose logging
+    description: Logs more detail per check. Default off — only errors and important events are logged.

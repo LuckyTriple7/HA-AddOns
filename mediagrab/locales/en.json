@@ -66,6 +66,8 @@
   "btn_download_file": "Download",
   "btn_share": "Share",
   "share_not_available": "Sharing not available",
+  "share_ready": "File ready — tap share again",
+  "share_type_unsupported": "This file type can't be shared directly — please use Download",
   "confirm_delete": "Really delete \"{name}\"?",
   "lbl_search": "Search...",
   "sort_date": "Date",

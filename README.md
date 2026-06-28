@@ -40,6 +40,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | MediaGrab | ✅ | ✅ | Alpine |
 | GitPulse | ✅ | ✅ | Alpine |
 | MyPage | ✅ | ✅ | Alpine |
+| TUIWatch | ✅ | ✅ | Debian 12 |
 
 ## Apps
 
@@ -272,6 +273,18 @@ Homepage-Baukasten direkt in Home Assistant — eigene Webseite ohne Design-Kenn
 
 → [Dokumentation & Changelog](mypage/README.md)
 
+### [TUIWatch](tuiwatch/)
+
+Reisepreis-Tracker für TUI-Pauschalreisen — verfolgt den Preis konkreter Angebote über die Zeit und meldet, wenn er fällt oder steigt. **Nur auf Deutsch verfügbar.**
+
+- Beliebig viele TUI-Angebote per URL verfolgen; Preisverlauf als Diagramm (mit Wunschpreis-Linie)
+- Liest Preis, Flüge, Verpflegung, Sterne & HolidayCheck-Bewertung, Ort und Hotel-PDF direkt aus den TUI-JSON-APIs (Headless-Browser nur als Fallback)
+- Wunschpreis, Pro-Person-Vergleich (1↔2), Preiskalender als Heatmap (klickbar → Termin auf tui.com)
+- Benachrichtigungen (HA + Telegram): Preisänderung, Wunschpreis erreicht, günstigerer Termin, ausverkauft
+- E-Mail-Versand aller Angebote, Backup/Wiederherstellen, CSV-Export, HA-Sensoren, PWA
+
+→ [Dokumentation & Changelog](tuiwatch/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -316,6 +329,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | MediaGrab | ✅ | ✅ | Alpine |
 | GitPulse | ✅ | ✅ | Alpine |
 | MyPage | ✅ | ✅ | Alpine |
+| TUIWatch | ✅ | ✅ | Debian 12 |
 
 ## Apps
 
@@ -547,3 +561,15 @@ Homepage builder directly in Home Assistant — your own website without design 
 - Backup & static export, Home Assistant sensors
 
 → [Documentation & Changelog](mypage/README.md)
+
+### [TUIWatch](tuiwatch/)
+
+Travel price tracker for TUI package holidays — tracks the price of specific offers over time and alerts you when it drops or rises. **German UI only.**
+
+- Track any number of TUI offers by URL; price history chart (with target-price line)
+- Reads price, flights, board, stars & HolidayCheck rating, location and hotel PDF straight from TUI's JSON APIs (headless browser only as fallback)
+- Target price, per-person comparison (1↔2), price calendar as a heatmap (clickable → opens the date on tui.com)
+- Notifications (HA + Telegram): price change, target reached, cheaper date, sold out
+- E-mail dispatch of all offers, backup/restore, CSV export, HA sensors, PWA
+
+→ [Documentation & Changelog](tuiwatch/README.md)

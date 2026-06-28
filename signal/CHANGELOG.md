@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.20] - 2026-06-26
+- Performance: Große Chats öffnen jetzt sofort — der Server sendet initial nur die **neuesten 60** Nachrichten statt der kompletten Liste; ältere werden beim **Hochscrollen** aus dem Cache nachgeladen und vorne angefügt (Scrollposition bleibt erhalten)
+- Suche: Die Nachrichtensuche durchsucht jetzt den **gesamten gecachten Verlauf** serverseitig (neuer Endpoint `/api/search`), nicht mehr nur die geladenen Bubbles. Klick bzw. ▲▼ springt zum Treffer; liegt er außerhalb des Fensters, wird automatisch ein Verlauf-Fenster um ihn geladen und hervorgehoben. Schließen der Suche kehrt zum Live-Modus zurück
+
+## [1.6.19] - 2026-06-26
+- Fix: Zwei `express-rate-limit`-ValidationErrors im Log behoben — der globale Limiter für schreibende Requests wird jetzt **einmal beim Start** erzeugt statt pro Request (`ERR_ERL_CREATED_IN_REQUEST_HANDLER`), und `trust proxy` ist auf `1` gesetzt, da das Add-on hinter dem HA-Ingress-Reverse-Proxy läuft (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`)
+
+## [1.6.18] - 2026-06-26
+- Performance: Polling pausiert, wenn der Browser-Tab im Hintergrund ist (`document.hidden`) — Status (3 s) und Chat-Liste/Nachrichten (5 s) laufen nicht mehr 24/7 weiter; beim Zurückkehren wird sofort aktualisiert (`visibilitychange` zieht Status + Chats nach)
+- Performance: `/api/storage` cacht das Ergebnis 15 s — der rekursive Verzeichnis-Scan blockiert den Event-Loop nicht mehr
+- Watchdog: Supervisor startet das Add-on bei nicht erreichbarem Port automatisch neu (`watchdog: tcp://[HOST]:[PORT:17777]`)
+- Media-Responses mit `Cache-Control: immutable` (Dateiname ist über die stabile Message-ID eindeutig)
+
 ## [1.6.17] - 2026-06-23
 - HA-Benachrichtigungen: kein manueller `ha_token` mehr nötig — das Add-on nutzt jetzt `homeassistant_api` und den automatisch vom Supervisor bereitgestellten Token (wie MyPage). Option `ha_token` entfernt, Aufrufe laufen über `http://supervisor/core/api`
 - AppArmor-Profil hinzugefügt (`signal_addon`)

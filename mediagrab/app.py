@@ -278,7 +278,7 @@ _PROG_RE      = re.compile(r'^MGPROG\|([\s\d.]+)%\|(.+)\|(.+)$')
 _DEST_RE      = re.compile(r'\[download\] Destination:\s+(.+)')
 _MERGE_RE     = re.compile(r'\[Merger\] Merging formats into "(.+)"')
 _ALREADY_RE   = re.compile(r'\[download\] (.+) has already been downloaded')
-_ENCODE_RE    = re.compile(r'\[(?:ExtractAudio|VideoConvertor)\]')
+_ENCODE_RE    = re.compile(r'\[(?:ExtractAudio|VideoConvertor|Metadata|EmbedThumbnail|ThumbnailsConvertor)\]')
 _PLAYLIST_RE  = re.compile(r'\[download\] Downloading item (\d+) of (\d+)')
 
 def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies: bool = True) -> list[str]:
@@ -302,9 +302,11 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
         cmd += ['--cookies', COOKIES_PATH]
 
     if fmt == 'mp3':
-        cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0']
+        cmd += ['-x', '--audio-format', 'mp3', '--audio-quality', '0',
+                '--embed-metadata', '--embed-thumbnail']
     elif fmt == 'm4a':
-        cmd += ['-x', '--audio-format', 'm4a']
+        cmd += ['-x', '--audio-format', 'm4a',
+                '--embed-metadata', '--embed-thumbnail']
     elif fmt == '1080p':
         cmd += ['-f', 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
                 '--merge-output-format', 'mp4']
@@ -320,6 +322,10 @@ def _build_cmd(url: str, fmt: str, subtitles: bool, playlist: bool, use_cookies:
     else:  # best_video
         cmd += ['-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 '--merge-output-format', 'mp4']
+
+    # Metadaten, Cover/Poster und Kapitelmarken auch in Videos einbetten
+    if fmt not in ('mp3', 'm4a'):
+        cmd += ['--embed-metadata', '--embed-thumbnail', '--embed-chapters']
 
     cmd += ['--', url]
     return cmd

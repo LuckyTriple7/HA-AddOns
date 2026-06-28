@@ -43,12 +43,18 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 const rateLimit = require('express-rate-limit');
 const deleteRateLimit = rateLimit({ windowMs: 60_000, limit: 30 });
 const cleanupRateLimit = rateLimit({ windowMs: 60_000, limit: 5 });
+// Einmal beim Start erzeugen — express-rate-limit verbietet das Anlegen im
+// Request-Handler (ERR_ERL_CREATED_IN_REQUEST_HANDLER)
+const mutatingRateLimit = rateLimit({ windowMs: 60_000, limit: 200 });
 
 const app = express();
+// Hinter dem HA-Ingress-Reverse-Proxy (genau ein Hop) — sonst warnt
+// express-rate-limit über das X-Forwarded-For-Header (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use((req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  return rateLimit({ windowMs: 60_000, limit: 200 })(req, res, next);
+  return mutatingRateLimit(req, res, next);
 });
 app.use((req, res, next) => {
   if (req.path === '/api/logs' || req.path.startsWith('/api/media/') || req.path === '/api/status') return next();
@@ -67,6 +73,10 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const VIDEO_MAX_MB  = Math.max(parseInt(process.env.VIDEO_MAX_MB  || '50',  10), 1);
 const FETCH_LIMIT = Math.min(Math.max(parseInt(process.env.FETCH_LIMIT || '50', 10), 1), 300);
+// Wie viele Nachrichten initial ans Frontend gehen — bei großen Chats (tausende)
+// werden sonst alle übertragen und gerendert. Ältere lädt das Frontend beim
+// Hochscrollen per ?before=<timestamp> nach.
+const INITIAL_MSG_LIMIT = 60;
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
@@ -571,6 +581,29 @@ app.get('/api/stats', (req, res) => {
 
 app.get('/api/messages/:chatId', async (req, res) => {
   const { chatId } = req.params;
+  const limit = Math.min(Math.max(parseInt(req.query.limit || INITIAL_MSG_LIMIT, 10) || INITIAL_MSG_LIMIT, 1), 200);
+
+  // Pagination: ältere (bereits gecachte) Nachrichten vor `before` — reine
+  // Cache-Abfrage ohne Telegram-Roundtrip, fürs Nachladen beim Hochscrollen
+  if (req.query.before) {
+    const beforeTs = Number(req.query.before);
+    const all = messagesByChatId.get(chatId) || [];
+    const older = all.filter(m => m.timestamp < beforeTs);
+    return res.json(older.slice(-limit));
+  }
+
+  // Sprung-Fenster: Nachrichten rund um `around` (für „zu Suchtreffer springen")
+  if (req.query.around) {
+    const aroundTs = Number(req.query.around);
+    const all = messagesByChatId.get(chatId) || [];
+    const half = Math.floor(limit / 2);
+    let idx = all.findIndex(m => m.timestamp >= aroundTs);
+    if (idx === -1) idx = all.length - 1;
+    const start = Math.max(0, idx - half);
+    const end = Math.min(all.length, idx + half + 1);
+    return res.json(all.slice(start, end));
+  }
+
   if (req.query.refresh === '1' && status === 'connected') {
     const prevMsgs = messagesByChatId.get(chatId) || [];
     const savedData = new Map(prevMsgs.map(m => [m.id, { reactions: m.reactions, myReaction: m.myReaction, mediaFile: m.mediaFile || null, videoSize: m.videoSize }]));
@@ -585,14 +618,28 @@ app.get('/api/messages/:chatId', async (req, res) => {
       if (!m.mediaFile && saved.mediaFile) m.mediaFile = saved.mediaFile; // heruntergeladene Videos behalten
       if (!m.videoSize && saved.videoSize) m.videoSize = saved.videoSize;
     }
-    return res.json(messagesByChatId.get(chatId) || []);
+    return res.json((messagesByChatId.get(chatId) || []).slice(-limit));
   }
   const existing = messagesByChatId.get(chatId) || [];
   if (!messagesByChatId.has(chatId) && status === 'connected') {
     await fetchMessages(chatId);
-    return res.json(messagesByChatId.get(chatId) || []);
+    return res.json((messagesByChatId.get(chatId) || []).slice(-limit));
   }
-  res.json(existing);
+  res.json(existing.slice(-limit));
+});
+
+// Volltextsuche über den gesamten gecachten Verlauf eines Chats (neueste zuerst)
+app.get('/api/search/:chatId', (req, res) => {
+  const { chatId } = req.params;
+  const q = (req.query.q || '').toString().trim().toLowerCase();
+  if (!q) return res.json([]);
+  const all = messagesByChatId.get(chatId) || [];
+  const out = [];
+  for (let i = all.length - 1; i >= 0 && out.length < 300; i--) {
+    const m = all[i];
+    if (m.body && m.body.toLowerCase().includes(q)) out.push({ id: m.id, timestamp: m.timestamp });
+  }
+  res.json(out);
 });
 
 app.get('/api/export/:chatId', (req, res) => {
@@ -983,16 +1030,24 @@ app.get('/api/logs', (req, res) => {
   res.json(since ? _logBuffer.filter(e => e.ts > since) : _logBuffer);
 });
 
+// Rekursiver Sync-Scan über /config — kurz cachen, damit der Event-Loop nicht blockiert
+let _storageCache = null;
+const STORAGE_CACHE_MS = 15000;
 app.get('/api/storage', (req, res) => {
+  if (_storageCache && Date.now() - _storageCache.ts < STORAGE_CACHE_MS) {
+    return res.json(_storageCache.data);
+  }
   const bytes = getDirSize('/config');
   const mediaBytes = getDirSize(MEDIA_DIR);
   const mediaMb = mediaBytes / 1024 / 1024;
-  res.json({
+  const data = {
     bytes, mb: (bytes / 1024 / 1024).toFixed(1),
     mediaMb: mediaMb.toFixed(1),
     limitMb: MEDIA_MAX_MB,
     mediaPct: Math.round((mediaMb / MEDIA_MAX_MB) * 100),
-  });
+  };
+  _storageCache = { ts: Date.now(), data };
+  res.json(data);
 });
 
 app.post('/api/cleanup-media', cleanupRateLimit, (req, res) => {
@@ -1022,7 +1077,8 @@ app.get('/api/media/:filename', (req, res) => {
   const ext = filename.split('.').pop();
   const mime = ext==='webp'?'image/webp':ext==='png'?'image/png':ext==='ogg'?'audio/ogg':ext==='mp4'?'video/mp4':ext==='webm'?'video/webm':ext==='ogv'?'video/ogg':'image/jpeg';
   res.setHeader('Content-Type', mime);
-  res.setHeader('Cache-Control', 'max-age=86400');
+  // Dateiname leitet sich aus der stabilen Message-ID ab → Inhalt ändert sich nie
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
   res.sendFile(filePath);
 });
 
@@ -1688,7 +1744,9 @@ async function confirmDeleteSelected() {
   await loadMessages(chatId);
 }
 // ── Nachrichtensuche ──────────────────────────────────────────────────────────
-let _msgSearchMatches = [], _msgSearchIdx = -1;
+// _msgSearchMatches: serverseitige Treffer [{id, timestamp}] (neueste zuerst)
+let _msgSearchMatches = [], _msgSearchIdx = -1, _msgSearchQuery = '', _searchTimer = null;
+const _historyMode = {}; // chatId → true, wenn gerade ein altes Verlauf-Fenster angezeigt wird (Live-Poll pausiert)
 function toggleMsgSearch() {
   const bar = document.getElementById('msg-search-bar');
   if (!bar) return;
@@ -1707,9 +1765,21 @@ function closeMsgSearch() {
   if (btn) btn.classList.remove('active');
   const inp = document.getElementById('msg-search-input');
   if (inp) inp.value = '';
+  clearTimeout(_searchTimer);
   clearMsgHighlights();
-  _msgSearchMatches = []; _msgSearchIdx = -1;
+  _msgSearchMatches = []; _msgSearchIdx = -1; _msgSearchQuery = '';
   updateMsgSearchCount();
+  exitHistoryMode(); // zurück in den Live-Modus, falls ein altes Verlauf-Fenster offen war
+}
+// Verlauf-Modus verlassen → neueste Nachrichten wieder live laden
+function exitHistoryMode() {
+  const cid = selectedChatId;
+  if (cid && _historyMode[cid]) {
+    _historyMode[cid] = false;
+    _view[cid] = null; _oldestTs[cid] = null; _noMoreOlder[cid] = false;
+    _lastMsgFingerprint[cid] = '';
+    loadMessages(cid, true);
+  }
 }
 function clearMsgHighlights() {
   document.querySelectorAll('#messages .msg-highlight, #messages .msg-highlight-active').forEach(function(el) {
@@ -1722,20 +1792,25 @@ function updateMsgSearchCount() {
   if (!el) return;
   el.textContent = _msgSearchMatches.length === 0 ? '' : (_msgSearchIdx + 1) + ' / ' + _msgSearchMatches.length;
 }
+// Serverseitige Suche über den gesamten Verlauf (debounced)
 function onMsgSearchInput() {
-  clearMsgHighlights();
-  _msgSearchMatches = []; _msgSearchIdx = -1;
   const inp = document.getElementById('msg-search-input');
   if (!inp) return;
   const q = inp.value.trim();
-  if (!q) { updateMsgSearchCount(); return; }
-  const qLow = q.toLowerCase();
-  document.querySelectorAll('#messages .bubble, #messages .voice-wrap').forEach(function(bubble) {
-    highlightInNode(bubble, qLow, q);
-  });
-  _msgSearchMatches = Array.from(document.querySelectorAll('#messages .msg-highlight'));
-  if (_msgSearchMatches.length > 0) { _msgSearchIdx = 0; activateMsgSearchMatch(0); }
-  updateMsgSearchCount();
+  _msgSearchQuery = q;
+  clearTimeout(_searchTimer);
+  clearMsgHighlights();
+  if (!q) { _msgSearchMatches = []; _msgSearchIdx = -1; updateMsgSearchCount(); return; }
+  _searchTimer = setTimeout(async function() {
+    if (!selectedChatId) return;
+    try {
+      const results = await fetch(api('/api/search/'+encodeURIComponent(selectedChatId)+'?q='+encodeURIComponent(q))).then(r=>r.json());
+      _msgSearchMatches = Array.isArray(results) ? results : [];
+      _msgSearchIdx = _msgSearchMatches.length ? 0 : -1;
+      updateMsgSearchCount();
+      if (_msgSearchMatches.length) jumpToResult(0);
+    } catch(e) {}
+  }, 250);
 }
 function highlightInNode(node, qLow, q) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -1757,19 +1832,39 @@ function highlightInNode(node, qLow, q) {
     Array.from(node.childNodes).forEach(function(child) { highlightInNode(child, qLow, q); });
   }
 }
-function activateMsgSearchMatch(idx) {
-  if (_msgSearchMatches.length === 0) return;
-  _msgSearchMatches.forEach(function(el) { el.className = 'msg-highlight'; });
-  const el = _msgSearchMatches[idx];
-  if (!el) return;
-  el.className = 'msg-highlight-active';
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// Zu einem Treffer springen: ist die Nachricht geladen → markieren+scrollen,
+// sonst ein Verlauf-Fenster um sie laden (Live-Poll pausiert bis Suche zu)
+async function jumpToResult(idx) {
+  const r = _msgSearchMatches[idx];
+  if (!r || !selectedChatId) return;
+  clearMsgHighlights();
+  let row = document.querySelector('.bubble-row[data-msgid="'+r.id+'"]');
+  if (!row) {
+    try {
+      const win = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?around='+r.timestamp+'&limit=60')).then(r=>r.json());
+      if (Array.isArray(win) && win.length) {
+        _view[selectedChatId] = win;
+        _oldestTs[selectedChatId] = win[0].timestamp;
+        _noMoreOlder[selectedChatId] = false;
+        _historyMode[selectedChatId] = true;
+        renderMessages(win);
+        row = document.querySelector('.bubble-row[data-msgid="'+r.id+'"]');
+      }
+    } catch(e) {}
+  }
+  if (row) {
+    const bubble = row.querySelector('.bubble, .voice-wrap');
+    if (bubble && _msgSearchQuery) highlightInNode(bubble, _msgSearchQuery.toLowerCase(), _msgSearchQuery);
+    const mark = row.querySelector('.msg-highlight');
+    if (mark) mark.className = 'msg-highlight-active';
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 function stepMsgSearch(dir) {
   if (_msgSearchMatches.length === 0) return;
   _msgSearchIdx = (_msgSearchIdx + dir + _msgSearchMatches.length) % _msgSearchMatches.length;
-  activateMsgSearchMatch(_msgSearchIdx);
   updateMsgSearchCount();
+  jumpToResult(_msgSearchIdx);
 }
 
 function t(key) { const v = LANG[lang][key]; return (typeof v === 'function' || v === undefined) ? (LANG.de[key] || key) : v; }
@@ -1969,14 +2064,22 @@ async function refresh() {
     if (_offlineFails >= 3) showOfflineBanner();
   }
 }
-setInterval(refresh, 2000);
+// Im Hintergrund (Tab versteckt) nicht weiterpollen — spart Last/Requests;
+// visibilitychange unten aktualisiert sofort beim Zurückkehren
+setInterval(() => { if (!document.hidden) refresh(); }, 2000);
 if (!navigator.onLine) showOfflineBanner();
 refresh();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refresh();
+  if (document.visibilityState !== 'visible') return;
+  refresh();
+  if (currentStatus === 'connected') loadChats(); // sofort nachziehen beim Zurückkehren
 });
 window.addEventListener('online', () => { _offlineFails = 0; refresh(); });
 window.addEventListener('offline', () => showOfflineBanner());
+// Hochscrollen → ältere Nachrichten nachladen
+document.getElementById('messages').addEventListener('scroll', function() {
+  if (this.scrollTop < 80) loadOlder();
+}, { passive: true });
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 async function submitCode() {
@@ -2042,7 +2145,9 @@ async function loadChats() {
     if (selectedChatId) loadMessages(selectedChatId);
   } catch(e) {}
 }
-setInterval(loadChats, 5000);
+// Im Hintergrund pausieren — refresh() ruft loadChats() nur beim Statuswechsel auf,
+// dieses Intervall ist der eigentliche Treiber für Liste + offenen Chat
+setInterval(() => { if (!document.hidden) loadChats(); }, 5000);
 
 let currentFilter = 'all';
 function setFilter(f) {
@@ -2098,6 +2203,7 @@ function openChat(chat) {
   closeMsgSearch();
   selectedChatId = chat.id;
   _lastMsgFingerprint[chat.id] = ''; // Chat-Wechsel → immer neu rendern
+  _view[chat.id] = null; _oldestTs[chat.id] = null; _noMoreOlder[chat.id] = false; _historyMode[chat.id] = false; // Pagination/Verlauf zurücksetzen
   lastSeenTime[chat.id] = chat.lastTime || Date.now();
   lastMsgCount[chat.id] = 0;
   document.body.classList.add('chat-open');
@@ -2123,7 +2229,19 @@ function openChat(chat) {
   av.onclick = () => openContactInfo(chat.id, chat.name);
   av.style.cursor = 'pointer';
   renderChats(allChats);
-  loadMessages(chat.id);
+  // Altes Chatfenster sofort leeren, damit nicht der vorherige Chat stehen bleibt.
+  // Gecachte Nachrichten kommen praktisch sofort zurück (kein Spinner-Flackern);
+  // nur bei der Erstöffnung (Live-Telegram-Fetch, mehrere Sekunden) erscheint nach
+  // 200 ms ein Spinner. forceRender umgeht den Fingerprint-Guard, damit auch leere
+  // Chats den Spinner wieder ersetzen.
+  const _msgsEl = document.getElementById('messages');
+  _msgsEl.innerHTML = '';
+  const _openId = chat.id;
+  const _spinTimer = setTimeout(() => {
+    if (selectedChatId === _openId && !_msgsEl.children.length)
+      _msgsEl.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;padding:48px"><div class="spinner" style="width:32px;height:32px;border-width:3px"></div></div>';
+  }, 200);
+  loadMessages(chat.id, true).finally(() => clearTimeout(_spinTimer));
 }
 
 function closeChat() {
@@ -2150,6 +2268,9 @@ async function refreshChat() {
   try {
     const msgs = await fetch(api('/api/messages/'+encodeURIComponent(selectedChatId)+'?refresh=1')).then(r=>r.json());
     _lastMsgFingerprint[selectedChatId] = '';
+    _view[selectedChatId] = msgs;
+    _oldestTs[selectedChatId] = msgs.length ? msgs[0].timestamp : null;
+    _noMoreOlder[selectedChatId] = false;
     renderMessages(msgs);
   } catch(e) {}
   btn.classList.remove('spinning');
@@ -2157,6 +2278,13 @@ async function refreshChat() {
 
 // Fingerprint der letzten gerenderten Nachrichten — verhindert unnötige Re-Renders
 const _lastMsgFingerprint = {};
+
+// Pagination: aktuell geladene Nachrichten je Chat (älteste→neueste). Beim
+// Hochscrollen werden ältere aus dem Cache nachgeladen und vorne ergänzt.
+const _view = {};
+const _oldestTs = {};
+const _noMoreOlder = {};
+let _loadingOlder = false;
 
 function msgFingerprint(msgs) {
   if (!msgs || !msgs.length) return '';
@@ -2181,21 +2309,57 @@ function updateAckMarksInPlace(msgs) {
 
 async function loadMessages(chatId, forceRender = false) {
   if (!chatId) return;
+  // Im Verlauf-Modus (Suchtreffer-Sprung) den Live-Poll nicht rendern lassen,
+  // sonst würde das alte Fenster überschrieben
+  if (_historyMode[chatId] && !forceRender) return;
   try {
-    const msgs = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
-    const fp = msgFingerprint(msgs);
+    const recent = await fetch(api('/api/messages/'+encodeURIComponent(chatId))).then(r=>r.json());
+    if (chatId !== selectedChatId) return; // Chat zwischenzeitlich gewechselt → nicht rendern
+    const fp = msgFingerprint(recent);
     if (!forceRender && _lastMsgFingerprint[chatId] === fp) return; // nichts geändert
     const prev = _lastMsgFingerprint[chatId] || '';
     _lastMsgFingerprint[chatId] = fp;
     // Nur ACK geändert? In-Place-Update statt Full-Re-Render
     if (!forceRender && prev && fp.slice(0, fp.lastIndexOf(':')) === prev.slice(0, prev.lastIndexOf(':'))) {
-      updateAckMarksInPlace(msgs);
+      updateAckMarksInPlace(recent);
       return;
     }
-    renderMessages(msgs);
+    // Bereits per Hochscrollen geladene ältere Nachrichten erhalten, nur den
+    // neuesten Teil auffrischen (neue Nachrichten, Häkchen, Reaktionen)
+    let view = _view[chatId];
+    if (view && view.length && recent.length) {
+      const cut = recent[0].timestamp;
+      view = view.filter(m => m.timestamp < cut).concat(recent);
+    } else {
+      view = recent;
+    }
+    _view[chatId] = view;
+    _oldestTs[chatId] = view.length ? view[0].timestamp : null;
+    renderMessages(view);
     if (window.pollReactions) window.pollReactions();
     updateChatStats(chatId);
   } catch(e) {}
+}
+
+// Ältere Nachrichten beim Hochscrollen aus dem Cache nachladen und vorne anfügen
+async function loadOlder() {
+  const chatId = selectedChatId;
+  if (!chatId || _loadingOlder || _noMoreOlder[chatId]) return;
+  const view = _view[chatId];
+  if (!view || !view.length) return;
+  _loadingOlder = true;
+  try {
+    const before = view[0].timestamp;
+    const older = await fetch(api('/api/messages/'+encodeURIComponent(chatId)+'?before='+before+'&limit=60')).then(r=>r.json());
+    if (!Array.isArray(older) || !older.length) { _noMoreOlder[chatId] = true; return; }
+    const have = new Set(_view[chatId].map(m => m.id));
+    const add = older.filter(m => !have.has(m.id));
+    if (!add.length) { _noMoreOlder[chatId] = true; return; }
+    _view[chatId] = add.concat(_view[chatId]);
+    _oldestTs[chatId] = _view[chatId][0].timestamp;
+    if (older.length < 60) _noMoreOlder[chatId] = true;
+    renderMessages(_view[chatId], { preserveScroll: true });
+  } catch(e) {} finally { _loadingOlder = false; }
 }
 
 async function updateChatStats(chatId) {
@@ -2209,10 +2373,13 @@ async function updateChatStats(chatId) {
   } catch(e) {}
 }
 
-function renderMessages(msgs) {
+function renderMessages(msgs, opts) {
   if (isDeleteMode) return;
   const el = document.getElementById('messages');
   if (!msgs||!msgs.length) { el.innerHTML='<div style="text-align:center;padding:24px;opacity:0.5">'+t('noMessages')+'</div>'; return; }
+  const preserve = opts && opts.preserveScroll; // beim Vorne-Anfügen (Hochscrollen) Position halten
+  const _prevScrollHeight = el.scrollHeight;
+  const _prevScrollTop = el.scrollTop;
   const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   const prevCount = lastMsgCount[selectedChatId] || 0;
   lastMsgCount[selectedChatId] = msgs.length;
@@ -2301,7 +2468,8 @@ function renderMessages(msgs) {
     var _albumAttr = item.isAlbum ? ' data-albumids="'+item.albumMsgs.map(function(am){return escHtml(am.id);}).join(',')+'"' : '';
     return sep+\`<div class="bubble-row \${m.fromMe?'out':'in'}" data-msgid="\${escHtml(m.id)}"\${_albumAttr} data-chatid="\${escHtml(selectedChatId)}"><div class="bubble-row-inner"><div class="bubble-stack">\${innerDiv}\${reactBar}</div><button class="react-btn"\${reactBadges?' style="display:none"':''} title="\${t('btnReact')}">${_SVG.smile}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="Weiterleiten">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-tgid="\${tgMsgRawId}" title="Antworten">${_SVG.reply}</button></div></div>\`;
   }).join('');
-  if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
+  if (preserve) el.scrollTop = _prevScrollTop + (el.scrollHeight - _prevScrollHeight);
+  else if (wasAtBottom || msgs.length > prevCount) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;

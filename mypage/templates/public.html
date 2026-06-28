@@ -612,6 +612,13 @@
     </div>
     {% endif %}
 
+    {% elif _sec == 'freetext' %}
+    {% set ft = sections.freetext or {} %}
+    {% if loc(ft, 'content') %}
+    {% if loc(ft, 'title') %}<h2 class="section-title" id="freetext">{{ loc(ft, 'title') }}</h2>{% endif %}
+    <div class="freetext page-content">{{ render_md(loc(ft, 'content'))|safe }}</div>
+    {% endif %}
+
     {% elif _sec == 'blog' %}
     {% if latest_posts %}
     <h2 class="section-title" id="blog">{{ t.blog_heading }}</h2>

@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TUIWatch – Reisepreis-Tracker</title>
+  <meta name="theme-color" content="#0d1117">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%233b82f6' d='M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E">
+  <link rel="manifest" href="{{ (script_root or '') }}/manifest.json" crossorigin="use-credentials">
+  <link rel="apple-touch-icon" href="{{ (script_root or '') }}/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="TUIWatch">
+  <style>
+    :root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#3b82f6; --blue:#1f6feb; --blue-h:#388bfd; --green:#2ea043; --red:#f85149; --amber:#d29922; }
+    [data-theme="light"] { --bg:#eef2f8; --surf:#ffffff; --surf2:#f3f6fb; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --blue:#0b65d8; --blue-h:#1f7ce8; --green:#1a7f37; --red:#cf222e; --amber:#9a6700; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 16px; }
+    header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+    .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
+    .logo svg { width:26px; height:26px; fill:var(--accent); }
+    .spacer { flex:1; }
+    .btn { background:var(--blue); border:1px solid var(--blue-h); color:#fff; padding:8px 14px; border-radius:6px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .15s; }
+    .btn:hover { background:var(--blue-h); }
+    .btn.sec { background:transparent; border:1px solid var(--border); color:var(--text); }
+    .btn.danger { background:transparent; border:1px solid var(--border); color:var(--red); }
+    .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:6px 8px; cursor:pointer; display:inline-flex; }
+    .icon-btn svg { width:15px; height:15px; fill:currentColor; }
+    .icon-moon{display:block}.icon-sun{display:none}
+    [data-theme="light"] .icon-moon{display:none}[data-theme="light"] .icon-sun{display:block}
+    .add-card { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:18px; }
+    .add-row { display:flex; gap:8px; flex-wrap:wrap; }
+    .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
+    .add-row input:focus { outline:none; border-color:var(--accent); }
+    .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .overview { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:14px; font-size:.84rem; color:var(--muted); }
+    .overview b { color:var(--text); }
+    .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
+    .search-row input { flex:1 1 240px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
+    .search-row input:focus { outline:none; border-color:var(--accent); }
+    .search-row select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:6px; font-size:.85rem; cursor:pointer; }
+    .rename-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.85rem; padding:0 4px; line-height:1; }
+    .rename-btn:hover { color:var(--accent); }
+    .offer { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+    .offer.paused { opacity:.65; }
+    .paused-badge { color:var(--amber); font-weight:700; }
+    .offer-top { display:flex; align-items:flex-start; gap:12px; }
+    .offer-main { flex:1; min-width:0; }
+    .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
+    .offer-loc { display:inline-block; font-size:.8rem; color:var(--text); margin:1px 0 3px; text-decoration:none; }
+    .offer-loc:hover { color:var(--accent); text-decoration:underline; }
+    .offer-details { font-size:.8rem; color:var(--muted); line-height:1.45; }
+    .offer-url { display:inline-block; font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; margin-right:14px; }
+    .offer-url.pdf { word-break:normal; }
+    .flights { margin:8px 0 2px; display:flex; flex-direction:column; gap:3px; }
+    .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
+    .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
+    .flight .fdir { color:var(--muted); }
+    .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
+    .meta .stars { color:var(--amber); letter-spacing:1px; }
+    .meta .rating { color:var(--text); }
+    .meta .canc { color:var(--green); font-weight:700; background:rgba(46,160,67,.12); padding:1px 7px; border-radius:10px; }
+    .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
+    .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
+    .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
+    .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .stats .best { color:var(--green); font-weight:700; }
+    .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem; color:var(--muted); flex-wrap:wrap; }
+    .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:.78rem; }
+    .target-row input:focus { outline:none; border-color:var(--accent); }
+    .target-set { color:var(--accent); font-weight:600; }
+    .price-box { text-align:right; flex-shrink:0; }
+    .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
+    .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
+    .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
+    .price-total { font-size:.76rem; color:var(--text); font-weight:600; margin-top:3px; white-space:nowrap; }
+    .old { text-decoration:line-through; color:var(--muted); }
+    .disc { color:var(--green); font-weight:600; margin-left:4px; }
+    .delta { display:inline-block; font-size:.78rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
+    .delta.up { color:var(--red); background:rgba(248,81,73,.13); }
+    .delta.down { color:var(--green); background:rgba(46,160,67,.14); }
+    .delta.flat { color:var(--muted); background:var(--surf2); }
+    .delta.none { color:var(--amber); background:rgba(210,153,34,.13); }
+    .offer-foot { display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap; }
+    .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
+    .spark { width:100%; height:70px; margin-top:10px; display:block; }
+    .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
+    .empty { text-align:center; color:var(--muted); padding:50px 16px; }
+    .badge-checking { font-size:.72rem; color:var(--accent); }
+    /* Modal */
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; }
+    .modal-bg.show { display:flex; }
+    .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; padding:18px; }
+    .modal h2 { font-size:1.05rem; margin-bottom:4px; }
+    .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
+    #hist-canvas { width:100%; height:300px; display:block; }
+    table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:.8rem; }
+    table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
+    table.hist th { color:var(--muted); font-weight:600; }
+    .cmp-load { color:var(--muted); font-size:.86rem; padding:18px 4px; text-align:center; }
+    .cmp-base { color:var(--accent); font-size:.74rem; font-weight:600; }
+    .cmp-best td { background:rgba(46,160,67,.10); }
+    .cmp-best .best { color:var(--green); font-weight:700; }
+    .cmp-up { color:var(--red); font-weight:600; }
+    .cmp-down { color:var(--green); font-weight:600; }
+    .cmp-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .cmp-foot .hint { margin-top:0; }
+    /* Preiskalender */
+    .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+    .cal-title { font-weight:700; font-size:1rem; }
+    .cal-sum { font-size:.78rem; color:var(--muted); margin-bottom:10px; }
+    .cal-sum b { color:var(--text); }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+    .cal-grid.head { margin-bottom:4px; gap:4px; }
+    .cal-wd { text-align:center; font-size:.72rem; color:var(--muted); font-weight:600; padding:2px 0; }
+    .cal-cell { min-height:52px; border:1px solid var(--border); border-radius:6px; padding:4px 5px; display:flex; flex-direction:column; justify-content:space-between; background:var(--surf2); }
+    .cal-cell.empty { border:none; background:transparent; }
+    .cal-cell .cal-d { font-size:.72rem; color:var(--muted); }
+    .cal-cell .cal-p { font-size:.8rem; font-weight:700; text-align:right; }
+    .cal-cell .cal-p.na { color:var(--muted); font-weight:400; }
+    .cal-cell.out { opacity:.4; }
+    .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
+    .cal-cell.cheapest .cal-p { color:var(--green); }
+    .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
+    a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
+    a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
+    .cal-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:.74rem; color:var(--muted); }
+    .cal-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:4px; }
+    .cal-legend .lg-cheap { background:rgba(46,160,67,.5); border:1px solid var(--green); }
+    .cal-legend .lg-track { border:2px solid var(--accent); }
+    .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
+    @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
+    .modal-close { float:right; }
+    footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:8px; font-size:.84rem; opacity:0; transition:opacity .2s; z-index:60; }
+    .toast.show { opacity:1; }
+    /* Konsole */
+    #tw-console{ display:none; position:fixed; bottom:80px; right:20px; width:580px; height:340px; background:#0d1117; border:1px solid #30363d; border-radius:8px; z-index:9999; flex-direction:column; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; box-shadow:0 8px 32px rgba(0,0,0,.6); resize:both; overflow:hidden; min-width:320px; min-height:180px; }
+    #tw-console.open{ display:flex; }
+    #tw-console-header{ display:flex; align-items:center; justify-content:space-between; padding:5px 10px; background:#161b22; border-bottom:1px solid #30363d; flex-shrink:0; cursor:move; user-select:none; border-radius:7px 7px 0 0; }
+    #tw-console-title{ color:#8b949e; font-size:11px; font-weight:600; letter-spacing:.05em; }
+    #tw-console-close{ background:none; border:none; color:#8b949e; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1; }
+    #tw-console-close:hover{ color:#f85149; }
+    #tw-console-body{ flex:1; overflow-y:auto; padding:6px 10px; line-height:1.6; color:#c9d1d9; }
+    #tw-console-body::-webkit-scrollbar{ width:5px; } #tw-console-body::-webkit-scrollbar-thumb{ background:#30363d; border-radius:3px; }
+    .twc-info{color:#8b949e;} .twc-warn{color:#d29922;} .twc-error{color:#f85149;} .twc-debug{color:#6e7681;}
+    @media(max-width:767px){ #tw-console{ display:none!important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo" ondblclick="consoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole">
+        <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+        TUIWatch
+      </div>
+      <div class="spacer"></div>
+      <button class="btn sec" id="check-all">Alle prüfen</button>
+      <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+        <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+      </button>
+    </header>
+
+    <div class="add-card">
+      <div class="add-row">
+        <input type="text" id="new-url" placeholder="TUI-Angebots-URL einfügen (von tui.com)…">
+        <input type="text" id="new-label" placeholder="Eigener Name (optional)" style="flex:0 1 200px">
+        <button class="btn" id="add-btn">Hinzufügen</button>
+      </div>
+      <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
+      <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
+      <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Angebote aus Backup importieren">⬆ Wiederherstellen</button>
+      <input type="file" id="restore-file" accept="application/json,.json" style="display:none" onchange="restoreOffers(this)">
+    </div>
+    <div id="overview" class="overview" style="display:none"></div>
+
+    <div class="search-row">
+      <input type="text" id="search" placeholder="Suchen… (Hotel, Ziel, Reise-Details)" autocomplete="off">
+      <select id="sort" title="Sortierung">
+        <option value="added">Reihenfolge: Hinzugefügt</option>
+        <option value="price">Preis aufsteigend</option>
+        <option value="delta">Größte Preisänderung</option>
+        <option value="rating">Beste Bewertung</option>
+        <option value="name">Name A–Z</option>
+      </select>
+    </div>
+    <div id="offers"></div>
+    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span></footer>
+  </div>
+
+  <!-- Verlauf-Modal -->
+  <div class="modal-bg" id="modal-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeModal()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2 id="modal-title">Preisverlauf</h2>
+      <div class="sub" id="modal-sub"></div>
+      <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()">⬇ CSV-Export</button></div>
+      <canvas id="hist-canvas"></canvas>
+      <div id="hist-table"></div>
+    </div>
+  </div>
+  <!-- Vergleichs-Modal (Pro-Person-Vergleich) -->
+  <div class="modal-bg" id="cmp-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeCompare()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Pro-Person-Vergleich</h2>
+      <div class="sub" id="cmp-sub"></div>
+      <div id="cmp-body"></div>
+    </div>
+  </div>
+
+  <!-- Preiskalender-Modal -->
+  <div class="modal-bg" id="cal-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeCalendar()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Preiskalender</h2>
+      <div class="sub" id="cal-sub"></div>
+      <div id="cal-body"></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <!-- Konsole (Doppelklick auf Logo) -->
+  <div id="tw-console">
+    <div id="tw-console-header">
+      <span id="tw-console-title">⬛ KONSOLE — TUIWatch · Hintergrund</span>
+      <button id="tw-console-close" onclick="consoleToggle()">✕</button>
+    </div>
+    <div id="tw-console-body"></div>
+  </div>
+
+  <script>
+  (function(){
+    var _open=false,_seen=0,_timer=null;
+    var panel=document.getElementById('tw-console');
+    var header=document.getElementById('tw-console-header');
+    var body=document.getElementById('tw-console-body');
+    var _dx=0,_dy=0,_drag=false;
+    header.addEventListener('mousedown',function(e){ if(e.target.id==='tw-console-close')return; _drag=true;_dx=e.clientX-panel.offsetLeft;_dy=e.clientY-panel.offsetTop;e.preventDefault(); });
+    document.addEventListener('mousemove',function(e){ if(!_drag)return; panel.style.left=Math.max(0,Math.min(e.clientX-_dx,window.innerWidth-panel.offsetWidth))+'px'; panel.style.top=Math.max(0,Math.min(e.clientY-_dy,window.innerHeight-panel.offsetHeight))+'px'; panel.style.right='auto';panel.style.bottom='auto'; });
+    document.addEventListener('mouseup',function(){_drag=false;});
+    function _setOpen(v){ _open=v; panel.classList.toggle('open',_open); try{localStorage.setItem('tw-console-open',_open?'1':'0');}catch(e){} if(_open){_poll();_timer=setInterval(_poll,2000);} else {clearInterval(_timer);_timer=null;} }
+    function consoleToggle(){ if(window.innerWidth<768)return; _setOpen(!_open); }
+    window.consoleToggle=consoleToggle;
+    try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
+    function _cls(l){ return (l==='WARNING'||l==='WARN')?'twc-warn':(l==='ERROR'||l==='CRITICAL')?'twc-error':(l==='DEBUG')?'twc-debug':'twc-info'; }
+    async function _poll(){
+      try{
+        var base=(window.G&&G.base)||'';
+        var lines=(await fetch(base+'/api/console').then(function(r){return r.json();})).lines||[];
+        var sig=lines.length+':'+(lines.length?lines[lines.length-1].ts:0);
+        if(sig===_seen)return;            // nichts Neues
+        _seen=sig;
+        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+        body.innerHTML='';
+        lines.forEach(function(e){ var d=document.createElement('div'); d.className=_cls(e.level); d.textContent=e.msg; body.appendChild(d); });
+        if(atBottom)body.scrollTop=body.scrollHeight;
+      }catch(e){}
+    }
+  })();
+  </script>
+
+  <script>
+    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }} };
+    window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
+    const api = (p) => (G.base || '') + p;
+    const $ = (s) => document.querySelector(s);
+
+    (function(){ const t=localStorage.getItem('tw-theme')||'dark'; document.documentElement.setAttribute('data-theme',t); })();
+    function toggleTheme(){ const c=document.documentElement.getAttribute('data-theme')||'dark'; const n=c==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme',n); localStorage.setItem('tw-theme',n); setTimeout(()=>{ if(curOffers) renderAll(curOffers); },50); }
+
+    function eur(v){ if(v==null) return '–'; return v.toLocaleString('de-DE',{maximumFractionDigits:0}) + ' €'; }
+    function ago(ts){ if(!ts) return 'noch nie geprüft'; const s=Math.floor(Date.now()/1000)-ts; if(s<60) return 'gerade eben'; if(s<3600) return 'vor '+Math.floor(s/60)+' Min'; if(s<86400) return 'vor '+Math.floor(s/3600)+' Std'; return 'vor '+Math.floor(s/86400)+' Tg'; }
+    function cssvar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+    let toastTimer;
+    function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
+
+    let curOffers = null, lastSig = null, searchTerm = '';
+    let sortMode = localStorage.getItem('tw-sort') || 'added';
+
+    function sortOffers(list){
+      const arr = list.slice();
+      const num = (v, d) => (v==null ? d : v);
+      if(sortMode==='price') arr.sort((a,b)=>num(a.price,Infinity)-num(b.price,Infinity));
+      else if(sortMode==='delta') arr.sort((a,b)=>Math.abs(num(b.delta,0))-Math.abs(num(a.delta,0)));
+      else if(sortMode==='rating') arr.sort((a,b)=>num(b.rating,-1)-num(a.rating,-1));
+      else if(sortMode==='name') arr.sort((a,b)=>((a.label||a.hotel||'').localeCompare(b.label||b.hotel||'','de')));
+      else arr.sort((a,b)=>a.id-b.id);  // 'added'
+      return arr;
+    }
+
+    async function loadOffers(){
+      try {
+        const r = await fetch(api('/api/offers'));
+        if(!r.ok) return;
+        const d = await r.json();
+        curOffers = d.offers;
+        // Nur neu rendern, wenn sich wirklich etwas geändert hat — verhindert das
+        // periodische Neuzeichnen (Flackern) der Preisdiagramme alle 5 s.
+        const sig = JSON.stringify(d.offers);
+        const ae = document.activeElement;
+        const editing = ae && ae.id && ae.id.indexOf('tgt-')===0;
+        if(editing || sig === lastSig) return;
+        lastSig = sig;
+        renderAll(d.offers);
+      } catch(e){}
+    }
+
+    function deltaBadge(o){
+      if(o.ok===false) return '<span class="delta none">⚠ Abruf fehlgeschlagen</span>';
+      if(o.delta==null) return '<span class="delta flat">Basiswert</span>';
+      if(o.delta>0) return '<span class="delta up">▲ +'+eur(o.delta)+'</span>';
+      if(o.delta<0) return '<span class="delta down">▼ '+eur(o.delta)+'</span>';
+      return '<span class="delta flat">unverändert</span>';
+    }
+
+    function renderAll(offers){
+      renderOverview(offers);
+      // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
+      const ae = document.activeElement;
+      if(ae && ae.id && ae.id.indexOf('tgt-')===0) return;
+      $('#iv').textContent = Math.round(G.iv/3600*10)/10 + ' Std';
+      const box = $('#offers');
+      if(!offers.length){ box.innerHTML = '<div class="empty">Noch keine Angebote. Füge oben eine TUI-URL hinzu.</div>'; return; }
+      // Schnellsuche über die geladenen Angebote (Hotel, Label, Ziel, Details)
+      const q = (searchTerm||'').trim().toLowerCase();
+      const list = q ? offers.filter(o =>
+        ((o.label||'')+' '+(o.hotel||'')+' '+(o.location||'')+' '+(o.details||'')+' '+(o.dep_airport||'')+' '+(o.room||'')).toLowerCase().includes(q)
+      ) : offers;
+      if(!list.length){ box.innerHTML = '<div class="empty">Keine Treffer für „'+esc(searchTerm.trim())+'".</div>'; return; }
+      const sorted = sortOffers(list);
+      box.innerHTML = sorted.map(o => {
+        const hotel = o.hotel || '';
+        const title = o.label || hotel || 'TUI-Angebot #'+o.id;
+        // Untertitel: Hotel (falls eigenes Label gesetzt) + Reise-Eckdaten
+        const subParts = [];
+        if(o.label && hotel) subParts.push(hotel);
+        if(o.details) subParts.push(o.details);
+        const sub = subParts.join(' — ');
+        let priceSub = '';
+        if(o.old_price && o.old_price>o.price){ priceSub = '<span class="old">'+eur(o.old_price)+'</span>' + (o.discount?'<span class="disc">-'+o.discount+'%</span>':''); }
+        const hasPrice = o.price!=null;
+        const priceNow = hasPrice ? eur(o.price) : (o.checking?'…':'–');
+        const plane = '<svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>';
+        let flights = '';
+        if(o.flight_out || o.flight_ret){
+          const fl = (label, v) => v?`<div class="flight">${plane}<span><span class="fdir">${label}:</span> ${esc(v)}</span></div>`:'';
+          flights = `<div class="flights">${fl('Hin',o.flight_out)}${fl('Rück',o.flight_ret)}</div>`;
+        }
+        let availBadge = '';
+        if(o.available===true) availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+        else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
+        // Sterne + HolidayCheck-Bewertung + kostenlose Stornierung
+        const metaParts = [];
+        if(o.stars) metaParts.push(`<span class="stars">${'★'.repeat(Math.round(o.stars))}</span>`);
+        if(o.rating!=null){
+          let rt = 'HolidayCheck '+o.rating.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'/6';
+          if(o.rating_count) rt += ' · '+o.rating_count.toLocaleString('de-DE')+' Bew.';
+          if(o.recommendation!=null) rt += ' · '+o.recommendation+'% 👍';
+          metaParts.push('<span class="rating">'+esc(rt)+'</span>');
+        }
+        if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
+        const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
+        let statsLine = '';
+        if(o.min_price!=null && o.samples>1){
+          const best = (o.price!=null && o.price<=o.min_price);
+          statsLine = `<div class="stats">Tief ${eur(o.min_price)} · Hoch ${eur(o.max_price)} · Ø ${eur(o.avg_price)}${best?' · <span class="best">✓ Bestpreis</span>':''}</div>`;
+        }
+        const tgt = o.target_price!=null ? Math.round(o.target_price) : '';
+        const tgtLabel = o.target_price!=null ? `<span class="target-set">🎯 Wunschpreis ${eur(o.target_price)}</span>` : '🎯 Wunschpreis:';
+        const targetRow = `<div class="target-row">${tgtLabel}
+            <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
+            <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
+        return `<div class="offer${o.paused?' paused':''}" data-id="${o.id}">
+          <div class="offer-top">
+            <div class="offer-main">
+              <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
+              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
+              ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
+              ${metaLine}
+              ${flights}
+              <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
+              ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
+              ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
+            </div>
+            <div class="price-box">
+              <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
+              <div class="price-pp">pro Person</div>
+              ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
+              ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
+              <div>${deltaBadge(o)}</div>
+              ${availBadge}
+            </div>
+          </div>
+          ${statsLine}
+          ${targetRow}
+          <canvas class="spark" id="spark-${o.id}"></canvas>
+          <div class="offer-foot">
+            <span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
+            <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
+            <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+            <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
+            ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+            <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
+            <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
+            <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>
+          </div>
+        </div>`;
+      }).join('');
+      sorted.forEach(o => drawSpark(o.id));
+    }
+
+    function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+    async function drawSpark(id){
+      const cv = document.getElementById('spark-'+id);
+      if(!cv) return;
+      try {
+        const o = (curOffers||[]).find(x=>x.id===id) || {};
+        const r = await fetch(api('/api/history/'+id));
+        const pts = (await r.json()).history.filter(h=>h.ok && h.price!=null);
+        drawChart(cv, pts, false, {target: o.target_price});
+      } catch(e){}
+    }
+
+    function drawChart(cv, pts, full, opts){
+      opts = opts || {};
+      const dpr = window.devicePixelRatio||1;
+      const w = cv.clientWidth, h = cv.clientHeight;
+      cv.width = w*dpr; cv.height = h*dpr;
+      const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr);
+      ctx.clearRect(0,0,w,h);
+      const muted = cssvar('--muted'), accent = cssvar('--accent'), border = cssvar('--border');
+      const green = cssvar('--green'), amber = cssvar('--amber');
+      if(pts.length===0){ ctx.fillStyle=muted; ctx.font='12px sans-serif'; ctx.fillText('Noch keine Messpunkte',8,h/2); return; }
+      const padL = full?52:6, padR=6, padT=full?14:8, padB=full?22:8;
+      const xs = pts.map(p=>p.ts), ys = pts.map(p=>p.price);
+      // Wertebereich inkl. Wunschpreis und (im Verlauf) Vergleichspreisen
+      const extra = [];
+      if(opts.target) extra.push(opts.target);
+      if(opts.showOld) pts.forEach(p=>{ if(p.old_price) extra.push(p.old_price); });
+      let minY=Math.min(...ys, ...extra), maxY=Math.max(...ys, ...extra);
+      if(minY===maxY){ minY-=50; maxY+=50; }
+      const minX=Math.min(...xs), maxX=Math.max(...xs);
+      const X = t => padL + (maxX===minX?0.5:(t-minX)/(maxX-minX))*(w-padL-padR);
+      const Y = v => padT + (1-(v-minY)/(maxY-minY))*(h-padT-padB);
+      if(full){
+        ctx.strokeStyle=border; ctx.fillStyle=muted; ctx.font='11px sans-serif'; ctx.lineWidth=1;
+        for(let i=0;i<=3;i++){ const v=minY+(maxY-minY)*i/3; const y=Y(v); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke(); ctx.fillText(Math.round(v).toLocaleString('de-DE')+' €',4,y-2); }
+      }
+      // Vergleichspreis (durchgestrichener „alter" Preis) als feine gestrichelte Linie
+      if(opts.showOld){
+        ctx.save(); ctx.strokeStyle=muted; ctx.globalAlpha=.55; ctx.setLineDash([4,3]); ctx.lineWidth=1;
+        ctx.beginPath(); let started=false;
+        pts.forEach(p=>{ if(p.old_price){ const x=X(p.ts),y=Y(p.old_price); started?ctx.lineTo(x,y):ctx.moveTo(x,y); started=true; } });
+        ctx.stroke(); ctx.restore();
+      }
+      // Preis-Linie
+      ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.beginPath();
+      pts.forEach((p,i)=>{ const x=X(p.ts),y=Y(p.price); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      ctx.stroke();
+      // Fläche
+      ctx.lineTo(X(maxX),h-padB); ctx.lineTo(X(minX),h-padB); ctx.closePath();
+      ctx.fillStyle = accent+'22'; ctx.fill();
+      // Wunschpreis-Linie
+      if(opts.target){
+        const ty=Y(opts.target);
+        ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(w-padR,ty); ctx.stroke(); ctx.restore();
+        if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('🎯 '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
+      }
+      // Punkte; Preisrückgänge grün markiert
+      pts.forEach((p,i)=>{
+        const drop = i>0 && p.price < pts[i-1].price;
+        ctx.fillStyle = drop ? green : accent;
+        ctx.beginPath(); ctx.arc(X(p.ts),Y(p.price), drop?(full?4:3):(full?3:2), 0, 7); ctx.fill();
+      });
+    }
+
+    let histId = null;
+    async function openHistory(id){
+      histId = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#modal-title').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#modal-sub').textContent = [o.label&&o.hotel?o.hotel:'', o.details||''].filter(Boolean).join(' — ');
+      $('#modal-bg').classList.add('show');
+      const r = await fetch(api('/api/history/'+id));
+      const hist = (await r.json()).history;
+      const pts = hist.filter(h=>h.ok && h.price!=null);
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, showOld: true});
+      const rows = hist.slice().reverse().map(h=>{
+        const d = new Date(h.ts*1000).toLocaleString('de-DE');
+        if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
+        return `<tr><td>${d}</td><td><b>${eur(h.price)}</b></td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
+      }).join('');
+      $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th></tr>${rows}</table>`:'';
+    }
+    function closeModal(){ $('#modal-bg').classList.remove('show'); }
+    $('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
+
+    // ── Pro-Person-Vergleich (gespeichert) ────────────────────────────────────
+    let cmpTimer = null, cmpId = null;
+    function cmpSpinner(){ $('#cmp-body').innerHTML = '<div class="cmp-load">⏳ Live-Abruf läuft… einen Moment.</div>'; }
+    function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(cmpPoll, 2000); }
+
+    async function openCompare(id){
+      cmpId = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#cmp-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#cmp-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#cmp-bg').classList.add('show');
+      clearInterval(cmpTimer); cmpTimer=null;
+      let job;
+      try { job = await fetch(api('/api/compare/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle',rows:[]}; }
+      if(job.status==='running'){ cmpSpinner(); startCmpPolling(); }
+      else if(job.status==='done' && job.rows && job.rows.length){ renderCompare(job); }  // gespeichert → anzeigen, nicht neu abfragen
+      else { refreshCompare(); }                                                          // noch nie abgefragt → einmalig starten
+    }
+    async function refreshCompare(){
+      if(cmpId==null) return;
+      cmpSpinner();
+      try { await fetch(api('/api/compare/'+cmpId), {method:'POST'}); } catch(e){}
+      startCmpPolling();
+    }
+    function closeCompare(){ clearInterval(cmpTimer); cmpTimer=null; cmpId=null; $('#cmp-bg').classList.remove('show'); }
+    $('#cmp-bg').addEventListener('click', e=>{ if(e.target.id==='cmp-bg') closeCompare(); });
+
+    async function cmpPoll(){
+      if(cmpId==null) return;
+      let job;
+      try { job = await fetch(api('/api/compare/'+cmpId)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running') return;   // weiter warten
+      clearInterval(cmpTimer); cmpTimer=null;
+      renderCompare(job);
+    }
+
+    function cmpFooter(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.')
+                          : 'Live abgefragt.';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      return `<div class="cmp-foot">
+          <span class="hint" style="flex:1;min-width:180px">${esc(when)} „Gesamt" = Preis p. P. × Reisende.</span>
+          <button class="btn sec" onclick="refreshCompare()">Neu abfragen</button>
+        </div>${err}`;
+    }
+
+    function renderCompare(job){
+      if(!(job.rows && job.rows.length)){
+        const msg = job.error || job.note || 'Vergleich fehlgeschlagen';
+        $('#cmp-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + cmpFooter(job);
+        return;
+      }
+      const ok = job.rows.filter(r=>r.ok && r.price!=null);
+      const cheapest = ok.length ? Math.min(...ok.map(r=>r.price)) : null;
+      const baseRow = job.rows.find(r=>r.is_base && r.price!=null);
+      const basePrice = baseRow ? baseRow.price : null;
+      const rows = job.rows.map(r=>{
+        if(!r.ok || r.price==null) return `<tr><td>${r.travellers} ${r.travellers===1?'Person':'Personen'}${r.is_base?' <span class="cmp-base">(aktuell)</span>':''}</td><td colspan="3" style="color:var(--amber)">nicht abrufbar</td></tr>`;
+        const best = (cheapest!=null && r.price<=cheapest);
+        let diff = '';
+        if(basePrice!=null && !r.is_base){
+          const d = r.price - basePrice;
+          diff = d===0 ? '±0' : (d<0 ? '<span class="cmp-down">▼ '+eur(Math.abs(d))+'</span>' : '<span class="cmp-up">▲ +'+eur(d)+'</span>');
+        } else if(r.is_base){ diff = '<span style="color:var(--muted)">Basis</span>'; }
+        return `<tr${best?' class="cmp-best"':''}>
+          <td>${r.travellers} ${r.travellers===1?'Person':'Personen'}${r.is_base?' <span class="cmp-base">(aktuell)</span>':''}</td>
+          <td><b>${eur(r.price)}</b>${best?' <span class="best">✓</span>':''}</td>
+          <td>${eur(r.total)}</td>
+          <td>${diff}</td></tr>`;
+      }).join('');
+      $('#cmp-body').innerHTML =
+        `<table class="hist"><tr><th>Reisende</th><th>Preis p.&nbsp;P.</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
+        + cmpFooter(job);
+    }
+
+    // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
+    let calTimer = null, calId = null, calData = null, calMonth = null;
+    function calSpinner(){ $('#cal-body').innerHTML = '<div class="cmp-load">⏳ Preiskalender wird geladen…</div>'; }
+    function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
+
+    async function openCalendar(id){
+      calId = id; calMonth = null; calData = null;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#cal-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#cal-bg').classList.add('show');
+      clearInterval(calTimer); calTimer=null;
+      let job;
+      try { job = await fetch(api('/api/calendar/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle'}; }
+      if(job.status==='running'){ calSpinner(); startCalPolling(); }
+      else if(job.status==='done' && job.days && job.days.length){ renderCalendar(job); }  // gespeichert → anzeigen
+      else { refreshCalendar(); }                                                          // noch nie abgefragt → einmal starten
+    }
+    async function refreshCalendar(){
+      if(calId==null) return;
+      calSpinner();
+      try { await fetch(api('/api/calendar/'+calId), {method:'POST'}); } catch(e){}
+      startCalPolling();
+    }
+    function closeCalendar(){ clearInterval(calTimer); calTimer=null; calId=null; $('#cal-bg').classList.remove('show'); }
+    $('#cal-bg').addEventListener('click', e=>{ if(e.target.id==='cal-bg') closeCalendar(); });
+    function calGo(m){ if(!m) return; calMonth=m; drawCalMonth(); }
+
+    async function calPoll(){
+      if(calId==null) return;
+      let job;
+      try { job = await fetch(api('/api/calendar/'+calId)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running') return;
+      clearInterval(calTimer); calTimer=null;
+      renderCalendar(job);
+    }
+
+    function fmtD(iso){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m?`${m[3]}.${m[2]}.${m[1]}`:iso; }
+    function dayUrl(base, iso){ try{ const u=new URL(base); u.searchParams.set('startDate',iso); u.searchParams.set('endDate',iso); return u.toString(); }catch(e){ return base; } }
+    function calFooter(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
+        <button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+    }
+
+    function renderCalendar(job){
+      calData = job;
+      if(!(job.days && job.days.length)){
+        const msg = job.error || job.note || 'Preiskalender nicht verfügbar';
+        $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + calFooter(job);
+        return;
+      }
+      if(!calMonth){ const ref = job.tracked_date || job.cheapest_date || job.days[0].date; calMonth = ref.slice(0,7); }
+      drawCalMonth();
+    }
+
+    function drawCalMonth(){
+      const job = calData; if(!job) return;
+      const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
+      const months = [...new Set(job.days.map(d=>d.date.slice(0,7)))].sort();
+      if(!months.includes(calMonth)) calMonth = months[0];
+      const [Y,M] = calMonth.split('-').map(Number);
+      const first = new Date(Y, M-1, 1);
+      const startWd = (first.getDay()+6)%7;          // Montag = 0
+      const dim = new Date(Y, M, 0).getDate();
+      const ws = job.window_start, we = job.window_end;
+      const allP = job.days.map(x=>x.price);
+      const pmin = Math.min(...allP), pmax = Math.max(...allP);
+      const offer = (curOffers||[]).find(x=>x.id===calId) || {};
+      const base = offer.url || '';
+      let cells = '';
+      for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
+      for(let d=1; d<=dim; d++){
+        const iso = `${Y}-${String(M).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const price = pm[iso];
+        const inWin = (!ws||iso>=ws) && (!we||iso<=we);
+        const cls = ['cal-cell'];
+        if(!inWin) cls.push('out');
+        if(iso===job.cheapest_date) cls.push('cheapest');
+        if(iso===job.tracked_date) cls.push('tracked');
+        let style = '';
+        if(price!=null){  // Heatmap: günstig=grün → teuer=rot
+          const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
+          style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
+        }
+        const inner = `<span class="cal-d">${d}</span>`
+          + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+        if(price!=null && base){
+          cls.push('clk');
+          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso))}" target="_blank" rel="noopener" title="Diesen Termin auf tui.com öffnen"${style}>${inner}</a>`;
+        } else {
+          cells += `<div class="${cls.join(' ')}"${style}>${inner}</div>`;
+        }
+      }
+      const idx = months.indexOf(calMonth);
+      const prev = idx>0?months[idx-1]:'', next = idx<months.length-1?months[idx+1]:'';
+      const monthName = first.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
+      let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
+      if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
+      $('#cal-body').innerHTML = `
+        <div class="cal-sum">${sum}</div>
+        <div class="cal-nav">
+          <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
+          <span class="cal-title">${monthName}</span>
+          <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
+        </div>
+        <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
+        <div class="cal-grid">${cells}</div>
+        <div class="cal-legend">
+          <span><i class="lg-cheap"></i>günstigster Termin</span>
+          <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
+          <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
+          <span>🟩→🟥 günstig→teuer · Klick öffnet den Termin auf tui.com</span>
+        </div>${calFooter(job)}`;
+    }
+
+    async function addOffer(){
+      const url = $('#new-url').value.trim();
+      const label = $('#new-label').value.trim();
+      if(!url){ toast('Bitte eine URL eingeben'); return; }
+      const r = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url,label})});
+      if(r.status===409){ toast('Dieses Angebot wird bereits verfolgt'); return; }
+      if(r.status===400){ toast('Keine gültige tui.com-URL'); return; }
+      if(!r.ok){ toast('Fehler beim Hinzufügen'); return; }
+      $('#new-url').value=''; $('#new-label').value='';
+      toast('Hinzugefügt – wird geprüft…');
+      loadOffers();
+    }
+    async function delOffer(id){
+      if(!confirm('Dieses Angebot inklusive Verlauf löschen?')) return;
+      await fetch(api('/api/offers/'+id), {method:'DELETE'});
+      loadOffers();
+    }
+    async function setTarget(id){
+      const el = document.getElementById('tgt-'+id);
+      const val = el && el.value.trim() ? parseFloat(el.value) : null;
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({target_price: val})});
+      toast(val ? ('Wunschpreis gesetzt: '+eur(val)) : 'Wunschpreis entfernt');
+      loadOffers();
+    }
+    async function renameOffer(id){
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      const v = prompt('Eigener Name für dieses Angebot (leer = Hotelname verwenden):', o.label || '');
+      if(v===null) return;
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({label: v.trim()})});
+      toast('Name gespeichert'); loadOffers();
+    }
+    async function togglePause(id, paused){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paused: !paused})});
+      toast(paused ? 'Tracking fortgesetzt' : 'Tracking pausiert'); loadOffers();
+    }
+    async function exportCsv(){
+      if(histId==null) return;
+      try {
+        const r = await fetch(api('/api/history/'+histId+'/csv'));
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'tuiwatch_'+histId+'.csv';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+      } catch(e){ toast('Export fehlgeschlagen'); }
+    }
+    async function resetOffer(id){
+      if(!confirm('Alle bisher getrackten Preise dieses Angebots löschen und neu bei null beginnen?')) return;
+      await fetch(api('/api/reset/'+id), {method:'POST'});
+      toast('Zurückgesetzt – wird neu geprüft…');
+      loadOffers();
+    }
+    async function checkOne(id){ await fetch(api('/api/check/'+id), {method:'POST'}); toast('Prüfung gestartet…'); loadOffers(); }
+    async function checkAll(){ await fetch(api('/api/check-now'), {method:'POST'}); toast('Alle Angebote werden geprüft…'); loadOffers(); }
+
+    async function sendEmail(){
+      let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
+      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
+      const def = localStorage.getItem('tw-mailto') || cfg.default_to || '';
+      const to = prompt('E-Mail-Empfänger:', def);
+      if(to===null) return;
+      if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
+      localStorage.setItem('tw-mailto', to.trim());
+      toast('E-Mail wird gesendet…');
+      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim()})});
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
+    async function backupOffers(){
+      try {
+        const r = await fetch(api('/api/backup')); const blob = await r.blob();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'tuiwatch-backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+        toast('Backup heruntergeladen');
+      } catch(e){ toast('Backup fehlgeschlagen'); }
+    }
+    async function restoreOffers(input){
+      const f = input.files && input.files[0]; input.value=''; if(!f) return;
+      let data; try { data = JSON.parse(await f.text()); } catch(e){ toast('Ungültige Backup-Datei'); return; }
+      const r = await fetch(api('/api/restore'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+      if(r.ok){ const d=await r.json(); toast('Wiederhergestellt: '+d.added+' neu, '+d.skipped+' übersprungen'); loadOffers(); }
+      else toast('Wiederherstellung fehlgeschlagen');
+    }
+
+    function renderOverview(offers){
+      const el = $('#overview'); if(!el) return;
+      if(!offers || !offers.length){ el.style.display='none'; el.innerHTML=''; return; }
+      const ok = offers.filter(o=>o.price!=null && o.ok);
+      let html = '<b>'+offers.length+'</b> Angebote';
+      if(ok.length){
+        const cheap = ok.reduce((a,b)=>b.price<a.price?b:a);
+        html += ' · günstigstes: <b>'+esc(cheap.label||cheap.hotel||'')+'</b> '+eur(cheap.price);
+        const below = ok.filter(o=>o.target_price && o.price<=o.target_price).length;
+        if(below) html += ' · <span style="color:var(--green);font-weight:600">'+below+' unter Wunschpreis</span>';
+      }
+      const paused = offers.filter(o=>o.paused).length;
+      if(paused) html += ' · '+paused+' pausiert';
+      el.innerHTML = html; el.style.display='block';
+    }
+
+    $('#add-btn').addEventListener('click', addOffer);
+    $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
+    $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
+    $('#check-all').addEventListener('click', checkAll);
+    $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
+    $('#sort').value = sortMode;
+    $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
+
+    if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
+
+    loadOffers();
+    setInterval(loadOffers, 5000);
+  </script>
+</body>
+</html>

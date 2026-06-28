@@ -1,5 +1,81 @@
 # Changelog — MediaGrab
 
+## [1.1.3] — 2026-06-27
+
+### Behoben
+- Build-Fehler endgültig gelöst: AtomicParsley existiert nicht als Alpine-Paket. Für MP4/M4A-Cover nutzt yt-dlp bevorzugt die Python-Bibliothek `mutagen` (pure Python, läuft auf amd64 + aarch64) — diese wird jetzt installiert; AtomicParsley entfällt
+- MP3-Cover macht weiterhin ffmpeg
+
+
+## [1.1.2] — 2026-06-27
+
+### Behoben
+- Build schlug fehl (`apk add atomicparsley`): Das Alpine-Paket heißt korrekt `AtomicParsley` (Großschreibung, case-sensitiv)
+
+
+## [1.1.1] — 2026-06-27
+
+### Hinzugefügt
+- Auch Video-Downloads (MP4) bekommen jetzt Metadaten, Cover/Poster und Kapitelmarken eingebettet (`--embed-metadata`, `--embed-thumbnail`, `--embed-chapters`)
+
+
+## [1.1.0] — 2026-06-27
+
+### Hinzugefügt
+- MP3- und M4A-Downloads bekommen jetzt automatisch ID3-Tags (`--embed-metadata`: Titel, Künstler/Uploader, Album, Jahr …) und das Vorschaubild als Cover (`--embed-thumbnail`)
+- `atomicparsley` im Image ergänzt (für Cover-Einbettung in M4A; MP3 nutzt ffmpeg)
+
+
+## [1.0.40] — 2026-06-27
+
+### Behoben
+- Teilen scheiterte bei MP4-Dateien mit Sonderzeichen/Emojis im Namen (`｜ ？ ：` …) weiterhin mit `NotAllowedError`: Der Dateiname wird für den Share jetzt auf sichere ASCII-Zeichen reduziert (Inhalt/Endung unverändert)
+- Fehler-Toast zeigt zur Sicherheit zusätzlich die Dateigröße, falls doch noch ein Fall scheitert
+
+
+## [1.0.39] — 2026-06-27
+
+### Behoben
+- **Teilen scheiterte bei manchen Dateien** mit `NotAllowedError: Permission denied`: Ursache war der MIME-Typ — `/stream` lieferte bei manchen Endungen `application/octet-stream`, das Android Chrome beim Teilen ablehnt
+- Beim Teilen wird der File jetzt mit korrektem MIME-Typ aus der Dateiendung gebaut (mp4, m4a, webm, opus, mp3, jpg … )
+- Echter Hinweis bei nicht-teilbaren Containern (z. B. `.mkv`): „Dieser Dateityp kann nicht direkt geteilt werden – bitte Download nutzen" (DE/EN)
+- Temporäre Teilen-Diagnose (`alert()`) wieder entfernt
+
+
+## [1.0.38] — 2026-06-27
+
+### Geändert
+- Diagnose erweitert: zeigt jetzt zusätzlich `featurePolicy.allowsFeature('web-share')` und den tatsächlichen `Permissions-Policy`-Response-Header, um den web-share-Block zu lokalisieren
+
+
+## [1.0.37] — 2026-06-27
+
+### Behoben
+- Teilen auf Android Chrome warf `NotAllowedError: Permission denied`: Ein beim Datei-Download gescheiterter `share()`-Aufruf blockierte alle weiteren Versuche auf der Seite
+- Striktes Zwei-Schritt-Teilen: Erstes Tippen lädt die Datei NUR (kein `share()`), zweites Tippen teilt sofort — so ist der erste echte `share()`-Aufruf garantiert sauber in der User-Aktivierung
+
+
+## [1.0.36] — 2026-06-27
+
+### Geändert
+- Temporäre Diagnose: Bei Teilen-Fehler erscheint ein `alert()` mit Kontext-Infos (Plattform, secureContext, top-level, canShare(files), Fehlername) zur Fehlersuche auf dem Handy
+
+
+## [1.0.35] — 2026-06-27
+
+### Behoben
+- Teilen auf dem Handy schlug mit `NotAllowedError: Permission denied` fehl: Der Datei-Download dauerte länger als das Zeitfenster der User-Aktivierung für die Web Share API
+- Neues Zwei-Schritt-Teilen: Beim ersten Tippen wird die Datei geladen (kleine Dateien werden sofort geteilt); ist die Aktivierung beim großen Download abgelaufen, ist die Datei zwischengespeichert und ein erneutes Tippen teilt sofort
+- Hinweis-Toast „Datei bereit – zum Teilen erneut tippen" (DE/EN)
+
+
+## [1.0.34] — 2026-06-27
+
+### Geändert
+- Teilen-Button: echter Fehlergrund wird im Toast angezeigt (z. B. `NotAllowedError`), um „Teilen nicht möglich" auf dem Handy zu diagnostizieren
+- AbortError (Teilen abgebrochen) zeigt keinen Fehler-Toast mehr und stellt das Icon korrekt wieder her (Bugfix: `orig` → `origHTML`)
+
+
 ## [1.0.33] — 2026-06-10
 
 ### Geändert

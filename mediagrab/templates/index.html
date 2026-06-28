@@ -357,6 +357,8 @@
       btn_download_file: {{ t.btn_download_file | tojson }},
       btn_share:         {{ t.btn_share | tojson }},
       share_not_available: {{ t.share_not_available | tojson }},
+      share_ready:       {{ t.share_ready | tojson }},
+      share_type_unsupported: {{ t.share_type_unsupported | tojson }},
       lbl_speed:      {{ t.lbl_speed | tojson }},
       lbl_eta:        {{ t.lbl_eta | tojson }},
       lbl_encoding:   {{ t.lbl_encoding | tojson }},
@@ -857,30 +859,83 @@
       } catch(e) { toast(T.error_network, true); }
     }
 
+    // Zwischenspeicher für bereits geladene Dateien (Zwei-Schritt-Teilen auf Mobil)
+    const shareFileCache = new Map();
+
+    // Korrekten MIME-Typ aus der Dateiendung ableiten. Der Browser akzeptiert beim
+    // Teilen nur Dateien mit bekanntem Typ — ein vom Server geliefertes
+    // application/octet-stream führt sonst zu „Permission denied".
+    function pickMime(name, blobType) {
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      const map = {
+        mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', webm:'video/webm',
+        mkv:'video/x-matroska', avi:'video/x-msvideo', flv:'video/x-flv', '3gp':'video/3gpp',
+        mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', opus:'audio/opus',
+        ogg:'audio/ogg', oga:'audio/ogg', wav:'audio/wav', flac:'audio/flac', weba:'audio/webm',
+        jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp',
+        pdf:'application/pdf'
+      };
+      if (map[ext]) return map[ext];
+      if (blobType && blobType !== 'application/octet-stream') return blobType;
+      return blobType || 'application/octet-stream';
+    }
+
+    // Dateinamen für den Share auf sichere ASCII-Zeichen reduzieren. yt-dlp-Namen
+    // enthalten oft Sonderzeichen/Emojis (｜ ？ ： …), an denen Android Chrome beim
+    // Teilen mit „Permission denied" scheitert. Inhalt/Endung bleiben unverändert.
+    function safeShareName(name) {
+      const dot = name.lastIndexOf('.');
+      let base = dot > 0 ? name.slice(0, dot) : name;
+      let ext  = dot > 0 ? name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+      base = base.normalize('NFKD')
+                 .replace(/[^\x20-\x7E]/g, '')        // alles außerhalb ASCII raus
+                 .replace(/[^\w \-()]+/g, '_')        // Rest auf sichere Zeichen
+                 .replace(/_+/g, '_').replace(/ +/g, ' ').trim();
+      if (!base) base = 'video';
+      if (base.length > 80) base = base.slice(0, 80).trim();
+      return ext ? base + '.' + ext : base;
+    }
+
     async function shareFile(name, btn) {
       if (!navigator.share) { toast(T.share_not_available, true); return; }
-      const origHTML = btn.innerHTML;
-      btn.disabled = true; btn.innerHTML = '…';
       const streamUrl = '/stream/' + encodeURIComponent(name);
-      let shared = false;
-      try {
-        const resp = await fetch(streamUrl);
-        if (resp.ok) {
+
+      // Datei holen (oder aus Cache) und mit korrektem MIME-Typ + sicherem Namen als File.
+      let file = shareFileCache.get(name);
+      let justFetched = false;
+      if (!file) {
+        const origHTML = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '…';
+        try {
+          const resp = await fetch(streamUrl);
+          if (!resp.ok) { toast(T.error_network, true); return; }
           const blob = await resp.blob();
-          const file = new File([blob], name, { type: blob.type });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: name });
-            shared = true;
-          }
+          file = new File([blob], safeShareName(name), { type: pickMime(name, blob.type) });
+          shareFileCache.set(name, file);
+          justFetched = true;
+        } catch(e) {
+          toast(T.error_network, true); return;
+        } finally {
+          btn.disabled = false; btn.innerHTML = origHTML;
         }
+      }
+
+      // Kann der Browser diesen Dateityp überhaupt teilen?
+      if (!(navigator.canShare && navigator.canShare({ files: [file] }))) {
+        toast(T.share_type_unsupported, true);
+        return;
+      }
+
+      try {
+        await navigator.share({ files: [file], title: file.name });
       } catch(e) {
-        if (e && e.name === 'AbortError') { btn.disabled = false; btn.textContent = orig; return; }
+        if (e && e.name === 'AbortError') return;
+        // Bei frisch geladener (großer) Datei kann die User-Aktivierung während des
+        // Downloads abgelaufen sein → Datei ist nun gecacht, ein erneutes Tippen teilt sofort.
+        if (e && e.name === 'NotAllowedError' && justFetched) { toast(T.share_ready, false); return; }
+        const mb = Math.round((file.size || 0) / 1048576);
+        toast(T.share_not_available + ' (' + ((e && e.name) || '') + ', ' + mb + ' MB)', true);
       }
-      if (!shared) {
-        try { await navigator.share({ title: name, url: window.location.origin + streamUrl }); }
-        catch(e) { if (!e || e.name !== 'AbortError') toast(T.share_not_available, true); }
-      }
-      btn.disabled = false; btn.innerHTML = origHTML;
     }
 
     // ── Settings: yt-dlp ─────────────────────────────────────────────────────
