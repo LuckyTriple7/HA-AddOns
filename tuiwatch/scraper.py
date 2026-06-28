@@ -127,8 +127,23 @@ def without_room_code(url: str) -> str:
 
 
 def with_duration(url: str, n: int) -> str:
-    """Gibt die URL mit `duration=n` (Nächte) zurück."""
-    return _replace_query(url, set_params={'duration': n})
+    """Gibt die URL mit `duration=n` (Nächte) zurück. Falls die URL ein festes
+    Reisefenster (`startDate`/`endDate`) hat, das schmaler als die gewünschte Dauer ist
+    (z. B. ein aus dem Kalender getrackter Einzeltermin: Fenster = exakt 7 Nächte), wird
+    `endDate` auf `startDate + n` geweitet — sonst liefert die API für längere Dauern
+    kein Angebot. Breitere Fenster bleiben unverändert."""
+    params: dict = {'duration': n}
+    q = {k: v for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True)}
+    sd, ed = q.get('startDate', ''), q.get('endDate', '')
+    try:
+        d0 = date.fromisoformat(sd)
+        need = (d0 + timedelta(days=int(n))).isoformat()
+        cur = date.fromisoformat(ed) if ed else None
+        if cur is None or cur < date.fromisoformat(need):
+            params['endDate'] = need
+    except (TypeError, ValueError):
+        pass
+    return _replace_query(url, set_params=params)
 
 
 def is_single_room(text: str) -> bool:
@@ -628,6 +643,99 @@ def fetch_airports() -> list:
            for a in data if isinstance(a, dict) and a.get("key")]
     out.sort(key=lambda x: x["name"].lower())
     return out
+
+
+# Bekanntes Referenz-Hotel für den API-Selbsttest (Riu Funana, Kapverden) + Region
+# Gran Canaria. Nur lesende Abfragen; dient ausschließlich der Erreichbarkeitsprüfung.
+_HC_GIATA = "259516"
+_HC_REGION = 128
+
+
+def api_healthcheck(*, verbose: bool = False) -> dict:
+    """Prüft alle genutzten TUI-Endpunkte mit je einer leichten Lese-Abfrage und meldet,
+    ob sie noch erwartungsgemäß antworten. Rückgabe:
+    {ok: bool, ts: int, checks: [{name, ok, detail}]}. `ok` ist True, wenn alle
+    *kritischen* Endpunkte (Preis, Suche, Reiseziele) funktionieren."""
+    today = date.today()
+    sd = (today + timedelta(days=30)).isoformat()
+    ed = (today + timedelta(days=37)).isoformat()
+    checks: list[dict] = []
+
+    def add(name, ok, detail, critical=False):
+        checks.append({"name": name, "ok": bool(ok), "detail": detail,
+                       "critical": critical})
+
+    # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings)
+    try:
+        q = {"giataId": _HC_GIATA, "locale": "de_DE", "tenant": "TUICOM",
+             "startDate": sd, "endDate": ed, "durations": "7",
+             "searchScope": "PACKAGE", "travellers": "2"}
+        r = requests.get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), (dict, list))
+        add("Preis/Angebot-API", ok, f"HTTP {r.status_code}", critical=True)
+    except Exception as e:
+        add("Preis/Angebot-API", False, type(e).__name__, critical=True)
+
+    # 2) Hotelsuche (SEARCH_API) — kritisch
+    try:
+        res = fetch_search_params(region=_HC_REGION, start=sd, end=ed, duration=7,
+                                  travellers=2, verbose=verbose)
+        ok = bool(res and res.get("ok"))
+        detail = f"{res.get('total', 0)} Treffer" if ok else "kein Ergebnis"
+        add("Hotelsuche-API", ok, detail, critical=True)
+    except Exception as e:
+        add("Hotelsuche-API", False, type(e).__name__, critical=True)
+
+    # 3) Reiseziele (DEST_API) — kritisch für die Suchmaske
+    try:
+        d = fetch_destinations()
+        n = len((d or {}).get("items") or [])
+        add("Reiseziele-API", n > 0, f"{n} Regionen", critical=True)
+    except Exception as e:
+        add("Reiseziele-API", False, type(e).__name__, critical=True)
+
+    # 4) Abflughäfen (AIRPORTS_API)
+    try:
+        a = fetch_airports()
+        add("Abflughäfen-API", len(a) > 0, f"{len(a)} Flughäfen")
+    except Exception as e:
+        add("Abflughäfen-API", False, type(e).__name__)
+
+    # 5) Preiskalender (CALENDAR_API)
+    try:
+        q = {"giatas": _HC_GIATA, "adults": "2", "duration": "7",
+             "searchscope": "PACKAGE", "tenant": "tui.com",
+             "startDate": sd, "endDate": (today + timedelta(days=300)).isoformat(),
+             "startSearchRange": sd,
+             "endSearchRange": (today + timedelta(days=300)).isoformat()}
+        r = requests.get(f"{CALENDAR_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), dict)
+        add("Preiskalender-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Preiskalender-API", False, type(e).__name__)
+
+    # 6) Bewertung/Sterne (CONTENT_API)
+    try:
+        r = requests.get(f"{CONTENT_API}?giataId={_HC_GIATA}&locale=de_DE",
+                         headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), dict)
+        add("Bewertungs-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Bewertungs-API", False, type(e).__name__)
+
+    # 7) Ort/Region (BREADCRUMB_API)
+    try:
+        r = requests.get(f"{BREADCRUMB_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), list)
+        add("Breadcrumb-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Breadcrumb-API", False, type(e).__name__)
+
+    all_critical_ok = all(c["ok"] for c in checks if c["critical"])
+    if verbose:
+        log.info("API-Selbsttest: %s", ", ".join(
+            f"{c['name']}={'OK' if c['ok'] else 'FEHLER'}" for c in checks))
+    return {"ok": all_critical_ok, "ts": int(time.time()), "checks": checks}
 
 
 def _de_date(iso: str) -> str:

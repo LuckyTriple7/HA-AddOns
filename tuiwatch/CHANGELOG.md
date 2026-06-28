@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.15.0] - 2026-06-28
+
+### Added
+- **API-Selbsttest**: prüft beim Start des Add-ons und manuell, ob alle genutzten
+  TUI-Endpunkte (Preis/Angebot, Hotelsuche, Reiseziele, Abflughäfen, Preiskalender,
+  Bewertung, Breadcrumb) noch erwartungsgemäß antworten. Ergebnis im **Footer** als
+  Ampel (grün/gelb/rot); Klick öffnet die Detailliste mit „Erneut prüfen".
+- **Trackerliste nach Reisebeginn sortierbar** (neue Sortieroption; Angebote ohne
+  festes Datum ans Ende).
+
+### Changed
+- **Günstigerer-Termin-Alarm** kommt nur noch bei einem **wirklich neuen Tiefstwert**
+  (anderer Abreisetag oder nochmals tieferer Preis) und übersteht Add-on-Neustarts
+  (persistenter Dedup) — keine Wiederholungen mehr bei jeder Prüfung. Abschaltbar über
+  `notify_cheaper_date`.
+- **Suche: Datumspicker** — „bis" springt automatisch auf „von" und kann nicht mehr
+  vor dem Abreisedatum liegen.
+
+### Fixed
+- **Nächte-Vergleich für aus dem Kalender getrackte Termine**: das feste Reisefenster
+  (genau N Nächte) wird beim Vergleich passend geweitet (`endDate = startDate + Dauer`),
+  sodass längere Dauern nicht mehr fälschlich als „nicht abrufbar" erscheinen.
+
 ## [0.14.1] - 2026-06-28
 
 ### Fixed

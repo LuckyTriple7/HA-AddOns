@@ -76,6 +76,9 @@ für die volle Historie).
   (abschaltbar über `notify_price_change`).
 - **Günstigerer-Termin-Alarm** (`notify_cheaper_date`): meldet, wenn der Preiskalender
   einen anderen Abreisetag deutlich günstiger zeigt (Schwelle `cheaper_date_min_diff`).
+  Die Meldung kommt nur bei einem **wirklich neuen Tiefstwert** (anderer Termin oder
+  nochmals tieferer Preis) — nicht bei jeder Prüfung — und übersteht Neustarts. Zum
+  Abschalten `notify_cheaper_date: false` setzen.
 - **Ausverkauft-/Fehler-Alarm** (`notify_errors`): meldet, wenn ein Angebot mehrmals in
   Folge kein Ergebnis liefert, und gibt Entwarnung, sobald es wieder klappt.
 - Kanäle:
@@ -142,7 +145,7 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Backup / Wiederherstellen** — getrackte Angebote als JSON sichern bzw. importieren.
 - **Übersicht** über der Liste: Anzahl, günstigstes Angebot, Anzahl unter Wunschpreis.
 - **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ort, Ziel/Abflughafen und Details.
-- **Sortierung** — Liste nach Hinzugefügt, Preis, größter Preisänderung, Bewertung oder Name ordnen.
+- **Sortierung** — Liste nach Hinzugefügt, **Reisebeginn**, Preis, größter Preisänderung, Bewertung oder Name ordnen.
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
@@ -157,6 +160,17 @@ angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service 
 am besten über Direktzugriff/Reverse-Proxy nutzen).
 - **Löschen** — Angebot inkl. Verlauf entfernen.
 - **Doppelklick auf das Logo** — Konsole mit Hintergrund-Logs ein/aus.
+
+## API-Status / Selbsttest
+
+TUIWatch liest die Preise über offene TUI-JSON-APIs (siehe [SCRAPING.md](SCRAPING.md)).
+Beim **Start des Add-ons** und jederzeit **manuell** wird geprüft, ob diese Endpunkte
+noch erreichbar sind und erwartungsgemäß antworten (Preis/Angebot, Hotelsuche,
+Reiseziele, Abflughäfen, Preiskalender, Bewertung, Breadcrumb). Der Status steht im
+**Footer** als Ampel: **grün** = alles ok, **gelb** = unkritische Hinweise, **rot** =
+ein kritischer Endpunkt antwortet nicht. Ein Klick öffnet die Detailliste mit „Erneut
+prüfen". So lässt sich schnell unterscheiden, ob ein fehlender Preis am Angebot liegt
+oder TUI eine API geändert hat.
 
 ## Daten
 

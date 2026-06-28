@@ -27,11 +27,12 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import (_giata_from_url, duration_from_url, fetch_airports,
-                     fetch_calendar, fetch_destinations, fetch_price, fetch_search,
-                     fetch_search_params, hotel_from_url, is_single_room,
-                     region_giata_from_breadcrumb, travellers_from_url,
-                     with_duration, with_travellers, without_room_code)
+from scraper import (_giata_from_url, api_healthcheck, duration_from_url,
+                     fetch_airports, fetch_calendar, fetch_destinations,
+                     fetch_price, fetch_search, fetch_search_params, hotel_from_url,
+                     is_single_room, region_giata_from_breadcrumb,
+                     travellers_from_url, with_duration, with_travellers,
+                     without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -104,6 +105,8 @@ _nights_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
+_health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
+_health_lock = threading.Lock()
 
 # einfache Login-Drossel
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -262,6 +265,15 @@ def init_db() -> None:
             base     INTEGER,
             span     INTEGER,
             rows     TEXT NOT NULL DEFAULT '[]',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        # Merkt den zuletzt gemeldeten Günstigerer-Termin (Datum+Preis), damit der
+        # Alarm Neustarts übersteht und nur bei einem WIRKLICH neuen Tiefstwert kommt.
+        con.execute('''CREATE TABLE IF NOT EXISTS cheaper_state (
+            offer_id INTEGER PRIMARY KEY,
+            cdate    TEXT,
+            cprice   REAL,
+            ts       INTEGER NOT NULL,
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
@@ -650,10 +662,19 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
     diff = current_price - cp
     if cd == cal.get('tracked_date') or diff < min_diff:
         return
-    sig = f"{cd}:{cp}"
-    if _cheaper_notified.get(offer['id']) == sig:
-        return  # für genau diesen Termin/Preis schon gemeldet
-    _cheaper_notified[offer['id']] = sig
+    # Persistenter Dedup: nur melden, wenn es ein WIRKLICH neuer Tiefstwert ist —
+    # also ein anderer Abreisetag ODER (gleicher Tag) ein nochmals tieferer Preis.
+    # Reine Schwankungen nach oben und Wiederholungen über Neustarts lösen nichts aus.
+    oid = offer['id']
+    with db() as con:
+        prev = con.execute('SELECT cdate, cprice FROM cheaper_state WHERE offer_id=?',
+                           (oid,)).fetchone()
+    if prev and prev['cdate'] == cd and prev['cprice'] is not None and cp >= prev['cprice']:
+        return  # selber Termin, kein neuer Tiefstpreis
+    with db() as con:
+        con.execute('INSERT OR REPLACE INTO cheaper_state (offer_id, cdate, cprice, ts) '
+                    'VALUES (?,?,?,?)', (oid, cd, cp, int(time.time())))
+    _cheaper_notified[oid] = f"{cd}:{cp}"
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     d_de = '.'.join(reversed(cd.split('-')))  # YYYY-MM-DD → DD.MM.YYYY
     log.info("💡 Günstigerer Termin (#%d %s): %s am %s (%s günstiger) → Benachrichtigung",
@@ -1057,6 +1078,29 @@ def _poll_worker() -> None:
         time.sleep(max(30, min(next_in, interval)))
 
 
+def _run_healthcheck() -> dict:
+    """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
+    with _health_lock:
+        if _health_state.get('running'):
+            return dict(_health_state)
+        _health_state['running'] = True
+    try:
+        res = api_healthcheck(verbose=_verbose())
+    except Exception as e:
+        log.error("API-Selbsttest fehlgeschlagen: %s", e)
+        res = {'ok': False, 'ts': int(time.time()), 'checks': [],
+               'note': 'Selbsttest fehlgeschlagen'}
+    with _health_lock:
+        _health_state.clear()
+        _health_state.update(res)
+    bad = [c['name'] for c in res.get('checks', []) if not c['ok']]
+    if bad:
+        log.warning("API-Selbsttest: Probleme bei %s", ', '.join(bad))
+    else:
+        log.info("API-Selbsttest: alle Endpunkte OK")
+    return res
+
+
 def _spawn(fn, *args) -> None:
     threading.Thread(target=fn, args=args, daemon=True).start()
 
@@ -1309,6 +1353,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     _cheaper_notified.pop(offer_id, None)
     _fail_notified.discard(offer_id)
@@ -1411,6 +1456,7 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
     with _compare_lock:
         _compare_state.pop(offer_id, None)
     with _calendar_lock:
@@ -1712,6 +1758,19 @@ def api_calendar_get(offer_id: int):
     return jsonify(_calendar_payload(offer_id))
 
 
+@app.route('/api/healthcheck', methods=['GET', 'POST'])
+def api_healthcheck_route():
+    """GET: letztes Selbsttest-Ergebnis (oder noch leer). POST: neuen Selbsttest
+    starten und auf das Ergebnis warten."""
+    if (err := _require_api()):
+        return err
+    if request.method == 'POST':
+        return jsonify(_run_healthcheck())
+    with _health_lock:
+        st = dict(_health_state)
+    return jsonify(st)
+
+
 @app.route('/api/console')
 def api_console():
     if (err := _require_api()):
@@ -1726,6 +1785,7 @@ def main() -> None:
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
+    _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
     threading.Thread(target=_poll_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

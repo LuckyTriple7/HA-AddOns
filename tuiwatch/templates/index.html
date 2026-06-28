@@ -189,6 +189,20 @@
     @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
+    .hc-foot { cursor:pointer; }
+    #hc-dot { font-weight:600; }
+    #hc-dot::before { content:'●'; margin-right:3px; }
+    #hc-dot.ok { color:#22c55e; }
+    #hc-dot.warn { color:#f59e0b; }
+    #hc-dot.bad { color:#ef4444; }
+    #hc-dot.wait { color:var(--muted); }
+    .hc-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px; border-bottom:1px solid var(--border); font-size:.88rem; }
+    .hc-row:last-child { border-bottom:none; }
+    .hc-row .hc-name::before { content:'●'; margin-right:7px; }
+    .hc-row.ok .hc-name::before { color:#22c55e; }
+    .hc-row.bad .hc-name::before { color:#ef4444; }
+    .hc-row .hc-detail { color:var(--muted); }
+    .hc-row.bad .hc-detail { color:#ef4444; }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:8px; font-size:.84rem; opacity:0; transition:opacity .2s; z-index:60; }
     .toast.show { opacity:1; }
     /* Konsole */
@@ -241,6 +255,7 @@
       <input type="text" id="search" placeholder="Suchen… (Hotel, Ziel, Reise-Details)" autocomplete="off">
       <select id="sort" title="Sortierung">
         <option value="added">Reihenfolge: Hinzugefügt</option>
+        <option value="start">Reisebeginn</option>
         <option value="price">Preis aufsteigend</option>
         <option value="delta">Größte Preisänderung</option>
         <option value="rating">Beste Bewertung</option>
@@ -251,7 +266,8 @@
       </label>
     </div>
     <div id="offers"></div>
-    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span></footer>
+    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
+      · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span></footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -307,7 +323,7 @@
           <select id="srch-airport"></select>
         </div>
         <div class="srch-field srch-sm">
-          <label>von</label><input type="date" id="srch-vom" onclick="this.showPicker&&this.showPicker()">
+          <label>von</label><input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
         </div>
         <div class="srch-field srch-sm">
           <label>bis</label><input type="date" id="srch-bis" onclick="this.showPicker&&this.showPicker()">
@@ -378,6 +394,21 @@
       <div id="cal-body"></div>
     </div>
   </div>
+  <!-- API-Status -->
+  <div class="modal-bg" id="hc-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="$('#hc-bg').classList.remove('show')">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>API-Status</h2>
+      <div class="sub" id="hc-sub"></div>
+      <div id="hc-body"></div>
+      <div style="margin-top:14px; text-align:right">
+        <button class="btn" onclick="runHealth()">Erneut prüfen</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <!-- Konsole (Doppelklick auf Logo) -->
@@ -440,6 +471,7 @@
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
+    function startDateOf(o){ const s=urlParam(o.url,'startDate'); return /^\d{4}-\d{2}-\d{2}/.test(s)?s:''; }
     function sortOffers(list){
       const arr = list.slice();
       const num = (v, d) => (v==null ? d : v);
@@ -447,6 +479,7 @@
       else if(sortMode==='delta') arr.sort((a,b)=>Math.abs(num(b.delta,0))-Math.abs(num(a.delta,0)));
       else if(sortMode==='rating') arr.sort((a,b)=>num(b.rating,-1)-num(a.rating,-1));
       else if(sortMode==='name') arr.sort((a,b)=>((a.label||a.hotel||'').localeCompare(b.label||b.hotel||'','de')));
+      else if(sortMode==='start') arr.sort((a,b)=>{ const x=startDateOf(a)||'9999', y=startDateOf(b)||'9999'; return x<y?-1:x>y?1:a.id-b.id; });  // Reisebeginn, ohne Datum ans Ende
       else arr.sort((a,b)=>a.id-b.id);  // 'added'
       return arr;
     }
@@ -865,11 +898,19 @@
       $('#srch-from').style.display   = off?'block':'none';
       $('#dest-panel').style.display  = 'none';
     }
+    // "bis" muss nach "von" liegen: min setzen und bei Bedarf nachziehen.
+    function syncBisMin(){
+      const v=$('#srch-vom').value, b=$('#srch-bis');
+      if(!v){ b.removeAttribute('min'); return; }
+      b.min = v;
+      if(b.value && b.value < v) b.value = v;
+    }
     function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
       setSearchMode('mask'); ensureAirports(); renderFavs();
       if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
       if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
+      syncBisMin();
       $('#srch-bg').classList.add('show');
     }
     function openSearchFromOffer(id){ // Region-Modus (aus Angebot)
@@ -961,7 +1002,7 @@
       const f = getFavs()[+i]; if(!f) return;
       if(f.dest){ srchDest=f.dest; const b=$('#srch-dest'); b.textContent=f.dest.label; b.classList.add('set'); }
       if(f.airport){ ensureAirports().then(()=>{ $('#srch-airport').value=f.airport; }); }
-      $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||'';
+      $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||''; syncBisMin();
       $('#srch-dur').value=f.dur||7; $('#srch-trav').value=f.trav||2;
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
@@ -1323,6 +1364,55 @@
       el.innerHTML = html; el.style.display='block';
     }
 
+    // ── API-Selbsttest ──────────────────────────────────────────────────────
+    let healthData = null;
+    function setHealthDot(d){
+      const dot = $('#hc-dot'); if(!dot) return;
+      if(!d || !d.checks || !d.checks.length){
+        if(d && d.running){ dot.className='wait'; dot.textContent='prüft…'; }
+        else { dot.className='wait'; dot.textContent='–'; }
+        return;
+      }
+      const bad = d.checks.filter(c=>!c.ok);
+      if(!bad.length){ dot.className='ok'; dot.textContent='OK'; }
+      else if(d.ok){ dot.className='warn'; dot.textContent=bad.length+' Hinweis'+(bad.length>1?'e':''); }
+      else { dot.className='bad'; dot.textContent=bad.length+' Fehler'; }
+    }
+    function renderHealthBody(d){
+      const sub=$('#hc-sub'), body=$('#hc-body');
+      if(d && d.running && (!d.checks||!d.checks.length)){
+        sub.textContent='Prüfung läuft…'; body.innerHTML=progBar('Endpunkte werden geprüft…',0,0); return;
+      }
+      if(!d || !d.checks || !d.checks.length){
+        sub.textContent=''; body.innerHTML='<div class="empty">Noch kein Testergebnis. Auf „Erneut prüfen" klicken.</div>'; return;
+      }
+      sub.innerHTML = (d.ok?'Alle kritischen Endpunkte funktionieren.':'Es gibt Probleme bei kritischen Endpunkten.')
+        + (d.ts?(' · zuletzt: '+new Date(d.ts*1000).toLocaleString('de-DE')):'');
+      body.innerHTML = d.checks.map(c=>
+        '<div class="hc-row '+(c.ok?'ok':'bad')+'"><span class="hc-name">'+esc(c.name)
+        +(c.critical?' <span class="hc-detail">(kritisch)</span>':'')
+        +'</span><span class="hc-detail">'+esc(c.ok?c.detail:('Fehler: '+c.detail))+'</span></div>').join('');
+    }
+    async function loadHealth(){
+      try{ const r=await fetch(api('/api/healthcheck')); if(!r.ok) return;
+        healthData=await r.json(); setHealthDot(healthData);
+        if($('#hc-bg').classList.contains('show')) renderHealthBody(healthData);
+      }catch(e){}
+    }
+    function openHealth(){
+      $('#hc-bg').classList.add('show');
+      renderHealthBody(healthData);
+      if(!healthData || !healthData.checks || !healthData.checks.length) runHealth();
+    }
+    async function runHealth(){
+      $('#hc-dot').className='wait'; $('#hc-dot').textContent='prüft…';
+      renderHealthBody({running:true});
+      try{ const r=await fetch(api('/api/healthcheck'),{method:'POST'});
+        healthData=await r.json();
+      }catch(e){ healthData={ok:false,checks:[],note:'Anfrage fehlgeschlagen'}; }
+      setHealthDot(healthData); renderHealthBody(healthData);
+    }
+
     $('#add-btn').addEventListener('click', addOffer);
     $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
@@ -1337,6 +1427,8 @@
 
     loadOffers();
     setInterval(loadOffers, 5000);
+    loadHealth();
+    setInterval(loadHealth, 60000);
   </script>
 </body>
 </html>
