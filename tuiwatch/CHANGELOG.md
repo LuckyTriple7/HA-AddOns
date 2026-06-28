@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1] - 2026-06-28
+
+### Fixed
+- **Übersetzungen** für die neuen Optionen `notify_api_errors`, `digest_enabled` und
+  `digest_weekday` (DE + EN) ergänzt — im HA-Konfig-UI wurden zuvor die rohen
+  Schlüsselnamen angezeigt.
+
 ## [0.16.0] - 2026-06-28
 
 ### Added

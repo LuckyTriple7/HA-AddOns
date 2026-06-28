@@ -29,6 +29,15 @@ configuration:
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."
+  notify_api_errors:
+    name: API-Ausfall-Alarm
+    description: "Benachrichtigen, wenn der API-Selbsttest einen kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und Entwarnung geben, sobald wieder alles läuft. Standard an."
+  digest_enabled:
+    name: Wochenüberblick senden
+    description: "Wöchentliche Zusammenfassung (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis) per Telegram und/oder E-Mail verschicken. Benötigt Telegram oder SMTP. Standard aus."
+  digest_weekday:
+    name: Wochentag für den Überblick
+    description: "An welchem Wochentag der Wochenüberblick verschickt wird: 1 = Montag … 7 = Sonntag. Standard 1 (Montag)."
   telegram_bot_token:
     name: Telegram Bot Token
     description: "Token eines Telegram-Bots (Format 123456789:ABC-...), um Benachrichtigungen per Telegram zu erhalten. Leer lassen, um Telegram zu deaktivieren. Bot erstellen via @BotFather."
