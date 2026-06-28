@@ -26,7 +26,8 @@ verbose_log: false       # ausführliche Logs
    `https://www.tui.com/pauschalreisen/suchen/angebote/<Hotel>/<id>/offer/?...`).
 3. Im Web-UI einfügen → **Hinzufügen**. Der erste Preis wird sofort geprüft.
 
-Für jedes Angebot werden angezeigt: Hotelname, **Sterne & HolidayCheck-Bewertung**,
+Für jedes Angebot werden angezeigt: Hotelname, **Ort/Region** (z. B. „Playa del
+Ingles, Gran Canaria"), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
 (Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
 durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
@@ -82,7 +83,8 @@ Zimmer, Abflughafen).
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 `sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):
 - **Wert** = aktueller Preis in € (bei Fehler `unavailable`)
-- **Attribute**: `description`, `hotel`, `room`, `departure_airport`,
+- **Attribute**: `description`, `hotel`, `location`, `region`, `country`, `room`,
+  `departure_airport`,
   `flight_outbound`, `flight_return`, `available` (true/false), `cancellation`,
   `stars`, `rating`, `rating_count`, `recommendation`, `old_price`,
   `discount`, `min_price`, `max_price`, `avg_price`, `target_price`,

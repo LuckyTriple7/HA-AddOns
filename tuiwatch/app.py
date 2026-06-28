@@ -199,6 +199,10 @@ def init_db() -> None:
             dep_airport TEXT DEFAULT '',
             flight_out  TEXT DEFAULT '',
             flight_ret  TEXT DEFAULT '',
+            location    TEXT DEFAULT '',
+            city        TEXT DEFAULT '',
+            region      TEXT DEFAULT '',
+            country     TEXT DEFAULT '',
             cancellation TEXT DEFAULT '',
             stars        REAL,
             rating       REAL,
@@ -236,7 +240,7 @@ def init_db() -> None:
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
-                    'flight_ret', 'cancellation'):
+                    'flight_ret', 'cancellation', 'location', 'city', 'region', 'country'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('target_price', 'stars', 'rating'):
@@ -325,6 +329,10 @@ def push_ha_sensors() -> None:
                     'flight_return': o['flight_ret'] or '',
                     'url': o['url'],
                 }
+                if o['location']:
+                    attrs['location'] = o['location']
+                    attrs['region'] = o['region'] or ''
+                    attrs['country'] = o['country'] or ''
                 if o['cancellation']:
                     attrs['cancellation'] = o['cancellation']
                 if o['stars'] is not None:
@@ -487,7 +495,8 @@ def check_offer(offer_id: int) -> None:
                  (1 if avail else 0) if avail is not None else None,
                  1 if res.get('ok') else 0, res.get('note', '')))
             for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
-                        'flight_ret', 'cancellation', 'stars', 'rating',
+                        'flight_ret', 'location', 'city', 'region', 'country',
+                        'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
@@ -769,6 +778,8 @@ def api_offers():
                 'hotel': o['hotel'], 'details': o['details'], 'room': o['room'],
                 'dep_airport': o['dep_airport'],
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
+                'location': o['location'], 'city': o['city'],
+                'region': o['region'], 'country': o['country'],
                 'cancellation': o['cancellation'], 'stars': o['stars'],
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],

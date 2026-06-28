@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1] - 2026-06-28
+
+### Added
+- **Ort/Region je Angebot** (z. B. „Playa del Ingles, Gran Canaria") — wird aus dem
+  TUI-Breadcrumb gelesen, in der Karte unter dem Hotelnamen angezeigt, in die
+  Schnellsuche aufgenommen und als HA-Sensor-Attribute ergänzt (`location`, `region`,
+  `country`).
+
 ## [0.4.0] - 2026-06-28
 
 ### Added

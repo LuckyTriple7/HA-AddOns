@@ -192,7 +192,8 @@ def _empty_result() -> dict:
             "travellers": "", "dep_airport": "", "flight_out": "", "flight_ret": "",
             "details": "", "available": None, "total_price": None,
             "cancellation": "", "stars": None, "rating": None, "rating_count": None,
-            "recommendation": None, "source": "", "note": "", "detail": ""}
+            "recommendation": None, "location": "", "city": "", "region": "",
+            "country": "", "source": "", "note": "", "detail": ""}
 
 
 # ── JSON-API (bevorzugt) ────────────────────────────────────────────────────────
@@ -203,6 +204,8 @@ def _empty_result() -> dict:
 OFFER_API = "https://d2z3tkv1undzra.cloudfront.net/data"      # Angebote inkl. Preis
 CONTENT_API = "https://d1pagbczmuq2ek.cloudfront.net/data"    # Sterne + Bewertung
 CALENDAR_API = "https://d18axsujemfwj.cloudfront.net/data"    # Preiskalender (Tag→Preis)
+# Breadcrumb (Ort/Region) auf stabilem API-Host; .../{tenant}/{locale}/{typ=3 Hotel}/{giataId}
+BREADCRUMB_API = "https://api.cloud.tui.com/breadcrumb/v1/data/TUICOM/de-DE/3/"
 _API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 
 
@@ -389,6 +392,43 @@ def _fetch_rating(giata: str, verbose: bool = False) -> dict:
     return out
 
 
+def _fetch_location(giata: str, region_giata=None, verbose: bool = False) -> dict:
+    """Ort + Region aus dem Breadcrumb (z. B. 'Playa del Ingles, Gran Canaria')."""
+    out: dict = {}
+    if not giata:
+        return out
+    try:
+        resp = requests.get(f"{BREADCRUMB_API}{giata}", headers=_API_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return out
+        bc = resp.json()
+        if not isinstance(bc, list) or len(bc) < 2:
+            return out
+        # letzter Eintrag = Hotel; Stadt = direkt darüber
+        city = bc[-2].get('name', '') if len(bc) >= 2 else ''
+        # Region: per regionGiata matchen, sonst tiefster (letzter) Level-1-Eintrag
+        region = ''
+        if region_giata is not None:
+            region = next((e.get('name', '') for e in bc
+                           if e.get('giataId') == region_giata), '')
+        if not region:
+            l1 = [e.get('name', '') for e in bc if e.get('level') == 1]
+            region = l1[-1] if l1 else (bc[-3].get('name', '') if len(bc) >= 3 else '')
+        country = next((e.get('name', '') for e in bc if e.get('level') == 0), '')
+        parts = []
+        for x in (city, region):
+            if x and x not in parts:
+                parts.append(x)
+        out = {'city': city, 'region': region, 'country': country,
+               'location': ', '.join(parts)}
+        if verbose:
+            print(f"[scraper] Ort: {out['location']}")
+    except Exception as e:
+        if verbose:
+            print(f"[scraper] Ort nicht abrufbar: {e}")
+    return out
+
+
 def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     """Liest Preis/Details direkt aus der JSON-API. Rückgabe:
        - dict mit ok=True bei Treffer,
@@ -465,7 +505,10 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
         r["travellers"], room_desc, r["board"],
         (f"inkl. Flug ab {r['dep_airport']}" if r["dep_airport"] else "")) if x)
 
-    r.update(_fetch_rating(_giata_from_url(url), verbose=verbose))
+    giata = _giata_from_url(url)
+    r.update(_fetch_rating(giata, verbose=verbose))
+    r.update(_fetch_location(giata, (data.get("hotel") or {}).get("regionGiata"),
+                             verbose=verbose))
     r["available"] = True
     r["ok"] = True
     if verbose:
