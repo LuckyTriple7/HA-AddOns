@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0] - 2026-06-28
+
+### Changed
+- **Preisabruf jetzt über die offene TUI-JSON-API** statt Seiten-Rendering — rund
+  **0,5 s statt 30–60 s**, deutlich robuster (kein HTML-/Text-Parsing). Der
+  Headless-Chromium-Scraper bleibt als **automatischer Fallback**, falls die API mal
+  nicht erreichbar ist. Der eingegebene Reisezeitraum wird respektiert; getrackt wird
+  das per `cheapest`-Flag markierte günstigste Angebot.
+- Genauere Daten „gratis" aus der API: exakter Streichpreis/Rabatt, strukturierte
+  Flüge (Datum/Zeit/Airline/Stopps/Route) und zuverlässige Verfügbarkeit.
+
+### Added
+- **Hotel-Sterne & HolidayCheck-Bewertung** (Ø-Note /6, Anzahl Bewertungen,
+  Weiterempfehlung %) in der Karte und als HA-Sensor-Attribute (`stars`, `rating`,
+  `rating_count`, `recommendation`).
+- **„Kostenlos stornierbar"-Badge** (aus `cancellationType`) in der Karte und als
+  Sensor-Attribut `cancellation`.
+
 ## [0.2.0] - 2026-06-28
 
 ### Added

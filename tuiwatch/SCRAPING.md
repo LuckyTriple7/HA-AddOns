@@ -4,15 +4,40 @@ Diese Datei dokumentiert, **wie** TUIWatch den Preis von tui.com liest und **was
 tun ist, wenn TUI das Layout ändert** (dann bricht das Auslesen und muss neu
 kalibriert werden). Damit muss niemand bei null anfangen.
 
-## Warum überhaupt scrapen?
+## Primär: offene JSON-API (seit v0.3.0)
 
-- TUI hat **keine** für Privatpersonen nutzbare Preis-API (developer.tui ist
-  partner-gated).
-- Die Angebotsseite liefert per **statischem HTTP-Abruf keinen Preis** – der Preis
-  wird erst per JavaScript nachgeladen. Bestätigt: der Seitenquelltext enthält kein
-  `__NEXT_DATA__`/JSON-LD mit Preis.
-- Lösung: Seite mit **Headless-Chromium (Playwright)** rendern und das DOM auslesen.
-  Code: [scraper.py](scraper.py).
+Die Angebotsseite versorgt sich aus **offenen JSON-Endpoints** (CloudFront), die sich
+**direkt per `requests.get` ohne Browser** abrufen lassen — schneller (~0,5 s statt
+30–60 s) und deutlich robuster (kein HTML-Parsing). Das ist jetzt der **Standardweg**;
+der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
+[scraper.py](scraper.py).
+
+| Zweck | Endpoint | Schlüssel-Felder |
+|---|---|---|
+| **Angebote + Preis** | `https://d2z3tkv1undzra.cloudfront.net/data?giataId=…&startDate=…&endDate=…&durations=…&travellers=…&airports=…&roomTypeOpCodes=…&…` | `offers[]` mit `cheapest`, `calculatedPricePerPerson`, `calculatedOriginalPricePerPerson`, `discount`, `cancellationType`, `lengthOfStay`, `rooms[]` (`description`,`code`,`boardDescription`), `departure`/`return` (Datum/Zeit/`airline`/`stopOver`/Airports), `arrivalDate`; dazu `hotel.name`, `currency`, `travellers[]` |
+| **Sterne + Bewertung** | `https://d1pagbczmuq2ek.cloudfront.net/data?giataId=…&locale=de_DE` | `category` (Sterne), `holidayCheckRatings.averageRating` (×/6), `.countReviewsCurrent`, `.recommendation` (%) |
+
+- Die **giataId** steht im Pfad der Seiten-URL: `…/angebote/<Hotel>/<giataId>/…`.
+- `build_offer_api_url()` mappt die Seiten-Parameter → API-Parameter (u. a.
+  `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
+  Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
+- `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+
+**Risiko / Wartung:** Die CloudFront-Hostnamen (`d2z3tkv1undzra…`, `d1pagbczmuq2ek…`)
+sind opak und könnten rotieren. Passiert das, liefert die API einen Fehler →
+automatischer **Browser-Fallback** (unten). Neue Hosts findet man, indem man die
+Seite mit Playwright lädt und die `response`-URLs mit `/data?` + `giataId=` und
+JSON-Body mit `offers`/`price` mitschneidet (so wurden sie ermittelt). Dann
+`OFFER_API`/`CONTENT_API` in [scraper.py](scraper.py) aktualisieren.
+
+## Fallback: Browser (Headless-Chromium)
+
+Greift nur, wenn die JSON-API technisch fehlschlägt. Hintergrund, warum überhaupt ein
+Browser nötig war:
+- Die Angebotsseite liefert per **statischem HTTP-Abruf der HTML-Seite keinen Preis** –
+  der Preis wird erst per JavaScript nachgeladen (kein `__NEXT_DATA__`/JSON-LD im HTML).
+- Fallback-Lösung: Seite mit **Headless-Chromium (Playwright)** rendern und das DOM
+  auslesen. Code: `_fetch_price_browser()` in [scraper.py](scraper.py).
 
 ## Was wird ausgelesen (Stand: 2026-06, funktioniert)
 

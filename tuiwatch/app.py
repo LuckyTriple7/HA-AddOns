@@ -197,6 +197,11 @@ def init_db() -> None:
             dep_airport TEXT DEFAULT '',
             flight_out  TEXT DEFAULT '',
             flight_ret  TEXT DEFAULT '',
+            cancellation TEXT DEFAULT '',
+            stars        REAL,
+            rating       REAL,
+            rating_count INTEGER,
+            recommendation INTEGER,
             target_price REAL,
             created     INTEGER NOT NULL
         )''')
@@ -215,11 +220,16 @@ def init_db() -> None:
         con.execute('CREATE INDEX IF NOT EXISTS idx_hist_offer ON price_history(offer_id, ts)')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
-        for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret'):
+        for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
+                    'flight_ret', 'cancellation'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
-        if 'target_price' not in ocols:
-            con.execute("ALTER TABLE offers ADD COLUMN target_price REAL")
+        for col in ('target_price', 'stars', 'rating'):
+            if col not in ocols:
+                con.execute(f"ALTER TABLE offers ADD COLUMN {col} REAL")
+        for col in ('rating_count', 'recommendation'):
+            if col not in ocols:
+                con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
@@ -300,6 +310,14 @@ def push_ha_sensors() -> None:
                     'flight_return': o['flight_ret'] or '',
                     'url': o['url'],
                 }
+                if o['cancellation']:
+                    attrs['cancellation'] = o['cancellation']
+                if o['stars'] is not None:
+                    attrs['stars'] = o['stars']
+                if o['rating'] is not None:
+                    attrs['rating'] = o['rating']
+                    attrs['rating_count'] = o['rating_count']
+                    attrs['recommendation'] = o['recommendation']
                 if last and last['available'] is not None:
                     attrs['available'] = bool(last['available'])
                 if o['target_price']:
@@ -453,8 +471,10 @@ def check_offer(offer_id: int) -> None:
                 (offer_id, ts, res.get('price'), res.get('old_price'), res.get('discount'),
                  (1 if avail else 0) if avail is not None else None,
                  1 if res.get('ok') else 0, res.get('note', '')))
-            for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret'):
-                if res.get(col):
+            for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
+                        'flight_ret', 'cancellation', 'stars', 'rating',
+                        'rating_count', 'recommendation'):
+                if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
 
         if res.get('ok'):
@@ -665,6 +685,9 @@ def api_offers():
                 'hotel': o['hotel'], 'details': o['details'], 'room': o['room'],
                 'dep_airport': o['dep_airport'],
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
+                'cancellation': o['cancellation'], 'stars': o['stars'],
+                'rating': o['rating'], 'rating_count': o['rating_count'],
+                'recommendation': o['recommendation'],
                 'target_price': o['target_price'],
                 'price': last['price'] if last else None,
                 'old_price': last['old_price'] if last else None,

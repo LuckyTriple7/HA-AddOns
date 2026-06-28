@@ -26,11 +26,16 @@ verbose_log: false       # ausführliche Logs
    `https://www.tui.com/pauschalreisen/suchen/angebote/<Hotel>/<id>/offer/?...`).
 3. Im Web-UI einfügen → **Hinzufügen**. Der erste Preis wird sofort geprüft.
 
-Für jedes Angebot werden angezeigt: Hotelname, Reise-Eckdaten (Nächte, Zimmer,
-Verpflegung), **Hin- und Rückflug** (Datum/Uhrzeit/Airline/Direkt), der konkrete
-**„Günstigster Preis"** (buchbar), durchgestrichener Vergleichspreis + Rabatt,
-**Verfügbarkeit** (✓/✗), Veränderung zum letzten Check und ein Preisverlauf-Diagramm
-(Klick auf **Verlauf** für die volle Historie).
+Für jedes Angebot werden angezeigt: Hotelname, **Sterne & HolidayCheck-Bewertung**,
+Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
+(Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
+durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
+ggf. **„kostenlos stornierbar"**, Veränderung zum letzten Check und ein
+Preisverlauf-Diagramm (Klick auf **Verlauf** für die volle Historie).
+
+> Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
+> robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere
+> Browser-Auslesen um. Details: [SCRAPING.md](SCRAPING.md).
 
 > Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
 > der unverbindliche „ab"-Lockpreis.
@@ -66,7 +71,8 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 `sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):
 - **Wert** = aktueller Preis in € (bei Fehler `unavailable`)
 - **Attribute**: `description`, `hotel`, `room`, `departure_airport`,
-  `flight_outbound`, `flight_return`, `available` (true/false), `old_price`,
+  `flight_outbound`, `flight_return`, `available` (true/false), `cancellation`,
+  `stars`, `rating`, `rating_count`, `recommendation`, `old_price`,
   `discount`, `min_price`, `max_price`, `avg_price`, `target_price`,
   `last_checked`, `url`
 

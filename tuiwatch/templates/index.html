@@ -39,6 +39,10 @@
     .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
     .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
     .flight .fdir { color:var(--muted); }
+    .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
+    .meta .stars { color:var(--amber); letter-spacing:1px; }
+    .meta .rating { color:var(--text); }
+    .meta .canc { color:var(--green); font-weight:700; background:rgba(46,160,67,.12); padding:1px 7px; border-radius:10px; }
     .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
     .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
@@ -261,6 +265,17 @@
         let availBadge = '';
         if(o.available===true) availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
         else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
+        // Sterne + HolidayCheck-Bewertung + kostenlose Stornierung
+        const metaParts = [];
+        if(o.stars) metaParts.push(`<span class="stars">${'★'.repeat(Math.round(o.stars))}</span>`);
+        if(o.rating!=null){
+          let rt = 'HolidayCheck '+o.rating.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'/6';
+          if(o.rating_count) rt += ' · '+o.rating_count.toLocaleString('de-DE')+' Bew.';
+          if(o.recommendation!=null) rt += ' · '+o.recommendation+'% 👍';
+          metaParts.push('<span class="rating">'+esc(rt)+'</span>');
+        }
+        if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
+        const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){
           const best = (o.price!=null && o.price<=o.min_price);
@@ -276,6 +291,7 @@
             <div class="offer-main">
               <div class="offer-label">${esc(title)}</div>
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
+              ${metaLine}
               ${flights}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}

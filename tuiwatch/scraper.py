@@ -16,8 +16,10 @@ Details zur Wartung bei TUI-Layout-Änderungen: siehe SCRAPING.md.
 import os
 import re
 import time
-from urllib.parse import (parse_qsl, unquote, urlencode, urlparse, urlunparse)
+from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
+                          urlunparse)
 
+import requests
 from playwright.sync_api import sync_playwright
 
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -183,20 +185,227 @@ def _parse_card(text: str) -> dict:
     return out
 
 
+def _empty_result() -> dict:
+    return {"ok": False, "price": None, "currency": "EUR", "old_price": None,
+            "discount": None, "hotel": "", "room": "", "board": "", "nights": "",
+            "travellers": "", "dep_airport": "", "flight_out": "", "flight_ret": "",
+            "details": "", "available": None, "total_price": None,
+            "cancellation": "", "stars": None, "rating": None, "rating_count": None,
+            "recommendation": None, "source": "", "note": "", "detail": ""}
+
+
+# ── JSON-API (bevorzugt) ────────────────────────────────────────────────────────
+# Die TUI-Angebotsseite versorgt sich aus offenen JSON-Endpoints (CloudFront), die
+# direkt – ohne Browser – abrufbar sind. Das ist schneller und robuster als das
+# Parsen des gerenderten HTML. Bricht das (z. B. Host rotiert), greift der
+# Browser-Fallback _fetch_price_browser(). Siehe SCRAPING.md.
+OFFER_API = "https://d2z3tkv1undzra.cloudfront.net/data"      # Angebote inkl. Preis
+CONTENT_API = "https://d1pagbczmuq2ek.cloudfront.net/data"    # Sterne + Bewertung
+_API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
+
+
+def _giata_from_url(url: str) -> str:
+    """giataId aus dem Pfad …/angebote/<Hotel>/<giataId>/… ."""
+    try:
+        parts = [p for p in urlparse(url).path.split('/') if p]
+        if 'angebote' in parts:
+            for seg in parts[parts.index('angebote') + 1:parts.index('angebote') + 3]:
+                if seg.isdigit():
+                    return seg
+    except Exception:
+        pass
+    return ''
+
+
+def build_offer_api_url(url: str, travellers: int | None = None) -> str:
+    """Baut die Offer-JSON-API-URL aus den Parametern der Angebots-Seiten-URL.
+    Der eingegebene Reisezeitraum (startDate/endDate/duration) wird übernommen."""
+    p = urlparse(url)
+    q = {k: v[0] for k, v in parse_qs(p.query, keep_blank_values=True).items()}
+    params = {
+        'giataId': _giata_from_url(url), 'locale': 'de_DE', 'tenant': 'TUICOM',
+        'startDate': q.get('startDate', ''), 'endDate': q.get('endDate', ''),
+        'durations': q.get('duration', ''),
+        'searchScope': q.get('searchScope', 'PACKAGE'),
+        'travellers': str(travellers) if travellers else q.get('travellers', '1'),
+        'maxStopOvers': '', 'roomTypes': '', 'boardTypes': '', 'extraTypes': '',
+        'viewTypes': '', 'airports': q.get('departureAirports', ''), 'airlines': '',
+        'roomTypeOpCodes': q.get('roomTypeOpCodes', ''), 'tourOperators': '',
+        'departureMinTime': '', 'departureMaxTime': '', 'returnMinTime': '',
+        'returnMaxTime': '', 'minPrice': '', 'maxPrice': '',
+        'campaignGlobalTypes': 'GT07-DISC;GT07-TOY;GT07-SAVE',
+        'lang': 'de_DE', 'transferIncluded': 'false',
+    }
+    return f"{OFFER_API}?{urlencode(params)}"
+
+
+def _de_date(iso: str) -> str:
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", iso or "")
+    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ""
+
+
+def _de_datetime(iso: str) -> str:
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})", iso or "")
+    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}, {m.group(4)}:{m.group(5)}" if m else ""
+
+
+def _fmt_flight(leg: dict) -> str:
+    if not leg:
+        return ""
+    dt = _de_datetime(leg.get("departureDateTime", ""))
+    airline = (leg.get("airline") or {}).get("value", "")
+    dep = (leg.get("departureAirport") or {}).get("code", "")
+    arr = (leg.get("arrivalAirport") or {}).get("code", "")
+    route = f"{dep}→{arr}" if dep and arr else ""
+    so = leg.get("stopOver")
+    stops = "Direktflug" if so in (0, None) else (
+        "1 Zwischenstopp" if so == 1 else f"{so} Zwischenstopps")
+    return " · ".join(x for x in (dt, route, airline, stops) if x)
+
+
+def _fetch_rating(giata: str, verbose: bool = False) -> dict:
+    """Sterne + HolidayCheck-Bewertung aus dem TUI-Content-Endpoint (optional)."""
+    out: dict = {}
+    if not giata:
+        return out
+    try:
+        resp = requests.get(f"{CONTENT_API}?giataId={giata}&locale=de_DE",
+                            headers=_API_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return out
+        d = resp.json()
+        hc = d.get("holidayCheckRatings") or {}
+        if d.get("category") is not None:
+            out["stars"] = d.get("category")
+        if hc.get("averageRating") is not None:
+            out["rating"] = hc.get("averageRating")
+        if hc.get("countReviewsCurrent") is not None:
+            out["rating_count"] = hc.get("countReviewsCurrent")
+        if hc.get("recommendation") is not None:
+            out["recommendation"] = hc.get("recommendation")
+    except Exception as e:
+        if verbose:
+            print(f"[scraper] Bewertung nicht abrufbar: {e}")
+    return out
+
+
+def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
+    """Liest Preis/Details direkt aus der JSON-API. Rückgabe:
+       - dict mit ok=True bei Treffer,
+       - dict mit ok=False + Note bei *gültiger* Leermenge (kein Angebot im Zeitraum),
+       - None bei technischem Fehler (→ Aufrufer macht Browser-Fallback)."""
+    try:
+        api = build_offer_api_url(url)
+        resp = requests.get(api, headers=_API_HEADERS, timeout=25)
+        if resp.status_code != 200:
+            if verbose:
+                print(f"[scraper] API HTTP {resp.status_code}")
+            return None
+        data = resp.json()
+    except Exception as e:
+        if verbose:
+            print(f"[scraper] API-Fehler: {type(e).__name__}: {e}")
+        return None
+
+    r = _empty_result()
+    r["source"] = "api"
+    r["hotel"] = (data.get("hotel") or {}).get("name", "") or hotel_from_url(url)
+    r["currency"] = data.get("currency", "EUR")
+    offers = data.get("offers") or []
+    if not offers:
+        r["available"] = False
+        r["note"] = "Kein Angebot im gewählten Zeitraum"
+        return r
+
+    offer = next((o for o in offers if o.get("cheapest")), None) or \
+        min(offers, key=lambda o: o.get("calculatedPricePerPerson") or float("inf"))
+
+    price = offer.get("calculatedPricePerPerson")
+    old = offer.get("calculatedOriginalPricePerPerson")
+    r["price"] = float(price) if price is not None else None
+    if old and price and old > price:
+        r["old_price"] = float(old)
+        r["discount"] = round((old - price) / old * 100)
+    if r["price"] is None:
+        r["note"] = "Preis im API-Angebot fehlt"
+        return None  # lieber Browser-Fallback versuchen
+
+    room0 = (offer.get("rooms") or [{}])[0]
+    room_desc = room0.get("description", "")
+    room_code = room0.get("code", "")
+    r["room"] = f"{room_desc} ({room_code})" if room_code else room_desc
+    r["board"] = room0.get("boardDescription", "")
+
+    nights = offer.get("lengthOfStay")
+    r["nights"] = f"{nights} Nächte" if nights else ""
+
+    trav = data.get("travellers") or offer.get("travellers") or []
+    adults = sum(1 for t in trav if (t.get("age") if t.get("age") is not None else 99) >= 18)
+    kids = len(trav) - adults
+    tparts = []
+    if adults:
+        tparts.append(f"{adults} Erwachsene{'r' if adults == 1 else ''}")
+    if kids:
+        tparts.append(f"{kids} Kind{'er' if kids > 1 else ''}")
+    r["travellers"] = ", ".join(tparts) or (f"{len(trav)} Reisende" if trav else "")
+
+    dep = offer.get("departure") or {}
+    da = dep.get("departureAirport") or {}
+    if da.get("value"):
+        r["dep_airport"] = f"{da['value']} ({da.get('code', '')})"
+    r["flight_out"] = _fmt_flight(dep)
+    r["flight_ret"] = _fmt_flight(offer.get("return") or {})
+
+    if offer.get("cancellationType") == "FREE_REFUNDABLE":
+        r["cancellation"] = "kostenlos stornierbar"
+
+    date_de = _de_date(offer.get("arrivalDate", ""))
+    r["details"] = " · ".join(x for x in (
+        (f"{nights} Nächte ab {date_de}" if nights and date_de else r["nights"]),
+        r["travellers"], room_desc, r["board"],
+        (f"inkl. Flug ab {r['dep_airport']}" if r["dep_airport"] else "")) if x)
+
+    r.update(_fetch_rating(_giata_from_url(url), verbose=verbose))
+    r["available"] = True
+    r["ok"] = True
+    if verbose:
+        print(f"[scraper] API ok: {r['price']} € p.P. · {r['hotel']} · "
+              f"Sterne={r.get('stars')} Bewertung={r.get('rating')}")
+    return r
+
+
 def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool = True,
                 verbose: bool = False) -> dict:
     """Liest den konkreten 'Günstigster Preis' einer TUI-Angebots-URL.
 
+    Bevorzugt die JSON-API (schnell, robust); bei technischem Fehler automatischer
+    Fallback auf das Auslesen der gerenderten Seite (_fetch_price_browser).
+
     Rückgabe (immer dict, nie Exception nach außen):
         ok, price, currency, old_price, discount, hotel, room, board, nights,
         travellers, dep_airport, flight_out, flight_ret, details,
-        available (bool|None), total_price, note
+        available (bool|None), total_price, cancellation, stars, rating,
+        rating_count, recommendation, source, note
     """
-    r = {"ok": False, "price": None, "currency": "EUR", "old_price": None,
-         "discount": None, "hotel": "", "room": "", "board": "", "nights": "",
-         "travellers": "", "dep_airport": "", "flight_out": "", "flight_ret": "",
-         "details": "", "available": None, "total_price": None,
-         "note": "", "detail": ""}
+    api = fetch_price_api(url, verbose=verbose)
+    if api is not None:
+        return api  # API hat gültig geantwortet (Treffer oder echte Leermenge)
+    if verbose:
+        print("[scraper] → Browser-Fallback")
+    rb = _fetch_price_browser(url, timeout_ms=timeout_ms,
+                              check_availability=check_availability, verbose=verbose)
+    rb["source"] = "browser"
+    for k in ("cancellation", "stars", "rating", "rating_count", "recommendation"):
+        rb.setdefault(k, None if k != "cancellation" else "")
+    return rb
+
+
+def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
+                         check_availability: bool = True,
+                         verbose: bool = False) -> dict:
+    """Fallback: liest den Preis aus der gerenderten Seite (Headless-Chromium)."""
+    r = _empty_result()
+    r["source"] = "browser"
     chromium_path = os.environ.get("CHROMIUM_PATH") or None
     try:
         with sync_playwright() as p:
