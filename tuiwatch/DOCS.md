@@ -78,7 +78,9 @@ nicht möglich ist.
 Der Button **Kalender** je Angebot zeigt ein Monats-Raster mit dem günstigsten Preis
 pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Hervorgehoben werden
 der **günstigste Termin insgesamt** (grün) und der **günstigste Termin in deinem
-gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Es wird die
+gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Die Tage sind als
+**Heatmap** eingefärbt (grün = günstig, rot = teuer); ein **Klick auf einen Tag öffnet
+genau diesen Termin auf tui.com**. Es wird die
 **volle buchbare Spanne** angezeigt (heute bis ~12–14 Monate, je nach Verfügbarkeit);
 mit den Pfeilen blätterst du durch die Monate. Das Ergebnis wird **gespeichert** (Zeitstempel + „Neu
 abfragen") und respektiert alle Filter deiner Angebots-URL (Verpflegung, Veranstalter,
@@ -98,6 +100,9 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 
 ## Bedienung
 
+- **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).
+- **Backup / Wiederherstellen** — getrackte Angebote als JSON sichern bzw. importieren.
+- **Übersicht** über der Liste: Anzahl, günstigstes Angebot, Anzahl unter Wunschpreis.
 - **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ort, Ziel/Abflughafen und Details.
 - **Sortierung** — Liste nach Hinzugefügt, Preis, größter Preisänderung, Bewertung oder Name ordnen.
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.

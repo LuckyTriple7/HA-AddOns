@@ -12,11 +12,14 @@ import logging
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
 import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from urllib.parse import urlparse
 
 import requests as http
@@ -375,8 +378,29 @@ def push_ha_sensors() -> None:
                     attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
                 http.post(f'{HA_BASE}/states/{eid}', headers=headers, timeout=10,
                           json={'state': state, 'attributes': attrs})
+        # Übersichts-Sensor (günstigstes Angebot, Anzahl unter Wunschpreis …)
+        summary_eid = 'sensor.tuiwatch_uebersicht'
+        ov = _collect_offers()
+        ok_offers = [o for o in ov if o.get('ok') and o.get('price') is not None]
+        s_attrs = {'friendly_name': 'TUIWatch Übersicht', 'icon': 'mdi:airplane-clock',
+                   'total_offers': len(ov),
+                   'paused_offers': sum(1 for o in ov if o.get('paused'))}
+        if ok_offers:
+            cheapest = min(ok_offers, key=lambda o: o['price'])
+            s_attrs['unit_of_measurement'] = '€'
+            s_attrs['cheapest_offer'] = cheapest.get('label') or cheapest.get('hotel') or ''
+            s_attrs['cheapest_price'] = int(round(cheapest['price']))
+            s_attrs['cheapest_location'] = cheapest.get('location') or ''
+            s_attrs['offers_below_target'] = sum(
+                1 for o in ok_offers if o.get('target_price') and o['price'] <= o['target_price'])
+            s_state = int(round(cheapest['price']))
+        else:
+            s_state = 'unavailable'
+        http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
+                  json={'state': s_state, 'attributes': s_attrs})
+
         # Verwaiste tuiwatch-Sensoren entfernen (z. B. nach Löschen/Umbenennen)
-        valid = set(mapping.values())
+        valid = set(mapping.values()) | {summary_eid}
         states = http.get(f'{HA_BASE}/states', headers=headers, timeout=10).json()
         for st in states:
             ent = st.get('entity_id', '')
@@ -418,6 +442,122 @@ def _eur(v) -> str:
         return f"{int(round(v)):,}".replace(',', '.') + ' €'
     except Exception:
         return '–'
+
+
+# ── E-Mail (SMTP, Muster wie MyPage) ────────────────────────────────────────────
+
+def smtp_configured() -> bool:
+    return bool((load_config().get('smtp_host') or '').strip())
+
+
+def send_email(subject: str, html_body: str, to: str) -> None:
+    """Verschickt eine HTML-Mail. Wirft bei Fehler (Aufrufer fängt ab)."""
+    cfg = load_config()
+    host = (cfg.get('smtp_host') or '').strip()
+    port = int(cfg.get('smtp_port') or 587)
+    user = (cfg.get('smtp_user') or '').strip()
+    password = (cfg.get('smtp_password') or '').strip()
+    use_tls = bool(cfg.get('smtp_tls', True))
+    sender = (cfg.get('smtp_from') or user or f'tuiwatch@{host}').strip()
+    to = (to or '').strip()
+    if not host:
+        raise RuntimeError('SMTP nicht konfiguriert')
+    if not to:
+        raise RuntimeError('Kein Empfänger')
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = to
+    msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+    if use_tls:
+        with smtplib.SMTP(host, port, timeout=20) as s:
+            s.ehlo(); s.starttls(); s.ehlo()
+            if user and password:
+                s.login(user, password)
+            s.sendmail(sender, [to], msg.as_string())
+    else:
+        with smtplib.SMTP_SSL(host, port, timeout=20) as s:
+            if user and password:
+                s.login(user, password)
+            s.sendmail(sender, [to], msg.as_string())
+    log.info("E-Mail an %s gesendet (%s)", to, sender)
+
+
+def _email_html_offers(offers: list[dict]) -> str:
+    """Baut eine optisch ansprechende HTML-Mail mit allen Angeboten (Inline-Styles)."""
+    def esc(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    cards = []
+    for o in offers:
+        price = _eur(o['price']) if o.get('price') is not None else '–'
+        stars = '★' * int(round(o['stars'])) if o.get('stars') else ''
+        # Delta
+        delta = ''
+        if o.get('delta') is not None and o['delta'] != 0:
+            up = o['delta'] > 0
+            delta = (f'<span style="color:{"#cf222e" if up else "#1a7f37"};font-weight:700">'
+                     f'{"▲ +" if up else "▼ "}{_eur(abs(o["delta"]))}</span>')
+        sub = []
+        if o.get('old_price') and o.get('price') and o['old_price'] > o['price']:
+            sub.append(f'<span style="text-decoration:line-through;color:#888">{_eur(o["old_price"])}</span>'
+                       + (f' −{o["discount"]}%' if o.get('discount') else ''))
+        rating = ''
+        if o.get('rating') is not None:
+            rating = (f'HolidayCheck {str(o["rating"]).replace(".", ",")}/6'
+                      + (f' · {o["recommendation"]}%' if o.get('recommendation') is not None else ''))
+        total = ''
+        if o.get('travellers_count') and o['travellers_count'] > 1 and o.get('total_price'):
+            total = f'<div style="font-size:13px;color:#444">Gesamt {_eur(o["total_price"])} · {o["travellers_count"]} Reisende</div>'
+        avail = ''
+        if o.get('available') is True:
+            avail = '<span style="color:#1a7f37;font-weight:600">✓ verfügbar</span>'
+        elif o.get('available') is False:
+            avail = '<span style="color:#cf222e;font-weight:600">✗ nicht verfügbar</span>'
+        canc = f' · {esc(o["cancellation"])}' if o.get('cancellation') else ''
+        title = esc(o.get('label') or o.get('hotel') or f"Angebot #{o['id']}")
+        links = (f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none;font-weight:600">'
+                 f'Auf tui.com ansehen ↗</a>')
+        if o.get('pdf_url'):
+            links += (f' &nbsp;·&nbsp; <a href="{esc(o["pdf_url"])}" '
+                      f'style="color:#0b65d8;text-decoration:none">Hotel-PDF</a>')
+        cards.append(
+            '<tr><td style="padding:0 0 14px">'
+            '<table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;'
+            'border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
+            '<tr><td style="padding:14px 16px">'
+            f'<div style="font-size:17px;font-weight:700;color:#10243e">{title} '
+            f'<span style="color:#d29922">{stars}</span></div>'
+            + (f'<div style="font-size:13px;color:#0b65d8">📍 {esc(o["location"])}</div>' if o.get('location') else '')
+            + (f'<div style="font-size:13px;color:#555;margin-top:3px">{esc(o["details"])}</div>' if o.get('details') else '')
+            + (f'<div style="font-size:12px;color:#777;margin-top:3px">{esc(rating)}</div>' if rating else '')
+            + '<div style="margin-top:10px">'
+            f'<span style="font-size:24px;font-weight:800;color:#10243e">{price}</span>'
+            ' <span style="font-size:12px;color:#777">pro Person</span> '
+            f'&nbsp;{delta}</div>'
+            + (f'<div style="font-size:13px;color:#777">{"".join(sub)}</div>' if sub else '')
+            + total
+            + (f'<div style="font-size:13px;margin-top:6px">{avail}{canc}</div>' if (avail or canc) else '')
+            + f'<div style="margin-top:10px;font-size:14px">{links}</div>'
+            '</td></tr></table></td></tr>'
+        )
+    now = datetime.now().strftime('%d.%m.%Y %H:%M')
+    return (
+        '<div style="background:#eef2f8;padding:20px 0;font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
+        '<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%">'
+        '<tr><td style="padding:0 16px 16px">'
+        '<div style="font-size:22px;font-weight:800;color:#0b65d8">✈ TUIWatch</div>'
+        f'<div style="font-size:13px;color:#666">Deine verfolgten Reisepreise · Stand {now}</div>'
+        '</td></tr>'
+        f'<tr><td style="padding:0 16px"><table width="100%" cellpadding="0" cellspacing="0">{"".join(cards)}</table></td></tr>'
+        '<tr><td style="padding:10px 16px 0;font-size:11px;color:#99a">Generiert von '
+        '<a href="https://github.com/LuckyTriple7/HA-AddOns" style="color:#0b65d8;text-decoration:none">TUIWatch</a>'
+        ', einer App für Home Assistant · '
+        '<a href="https://github.com/LuckyTriple7/HA-AddOns" style="color:#0b65d8;text-decoration:none">github.com/LuckyTriple7/HA-AddOns</a>'
+        '</td></tr>'
+        '</table></td></tr></table></div>'
+    )
 
 
 def _notify_startup() -> None:
@@ -918,10 +1058,9 @@ def index():
 
 # ── Routen: API ────────────────────────────────────────────────────────────────
 
-@app.route('/api/offers', methods=['GET'])
-def api_offers():
-    if (err := _require_api()):
-        return err
+def _collect_offers() -> list[dict]:
+    """Baut die Angebotsliste (mit letztem Preis, Delta, Statistik) — genutzt von
+    der API, dem E-Mail-Versand und dem Übersichts-Sensor."""
     out = []
     with db() as con:
         offers = con.execute('SELECT * FROM offers ORDER BY id').fetchall()
@@ -970,7 +1109,14 @@ def api_offers():
                 'checking': checking,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
             })
-    return jsonify({'offers': out})
+    return out
+
+
+@app.route('/api/offers', methods=['GET'])
+def api_offers():
+    if (err := _require_api()):
+        return err
+    return jsonify({'offers': _collect_offers()})
 
 
 def _valid_tui_url(url: str) -> bool:
@@ -1124,6 +1270,86 @@ def api_check_now():
         return err
     _spawn(check_all, 'manuell')
     return jsonify({'started': True})
+
+
+@app.route('/api/email', methods=['GET', 'POST'])
+def api_email():
+    if (err := _require_api()):
+        return err
+    if request.method == 'GET':  # UI fragt Status/Vorbelegung ab
+        return jsonify({'configured': smtp_configured(),
+                        'default_to': (load_config().get('smtp_to') or '').strip()})
+    if not smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    offers = _collect_offers()
+    if not offers:
+        return jsonify({'error': 'no_offers'}), 400
+    html = _email_html_offers(offers)
+    subject = f"TUIWatch – {len(offers)} Reisepreise ({datetime.now().strftime('%d.%m.%Y')})"
+    try:
+        send_email(subject, html, to)
+    except Exception as e:
+        log.error("E-Mail-Versand fehlgeschlagen: %s", e)  # Detail nur ins Log
+        return jsonify({'error': 'send_failed'}), 502
+    log.info("Angebots-E-Mail an %s gesendet (%d Angebote)", to, len(offers))
+    return jsonify({'sent': True, 'to': to, 'count': len(offers)})
+
+
+@app.route('/api/backup', methods=['GET'])
+def api_backup():
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        rows = con.execute('SELECT url, label, target_price, paused FROM offers ORDER BY id').fetchall()
+    data = {'tuiwatch_backup': 1, 'created': datetime.now().isoformat(),
+            'offers': [{'url': r['url'], 'label': r['label'],
+                        'target_price': r['target_price'], 'paused': bool(r['paused'])}
+                       for r in rows]}
+    resp = make_response(json.dumps(data, ensure_ascii=False, indent=2))
+    resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+    resp.headers['Content-Disposition'] = (
+        f'attachment; filename="tuiwatch-backup-{datetime.now().strftime("%Y%m%d")}.json"')
+    return resp
+
+
+@app.route('/api/restore', methods=['POST'])
+def api_restore():
+    if (err := _require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    items = data.get('offers') if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        return jsonify({'error': 'invalid'}), 400
+    added, skipped, new_ids = 0, 0, []
+    with db() as con:
+        for it in items:
+            url = (it.get('url') or '').strip() if isinstance(it, dict) else ''
+            if not _valid_tui_url(url):
+                skipped += 1
+                continue
+            tp = it.get('target_price')
+            try:
+                tp = float(tp) if tp not in (None, '', 0) else None
+            except (TypeError, ValueError):
+                tp = None
+            try:
+                cur = con.execute(
+                    'INSERT INTO offers (url, label, hotel, details, target_price, paused, created) '
+                    'VALUES (?,?,?,?,?,?,?)',
+                    (url, (it.get('label') or '').strip(), hotel_from_url(url), '',
+                     tp, 1 if it.get('paused') else 0, int(time.time())))
+                new_ids.append(cur.lastrowid)
+                added += 1
+            except sqlite3.IntegrityError:
+                skipped += 1  # URL schon vorhanden
+    for oid in new_ids:
+        _spawn(check_offer, oid)
+    log.info("Wiederherstellung: %d hinzugefügt, %d übersprungen", added, skipped)
+    return jsonify({'added': added, 'skipped': skipped})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])

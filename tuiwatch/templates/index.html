@@ -34,6 +34,9 @@
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .overview { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:14px; font-size:.84rem; color:var(--muted); }
+    .overview b { color:var(--text); }
     .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
     .search-row input { flex:1 1 240px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .search-row input:focus { outline:none; border-color:var(--accent); }
@@ -121,6 +124,8 @@
     .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
+    a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
+    a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
     .cal-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:.74rem; color:var(--muted); }
     .cal-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:4px; }
     .cal-legend .lg-cheap { background:rgba(46,160,67,.5); border:1px solid var(--green); }
@@ -167,6 +172,14 @@
       </div>
       <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
     </div>
+
+    <div class="toolbar">
+      <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
+      <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
+      <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Angebote aus Backup importieren">⬆ Wiederherstellen</button>
+      <input type="file" id="restore-file" accept="application/json,.json" style="display:none" onchange="restoreOffers(this)">
+    </div>
+    <div id="overview" class="overview" style="display:none"></div>
 
     <div class="search-row">
       <input type="text" id="search" placeholder="Suchen… (Hotel, Ziel, Reise-Details)" autocomplete="off">
@@ -316,6 +329,7 @@
     }
 
     function renderAll(offers){
+      renderOverview(offers);
       // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
       const ae = document.activeElement;
       if(ae && ae.id && ae.id.indexOf('tgt-')===0) return;
@@ -611,6 +625,7 @@
     }
 
     function fmtD(iso){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m?`${m[3]}.${m[2]}.${m[1]}`:iso; }
+    function dayUrl(base, iso){ try{ const u=new URL(base); u.searchParams.set('startDate',iso); u.searchParams.set('endDate',iso); return u.toString(); }catch(e){ return base; } }
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
@@ -639,6 +654,10 @@
       const startWd = (first.getDay()+6)%7;          // Montag = 0
       const dim = new Date(Y, M, 0).getDate();
       const ws = job.window_start, we = job.window_end;
+      const allP = job.days.map(x=>x.price);
+      const pmin = Math.min(...allP), pmax = Math.max(...allP);
+      const offer = (curOffers||[]).find(x=>x.id===calId) || {};
+      const base = offer.url || '';
       let cells = '';
       for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
       for(let d=1; d<=dim; d++){
@@ -649,8 +668,19 @@
         if(!inWin) cls.push('out');
         if(iso===job.cheapest_date) cls.push('cheapest');
         if(iso===job.tracked_date) cls.push('tracked');
-        cells += `<div class="${cls.join(' ')}"><span class="cal-d">${d}</span>`
-          + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>') + '</div>';
+        let style = '';
+        if(price!=null){  // Heatmap: günstig=grün → teuer=rot
+          const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
+          style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
+        }
+        const inner = `<span class="cal-d">${d}</span>`
+          + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+        if(price!=null && base){
+          cls.push('clk');
+          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso))}" target="_blank" rel="noopener" title="Diesen Termin auf tui.com öffnen"${style}>${inner}</a>`;
+        } else {
+          cells += `<div class="${cls.join(' ')}"${style}>${inner}</div>`;
+        }
       }
       const idx = months.indexOf(calMonth);
       const prev = idx>0?months[idx-1]:'', next = idx<months.length-1?months[idx+1]:'';
@@ -670,7 +700,7 @@
           <span><i class="lg-cheap"></i>günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
-          <span>Preis = ab/Person</span>
+          <span>🟩→🟥 günstig→teuer · Klick öffnet den Termin auf tui.com</span>
         </div>${calFooter(job)}`;
     }
 
@@ -728,6 +758,51 @@
     }
     async function checkOne(id){ await fetch(api('/api/check/'+id), {method:'POST'}); toast('Prüfung gestartet…'); loadOffers(); }
     async function checkAll(){ await fetch(api('/api/check-now'), {method:'POST'}); toast('Alle Angebote werden geprüft…'); loadOffers(); }
+
+    async function sendEmail(){
+      let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
+      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
+      const def = localStorage.getItem('tw-mailto') || cfg.default_to || '';
+      const to = prompt('E-Mail-Empfänger:', def);
+      if(to===null) return;
+      if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
+      localStorage.setItem('tw-mailto', to.trim());
+      toast('E-Mail wird gesendet…');
+      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim()})});
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
+    async function backupOffers(){
+      try {
+        const r = await fetch(api('/api/backup')); const blob = await r.blob();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'tuiwatch-backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+        toast('Backup heruntergeladen');
+      } catch(e){ toast('Backup fehlgeschlagen'); }
+    }
+    async function restoreOffers(input){
+      const f = input.files && input.files[0]; input.value=''; if(!f) return;
+      let data; try { data = JSON.parse(await f.text()); } catch(e){ toast('Ungültige Backup-Datei'); return; }
+      const r = await fetch(api('/api/restore'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+      if(r.ok){ const d=await r.json(); toast('Wiederhergestellt: '+d.added+' neu, '+d.skipped+' übersprungen'); loadOffers(); }
+      else toast('Wiederherstellung fehlgeschlagen');
+    }
+
+    function renderOverview(offers){
+      const el = $('#overview'); if(!el) return;
+      if(!offers || !offers.length){ el.style.display='none'; el.innerHTML=''; return; }
+      const ok = offers.filter(o=>o.price!=null && o.ok);
+      let html = '<b>'+offers.length+'</b> Angebote';
+      if(ok.length){
+        const cheap = ok.reduce((a,b)=>b.price<a.price?b:a);
+        html += ' · günstigstes: <b>'+esc(cheap.label||cheap.hotel||'')+'</b> '+eur(cheap.price);
+        const below = ok.filter(o=>o.target_price && o.price<=o.target_price).length;
+        if(below) html += ' · <span style="color:var(--green);font-weight:600">'+below+' unter Wunschpreis</span>';
+      }
+      const paused = offers.filter(o=>o.paused).length;
+      if(paused) html += ' · '+paused+' pausiert';
+      el.innerHTML = html; el.style.display='block';
+    }
 
     $('#add-btn').addEventListener('click', addOffer);
     $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });

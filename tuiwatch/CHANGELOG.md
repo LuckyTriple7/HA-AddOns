@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0] - 2026-06-28
+
+### Added
+- **E-Mail-Versand**: Button „Als E-Mail senden" verschickt alle Angebote als optisch
+  aufbereitete HTML-Mail. Empfänger wird vor dem Senden eingegeben (Vorbelegung aus
+  `smtp_to`/zuletzt genutzt). SMTP über neue Optionen `smtp_host/port/user/password/
+  from/to/tls` (Muster wie MyPage). Footer mit Hinweis + GitHub-Link.
+- **Backup & Wiederherstellen**: getrackte Angebote als JSON sichern und importieren
+  (überspringt Duplikate, prüft neue sofort).
+- **Übersicht** über der Liste: Anzahl Angebote, günstigstes Angebot, Anzahl unter
+  Wunschpreis, pausierte — plus HA-**Summary-Sensor** `sensor.tuiwatch_uebersicht`
+  (Wert = günstigster Preis; Attribute: günstigstes Angebot, Gesamtzahl, unter Wunschpreis).
+- **Preiskalender-Heatmap**: Tage je nach Preis eingefärbt (grün→rot); **Klick auf einen
+  Tag öffnet genau diesen Termin auf tui.com**.
+
 ## [0.7.2] - 2026-06-28
 
 ### Added

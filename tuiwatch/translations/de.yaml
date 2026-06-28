@@ -35,6 +35,27 @@ configuration:
   telegram_chat_id:
     name: Telegram Chat ID
     description: "Chat-ID des Empfängers für Telegram-Nachrichten. Ermitteln via @userinfobot oder dem Bot /start schicken."
+  smtp_host:
+    name: SMTP-Server
+    description: "Mailserver für den E-Mail-Versand der Angebote (z. B. smtp.gmail.com). Leer lassen = E-Mail-Funktion aus."
+  smtp_port:
+    name: SMTP-Port
+    description: "Port des Mailservers. 587 für STARTTLS (Standard), 465 für SSL."
+  smtp_user:
+    name: SMTP-Benutzer
+    description: "Benutzername/Anmeldung am Mailserver (oft die E-Mail-Adresse)."
+  smtp_password:
+    name: SMTP-Passwort
+    description: "Passwort bzw. App-Passwort für den Mailserver."
+  smtp_from:
+    name: Absenderadresse
+    description: "Sichtbare Absenderadresse. Leer = SMTP-Benutzer wird verwendet."
+  smtp_to:
+    name: Standard-Empfänger
+    description: "Vorbelegter Empfänger für die Angebots-E-Mail (kann vor dem Senden im UI geändert werden)."
+  smtp_tls:
+    name: STARTTLS verwenden
+    description: "An = STARTTLS (Port 587). Aus = SSL/TLS direkt (Port 465)."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.
