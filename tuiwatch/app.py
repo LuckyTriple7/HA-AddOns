@@ -28,11 +28,11 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from scraper import (_giata_from_url, api_healthcheck, duration_from_url,
-                     fetch_airports, fetch_calendar, fetch_destinations,
-                     fetch_price, fetch_search, fetch_search_params, hotel_from_url,
-                     is_single_room, region_giata_from_breadcrumb,
-                     travellers_from_url, with_duration, with_travellers,
-                     without_room_code)
+                     fetch_airlines, fetch_airports, fetch_calendar,
+                     fetch_destinations, fetch_price, fetch_search,
+                     fetch_search_params, hotel_from_url, is_single_room,
+                     region_giata_from_breadcrumb, travellers_from_url,
+                     with_duration, with_travellers, without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -1849,6 +1849,7 @@ def api_search():
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
+    airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
 
     def _num(key):
         try:
@@ -1874,7 +1875,7 @@ def api_search():
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
-                           direct=direct, verbose=_verbose())
+                           airlines=airlines, direct=direct, verbose=_verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -1891,7 +1892,7 @@ def api_search():
                                   duration=data.get('duration'),
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
-                                  direct=direct, verbose=_verbose())
+                                  airlines=airlines, direct=direct, verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -1899,7 +1900,7 @@ def api_search():
         log.info("Suche: %s (TUI=%s, Verpflegung=%s)", url, operator_tui,
                  ','.join(boards) or '-')
         res = fetch_search(url, operator_tui=operator_tui, boards=boards,
-                           direct=direct, verbose=_verbose())
+                           airlines=airlines, direct=direct, verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -1948,6 +1949,14 @@ def api_airports():
     if not _airports_cache:
         _airports_cache = fetch_airports()
     return jsonify({'airports': _airports_cache})
+
+
+@app.route('/api/airlines', methods=['GET'])
+def api_airlines():
+    """Fluggesellschaften für den optionalen Such-Filter (kuratierte Liste)."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'airlines': fetch_airlines()})
 
 
 @app.route('/api/calendar/<int:offer_id>', methods=['POST'])

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0] - 2026-06-28
+
+### Added
+- **Hotelsuche: optionaler Fluggesellschaften-Filter** — Dropdown mit Mehrfachauswahl
+  (leer = alle). Die Auswahl geht in die Suche und in das getrackte Angebot (dann wird
+  der Preis nur mit diesen Airlines verfolgt). Kuratierte Airline-Liste über
+  `GET /api/airlines`.
+
+### Changed
+- **Such-Defaults**: Sterne ≥ **3** und Weiterempfehlung ≥ **80 %** sind in der Maske
+  vorbelegt (jederzeit änderbar).
+
 ## [0.17.0] - 2026-06-28
 
 ### Added

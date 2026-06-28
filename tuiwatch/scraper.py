@@ -456,9 +456,10 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
 
 def _search_params_from_url(url: str, *, region: int | None = None,
                             operator_tui: bool = True, boards: list | None = None,
-                            direct: bool = False) -> dict:
+                            airlines: list | None = None, direct: bool = False) -> dict:
     """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
-    Angebots-Modus). `region` überschreibt `regionGiataIds`."""
+    Angebots-Modus). `region` überschreibt `regionGiataIds`, `airlines` (Liste von
+    IATA-Codes) überschreibt den Airline-Filter der URL."""
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
     if region:
         regions = [int(region)]
@@ -472,12 +473,14 @@ def _search_params_from_url(url: str, *, region: int | None = None,
     ops = (["TUID"] if operator_tui
            else _split_multi(q.get("operators", q.get("tourOperators", ""))))
     board_codes = [b for b in (boards or []) if b] or _split_multi(q.get("boardTypes", ""))
+    airline_codes = [a for a in (airlines or []) if a] or _split_multi(q.get("airlines", ""))
     return {
         "searchScope": q.get("searchScope", "PACKAGE"),
         "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
         "duration": int(dur) if dur.isdigit() else None,
         "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
-        "operators": ops, "boards": board_codes, "regions": regions,
+        "operators": ops, "boards": board_codes, "airlines": airline_codes,
+        "regions": regions,
         "direct": direct or (q.get("maxStopOvers", "") == "0"),
     }
 
@@ -490,7 +493,7 @@ def _build_search_payload(p: dict) -> dict:
         "duration": [p["duration"]] if p.get("duration") else [],
         "rooms": [{"numberOfAdults": p.get("travellers") or 2, "childAges": [],
                    "roomCodes": [], "boardCodes": p.get("boards") or []}],
-        "airports": p.get("airports") or [], "airlines": [],
+        "airports": p.get("airports") or [], "airlines": p.get("airlines") or [],
         "tourOperators": p.get("operators") or [], "logicalExpression": "",
         "transferIncluded": False, "sortingOrder": "qualifier2DESC",
         "secondarySortingOrder": "", "identifier": "HLP",
@@ -523,6 +526,9 @@ def offer_url_for(item: dict, params: dict) -> str:
         q["regionGiataIds"] = ",".join(str(r) for r in regions)
     if boards:
         q["boardTypes"] = boards[0]
+    if params.get("airlines"):
+        # Offer-/Such-API trennt Airlines mit ';' (nicht ',') — siehe build_offer_api_url
+        q["airlines"] = ";".join(params["airlines"])
     if params.get("direct"):
         q["maxStopOvers"] = "0"
     query = urlencode({k: v for k, v in q.items() if v != ""})
@@ -577,18 +583,18 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
 
 
 def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
-                 region: int | None = None, direct: bool = False,
-                 verbose: bool = False) -> dict | None:
+                 region: int | None = None, airlines: list | None = None,
+                 direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
-                                     boards=boards, direct=direct)
+                                     boards=boards, airlines=airlines, direct=direct)
     return _run_search(params, verbose=verbose)
 
 
 def fetch_search_params(*, region: int, start: str, end: str, duration, travellers,
                         airports: list | None = None, operator_tui: bool = True,
-                        boards: list | None = None, direct: bool = False,
-                        verbose: bool = False) -> dict | None:
+                        boards: list | None = None, airlines: list | None = None,
+                        direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     try:
         dur = int(duration)
@@ -604,6 +610,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "airports": [a for a in (airports or []) if a],
         "operators": ["TUID"] if operator_tui else [],
         "boards": [b for b in (boards or []) if b],
+        "airlines": [a for a in (airlines or []) if a],
         "regions": [int(region)] if region else [], "direct": bool(direct),
     }
     return _run_search(params, verbose=verbose)
@@ -628,6 +635,47 @@ def fetch_destinations(parent=None) -> dict | None:
     items.sort(key=lambda x: (x.get("label") or "").lower())
     return {"parentName": data.get("parentName", "") if isinstance(data, dict) else "",
             "items": items}
+
+
+# Kuratierte Liste gängiger TUI-Fluggesellschaften (IATA-Codes). TUI bietet keinen
+# offenen Endpunkt für die Filterliste; die Codes entsprechen denen, die die Such- und
+# Offer-API im Parameter `airlines` erwarten (mehrere mit ';' getrennt, siehe
+# build_offer_api_url/offer_url_for). Bei Bedarf hier ergänzen.
+TUI_AIRLINES = [
+    {"code": "A3", "name": "Aegean Airlines"},
+    {"code": "SM", "name": "Air Cairo"},
+    {"code": "AF", "name": "Air France"},
+    {"code": "OS", "name": "Austrian Airlines"},
+    {"code": "BA", "name": "British Airways"},
+    {"code": "DE", "name": "Condor"},
+    {"code": "XC", "name": "Corendon Airlines"},
+    {"code": "4Y", "name": "Discover Airlines"},
+    {"code": "U2", "name": "EasyJet"},
+    {"code": "WK", "name": "Edelweiss"},
+    {"code": "EK", "name": "Emirates"},
+    {"code": "E4", "name": "Enter Air"},
+    {"code": "EY", "name": "Etihad Airways"},
+    {"code": "EW", "name": "Eurowings"},
+    {"code": "KL", "name": "KLM"},
+    {"code": "LH", "name": "Lufthansa"},
+    {"code": "T3", "name": "Marabu"},
+    {"code": "PC", "name": "Pegasus Airlines"},
+    {"code": "FR", "name": "Ryanair"},
+    {"code": "LX", "name": "SWISS"},
+    {"code": "XQ", "name": "SunExpress"},
+    {"code": "TP", "name": "TAP Air Portugal"},
+    {"code": "TK", "name": "Turkish Airlines"},
+    {"code": "X3", "name": "TUI fly"},
+    {"code": "TB", "name": "TUI fly Belgium"},
+    {"code": "VY", "name": "Vueling"},
+    {"code": "W6", "name": "Wizz Air"},
+]
+
+
+def fetch_airlines() -> list:
+    """Fluggesellschaften für den (optionalen) Such-Filter: [{code,name}], nach Name
+    sortiert. Kuratierte Liste (TUI hat keinen offenen Endpunkt dafür)."""
+    return sorted((dict(a) for a in TUI_AIRLINES), key=lambda a: a["name"].lower())
 
 
 def fetch_airports() -> list:

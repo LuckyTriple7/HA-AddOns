@@ -161,6 +161,15 @@
     [data-theme="light"] input[type=date]::-webkit-calendar-picker-indicator { filter:none; }
     .srch-dest { cursor:pointer; text-align:left; }
     .srch-dest.set { border-color:var(--accent); color:var(--text); font-weight:600; }
+    .srch-field .opt { color:var(--muted); font-weight:400; }
+    .airline-dd { position:relative; }
+    .airline-dd > summary { list-style:none; cursor:pointer; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; min-width:180px; }
+    .airline-dd > summary::-webkit-details-marker { display:none; }
+    .airline-dd[open] > summary { border-color:var(--accent); }
+    .airline-dd summary.set { border-color:var(--accent); font-weight:600; }
+    .airline-list { position:absolute; z-index:30; margin-top:4px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:6px; max-height:240px; overflow:auto; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+    .airline-list label { display:flex; align-items:center; gap:7px; padding:5px 6px; font-size:.84rem; cursor:pointer; color:var(--text); white-space:nowrap; }
+    .airline-list label:hover { background:var(--surf2); border-radius:5px; }
     .srch-adv { margin-bottom:10px; }
     .srch-adv summary { cursor:pointer; font-size:.8rem; color:var(--muted); }
     .dest-panel { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
@@ -349,6 +358,13 @@
         <div class="srch-field srch-xs">
           <label>Reisende</label><input type="number" id="srch-trav" min="1" max="9" value="2">
         </div>
+        <div class="srch-field">
+          <label>Fluggesellschaften <span class="opt">(optional)</span></label>
+          <details class="airline-dd" id="srch-airline-dd">
+            <summary id="srch-airline-sum">alle</summary>
+            <div class="airline-list" id="srch-airline-list"></div>
+          </details>
+        </div>
       </div>
 
       <div class="srch-filters">
@@ -360,8 +376,8 @@
           <label><input type="checkbox" class="srch-board" value="VP"> VP</label>
           <label><input type="checkbox" class="srch-board" value="F"> Frühstück</label>
         </span>
-        <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" placeholder="0" style="width:54px"></label>
-        <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" placeholder="0" style="width:60px">%</label>
+        <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" value="3" placeholder="0" style="width:54px"></label>
+        <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
         <button class="btn" onclick="runSearch()" style="margin-left:auto">Suchen</button>
       </div>
 
@@ -929,7 +945,7 @@
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0;
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
-    let airportsLoaded = false, destNode = null, destData = null, destStack = [];
+    let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
     function jsArg(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
@@ -944,6 +960,26 @@
         sel.innerHTML = (d.airports||[]).map(a=>`<option value="${esc(a.code)}"${a.code===def?' selected':''}>${esc(a.name)} (${esc(a.code)})</option>`).join('');
         airportsLoaded = true;
       } catch(e){}
+    }
+    async function ensureAirlines(){
+      if(airlinesLoaded) return;
+      try {
+        const d = await fetch(api('/api/airlines')).then(r=>r.json());
+        $('#srch-airline-list').innerHTML = (d.airlines||[]).map(a=>
+          `<label><input type="checkbox" class="srch-airline" value="${esc(a.code)}" onchange="updateAirlineSummary()"> ${esc(a.name)}</label>`).join('');
+        airlinesLoaded = true;
+      } catch(e){}
+    }
+    function selectedAirlines(){ return [...document.querySelectorAll('.srch-airline:checked')].map(c=>c.value); }
+    function setAirlines(codes){
+      const set = new Set(codes||[]);
+      document.querySelectorAll('.srch-airline').forEach(c=>{ c.checked = set.has(c.value); });
+      updateAirlineSummary();
+    }
+    function updateAirlineSummary(){
+      const sel = selectedAirlines(); const sum = $('#srch-airline-sum');
+      sum.textContent = sel.length ? (sel.length+' gewählt') : 'alle';
+      sum.classList.toggle('set', sel.length>0);
     }
     function setSearchMode(mode){     // 'mask' | 'offer'
       const off = (mode==='offer');
@@ -962,7 +998,7 @@
     }
     function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
-      setSearchMode('mask'); ensureAirports(); renderFavs();
+      setSearchMode('mask'); ensureAirports(); ensureAirlines(); renderFavs();
       if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
       if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
       syncBisMin();
@@ -980,7 +1016,9 @@
       const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/).map(s=>s.trim().toUpperCase());
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked = bt.includes(c.value.toUpperCase()); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
-      $('#srch-stars').value=''; $('#srch-rec').value='';
+      $('#srch-stars').value='3'; $('#srch-rec').value='80';
+      const al = (urlParam(o.url,'airlines')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+      ensureAirlines().then(()=>setAirlines(al));
       $('#srch-body').innerHTML='';
       $('#srch-bg').classList.add('show');
       runSearch();
@@ -1041,6 +1079,7 @@
         dur: $('#srch-dur').value, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
+        airlines: selectedAirlines(),
         stars: $('#srch-stars').value, rec: $('#srch-rec').value };
     }
     function saveFav(){
@@ -1062,6 +1101,7 @@
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
+      ensureAirlines().then(()=>setAirlines(f.airlines||[]));
       $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
     }
     function delFav(){
@@ -1073,6 +1113,7 @@
       const url = $('#srch-url').value.trim();
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked, boards,
+        airlines: selectedAirlines(),
         min_stars: parseFloat($('#srch-stars').value)||0,
         min_recommend: parseFloat($('#srch-rec').value)||0 };
       if(srchOfferId!=null){ body.offer_id = srchOfferId; }

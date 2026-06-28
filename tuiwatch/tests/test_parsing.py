@@ -101,7 +101,7 @@ def test_offer_url_for():
             "numberOfNights": 7, "boardCodes": ["AI"]}
     params = {"startDate": "2027-05-01", "endDate": "2027-05-08", "duration": 7,
               "travellers": 2, "airports": ["STR"], "operators": ["TUID"],
-              "regions": [128], "direct": True}
+              "regions": [128], "airlines": ["X3", "VY"], "direct": True}
     url = scraper.offer_url_for(item, params)
     assert "/angebote/test-hotel/123/offer/" in url
     assert "regionGiataIds=128" in url
@@ -110,6 +110,36 @@ def test_offer_url_for():
     assert "boardTypes=AI" in url
     assert "departureAirports=STR" in url
     assert "maxStopOvers=0" in url         # direct=True
+    # Airlines mit ';' getrennt (Offer-/Such-API-Format), URL-kodiert als %3B
+    assert "airlines=X3%3BVY" in url
+
+
+def test_fetch_airlines():
+    out = scraper.fetch_airlines()
+    assert len(out) > 5
+    names = [a["name"] for a in out]
+    assert names == sorted(names, key=str.lower)         # alphabetisch
+    codes = {a["name"]: a["code"] for a in out}
+    assert codes.get("Eurowings") == "EW"
+    assert codes.get("Condor") == "DE"
+    assert all(a["code"] and a["name"] for a in out)
+
+
+def test_search_params_airlines():
+    # Airlines aus der URL (';'-getrennt) lesen
+    url = ("https://www.tui.com/x/259516/offer/?regionGiataIds=128&duration=7"
+           "&airlines=X3%3BVY")
+    p = scraper._search_params_from_url(url)
+    assert p["airlines"] == ["X3", "VY"]
+    # Override schlägt URL
+    p2 = scraper._search_params_from_url(url, airlines=["EW"])
+    assert p2["airlines"] == ["EW"]
+
+
+def test_build_search_payload_airlines():
+    payload = scraper._build_search_payload(
+        {"regions": [128], "duration": 7, "travellers": 2, "airlines": ["X3", "VY"]})
+    assert payload["parameters"]["airlines"] == ["X3", "VY"]
 
 
 # ── Netzbehaftete Normalisierung (gegen echte Fixtures, requests gemonkeypatcht) ──
