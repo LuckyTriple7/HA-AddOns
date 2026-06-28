@@ -80,6 +80,19 @@ def travellers_from_url(url: str) -> int:
     return 1
 
 
+def duration_from_url(url: str) -> int | None:
+    """Liest die Reisedauer (Nächte) aus dem URL-Parameter `duration=`. Bereiche wie
+    '9-12'/'7-' → untere Zahl (via _single_duration). None, wenn nicht vorhanden."""
+    try:
+        for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True):
+            if k == 'duration':
+                d = _single_duration(v)
+                return int(d) if d else None
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
 def _replace_query(url: str, *, set_params: dict | None = None,
                    drop_keys: tuple = ()) -> str:
     """Baut die URL mit veränderter Query neu auf (Reihenfolge bleibt erhalten)."""
@@ -111,6 +124,11 @@ def without_room_code(url: str) -> str:
     """Entfernt `roomTypeOpCodes` (Fallback, falls fester Zimmercode eine andere
     Belegung verhindert)."""
     return _replace_query(url, drop_keys=('roomTypeOpCodes',))
+
+
+def with_duration(url: str, n: int) -> str:
+    """Gibt die URL mit `duration=n` (Nächte) zurück."""
+    return _replace_query(url, set_params={'duration': n})
 
 
 def is_single_room(text: str) -> bool:

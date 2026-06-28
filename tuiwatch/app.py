@@ -27,8 +27,9 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import (fetch_calendar, fetch_price, hotel_from_url, is_single_room,
-                     travellers_from_url, with_travellers, without_room_code)
+from scraper import (duration_from_url, fetch_calendar, fetch_price, hotel_from_url,
+                     is_single_room, travellers_from_url, with_duration,
+                     with_travellers, without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -96,6 +97,8 @@ _compare_state: dict[int, dict] = {}  # offer_id → transienter Status {running
 _compare_lock = threading.Lock()
 _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
 _calendar_lock = threading.Lock()
+_nights_state: dict[int, dict] = {}    # offer_id → transienter Status {running|error}
+_nights_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
@@ -249,6 +252,14 @@ def init_db() -> None:
             offer_id INTEGER PRIMARY KEY,
             ts       INTEGER NOT NULL,
             data     TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        con.execute('''CREATE TABLE IF NOT EXISTS nights_cache (
+            offer_id INTEGER PRIMARY KEY,
+            ts       INTEGER NOT NULL,
+            base     INTEGER,
+            span     INTEGER,
+            rows     TEXT NOT NULL DEFAULT '[]',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
@@ -857,6 +868,90 @@ def _compare_payload(offer_id: int) -> dict:
     return out
 
 
+# ── Nächte-Vergleich (on-demand, gespeichert) ───────────────────────────────────
+
+NIGHTS_SPAN_MAX = 7  # max. Spanne ±N (begrenzt die Anzahl Live-Abfragen pro Lauf)
+
+
+def _run_nights(offer_id: int, span: int) -> None:
+    """Ruft dasselbe Angebot live für benachbarte Reisedauern ab (Basis ±span Nächte)
+    und speichert das Ergebnis in nights_cache. So sieht man, ob eine Nacht kürzer/
+    länger deutlich günstiger ist (pro Person und pro Nacht). Manche Dauern liefern
+    kein Angebot (nicht an jedem Tag gibt es Flüge)."""
+    try:
+        with db() as con:
+            offer = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not offer:
+            with _nights_lock:
+                _nights_state[offer_id] = {'status': 'error', 'note': 'Angebot nicht gefunden'}
+            return
+        url = offer['url']
+        base = duration_from_url(url)
+        if not base:
+            with _nights_lock:
+                _nights_state[offer_id] = {'status': 'error', 'note': 'Reisedauer unbekannt'}
+            return
+        travellers = travellers_from_url(url)
+        # Basis + ±span Nächte, nie unter 2 Nächten, dedupliziert + sortiert
+        nights_set = {base}
+        for d in range(1, span + 1):
+            if base - d >= 2:
+                nights_set.add(base - d)
+            nights_set.add(base + d)
+        rows = []
+        for n in sorted(nights_set):
+            with _scrape_lock:
+                res = fetch_price(with_duration(url, n),
+                                  check_availability=False, verbose=_verbose())
+            if not res.get('ok'):
+                # Fallback: fester Zimmercode kann eine andere Dauer verhindern
+                with _scrape_lock:
+                    res = fetch_price(without_room_code(with_duration(url, n)),
+                                      check_availability=False, verbose=_verbose())
+            price = res.get('price')
+            ok = bool(res.get('ok') and price is not None)
+            rows.append({
+                'nights': n,
+                'ok': ok,
+                'price': price,
+                'per_night': round(price / n) if ok and n else None,
+                'total': round(price * travellers) if ok else None,
+                'is_base': n == base,
+                'note': '' if ok else 'nicht abrufbar',
+            })
+        with db() as con:
+            con.execute('INSERT OR REPLACE INTO nights_cache (offer_id, ts, base, span, rows) '
+                        'VALUES (?,?,?,?,?)',
+                        (offer_id, int(time.time()), base, span, json.dumps(rows)))
+        with _nights_lock:
+            _nights_state.pop(offer_id, None)
+        log.info("Nächte-Vergleich #%d fertig (Basis %d N, ±%d): %s", offer_id, base, span,
+                 ', '.join(f"{r['nights']}N={r['price']}" for r in rows if r['ok']) or 'keine Treffer')
+    except Exception as e:
+        log.error("Nächte-Vergleich #%d Fehler: %s", offer_id, e)
+        with _nights_lock:
+            _nights_state[offer_id] = {'status': 'error', 'note': 'Nächte-Vergleich fehlgeschlagen'}
+
+
+def _nights_payload(offer_id: int) -> dict:
+    """Aktueller Zustand: laufend / Fehler / gespeichertes Ergebnis / leer."""
+    with _nights_lock:
+        st = dict(_nights_state.get(offer_id) or {})
+    if st.get('status') == 'running':
+        return {'status': 'running', 'rows': []}
+    with db() as con:
+        row = con.execute('SELECT ts, base, span, rows FROM nights_cache WHERE offer_id=?',
+                          (offer_id,)).fetchone()
+    if row:
+        out = {'status': 'done', 'ts': row['ts'], 'base': row['base'],
+               'span': row['span'], 'rows': json.loads(row['rows'])}
+    else:
+        out = {'status': 'idle', 'rows': []}
+    if st.get('status') == 'error':
+        out['error'] = st.get('note', 'Nächte-Vergleich fehlgeschlagen')
+    return out
+
+
 # ── Preiskalender (on-demand, gespeichert) ──────────────────────────────────────
 
 def _run_calendar(offer_id: int) -> None:
@@ -1194,6 +1289,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     _cheaper_notified.pop(offer_id, None)
     _fail_notified.discard(offer_id)
@@ -1295,10 +1391,13 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
     with _compare_lock:
         _compare_state.pop(offer_id, None)
     with _calendar_lock:
         _calendar_state.pop(offer_id, None)
+    with _nights_lock:
+        _nights_state.pop(offer_id, None)
     _cheaper_notified.pop(offer_id, None)
     _fail_notified.discard(offer_id)
     log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
@@ -1423,6 +1522,37 @@ def api_compare_get(offer_id: int):
     if (err := _require_api()):
         return err
     return jsonify(_compare_payload(offer_id))
+
+
+@app.route('/api/nights/<int:offer_id>', methods=['POST'])
+def api_nights_start(offer_id: int):
+    if (err := _require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    try:
+        span = int(data.get('span', 3))
+    except (TypeError, ValueError):
+        span = 3
+    span = max(1, min(NIGHTS_SPAN_MAX, span))
+    with _nights_lock:
+        if _nights_state.get(offer_id, {}).get('status') == 'running':
+            return jsonify({'started': True, 'already': True})
+    with db() as con:
+        o = con.execute('SELECT id FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return jsonify({'error': 'not_found'}), 404
+    with _nights_lock:
+        _nights_state[offer_id] = {'status': 'running'}
+    log.info("Nächte-Vergleich gestartet: Angebot #%d (±%d)", offer_id, span)
+    _spawn(_run_nights, offer_id, span)
+    return jsonify({'started': True})
+
+
+@app.route('/api/nights/<int:offer_id>', methods=['GET'])
+def api_nights_get(offer_id: int):
+    if (err := _require_api()):
+        return err
+    return jsonify(_nights_payload(offer_id))
 
 
 @app.route('/api/calendar/<int:offer_id>', methods=['POST'])

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.0] - 2026-06-28
+
+### Added
+- **Nächte-Vergleich**: neuer Button „Nächte" je Angebot öffnet einen Dialog, in dem
+  sich per **− / +** eine Spanne einstellen lässt (Default 3, max ±7). Es werden live
+  die Preise für **kürzere und längere Reisedauern** abgefragt (z. B. bei 10 Nächten:
+  7–9 und 11–13) und als Tabelle gezeigt: **Preis p. P., € pro Nacht, Gesamt, Differenz**.
+  Günstigste Zeile grün, aktuelle Dauer markiert; Dauern ohne Flug/Angebot erscheinen
+  als „nicht abrufbar". Das Ergebnis wird gespeichert (mit „Neu abfragen").
+
 ## [0.9.1] - 2026-06-28
 
 ### Fixed

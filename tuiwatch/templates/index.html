@@ -112,6 +112,10 @@
     .cmp-down { color:var(--green); font-weight:600; }
     .cmp-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .cmp-foot .hint { margin-top:0; }
+    .nig-ctrl { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:.85rem; color:var(--muted); margin-bottom:4px; }
+    .stepper { display:inline-flex; align-items:center; gap:8px; }
+    .stepper button { min-width:34px; padding:4px 10px; font-size:1rem; line-height:1; }
+    .stepper #nig-span { min-width:18px; text-align:center; font-weight:700; color:var(--text); font-size:1rem; }
     /* Preiskalender */
     .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
     .cal-title { font-weight:700; font-size:1rem; }
@@ -225,6 +229,28 @@
       <h2>Pro-Person-Vergleich</h2>
       <div class="sub" id="cmp-sub"></div>
       <div id="cmp-body"></div>
+    </div>
+  </div>
+
+  <!-- Nächte-Vergleich-Modal -->
+  <div class="modal-bg" id="nig-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeNights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Nächte-Vergleich</h2>
+      <div class="sub" id="nig-sub"></div>
+      <div class="nig-ctrl">
+        <span>Spanne ±</span>
+        <div class="stepper">
+          <button class="btn sec" onclick="nightsStep(-1)" title="weniger">−</button>
+          <span id="nig-span">3</span>
+          <button class="btn sec" onclick="nightsStep(1)" title="mehr">+</button>
+        </div>
+        <span class="hint" style="margin:0">Nächte kürzer & länger</span>
+        <button class="btn" onclick="runNights()">Vergleichen</button>
+      </div>
+      <div id="nig-body"></div>
     </div>
   </div>
 
@@ -442,6 +468,7 @@
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+                 <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
                  <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
                  <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
@@ -611,6 +638,85 @@
       $('#cmp-body').innerHTML =
         `<table class="hist"><tr><th>Reisende</th><th>Preis p.&nbsp;P.</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
         + cmpFooter(job);
+    }
+
+    // ── Nächte-Vergleich (Reisedauer ±N, gespeichert) ─────────────────────────
+    let nigTimer = null, nigId = null;
+    let nightsSpan = Math.max(1, Math.min(7, parseInt(localStorage.getItem('tw-nights-span')||'3',10)||3));
+    function nigSpinner(){ $('#nig-body').innerHTML = '<div class="cmp-load">⏳ Live-Abruf läuft… mehrere Dauern werden geprüft.</div>'; }
+    function nigSetSpan(v){ nightsSpan = Math.max(1, Math.min(7, v)); $('#nig-span').textContent = nightsSpan; localStorage.setItem('tw-nights-span', String(nightsSpan)); }
+    function nightsStep(d){ nigSetSpan(nightsSpan + d); }
+    function startNigPolling(){ clearInterval(nigTimer); nigPoll(); nigTimer = setInterval(nigPoll, 2000); }
+
+    async function openNights(id){
+      nigId = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#nig-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#nig-span').textContent = nightsSpan;
+      $('#nig-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#nig-bg').classList.add('show');
+      clearInterval(nigTimer); nigTimer=null;
+      let job;
+      try { job = await fetch(api('/api/nights/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle',rows:[]}; }
+      if(job.status==='running'){ nigSpinner(); startNigPolling(); }
+      else if(job.status==='done' && job.rows && job.rows.length){ if(job.span) nigSetSpan(job.span); renderNights(job); }
+      else { $('#nig-body').innerHTML = '<div class="cmp-load">Spanne einstellen und auf <b>Vergleichen</b> klicken.</div>'; }
+    }
+    async function runNights(){
+      if(nigId==null) return;
+      nigSpinner();
+      try { await fetch(api('/api/nights/'+nigId), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({span: nightsSpan})}); } catch(e){}
+      startNigPolling();
+    }
+    function closeNights(){ clearInterval(nigTimer); nigTimer=null; nigId=null; $('#nig-bg').classList.remove('show'); }
+    $('#nig-bg').addEventListener('click', e=>{ if(e.target.id==='nig-bg') closeNights(); });
+
+    async function nigPoll(){
+      if(nigId==null) return;
+      let job;
+      try { job = await fetch(api('/api/nights/'+nigId)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running') return;
+      clearInterval(nigTimer); nigTimer=null;
+      renderNights(job);
+    }
+    function nigFooter(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      return `<div class="cmp-foot">
+          <span class="hint" style="flex:1;min-width:180px">${esc(when)} „Gesamt" = Preis p. P. × Reisende. Nicht jede Dauer hat Flüge.</span>
+          <button class="btn sec" onclick="runNights()">Neu abfragen</button>
+        </div>${err}`;
+    }
+    function renderNights(job){
+      if(!(job.rows && job.rows.length)){
+        const msg = job.error || job.note || 'Nächte-Vergleich fehlgeschlagen';
+        $('#nig-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + nigFooter(job);
+        return;
+      }
+      const ok = job.rows.filter(r=>r.ok && r.price!=null);
+      const cheapest = ok.length ? Math.min(...ok.map(r=>r.price)) : null;
+      const baseRow = job.rows.find(r=>r.is_base && r.price!=null);
+      const basePrice = baseRow ? baseRow.price : null;
+      const rows = job.rows.map(r=>{
+        const lbl = `${r.nights} Nächte${r.is_base?' <span class="cmp-base">(aktuell)</span>':''}`;
+        if(!r.ok || r.price==null) return `<tr><td>${lbl}</td><td colspan="4" style="color:var(--amber)">nicht abrufbar</td></tr>`;
+        const best = (cheapest!=null && r.price<=cheapest);
+        let diff = '';
+        if(r.is_base){ diff = '<span style="color:var(--muted)">Basis</span>'; }
+        else if(basePrice!=null){
+          const d = r.price - basePrice;
+          diff = d===0 ? '±0' : (d<0 ? '<span class="cmp-down">▼ '+eur(Math.abs(d))+'</span>' : '<span class="cmp-up">▲ +'+eur(d)+'</span>');
+        }
+        return `<tr${best?' class="cmp-best"':''}>
+          <td>${lbl}</td>
+          <td><b>${eur(r.price)}</b>${best?' <span class="best">✓</span>':''}</td>
+          <td>${eur(r.per_night)}</td>
+          <td>${eur(r.total)}</td>
+          <td>${diff}</td></tr>`;
+      }).join('');
+      $('#nig-body').innerHTML =
+        `<table class="hist"><tr><th>Dauer</th><th>Preis p.&nbsp;P.</th><th>€/Nacht</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
+        + nigFooter(job);
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────

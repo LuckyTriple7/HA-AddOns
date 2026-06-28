@@ -73,6 +73,17 @@ abfragen"** lässt sich der Vergleich bei Bedarf aktualisieren. Bei
 **Einzelzimmer**-Angeboten erscheint kein Vergleichs-Button, da ein 2-Personen-Abruf
 nicht möglich ist.
 
+## Nächte-Vergleich
+
+Der Button **Nächte** öffnet einen Dialog, in dem sich per **− / +** eine Spanne
+einstellen lässt (Standard 3, max ±7). TUIWatch fragt dann live die Preise für
+**kürzere und längere Reisedauern** ab — bei z. B. 10 Nächten also 7–9 und 11–13 — und
+zeigt eine Tabelle mit **Preis pro Person**, **€ pro Nacht**, **Gesamtpreis** und der
+**Differenz pro Person** zur aktuellen Dauer. Die günstigste Zeile wird grün
+hervorgehoben, die aktuell getrackte Dauer ist als „aktuell" markiert. Nicht an jedem
+Tag gibt es Flüge — Dauern ohne Angebot erscheinen als „nicht abrufbar". Das Ergebnis
+wird **gespeichert** (Zeitstempel + **„Neu abfragen"**).
+
 ## Preiskalender
 
 Der Button **Kalender** je Angebot zeigt ein Monats-Raster mit dem günstigsten Preis
@@ -110,6 +121,7 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie, inkl. **CSV-Export**.
+- **Nächte** — Preise für kürzere/längere Reisedauern (Basis ±N) live vergleichen.
 - **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar und werden bei Prüfungen, Übersicht und E-Mail-Versand ausgenommen.
