@@ -35,8 +35,8 @@ verbose_log: false       # ausführliche Logs
   Spanien → Kanarische Inseln → Gran Canaria); „Ganze Region wählen" auf jeder Ebene.
 - **Abflughafen** (TUI-Liste, zuletzt genutzter wird gemerkt), **Zeitraum von–bis** +
   **Nächte**, **Reisende**.
-- Filter: **nur Veranstalter TUI**, **Verpflegung** (AI/HP/VP/Frühstück), **Sterne ≥**,
-  **Weiterempfehlung ≥ %** → **Suchen**.
+- Filter: **TUI** (nur Veranstalter TUI Deutschland; aus = alle), **Nur Direktflug**,
+  **Verpflegung** (AI/HP/VP/Frühstück), **Sterne ≥**, **Weiterempfehlung ≥ %** → **Suchen**.
 - **Favoriten:** die kompletten Eingaben unter einem Namen speichern („★ Speichern") und
   später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
 

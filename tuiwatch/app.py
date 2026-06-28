@@ -900,8 +900,12 @@ def _run_nights(offer_id: int, span: int) -> None:
             if base - d >= 2:
                 nights_set.add(base - d)
             nights_set.add(base + d)
+        order = sorted(nights_set)
+        total = len(order)
+        with _nights_lock:
+            _nights_state[offer_id] = {'status': 'running', 'done': 0, 'total': total}
         rows = []
-        for n in sorted(nights_set):
+        for i, n in enumerate(order):
             with _scrape_lock:
                 res = fetch_price(with_duration(url, n),
                                   check_availability=False, verbose=_verbose())
@@ -930,6 +934,9 @@ def _run_nights(offer_id: int, span: int) -> None:
                 'is_base': n == base,
                 'note': note,
             })
+            with _nights_lock:
+                _nights_state[offer_id] = {'status': 'running', 'done': i + 1,
+                                           'total': total}
         with db() as con:
             con.execute('INSERT OR REPLACE INTO nights_cache (offer_id, ts, base, span, rows) '
                         'VALUES (?,?,?,?,?)',
@@ -949,7 +956,8 @@ def _nights_payload(offer_id: int) -> dict:
     with _nights_lock:
         st = dict(_nights_state.get(offer_id) or {})
     if st.get('status') == 'running':
-        return {'status': 'running', 'rows': []}
+        return {'status': 'running', 'rows': [],
+                'done': st.get('done', 0), 'total': st.get('total', 0)}
     with db() as con:
         row = con.execute('SELECT ts, base, span, rows FROM nights_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
@@ -1576,6 +1584,7 @@ def api_search():
         return err
     data = request.get_json(silent=True) or {}
     operator_tui = bool(data.get('operator_tui', True))
+    direct = bool(data.get('direct'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
 
     def _num(key):
@@ -1602,7 +1611,7 @@ def api_search():
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
-                           verbose=_verbose())
+                           direct=direct, verbose=_verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -1619,7 +1628,7 @@ def api_search():
                                   duration=data.get('duration'),
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
-                                  verbose=_verbose())
+                                  direct=direct, verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -1627,7 +1636,7 @@ def api_search():
         log.info("Suche: %s (TUI=%s, Verpflegung=%s)", url, operator_tui,
                  ','.join(boards) or '-')
         res = fetch_search(url, operator_tui=operator_tui, boards=boards,
-                           verbose=_verbose())
+                           direct=direct, verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):

@@ -438,8 +438,8 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
 
 
 def _search_params_from_url(url: str, *, region: int | None = None,
-                            operator_tui: bool = True,
-                            boards: list | None = None) -> dict:
+                            operator_tui: bool = True, boards: list | None = None,
+                            direct: bool = False) -> dict:
     """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
     Angebots-Modus). `region` überschreibt `regionGiataIds`."""
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
@@ -461,12 +461,13 @@ def _search_params_from_url(url: str, *, region: int | None = None,
         "duration": int(dur) if dur.isdigit() else None,
         "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
         "operators": ops, "boards": board_codes, "regions": regions,
+        "direct": direct or (q.get("maxStopOvers", "") == "0"),
     }
 
 
 def _build_search_payload(p: dict) -> dict:
     """POST-Body aus kanonischen Suchparametern."""
-    return {"parameters": {
+    params = {
         "searchScope": p.get("searchScope") or "PACKAGE",
         "startDate": p.get("startDate", ""), "endDate": p.get("endDate", ""),
         "duration": [p["duration"]] if p.get("duration") else [],
@@ -478,7 +479,10 @@ def _build_search_payload(p: dict) -> dict:
         "secondarySortingOrder": "", "identifier": "HLP",
         "giataRegions": p.get("regions") or [],
         "resultsTotal": 300, "resultsFrom": 0, "resultsPerPage": 50,
-    }}
+    }
+    if p.get("direct"):           # nur Direktflug → max. 0 Zwischenstopps
+        params["stopOver"] = 0
+    return {"parameters": params}
 
 
 def offer_url_for(item: dict, params: dict) -> str:
@@ -502,6 +506,8 @@ def offer_url_for(item: dict, params: dict) -> str:
         q["regionGiataIds"] = ",".join(str(r) for r in regions)
     if boards:
         q["boardTypes"] = boards[0]
+    if params.get("direct"):
+        q["maxStopOvers"] = "0"
     query = urlencode({k: v for k, v in q.items() if v != ""})
     return f"https://www.tui.com/pauschalreisen/suchen/angebote/{slug}/{giata}/offer/?{query}"
 
@@ -554,16 +560,18 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
 
 
 def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
-                 region: int | None = None, verbose: bool = False) -> dict | None:
+                 region: int | None = None, direct: bool = False,
+                 verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
-                                     boards=boards)
+                                     boards=boards, direct=direct)
     return _run_search(params, verbose=verbose)
 
 
 def fetch_search_params(*, region: int, start: str, end: str, duration, travellers,
                         airports: list | None = None, operator_tui: bool = True,
-                        boards: list | None = None, verbose: bool = False) -> dict | None:
+                        boards: list | None = None, direct: bool = False,
+                        verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     try:
         dur = int(duration)
@@ -579,7 +587,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "airports": [a for a in (airports or []) if a],
         "operators": ["TUID"] if operator_tui else [],
         "boards": [b for b in (boards or []) if b],
-        "regions": [int(region)] if region else [],
+        "regions": [int(region)] if region else [], "direct": bool(direct),
     }
     return _run_search(params, verbose=verbose)
 

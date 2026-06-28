@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.14.0] - 2026-06-28
+
+### Added
+- **Suche: „Nur Direktflug"-Filter** — zeigt nur Angebote ohne Zwischenstopp
+  (Such-API-Parameter `stopOver=0`; wird auch in getrackte Angebote übernommen).
+
+### Changed
+- **Fortschrittsanzeige statt Sanduhr**: Nächte-Vergleich zeigt einen echten
+  Fortschrittsbalken (geprüfte Dauern X/N); Pro-Person-Vergleich, Suche und Preiskalender
+  zeigen einen animierten Balken statt des ⏳-Symbols.
+- Suche: Datumsfelder öffnen den Kalender beim Klick aufs ganze Feld; „Suchen"-Button
+  rechtsbündig; Filter **„nur Veranstalter TUI"** kürzer als **„TUI"** beschriftet
+  (mit erklärendem Tooltip).
+
 ## [0.13.0] - 2026-06-28
 
 ### Added
