@@ -84,6 +84,8 @@
     .cmp-best .best { color:var(--green); font-weight:700; }
     .cmp-up { color:var(--red); font-weight:600; }
     .cmp-down { color:var(--green); font-weight:600; }
+    .cmp-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .cmp-foot .hint { margin-top:0; }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:8px; font-size:.84rem; opacity:0; transition:opacity .2s; z-index:60; }
@@ -380,18 +382,29 @@
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
     $('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
 
-    // ── Pro-Person-Vergleich ──────────────────────────────────────────────────
+    // ── Pro-Person-Vergleich (gespeichert) ────────────────────────────────────
     let cmpTimer = null, cmpId = null;
+    function cmpSpinner(){ $('#cmp-body').innerHTML = '<div class="cmp-load">⏳ Live-Abruf läuft… einen Moment.</div>'; }
+    function startCmpPolling(){ clearInterval(cmpTimer); cmpPoll(); cmpTimer = setInterval(cmpPoll, 2000); }
+
     async function openCompare(id){
       cmpId = id;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cmp-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
-      $('#cmp-body').innerHTML = '<div class="cmp-load">⏳ Live-Abruf läuft… das kann 1–2 Minuten dauern.</div>';
+      $('#cmp-body').innerHTML = '<div class="cmp-load">Lade…</div>';
       $('#cmp-bg').classList.add('show');
-      try { await fetch(api('/api/compare/'+id), {method:'POST'}); } catch(e){}
-      clearInterval(cmpTimer);
-      cmpPoll();
-      cmpTimer = setInterval(cmpPoll, 2000);
+      clearInterval(cmpTimer); cmpTimer=null;
+      let job;
+      try { job = await fetch(api('/api/compare/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle',rows:[]}; }
+      if(job.status==='running'){ cmpSpinner(); startCmpPolling(); }
+      else if(job.status==='done' && job.rows && job.rows.length){ renderCompare(job); }  // gespeichert → anzeigen, nicht neu abfragen
+      else { refreshCompare(); }                                                          // noch nie abgefragt → einmalig starten
+    }
+    async function refreshCompare(){
+      if(cmpId==null) return;
+      cmpSpinner();
+      try { await fetch(api('/api/compare/'+cmpId), {method:'POST'}); } catch(e){}
+      startCmpPolling();
     }
     function closeCompare(){ clearInterval(cmpTimer); cmpTimer=null; cmpId=null; $('#cmp-bg').classList.remove('show'); }
     $('#cmp-bg').addEventListener('click', e=>{ if(e.target.id==='cmp-bg') closeCompare(); });
@@ -400,10 +413,25 @@
       if(cmpId==null) return;
       let job;
       try { job = await fetch(api('/api/compare/'+cmpId)).then(r=>r.json()); } catch(e){ return; }
-      if(job.status==='running' || job.status==='idle') return;   // weiter warten
+      if(job.status==='running') return;   // weiter warten
       clearInterval(cmpTimer); cmpTimer=null;
-      if(job.status==='error' || !(job.rows && job.rows.length)){
-        $('#cmp-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(job.note||'Vergleich fehlgeschlagen')+'</div>';
+      renderCompare(job);
+    }
+
+    function cmpFooter(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.')
+                          : 'Live abgefragt.';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      return `<div class="cmp-foot">
+          <span class="hint" style="flex:1;min-width:180px">${esc(when)} „Gesamt" = Preis p. P. × Reisende.</span>
+          <button class="btn sec" onclick="refreshCompare()">Neu abfragen</button>
+        </div>${err}`;
+    }
+
+    function renderCompare(job){
+      if(!(job.rows && job.rows.length)){
+        const msg = job.error || job.note || 'Vergleich fehlgeschlagen';
+        $('#cmp-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + cmpFooter(job);
         return;
       }
       const ok = job.rows.filter(r=>r.ok && r.price!=null);
@@ -425,8 +453,8 @@
           <td>${diff}</td></tr>`;
       }).join('');
       $('#cmp-body').innerHTML =
-        `<table class="hist"><tr><th>Reisende</th><th>Preis p.&nbsp;P.</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>
-         <div class="hint" style="margin-top:10px">Live abgefragt — wird nicht gespeichert. „Gesamt" = Preis pro Person × Reisende.</div>`;
+        `<table class="hist"><tr><th>Reisende</th><th>Preis p.&nbsp;P.</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
+        + cmpFooter(job);
     }
 
     async function addOffer(){

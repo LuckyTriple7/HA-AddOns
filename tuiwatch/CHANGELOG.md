@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-06-28
+
+### Changed
+- **Pro-Person-Vergleich wird jetzt gespeichert** (in der Datenbank). Beim Öffnen
+  wird das gespeicherte Ergebnis sofort angezeigt — kein unnötiger neuer Abruf mehr.
+  Mit **Zeitstempel** („Abgefragt: …") und Button **„Neu abfragen"** für eine
+  Aktualisierung auf Wunsch.
+
 ## [0.3.0] - 2026-06-28
 
 ### Changed

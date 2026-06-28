@@ -87,7 +87,7 @@ sessions: dict[str, float] = {}
 _scrape_lock = threading.Lock()      # nur ein Chromium gleichzeitig
 _checking: set[int] = set()          # offer_ids, die gerade geprüft werden
 _checking_lock = threading.Lock()
-_compare_jobs: dict[int, dict] = {}  # offer_id → On-demand-Vergleichsergebnis
+_compare_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
 _compare_lock = threading.Lock()
 
 # einfache Login-Drossel
@@ -218,6 +218,13 @@ def init_db() -> None:
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
         con.execute('CREATE INDEX IF NOT EXISTS idx_hist_offer ON price_history(offer_id, ts)')
+        con.execute('''CREATE TABLE IF NOT EXISTS compare_cache (
+            offer_id INTEGER PRIMARY KEY,
+            ts       INTEGER NOT NULL,
+            base     INTEGER,
+            rows     TEXT NOT NULL DEFAULT '[]',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
@@ -504,14 +511,14 @@ def check_all(reason: str = '') -> None:
 
 def _run_compare(offer_id: int) -> None:
     """Ruft dasselbe Angebot live für die aktuelle Reisendenzahl und für 2 Personen
-    ab (bei aktuell=2: 2 ↔ 1) und legt das Ergebnis in _compare_jobs ab."""
+    ab (bei aktuell=2: 2 ↔ 1) und speichert das Ergebnis in compare_cache (DB),
+    damit es erhalten bleibt und nicht bei jedem Öffnen neu abgefragt wird."""
     try:
         with db() as con:
             offer = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
         if not offer:
             with _compare_lock:
-                _compare_jobs[offer_id] = {'status': 'error', 'ts': int(time.time()),
-                                           'note': 'Angebot nicht gefunden', 'rows': []}
+                _compare_state[offer_id] = {'status': 'error', 'note': 'Angebot nicht gefunden'}
             return
         url = offer['url']
         base = travellers_from_url(url)
@@ -535,16 +542,37 @@ def _run_compare(offer_id: int) -> None:
                 'is_base': n == base,
                 'note': '' if res.get('ok') else 'nicht abrufbar',
             })
+        with db() as con:
+            con.execute('INSERT OR REPLACE INTO compare_cache (offer_id, ts, base, rows) '
+                        'VALUES (?,?,?,?)',
+                        (offer_id, int(time.time()), base, json.dumps(rows)))
         with _compare_lock:
-            _compare_jobs[offer_id] = {'status': 'done', 'ts': int(time.time()),
-                                       'base': base, 'rows': rows, 'note': ''}
+            _compare_state.pop(offer_id, None)
         log.info("Vergleich #%d fertig: %s", offer_id,
                  ', '.join(f"{r['travellers']}P={r['price']}" for r in rows))
     except Exception as e:
         log.error("Vergleich #%d Fehler: %s", offer_id, e)
         with _compare_lock:
-            _compare_jobs[offer_id] = {'status': 'error', 'ts': int(time.time()),
-                                       'note': 'Vergleich fehlgeschlagen', 'rows': []}
+            _compare_state[offer_id] = {'status': 'error', 'note': 'Vergleich fehlgeschlagen'}
+
+
+def _compare_payload(offer_id: int) -> dict:
+    """Aktueller Vergleichszustand: laufend / Fehler / gespeichertes Ergebnis / leer."""
+    with _compare_lock:
+        st = dict(_compare_state.get(offer_id) or {})
+    if st.get('status') == 'running':
+        return {'status': 'running', 'rows': []}
+    with db() as con:
+        row = con.execute('SELECT ts, base, rows FROM compare_cache WHERE offer_id=?',
+                          (offer_id,)).fetchone()
+    if row:
+        out = {'status': 'done', 'ts': row['ts'], 'base': row['base'],
+               'rows': json.loads(row['rows'])}
+    else:
+        out = {'status': 'idle', 'rows': []}
+    if st.get('status') == 'error':
+        out['error'] = st.get('note', 'Vergleich fehlgeschlagen')
+    return out
 
 
 def _poll_worker() -> None:
@@ -743,6 +771,7 @@ def api_delete_offer(offer_id: int):
         return err
     with db() as con:
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     log.info("Angebot #%d gelöscht", offer_id)
     push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
@@ -800,9 +829,8 @@ def api_compare_start(offer_id: int):
     if (err := _require_api()):
         return err
     with _compare_lock:
-        running = _compare_jobs.get(offer_id, {}).get('status') == 'running'
-    if running:
-        return jsonify({'started': True, 'already': True})
+        if _compare_state.get(offer_id, {}).get('status') == 'running':
+            return jsonify({'started': True, 'already': True})
     with db() as con:
         o = con.execute('SELECT room, details FROM offers WHERE id=?', (offer_id,)).fetchone()
     if not o:
@@ -810,7 +838,7 @@ def api_compare_start(offer_id: int):
     if is_single_room(f"{o['room']} {o['details']}"):
         return jsonify({'error': 'single_room'}), 409
     with _compare_lock:
-        _compare_jobs[offer_id] = {'status': 'running', 'ts': int(time.time()), 'rows': []}
+        _compare_state[offer_id] = {'status': 'running'}
     _spawn(_run_compare, offer_id)
     return jsonify({'started': True})
 
@@ -819,9 +847,7 @@ def api_compare_start(offer_id: int):
 def api_compare_get(offer_id: int):
     if (err := _require_api()):
         return err
-    with _compare_lock:
-        job = _compare_jobs.get(offer_id)
-    return jsonify(job or {'status': 'idle', 'rows': []})
+    return jsonify(_compare_payload(offer_id))
 
 
 @app.route('/api/console')

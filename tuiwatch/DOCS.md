@@ -61,9 +61,11 @@ für 2, wird gegen 1 verglichen) und zeigt eine Tabelle mit **Preis pro Person**
 Person oft günstiger (kein Einzelzimmer-Zuschlag). Der günstigste Preis pro Person wird
 grün hervorgehoben.
 
-Der Vergleich läuft nur auf Knopfdruck (zwei Live-Abrufe, dauert 1–2 Minuten) und wird
-**nicht gespeichert**. Bei **Einzelzimmer**-Angeboten erscheint kein Vergleichs-Button,
-da ein 2-Personen-Abruf nicht möglich ist.
+Das Ergebnis wird **gespeichert**: Beim erneuten Öffnen erscheint sofort der letzte
+Vergleich mit **Zeitstempel** („Abgefragt: …") — ohne neuen Abruf. Über **„Neu
+abfragen"** lässt sich der Vergleich bei Bedarf aktualisieren. Bei
+**Einzelzimmer**-Angeboten erscheint kein Vergleichs-Button, da ein 2-Personen-Abruf
+nicht möglich ist.
 
 ## Home-Assistant-Sensoren
 
