@@ -15,3 +15,6 @@ mypage/_pwtest/
 mypage/localserver/
 mypage/*.org
 mypage/*,org
+
+# pytest
+.pytest_cache/

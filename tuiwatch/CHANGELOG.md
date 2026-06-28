@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0] - 2026-06-28
+
+### Added
+- **Regressionstests fürs Parsing** (`tuiwatch/tests/`, pytest): prüfen offline gegen
+  echte, reduzierte TUI-API-Antworten, dass die Auswertung (Preis, Rabatt, Nächte,
+  Verpflegung, Reisende, Flug, Rückreisedatum, Bewertung, Region, Suche, Kalender,
+  Reiseziele, Abflughäfen) und die URL-/Helfer-Logik korrekt bleiben. CI-Workflow
+  `test-tuiwatch.yml` führt sie bei Änderungen an `tuiwatch/*.py` aus.
+
+### Changed
+- `scraper.py` importiert **playwright nur noch lazy** (erst im Browser-Fallback) — das
+  Modul ist damit ohne playwright importierbar (Voraussetzung für die Tests; erster
+  Schritt zur Verschlankung des Images).
+
 ## [0.16.1] - 2026-06-28
 
 ### Fixed

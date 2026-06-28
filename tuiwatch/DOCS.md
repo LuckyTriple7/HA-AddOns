@@ -195,3 +195,9 @@ Neustarts erhalten.
 Der Preis wird mit Headless-Chromium (Playwright) ausgelesen. Wenn TUI das Layout
 ändert und Abrufe mit „nicht gefunden" fehlschlagen, hilft die Anleitung in
 [SCRAPING.md](SCRAPING.md), die Selektoren neu zu bestimmen.
+
+**Regressionstests:** Unter `tests/` liegen Offline-Tests (pytest), die gegen echte,
+reduzierte TUI-API-Antworten prüfen, dass die Auswertung der Antworten korrekt bleibt —
+so fällt ein TUI-Formatwechsel schnell auf. Ausführen: `pip install -r
+tests/requirements.txt` und dann `pytest tests/` im Ordner `tuiwatch/`. Details:
+[tests/README.md](tests/README.md).

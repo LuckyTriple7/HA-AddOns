@@ -1,0 +1,47 @@
+[
+ {
+  "key": "AMS",
+  "name": "Amsterdam Schiphol",
+  "geolocation": {
+   "lat": 52.308614,
+   "lng": 4.763889
+  },
+  "preselected": false
+ },
+ {
+  "key": "BER",
+  "name": "Berlin-Brandenburg",
+  "geolocation": {
+   "lat": 52.36544635870629,
+   "lng": 13.512775699693984
+  },
+  "preselected": false
+ },
+ {
+  "key": "BRE",
+  "name": "Bremen",
+  "geolocation": {
+   "lat": 53.0526549,
+   "lng": 8.7860155
+  },
+  "preselected": false
+ },
+ {
+  "key": "BRN",
+  "name": "Bern-Belp",
+  "geolocation": {
+   "lat": 46.9141,
+   "lng": 7.497153
+  },
+  "preselected": false
+ },
+ {
+  "key": "BRU",
+  "name": "Brüssel-Zaventem",
+  "geolocation": {
+   "lat": 50.901389,
+   "lng": 4.484444
+  },
+  "preselected": false
+ }
+]

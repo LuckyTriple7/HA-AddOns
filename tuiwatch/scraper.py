@@ -22,7 +22,9 @@ from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
                           urlunparse)
 
 import requests
-from playwright.sync_api import sync_playwright
+# playwright wird nur für den Browser-Fallback gebraucht und erst dort (lazy) importiert
+# (siehe _fetch_price_browser). So lässt sich scraper.py auch ohne installiertes
+# playwright importieren — z. B. für die Parsing-Tests.
 
 # Eigener Logger; hängt über den Root-Handler in der UI-Konsole (siehe app.py).
 log = logging.getLogger("tuiwatch.scraper")
@@ -991,6 +993,7 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
                          check_availability: bool = True,
                          verbose: bool = False) -> dict:
     """Fallback: liest den Preis aus der gerenderten Seite (Headless-Chromium)."""
+    from playwright.sync_api import sync_playwright  # lazy: nur für den Fallback nötig
     r = _empty_result()
     r["source"] = "browser"
     chromium_path = os.environ.get("CHROMIUM_PATH") or None

@@ -1,0 +1,3 @@
+# Nur für die Tests (nicht im Add-on-Image). Installation: pip install -r tests/requirements.txt
+pytest>=8
+requests>=2

@@ -1,0 +1,34 @@
+name: Test TUIWatch
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'tuiwatch/**.py'
+      - 'tuiwatch/tests/**'
+  pull_request:
+    paths:
+      - 'tuiwatch/**.py'
+      - 'tuiwatch/tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: pip install -r tuiwatch/tests/requirements.txt
+
+      - name: Run parsing regression tests
+        working-directory: tuiwatch
+        run: pytest tests/ -q
