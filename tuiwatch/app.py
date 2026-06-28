@@ -478,17 +478,38 @@ def check_all(reason: str = '') -> None:
 
 
 def _poll_worker() -> None:
+    """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
+    wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
+    verstrichen ist. So löst ein Add-on-Neustart keine sofortige Komplettabfrage aus."""
     log.info("Preis-Poller gestartet")
-    # kurzer Vorlauf, damit der Webserver zuerst hochkommt
-    time.sleep(5)
+    time.sleep(5)  # kurzer Vorlauf, damit der Webserver zuerst hochkommt
     while True:
-        try:
-            check_all('Intervall')
-        except Exception as e:
-            log.error("Poll-Fehler: %s", e)
         interval = max(MIN_POLL_INTERVAL,
                        int(load_config().get('poll_interval', POLL_INTERVAL_DEFAULT)))
-        time.sleep(interval)
+        next_in = interval
+        try:
+            now = int(time.time())
+            with db() as con:
+                offers = [r['id'] for r in
+                          con.execute('SELECT id FROM offers ORDER BY id').fetchall()]
+                last_map = {r['offer_id']: r['m'] for r in con.execute(
+                    'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
+            due = []
+            for oid in offers:
+                age = now - (last_map.get(oid) or 0)
+                if age >= interval:
+                    due.append(oid)
+                else:
+                    next_in = min(next_in, interval - age)
+            if due:
+                log.info("Prüfe %d fällige(s) Angebot(e)", len(due))
+                for oid in due:
+                    check_offer(oid)
+                continue  # danach sofort neu bewerten, was als Nächstes fällig ist
+        except Exception as e:
+            log.error("Poll-Fehler: %s", e)
+            next_in = interval
+        time.sleep(max(30, min(next_in, interval)))
 
 
 def _spawn(fn, *args) -> None:

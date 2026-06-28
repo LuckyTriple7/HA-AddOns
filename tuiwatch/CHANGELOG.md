@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6] - 2026-06-28
+
+### Fixed
+- **Neustart löste sofort eine Komplettabfrage aus**, auch wenn das Prüfintervall noch
+  nicht erreicht war. Der Poller arbeitet jetzt **fälligkeitsbasiert**: ein Angebot
+  wird erst wieder geprüft, wenn seit seinem letzten Check (über Neustarts hinweg) das
+  Intervall verstrichen ist.
+
 ## [0.1.5] - 2026-06-28
 
 ### Added
