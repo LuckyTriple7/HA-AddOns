@@ -538,6 +538,10 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
 
     nights = offer.get("lengthOfStay")
     r["nights"] = f"{nights} Nächte" if nights else ""
+    try:
+        r["nights_num"] = int(nights) if nights else None
+    except (TypeError, ValueError):
+        r["nights_num"] = None
 
     trav = data.get("travellers") or offer.get("travellers") or []
     r["travellers_count"] = len(trav) or None

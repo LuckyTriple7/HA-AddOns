@@ -910,6 +910,15 @@ def _run_nights(offer_id: int, span: int) -> None:
                                       check_availability=False, verbose=_verbose())
             price = res.get('price')
             ok = bool(res.get('ok') and price is not None)
+            note = '' if ok else 'nicht abrufbar'
+            # TUI liefert bei nicht buchbarer Dauer das nächstliegende Angebot (z. B.
+            # immer das 7-Nächte-Paket). Nur akzeptieren, wenn die tatsächliche Dauer
+            # der angefragten entspricht — sonst gibt es für n kein Angebot.
+            actual = res.get('nights_num')
+            if ok and actual is not None and actual != n:
+                ok = False
+                price = None
+                note = 'nicht abrufbar'
             rows.append({
                 'nights': n,
                 'ok': ok,
@@ -917,7 +926,7 @@ def _run_nights(offer_id: int, span: int) -> None:
                 'per_night': round(price / n) if ok and n else None,
                 'total': round(price * travellers) if ok else None,
                 'is_base': n == base,
-                'note': '' if ok else 'nicht abrufbar',
+                'note': note,
             })
         with db() as con:
             con.execute('INSERT OR REPLACE INTO nights_cache (offer_id, ts, base, span, rows) '

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.1] - 2026-06-28
+
+### Fixed
+- **Nächte-Vergleich: falsche Preise bei nicht buchbaren Dauern.** Bei Bereichs-Dauern
+  wie `7-` lieferte TUI für nicht verfügbare Dauern (z. B. 8–10 Nächte) ersatzweise das
+  nächstliegende Angebot (das 7-Nächte-Paket) zurück — diese Zeilen zeigten denselben
+  Gesamtpreis und nur eine heruntergerechnete €/Nacht. Es wird nun geprüft, ob die
+  **tatsächliche Reisedauer** der angefragten entspricht; weicht sie ab, erscheint
+  korrekt „nicht abrufbar".
+
+### Changed
+- **Kleinere Buttons** in der Angebots-Fußzeile (kompaktere Schrift/Abstände), damit die
+  Aktionsleiste weniger Platz braucht.
+
 ## [0.10.0] - 2026-06-28
 
 ### Added
