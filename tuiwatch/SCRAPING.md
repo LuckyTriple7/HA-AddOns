@@ -22,6 +22,11 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
   `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
   Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
 - `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+- **Wichtig: alle Filter der Original-URL durchreichen** (`boardTypes`, `operators`→
+  `tourOperators`, `roomTypes`, `viewTypes`, `roomTypeOpCodes`, Preisgrenzen). Fehlt
+  ein Filter, liefert die API u. U. ein anderes/billigeres Angebot (z. B. Halbpension
+  statt AI). Die Verpflegungs-Kurzcodes werden dabei ins API-Schema übersetzt:
+  `AI` → `GT06-AI` (`_map_board_types()`).
 
 **Risiko / Wartung:** Die CloudFront-Hostnamen (`d2z3tkv1undzra…`, `d1pagbczmuq2ek…`)
 sind opak und könnten rotieren. Passiert das, liefert die API einen Fehler →

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.3] - 2026-06-28
+
+### Fixed
+- **Falscher Preis/falsche Verpflegung bei mehreren Verpflegungsarten**: Der
+  JSON-Abruf übernahm nicht alle Filter der Original-URL — u. a. `boardTypes`,
+  `operators`, `roomTypes`, `viewTypes` fehlten. Dadurch konnte die API ein anderes
+  (billigeres) Angebot liefern, z. B. Halbpension statt „Alles Inklusive". Jetzt
+  werden **alle Filter der Original-URL** durchgereicht, und die Verpflegungs-Codes
+  werden korrekt ins API-Schema übersetzt (`AI` → `GT06-AI`).
+
 ## [0.3.2] - 2026-06-28
 
 ### Added

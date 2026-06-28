@@ -16,6 +16,7 @@ Details zur Wartung bei TUI-Layout-Änderungen: siehe SCRAPING.md.
 import os
 import re
 import time
+from datetime import date, timedelta
 from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
                           urlunparse)
 
@@ -217,9 +218,22 @@ def _giata_from_url(url: str) -> str:
     return ''
 
 
+def _map_board_types(val: str) -> str:
+    """Übersetzt die Verpflegungs-Kurzcodes der Seiten-URL (z. B. ``AI``) in die
+    globalen Codes der API (``GT06-AI``). Mehrfachwerte (``,``/``;``) bleiben erhalten."""
+    out = []
+    for t in re.split(r'[;,]', val or ''):
+        t = t.strip()
+        if t:
+            out.append(t if t.startswith('GT06-') else 'GT06-' + t)
+    return ','.join(out)
+
+
 def build_offer_api_url(url: str, travellers: int | None = None) -> str:
     """Baut die Offer-JSON-API-URL aus den Parametern der Angebots-Seiten-URL.
-    Der eingegebene Reisezeitraum (startDate/endDate/duration) wird übernommen."""
+    Wichtig: **alle** Filter der Original-URL (Verpflegung, Veranstalter, Zimmer-/
+    Sicht-Typen, Stopps, Preisgrenzen) werden übernommen — sonst liefert die API ein
+    anderes (billigeres) Angebot als das vom Nutzer gewählte."""
     p = urlparse(url)
     q = {k: v[0] for k, v in parse_qs(p.query, keep_blank_values=True).items()}
     params = {
@@ -228,11 +242,18 @@ def build_offer_api_url(url: str, travellers: int | None = None) -> str:
         'durations': q.get('duration', ''),
         'searchScope': q.get('searchScope', 'PACKAGE'),
         'travellers': str(travellers) if travellers else q.get('travellers', '1'),
-        'maxStopOvers': '', 'roomTypes': '', 'boardTypes': '', 'extraTypes': '',
-        'viewTypes': '', 'airports': q.get('departureAirports', ''), 'airlines': '',
-        'roomTypeOpCodes': q.get('roomTypeOpCodes', ''), 'tourOperators': '',
+        'maxStopOvers': q.get('maxStopOvers', ''),
+        'roomTypes': q.get('roomTypes', ''),
+        'boardTypes': _map_board_types(q.get('boardTypes', '')),
+        'extraTypes': q.get('extraTypes', ''),
+        'viewTypes': q.get('viewTypes', ''),
+        'airports': q.get('departureAirports', ''),
+        'airlines': q.get('airlines', ''),
+        'roomTypeOpCodes': q.get('roomTypeOpCodes', ''),
+        'tourOperators': q.get('operators', q.get('tourOperators', '')),
         'departureMinTime': '', 'departureMaxTime': '', 'returnMinTime': '',
-        'returnMaxTime': '', 'minPrice': '', 'maxPrice': '',
+        'returnMaxTime': '',
+        'minPrice': q.get('minPrice', ''), 'maxPrice': q.get('maxPrice', ''),
         'campaignGlobalTypes': 'GT07-DISC;GT07-TOY;GT07-SAVE',
         'lang': 'de_DE', 'transferIncluded': 'false',
     }
