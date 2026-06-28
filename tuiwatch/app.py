@@ -5,6 +5,8 @@ Verfolgt den Preis konkreter TUI-Angebots-URLs über die Zeit: rendert die Seite
 periodisch mit Headless-Chromium (siehe scraper.py), speichert jeden Messpunkt in
 SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 """
+import csv
+import io
 import json
 import logging
 import os
@@ -19,7 +21,7 @@ from urllib.parse import urlparse
 
 import requests as http
 from flask import (Flask, jsonify, make_response, redirect, render_template,
-                   request, url_for)
+                   request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from scraper import (fetch_calendar, fetch_price, hotel_from_url, is_single_room,
@@ -212,6 +214,9 @@ def init_db() -> None:
             rating       REAL,
             rating_count INTEGER,
             recommendation INTEGER,
+            total_price  REAL,
+            travellers_count INTEGER,
+            paused       INTEGER DEFAULT 0,
             target_price REAL,
             created     INTEGER NOT NULL
         )''')
@@ -248,10 +253,10 @@ def init_db() -> None:
                     'country', 'pdf_url'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
-        for col in ('target_price', 'stars', 'rating'):
+        for col in ('target_price', 'stars', 'rating', 'total_price'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} REAL")
-        for col in ('rating_count', 'recommendation'):
+        for col in ('rating_count', 'recommendation', 'travellers_count', 'paused'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
@@ -340,6 +345,10 @@ def push_ha_sensors() -> None:
                     attrs['country'] = o['country'] or ''
                 if o['pdf_url']:
                     attrs['hotel_pdf'] = o['pdf_url']
+                if o['total_price'] is not None:
+                    attrs['total_price'] = int(round(o['total_price']))
+                if o['travellers_count']:
+                    attrs['travellers'] = o['travellers_count']
                 if o['cancellation']:
                     attrs['cancellation'] = o['cancellation']
                 if o['stars'] is not None:
@@ -575,7 +584,8 @@ def check_offer(offer_id: int) -> None:
             for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                         'flight_ret', 'location', 'city', 'region', 'country',
                         'pdf_url', 'cancellation', 'stars', 'rating',
-                        'rating_count', 'recommendation'):
+                        'rating_count', 'recommendation', 'total_price',
+                        'travellers_count'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
 
@@ -599,7 +609,8 @@ def check_offer(offer_id: int) -> None:
 
 def check_all(reason: str = '') -> None:
     with db() as con:
-        ids = [r['id'] for r in con.execute('SELECT id FROM offers ORDER BY id').fetchall()]
+        ids = [r['id'] for r in con.execute(
+            'SELECT id FROM offers WHERE COALESCE(paused,0)=0 ORDER BY id').fetchall()]
     if ids:
         log.info("Prüfe %d Angebot(e)%s", len(ids), f' ({reason})' if reason else '')
     for oid in ids:
@@ -735,8 +746,8 @@ def _poll_worker() -> None:
         try:
             now = int(time.time())
             with db() as con:
-                offers = [r['id'] for r in
-                          con.execute('SELECT id FROM offers ORDER BY id').fetchall()]
+                offers = [r['id'] for r in con.execute(
+                    'SELECT id FROM offers WHERE COALESCE(paused,0)=0 ORDER BY id').fetchall()]
                 last_map = {r['offer_id']: r['m'] for r in con.execute(
                     'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
             due = []
@@ -782,6 +793,57 @@ def _require_api():
 @app.route('/health')
 def health():
     return 'OK', 200
+
+
+# ── PWA (installierbar) ──────────────────────────────────────────────────────────
+
+@app.route('/manifest.json')
+def manifest():
+    root = request.script_root or ''
+    resp = jsonify({
+        'name': 'TUIWatch – Reisepreis-Tracker', 'short_name': 'TUIWatch',
+        'lang': 'de', 'start_url': root + '/', 'scope': root + '/',
+        'display': 'standalone', 'background_color': '#0d1117', 'theme_color': '#0d1117',
+        'icons': [
+            {'src': root + '/icon-192.png', 'sizes': '192x192', 'type': 'image/png',
+             'purpose': 'any maskable'},
+            {'src': root + '/icon-512.png', 'sizes': '512x512', 'type': 'image/png',
+             'purpose': 'any maskable'},
+        ],
+    })
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+_SW_JS = """const C='tuiwatch-v1';
+self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>self.clients.claim());
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET') return;
+  e.respondWith(fetch(e.request).then(r=>{
+    try{ if(r&&r.ok){ const c=r.clone(); caches.open(C).then(x=>x.put(e.request,c)); } }catch(_){ }
+    return r;
+  }).catch(()=>caches.match(e.request)));
+});
+"""
+
+
+@app.route('/sw.js')
+def service_worker():
+    resp = make_response(_SW_JS)
+    resp.headers['Content-Type'] = 'application/javascript'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@app.route('/icon-192.png')
+def icon_192():
+    return send_file(_BASE + '/icon-192.png')
+
+
+@app.route('/icon-512.png')
+def icon_512():
+    return send_file(_BASE + '/icon-512.png')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -863,6 +925,9 @@ def api_offers():
                 'location': o['location'], 'city': o['city'],
                 'region': o['region'], 'country': o['country'],
                 'pdf_url': o['pdf_url'],
+                'total_price': o['total_price'],
+                'travellers_count': o['travellers_count'],
+                'paused': bool(o['paused']),
                 'cancellation': o['cancellation'], 'stars': o['stars'],
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
@@ -947,6 +1012,9 @@ def api_update_offer(offer_id: int):
             except (TypeError, ValueError):
                 tp = None
             con.execute('UPDATE offers SET target_price=? WHERE id=?', (tp, offer_id))
+        if 'paused' in data:
+            con.execute('UPDATE offers SET paused=? WHERE id=?',
+                        (1 if data.get('paused') else 0, offer_id))
     return jsonify({'id': offer_id, 'ok': True})
 
 
@@ -959,6 +1027,33 @@ def api_history(offer_id: int):
             'SELECT ts, price, old_price, discount, ok, note FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
     return jsonify({'history': [dict(r) for r in rows]})
+
+
+@app.route('/api/history/<int:offer_id>/csv', methods=['GET'])
+def api_history_csv(offer_id: int):
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        offer = con.execute('SELECT hotel, label FROM offers WHERE id=?', (offer_id,)).fetchone()
+        rows = con.execute(
+            'SELECT ts, price, old_price, discount, available, ok, note FROM price_history '
+            'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=';')
+    w.writerow(['Zeitpunkt', 'Preis (EUR)', 'Vergleichspreis (EUR)', 'Rabatt %',
+                'Verfuegbar', 'OK', 'Hinweis'])
+    for r in rows:
+        avail = '' if r['available'] is None else ('ja' if r['available'] else 'nein')
+        w.writerow([datetime.fromtimestamp(r['ts']).strftime('%Y-%m-%d %H:%M:%S'),
+                    '' if r['price'] is None else int(round(r['price'])),
+                    '' if r['old_price'] is None else int(round(r['old_price'])),
+                    r['discount'] if r['discount'] is not None else '',
+                    avail, 'ja' if r['ok'] else 'nein', (r['note'] or '').replace('\n', ' ')])
+    name = _slug((offer['label'] or offer['hotel']) if offer else '') or f'angebot_{offer_id}'
+    resp = make_response('﻿' + buf.getvalue())  # BOM → Umlaute in Excel korrekt
+    resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename="tuiwatch_{name}.csv"'
+    return resp
 
 
 @app.route('/api/check/<int:offer_id>', methods=['POST'])

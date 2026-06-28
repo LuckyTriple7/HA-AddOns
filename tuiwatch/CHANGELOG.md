@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0] - 2026-06-28
+
+### Added
+- **Tracking pausieren** je Angebot (ohne löschen): pausierte Angebote werden bei der
+  automatischen Prüfung und „Alle prüfen" übersprungen; manuelles „Prüfen" bleibt
+  möglich. Badge „⏸ pausiert" + abgedimmte Karte.
+- **CSV-Export** der Preishistorie (Button im Verlauf-Fenster) — mit Excel-tauglichem
+  Format (Semikolon, UTF-8-BOM).
+- **PWA / installierbar**: Manifest, Service Worker und App-Icons (192/512) — TUIWatch
+  lässt sich als App installieren (am besten über Direktzugriff/Reverse-Proxy).
+- **Gesamtpreis** zusätzlich zum Preis pro Person (bei mehreren Reisenden) in der Karte
+  und als HA-Sensor-Attribute `total_price` / `travellers`.
+
 ## [0.6.1] - 2026-06-28
 
 ### Fixed

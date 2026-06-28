@@ -197,7 +197,8 @@ def _empty_result() -> dict:
             "details": "", "available": None, "total_price": None,
             "cancellation": "", "stars": None, "rating": None, "rating_count": None,
             "recommendation": None, "location": "", "city": "", "region": "",
-            "country": "", "pdf_url": "", "source": "", "note": "", "detail": ""}
+            "country": "", "pdf_url": "", "travellers_count": None,
+            "source": "", "note": "", "detail": ""}
 
 
 # ── JSON-API (bevorzugt) ────────────────────────────────────────────────────────
@@ -495,6 +496,8 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     if old and price and old > price:
         r["old_price"] = float(old)
         r["discount"] = round((old - price) / old * 100)
+    if offer.get("totalPrice") is not None:
+        r["total_price"] = float(offer["totalPrice"])  # Gesamtpreis aller Reisenden
     if r["price"] is None:
         r["note"] = "Preis im API-Angebot fehlt"
         return None  # lieber Browser-Fallback versuchen
@@ -509,6 +512,7 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     r["nights"] = f"{nights} Nächte" if nights else ""
 
     trav = data.get("travellers") or offer.get("travellers") or []
+    r["travellers_count"] = len(trav) or None
     adults = sum(1 for t in trav if (t.get("age") if t.get("age") is not None else 99) >= 18)
     kids = len(trav) - adults
     tparts = []

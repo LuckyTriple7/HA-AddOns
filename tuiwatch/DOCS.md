@@ -93,8 +93,8 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
   `departure_airport`,
   `flight_outbound`, `flight_return`, `available` (true/false), `cancellation`,
   `stars`, `rating`, `rating_count`, `recommendation`, `old_price`,
-  `discount`, `min_price`, `max_price`, `avg_price`, `target_price`,
-  `last_checked`, `url`
+  `discount`, `total_price`, `travellers`, `min_price`, `max_price`, `avg_price`,
+  `target_price`, `hotel_pdf`, `last_checked`, `url`
 
 ## Bedienung
 
@@ -103,8 +103,13 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
-- **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie.
+- **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie, inkl. **CSV-Export**.
+- **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
+
+Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpreis**
+angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service Worker;
+am besten über Direktzugriff/Reverse-Proxy nutzen).
 - **Löschen** — Angebot inkl. Verlauf entfernen.
 - **Doppelklick auf das Logo** — Konsole mit Hintergrund-Logs ein/aus.
 

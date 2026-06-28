@@ -27,6 +27,7 @@ COPY requirements.txt .
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 COPY app.py scraper.py ./
+COPY icon-192.png icon-512.png ./
 COPY templates/ templates/
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
