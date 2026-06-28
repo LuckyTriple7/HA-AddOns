@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0] - 2026-06-28
+
+### Added
+- **Hotelsuche** über **🔍 Hotels suchen**: eine TUI-Such-/Region-URL (mit
+  `regionGiataIds`) einfügen → TUIWatch listet alle passenden Hotels der Region mit
+  **Sternen, Ort, HolidayCheck-Weiterempfehlung, Verpflegung, Nächten und Preis p. P.**
+  Filter direkt im Add-on: **nur Veranstalter TUI**, **Verpflegung** (AI/HP/VP/Frühstück),
+  **Sterne ≥** und **Weiterempfehlung ≥ %**. Je Treffer **Tracken**/**Öffnen**, dazu
+  **Alle tracken**. Abflughafen/Zeitraum kommen aus der eingefügten URL. Nutzt den neuen
+  TUI-Such-Endpoint `hotel-offer-cards/v2/search` (siehe SCRAPING.md).
+
 ## [0.10.2] - 2026-06-28
 
 ### Fixed

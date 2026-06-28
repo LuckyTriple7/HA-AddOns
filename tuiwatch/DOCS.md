@@ -26,6 +26,24 @@ verbose_log: false       # ausführliche Logs
    `https://www.tui.com/pauschalreisen/suchen/angebote/<Hotel>/<id>/offer/?...`).
 3. Im Web-UI einfügen → **Hinzufügen**. Der erste Preis wird sofort geprüft.
 
+## Hotels suchen
+
+Statt einzelne Hotels von Hand einzufügen, kannst du über **🔍 Hotels suchen** eine
+ganze **Region** durchsuchen:
+
+1. Auf tui.com **zuerst eine Region/ein Ziel** wählen (z. B. „Kapverdische Inseln") und
+   Datum, Personen & Abflughafen setzen.
+2. Die **Ergebnis-URL** (enthält `regionGiataIds=…`) kopieren und in TUIWatch unter
+   „Hotels suchen" einfügen.
+3. Optional die Filter setzen: **nur Veranstalter TUI**, **Verpflegung** (AI/HP/VP/
+   Frühstück), **Sterne ≥** und **Weiterempfehlung ≥ %** → **Suchen**.
+
+Du bekommst eine Trefferliste mit Hotelname, Sternen, Ort, **HolidayCheck-
+Weiterempfehlung**, Verpflegung, Nächten und **Preis pro Person**. Je Treffer:
+**Tracken** (übernimmt das Hotel ins Tracking) oder **Öffnen** (auf tui.com). Mit
+**Alle tracken** werden alle angezeigten Treffer auf einmal übernommen. Der Abflughafen
+kommt aus der eingefügten URL.
+
 Für jedes Angebot werden angezeigt: Hotelname, **Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**

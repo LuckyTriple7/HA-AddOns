@@ -230,7 +230,12 @@ CALENDAR_API = "https://d18axsujemfwj.cloudfront.net/data"    # Preiskalender (T
 # Breadcrumb (Ort/Region) auf stabilem API-Host; .../{tenant}/{locale}/{typ=3 Hotel}/{giataId}
 BREADCRUMB_API = "https://api.cloud.tui.com/breadcrumb/v1/data/TUICOM/de-DE/3/"
 HOTELINFO_PDF = "https://www.tui.com/api/hotelInfoPdf"  # Hotelbeschreibung als PDF
+# Hotelsuche (Region → Trefferliste). POST mit JSON-Body, stabiler API-Host.
+SEARCH_API = "https://api.cloud.tui.com/hotel-offer-cards/v2/search/TUICOM"
 _API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
+_SEARCH_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json",
+                   "Content-Type": "application/json", "Origin": "https://www.tui.com",
+                   "Referer": "https://www.tui.com/"}
 
 
 def _giata_from_url(url: str) -> str:
@@ -394,6 +399,125 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         log.info(f"Kalender: {len(days)} Tage, günstigster {res.get('cheapest_date')} "
               f"= {res.get('cheapest_price')} €")
     return res
+
+
+# ── Hotelsuche (Region → Trefferliste) ──────────────────────────────────────────
+
+def _slugify(name: str) -> str:
+    s = (name or "").strip().lower()
+    s = s.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or "hotel"
+
+
+def _split_multi(val: str) -> list:
+    return [x.strip() for x in re.split(r"[;,]", val or "") if x.strip()]
+
+
+def build_search_payload(url: str, *, operator_tui: bool = True,
+                         boards: list | None = None) -> dict | None:
+    """POST-Body für die Hotelsuche aus den Parametern einer TUI-Such-/Region-URL.
+    None, wenn keine Region (`regionGiataIds`) enthalten ist."""
+    q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
+    regions = [int(x) for x in _split_multi(q.get("regionGiataIds", "")) if x.isdigit()]
+    if not regions:
+        return None
+    try:
+        adults = int(q.get("travellers", "1") or "1")
+    except ValueError:
+        adults = 1
+    dur = _single_duration(q.get("duration", ""))
+    duration = [int(dur)] if dur.isdigit() else []
+    ops = (["TUID"] if operator_tui
+           else _split_multi(q.get("operators", q.get("tourOperators", ""))))
+    board_codes = [b for b in (boards or []) if b] or _split_multi(q.get("boardTypes", ""))
+    return {"parameters": {
+        "searchScope": q.get("searchScope", "PACKAGE"),
+        "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
+        "duration": duration,
+        "rooms": [{"numberOfAdults": adults, "childAges": [], "roomCodes": [],
+                   "boardCodes": board_codes}],
+        "airports": _split_multi(q.get("departureAirports", "")),
+        "airlines": [], "tourOperators": ops, "logicalExpression": "",
+        "transferIncluded": False, "sortingOrder": "qualifier2DESC",
+        "secondarySortingOrder": "", "identifier": "HLP",
+        "giataRegions": regions, "resultsTotal": 300, "resultsFrom": 0,
+        "resultsPerPage": 50,
+    }}
+
+
+def offer_url_for(item: dict, search_url: str) -> str:
+    """Trackbare Hotel-Angebots-URL aus einem Such-Treffer (gleiche Form wie sonst vom
+    Nutzer eingefügte URLs), inkl. der Eckdaten aus der Such-URL."""
+    q = {k: v[0] for k, v in parse_qs(urlparse(search_url).query, keep_blank_values=True).items()}
+    h = item.get("hotel") or {}
+    giata = str(h.get("giataId", ""))
+    slug = _slugify(h.get("name", "") or "hotel")
+    boards = item.get("boardCodes") or []
+    params = {
+        "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
+        "duration": q.get("duration", "") or (str(item.get("numberOfNights") or "")),
+        "travellers": q.get("travellers", "1") or "1",
+        "searchScope": q.get("searchScope", "PACKAGE"),
+        "departureAirports": q.get("departureAirports", ""),
+        "operators": q.get("operators", q.get("tourOperators", "")) or "TUID",
+        "sortOffersAsc": "1", "sortOffersField": "campaignOffers",
+    }
+    if q.get("regionGiataIds"):
+        params["regionGiataIds"] = q["regionGiataIds"]
+    if boards:
+        params["boardTypes"] = boards[0]
+    query = urlencode({k: v for k, v in params.items() if v != ""})
+    return f"https://www.tui.com/pauschalreisen/suchen/angebote/{slug}/{giata}/offer/?{query}"
+
+
+def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
+                 verbose: bool = False) -> dict | None:
+    """Ruft die TUI-Hotelsuche für eine Region-URL ab → normalisierte Treffer.
+    {ok,total,results[]}; None bei technischem Fehler; {ok:False,note} ohne Region."""
+    payload = build_search_payload(url, operator_tui=operator_tui, boards=boards)
+    if payload is None:
+        return {"ok": False, "total": 0, "results": [], "note": "Keine Region in der URL"}
+    try:
+        if verbose:
+            log.info("Such-API POST %s regionen=%s", SEARCH_API,
+                     payload["parameters"]["giataRegions"])
+        resp = requests.post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
+        if resp.status_code != 200:
+            if verbose:
+                log.warning("Such-API HTTP %s", resp.status_code)
+            return None
+        data = resp.json()
+    except Exception as e:
+        if verbose:
+            log.warning("Such-API-Fehler: %s: %s", type(e).__name__, e)
+        return None
+    results = []
+    for it in data.get("items") or []:
+        h = it.get("hotel") or {}
+        loc = h.get("location") or {}
+        pp = (it.get("price") or {}).get("perPerson") or {}
+        adv = (it.get("price") or {}).get("advantage")
+        try:
+            stars = int(str(h.get("category", "")).strip()[0]) if h.get("category") else None
+        except (ValueError, IndexError):
+            stars = None
+        loc_parts = [x for x in (loc.get("city"), loc.get("region")) if x]
+        results.append({
+            "giata": h.get("giataId"), "name": h.get("name", ""), "stars": stars,
+            "recommendation": h.get("holidayCheckRecommendationRate"),
+            "reviews": h.get("holidayCheckNumberOfCurrentReviews"),
+            "location": ", ".join(loc_parts), "country": loc.get("country", ""),
+            "price": pp.get("amount"), "old_price": pp.get("originalAmount"),
+            "discount": abs(adv) if adv else None,
+            "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),
+            "date": (it.get("startDate") or "")[:10],
+            "image": (h.get("images") or [{}])[0].get("url", ""),
+            "offer_url": offer_url_for(it, url),
+        })
+    if verbose:
+        log.info("Such-API: %d Treffer (gesamt %s)", len(results), data.get("resultsTotal"))
+    return {"ok": True, "total": data.get("resultsTotal", len(results)), "results": results}
 
 
 def _de_date(iso: str) -> str:
