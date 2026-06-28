@@ -27,12 +27,13 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import (_giata_from_url, api_healthcheck, duration_from_url,
-                     fetch_airlines, fetch_airports, fetch_calendar,
-                     fetch_destinations, fetch_price, fetch_search,
-                     fetch_search_params, hotel_from_url, is_single_room,
-                     region_giata_from_breadcrumb, travellers_from_url,
-                     with_duration, with_travellers, without_room_code)
+from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
+                     duration_from_url, fetch_airlines, fetch_airports,
+                     fetch_calendar, fetch_destinations, fetch_hotel_image,
+                     fetch_price, fetch_search, fetch_search_params,
+                     hotel_from_url, is_single_room, region_giata_from_breadcrumb,
+                     travellers_from_url, with_duration, with_travellers,
+                     without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -277,6 +278,14 @@ def init_db() -> None:
             ts       INTEGER NOT NULL,
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Merkt den zuletzt gemeldeten Tiefstwert unter dem gebuchten Preis (Dedup für
+        # den „günstiger als gebucht"-Alarm, neustart-fest).
+        con.execute('''CREATE TABLE IF NOT EXISTS booked_state (
+            offer_id INTEGER PRIMARY KEY,
+            price    REAL,
+            ts       INTEGER NOT NULL,
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
         # Kleiner Schlüssel-Wert-Speicher (z. B. letzter Digest-Versand, ISO-Woche).
         con.execute('''CREATE TABLE IF NOT EXISTS meta (
             key   TEXT PRIMARY KEY,
@@ -286,10 +295,10 @@ def init_db() -> None:
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                     'flight_ret', 'cancellation', 'location', 'city', 'region',
-                    'country', 'pdf_url', 'return_date'):
+                    'country', 'pdf_url', 'return_date', 'image_url'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
-        for col in ('target_price', 'stars', 'rating', 'total_price'):
+        for col in ('target_price', 'booked_price', 'stars', 'rating', 'total_price'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} REAL")
         for col in ('rating_count', 'recommendation', 'travellers_count',
@@ -420,6 +429,12 @@ def push_ha_sensors() -> None:
                     attrs['available'] = bool(last['available'])
                 if o['target_price']:
                     attrs['target_price'] = int(round(o['target_price']))
+                if o['booked_price']:
+                    attrs['booked_price'] = int(round(o['booked_price']))
+                    if ok and last['price'] is not None:
+                        attrs['booked_diff'] = int(round(last['price'] - o['booked_price']))
+                if o['image_url']:
+                    attrs['image'] = o['image_url']
                 if ok:
                     attrs['unit_of_measurement'] = '€'
                     if last['old_price']:
@@ -715,6 +730,41 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
                      f"({_eur(diff)} günstiger als {_eur(current_price)})\n{offer.get('url','')}")
 
 
+def _check_booked_drop(offer: dict, current_price: float) -> None:
+    """Meldet, wenn der aktuelle Preis deutlich UNTER den gebuchten Preis gefallen ist
+    (Umbuchen könnte sich lohnen). Persistenter Dedup über `booked_state`: erst wieder bei
+    einem neuen Tiefstwert. Gated durch `notify_booked_drop`."""
+    cfg = load_config()
+    if not cfg.get('notify_booked_drop', True):
+        return
+    booked = offer.get('booked_price')
+    if not booked:
+        return
+    min_diff = max(1, int(cfg.get('booked_drop_min_diff', 50) or 0))
+    diff = booked - current_price          # >0 = günstiger als gebucht
+    if diff < min_diff:
+        return
+    oid = offer['id']
+    with db() as con:
+        prev = con.execute('SELECT price FROM booked_state WHERE offer_id=?',
+                           (oid,)).fetchone()
+    if prev and prev['price'] is not None and current_price >= prev['price']:
+        return  # kein neuer Tiefstwert seit der letzten Meldung
+    with db() as con:
+        con.execute('INSERT OR REPLACE INTO booked_state (offer_id, price, ts) '
+                    'VALUES (?,?,?)', (oid, current_price, int(time.time())))
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    log.info("💰 Günstiger als gebucht (#%d %s): %s statt %s (%s gespart) → Benachrichtigung",
+             oid, name, _eur(current_price), _eur(booked), _eur(diff))
+    _notify_ha(f"💰 Günstiger als gebucht: {name}",
+               f"{name}\nJetzt {_eur(current_price)} — {_eur(diff)} günstiger als dein "
+               f"gebuchter Preis ({_eur(booked)}). Umbuchen könnte sich lohnen.\n"
+               f"{offer.get('url','')}", f"booked_{oid}")
+    _notify_telegram(f"💰 <b>Günstiger als gebucht: {name}</b>\nJetzt <b>{_eur(current_price)}</b> "
+                     f"({_eur(diff)} unter deinem gebuchten Preis {_eur(booked)})\n"
+                     f"{offer.get('url','')}")
+
+
 def _check_error_alarm(offer: dict) -> None:
     """Meldet, wenn ein Angebot ERROR_ALARM_STREAK-mal in Folge kein Ergebnis lieferte."""
     if not load_config().get('notify_errors', True):
@@ -862,6 +912,20 @@ def check_offer(offer_id: int) -> None:
             _clear_error_alarm(offer)
             if load_config().get('notify_cheaper_date', True) and res.get('price'):
                 _check_cheaper_date(offer, res['price'])
+            if res.get('price') and offer.get('booked_price'):
+                _check_booked_drop(offer, res['price'])
+            # Hotelbild einmalig nachladen (nur wenn noch keins vorhanden)
+            if not offer.get('image_url'):
+                try:
+                    with _scrape_lock:
+                        img = fetch_hotel_image(url, verbose=_verbose())
+                    if img:
+                        with db() as con:
+                            con.execute('UPDATE offers SET image_url=? WHERE id=?',
+                                        (img, offer_id))
+                        log.info("Angebot #%d: Hotelbild gespeichert", offer_id)
+                except Exception as e:
+                    log.warning("Hotelbild #%d nicht abrufbar: %s", offer_id, e)
         elif (res.get('note') or '').startswith('Kein Angebot'):
             # kein Crash, sondern ausgebucht/kein Treffer im Zeitraum → gelb
             log.warning("Angebot #%d (%s): kein Angebot im Zeitraum", offer_id, name)
@@ -1494,7 +1558,7 @@ def _collect_offers() -> list[dict]:
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
                 'location': o['location'], 'city': o['city'],
                 'region': o['region'], 'country': o['country'],
-                'pdf_url': o['pdf_url'],
+                'pdf_url': o['pdf_url'], 'image_url': o['image_url'] or '',
                 'total_price': o['total_price'],
                 'travellers_count': o['travellers_count'],
                 'paused': bool(o['paused']),
@@ -1504,6 +1568,7 @@ def _collect_offers() -> list[dict]:
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
                 'target_price': o['target_price'],
+                'booked_price': o['booked_price'],
                 'price': last['price'] if last else None,
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
@@ -1547,11 +1612,15 @@ def api_add_offer():
     label = (data.get('label') or '').strip()
     if not _valid_tui_url(url):
         return jsonify({'error': 'invalid_url'}), 400
+    img = (data.get('image') or '').strip()      # optional: Bild aus der Suche
+    if not _valid_img_url(img):
+        img = ''
     try:
         with db() as con:
             cur = con.execute(
-                'INSERT INTO offers (url, label, hotel, details, created) VALUES (?,?,?,?,?)',
-                (url, label, hotel_from_url(url), '', int(time.time())))
+                'INSERT INTO offers (url, label, hotel, details, image_url, created) '
+                'VALUES (?,?,?,?,?,?)',
+                (url, label, hotel_from_url(url), '', img, int(time.time())))
             offer_id = cur.lastrowid
     except sqlite3.IntegrityError:
         return jsonify({'error': 'duplicate'}), 409
@@ -1571,6 +1640,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     _cheaper_notified.pop(offer_id, None)
     _fail_notified.discard(offer_id)
@@ -1598,6 +1668,17 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET target_price=? WHERE id=?', (tp, offer_id))
             log.info("Wunschpreis #%d %s", offer_id,
                      f"gesetzt: {tp:.0f} €" if tp else "entfernt")
+        if 'booked_price' in data:
+            bp = data.get('booked_price')
+            try:
+                bp = float(bp) if bp not in (None, '', 0) else None
+            except (TypeError, ValueError):
+                bp = None
+            con.execute('UPDATE offers SET booked_price=? WHERE id=?', (bp, offer_id))
+            if bp is None:  # Buchung zurückgenommen → Alarm-Dedup zurücksetzen
+                con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
+            log.info("Gebuchter Preis #%d %s", offer_id,
+                     f"gesetzt: {bp:.0f} €" if bp else "entfernt")
         if 'paused' in data:
             con.execute('UPDATE offers SET paused=? WHERE id=?',
                         (1 if data.get('paused') else 0, offer_id))
@@ -1674,6 +1755,7 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
     with _compare_lock:
         _compare_state.pop(offer_id, None)
     with _calendar_lock:
@@ -1727,11 +1809,14 @@ def api_backup():
     if (err := _require_api()):
         return err
     with db() as con:
-        rows = con.execute('SELECT url, label, target_price, paused, archived '
-                           'FROM offers ORDER BY id').fetchall()
+        rows = con.execute('SELECT url, label, target_price, booked_price, image_url, '
+                           'paused, archived FROM offers ORDER BY id').fetchall()
     data = {'tuiwatch_backup': 1, 'created': datetime.now().isoformat(),
             'offers': [{'url': r['url'], 'label': r['label'],
-                        'target_price': r['target_price'], 'paused': bool(r['paused']),
+                        'target_price': r['target_price'],
+                        'booked_price': r['booked_price'],
+                        'image_url': r['image_url'] or '',
+                        'paused': bool(r['paused']),
                         'archived': bool(r['archived'])}
                        for r in rows]}
     resp = make_response(json.dumps(data, ensure_ascii=False, indent=2))
@@ -1756,17 +1841,23 @@ def api_restore():
             if not _valid_tui_url(url):
                 skipped += 1
                 continue
-            tp = it.get('target_price')
-            try:
-                tp = float(tp) if tp not in (None, '', 0) else None
-            except (TypeError, ValueError):
-                tp = None
+            def _price(v):
+                try:
+                    return float(v) if v not in (None, '', 0) else None
+                except (TypeError, ValueError):
+                    return None
+            tp = _price(it.get('target_price'))
+            bp = _price(it.get('booked_price'))
+            img = (it.get('image_url') or '').strip()
+            if not _valid_img_url(img):
+                img = ''
             try:
                 cur = con.execute(
                     'INSERT INTO offers (url, label, hotel, details, target_price, '
-                    'paused, archived, created) VALUES (?,?,?,?,?,?,?,?)',
+                    'booked_price, image_url, paused, archived, created) '
+                    'VALUES (?,?,?,?,?,?,?,?,?,?)',
                     (url, (it.get('label') or '').strip(), hotel_from_url(url), '',
-                     tp, 1 if it.get('paused') else 0,
+                     tp, bp, img, 1 if it.get('paused') else 0,
                      1 if it.get('archived') else 0, int(time.time())))
                 if not it.get('archived'):
                     new_ids.append(cur.lastrowid)  # archivierte nicht sofort prüfen

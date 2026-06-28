@@ -29,6 +29,11 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
   `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
   Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
 - `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+- **Hotelbild:** Nur die **Such-API** liefert `hotel.images[0].url` (pics.tui.com). Offer-/
+  Content-API haben kein Bild. `fetch_hotel_image()` bestimmt daher die Region über den
+  Breadcrumb, sucht in ihr und nimmt das Bild des Treffers mit passender giataId
+  (einmalig je Angebot, danach in `offers.image_url` gecacht). Serverseitiger Bildabruf
+  gibt 403 (Hotlink-Schutz) → Bild nur als `<img>` im Browser, nie serverseitig laden.
 - **Dauer-Bereiche** (`duration=7-`, `9-12`): der **Kalender** braucht eine *einzelne*
   Dauer → wir nehmen die untere Zahl (`_single_duration()`). Der **Offer**-Abruf bekommt
   den Bereich unverändert (`durations`), damit der günstigste über alle Dauern stimmt.

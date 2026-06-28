@@ -142,6 +142,30 @@ def test_build_search_payload_airlines():
     assert payload["parameters"]["airlines"] == ["X3", "VY"]
 
 
+def test_valid_img_url():
+    assert scraper._valid_img_url("https://pics.tui.com/pics/x.jpg") is True
+    assert scraper._valid_img_url("https://www.tui.com/img.jpg") is True
+    assert scraper._valid_img_url("http://pics.tui.com/x.jpg") is False     # kein https
+    assert scraper._valid_img_url("https://evil.example.com/x.jpg") is False
+    assert scraper._valid_img_url("https://pics.tui.com.evil.com/x.jpg") is False
+    assert scraper._valid_img_url("") is False
+
+
+def test_fetch_hotel_image(monkeypatch, fx, fake_resp):
+    search, bc = fx("search.json"), fx("breadcrumb.json")
+    monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: fake_resp(bc))   # breadcrumb
+    monkeypatch.setattr(scraper.requests, "post", lambda *a, **k: fake_resp(search))  # search
+    # giataId aus der Such-Fixture (erster Treffer) verwenden → Bild gefunden
+    giata = str(search["items"][0]["hotel"]["giataId"])
+    url = (f"https://www.tui.com/pauschalreisen/suchen/angebote/Hotel/{giata}/offer/"
+           "?startDate=2026-08-12&endDate=2026-08-19&duration=7&travellers=2")
+    img = scraper.fetch_hotel_image(url)
+    assert img.startswith("https://pics.tui.com/")
+    # giataId, die nicht in den Treffern ist → kein Bild
+    url2 = url.replace(f"/{giata}/", "/999999/")
+    assert scraper.fetch_hotel_image(url2) == ""
+
+
 # ── Netzbehaftete Normalisierung (gegen echte Fixtures, requests gemonkeypatcht) ──
 
 def test_fetch_price_api(monkeypatch, fx, fake_resp):

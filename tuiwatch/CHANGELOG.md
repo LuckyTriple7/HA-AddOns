@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.0] - 2026-06-28
+
+### Added
+- **Gebuchter Preis:** Pro Angebot lässt sich der **tatsächlich gezahlte Preis**
+  hinterlegen (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird
+  „seit Buchung ±X €" und im Preis-Diagramm eine eigene Linie. **„Günstiger als
+  gebucht"-Alarm** (HA/Telegram) meldet, wenn der Preis später deutlich darunter fällt
+  (Optionen `notify_booked_drop`, `booked_drop_min_diff`); nur bei neuen Tiefstwerten,
+  neustart-fest. Auch als Sensor-Attribute `booked_price`/`booked_diff`.
+- **Hotelbild bei getrackten Angeboten:** Beim Tracken aus der Suche wird das Bild
+  übernommen; bei per URL hinzugefügten Angeboten wird es beim ersten Check einmalig über
+  eine Regionssuche ermittelt (Quelle: TUI-Such-API). Anzeige als Thumbnail in der Karte;
+  Sensor-Attribut `image`.
+
 ## [0.18.1] - 2026-06-28
 
 ### Fixed

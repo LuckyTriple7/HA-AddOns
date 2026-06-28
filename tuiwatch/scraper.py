@@ -616,6 +616,40 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
     return _run_search(params, verbose=verbose)
 
 
+def _valid_img_url(u: str) -> bool:
+    """Nur https-Bilder von TUI zulassen (kein Speichern/Anzeigen fremder URLs)."""
+    try:
+        p = urlparse(u or "")
+    except (ValueError, TypeError):
+        return False
+    return p.scheme == "https" and p.hostname is not None and (
+        p.hostname == "tui.com" or p.hostname.endswith(".tui.com"))
+
+
+def fetch_hotel_image(url: str, *, verbose: bool = False) -> str:
+    """Ermittelt das Hotelbild zu einer Angebots-URL. Quelle ist ausschließlich die
+    Such-API (`hotel.images`): Region über den Breadcrumb bestimmen, in dieser Region
+    suchen (mit den Parametern der Angebots-URL) und den Treffer mit passender giataId
+    nehmen. Gibt eine validierte pics.tui.com-URL zurück oder '' (kein Fehler)."""
+    giata = _giata_from_url(url)
+    if not giata:
+        return ""
+    region = region_giata_from_breadcrumb(giata)
+    if not region:
+        return ""
+    params = _search_params_from_url(url, region=region)
+    res = _run_search(params, verbose=verbose)
+    if not (res and res.get("ok")):
+        return ""
+    for r in res.get("results") or []:
+        if str(r.get("giata")) == str(giata):
+            img = r.get("image") or ""
+            return img if _valid_img_url(img) else ""
+    if verbose:
+        log.info("Hotelbild: giataId %s nicht in Regionssuche gefunden", giata)
+    return ""
+
+
 def fetch_destinations(parent=None) -> dict | None:
     """Reiseziel-Liste für den Picker. `parent=None` → Top-Level-Regionen, sonst die
     Unterregionen zu `parent`. Rückgabe {parentName, items:[{giata,label,level}]}."""

@@ -79,6 +79,13 @@
     .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:.78rem; }
     .target-row input:focus { outline:none; border-color:var(--accent); }
     .target-set { color:var(--accent); font-weight:600; }
+    .booked-set { color:#a371f7; font-weight:600; }
+    .booked-since { display:inline-block; font-size:.78rem; font-weight:600; padding:2px 7px; border-radius:10px; margin-top:6px; }
+    .booked-since.down { color:var(--green); background:rgba(46,160,67,.14); }
+    .booked-since.up { color:var(--muted); background:var(--surf2); }
+    .booked-since.flat { color:var(--muted); background:var(--surf2); }
+    .offer-img { width:104px; height:78px; object-fit:cover; border-radius:8px; flex:0 0 auto; background:var(--bg); }
+    @media(max-width:560px){ .offer-img { width:72px; height:56px; } }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
     .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
@@ -653,8 +660,21 @@
         const targetRow = `<div class="target-row">${tgtLabel}
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
+        const bk = o.booked_price!=null ? Math.round(o.booked_price) : '';
+        const bkLabel = o.booked_price!=null ? `<span class="booked-set">📌 Gebucht für ${eur(o.booked_price)}</span>` : '📌 Gebuchter Preis:';
+        const bookedRow = `<div class="target-row booked-row">${bkLabel}
+            <input type="number" id="book-${o.id}" placeholder="z. B. 1750" value="${bk}" onkeydown="if(event.key==='Enter')setBooked(${o.id})">
+            <button class="btn sec" onclick="setBooked(${o.id})">setzen</button></div>`;
+        let bookedSince = '';
+        if(o.booked_price!=null && o.price!=null){
+          const d = Math.round(o.price - o.booked_price);
+          if(d<0) bookedSince = `<span class="booked-since down" title="seit deiner Buchung">📌 ${eur(d)} seit Buchung</span>`;
+          else if(d>0) bookedSince = `<span class="booked-since up" title="seit deiner Buchung">📌 +${eur(d)} seit Buchung</span>`;
+          else bookedSince = `<span class="booked-since flat" title="seit deiner Buchung">📌 wie gebucht</span>`;
+        }
         return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
+            ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             <div class="offer-main">
               <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
@@ -671,11 +691,13 @@
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
               <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
+              ${bookedSince?`<div>${bookedSince}</div>`:''}
               ${availBadge}
             </div>
           </div>
           ${statsLine}
           ${o.archived?'':targetRow}
+          ${o.archived?'':bookedRow}
           <canvas class="spark" id="spark-${o.id}"></canvas>
           <div class="offer-foot">
             ${o.archived
@@ -707,7 +729,7 @@
         const o = (curOffers||[]).find(x=>x.id===id) || {};
         const r = await fetch(api('/api/history/'+id));
         const pts = (await r.json()).history.filter(h=>h.ok && h.price!=null);
-        drawChart(cv, pts, false, {target: o.target_price});
+        drawChart(cv, pts, false, {target: o.target_price, booked: o.booked_price});
       } catch(e){}
     }
 
@@ -726,6 +748,7 @@
       // Wertebereich inkl. Wunschpreis und (im Verlauf) Vergleichspreisen
       const extra = [];
       if(opts.target) extra.push(opts.target);
+      if(opts.booked) extra.push(opts.booked);
       if(opts.showOld) pts.forEach(p=>{ if(p.old_price) extra.push(p.old_price); });
       let minY=Math.min(...ys, ...extra), maxY=Math.max(...ys, ...extra);
       if(minY===maxY){ minY-=50; maxY+=50; }
@@ -757,6 +780,13 @@
         ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(w-padR,ty); ctx.stroke(); ctx.restore();
         if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('🎯 '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
       }
+      // Gebuchter-Preis-Linie (gezahlter Preis seit Buchung)
+      if(opts.booked){
+        const by=Y(opts.booked); const violet='#a371f7';
+        ctx.save(); ctx.strokeStyle=violet; ctx.setLineDash([2,3]); ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(padL,by); ctx.lineTo(w-padR,by); ctx.stroke(); ctx.restore();
+        if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('📌 '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
+      }
       // Punkte; Preisrückgänge grün markiert
       pts.forEach((p,i)=>{
         const drop = i>0 && p.price < pts[i-1].price;
@@ -775,7 +805,7 @@
       const r = await fetch(api('/api/history/'+id));
       const hist = (await r.json()).history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
-      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, showOld: true});
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, showOld: true});
       const rows = hist.slice().reverse().map(h=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
         if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
@@ -1204,7 +1234,7 @@
       const btn = document.getElementById('srt-'+i);
       if(btn){ btn.disabled=true; btn.textContent='…'; }
       let resp;
-      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); }
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); }
       catch(e){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
       if(resp.status===409){ toast('Wird bereits verfolgt'); }
       else if(!resp.ok){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
@@ -1217,7 +1247,7 @@
       if(!todo.length){ toast('Alle bereits getrackt'); return; }
       if(!confirm(todo.length+' Hotels ins Tracking übernehmen?')) return;
       for(const r of todo){
-        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); r.tracked=true; } catch(e){}
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); r.tracked=true; } catch(e){}
       }
       toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
     }
@@ -1383,6 +1413,14 @@
         body:JSON.stringify({target_price: val})});
       toast(val ? ('Wunschpreis gesetzt: '+eur(val)) : 'Wunschpreis entfernt');
       loadOffers();
+    }
+    async function setBooked(id){
+      const el = document.getElementById('book-'+id);
+      const val = el && el.value.trim() ? parseFloat(el.value) : null;
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({booked_price: val})});
+      toast(val ? ('Gebuchter Preis gesetzt: '+eur(val)) : 'Gebuchter Preis entfernt');
+      lastSig=null; loadOffers();
     }
     async function renameOffer(id){
       const o = (curOffers||[]).find(x=>x.id===id) || {};

@@ -32,6 +32,12 @@ configuration:
   notify_api_errors:
     name: API-Ausfall-Alarm
     description: "Benachrichtigen, wenn der API-Selbsttest einen kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und Entwarnung geben, sobald wieder alles läuft. Standard an."
+  notify_booked_drop:
+    name: Alarm günstiger als gebucht
+    description: "Benachrichtigen, wenn der Preis nach deiner Buchung unter den hinterlegten gebuchten Preis fällt (Umbuchen könnte sich lohnen). Standard an."
+  booked_drop_min_diff:
+    name: Mindest-Ersparnis unter Buchungspreis (€)
+    description: "Ab welcher Ersparnis pro Person der Alarm günstiger als gebucht auslöst. Standard 50 €."
   digest_enabled:
     name: Wochenüberblick senden
     description: "Wöchentliche Zusammenfassung (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis) per Telegram und/oder E-Mail verschicken. Benötigt Telegram oder SMTP. Standard aus."

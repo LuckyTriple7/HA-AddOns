@@ -17,6 +17,8 @@ password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
 notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
+notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
+booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 verbose_log: false       # ausführliche Logs
@@ -60,7 +62,8 @@ Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/
 Weiterempfehlung oder Sternen. Je Treffer **Tracken** oder **Öffnen** (tui.com), dazu
 **Alle tracken**. Bereits getrackte Hotels sind markiert.
 
-Für jedes Angebot werden angezeigt: Hotelname, **Ort/Region** (z. B. „Playa del
+Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
+**Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
 (Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
@@ -92,6 +95,10 @@ für die volle Historie).
 - **API-Ausfall-Alarm** (`notify_api_errors`): meldet, wenn der API-Selbsttest einen
   kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und gibt
   Entwarnung, sobald wieder alles läuft.
+- **„Günstiger als gebucht"-Alarm** (`notify_booked_drop`): hast du bei einem Angebot
+  deinen **gebuchten Preis** hinterlegt, meldet TUIWatch, wenn der Preis später deutlich
+  darunter fällt (Schwelle `booked_drop_min_diff`, Standard 50 €) — Umbuchen könnte sich
+  lohnen. Meldet nur bei neuen Tiefstwerten (kein Spam), neustart-fest.
 - **Wochenüberblick / Digest** (`digest_enabled`): optionale wöchentliche Zusammenfassung
   (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis) per Telegram und/oder
   E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag … 7 = Sonntag); war das
@@ -153,12 +160,17 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
   `flight_outbound`, `flight_return`, `available` (true/false), `cancellation`,
   `stars`, `rating`, `rating_count`, `recommendation`, `old_price`,
   `discount`, `total_price`, `travellers`, `min_price`, `max_price`, `avg_price`,
-  `target_price`, `hotel_pdf`, `last_checked`, `url`
+  `target_price`, `booked_price`, `booked_diff` (Preis − gebucht), `image`,
+  `hotel_pdf`, `last_checked`, `url`
 
 ## Bedienung
 
 - **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).
 - **Backup / Wiederherstellen** — getrackte Angebote als JSON sichern bzw. importieren.
+- **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
+  (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
+  ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt
+  (falls `notify_booked_drop` an) eine Benachrichtigung.
 - **Übersicht** über der Liste: Anzahl, günstigstes Angebot, Anzahl unter Wunschpreis.
 - **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ort, Ziel/Abflughafen und Details.
 - **Sortierung** — Liste nach Hinzugefügt, **Reisebeginn**, Preis, größter Preisänderung, Bewertung oder Name ordnen.
