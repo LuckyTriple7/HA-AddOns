@@ -36,6 +36,7 @@ verbose_log: false       # ausführliche Logs
 **1. Suchmaske (empfohlen, ohne URL):**
 - **Reiseziel** über den Picker wählen — Drilldown **Land → Region → Insel** (z. B.
   Spanien → Kanarische Inseln → Gran Canaria); „Ganze Region wählen" auf jeder Ebene.
+  Ein **Suchfeld** filtert die aktuell angezeigte Liste.
 - **Abflughafen** (TUI-Liste, zuletzt genutzter wird gemerkt), **Zeitraum von–bis** +
   **Nächte**, **Reisende**.
 - **Fluggesellschaften** (optional): Dropdown mit Mehrfachauswahl — leer = alle. Die

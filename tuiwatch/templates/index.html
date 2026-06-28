@@ -167,12 +167,15 @@
     .airline-dd > summary::-webkit-details-marker { display:none; }
     .airline-dd[open] > summary { border-color:var(--accent); }
     .airline-dd summary.set { border-color:var(--accent); font-weight:600; }
-    .airline-list { position:absolute; z-index:30; margin-top:4px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:6px; max-height:240px; overflow:auto; min-width:200px; box-shadow:0 6px 18px rgba(0,0,0,.25); }
-    .airline-list label { display:flex; align-items:center; gap:7px; padding:5px 6px; font-size:.84rem; cursor:pointer; color:var(--text); white-space:nowrap; }
+    .airline-list { position:absolute; left:0; z-index:30; margin-top:4px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:6px; max-height:240px; overflow:auto; min-width:220px; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+    .airline-list label { display:flex; align-items:center; gap:8px; padding:5px 6px; font-size:.84rem; cursor:pointer; color:var(--text); white-space:nowrap; text-align:left; }
     .airline-list label:hover { background:var(--surf2); border-radius:5px; }
+    /* die globale .srch-field input-Regel (width:100%, padding) darf die Checkboxen nicht treffen */
+    .airline-list input[type=checkbox] { width:16px; height:16px; flex:0 0 auto; padding:0; margin:0; border-radius:3px; accent-color:var(--accent); }
     .srch-adv { margin-bottom:10px; }
     .srch-adv summary { cursor:pointer; font-size:.8rem; color:var(--muted); }
     .dest-panel { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
+    .dest-search { width:100%; box-sizing:border-box; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:.85rem; margin:6px 0 8px; }
     .dest-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:.84rem; }
     .dest-head b { color:var(--text); }
     .dest-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:.86rem; }
@@ -1039,18 +1042,28 @@
       if(!destData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
       renderDest();
     }
+    function renderDestRows(){
+      const q = ($('#dest-search')?$('#dest-search').value:'').trim().toLowerCase();
+      const items = (destData.items||[]).filter(it => !q || (it.label||'').toLowerCase().includes(q));
+      const rows = items.map(it=>
+        `<div class="dest-row" onclick="destDrill(${it.giata}, '${jsArg(it.label)}')">
+           <span>${esc(it.label)}</span>
+           <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
+         </div>`).join('');
+      const box = $('#dest-rows'); if(box) box.innerHTML = rows ||
+        `<div class="cmp-load">${q?'Kein Treffer für „'+esc(q)+'".':'Keine Unterregionen.'}</div>`;
+    }
     function renderDest(){
       const p = $('#dest-panel');
       const back = destStack.length?'<button class="btn sec" onclick="destBack()">‹ zurück</button>':'';
       const title = destNode?('<b>'+esc(destNode.label)+'</b>'):'<b>Reiseziel wählen</b>';
       const whole = destNode?(`<button class="btn" onclick="selectDest(${destNode.giata}, '${jsArg(destNode.label)}')">✓ Ganze Region wählen</button>`):'';
-      const rows = (destData.items||[]).map(it=>
-        `<div class="dest-row" onclick="destDrill(${it.giata}, '${jsArg(it.label)}')">
-           <span>${esc(it.label)}</span>
-           <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
-         </div>`).join('');
       p.innerHTML = `<div class="dest-head">${back}${title}${whole}
-          <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>${rows||'<div class="cmp-load">Keine Unterregionen.</div>'}`;
+          <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>
+        <input type="text" id="dest-search" class="dest-search" placeholder="In dieser Liste suchen…" autocomplete="off" oninput="renderDestRows()">
+        <div id="dest-rows"></div>`;
+      renderDestRows();
+      const si = $('#dest-search'); if(si) si.focus();
     }
     async function destDrill(giata, label){
       const sub = await loadDest(giata);

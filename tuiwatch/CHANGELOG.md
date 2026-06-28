@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.18.1] - 2026-06-28
+
+### Fixed
+- **Fluggesellschaften-Dropdown**: Checkboxen waren verrutscht (die globale Eingabefeld-
+  Regel hat sie auf volle Breite gezogen) und das Panel saß versetzt — beides korrigiert
+  (Checkboxen feste Größe, Panel linksbündig unter dem Feld).
+
+### Added
+- **Suche im Reiseziel-Picker**: Textfeld zum Filtern der aktuell angezeigten Liste
+  (z. B. Land eintippen, dann hineinblättern).
+
 ## [0.18.0] - 2026-06-28
 
 ### Added
