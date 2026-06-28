@@ -48,6 +48,10 @@ für die volle Historie).
   oder unter diesen Wert, wirst du benachrichtigt.
 - Bei **jeder Preisänderung** (steigt/fällt) kommt ebenfalls eine Meldung
   (abschaltbar über `notify_price_change`).
+- **Günstigerer-Termin-Alarm** (`notify_cheaper_date`): meldet, wenn der Preiskalender
+  einen anderen Abreisetag deutlich günstiger zeigt (Schwelle `cheaper_date_min_diff`).
+- **Ausverkauft-/Fehler-Alarm** (`notify_errors`): meldet, wenn ein Angebot mehrmals in
+  Folge kein Ergebnis liefert, und gibt Entwarnung, sobald es wieder klappt.
 - Kanäle:
   - **Home Assistant**: persistente Benachrichtigung (Option `notify_ha`, Standard an).
   - **Telegram**: `telegram_bot_token` + `telegram_chat_id` setzen (Bot via @BotFather,
@@ -94,7 +98,9 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 
 ## Bedienung
 
-- **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ziel/Abflughafen und Details.
+- **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ort, Ziel/Abflughafen und Details.
+- **Sortierung** — Liste nach Hinzugefügt, Preis, größter Preisänderung, Bewertung oder Name ordnen.
+- **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie.

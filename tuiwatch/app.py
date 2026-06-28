@@ -91,6 +91,9 @@ _compare_state: dict[int, dict] = {}  # offer_id → transienter Status {running
 _compare_lock = threading.Lock()
 _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
 _calendar_lock = threading.Lock()
+_cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
+_fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
+ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 
 # einfache Login-Drossel
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -456,6 +459,77 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
                          f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}")
 
 
+def _check_cheaper_date(offer: dict, current_price: float) -> None:
+    """Holt den Preiskalender (frischt zugleich den Cache auf) und meldet, wenn ein
+    anderer Abreisetag deutlich günstiger ist als der getrackte Preis."""
+    cfg = load_config()
+    cal = fetch_calendar(offer['url'], verbose=_verbose())
+    if not cal or not cal.get('ok'):
+        return
+    try:
+        with db() as con:
+            con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) '
+                        'VALUES (?,?,?)', (offer['id'], int(time.time()), json.dumps(cal)))
+    except Exception as e:
+        log.warning("Kalender-Cache #%d nicht aktualisiert: %s", offer['id'], e)
+    cd, cp = cal.get('cheapest_date'), cal.get('cheapest_price')
+    if not cd or cp is None:
+        return
+    min_diff = max(1, int(cfg.get('cheaper_date_min_diff', 50) or 0))
+    diff = current_price - cp
+    if cd == cal.get('tracked_date') or diff < min_diff:
+        return
+    sig = f"{cd}:{cp}"
+    if _cheaper_notified.get(offer['id']) == sig:
+        return  # für genau diesen Termin/Preis schon gemeldet
+    _cheaper_notified[offer['id']] = sig
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
+    d_de = '.'.join(reversed(cd.split('-')))  # YYYY-MM-DD → DD.MM.YYYY
+    _notify_ha(f"💡 Günstigerer Termin: {name}",
+               f"{name}\nAm {d_de} nur {_eur(cp)} — {_eur(diff)} günstiger als dein "
+               f"Termin ({_eur(current_price)})\n{offer.get('url','')}",
+               f"cheaper_{offer['id']}")
+    _notify_telegram(f"💡 <b>Günstigerer Termin</b>\n{name}\nAm {d_de}: <b>{_eur(cp)}</b> "
+                     f"({_eur(diff)} günstiger als {_eur(current_price)})\n{offer.get('url','')}")
+
+
+def _check_error_alarm(offer: dict) -> None:
+    """Meldet, wenn ein Angebot ERROR_ALARM_STREAK-mal in Folge kein Ergebnis lieferte."""
+    if not load_config().get('notify_errors', True):
+        return
+    oid = offer['id']
+    with db() as con:
+        rows = con.execute('SELECT ok FROM price_history WHERE offer_id=? ORDER BY ts DESC '
+                           'LIMIT ?', (oid, ERROR_ALARM_STREAK)).fetchall()
+    streak = 0
+    for r in rows:
+        if r['ok'] == 0:
+            streak += 1
+        else:
+            break
+    if streak < ERROR_ALARM_STREAK or oid in _fail_notified:
+        return
+    _fail_notified.add(oid)
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    _notify_ha(f"⚠ Kein Angebot: {name}",
+               f"{name}\nSeit {streak} Prüfungen kein Preis/Angebot — evtl. ausgebucht "
+               f"oder die URL ist veraltet.\n{offer.get('url','')}", f"error_{oid}")
+    _notify_telegram(f"⚠ <b>Kein Angebot mehr: {name}</b>\nSeit {streak} Prüfungen kein "
+                     f"Preis — evtl. ausgebucht oder URL veraltet.\n{offer.get('url','')}")
+
+
+def _clear_error_alarm(offer: dict) -> None:
+    """Entwarnung, wenn ein zuvor gemeldetes Angebot wieder Ergebnisse liefert."""
+    oid = offer['id']
+    if oid not in _fail_notified:
+        return
+    _fail_notified.discard(oid)
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    _notify_ha(f"✅ Wieder verfügbar: {name}",
+               f"{name} liefert wieder einen Preis.\n{offer.get('url','')}", f"error_{oid}")
+    _notify_telegram(f"✅ <b>Wieder verfügbar: {name}</b>")
+
+
 # ── Scraping-Worker ────────────────────────────────────────────────────────────
 
 def check_offer(offer_id: int) -> None:
@@ -508,9 +582,13 @@ def check_offer(offer_id: int) -> None:
         if res.get('ok'):
             log.info("Angebot #%d: %.0f € (%s)", offer_id, res['price'], res.get('details', '')[:60])
             _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
+            _clear_error_alarm(offer)
+            if load_config().get('notify_cheaper_date', True) and res.get('price'):
+                _check_cheaper_date(offer, res['price'])
         else:
             # nach außen nur generische Note (bereits in res['note']); Detail steht im Log
             log.warning("Angebot #%d fehlgeschlagen: %s", offer_id, res.get('note'))
+            _check_error_alarm(offer)
     except Exception as e:
         log.error("check_offer(#%d) Fehler: %s", offer_id, e)
     finally:
@@ -846,6 +924,8 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
+    _cheaper_notified.pop(offer_id, None)
+    _fail_notified.discard(offer_id)
     log.info("Angebot #%d gelöscht", offer_id)
     push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
     return jsonify({'deleted': offer_id})
@@ -905,6 +985,8 @@ def api_reset_offer(offer_id: int):
         _compare_state.pop(offer_id, None)
     with _calendar_lock:
         _calendar_state.pop(offer_id, None)
+    _cheaper_notified.pop(offer_id, None)
+    _fail_notified.discard(offer_id)
     log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
     _spawn(check_offer, offer_id)  # frische Erstabfrage
     return jsonify({'reset': offer_id, 'started': True})

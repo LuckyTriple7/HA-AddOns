@@ -20,6 +20,15 @@ configuration:
   notify_price_change:
     name: Bei jeder Preisänderung benachrichtigen
     description: "Benachrichtigen, sobald sich ein Preis ändert (gestiegen/gefallen). Wunschpreis-Benachrichtigungen kommen unabhängig davon immer. Standard an."
+  notify_cheaper_date:
+    name: Günstigerer-Termin-Alarm
+    description: "Benachrichtigen, wenn der Preiskalender einen anderen Abreisetag (auch außerhalb deines Zeitraums) deutlich günstiger zeigt als dein getrackter Preis. Standard an."
+  cheaper_date_min_diff:
+    name: Mindest-Ersparnis für Termin-Alarm (€)
+    description: "Ab welcher Ersparnis pro Person der Günstigerer-Termin-Alarm auslöst. Standard 50 €."
+  notify_errors:
+    name: Ausverkauft-/Fehler-Alarm
+    description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."
   telegram_bot_token:
     name: Telegram Bot Token
     description: "Token eines Telegram-Bots (Format 123456789:ABC-...), um Benachrichtigungen per Telegram zu erhalten. Leer lassen, um Telegram zu deaktivieren. Bot erstellen via @BotFather."

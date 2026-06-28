@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0] - 2026-06-28
+
+### Added
+- **Günstigerer-Termin-Alarm**: Meldung (HA/Telegram), wenn der Preiskalender einen
+  anderen Abreisetag deutlich günstiger zeigt als dein getrackter Preis (Schwelle per
+  `cheaper_date_min_diff`, Standard 50 €). Aktualisiert nebenbei den Kalender-Cache.
+- **Ausverkauft-/Fehler-Alarm**: Meldung, wenn ein Angebot mehrmals in Folge kein
+  Ergebnis liefert (ausgebucht/URL veraltet), plus Entwarnung, sobald es wieder klappt.
+  Optionen `notify_cheaper_date`, `cheaper_date_min_diff`, `notify_errors`.
+- **Angebot umbenennen** direkt im UI (✎ neben dem Namen).
+- **Sortierung** der Angebotsliste: Hinzugefügt, Preis, größte Preisänderung,
+  Bewertung, Name.
+- **Diagramm-Extras**: Wunschpreis-Linie, Vergleichspreis-Verlauf und grüne
+  Marker für Preisrückgänge im Verlaufs-Diagramm.
+
 ## [0.5.1] - 2026-06-28
 
 ### Added

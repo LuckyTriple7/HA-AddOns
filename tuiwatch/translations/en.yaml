@@ -20,6 +20,15 @@ configuration:
   notify_price_change:
     name: Notify on every price change
     description: "Notify whenever a price changes (up/down). Target-price notifications are always sent regardless. Default on."
+  notify_cheaper_date:
+    name: Cheaper-date alert
+    description: "Notify when the price calendar shows another departure date (also outside your range) that is clearly cheaper than your tracked price. Default on."
+  cheaper_date_min_diff:
+    name: Minimum saving for date alert (€)
+    description: "Minimum saving per person before the cheaper-date alert triggers. Default 50 €."
+  notify_errors:
+    name: Sold-out / error alert
+    description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."
   telegram_bot_token:
     name: Telegram bot token
     description: "Token of a Telegram bot (format 123456789:ABC-...) to receive notifications via Telegram. Leave empty to disable Telegram. Create a bot via @BotFather."
