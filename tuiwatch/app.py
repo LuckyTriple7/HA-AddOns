@@ -22,7 +22,7 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import (fetch_price, hotel_from_url, is_single_room,
+from scraper import (fetch_calendar, fetch_price, hotel_from_url, is_single_room,
                      travellers_from_url, with_travellers, without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -89,6 +89,8 @@ _checking: set[int] = set()          # offer_ids, die gerade geprüft werden
 _checking_lock = threading.Lock()
 _compare_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
 _compare_lock = threading.Lock()
+_calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
+_calendar_lock = threading.Lock()
 
 # einfache Login-Drossel
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -223,6 +225,12 @@ def init_db() -> None:
             ts       INTEGER NOT NULL,
             base     INTEGER,
             rows     TEXT NOT NULL DEFAULT '[]',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        con.execute('''CREATE TABLE IF NOT EXISTS calendar_cache (
+            offer_id INTEGER PRIMARY KEY,
+            ts       INTEGER NOT NULL,
+            data     TEXT NOT NULL DEFAULT '{}',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
@@ -575,6 +583,54 @@ def _compare_payload(offer_id: int) -> dict:
     return out
 
 
+# ── Preiskalender (on-demand, gespeichert) ──────────────────────────────────────
+
+def _run_calendar(offer_id: int) -> None:
+    """Liest den Preiskalender (Preis je Abreisetag) und speichert ihn in der DB."""
+    try:
+        with db() as con:
+            offer = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not offer:
+            with _calendar_lock:
+                _calendar_state[offer_id] = {'status': 'error', 'note': 'Angebot nicht gefunden'}
+            return
+        res = fetch_calendar(offer['url'], verbose=_verbose())
+        if not res or not res.get('ok'):
+            with _calendar_lock:
+                _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
+            return
+        with db() as con:
+            con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
+                        (offer_id, int(time.time()), json.dumps(res)))
+        with _calendar_lock:
+            _calendar_state.pop(offer_id, None)
+        log.info("Preiskalender #%d: %d Tage, günstigster %s (%s €)", offer_id,
+                 len(res.get('days', [])), res.get('cheapest_date'), res.get('cheapest_price'))
+    except Exception as e:
+        log.error("Preiskalender #%d Fehler: %s", offer_id, e)
+        with _calendar_lock:
+            _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender fehlgeschlagen'}
+
+
+def _calendar_payload(offer_id: int) -> dict:
+    with _calendar_lock:
+        st = dict(_calendar_state.get(offer_id) or {})
+    if st.get('status') == 'running':
+        return {'status': 'running'}
+    with db() as con:
+        row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
+                          (offer_id,)).fetchone()
+    if row:
+        out = json.loads(row['data'])
+        out['status'] = 'done'
+        out['ts'] = row['ts']
+    else:
+        out = {'status': 'idle'}
+    if st.get('status') == 'error':
+        out['error'] = st.get('note', 'Preiskalender fehlgeschlagen')
+    return out
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -772,6 +828,7 @@ def api_delete_offer(offer_id: int):
     with db() as con:
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     log.info("Angebot #%d gelöscht", offer_id)
     push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
@@ -848,6 +905,30 @@ def api_compare_get(offer_id: int):
     if (err := _require_api()):
         return err
     return jsonify(_compare_payload(offer_id))
+
+
+@app.route('/api/calendar/<int:offer_id>', methods=['POST'])
+def api_calendar_start(offer_id: int):
+    if (err := _require_api()):
+        return err
+    with _calendar_lock:
+        if _calendar_state.get(offer_id, {}).get('status') == 'running':
+            return jsonify({'started': True, 'already': True})
+    with db() as con:
+        exists = con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not exists:
+        return jsonify({'error': 'not_found'}), 404
+    with _calendar_lock:
+        _calendar_state[offer_id] = {'status': 'running'}
+    _spawn(_run_calendar, offer_id)
+    return jsonify({'started': True})
+
+
+@app.route('/api/calendar/<int:offer_id>', methods=['GET'])
+def api_calendar_get(offer_id: int):
+    if (err := _require_api()):
+        return err
+    return jsonify(_calendar_payload(offer_id))
 
 
 @app.route('/api/console')

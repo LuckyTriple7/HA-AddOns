@@ -89,6 +89,29 @@
     .cmp-down { color:var(--green); font-weight:600; }
     .cmp-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .cmp-foot .hint { margin-top:0; }
+    /* Preiskalender */
+    .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+    .cal-title { font-weight:700; font-size:1rem; }
+    .cal-sum { font-size:.78rem; color:var(--muted); margin-bottom:10px; }
+    .cal-sum b { color:var(--text); }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+    .cal-grid.head { margin-bottom:4px; gap:4px; }
+    .cal-wd { text-align:center; font-size:.72rem; color:var(--muted); font-weight:600; padding:2px 0; }
+    .cal-cell { min-height:52px; border:1px solid var(--border); border-radius:6px; padding:4px 5px; display:flex; flex-direction:column; justify-content:space-between; background:var(--surf2); }
+    .cal-cell.empty { border:none; background:transparent; }
+    .cal-cell .cal-d { font-size:.72rem; color:var(--muted); }
+    .cal-cell .cal-p { font-size:.8rem; font-weight:700; text-align:right; }
+    .cal-cell .cal-p.na { color:var(--muted); font-weight:400; }
+    .cal-cell.out { opacity:.4; }
+    .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
+    .cal-cell.cheapest .cal-p { color:var(--green); }
+    .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
+    .cal-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:.74rem; color:var(--muted); }
+    .cal-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:4px; }
+    .cal-legend .lg-cheap { background:rgba(46,160,67,.5); border:1px solid var(--green); }
+    .cal-legend .lg-track { border:2px solid var(--accent); }
+    .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
+    @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:8px; font-size:.84rem; opacity:0; transition:opacity .2s; z-index:60; }
@@ -158,6 +181,18 @@
       <h2>Pro-Person-Vergleich</h2>
       <div class="sub" id="cmp-sub"></div>
       <div id="cmp-body"></div>
+    </div>
+  </div>
+
+  <!-- Preiskalender-Modal -->
+  <div class="modal-bg" id="cal-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeCalendar()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Preiskalender</h2>
+      <div class="sub" id="cal-sub"></div>
+      <div id="cal-body"></div>
     </div>
   </div>
   <div class="toast" id="toast"></div>
@@ -324,6 +359,7 @@
             <span class="when">${o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts))}</span>
             <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
             <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+            <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
             ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
             <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>
           </div>
@@ -467,6 +503,107 @@
       $('#cmp-body').innerHTML =
         `<table class="hist"><tr><th>Reisende</th><th>Preis p.&nbsp;P.</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
         + cmpFooter(job);
+    }
+
+    // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
+    let calTimer = null, calId = null, calData = null, calMonth = null;
+    function calSpinner(){ $('#cal-body').innerHTML = '<div class="cmp-load">⏳ Preiskalender wird geladen…</div>'; }
+    function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
+
+    async function openCalendar(id){
+      calId = id; calMonth = null; calData = null;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#cal-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#cal-bg').classList.add('show');
+      clearInterval(calTimer); calTimer=null;
+      let job;
+      try { job = await fetch(api('/api/calendar/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle'}; }
+      if(job.status==='running'){ calSpinner(); startCalPolling(); }
+      else if(job.status==='done' && job.days && job.days.length){ renderCalendar(job); }  // gespeichert → anzeigen
+      else { refreshCalendar(); }                                                          // noch nie abgefragt → einmal starten
+    }
+    async function refreshCalendar(){
+      if(calId==null) return;
+      calSpinner();
+      try { await fetch(api('/api/calendar/'+calId), {method:'POST'}); } catch(e){}
+      startCalPolling();
+    }
+    function closeCalendar(){ clearInterval(calTimer); calTimer=null; calId=null; $('#cal-bg').classList.remove('show'); }
+    $('#cal-bg').addEventListener('click', e=>{ if(e.target.id==='cal-bg') closeCalendar(); });
+    function calGo(m){ if(!m) return; calMonth=m; drawCalMonth(); }
+
+    async function calPoll(){
+      if(calId==null) return;
+      let job;
+      try { job = await fetch(api('/api/calendar/'+calId)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running') return;
+      clearInterval(calTimer); calTimer=null;
+      renderCalendar(job);
+    }
+
+    function fmtD(iso){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(iso||''); return m?`${m[3]}.${m[2]}.${m[1]}`:iso; }
+    function calFooter(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
+        <button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+    }
+
+    function renderCalendar(job){
+      calData = job;
+      if(!(job.days && job.days.length)){
+        const msg = job.error || job.note || 'Preiskalender nicht verfügbar';
+        $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + calFooter(job);
+        return;
+      }
+      if(!calMonth){ const ref = job.tracked_date || job.cheapest_date || job.days[0].date; calMonth = ref.slice(0,7); }
+      drawCalMonth();
+    }
+
+    function drawCalMonth(){
+      const job = calData; if(!job) return;
+      const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
+      const months = [...new Set(job.days.map(d=>d.date.slice(0,7)))].sort();
+      if(!months.includes(calMonth)) calMonth = months[0];
+      const [Y,M] = calMonth.split('-').map(Number);
+      const first = new Date(Y, M-1, 1);
+      const startWd = (first.getDay()+6)%7;          // Montag = 0
+      const dim = new Date(Y, M, 0).getDate();
+      const ws = job.window_start, we = job.window_end;
+      let cells = '';
+      for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
+      for(let d=1; d<=dim; d++){
+        const iso = `${Y}-${String(M).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const price = pm[iso];
+        const inWin = (!ws||iso>=ws) && (!we||iso<=we);
+        const cls = ['cal-cell'];
+        if(!inWin) cls.push('out');
+        if(iso===job.cheapest_date) cls.push('cheapest');
+        if(iso===job.tracked_date) cls.push('tracked');
+        cells += `<div class="${cls.join(' ')}"><span class="cal-d">${d}</span>`
+          + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>') + '</div>';
+      }
+      const idx = months.indexOf(calMonth);
+      const prev = idx>0?months[idx-1]:'', next = idx<months.length-1?months[idx+1]:'';
+      const monthName = first.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
+      let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
+      if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
+      $('#cal-body').innerHTML = `
+        <div class="cal-sum">${sum}</div>
+        <div class="cal-nav">
+          <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
+          <span class="cal-title">${monthName}</span>
+          <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
+        </div>
+        <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
+        <div class="cal-grid">${cells}</div>
+        <div class="cal-legend">
+          <span><i class="lg-cheap"></i>günstigster Termin</span>
+          <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
+          <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
+          <span>Preis = ab/Person</span>
+        </div>${calFooter(job)}`;
     }
 
     async function addOffer(){

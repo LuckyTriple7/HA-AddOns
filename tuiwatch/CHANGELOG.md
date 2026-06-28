@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0] - 2026-06-28
+
+### Added
+- **Preiskalender** je Angebot (Button „Kalender"): Monats-Grid mit dem günstigsten
+  Preis pro Abreisetag (wie auf tui.com). Markiert den günstigsten Termin (grün) und
+  den günstigsten Termin **in deinem gewählten Zeitraum** sowie Tage außerhalb des
+  Zeitraums (gedimmt); Monatsnavigation. Wird wie der Vergleich **gespeichert**
+  (Zeitstempel + „Neu abfragen"). Respektiert alle Filter der Original-URL.
+
 ## [0.3.3] - 2026-06-28
 
 ### Fixed

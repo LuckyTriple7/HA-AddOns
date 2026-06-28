@@ -67,6 +67,16 @@ abfragen"** lässt sich der Vergleich bei Bedarf aktualisieren. Bei
 **Einzelzimmer**-Angeboten erscheint kein Vergleichs-Button, da ein 2-Personen-Abruf
 nicht möglich ist.
 
+## Preiskalender
+
+Der Button **Kalender** je Angebot zeigt ein Monats-Raster mit dem günstigsten Preis
+pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Hervorgehoben werden
+der **günstigste Termin insgesamt** (grün) und der **günstigste Termin in deinem
+gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Mit den Pfeilen
+blätterst du durch die Monate. Das Ergebnis wird **gespeichert** (Zeitstempel + „Neu
+abfragen") und respektiert alle Filter deiner Angebots-URL (Verpflegung, Veranstalter,
+Zimmer, Abflughafen).
+
 ## Home-Assistant-Sensoren
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor

@@ -16,6 +16,7 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
 |---|---|---|
 | **Angebote + Preis** | `https://d2z3tkv1undzra.cloudfront.net/data?giataId=…&startDate=…&endDate=…&durations=…&travellers=…&airports=…&roomTypeOpCodes=…&…` | `offers[]` mit `cheapest`, `calculatedPricePerPerson`, `calculatedOriginalPricePerPerson`, `discount`, `cancellationType`, `lengthOfStay`, `rooms[]` (`description`,`code`,`boardDescription`), `departure`/`return` (Datum/Zeit/`airline`/`stopOver`/Airports), `arrivalDate`; dazu `hotel.name`, `currency`, `travellers[]` |
 | **Sterne + Bewertung** | `https://d1pagbczmuq2ek.cloudfront.net/data?giataId=…&locale=de_DE` | `category` (Sterne), `holidayCheckRatings.averageRating` (×/6), `.countReviewsCurrent`, `.recommendation` (%) |
+| **Preiskalender** | `https://d18axsujemfwj.cloudfront.net/data?giatas=…&duration=…&adults=…&startSearchRange=…&endSearchRange=…&airports=…&roomTypeOpCodes=…&boardCodes=…&tourOperators=…&startDate=…&endDate=…` | `offers[]` je `arrivalDate` → `calculatedPricePerPerson`; min pro Tag = „ab"-Preis. **Achtung:** dieser Endpoint nutzt **andere** Parameternamen als der Offer-Endpoint: Verpflegung = `boardCodes` (nicht `boardTypes`), Veranstalter = `tourOperators` (nicht `operators`), Personen = `adults`, giataId = `giatas`. `startDate/endDate` = sichtbarer Rasterbereich (wir nehmen Suchzeitraum ±7 Tage). |
 
 - Die **giataId** steht im Pfad der Seiten-URL: `…/angebote/<Hotel>/<giataId>/…`.
 - `build_offer_api_url()` mappt die Seiten-Parameter → API-Parameter (u. a.

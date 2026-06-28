@@ -202,6 +202,7 @@ def _empty_result() -> dict:
 # Browser-Fallback _fetch_price_browser(). Siehe SCRAPING.md.
 OFFER_API = "https://d2z3tkv1undzra.cloudfront.net/data"      # Angebote inkl. Preis
 CONTENT_API = "https://d1pagbczmuq2ek.cloudfront.net/data"    # Sterne + Bewertung
+CALENDAR_API = "https://d18axsujemfwj.cloudfront.net/data"    # Preiskalender (Tag→Preis)
 _API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 
 
@@ -258,6 +259,84 @@ def build_offer_api_url(url: str, travellers: int | None = None) -> str:
         'lang': 'de_DE', 'transferIncluded': 'false',
     }
     return f"{OFFER_API}?{urlencode(params)}"
+
+
+def build_calendar_api_url(url: str) -> str:
+    """Baut die Preiskalender-API-URL aus der Angebots-Seiten-URL. Übernimmt die
+    Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt einen
+    leicht erweiterten Datumsbereich ab (±7 Tage), damit Nachbartage sichtbar sind."""
+    p = urlparse(url)
+    q = {k: v[0] for k, v in parse_qs(p.query, keep_blank_values=True).items()}
+    ss, se = q.get('startDate', ''), q.get('endDate', '')
+
+    def shift(d: str, days: int) -> str:
+        try:
+            return (date.fromisoformat(d) + timedelta(days=days)).isoformat()
+        except Exception:
+            return d
+
+    params = {
+        'searchscope': q.get('searchScope', 'PACKAGE'),
+        'duration': q.get('duration', ''),
+        'adults': q.get('travellers', '1'),
+        'giatas': _giata_from_url(url),
+        'startSearchRange': ss, 'endSearchRange': se,
+        'tenant': 'tui.com',
+        'airports': q.get('departureAirports', ''),
+        'roomTypeOpCodes': q.get('roomTypeOpCodes', ''),
+        # Achtung: der Kalender-Endpoint nutzt andere Parameternamen als der
+        # Offer-Endpoint — Verpflegung = boardCodes, Veranstalter = tourOperators.
+        'boardCodes': _map_board_types(q.get('boardTypes', '')),
+        'tourOperators': q.get('operators', q.get('tourOperators', '')),
+        'startDate': shift(ss, -7), 'endDate': shift(se, 7),
+    }
+    return f"{CALENDAR_API}?{urlencode(params)}"
+
+
+def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
+    """Liest den Preiskalender (günstigster Preis p. P. je Abreisetag) direkt aus der
+    JSON-API. Rückgabe-dict oder None bei technischem Fehler."""
+    try:
+        resp = requests.get(build_calendar_api_url(url), headers=_API_HEADERS, timeout=25)
+        if resp.status_code != 200:
+            if verbose:
+                print(f"[scraper] Kalender HTTP {resp.status_code}")
+            return None
+        data = resp.json()
+    except Exception as e:
+        if verbose:
+            print(f"[scraper] Kalender-Fehler: {type(e).__name__}: {e}")
+        return None
+
+    days: dict[str, float] = {}
+    for o in data.get('offers') or []:
+        ad = o.get('arrivalDate')
+        pp = o.get('calculatedPricePerPerson')
+        if ad and pp is not None:
+            days[ad] = min(days.get(ad, float('inf')), pp)
+
+    q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
+    ws, we = q.get('startDate', ''), q.get('endDate', '')
+    res = {
+        'ok': bool(days),
+        'currency': data.get('currency', 'EUR'),
+        'window_start': ws, 'window_end': we,
+        'days': [{'date': d, 'price': int(round(days[d]))} for d in sorted(days)],
+    }
+    in_window = {d: pr for d, pr in days.items()
+                 if (not ws or d >= ws) and (not we or d <= we)}
+    if in_window:
+        cd = min(in_window, key=in_window.get)
+        res['tracked_date'] = cd
+        res['tracked_price'] = int(round(in_window[cd]))
+    if days:
+        od = min(days, key=days.get)
+        res['cheapest_date'] = od
+        res['cheapest_price'] = int(round(days[od]))
+    if verbose:
+        print(f"[scraper] Kalender: {len(days)} Tage, günstigster {res.get('cheapest_date')} "
+              f"= {res.get('cheapest_price')} €")
+    return res
 
 
 def _de_date(iso: str) -> str:
