@@ -31,8 +31,9 @@ Ingles, Gran Canaria"), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
 (Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
 durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
-ggf. **„kostenlos stornierbar"**, Veränderung zum letzten Check und ein
-Preisverlauf-Diagramm (Klick auf **Verlauf** für die volle Historie).
+ggf. **„kostenlos stornierbar"**, ein Link zur **Hotelbeschreibung als PDF**,
+Veränderung zum letzten Check und ein Preisverlauf-Diagramm (Klick auf **Verlauf**
+für die volle Historie).
 
 > Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere
@@ -73,8 +74,9 @@ nicht möglich ist.
 Der Button **Kalender** je Angebot zeigt ein Monats-Raster mit dem günstigsten Preis
 pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Hervorgehoben werden
 der **günstigste Termin insgesamt** (grün) und der **günstigste Termin in deinem
-gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Mit den Pfeilen
-blätterst du durch die Monate. Das Ergebnis wird **gespeichert** (Zeitstempel + „Neu
+gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Es wird die
+**volle buchbare Spanne** angezeigt (heute bis ~12–14 Monate, je nach Verfügbarkeit);
+mit den Pfeilen blätterst du durch die Monate. Das Ergebnis wird **gespeichert** (Zeitstempel + „Neu
 abfragen") und respektiert alle Filter deiner Angebots-URL (Verpflegung, Veranstalter,
 Zimmer, Abflughafen).
 

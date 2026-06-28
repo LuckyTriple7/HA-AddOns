@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] - 2026-06-28
+
+### Added
+- **Hotelbeschreibung als PDF**: Link je Angebot (öffnet das offizielle TUI-Hotel-PDF).
+  Wird aus den Angebotsdaten gebaut und auch als HA-Sensor-Attribut `hotel_pdf` bereitgestellt.
+
+### Changed
+- **Preiskalender zeigt jetzt die volle buchbare Spanne** (heute bis ~12–14 Monate,
+  inventarabhängig) statt nur des gewählten Zeitraums ±7 Tage — durch alle verfügbaren
+  Monate blätterbar; der gewählte Zeitraum bleibt hervorgehoben.
+
 ## [0.4.1] - 2026-06-28
 
 ### Added

@@ -38,7 +38,8 @@
     .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
     .offer-loc { font-size:.8rem; color:var(--text); margin:1px 0 3px; }
     .offer-details { font-size:.8rem; color:var(--muted); line-height:1.45; }
-    .offer-url { font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; }
+    .offer-url { display:inline-block; font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; margin-right:14px; }
+    .offer-url.pdf { word-break:normal; }
     .flights { margin:8px 0 2px; display:flex; flex-direction:column; gap:3px; }
     .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
     .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
@@ -345,6 +346,7 @@
               ${metaLine}
               ${flights}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
+              ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">

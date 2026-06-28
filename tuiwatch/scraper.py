@@ -193,7 +193,7 @@ def _empty_result() -> dict:
             "details": "", "available": None, "total_price": None,
             "cancellation": "", "stars": None, "rating": None, "rating_count": None,
             "recommendation": None, "location": "", "city": "", "region": "",
-            "country": "", "source": "", "note": "", "detail": ""}
+            "country": "", "pdf_url": "", "source": "", "note": "", "detail": ""}
 
 
 # ── JSON-API (bevorzugt) ────────────────────────────────────────────────────────
@@ -206,6 +206,7 @@ CONTENT_API = "https://d1pagbczmuq2ek.cloudfront.net/data"    # Sterne + Bewertu
 CALENDAR_API = "https://d18axsujemfwj.cloudfront.net/data"    # Preiskalender (Tag→Preis)
 # Breadcrumb (Ort/Region) auf stabilem API-Host; .../{tenant}/{locale}/{typ=3 Hotel}/{giataId}
 BREADCRUMB_API = "https://api.cloud.tui.com/breadcrumb/v1/data/TUICOM/de-DE/3/"
+HOTELINFO_PDF = "https://www.tui.com/api/hotelInfoPdf"  # Hotelbeschreibung als PDF
 _API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 
 
@@ -266,24 +267,33 @@ def build_offer_api_url(url: str, travellers: int | None = None) -> str:
 
 def build_calendar_api_url(url: str) -> str:
     """Baut die Preiskalender-API-URL aus der Angebots-Seiten-URL. Übernimmt die
-    Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt einen
-    leicht erweiterten Datumsbereich ab (±7 Tage), damit Nachbartage sichtbar sind."""
+    Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt die **volle
+    buchbare Spanne** ab (heute bis ~14 Monate, mind. bis zum gewählten Zeitraum),
+    damit man durch alle verfügbaren Monate blättern kann. Die Hervorhebung des
+    gewählten Zeitraums macht fetch_calendar selbst."""
     p = urlparse(url)
     q = {k: v[0] for k, v in parse_qs(p.query, keep_blank_values=True).items()}
-    ss, se = q.get('startDate', ''), q.get('endDate', '')
 
-    def shift(d: str, days: int) -> str:
+    def plus(d, days):
+        return (d + timedelta(days=days)).isoformat()
+
+    def parse(d, fallback):
         try:
-            return (date.fromisoformat(d) + timedelta(days=days)).isoformat()
+            return date.fromisoformat(d)
         except Exception:
-            return d
+            return fallback
+
+    today = date.today()
+    we = parse(q.get('endDate', ''), today)
+    sd = today.isoformat()
+    ed = max(plus(today, 420), plus(we, 14))   # volle Inventarspanne, mind. bis Zeitraum +14 T
 
     params = {
         'searchscope': q.get('searchScope', 'PACKAGE'),
         'duration': q.get('duration', ''),
         'adults': q.get('travellers', '1'),
         'giatas': _giata_from_url(url),
-        'startSearchRange': ss, 'endSearchRange': se,
+        'startSearchRange': sd, 'endSearchRange': ed,
         'tenant': 'tui.com',
         'airports': q.get('departureAirports', ''),
         'roomTypeOpCodes': q.get('roomTypeOpCodes', ''),
@@ -291,7 +301,7 @@ def build_calendar_api_url(url: str) -> str:
         # Offer-Endpoint — Verpflegung = boardCodes, Veranstalter = tourOperators.
         'boardCodes': _map_board_types(q.get('boardTypes', '')),
         'tourOperators': q.get('operators', q.get('tourOperators', '')),
-        'startDate': shift(ss, -7), 'endDate': shift(se, 7),
+        'startDate': sd, 'endDate': ed,
     }
     return f"{CALENDAR_API}?{urlencode(params)}"
 
@@ -509,6 +519,19 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     r.update(_fetch_rating(giata, verbose=verbose))
     r.update(_fetch_location(giata, (data.get("hotel") or {}).get("regionGiata"),
                              verbose=verbose))
+
+    # Hotelbeschreibung als PDF (alle Parameter stehen im Offer-JSON)
+    product = (data.get("hotel") or {}).get("product", "")
+    operator = offer.get("tourOperator", "")
+    arrival = offer.get("arrivalDate", "")
+    if product and operator and arrival:
+        r["pdf_url"] = HOTELINFO_PDF + "?" + urlencode({
+            "bookingtype": "2", "date": _de_date(arrival),
+            "bookingsequence": product, "operator": operator,
+            "provider": (offer.get("supplier") or {}).get("provider", ""),
+            "giata": giata, "promotion": offer.get("programType", ""),
+        })
+
     r["available"] = True
     r["ok"] = True
     if verbose:

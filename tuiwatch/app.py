@@ -203,6 +203,7 @@ def init_db() -> None:
             city        TEXT DEFAULT '',
             region      TEXT DEFAULT '',
             country     TEXT DEFAULT '',
+            pdf_url     TEXT DEFAULT '',
             cancellation TEXT DEFAULT '',
             stars        REAL,
             rating       REAL,
@@ -240,7 +241,8 @@ def init_db() -> None:
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
-                    'flight_ret', 'cancellation', 'location', 'city', 'region', 'country'):
+                    'flight_ret', 'cancellation', 'location', 'city', 'region',
+                    'country', 'pdf_url'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('target_price', 'stars', 'rating'):
@@ -333,6 +335,8 @@ def push_ha_sensors() -> None:
                     attrs['location'] = o['location']
                     attrs['region'] = o['region'] or ''
                     attrs['country'] = o['country'] or ''
+                if o['pdf_url']:
+                    attrs['hotel_pdf'] = o['pdf_url']
                 if o['cancellation']:
                     attrs['cancellation'] = o['cancellation']
                 if o['stars'] is not None:
@@ -496,7 +500,7 @@ def check_offer(offer_id: int) -> None:
                  1 if res.get('ok') else 0, res.get('note', '')))
             for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                         'flight_ret', 'location', 'city', 'region', 'country',
-                        'cancellation', 'stars', 'rating',
+                        'pdf_url', 'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
@@ -780,6 +784,7 @@ def api_offers():
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
                 'location': o['location'], 'city': o['city'],
                 'region': o['region'], 'country': o['country'],
+                'pdf_url': o['pdf_url'],
                 'cancellation': o['cancellation'], 'stars': o['stars'],
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
