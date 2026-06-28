@@ -25,6 +25,11 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
   `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
   Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
 - `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+- **Dauer-Bereiche** (`duration=7-`, `9-12`): der **Kalender** braucht eine *einzelne*
+  Dauer → wir nehmen die untere Zahl (`_single_duration()`). Der **Offer**-Abruf bekommt
+  den Bereich unverändert (`durations`), damit der günstigste über alle Dauern stimmt.
+- **Verbose-Log:** bei `verbose_log` werden alle API-URLs + Ergebnisse über den Logger
+  ausgegeben (erscheinen in der UI-Konsole) — Scraper nutzt `logging`, kein `print`.
 - **Wichtig: alle Filter der Original-URL durchreichen** (`boardTypes`, `operators`→
   `tourOperators`, `roomTypes`, `viewTypes`, `roomTypeOpCodes`, Preisgrenzen). Fehlt
   ein Filter, liefert die API u. U. ein anderes/billigeres Angebot (z. B. Halbpension

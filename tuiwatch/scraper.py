@@ -13,6 +13,7 @@ System-Chromium über die Umgebungsvariable CHROMIUM_PATH gesetzt.
 
 Details zur Wartung bei TUI-Layout-Änderungen: siehe SCRAPING.md.
 """
+import logging
 import os
 import re
 import time
@@ -22,6 +23,9 @@ from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
 
 import requests
 from playwright.sync_api import sync_playwright
+
+# Eigener Logger; hängt über den Root-Handler in der UI-Konsole (siehe app.py).
+log = logging.getLogger("tuiwatch.scraper")
 
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -265,6 +269,12 @@ def build_offer_api_url(url: str, travellers: int | None = None) -> str:
     return f"{OFFER_API}?{urlencode(params)}"
 
 
+def _single_duration(d: str) -> str:
+    """Aus einer Dauer-Angabe (auch Bereich wie '7-' oder '9-12') die untere Zahl."""
+    m = re.match(r'\d+', d or '')
+    return m.group(0) if m else (d or '')
+
+
 def build_calendar_api_url(url: str) -> str:
     """Baut die Preiskalender-API-URL aus der Angebots-Seiten-URL. Übernimmt die
     Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt die **volle
@@ -290,7 +300,9 @@ def build_calendar_api_url(url: str) -> str:
 
     params = {
         'searchscope': q.get('searchScope', 'PACKAGE'),
-        'duration': q.get('duration', ''),
+        # Der Kalender erwartet eine EINZELNE Dauer; aus Bereichen wie "7-"/"9-12"
+        # nehmen wir die untere Zahl (so macht es auch die TUI-Seite).
+        'duration': _single_duration(q.get('duration', '')),
         'adults': q.get('travellers', '1'),
         'giatas': _giata_from_url(url),
         'startSearchRange': sd, 'endSearchRange': ed,
@@ -310,15 +322,18 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
     """Liest den Preiskalender (günstigster Preis p. P. je Abreisetag) direkt aus der
     JSON-API. Rückgabe-dict oder None bei technischem Fehler."""
     try:
-        resp = requests.get(build_calendar_api_url(url), headers=_API_HEADERS, timeout=25)
+        cal_url = build_calendar_api_url(url)
+        if verbose:
+            log.info("Kalender-API GET %s", cal_url)
+        resp = requests.get(cal_url, headers=_API_HEADERS, timeout=25)
         if resp.status_code != 200:
             if verbose:
-                print(f"[scraper] Kalender HTTP {resp.status_code}")
+                log.info(f"Kalender HTTP {resp.status_code}")
             return None
         data = resp.json()
     except Exception as e:
         if verbose:
-            print(f"[scraper] Kalender-Fehler: {type(e).__name__}: {e}")
+            log.info(f"Kalender-Fehler: {type(e).__name__}: {e}")
         return None
 
     days: dict[str, float] = {}
@@ -347,7 +362,7 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         res['cheapest_date'] = od
         res['cheapest_price'] = int(round(days[od]))
     if verbose:
-        print(f"[scraper] Kalender: {len(days)} Tage, günstigster {res.get('cheapest_date')} "
+        log.info(f"Kalender: {len(days)} Tage, günstigster {res.get('cheapest_date')} "
               f"= {res.get('cheapest_price')} €")
     return res
 
@@ -398,7 +413,7 @@ def _fetch_rating(giata: str, verbose: bool = False) -> dict:
             out["recommendation"] = hc.get("recommendation")
     except Exception as e:
         if verbose:
-            print(f"[scraper] Bewertung nicht abrufbar: {e}")
+            log.info(f"Bewertung nicht abrufbar: {e}")
     return out
 
 
@@ -432,10 +447,10 @@ def _fetch_location(giata: str, region_giata=None, verbose: bool = False) -> dic
         out = {'city': city, 'region': region, 'country': country,
                'location': ', '.join(parts)}
         if verbose:
-            print(f"[scraper] Ort: {out['location']}")
+            log.info(f"Ort: {out['location']}")
     except Exception as e:
         if verbose:
-            print(f"[scraper] Ort nicht abrufbar: {e}")
+            log.info(f"Ort nicht abrufbar: {e}")
     return out
 
 
@@ -446,15 +461,17 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
        - None bei technischem Fehler (→ Aufrufer macht Browser-Fallback)."""
     try:
         api = build_offer_api_url(url)
+        if verbose:
+            log.info("Offer-API GET %s", api)
         resp = requests.get(api, headers=_API_HEADERS, timeout=25)
         if resp.status_code != 200:
             if verbose:
-                print(f"[scraper] API HTTP {resp.status_code}")
+                log.info(f"API HTTP {resp.status_code}")
             return None
         data = resp.json()
     except Exception as e:
         if verbose:
-            print(f"[scraper] API-Fehler: {type(e).__name__}: {e}")
+            log.info(f"API-Fehler: {type(e).__name__}: {e}")
         return None
 
     r = _empty_result()
@@ -462,6 +479,8 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     r["hotel"] = (data.get("hotel") or {}).get("name", "") or hotel_from_url(url)
     r["currency"] = data.get("currency", "EUR")
     offers = data.get("offers") or []
+    if verbose:
+        log.info("Offer-API: %d Angebot(e) zurück", len(offers))
     if not offers:
         r["available"] = False
         r["note"] = "Kein Angebot im gewählten Zeitraum"
@@ -535,7 +554,7 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     r["available"] = True
     r["ok"] = True
     if verbose:
-        print(f"[scraper] API ok: {r['price']} € p.P. · {r['hotel']} · "
+        log.info(f"API ok: {r['price']} € p.P. · {r['hotel']} · "
               f"Sterne={r.get('stars')} Bewertung={r.get('rating')}")
     return r
 
@@ -557,7 +576,7 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
     if api is not None:
         return api  # API hat gültig geantwortet (Treffer oder echte Leermenge)
     if verbose:
-        print("[scraper] → Browser-Fallback")
+        log.info("→ Browser-Fallback")
     rb = _fetch_price_browser(url, timeout_ms=timeout_ms,
                               check_availability=check_availability, verbose=verbose)
     rb["source"] = "browser"
@@ -589,7 +608,7 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
                         if el and el.is_visible():
                             el.click()
                             if verbose:
-                                print(f"[scraper] Consent geklickt: {sel}")
+                                log.info(f"Consent geklickt: {sel}")
                             break
                     except Exception:
                         pass
@@ -680,10 +699,10 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
                             if tm:
                                 r["total_price"] = _to_amount(tm.group(1))
                             if verbose:
-                                print(f"[scraper] Verfügbarkeit={r['available']} total={r['total_price']}")
+                                log.info(f"Verfügbarkeit={r['available']} total={r['total_price']}")
                     except Exception as e:
                         if verbose:
-                            print(f"[scraper] Verfügbarkeitsprüfung fehlgeschlagen: {e}")
+                            log.info(f"Verfügbarkeitsprüfung fehlgeschlagen: {e}")
 
                 r["ok"] = True
                 return r

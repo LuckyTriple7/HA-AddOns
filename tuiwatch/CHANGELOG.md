@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.1] - 2026-06-28
+
+### Fixed
+- **Preiskalender bei Dauer-Bereichen** (z. B. `duration=7-` oder `9-12`) lieferte nichts.
+  Der Kalender braucht eine einzelne Dauer — es wird jetzt die untere Zahl verwendet
+  (wie auf der TUI-Seite).
+
+### Changed
+- **Ausführliches Logging** zeigt jetzt auch die **API-Abrufe (URLs) und Ergebnisse**
+  in der Konsole (Offer-/Kalender-/Bewertungs-/Ort-Abruf), wenn `verbose_log` an ist.
+
 ## [0.6.0] - 2026-06-28
 
 ### Added
