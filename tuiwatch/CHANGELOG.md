@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-06-28
+
+### Added
+- **Schnellsuche**: Suchfeld über der Angebotsliste filtert die geladenen Angebote
+  sofort nach Hotel, eigenem Namen, Ziel/Abflughafen und Reise-Details.
+
 ## [0.3.1] - 2026-06-28
 
 ### Changed

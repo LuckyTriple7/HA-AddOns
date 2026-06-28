@@ -80,6 +80,7 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 
 ## Bedienung
 
+- **Suchfeld** — filtert die geladenen Angebote sofort nach Hotel, Name, Ziel/Abflughafen und Details.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie.

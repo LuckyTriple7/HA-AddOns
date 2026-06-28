@@ -29,6 +29,9 @@
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .search-row { margin-bottom:14px; }
+    .search-row input { width:100%; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
+    .search-row input:focus { outline:none; border-color:var(--accent); }
     .offer { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
     .offer-top { display:flex; align-items:flex-start; gap:12px; }
     .offer-main { flex:1; min-width:0; }
@@ -127,6 +130,9 @@
       <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
     </div>
 
+    <div class="search-row">
+      <input type="text" id="search" placeholder="Suchen… (Hotel, Ziel, Reise-Details)" autocomplete="off">
+    </div>
     <div id="offers"></div>
     <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span></footer>
   </div>
@@ -212,7 +218,7 @@
     let toastTimer;
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
 
-    let curOffers = null, lastSig = null;
+    let curOffers = null, lastSig = null, searchTerm = '';
 
     async function loadOffers(){
       try {
@@ -246,7 +252,13 @@
       $('#iv').textContent = Math.round(G.iv/3600*10)/10 + ' Std';
       const box = $('#offers');
       if(!offers.length){ box.innerHTML = '<div class="empty">Noch keine Angebote. Füge oben eine TUI-URL hinzu.</div>'; return; }
-      box.innerHTML = offers.map(o => {
+      // Schnellsuche über die geladenen Angebote (Hotel, Label, Ziel, Details)
+      const q = (searchTerm||'').trim().toLowerCase();
+      const list = q ? offers.filter(o =>
+        ((o.label||'')+' '+(o.hotel||'')+' '+(o.details||'')+' '+(o.dep_airport||'')+' '+(o.room||'')).toLowerCase().includes(q)
+      ) : offers;
+      if(!list.length){ box.innerHTML = '<div class="empty">Keine Treffer für „'+esc(searchTerm.trim())+'".</div>'; return; }
+      box.innerHTML = list.map(o => {
         const hotel = o.hotel || '';
         const title = o.label || hotel || 'TUI-Angebot #'+o.id;
         // Untertitel: Hotel (falls eigenes Label gesetzt) + Reise-Eckdaten
@@ -317,7 +329,7 @@
           </div>
         </div>`;
       }).join('');
-      offers.forEach(o => drawSpark(o.id));
+      list.forEach(o => drawSpark(o.id));
     }
 
     function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -489,6 +501,7 @@
     $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#check-all').addEventListener('click', checkAll);
+    $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
 
     loadOffers();
     setInterval(loadOffers, 5000);
