@@ -98,6 +98,7 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie.
+- **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Löschen** — Angebot inkl. Verlauf entfernen.
 - **Doppelklick auf das Logo** — Konsole mit Hintergrund-Logs ein/aus.
 

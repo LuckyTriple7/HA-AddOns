@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1] - 2026-06-28
+
+### Added
+- **Zurücksetzen je Angebot**: Button löscht den kompletten Preisverlauf sowie
+  Vergleichs-/Kalender-Cache und startet sofort eine frische Erstabfrage — das Tracking
+  beginnt wieder bei „null". Das Angebot selbst (URL, Name, Wunschpreis) bleibt erhalten.
+
 ## [0.5.0] - 2026-06-28
 
 ### Added

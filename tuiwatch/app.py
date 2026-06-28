@@ -889,6 +889,27 @@ def api_check_one(offer_id: int):
     return jsonify({'started': True})
 
 
+@app.route('/api/reset/<int:offer_id>', methods=['POST'])
+def api_reset_offer(offer_id: int):
+    """Setzt ein Angebot zurück: löscht Preisverlauf + Vergleichs-/Kalender-Cache und
+    startet eine frische Erstabfrage. Angebot selbst (URL, Name, Wunschpreis) bleibt."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+    with _compare_lock:
+        _compare_state.pop(offer_id, None)
+    with _calendar_lock:
+        _calendar_state.pop(offer_id, None)
+    log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
+    _spawn(check_offer, offer_id)  # frische Erstabfrage
+    return jsonify({'reset': offer_id, 'started': True})
+
+
 @app.route('/api/check-now', methods=['POST'])
 def api_check_now():
     if (err := _require_api()):

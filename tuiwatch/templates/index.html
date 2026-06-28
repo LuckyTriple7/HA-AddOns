@@ -365,6 +365,7 @@
             <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
             <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
             ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+            <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
             <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>
           </div>
         </div>`;
@@ -633,6 +634,12 @@
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({target_price: val})});
       toast(val ? ('Wunschpreis gesetzt: '+eur(val)) : 'Wunschpreis entfernt');
+      loadOffers();
+    }
+    async function resetOffer(id){
+      if(!confirm('Alle bisher getrackten Preise dieses Angebots löschen und neu bei null beginnen?')) return;
+      await fetch(api('/api/reset/'+id), {method:'POST'});
+      toast('Zurückgesetzt – wird neu geprüft…');
       loadOffers();
     }
     async function checkOne(id){ await fetch(api('/api/check/'+id), {method:'POST'}); toast('Prüfung gestartet…'); loadOffers(); }
