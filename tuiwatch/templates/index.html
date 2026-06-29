@@ -308,6 +308,7 @@
     <div id="bulk-bar" class="bulk-bar" style="display:none">
       <span id="bulk-count"></span>
       <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
+      <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
@@ -642,6 +643,20 @@
       bulkRun(id=>fetch(api('/api/offers/'+id),{method:'DELETE'}), ids_msg('werden gelöscht…'));
     }
     function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
+    async function bulkEmail(){
+      const ids=[...selected]; if(!ids.length) return;
+      let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
+      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
+      const def = localStorage.getItem('tw-mailto') || cfg.default_to || '';
+      const to = prompt(ids.length+' markierte Angebote senden an:', def);
+      if(to===null) return;
+      if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
+      localStorage.setItem('tw-mailto', to.trim());
+      toast('E-Mail wird gesendet…');
+      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim(), ids})});
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine (aktiven) Angebote in der Auswahl':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
 
     function offerCard(o){
         const hotel = o.hotel || '';

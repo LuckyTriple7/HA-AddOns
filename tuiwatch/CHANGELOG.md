@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.3] - 2026-06-29
+
+### Added
+- **Sammelaktion „E-Mail":** Die markierten Angebote lassen sich jetzt direkt als E-Mail
+  versenden (Empfänger wird abgefragt, Vorbelegung wie beim normalen Versand). Es werden
+  nur die ausgewählten (aktiven) Angebote gesendet.
+
 ## [0.20.2] - 2026-06-29
 
 ### Fixed

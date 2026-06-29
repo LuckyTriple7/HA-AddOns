@@ -1791,6 +1791,11 @@ def api_email():
     if not to:
         return jsonify({'error': 'no_recipient'}), 400
     offers = [o for o in _collect_offers() if not o.get('archived')]
+    # Optional: nur eine Auswahl versenden (Sammelaktion über die Checkboxen)
+    ids = data.get('ids')
+    if isinstance(ids, list) and ids:
+        want = {int(i) for i in ids if str(i).isdigit()}
+        offers = [o for o in offers if o['id'] in want]
     if not offers:
         return jsonify({'error': 'no_offers'}), 400
     html = _email_html_offers(offers)
