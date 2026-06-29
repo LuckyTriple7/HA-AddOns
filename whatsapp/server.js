@@ -3328,17 +3328,20 @@ app.get('/', (req, res) => {
       return out;
     }
 
+    let _sending = false; // verhindert Doppelversand bei schnellem Doppel-Tap/Doppel-Enter
     async function sendMsg() {
+      if (_sending) return;
       if (!selectedChatId) return;
-      if (_attachFile) { await sendFile(); return; }
-      const txt = document.getElementById('msg-input').value.trim();
-      if (!txt) return;
-      hideMentionDropdown();
-      const quotedMsgId = _replyMsgId;
-      clearReply();
-      const built = buildMentions(txt);
-      _pendingMentions = [];
+      _sending = true;
       try {
+        if (_attachFile) { await sendFile(); return; }
+        const txt = document.getElementById('msg-input').value.trim();
+        if (!txt) return;
+        hideMentionDropdown();
+        const quotedMsgId = _replyMsgId;
+        clearReply();
+        const built = buildMentions(txt);
+        _pendingMentions = [];
         const endpoint = quotedMsgId ? 'api/reply' : 'api/send';
         const payload = quotedMsgId
           ? { quotedMsgId, chatId: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt }
@@ -3357,6 +3360,7 @@ app.get('/', (req, res) => {
           alert(tf('errSend', r.error));
         }
       } catch(e) { alert(t('errNetwork')); }
+      finally { _sending = false; }
     }
 
     async function deleteMsg(chatId, msgId) {

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.25] - 2026-06-29
+- Fix: Nachrichten wurden gelegentlich **doppelt versendet** — bei schnellem Doppel-Tap auf den Senden-Button oder doppeltem Enter lief `sendMsg()` zweimal los und schickte die Nachricht zweimal echt raus. Ein In-Flight-Guard verhindert jetzt, dass ein zweiter Versand startet, solange der erste noch läuft (gilt auch für Datei-/Medienversand)
+
 ## [1.7.24] - 2026-06-27
 - Erwähnungen werden jetzt **als Name angezeigt** statt als Nummer — `@<nummer>` wird beim Rendern zu `@Name` aufgelöst und blau hervorgehoben, sowohl bei **eigenen gesendeten** als auch bei **eingehenden** Nachrichten. Gruppenmitglieder werden beim Öffnen des Chats vorgeladen; ist für eine Nummer kein Name bekannt, wird sie als `@+<nummer>` formatiert
 - Erwähnungen funktionieren jetzt auch beim **Antworten** (Reply), nicht nur beim normalen Senden
