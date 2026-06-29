@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.10.1] - 2026-06-29
+
+chore(deps): bump fastapi from 0.138.0 to 0.138.1 in /cardboard/rootfs/app
+
+
 ## [1.0.10] - 2026-06-23
 
 - Admin-Panel über HA-Ingress ohne Passwort: Da Home Assistant beim Ingress-Zugriff bereits authentifiziert, entfällt die Passwort-Abfrage (wie MyPage). Das gesetzte `admin_password` schützt weiterhin den direkten LAN-Zugriff auf Port 17773. Der Ingress-Port 17774 ist nicht im LAN gemappt → `x-ingress-path` kann nicht von außen gefälscht werden
