@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.4] - 2026-06-29
+
+### Changed
+- **Verlauf-Diagramm** zoomt jetzt auf den echten Preisverlauf (mit etwas Polster) —
+  kleine Änderungen (z. B. −6 €) sind klar erkennbar. Die gestrichelte
+  Vergleichspreis-Linie wurde entfernt (streckte die Achse); der Vergleichspreis steht
+  weiter in der Tabellenspalte „Vergleich". Wunsch- und Buchungspreis-Linie bleiben.
+- **Kartenliste:** der kleine Inline-Verlaufs-Chart (Spark) wurde entfernt — übersichtlicher
+  und platzsparender; der volle Verlauf bleibt über den Button **Verlauf**.
+- **Suche:** Reihenfolge der Verpflegungs-Filter zu **AI, VP, HP, Frühstück, Ohne**.
+
 ## [0.20.3] - 2026-06-29
 
 ### Added

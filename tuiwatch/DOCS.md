@@ -71,8 +71,8 @@ Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
 (Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
 durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
 ggf. **„kostenlos stornierbar"**, ein Link zur **Hotelbeschreibung als PDF**,
-Veränderung zum letzten Check und ein Preisverlauf-Diagramm (Klick auf **Verlauf**
-für die volle Historie).
+die Veränderung zum letzten Check sowie der **Trend**. Den **Preisverlauf** zeigt der
+Button **Verlauf** (Diagramm auf den Verlauf gezoomt + volle Historie als Tabelle).
 
 > Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere

@@ -116,7 +116,6 @@
     .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
     .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
     .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
-    .spark { width:100%; height:70px; margin-top:10px; display:block; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
@@ -396,8 +395,8 @@
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
         <span class="srch-boards">Verpflegung:
           <label title="Alles Inklusive (inkl. „AI Plus“/laut Programm)"><input type="checkbox" class="srch-board" value="AI"> AI</label>
-          <label title="Halbpension (inkl. Halbpension Plus)"><input type="checkbox" class="srch-board" value="HB"> HP</label>
           <label title="Vollpension (inkl. Vollpension Plus)"><input type="checkbox" class="srch-board" value="FB"> VP</label>
+          <label title="Halbpension (inkl. Halbpension Plus)"><input type="checkbox" class="srch-board" value="HB"> HP</label>
           <label title="Frühstück"><input type="checkbox" class="srch-board" value="BB"> Frühstück</label>
           <label title="Ohne Verpflegung"><input type="checkbox" class="srch-board" value="AO"> Ohne</label>
         </span>
@@ -607,8 +606,6 @@
         html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
       }
       box.innerHTML = html;
-      active.forEach(o => drawSpark(o.id));
-      if(showArchived) arch.forEach(o => drawSpark(o.id));
       pruneSelection();
     }
 
@@ -737,7 +734,6 @@
           </div>
           ${statsLine}
           ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
-          <canvas class="spark" id="spark-${o.id}"></canvas>
           <div class="offer-foot">
             ${o.archived
               ? `<span class="when"><span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}</span>
@@ -762,17 +758,6 @@
 
     function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-    async function drawSpark(id){
-      const cv = document.getElementById('spark-'+id);
-      if(!cv) return;
-      try {
-        const o = (curOffers||[]).find(x=>x.id===id) || {};
-        const r = await fetch(api('/api/history/'+id));
-        const pts = (await r.json()).history.filter(h=>h.ok && h.price!=null);
-        drawChart(cv, pts, false, {target: o.target_price, booked: o.booked_price});
-      } catch(e){}
-    }
-
     function drawChart(cv, pts, full, opts){
       opts = opts || {};
       const dpr = window.devicePixelRatio||1;
@@ -785,26 +770,21 @@
       if(pts.length===0){ ctx.fillStyle=muted; ctx.font='12px sans-serif'; ctx.fillText('Noch keine Messpunkte',8,h/2); return; }
       const padL = full?52:6, padR=6, padT=full?14:8, padB=full?22:8;
       const xs = pts.map(p=>p.ts), ys = pts.map(p=>p.price);
-      // Wertebereich inkl. Wunschpreis und (im Verlauf) Vergleichspreisen
+      // Wertebereich auf den echten Preisverlauf zoomen (+ Wunsch-/Buchungspreis als
+      // Referenz). Der Vergleichspreis fließt NICHT ein, damit kleine Änderungen sichtbar
+      // bleiben — er steht weiterhin in der Verlaufstabelle.
       const extra = [];
       if(opts.target) extra.push(opts.target);
       if(opts.booked) extra.push(opts.booked);
-      if(opts.showOld) pts.forEach(p=>{ if(p.old_price) extra.push(p.old_price); });
       let minY=Math.min(...ys, ...extra), maxY=Math.max(...ys, ...extra);
       if(minY===maxY){ minY-=50; maxY+=50; }
+      else { const pad=(maxY-minY)*0.12; minY-=pad; maxY+=pad; }
       const minX=Math.min(...xs), maxX=Math.max(...xs);
       const X = t => padL + (maxX===minX?0.5:(t-minX)/(maxX-minX))*(w-padL-padR);
       const Y = v => padT + (1-(v-minY)/(maxY-minY))*(h-padT-padB);
       if(full){
         ctx.strokeStyle=border; ctx.fillStyle=muted; ctx.font='11px sans-serif'; ctx.lineWidth=1;
         for(let i=0;i<=3;i++){ const v=minY+(maxY-minY)*i/3; const y=Y(v); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke(); ctx.fillText(Math.round(v).toLocaleString('de-DE')+' €',4,y-2); }
-      }
-      // Vergleichspreis (durchgestrichener „alter" Preis) als feine gestrichelte Linie
-      if(opts.showOld){
-        ctx.save(); ctx.strokeStyle=muted; ctx.globalAlpha=.55; ctx.setLineDash([4,3]); ctx.lineWidth=1;
-        ctx.beginPath(); let started=false;
-        pts.forEach(p=>{ if(p.old_price){ const x=X(p.ts),y=Y(p.old_price); started?ctx.lineTo(x,y):ctx.moveTo(x,y); started=true; } });
-        ctx.stroke(); ctx.restore();
       }
       // Preis-Linie
       ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.beginPath();
@@ -845,7 +825,7 @@
       const r = await fetch(api('/api/history/'+id));
       const hist = (await r.json()).history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
-      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, showOld: true});
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price});
       const rows = hist.slice().reverse().map(h=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
         if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
