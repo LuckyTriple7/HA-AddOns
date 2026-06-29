@@ -692,8 +692,9 @@
           let rt = 'HolidayCheck '+o.rating.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'/6';
           if(o.rating_count) rt += ' · '+o.rating_count.toLocaleString('de-DE')+' Bew.';
           if(o.recommendation!=null) rt += ' · '+o.recommendation+'% 👍';
-          const hc = 'https://www.holidaycheck.de/hotelsuche?q='+encodeURIComponent(((o.hotel||o.label||'')+' '+(o.region||o.country||'')).trim());
-          metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="Auf HolidayCheck suchen">'+esc(rt)+' ↗</a>');
+          const hcq = ('site:holidaycheck.de '+(o.hotel||o.label||'')+' '+(o.region||o.country||'')).trim();
+          const hc = 'https://www.google.com/search?q='+encodeURIComponent(hcq);
+          metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="HolidayCheck-Bewertungen suchen (über Google)">'+esc(rt)+' ↗</a>');
         }
         if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
         const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';

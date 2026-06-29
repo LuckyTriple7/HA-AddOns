@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.23.1] - 2026-06-29
+
+### Fixed
+- **HolidayCheck-Link** trifft jetzt das richtige Hotel: Statt der HolidayCheck-Suchseite
+  (die den Begriff nicht zuverlässig auswertete) öffnet der Link eine Google-Suche
+  `site:holidaycheck.de <Hotel> <Region>` — der erste Treffer ist die passende
+  HolidayCheck-Hotelseite.
+
 ## [0.23.0] - 2026-06-29
 
 ### Added

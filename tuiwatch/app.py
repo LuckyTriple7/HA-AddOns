@@ -594,9 +594,9 @@ def _email_html_offers(offers: list[dict]) -> str:
         if o.get('rating') is not None:
             rating = (f'HolidayCheck {str(o["rating"]).replace(".", ",")}/6'
                       + (f' · {o["recommendation"]}%' if o.get('recommendation') is not None else ''))
-            hc_q = quote(f"{o.get('hotel') or o.get('label') or ''} "
+            hc_q = quote(f"site:holidaycheck.de {o.get('hotel') or o.get('label') or ''} "
                          f"{o.get('region') or o.get('country') or ''}".strip())
-            rating_html = (f'<a href="https://www.holidaycheck.de/hotelsuche?q={hc_q}" '
+            rating_html = (f'<a href="https://www.google.com/search?q={hc_q}" '
                            f'style="color:#777;text-decoration:none">{esc(rating)} ↗</a>')
         total = ''
         if o.get('travellers_count') and o['travellers_count'] > 1 and o.get('total_price'):
