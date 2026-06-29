@@ -45,7 +45,8 @@ verbose_log: false       # ausführliche Logs
   Auswahl fließt in die Suche **und** in das getrackte Angebot (Preis nur mit diesen
   Airlines).
 - Filter: **TUI** (nur Veranstalter TUI Deutschland; aus = alle), **Nur Direktflug**,
-  **Verpflegung** (AI/HP/VP/Frühstück), **Sterne ≥** (Standard 3), **Weiterempfehlung ≥ %**
+  **Verpflegung** (AI/HP/VP/Frühstück/Ohne — Mehrfachauswahl, jeweils inkl. „Plus"-Variante
+  bzw. „laut Programm"), **Sterne ≥** (Standard 3), **Weiterempfehlung ≥ %**
   (Standard 80) → **Suchen**.
 - **Favoriten:** die kompletten Eingaben unter einem Namen speichern („★ Speichern") und
   später aus dem Dropdown wieder laden — für wiederkehrende Suchen.

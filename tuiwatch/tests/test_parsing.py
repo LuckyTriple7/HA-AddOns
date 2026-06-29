@@ -94,6 +94,10 @@ def test_search_params_from_url():
     assert p["direct"] is True             # maxStopOvers=0
     # region-Override
     assert scraper._search_params_from_url(url, region=999)["regions"] == [999]
+    # echte Board-Codes (HB/FB/BB/AO) werden 1:1 als boardCodes durchgereicht
+    u2 = ("https://www.tui.com/pauschalreisen/suchen/angebote/H/1/offer/"
+          "?duration=7&boardTypes=HB,AO")
+    assert scraper._search_params_from_url(u2)["boards"] == ["HB", "AO"]
 
 
 def test_offer_url_for():

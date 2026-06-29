@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.1] - 2026-06-29
+
+### Fixed
+- **Verpflegungsfilter in der Suche** wirkte nicht: HP/VP/Frühstück nutzten ungültige
+  Codes (`HP`/`VP`/`F`) und wurden ignoriert — dadurch erschienen z. B. bei „Frühstück"
+  auch „Ohne Verpflegung"-Treffer. Jetzt korrekte API-Codes (`HB`/`FB`/`BB`); `AI`
+  unverändert. Die Filter schließen die jeweilige **„Plus"-Variante** automatisch ein
+  (AI = inkl. „AI Plus/laut Programm", HP = inkl. Halbpension Plus, VP = inkl.
+  Vollpension Plus).
+
+### Added
+- Verpflegungsfilter **„Ohne"** (ohne Verpflegung) ergänzt.
+
 ## [0.20.0] - 2026-06-29
 
 ### Added

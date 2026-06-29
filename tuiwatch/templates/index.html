@@ -392,10 +392,11 @@
         <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
         <span class="srch-boards">Verpflegung:
-          <label><input type="checkbox" class="srch-board" value="AI"> AI</label>
-          <label><input type="checkbox" class="srch-board" value="HP"> HP</label>
-          <label><input type="checkbox" class="srch-board" value="VP"> VP</label>
-          <label><input type="checkbox" class="srch-board" value="F"> Frühstück</label>
+          <label title="Alles Inklusive (inkl. „AI Plus“/laut Programm)"><input type="checkbox" class="srch-board" value="AI"> AI</label>
+          <label title="Halbpension (inkl. Halbpension Plus)"><input type="checkbox" class="srch-board" value="HB"> HP</label>
+          <label title="Vollpension (inkl. Vollpension Plus)"><input type="checkbox" class="srch-board" value="FB"> VP</label>
+          <label title="Frühstück"><input type="checkbox" class="srch-board" value="BB"> Frühstück</label>
+          <label title="Ohne Verpflegung"><input type="checkbox" class="srch-board" value="AO"> Ohne</label>
         </span>
         <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" value="3" placeholder="0" style="width:54px"></label>
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
@@ -1068,7 +1069,11 @@
       $('#srch-url').value='';
       const ops = urlParam(o.url,'operators');
       $('#srch-tui').checked = (!ops || /TUID/i.test(ops));
-      const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/).map(s=>s.trim().toUpperCase());
+      // Board-Codes des Angebots auf die Basis-Variante normalisieren (Plus → Basis),
+      // damit die passende Checkbox vorbelegt wird (AP=AI Plus, FP=VP Plus, HP=HB Plus).
+      const baseBoard = {AP:'AI', FP:'FB', HP:'HB'};
+      const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/)
+        .map(s=>{ const c=s.trim().toUpperCase(); return baseBoard[c]||c; });
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked = bt.includes(c.value.toUpperCase()); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
       $('#srch-stars').value='3'; $('#srch-rec').value='80';
