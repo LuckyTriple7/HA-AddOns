@@ -75,6 +75,8 @@
     .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
     .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
     .stats .best { color:var(--green); font-weight:700; }
+    .codes { font-size:.76rem; color:var(--muted); margin:6px 0 2px; user-select:text; }
+    .codes b { color:var(--text); }
     .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem; color:var(--muted); flex-wrap:wrap; }
     .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:.78rem; }
     .target-row input:focus { outline:none; border-color:var(--accent); }
@@ -687,6 +689,12 @@
         }
         if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
         const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
+        // Buchungscodes (zum Buchen/Anrufen bei TUI)
+        const codeParts = [];
+        if(o.booking_code) codeParts.push('Buchungscode <b>'+esc(o.booking_code)+'</b>');
+        if(o.room_booking_code) codeParts.push('Zimmer '+esc(o.room_booking_code));
+        if(o.giata) codeParts.push('GIATA '+esc(o.giata));
+        const codesLine = codeParts.length?`<div class="codes">🧾 ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){
           const best = (o.price!=null && o.price<=o.min_price);
@@ -717,6 +725,7 @@
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}
+              ${codesLine}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}

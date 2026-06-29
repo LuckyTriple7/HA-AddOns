@@ -241,6 +241,10 @@ def test_fetch_price_api(monkeypatch, fx, fake_resp):
     assert r["travellers"] == "2 Erwachsene"
     assert r["dep_airport"] == "Düsseldorf (DUS)"
     assert r["return_date"] == "2026-08-19"
+    # Buchungscodes + Flugnummer im Flugstring
+    assert r["booking_code"] == "SID10006"           # hotel.product
+    assert r["room_booking_code"] == "DZX1A"          # rooms[0].bookingCode
+    assert "X3 7102" in r["flight_out"]               # Airline-Code + Flugnummer
     # cancellationType=REFUNDABLE ist NICHT kostenlos stornierbar → kein Badge
     assert r["cancellation"] == ""
     # Bewertung (rating.json) eingemischt

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.0] - 2026-06-29
+
+### Added
+- **Buchungscodes & Flugnummern** je Angebot: **TUI-Buchungscode** (z. B. `LPA21031`),
+  **Zimmer-Buchungscode** (z. B. `DZX1A`) und **GIATA-Hotel-ID** werden in der Karte und
+  in der E-Mail angezeigt; die **Flugnummern** (z. B. `X3 2168`) stehen in den Hin-/Rück-
+  Flugzeilen. Auch als Sensor-Attribute `booking_code`/`room_booking_code`.
+
 ## [0.20.4] - 2026-06-29
 
 ### Changed

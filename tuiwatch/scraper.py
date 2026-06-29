@@ -253,6 +253,7 @@ def _empty_result() -> dict:
             "cancellation": "", "stars": None, "rating": None, "rating_count": None,
             "recommendation": None, "location": "", "city": "", "region": "",
             "country": "", "pdf_url": "", "travellers_count": None,
+            "booking_code": "", "room_booking_code": "",
             "source": "", "note": "", "detail": ""}
 
 
@@ -903,14 +904,19 @@ def _fmt_flight(leg: dict) -> str:
     if not leg:
         return ""
     dt = _de_datetime(leg.get("departureDateTime", ""))
-    airline = (leg.get("airline") or {}).get("value", "")
+    al = leg.get("airline") or {}
+    airline = al.get("value", "")
+    num = str(leg.get("number", "") or "").strip()
+    code = al.get("code", "")
+    # Airline + Flugnummer, z. B. "TUIfly X3 7102"
+    airline_part = " ".join(x for x in (airline, f"{code} {num}".strip() if num else "") if x)
     dep = (leg.get("departureAirport") or {}).get("code", "")
     arr = (leg.get("arrivalAirport") or {}).get("code", "")
     route = f"{dep}→{arr}" if dep and arr else ""
     so = leg.get("stopOver")
     stops = "Direktflug" if so in (0, None) else (
         "1 Zwischenstopp" if so == 1 else f"{so} Zwischenstopps")
-    return " · ".join(x for x in (dt, route, airline, stops) if x)
+    return " · ".join(x for x in (dt, route, airline_part, stops) if x)
 
 
 def _fetch_rating(giata: str, verbose: bool = False) -> dict:
@@ -1037,6 +1043,8 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     room_code = room0.get("code", "")
     r["room"] = f"{room_desc} ({room_code})" if room_code else room_desc
     r["board"] = room0.get("boardDescription", "")
+    r["booking_code"] = (data.get("hotel") or {}).get("product", "")  # z. B. LPA21031
+    r["room_booking_code"] = room0.get("bookingCode", "")             # z. B. DZM1A
 
     nights = offer.get("lengthOfStay")
     r["nights"] = f"{nights} Nächte" if nights else ""

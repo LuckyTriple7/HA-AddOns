@@ -68,9 +68,11 @@ Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hot
 **Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
-(Datum/Uhrzeit/Airline/Direkt), der konkrete **„Günstigster Preis"** (buchbar),
-durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
-ggf. **„kostenlos stornierbar"**, ein Link zur **Hotelbeschreibung als PDF**,
+(Datum/Uhrzeit/Airline + **Flugnummer**/Direkt), der konkrete **„Günstigster Preis"**
+(buchbar), durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),
+ggf. **„kostenlos stornierbar"**, die **Buchungscodes** (TUI-Buchungscode,
+Zimmer-Buchungscode, GIATA-Hotel-ID — zum Buchen/Anrufen bei TUI; auch in der E-Mail),
+ein Link zur **Hotelbeschreibung als PDF**,
 die Veränderung zum letzten Check sowie der **Trend**. Den **Preisverlauf** zeigt der
 Button **Verlauf** (Diagramm auf den Verlauf gezoomt + volle Historie als Tabelle).
 
@@ -163,7 +165,7 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
   `stars`, `rating`, `rating_count`, `recommendation`, `old_price`,
   `discount`, `total_price`, `travellers`, `min_price`, `max_price`, `avg_price`,
   `target_price`, `booked_price`, `booked_diff` (Preis − gebucht), `image`,
-  `hotel_pdf`, `last_checked`, `url`
+  `booking_code`, `room_booking_code`, `hotel_pdf`, `last_checked`, `url`
 
 ## Bedienung
 

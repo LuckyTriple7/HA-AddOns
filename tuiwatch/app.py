@@ -295,7 +295,8 @@ def init_db() -> None:
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                     'flight_ret', 'cancellation', 'location', 'city', 'region',
-                    'country', 'pdf_url', 'return_date', 'image_url'):
+                    'country', 'pdf_url', 'return_date', 'image_url',
+                    'booking_code', 'room_booking_code'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('target_price', 'booked_price', 'stars', 'rating', 'total_price'):
@@ -435,6 +436,10 @@ def push_ha_sensors() -> None:
                         attrs['booked_diff'] = int(round(last['price'] - o['booked_price']))
                 if o['image_url']:
                     attrs['image'] = o['image_url']
+                if o['booking_code']:
+                    attrs['booking_code'] = o['booking_code']
+                if o['room_booking_code']:
+                    attrs['room_booking_code'] = o['room_booking_code']
                 if ok:
                     attrs['unit_of_measurement'] = '€'
                     if last['old_price']:
@@ -588,6 +593,14 @@ def _email_html_offers(offers: list[dict]) -> str:
         elif o.get('available') is False:
             avail = '<span style="color:#cf222e;font-weight:600">✗ nicht verfügbar</span>'
         canc = f' · {esc(o["cancellation"])}' if o.get('cancellation') else ''
+        codeparts = []
+        if o.get('booking_code'):
+            codeparts.append(f'Buchungscode <b>{esc(o["booking_code"])}</b>')
+        if o.get('room_booking_code'):
+            codeparts.append(f'Zimmer {esc(o["room_booking_code"])}')
+        if o.get('giata'):
+            codeparts.append(f'GIATA {esc(o["giata"])}')
+        codes = ' · '.join(codeparts)
         title = esc(o.get('label') or o.get('hotel') or f"Angebot #{o['id']}")
         links = (f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none;font-weight:600">'
                  f'Auf tui.com ansehen ↗</a>')
@@ -611,6 +624,7 @@ def _email_html_offers(offers: list[dict]) -> str:
             + (f'<div style="font-size:13px;color:#777">{"".join(sub)}</div>' if sub else '')
             + total
             + (f'<div style="font-size:13px;margin-top:6px">{avail}{canc}</div>' if (avail or canc) else '')
+            + (f'<div style="font-size:12px;color:#777;margin-top:6px">🧾 {codes}</div>' if codes else '')
             + f'<div style="margin-top:10px;font-size:14px">{links}</div>'
             '</td></tr></table></td></tr>'
         )
@@ -893,7 +907,8 @@ def check_offer(offer_id: int) -> None:
                         'flight_ret', 'location', 'city', 'region', 'country',
                         'pdf_url', 'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation', 'total_price',
-                        'travellers_count', 'return_date'):
+                        'travellers_count', 'return_date',
+                        'booking_code', 'room_booking_code'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
 
@@ -1559,6 +1574,9 @@ def _collect_offers() -> list[dict]:
                 'location': o['location'], 'city': o['city'],
                 'region': o['region'], 'country': o['country'],
                 'pdf_url': o['pdf_url'], 'image_url': o['image_url'] or '',
+                'booking_code': o['booking_code'] or '',
+                'room_booking_code': o['room_booking_code'] or '',
+                'giata': _giata_from_url(o['url']),
                 'total_price': o['total_price'],
                 'travellers_count': o['travellers_count'],
                 'paused': bool(o['paused']),
