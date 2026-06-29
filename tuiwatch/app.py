@@ -20,7 +20,7 @@ from collections import defaultdict, deque
 from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests as http
 from flask import (Flask, jsonify, make_response, redirect, render_template,
@@ -590,10 +590,14 @@ def _email_html_offers(offers: list[dict]) -> str:
         if o.get('old_price') and o.get('price') and o['old_price'] > o['price']:
             sub.append(f'<span style="text-decoration:line-through;color:#888">{_eur(o["old_price"])}</span>'
                        + (f' −{o["discount"]}%' if o.get('discount') else ''))
-        rating = ''
+        rating_html = ''
         if o.get('rating') is not None:
             rating = (f'HolidayCheck {str(o["rating"]).replace(".", ",")}/6'
                       + (f' · {o["recommendation"]}%' if o.get('recommendation') is not None else ''))
+            hc_q = quote(f"{o.get('hotel') or o.get('label') or ''} "
+                         f"{o.get('region') or o.get('country') or ''}".strip())
+            rating_html = (f'<a href="https://www.holidaycheck.de/hotelsuche?q={hc_q}" '
+                           f'style="color:#777;text-decoration:none">{esc(rating)} ↗</a>')
         total = ''
         if o.get('travellers_count') and o['travellers_count'] > 1 and o.get('total_price'):
             total = f'<div style="font-size:13px;color:#444">Gesamt {_eur(o["total_price"])} · {o["travellers_count"]} Reisende</div>'
@@ -626,7 +630,7 @@ def _email_html_offers(offers: list[dict]) -> str:
             f'<span style="color:#d29922">{stars}</span></div>'
             + (f'<div style="font-size:13px;color:#0b65d8">📍 {esc(o["location"])}</div>' if o.get('location') else '')
             + (f'<div style="font-size:13px;color:#555;margin-top:3px">{esc(o["details"])}</div>' if o.get('details') else '')
-            + (f'<div style="font-size:12px;color:#777;margin-top:3px">{esc(rating)}</div>' if rating else '')
+            + (f'<div style="font-size:12px;color:#777;margin-top:3px">{rating_html}</div>' if rating_html else '')
             + '<div style="margin-top:10px">'
             f'<span style="font-size:24px;font-weight:800;color:#10243e">{price}</span>'
             ' <span style="font-size:12px;color:#777">pro Person</span> '

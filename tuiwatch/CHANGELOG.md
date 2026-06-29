@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0] - 2026-06-29
+
+### Added
+- **HolidayCheck-Link:** Die Bewertungszeile (Karte und E-Mail) ist jetzt anklickbar und
+  öffnet die HolidayCheck-Hotelsuche zum Hotel (Name + Region). Einen exakten Deep-Link
+  liefert TUI nicht — daher die Namenssuche, die zuverlässig beim Hotel landet.
+
 ## [0.22.1] - 2026-06-29
 
 ### Changed

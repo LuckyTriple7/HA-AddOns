@@ -67,7 +67,8 @@ Bereits **aktiv** getrackte Hotels sind markiert (archivierte zählen nicht).
 
 Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
 **Ort/Region** (z. B. „Playa del
-Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**,
+Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**
+(Klick öffnet die HolidayCheck-Suche zum Hotel),
 Reise-Eckdaten (Nächte, Zimmer, Verpflegung), **Hin- und Rückflug**
 (Datum/Uhrzeit/Airline + **Flugnummer**/Direkt), der konkrete **„Günstigster Preis"**
 (buchbar), durchgestrichener Vergleichspreis + Rabatt, **Verfügbarkeit** (✓/✗),

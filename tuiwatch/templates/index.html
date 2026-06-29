@@ -69,6 +69,8 @@
     .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
     .meta .stars { color:var(--amber); letter-spacing:1px; }
     .meta .rating { color:var(--text); }
+    a.rating { text-decoration:none; }
+    a.rating:hover { text-decoration:underline; }
     .meta .canc { color:var(--green); font-weight:700; background:rgba(46,160,67,.12); padding:1px 7px; border-radius:10px; }
     .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
@@ -690,7 +692,8 @@
           let rt = 'HolidayCheck '+o.rating.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'/6';
           if(o.rating_count) rt += ' · '+o.rating_count.toLocaleString('de-DE')+' Bew.';
           if(o.recommendation!=null) rt += ' · '+o.recommendation+'% 👍';
-          metaParts.push('<span class="rating">'+esc(rt)+'</span>');
+          const hc = 'https://www.holidaycheck.de/hotelsuche?q='+encodeURIComponent(((o.hotel||o.label||'')+' '+(o.region||o.country||'')).trim());
+          metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="Auf HolidayCheck suchen">'+esc(rt)+' ↗</a>');
         }
         if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
         const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
