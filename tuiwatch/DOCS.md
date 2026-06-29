@@ -62,6 +62,7 @@ Die Trefferliste zeigt Hotelname, Sterne, Ort, **HolidayCheck-Weiterempfehlung**
 Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/Nacht,
 Weiterempfehlung oder Sternen und über ein **Suchfeld** nach Name/Ort/Verpflegung
 filterbar. Je Treffer **Tracken** oder **Öffnen** (tui.com), dazu **Alle tracken**.
+Nach dem **Tracken** öffnet sich direkt die **Zimmerauswahl** des neuen Angebots.
 Bereits **aktiv** getrackte Hotels sind markiert (archivierte zählen nicht).
 
 Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
@@ -74,7 +75,9 @@ ggf. **„kostenlos stornierbar"**, die **Buchungscodes** (TUI-Buchungscode,
 Zimmer-Buchungscode, GIATA-Hotel-ID — zum Buchen/Anrufen bei TUI; auch in der E-Mail),
 ein Link zur **Hotelbeschreibung als PDF**,
 die Veränderung zum letzten Check sowie der **Trend**. Den **Preisverlauf** zeigt der
-Button **Verlauf** (Diagramm auf den Verlauf gezoomt + volle Historie als Tabelle).
+Button **Verlauf** (Diagramm auf den Verlauf gezoomt + volle Historie als Tabelle). Im
+Diagramm markieren **Fähnchen** wichtige Änderungen (Zimmerwechsel, gebuchter Preis,
+Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung.
 
 > Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere

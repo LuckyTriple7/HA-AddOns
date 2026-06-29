@@ -286,6 +286,16 @@ def init_db() -> None:
             ts       INTEGER NOT NULL,
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Ereignisse je Angebot (für Marker im Verlauf-Diagramm): Zimmerwechsel,
+        # gebuchter Preis, Wunschpreis, Zurücksetzen …
+        con.execute('''CREATE TABLE IF NOT EXISTS offer_events (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_id INTEGER NOT NULL,
+            ts       INTEGER NOT NULL,
+            type     TEXT NOT NULL,
+            text     TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
         # Kleiner Schlüssel-Wert-Speicher (z. B. letzter Digest-Versand, ISO-Woche).
         con.execute('''CREATE TABLE IF NOT EXISTS meta (
             key   TEXT PRIMARY KEY,
@@ -828,6 +838,16 @@ def _meta_get(key: str, default=None):
 def _meta_set(key: str, value: str) -> None:
     with db() as con:
         con.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)', (key, str(value)))
+
+
+def _log_event(offer_id: int, type_: str, text: str) -> None:
+    """Speichert ein Ereignis (für Marker im Verlauf-Diagramm)."""
+    try:
+        with db() as con:
+            con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
+                        (offer_id, int(time.time()), type_, text))
+    except Exception as e:
+        log.warning("Event #%d (%s) nicht gespeichert: %s", offer_id, type_, e)
 
 
 def _check_api_alarm(res: dict) -> None:
@@ -1659,6 +1679,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     _cheaper_notified.pop(offer_id, None)
     _fail_notified.discard(offer_id)
@@ -1672,6 +1693,7 @@ def api_update_offer(offer_id: int):
     if (err := _require_api()):
         return err
     data = request.get_json(silent=True) or {}
+    events = []  # (type, text) → nach dem db-Block protokollieren (Marker im Verlauf)
     with db() as con:
         if 'label' in data:
             lbl = (data.get('label') or '').strip()
@@ -1686,6 +1708,8 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET target_price=? WHERE id=?', (tp, offer_id))
             log.info("Wunschpreis #%d %s", offer_id,
                      f"gesetzt: {tp:.0f} €" if tp else "entfernt")
+            if tp:
+                events.append(('target', f"Wunschpreis {_eur(tp)}"))
         if 'booked_price' in data:
             bp = data.get('booked_price')
             try:
@@ -1697,6 +1721,8 @@ def api_update_offer(offer_id: int):
                 con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
             log.info("Gebuchter Preis #%d %s", offer_id,
                      f"gesetzt: {bp:.0f} €" if bp else "entfernt")
+            if bp:
+                events.append(('booked', f"Gebucht für {_eur(bp)}"))
         if 'paused' in data:
             con.execute('UPDATE offers SET paused=? WHERE id=?',
                         (1 if data.get('paused') else 0, offer_id))
@@ -1707,6 +1733,8 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET archived=? WHERE id=?', (arch, offer_id))
             log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
+    for t, txt in events:
+        _log_event(offer_id, t, txt)
     if 'archived' in data:
         push_ha_sensors()  # Übersicht/Summary-Sensor neu berechnen
     return jsonify({'id': offer_id, 'ok': True})
@@ -1720,7 +1748,11 @@ def api_history(offer_id: int):
         rows = con.execute(
             'SELECT ts, price, old_price, discount, ok, note FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
-    return jsonify({'history': [dict(r) for r in rows]})
+        events = con.execute(
+            'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
+            (offer_id,)).fetchall()
+    return jsonify({'history': [dict(r) for r in rows],
+                    'events': [dict(e) for e in events]})
 
 
 @app.route('/api/history/<int:offer_id>/csv', methods=['GET'])
@@ -1774,6 +1806,8 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
+    _log_event(offer_id, 'reset', 'Tracking zurückgesetzt')
     with _compare_lock:
         _compare_state.pop(offer_id, None)
     with _calendar_lock:
@@ -2124,6 +2158,7 @@ def api_rooms_set(offer_id: int):
         return err
     data = request.get_json(silent=True) or {}
     code = (data.get('code') or '').strip()
+    label = (data.get('label') or '').strip()
     with db() as con:
         o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
         if not o:
@@ -2135,6 +2170,11 @@ def api_rooms_set(offer_id: int):
             return jsonify({'error': 'duplicate',
                             'note': 'Dieses Zimmer wird bereits als eigenes Angebot verfolgt'}), 409
     log.info("Angebot #%d: Zimmer %s gewählt", offer_id, code or '(günstigstes)')
+    if code:
+        _log_event(offer_id, 'room',
+                   f"Zimmer: {label} ({code})" if label else f"Zimmer: {code}")
+    else:
+        _log_event(offer_id, 'room', "Zimmer: günstigstes (automatisch)")
     _spawn(check_offer, offer_id)
     return jsonify({'ok': True, 'started': True})
 

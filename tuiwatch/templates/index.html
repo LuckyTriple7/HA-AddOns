@@ -128,6 +128,8 @@
     .modal h2 { font-size:1.05rem; margin-bottom:4px; }
     .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
+    .chart-tip { position:absolute; transform:translateX(-50%); top:6px; pointer-events:none; z-index:5; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 8px; font-size:.74rem; max-width:240px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+    .chart-tip .tt-date { color:var(--muted); font-size:.68rem; }
     table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:.8rem; }
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
@@ -328,7 +330,10 @@
       <h2 id="modal-title">Preisverlauf</h2>
       <div class="sub" id="modal-sub"></div>
       <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()">⬇ CSV-Export</button></div>
-      <canvas id="hist-canvas"></canvas>
+      <div id="hist-wrap" style="position:relative">
+        <canvas id="hist-canvas"></canvas>
+        <div id="hist-tip" class="chart-tip" style="display:none"></div>
+      </div>
       <div id="hist-table"></div>
     </div>
   </div>
@@ -816,6 +821,19 @@
         ctx.beginPath(); ctx.moveTo(padL,by); ctx.lineTo(w-padR,by); ctx.stroke(); ctx.restore();
         if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('📌 '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
       }
+      // Änderungs-Marker (Events): senkrechte Linie + Fähnchen; Trefferflächen für Tooltip
+      cv._events = [];
+      if(full && opts.events && opts.events.length){
+        const evcol = '#f778ba';
+        opts.events.forEach(ev=>{
+          let x = X(ev.ts); x = Math.max(padL, Math.min(w-padR, x));
+          ctx.save(); ctx.strokeStyle=evcol; ctx.globalAlpha=.75; ctx.setLineDash([3,3]); ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,h-padB); ctx.stroke(); ctx.restore();
+          ctx.fillStyle=evcol; ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x+7,padT); ctx.lineTo(x,padT+7); ctx.closePath(); ctx.fill();
+          const date = new Date(ev.ts*1000).toLocaleString('de-DE');
+          cv._events.push({x, html:'<div class="tt-date">'+esc(date)+'</div>'+esc(ev.text||'')});
+        });
+      }
       // Punkte; Preisrückgänge grün markiert
       pts.forEach((p,i)=>{
         const drop = i>0 && p.price < pts[i-1].price;
@@ -832,9 +850,10 @@
       $('#modal-sub').textContent = [o.label&&o.hotel?o.hotel:'', o.details||''].filter(Boolean).join(' — ');
       $('#modal-bg').classList.add('show');
       const r = await fetch(api('/api/history/'+id));
-      const hist = (await r.json()).history;
+      const hd = await r.json();
+      const hist = hd.history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
-      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price});
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
       const rows = hist.slice().reverse().map(h=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
         if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
@@ -844,6 +863,18 @@
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
     $('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
+    // Tooltip für Änderungs-Marker im Verlauf-Diagramm
+    (function(){
+      const cv=$('#hist-canvas'), tip=$('#hist-tip'); if(!cv||!tip) return;
+      cv.addEventListener('mousemove', e=>{
+        const rect=cv.getBoundingClientRect(); const mx=e.clientX-rect.left;
+        const evs=cv._events||[]; let hit=null;
+        for(const m of evs){ if(Math.abs(mx-m.x)<=7){ hit=m; break; } }
+        if(hit){ tip.innerHTML=hit.html; tip.style.left=hit.x+'px'; tip.style.display='block'; }
+        else tip.style.display='none';
+      });
+      cv.addEventListener('mouseleave', ()=>{ tip.style.display='none'; });
+    })();
 
     // ── Pro-Person-Vergleich (gespeichert) ────────────────────────────────────
     let cmpTimer = null, cmpId = null;
@@ -1284,7 +1315,11 @@
       catch(e){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
       if(resp.status===409){ toast('Wird bereits verfolgt'); }
       else if(!resp.ok){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
-      else { toast('Getrackt – wird geprüft…'); }
+      else {
+        toast('Getrackt – wird geprüft…');
+        // Direkt die Zimmerauswahl für das neue Angebot anbieten
+        try { const d=await resp.json(); if(d && d.id) openRooms(d.id); } catch(e){}
+      }
       r.tracked=true; if(btn){ btn.textContent='getrackt'; }
       loadOffers();
     }
@@ -1347,7 +1382,7 @@
       let html = `<div class="room-row auto ${auto?'active':''}">
           <div class="room-info"><div class="room-name">Günstigstes automatisch${auto?' <span class="room-badge">getrackt</span>':''}</div>
             <div class="hint">immer das jeweils günstigste Zimmer verfolgen</div></div>
-          <div class="room-actions"><button class="btn ${auto?'sec':''}" ${auto?'disabled':''} onclick="pickRoom('')">${auto?'aktiv':'wählen'}</button></div>
+          <div class="room-actions"><button class="btn ${auto?'sec':''}" ${auto?'disabled':''} onclick="pickRoom('', '')">${auto?'aktiv':'wählen'}</button></div>
         </div>`;
       html += d.rooms.map(r=>{
         const diff = r.price-cheapest, active = (r.code===cur);
@@ -1359,18 +1394,18 @@
           <div class="room-actions">
             <div class="room-price">${eur(r.price)} <span class="pp">p.P.</span></div>
             <a class="btn sec" href="${esc(r.url)}" target="_blank" rel="noopener" title="Details & Fotos auf tui.com">Details ↗</a>
-            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${esc(r.code)}')">${active?'aktiv':'tracken'}</button>
+            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${esc(r.code)}', '${jsArg(r.name)}')">${active?'aktiv':'tracken'}</button>
           </div>
         </div>`;
       }).join('');
       html += '<div class="hint" style="margin-top:10px">Wechselst du das Zimmer, verfolgt TUIWatch ab sofort dessen Preis; der bisherige Verlauf bleibt erhalten.</div>';
       $('#room-body').innerHTML = html;
     }
-    async function pickRoom(code){
+    async function pickRoom(code, label){
       if(roomId==null) return;
       $('#room-body').innerHTML = progBar('Wird übernommen…');
       try {
-        const r = await fetch(api('/api/rooms/'+roomId), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code})});
+        const r = await fetch(api('/api/rooms/'+roomId), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, label:label||''})});
         if(r.status===409){ toast('Dieses Zimmer wird bereits als eigenes Angebot verfolgt'); openRooms(roomId); return; }
         if(!r.ok){ toast('Fehler bei der Zimmerauswahl'); openRooms(roomId); return; }
       } catch(e){ toast('Fehler bei der Zimmerauswahl'); return; }

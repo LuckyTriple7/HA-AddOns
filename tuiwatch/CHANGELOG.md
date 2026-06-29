@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.22.0] - 2026-06-29
+
+### Added
+- **Änderungs-Marker im Verlauf-Diagramm:** Wichtige Eingriffe werden als Fähnchen auf
+  der Zeitachse markiert — **Zimmerwechsel**, **gebuchter Preis**, **Wunschpreis** und
+  **Zurücksetzen**; **Mouseover** zeigt Datum + Beschreibung.
+- **Hotelsuche:** Nach **Tracken** eines Treffers öffnet sich direkt die **Zimmerauswahl**
+  des neuen Angebots — so lässt sich gleich die gewünschte Kategorie festlegen.
+
 ## [0.21.0] - 2026-06-29
 
 ### Added
