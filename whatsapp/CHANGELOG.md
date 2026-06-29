@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.26] - 2026-06-29
+- Neu: **Emoji-Picker mit Kategorien wie auf dem Handy** — über 1000 Emojis in 8 Kategorie-Tabs (Smileys & Personen, Tiere & Natur, Essen & Trinken, Aktivitäten, Reisen & Orte, Objekte, Symbole, Flaggen), ein **Suchfeld** (deutsch/englisch, z.B. „herz" oder „laugh") und eine **„Zuletzt verwendet"**-Leiste, die die eigenen Emojis merkt (im Browser gespeichert). Ersetzt die bisherige flache Liste mit ~170 Emojis
+
 ## [1.7.25] - 2026-06-29
 - Fix: Nachrichten wurden gelegentlich **doppelt versendet** — bei schnellem Doppel-Tap auf den Senden-Button oder doppeltem Enter lief `sendMsg()` zweimal los und schickte die Nachricht zweimal echt raus. Ein In-Flight-Guard verhindert jetzt, dass ein zweiter Versand startet, solange der erste noch läuft (gilt auch für Datei-/Medienversand)
 
