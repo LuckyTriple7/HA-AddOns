@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.0] - 2026-06-29
+
+### Added
+- **Zimmerauswahl pro Angebot:** Neuer Button **„Zimmer"** zeigt die wählbaren
+  Zimmerkategorien (Name + Verpflegung + Preis pro Person + Aufpreis zum günstigsten).
+  Standard bleibt das **günstigste** Zimmer; per **„tracken"** lässt sich eine bestimmte
+  Kategorie fixieren (dann wird deren Preis verfolgt), **„Details ↗"** öffnet das Zimmer
+  mit Fotos/Beschreibung auf tui.com, **„Günstigstes automatisch"** hebt die Festlegung
+  auf. Technisch über `roomTypeOpCodes` in der Angebots-URL (Quelle: Offer-API, gruppiert
+  nach Zimmercode).
+
 ## [0.19.2] - 2026-06-29
 
 ### Fixed

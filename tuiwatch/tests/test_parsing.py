@@ -142,6 +142,43 @@ def test_build_search_payload_airlines():
     assert payload["parameters"]["airlines"] == ["X3", "VY"]
 
 
+def test_room_code_helpers():
+    base = "https://www.tui.com/x/123/offer/?startDate=2027-05-01&duration=7"
+    u = scraper.with_room_code(base, "DZM3")
+    assert "roomTypeOpCodes=DZM3" in u
+    assert scraper.room_code_from_url(u) == "DZM3"
+    # ersetzen
+    assert scraper.room_code_from_url(scraper.with_room_code(u, "DZM1")) == "DZM1"
+    # leerer Code entfernt die Festlegung
+    assert "roomTypeOpCodes" not in scraper.with_room_code(u, "")
+    assert scraper.room_code_from_url(base) == ""
+
+
+def test_fetch_rooms(monkeypatch, fake_resp):
+    payload = {"currency": "EUR", "offers": [
+        {"calculatedPricePerPerson": 2116, "rooms": [
+            {"code": "DZM3", "description": "Double Sea View Premium", "boardDescription": "Alles Inklusive"}]},
+        {"calculatedPricePerPerson": 2081, "rooms": [
+            {"code": "DZM1", "description": "Double Sea View", "boardDescription": "Alles Inklusive"}]},
+        {"calculatedPricePerPerson": 3662, "rooms": [  # zweites (teureres) DZM1-Angebot
+            {"code": "DZM1", "description": "Double Sea View", "boardDescription": "Alles Inklusive"}]},
+    ]}
+    monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: fake_resp(payload))
+    url = "https://www.tui.com/x/123/offer/?startDate=2027-05-01&duration=7&roomTypeOpCodes=DZM3"
+    res = scraper.fetch_rooms(url)
+    assert res["ok"] is True
+    assert [r["code"] for r in res["rooms"]] == ["DZM1", "DZM3"]   # nach Preis sortiert
+    assert res["rooms"][0]["price"] == 2081                        # günstigstes DZM1
+    assert res["rooms"][0]["name"] == "Double Sea View"
+    assert scraper.room_code_from_url(res["rooms"][1]["url"]) == "DZM3"
+
+
+def test_fetch_rooms_empty_on_http400(monkeypatch, fake_resp):
+    monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: fake_resp({}, status=400))
+    res = scraper.fetch_rooms("https://www.tui.com/x/123/offer/?duration=7")
+    assert res is not None and res["ok"] is False
+
+
 def test_valid_img_url():
     assert scraper._valid_img_url("https://pics.tui.com/pics/x.jpg") is True
     assert scraper._valid_img_url("https://www.tui.com/img.jpg") is True

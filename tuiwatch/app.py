@@ -30,10 +30,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      duration_from_url, fetch_airlines, fetch_airports,
                      fetch_calendar, fetch_destinations, fetch_hotel_image,
-                     fetch_price, fetch_search, fetch_search_params,
+                     fetch_price, fetch_rooms, fetch_search, fetch_search_params,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
-                     travellers_from_url, with_duration, with_travellers,
-                     without_room_code)
+                     room_code_from_url, travellers_from_url, with_duration,
+                     with_room_code, with_travellers, without_room_code)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -2073,6 +2073,46 @@ def api_calendar_get(offer_id: int):
     if (err := _require_api()):
         return err
     return jsonify(_calendar_payload(offer_id))
+
+
+@app.route('/api/rooms/<int:offer_id>', methods=['GET'])
+def api_rooms_get(offer_id: int):
+    """Wählbare Zimmerkategorien (mit Preis p. P.) für ein Angebot — live abgefragt."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return jsonify({'error': 'not_found'}), 404
+    with _scrape_lock:
+        res = fetch_rooms(o['url'], verbose=_verbose())
+    if res is None:
+        return jsonify({'ok': False, 'note': 'Zimmer konnten nicht geladen werden'}), 502
+    res['current'] = room_code_from_url(o['url'])
+    return jsonify(res)
+
+
+@app.route('/api/rooms/<int:offer_id>', methods=['POST'])
+def api_rooms_set(offer_id: int):
+    """Fixiert ein Zimmer (`code`) für das Angebot — danach wird der Preis dieses Zimmers
+    verfolgt. Leerer Code = wieder automatisch das günstigste Zimmer."""
+    if (err := _require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    code = (data.get('code') or '').strip()
+    with db() as con:
+        o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not o:
+            return jsonify({'error': 'not_found'}), 404
+        new_url = with_room_code(o['url'], code)
+        try:
+            con.execute('UPDATE offers SET url=? WHERE id=?', (new_url, offer_id))
+        except sqlite3.IntegrityError:
+            return jsonify({'error': 'duplicate',
+                            'note': 'Dieses Zimmer wird bereits als eigenes Angebot verfolgt'}), 409
+    log.info("Angebot #%d: Zimmer %s gewählt", offer_id, code or '(günstigstes)')
+    _spawn(check_offer, offer_id)
+    return jsonify({'ok': True, 'started': True})
 
 
 @app.route('/api/healthcheck', methods=['GET', 'POST'])

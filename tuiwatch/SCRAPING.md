@@ -29,6 +29,12 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
   `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
   Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
 - `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+- **Zimmerauswahl:** ohne `roomTypeOpCodes` liefert der Offer-Endpoint alle Zimmer; wir
+  gruppieren die `offers[]` nach `rooms[0].code` (z. B. `DZM1`/`DZM3`) und nehmen je
+  Zimmer den günstigsten `calculatedPricePerPerson` (Name = `rooms[0].description`). Ein
+  fixes Zimmer wird über `roomTypeOpCodes=<code>` in der Angebots-URL verfolgt
+  (`fetch_rooms()`/`with_room_code()`/`room_code_from_url()`). Langtext/Fotos hat die API
+  nicht — dafür verlinkt das UI das Zimmer auf tui.com.
 - **Hotelbild:** Nur die **Such-API** liefert `hotel.images[0].url` (pics.tui.com). Offer-/
   Content-API haben kein Bild. `fetch_hotel_image()` bestimmt daher die Region über den
   Breadcrumb, sucht in ihr und nimmt das Bild des Treffers mit passender giataId

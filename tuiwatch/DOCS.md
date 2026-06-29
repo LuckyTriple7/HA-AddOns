@@ -181,6 +181,12 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 - **Alle prüfen** — alle Angebote abfragen.
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie, inkl. **CSV-Export**.
 - **Nächte** — Preise für kürzere/längere Reisedauern (Basis ±N) live vergleichen.
+- **Zimmer** — die wählbaren **Zimmerkategorien** des Hotels mit Preis pro Person und
+  Aufpreis zum günstigsten anzeigen. Standardmäßig wird das **günstigste** Zimmer
+  verfolgt; per **„tracken"** lässt sich eine bestimmte Kategorie fixieren („für ein paar
+  Euro mehr was Besseres"), ab dann wird deren Preis verfolgt. **„Details ↗"** öffnet das
+  Zimmer mit Fotos/Beschreibung auf tui.com; **„Günstigstes automatisch"** hebt die
+  Festlegung wieder auf.
 - **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar und werden bei Prüfungen, Übersicht und E-Mail-Versand ausgenommen.

@@ -128,6 +128,26 @@ def without_room_code(url: str) -> str:
     return _replace_query(url, drop_keys=('roomTypeOpCodes',))
 
 
+def with_room_code(url: str, code: str) -> str:
+    """Gibt die URL mit fixem Zimmer (`roomTypeOpCodes=code`) zurück; leerer Code →
+    entfernt die Festlegung (= wieder automatisch das günstigste Zimmer)."""
+    code = (code or '').strip()
+    if not code:
+        return without_room_code(url)
+    return _replace_query(url, set_params={'roomTypeOpCodes': code})
+
+
+def room_code_from_url(url: str) -> str:
+    """Liest den aktuell fixierten Zimmercode (`roomTypeOpCodes`) aus der URL (oder '')."""
+    try:
+        for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True):
+            if k == 'roomTypeOpCodes' and v.strip():
+                return v.strip()
+    except (TypeError, ValueError):
+        pass
+    return ''
+
+
 def with_duration(url: str, n: int) -> str:
     """Gibt die URL mit `duration=n` (Nächte) zurück. Falls die URL ein festes
     Reisefenster (`startDate`/`endDate`) hat, das schmaler als die gewünschte Dauer ist
@@ -419,6 +439,53 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         log.info(f"Kalender: {len(days)} Tage, günstigster {res.get('cheapest_date')} "
               f"= {res.get('cheapest_price')} €")
     return res
+
+
+def fetch_rooms(url: str, *, verbose: bool = False) -> dict | None:
+    """Liest die wählbaren Zimmer(-kategorien) für ein Angebot aus der Offer-API. Ohne
+    `roomTypeOpCodes`-Filter liefert die API alle Zimmer; wir gruppieren nach Zimmercode
+    und nehmen je Zimmer den günstigsten Preis p. P. Rückgabe:
+    {ok, currency, rooms:[{code, name, board, price, url}]} (nach Preis sortiert) oder
+    {ok:False, note} bzw. None bei technischem Fehler."""
+    try:
+        api = build_offer_api_url(without_room_code(url))
+        if verbose:
+            log.info("Zimmer-API GET %s", api)
+        resp = requests.get(api, headers=_API_HEADERS, timeout=25)
+        if resp.status_code != 200:
+            if resp.status_code in (400, 404, 422):
+                return {"ok": False, "rooms": [], "note": "Keine Zimmer im gewählten Zeitraum"}
+            return None
+        data = resp.json()
+    except Exception as e:
+        if verbose:
+            log.warning(f"Zimmer-Fehler: {type(e).__name__}: {e}")
+        return None
+
+    rooms: dict[str, dict] = {}
+    for o in data.get("offers") or []:
+        rm = (o.get("rooms") or [{}])[0]
+        code = (rm.get("code") or "").strip()
+        price = o.get("calculatedPricePerPerson")
+        if not code or price is None:
+            continue
+        cur = rooms.get(code)
+        if cur is None or price < cur["price"]:
+            rooms[code] = {
+                "code": code,
+                "name": rm.get("description", "") or code,
+                "board": rm.get("boardDescription", ""),
+                "price": float(price),
+                "url": with_room_code(url, code),
+            }
+    out = sorted(rooms.values(), key=lambda r: r["price"])
+    for r in out:
+        r["price"] = int(round(r["price"]))
+    if verbose:
+        log.info("Zimmer: %d Kategorien (%s)", len(out),
+                 ", ".join(f"{r['code']}={r['price']}" for r in out) or "keine")
+    return {"ok": bool(out), "currency": data.get("currency", "EUR"), "rooms": out,
+            "note": "" if out else "Keine Zimmer gefunden"}
 
 
 # ── Hotelsuche (Region → Trefferliste) ──────────────────────────────────────────

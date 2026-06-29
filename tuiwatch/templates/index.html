@@ -87,6 +87,16 @@
     .offer-img { display:block; width:170px; height:112px; object-fit:cover; border-radius:8px; margin-top:10px; margin-left:auto; background:var(--bg); }
     @media(max-width:560px){ .offer-img { width:130px; height:88px; } }
     .price-rows { display:flex; gap:10px 22px; flex-wrap:wrap; }
+    .room-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; flex-wrap:wrap; }
+    .room-row.active { border-color:var(--accent); background:var(--surf2); }
+    .room-row.auto { background:var(--bg); }
+    .room-info { min-width:0; flex:1 1 220px; }
+    .room-name { font-weight:600; font-size:.92rem; }
+    .room-code { color:var(--muted); font-weight:400; font-size:.78rem; }
+    .room-badge { color:var(--accent); font-weight:600; font-size:.72rem; border:1px solid var(--accent); border-radius:8px; padding:1px 6px; margin-left:4px; }
+    .room-actions { display:flex; align-items:center; gap:10px; }
+    .room-price { font-weight:700; white-space:nowrap; }
+    .room-price .pp { font-weight:400; font-size:.72rem; color:var(--muted); }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
     .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
@@ -436,6 +446,17 @@
       <div id="cal-body"></div>
     </div>
   </div>
+  <!-- Zimmerauswahl -->
+  <div class="modal-bg" id="room-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeRooms()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Zimmerauswahl</h2>
+      <div class="sub" id="room-sub"></div>
+      <div id="room-body"></div>
+    </div>
+  </div>
   <!-- API-Status -->
   <div class="modal-bg" id="hc-bg">
     <div class="modal">
@@ -709,6 +730,7 @@
                  <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
+                 <button class="btn sec" onclick="openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
@@ -1279,6 +1301,60 @@
     function closeCalendar(){ clearInterval(calTimer); calTimer=null; calId=null; $('#cal-bg').classList.remove('show'); }
     $('#cal-bg').addEventListener('click', e=>{ if(e.target.id==='cal-bg') closeCalendar(); });
     function calGo(m){ if(!m) return; calMonth=m; drawCalMonth(); }
+
+    // — Zimmerauswahl —
+    let roomId = null;
+    async function openRooms(id){
+      roomId = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#room-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#room-body').innerHTML = progBar('Zimmer werden geladen…');
+      $('#room-bg').classList.add('show');
+      let d;
+      try { d = await fetch(api('/api/rooms/'+id)).then(r=>r.json()); }
+      catch(e){ $('#room-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Zimmer konnten nicht geladen werden.</div>'; return; }
+      renderRooms(d);
+    }
+    function renderRooms(d){
+      if(!d || !d.ok || !(d.rooms&&d.rooms.length)){
+        $('#room-body').innerHTML = '<div class="cmp-load">'+esc((d&&d.note)||'Keine Zimmer gefunden.')+'</div>'; return;
+      }
+      const cheapest = d.rooms[0].price, cur = d.current||'', auto = !cur;
+      let html = `<div class="room-row auto ${auto?'active':''}">
+          <div class="room-info"><div class="room-name">Günstigstes automatisch${auto?' <span class="room-badge">getrackt</span>':''}</div>
+            <div class="hint">immer das jeweils günstigste Zimmer verfolgen</div></div>
+          <div class="room-actions"><button class="btn ${auto?'sec':''}" ${auto?'disabled':''} onclick="pickRoom('')">${auto?'aktiv':'wählen'}</button></div>
+        </div>`;
+      html += d.rooms.map(r=>{
+        const diff = r.price-cheapest, active = (r.code===cur);
+        return `<div class="room-row ${active?'active':''}">
+          <div class="room-info">
+            <div class="room-name">${esc(r.name)} <span class="room-code">${esc(r.code)}</span>${active?' <span class="room-badge">getrackt</span>':''}</div>
+            <div class="hint">${esc(r.board||'')}${diff>0?(' · +'+eur(diff)+' ggü. günstigstem'):' · günstigstes'}</div>
+          </div>
+          <div class="room-actions">
+            <div class="room-price">${eur(r.price)} <span class="pp">p.P.</span></div>
+            <a class="btn sec" href="${esc(r.url)}" target="_blank" rel="noopener" title="Details & Fotos auf tui.com">Details ↗</a>
+            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${esc(r.code)}')">${active?'aktiv':'tracken'}</button>
+          </div>
+        </div>`;
+      }).join('');
+      html += '<div class="hint" style="margin-top:10px">Wechselst du das Zimmer, verfolgt TUIWatch ab sofort dessen Preis; der bisherige Verlauf bleibt erhalten.</div>';
+      $('#room-body').innerHTML = html;
+    }
+    async function pickRoom(code){
+      if(roomId==null) return;
+      $('#room-body').innerHTML = progBar('Wird übernommen…');
+      try {
+        const r = await fetch(api('/api/rooms/'+roomId), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code})});
+        if(r.status===409){ toast('Dieses Zimmer wird bereits als eigenes Angebot verfolgt'); openRooms(roomId); return; }
+        if(!r.ok){ toast('Fehler bei der Zimmerauswahl'); openRooms(roomId); return; }
+      } catch(e){ toast('Fehler bei der Zimmerauswahl'); return; }
+      toast(code?'Zimmer gewählt – wird geprüft…':'Günstigstes Zimmer – wird geprüft…');
+      closeRooms(); lastSig=null; loadOffers();
+    }
+    function closeRooms(){ roomId=null; $('#room-bg').classList.remove('show'); }
+    $('#room-bg').addEventListener('click', e=>{ if(e.target.id==='room-bg') closeRooms(); });
 
     async function calPoll(){
       if(calId==null) return;
