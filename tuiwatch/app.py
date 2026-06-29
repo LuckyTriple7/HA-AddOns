@@ -17,7 +17,7 @@ import sqlite3
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from urllib.parse import urlparse

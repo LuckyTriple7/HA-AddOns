@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2] - 2026-06-29
+
+### Fixed
+- **Poll-Fehler `name 'date' is not defined`** behoben: `date` war in app.py nicht
+  importiert, wodurch der Wochenüberblick (bei aktivem `digest_enabled`) bei jeder
+  automatischen Prüfung abbrach.
+
 ## [0.19.1] - 2026-06-28
 
 ### Changed
