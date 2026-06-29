@@ -1996,10 +1996,11 @@ def api_search():
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
         return jsonify({'error': 'no_region', 'note': res.get('note', '')}), 400
-    # bereits getrackte Hotels (per giataId) markieren
+    # bereits (aktiv) getrackte Hotels (per giataId) markieren — Archiv zählt nicht
     with db() as con:
         tracked = {g for g in (_giata_from_url(r['url'])
-                   for r in con.execute('SELECT url FROM offers').fetchall()) if g}
+                   for r in con.execute(
+                       'SELECT url FROM offers WHERE COALESCE(archived,0)=0').fetchall()) if g}
     out = []
     for r in res['results']:
         if min_stars and (r.get('stars') or 0) < min_stars:

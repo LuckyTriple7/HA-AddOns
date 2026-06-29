@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.2] - 2026-06-29
+
+### Fixed
+- **Suche markierte archivierte Angebote als „getrackt"**: Ein archiviertes Hotel
+  erschien in der Regionssuche weiter als „✓ getrackt" und ließ sich nicht erneut
+  aufnehmen. Jetzt zählt nur noch **aktiv** Getracktes (Archiv ausgenommen).
+
+### Added
+- **Suchfeld in der Region-Trefferliste**: filtert die angezeigten Treffer sofort nach
+  Hotelname, Ort/Land und Verpflegung (Anzahl „X von N").
+
 ## [0.20.1] - 2026-06-29
 
 ### Fixed

@@ -60,8 +60,9 @@ tui.com (mit `regionGiataIds=…`) einfügen.
 
 Die Trefferliste zeigt Hotelname, Sterne, Ort, **HolidayCheck-Weiterempfehlung**,
 Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/Nacht,
-Weiterempfehlung oder Sternen. Je Treffer **Tracken** oder **Öffnen** (tui.com), dazu
-**Alle tracken**. Bereits getrackte Hotels sind markiert.
+Weiterempfehlung oder Sternen und über ein **Suchfeld** nach Name/Ort/Verpflegung
+filterbar. Je Treffer **Tracken** oder **Öffnen** (tui.com), dazu **Alle tracken**.
+Bereits **aktiv** getrackte Hotels sind markiert (archivierte zählen nicht).
 
 Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
 **Ort/Region** (z. B. „Playa del

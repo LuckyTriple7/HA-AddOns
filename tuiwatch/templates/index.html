@@ -164,6 +164,8 @@
     .sr-disc { color:var(--green); font-size:.72rem; font-weight:600; margin-left:4px; }
     .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
+    .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:.82rem; min-width:180px; }
+    .srch-listfilter:focus { outline:none; border-color:var(--accent); }
     .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
     .srch-from b { color:var(--text); }
     .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
@@ -999,7 +1001,7 @@
     }
 
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
-    let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0;
+    let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
@@ -1206,7 +1208,7 @@
       if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
-      srchResults = d.results||[]; srchTotal = d.total||srchResults.length;
+      srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
       sortSearchResults(); renderSearch();
     }
 
@@ -1218,42 +1220,55 @@
       else if(srchSort==='stars') a.sort((x,y)=>num(y.stars,-1)-num(x.stars,-1));
       else if(srchSort==='pernight') a.sort((x,y)=>(num(x.price,1e9)/(x.nights||1))-(num(y.price,1e9)/(y.nights||1)));
     }
-    function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearch(); }
+    function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearchRows(); }
+    function filterSearch(v){ srchFilter=v; renderSearchRows(); }
 
+    function srItem(r,i){
+      const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
+      const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
+      const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
+      const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
+      return `<div class="sr-item">
+        ${img}
+        <div class="sr-main">
+          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
+          <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
+          <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
+        </div>
+        <div class="sr-pricecol">
+          <div class="sr-price">${eur(r.price)}</div>
+          <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
+          <div class="sr-acts">
+            <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
+            <button class="btn" id="srt-${i}" onclick="trackResult(${i})" ${r.tracked?'disabled':''}>${r.tracked?'getrackt':'Tracken'}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    function renderSearchRows(){
+      const box=$('#srch-rows'); if(!box) return;
+      const q=(srchFilter||'').trim().toLowerCase();
+      const shown=[];
+      srchResults.forEach((r,i)=>{ if(!q || ((r.name||'')+' '+(r.location||'')+' '+(r.country||'')+' '+(r.board||'')).toLowerCase().includes(q)) shown.push([r,i]); });
+      const cnt=$('#srch-count'); if(cnt) cnt.textContent = q ? (shown.length+' von '+srchResults.length) : String(srchResults.length);
+      box.innerHTML = shown.length ? shown.map(([r,i])=>srItem(r,i)).join('')
+        : '<div class="cmp-load">Kein Treffer für „'+esc(srchFilter.trim())+'".</div>';
+    }
     function renderSearch(){
       if(!srchResults.length){ $('#srch-body').innerHTML = '<div class="cmp-load">Keine Treffer für die gewählten Filter.</div>'; return; }
-      const rows = srchResults.map((r,i)=>{
-        const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
-        const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
-        const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
-        const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
-        return `<div class="sr-item">
-          ${img}
-          <div class="sr-main">
-            <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
-            <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
-            <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
-          </div>
-          <div class="sr-pricecol">
-            <div class="sr-price">${eur(r.price)}</div>
-            <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
-            <div class="sr-acts">
-              <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
-              <button class="btn" id="srt-${i}" onclick="trackResult(${i})" ${r.tracked?'disabled':''}>${r.tracked?'getrackt':'Tracken'}</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
       const sortSel = `<select onchange="changeSrchSort(this.value)" title="Sortierung">
           <option value="price"${srchSort==='price'?' selected':''}>Preis aufsteigend</option>
           <option value="pernight"${srchSort==='pernight'?' selected':''}>Preis/Nacht</option>
           <option value="rec"${srchSort==='rec'?' selected':''}>Weiterempfehlung</option>
           <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
         </select>`;
-      const head = `<div class="srch-head"><b>${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}
+      const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
+         <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
-         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>`;
-      $('#srch-body').innerHTML = head + rows;
+         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
+        <div id="srch-rows"></div>`;
+      $('#srch-body').innerHTML = head;
+      renderSearchRows();
     }
 
     async function trackResult(i){
