@@ -1832,8 +1832,9 @@ app.get('/', (req, res) => {
     #emoji-search::placeholder { color: #8696a0; }
     #emoji-tabs { display: flex; gap: 2px; overflow-x: auto; flex: 0 0 auto; margin-bottom: 6px; scrollbar-width: none; }
     #emoji-tabs::-webkit-scrollbar { display: none; }
-    .emoji-tab { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 6px; border-radius: 8px; line-height: 1; opacity: 0.55; flex: 0 0 auto; }
-    .emoji-tab.active { opacity: 1; background: #2a3942; }
+    #emoji-tabs .emoji-tab { background: none; border: none; width: auto; height: auto; font-size: 20px; cursor: pointer; padding: 4px 6px; border-radius: 8px; line-height: 1; opacity: 0.55; flex: 0 0 auto; }
+    #emoji-tabs .emoji-tab:hover { background: #2a3942; }
+    #emoji-tabs .emoji-tab.active { opacity: 1; background: #2a3942; }
     .emoji-grid { display: flex; flex-wrap: wrap; gap: 2px; align-content: flex-start; overflow-y: auto; flex: 1 1 auto; }
     .emoji-empty { color: #8696a0; font-size: 13px; padding: 12px; }
     #send-bar .emoji-btn { background: none; border: none; font-size: 22px; cursor: pointer; padding: 3px 5px; border-radius: 6px; line-height: 1; width: auto; height: auto; }
@@ -1933,7 +1934,8 @@ app.get('/', (req, res) => {
     html.light #emoji-picker { background: #fff; border-color: #e0e0e0; }
     html.light #emoji-search { background: #f0f2f5; color: #111; }
     html.light #emoji-search::placeholder { color: #999; }
-    html.light .emoji-tab.active { background: #e9edef; }
+    html.light #emoji-tabs .emoji-tab:hover { background: #f0f2f5; }
+    html.light #emoji-tabs .emoji-tab.active { background: #e9edef; }
     html.light #send-bar .emoji-btn:hover { background: #f0f2f5; }
     html.light #send-bar #emoji-toggle { color: #555; }
 

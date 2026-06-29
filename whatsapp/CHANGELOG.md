@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.27] - 2026-06-29
+- Fix: Die **Kategorie-Tabs** im neuen Emoji-Picker erschienen als unschöne **grüne Kreise** — die generische Senden-Button-Regel (`#send-bar button`, grün/rund) überschrieb die Tab-Buttons. Die Tabs sind jetzt korrekt unter `#emoji-tabs` gestylt (transparent, dezenter aktiver/Hover-Hintergrund wie bei Telegram)
+
 ## [1.7.26] - 2026-06-29
 - Neu: **Emoji-Picker mit Kategorien wie auf dem Handy** — über 1000 Emojis in 8 Kategorie-Tabs (Smileys & Personen, Tiere & Natur, Essen & Trinken, Aktivitäten, Reisen & Orte, Objekte, Symbole, Flaggen), ein **Suchfeld** (deutsch/englisch, z.B. „herz" oder „laugh") und eine **„Zuletzt verwendet"**-Leiste, die die eigenen Emojis merkt (im Browser gespeichert). Ersetzt die bisherige flache Liste mit ~170 Emojis
 
