@@ -868,8 +868,8 @@
       const cv=$('#hist-canvas'), tip=$('#hist-tip'); if(!cv||!tip) return;
       cv.addEventListener('mousemove', e=>{
         const rect=cv.getBoundingClientRect(); const mx=e.clientX-rect.left;
-        const evs=cv._events||[]; let hit=null;
-        for(const m of evs){ if(Math.abs(mx-m.x)<=7){ hit=m; break; } }
+        const evs=cv._events||[]; let hit=null, best=18;   // nächsten Marker in Reichweite
+        for(const m of evs){ const dx=Math.abs(mx-m.x); if(dx<best){ best=dx; hit=m; } }
         if(hit){ tip.innerHTML=hit.html; tip.style.left=hit.x+'px'; tip.style.display='block'; }
         else tip.style.display='none';
       });

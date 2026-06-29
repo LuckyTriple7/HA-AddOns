@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1] - 2026-06-29
+
+### Changed
+- **Verlauf-Marker:** größere Trefferzone für den Mouseover — der Tooltip rastet auf den
+  nächstgelegenen Marker ein und erscheint sofort beim Annähern (statt nur exakt auf dem
+  Fähnchen).
+
 ## [0.22.0] - 2026-06-29
 
 ### Added
