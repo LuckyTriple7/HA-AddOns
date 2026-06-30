@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.5] - 2026-06-30
+
+### Changed
+- **Flüge mit Wochentag:** In der Angebotsliste zeigen Hin- und Rückflug jetzt den
+  Wochentag vor dem Datum, z. B. „Hin: **Mo** 03.05.2027, 13:30" / „Rück: **Fr**
+  14.05.2027, 18:10". Erleichtert die Planung auf einen Blick.
+
 ## [0.25.4] - 2026-06-30
 
 ### Changed

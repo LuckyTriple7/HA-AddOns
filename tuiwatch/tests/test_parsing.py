@@ -75,8 +75,10 @@ def test_slugify():
 
 def test_de_date_and_datetime():
     assert scraper._de_date("2027-05-01") == "01.05.2027"
-    assert scraper._de_datetime("2027-05-01T07:35:00.000+02:00") == "01.05.2027, 07:35"
+    assert scraper._de_datetime("2027-05-01T07:35:00.000+02:00") == "Sa 01.05.2027, 07:35"
     assert scraper._de_date("") == ""
+    assert scraper._de_weekday("2027-05-03") == "Mo"
+    assert scraper._de_weekday("") == ""
 
 
 def test_search_params_from_url():
