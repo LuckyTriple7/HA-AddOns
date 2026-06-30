@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.25.4] - 2026-06-30
+
+### Changed
+- **Reisen-Statistik & Liste jetzt pro Person:** Der **€/Nacht**-Wert je Reise (Liste) sowie
+  der **Ø €/Nacht** in der Gesamt- und Jahresstatistik werden **pro Person** ausgewiesen
+  (Personen-Nächte = Nächte × Reisende). So sind Solo- und Gruppenreisen vergleichbar
+  (z. B. Gruppenbuchung mit 7 Reisenden: 282,50 €/Nacht p. P. statt 1.977,50 € für die
+  ganze Buchung). Labels mit „p. P." gekennzeichnet.
+
 ## [0.25.3] - 2026-06-30
 
 ### Fixed

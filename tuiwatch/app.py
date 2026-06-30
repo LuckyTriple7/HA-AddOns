@@ -2329,12 +2329,15 @@ def api_trips():
     nights_sum = sum((t['nights'] or 0) for t in trips)
     total_sum = sum((t['total_price'] or 0.0) for t in trips)
     package_sum = sum((t['package_price'] or 0.0) for t in trips)
+    # Personen-Nächte (Nächte × Reisende) → Ø-Preis pro Person und Nacht, damit Solo- und
+    # Gruppenreisen vergleichbar sind.
+    pers_nights = sum((t['nights'] or 0) * (t['travellers'] or 1) for t in trips)
     stats = {
         'count': len(trips),
         'nights_sum': nights_sum,
         'total_sum': round(total_sum, 2),
         'package_sum': round(package_sum, 2),
-        'avg_per_night': round(total_sum / nights_sum, 2) if nights_sum else 0.0,
+        'avg_per_night': round(total_sum / pers_nights, 2) if pers_nights else 0.0,
     }
     # Aufschlüsselung pro Reisejahr (nach Reisebeginn)
     years: dict = {}
@@ -2342,15 +2345,18 @@ def api_trips():
         y = (t['start_date'] or '')[:4]
         if not y:
             continue
-        a = years.setdefault(y, {'year': y, 'count': 0, 'nights_sum': 0, 'total_sum': 0.0})
+        a = years.setdefault(y, {'year': y, 'count': 0, 'nights_sum': 0,
+                                 'total_sum': 0.0, '_pn': 0})
         a['count'] += 1
         a['nights_sum'] += t['nights'] or 0
         a['total_sum'] += t['total_price'] or 0.0
+        a['_pn'] += (t['nights'] or 0) * (t['travellers'] or 1)
     by_year = []
     for y in sorted(years, reverse=True):
         a = years[y]
+        pn = a.pop('_pn')
         a['total_sum'] = round(a['total_sum'], 2)
-        a['avg_per_night'] = round(a['total_sum'] / a['nights_sum'], 2) if a['nights_sum'] else 0.0
+        a['avg_per_night'] = round(a['total_sum'] / pn, 2) if pn else 0.0
         by_year.append(a)
     return jsonify({'trips': trips, 'stats': stats, 'by_year': by_year})
 
@@ -2425,7 +2431,7 @@ def api_trip_import():
         'travellers': len(data.get('reisende') or []) or None,
         'total_price': _parse_eur_num(data.get('gesamtpreis')),
         'package_price': _parse_eur_num(data.get('paketpreis')),
-        'net_per_night': _parse_eur_num(data.get('preis_pro_nacht_paket')),
+        'net_per_night': _parse_eur_num(data.get('preis_pro_person_nacht_paket')),
         'meal': data.get('verpflegung'),
         'data': json.dumps(data, ensure_ascii=False),
         'pdf_name': pdf_name,

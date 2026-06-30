@@ -170,6 +170,24 @@ def test_sieben_reisende():
     assert len(d["reisende"]) == 7
 
 
+def test_sieben_reisende_pro_person_nacht():
+    # Mallorca-Gruppe: 7 Personen, 2 Nächte, 3.955 € → 282,50 €/Person/Nacht (vgl. MD)
+    lines = ["Buchung: 75595465"]
+    for i in range(1, 8):
+        lines.append(f"Gast {i} Herr Tester Nummer{i} (01.01.1980) 565,00 €")
+    lines += [
+        "25.07.2025 – Paket (Unterkunft) bestätigt",
+        "27.07.2025 Grupotel Amapola (PMI83043)",
+        "Bucht von Alcudia",
+        "Gesamtpreis 3.955,00 €",
+    ]
+    d = parse_tui_text("\n".join(lines))
+    assert len(d["reisende"]) == 7
+    assert d["naechte"] == 2
+    assert d["preis_pro_nacht_paket"] == "1.977,50"          # gesamte Buchung/Nacht
+    assert d["preis_pro_person_nacht_paket"] == "282,50"     # /7 Personen
+
+
 # Echtes Layout (Variante A, anonymisiert) — getrennte Datumszeile mit
 # "Paket (Unterkunft)", Flugzeilen mit Zusatztext, Coupon mit "pro Buchung",
 # und die typische Dopplung Übersicht ↔ Detail (Bustransfer/Sitzplatz/Handgepäck).
