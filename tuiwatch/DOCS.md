@@ -53,8 +53,9 @@ verbose_log: false       # ausführliche Logs
   (Standard 80) → **Suchen**.
 - **Gespeicherte Suchen:** die kompletten Eingaben unter einem Namen speichern
   („★ Speichern") und später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
-  Sie liegen in der Add-on-Datenbank und sind damit **geräteübergreifend** verfügbar
-  (gleiche Liste auf Handy, Tablet, PC).
+  Eine geladene Suche kannst du nach Anpassungen mit **„💾 Änderungen speichern"** ohne
+  erneute Namenseingabe überschreiben. Sie liegen in der Add-on-Datenbank und sind damit
+  **geräteübergreifend** verfügbar (gleiche Liste auf Handy, Tablet, PC).
 
 **2. Aus einem Angebot:** Bei jedem aktiven Angebot der Button **Region** sucht **weitere
 Hotels derselben Region** für dieselben Reisedaten/Dauer/Reisende/Abflughafen; Veranstalter

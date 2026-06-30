@@ -363,7 +363,8 @@
       <div class="srch-fav" id="srch-favbar">
         <span>★ Gespeicherte Suche</span>
         <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
-        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben geräteübergreifend speichern">★ Speichern</button>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)">★ Speichern</button>
+        <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben">💾 Änderungen speichern</button>
         <button class="btn sec" onclick="delFav()" title="Gewählte Suche löschen">Löschen</button>
       </div>
 
@@ -1206,6 +1207,11 @@
       catch(e){ srchFavs = []; }
       $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
         + srchFavs.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
+      favBtnState();
+    }
+    // „Änderungen speichern" nur aktiv, wenn eine gespeicherte Suche gewählt ist.
+    function favBtnState(){
+      const b = $('#srch-favupd'); if(b) b.disabled = !$('#srch-favsel').value;
     }
     function curFav(){
       return { dest: srchDest, airport: $('#srch-airport').value,
@@ -1220,15 +1226,32 @@
       if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
       const name = prompt('Name für die gespeicherte Suche:', srchDest.label||'Suche');
       if(name===null) return;
-      let ok=false;
+      let ok=false, newId=null;
       try {
         const r = await fetch(api('/api/searches'), {method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({name: name.trim()||srchDest.label, payload: curFav()})});
+        ok = r.ok; if(ok){ newId = (await r.json()).id; }
+      } catch(e){}
+      if(ok){ await renderFavs(); if(newId!=null) $('#srch-favsel').value=newId; favBtnState(); toast('Suche gespeichert'); }
+      else { toast('Speichern fehlgeschlagen'); }
+    }
+    // Gewählte gespeicherte Suche überschreiben — ohne Namensabfrage (Upsert per Name).
+    async function updateFav(){
+      const id = $('#srch-favsel').value;
+      if(id===''){ toast('Keine gespeicherte Suche gewählt'); return; }
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      const fav = srchFavs.find(x=>String(x.id)===String(id)); if(!fav) return;
+      let ok=false;
+      try {
+        const r = await fetch(api('/api/searches'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name: fav.name, payload: curFav()})});
         ok = r.ok;
       } catch(e){}
-      if(ok){ await renderFavs(); toast('Suche gespeichert'); } else { toast('Speichern fehlgeschlagen'); }
+      if(ok){ await renderFavs(); $('#srch-favsel').value=id; favBtnState(); toast('Änderungen gespeichert'); }
+      else { toast('Speichern fehlgeschlagen'); }
     }
     function loadFav(){
+      favBtnState();
       const id = $('#srch-favsel').value; if(id==='') return;
       const fav = srchFavs.find(x=>String(x.id)===String(id)); if(!fav) return;
       const f = fav.payload||{};

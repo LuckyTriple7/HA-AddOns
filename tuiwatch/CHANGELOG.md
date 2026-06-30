@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.1] - 2026-06-30
+
+### Added
+- **„💾 Änderungen speichern"** bei den gespeicherten Suchen: Eine geladene Suche lässt sich
+  nach Anpassungen direkt überschreiben, ohne den Namen erneut eingeben zu müssen. Der
+  Button ist nur aktiv, wenn eine gespeicherte Suche ausgewählt ist; „★ Speichern" legt
+  weiterhin eine neue Suche (mit Namensabfrage) an.
+
 ## [0.24.0] - 2026-06-30
 
 ### Added
