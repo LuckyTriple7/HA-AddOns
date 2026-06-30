@@ -264,6 +264,29 @@ TUIfly X32169 – Economy Class
     assert d["fluege"][1]["von"] == "Gran Canaria (LPA)"
 
 
+def test_paket_zeile_mit_status_und_pro_person_nacht():
+    # Paket-Block mit angehängtem "bestätigt" hinter "(Unterkunft)" + 2 Reisende.
+    # Früher blieb der Zeitraum leer → keine €/Nacht-Berechnung.
+    txt = """\
+Buchung: 76767692
+Gast 1 Herr Andreas Waidele (06.11.1977) 1.444,00 €
+Gast 2 Herr Gerald Gauss-Peter (16.05.1984) 1.407,00 €
+01.05.2026 – Paket (Unterkunft) bestätigt
+11.05.2026 Riu Papayas (LPA31006)
+Playa del Ingles
+Verpflegung: All Inclusive
+Gesamtpreis 2.851,00 €
+"""
+    d = parse_tui_text(txt)
+    assert d["reisezeitraum"] == {"von": "01.05.2026", "bis": "11.05.2026"}
+    assert d["naechte"] == 10
+    assert d["hotel"] == {"name": "Riu Papayas", "code": "LPA31006"}
+    assert len(d["reisende"]) == 2
+    # ohne Extras/Rabatt: netto = 2851 ; /10 = 285,10 ; /10/2 = 142,55
+    assert d["preis_pro_nacht_paket"] == "285,10"
+    assert d["preis_pro_person_nacht_paket"] == "142,55"
+
+
 def test_leerer_text_bricht_nicht():
     d = parse_tui_text("")
     assert d["buchungsnummer"] is None

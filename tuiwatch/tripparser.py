@@ -122,7 +122,7 @@ def parse_tui_text(full_text: str) -> dict:
     #   18.09.2025 – Paket (Unterkunft)
     #   27.09.2025 LANDMAR Playa La Arena (TFS36040)
     m = re.search(
-        r"(\d{2}\.\d{2}\.\d{4})\s*[–-]\s*Paket\s*\(Unterkunft\)\s*\n"
+        r"(\d{2}\.\d{2}\.\d{4})\s*[–-]\s*Paket\s*\(Unterkunft\)[^\n]*\n"
         r"\s*(\d{2}\.\d{2}\.\d{4})\s+(.+?)\s*\((\w{3}\d{4,5})\)",
         full_text,
     )

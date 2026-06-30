@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.25.3] - 2026-06-30
+
+### Fixed
+- **PDF-Import:** Reisezeitraum (und damit **€/Nacht** sowie **€/Person/Nacht**) wurde nicht
+  berechnet, wenn der Paket-Block die Status-Spalte direkt anhängt
+  (`… – Paket (Unterkunft) bestätigt`). Betraf u. a. Buchungen mit mehreren Reisenden. Der
+  Zeitraum/Hotel wird jetzt unabhängig vom Zusatztext erkannt; die Pro-Person-Berechnung
+  (Division durch die Anzahl der Reisenden, 1–7) greift wieder.
+
 ## [0.25.2] - 2026-06-30
 
 ### Fixed
