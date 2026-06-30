@@ -331,12 +331,17 @@ def init_db() -> None:
             travellers    INTEGER,
             total_price   REAL,
             package_price REAL,
+            net_per_night REAL,
             meal          TEXT,
             data          TEXT NOT NULL DEFAULT '{}',
             pdf_name      TEXT,
             orig_name     TEXT,
             created       INTEGER NOT NULL
         )''')
+        # Migration: net_per_night in bestehenden trips-Tabellen nachrüsten
+        tcols = {r['name'] for r in con.execute('PRAGMA table_info(trips)').fetchall()}
+        if 'net_per_night' not in tcols:
+            con.execute("ALTER TABLE trips ADD COLUMN net_per_night REAL")
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
@@ -2316,7 +2321,7 @@ def api_trips():
         rows = con.execute(
             'SELECT id, booking_code, booking_date, title, destination, hotel, '
             'hotel_code, start_date, end_date, nights, travellers, total_price, '
-            'package_price, meal, pdf_name, orig_name FROM trips '
+            'package_price, net_per_night, meal, pdf_name, orig_name FROM trips '
             'ORDER BY start_date DESC, id DESC').fetchall()
     trips = [dict(r) for r in rows]
     for t in trips:
@@ -2331,7 +2336,23 @@ def api_trips():
         'package_sum': round(package_sum, 2),
         'avg_per_night': round(total_sum / nights_sum, 2) if nights_sum else 0.0,
     }
-    return jsonify({'trips': trips, 'stats': stats})
+    # Aufschlüsselung pro Reisejahr (nach Reisebeginn)
+    years: dict = {}
+    for t in trips:
+        y = (t['start_date'] or '')[:4]
+        if not y:
+            continue
+        a = years.setdefault(y, {'year': y, 'count': 0, 'nights_sum': 0, 'total_sum': 0.0})
+        a['count'] += 1
+        a['nights_sum'] += t['nights'] or 0
+        a['total_sum'] += t['total_price'] or 0.0
+    by_year = []
+    for y in sorted(years, reverse=True):
+        a = years[y]
+        a['total_sum'] = round(a['total_sum'], 2)
+        a['avg_per_night'] = round(a['total_sum'] / a['nights_sum'], 2) if a['nights_sum'] else 0.0
+        by_year.append(a)
+    return jsonify({'trips': trips, 'stats': stats, 'by_year': by_year})
 
 
 @app.route('/api/trips/<int:tid>', methods=['GET'])
@@ -2404,6 +2425,7 @@ def api_trip_import():
         'travellers': len(data.get('reisende') or []) or None,
         'total_price': _parse_eur_num(data.get('gesamtpreis')),
         'package_price': _parse_eur_num(data.get('paketpreis')),
+        'net_per_night': _parse_eur_num(data.get('preis_pro_nacht_paket')),
         'meal': data.get('verpflegung'),
         'data': json.dumps(data, ensure_ascii=False),
         'pdf_name': pdf_name,

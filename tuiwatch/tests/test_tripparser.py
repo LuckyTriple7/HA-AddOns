@@ -100,6 +100,10 @@ def test_gran_canaria_extras_und_summen():
     assert d["paketpreis"] == "2.730,00"
     assert d["preis_pro_nacht"] == "285,10"
     assert d["preis_pro_person_nacht"] == "142,55"
+    # Netto (ohne Extras, Rabatt 0) = 2730 ; /10 = 273,00 ; /Person = 136,50 (vgl. MD)
+    assert d["paketpreis_netto"] == "2.730,00"
+    assert d["preis_pro_nacht_paket"] == "273,00"
+    assert d["preis_pro_person_nacht_paket"] == "136,50"
 
 
 def test_sonderwunsch_ohne_internen_code():
@@ -233,6 +237,9 @@ def test_reales_layout_variante_a():
     assert d["extras_summe"] == "69,00"
     assert d["rabatte_summe"] == "-60,00"
     assert d["paketpreis"] == "1.940,00"
+    # Netto (o. Extras, Rabatt bereits im Gesamt) = 1949 - 69 = 1880 ; /9 = 208,89 (vgl. MD)
+    assert d["paketpreis_netto"] == "1.880,00"
+    assert d["preis_pro_nacht_paket"] == "208,89"
 
 
 def test_leerer_text_bricht_nicht():

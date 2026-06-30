@@ -50,10 +50,13 @@ def parse_tui_text(full_text: str) -> dict:
         "verpflegung": None,
         "gesamtpreis": None,
         "paketpreis": None,
+        "paketpreis_netto": None,
         "extras_summe": None,
         "rabatte_summe": None,
         "preis_pro_nacht": None,
         "preis_pro_person_nacht": None,
+        "preis_pro_nacht_paket": None,
+        "preis_pro_person_nacht_paket": None,
         "rabatte": [],
         "zahlungsart": None,
         "anzahlung": {"betrag": None, "faelligkeit": None},
@@ -282,16 +285,22 @@ def parse_tui_text(full_text: str) -> dict:
         rabatte_total += _parse_eur(r.get("betrag"))
     data["rabatte_summe"] = _fmt_eur(rabatte_total)
 
-    # Paketpreis = Gesamt − Extras − Rabatte (Rabatte negativ → addiert wieder auf)
+    # Paketpreis (brutto) = Gesamt − Extras − Rabatte (Rabatte negativ → wieder auf).
+    # Netto-Paketpreis = Gesamt − bezahlte Extras: der reine Reisepreis (Hotel/Flug/
+    # Transfer) nach Rabatt, ohne Extras (Rabatte stecken bereits im Gesamtpreis).
     if data["gesamtpreis"]:
         gesamt = _parse_eur(data["gesamtpreis"])
         paket = gesamt - extras_total - rabatte_total
+        netto = gesamt - extras_total
         data["paketpreis"] = _fmt_eur(paket)
+        data["paketpreis_netto"] = _fmt_eur(netto)
 
         if data["naechte"] and data["naechte"] > 0:
-            data["preis_pro_nacht"] = _fmt_eur(gesamt / data["naechte"])
             anz = max(len(data["reisende"]), 1)
+            data["preis_pro_nacht"] = _fmt_eur(gesamt / data["naechte"])
             data["preis_pro_person_nacht"] = _fmt_eur(gesamt / data["naechte"] / anz)
+            data["preis_pro_nacht_paket"] = _fmt_eur(netto / data["naechte"])
+            data["preis_pro_person_nacht_paket"] = _fmt_eur(netto / data["naechte"] / anz)
 
     return data
 

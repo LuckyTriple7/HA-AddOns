@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.25.1] - 2026-06-30
+
+### Added
+- **Reisen-Datenbank:** Pro Buchung jetzt der **Reisepreis pro Nacht** (reiner
+  Hotel-/Flug-/Transfer-Preis **nach Rabatt, ohne Extras**) — in der Liste je Reise und in
+  der Detailansicht zusätzlich **€/Person/Nacht** (entspricht der „€/Nacht"-Spalte der
+  Reisen-Übersicht).
+- **Statistik pro Reisejahr** (Reisen, Nächte, Ausgaben, Ø €/Nacht) zusätzlich zur
+  Gesamtstatistik.
+
 ## [0.25.0] - 2026-06-30
 
 ### Added

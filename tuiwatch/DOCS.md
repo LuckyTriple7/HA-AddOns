@@ -108,9 +108,12 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   Rabatte/Coupons, Zahlungsart sowie Gesamt-, Paket- und Pro-Nacht-Preis.
 - **PDF bleibt gespeichert:** Die Original-PDF wird dauerhaft unter `/data/trips` abgelegt
   und ist je Reise über **„PDF"** wieder **abrufbar** (öffnen/herunterladen).
-- **Liste & Detail:** Alle Reisen nach Reisebeginn sortiert; Klick auf **„Details"** zeigt
-  die komplette Aufschlüsselung inkl. Flügen, Extras und Zahlungen.
-- **Statistik:** Anzahl Reisen, Summe Nächte, Gesamtausgaben und Ø €/Nacht.
+- **Liste & Detail:** Alle Reisen nach Reisebeginn sortiert; je Reise auch der
+  **Reisepreis pro Nacht** (Hotel/Flug/Transfer **nach Rabatt, ohne Extras**). Klick auf
+  **„Details"** zeigt die komplette Aufschlüsselung inkl. Flügen, Extras, Zahlungen sowie
+  **€/Nacht** und **€/Person/Nacht** (Reisepreis und gesamt).
+- **Statistik:** Anzahl Reisen, Summe Nächte, Gesamtausgaben und Ø €/Nacht — gesamt **und
+  pro Reisejahr** aufgeschlüsselt.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
   gespeicherten PDF.
