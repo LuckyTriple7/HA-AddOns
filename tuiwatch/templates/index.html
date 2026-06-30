@@ -1331,7 +1331,7 @@
           <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
           <div class="sr-acts">
             <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
-            <button class="btn" id="srt-${i}" onclick="trackResult(${i})" ${r.tracked?'disabled':''}>${r.tracked?'getrackt':'Tracken'}</button>
+            <button class="btn" id="srt-${i}" onclick="trackResult(${i})" title="${r.tracked?'Bereits getrackt – mit den aktuellen Suchparametern (z. B. anderer Zeitraum) erneut hinzufügen':'Hotel ins Tracking übernehmen'}">${r.tracked?'+ Tracken':'Tracken'}</button>
           </div>
         </div>
       </div>`;
@@ -1365,18 +1365,19 @@
     async function trackResult(i){
       const r = srchResults[i]; if(!r) return;
       const btn = document.getElementById('srt-'+i);
+      // Hotel kann mehrfach getrackt werden (andere Zeiträume/Parameter) → Button bleibt
+      // nutzbar. Das Backend lehnt nur exakt identische Angebote ab (409).
+      const restore = ()=>{ if(btn){ btn.disabled=false; btn.textContent = r.tracked?'+ Tracken':'Tracken'; } };
       if(btn){ btn.disabled=true; btn.textContent='…'; }
       let resp;
       try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); }
-      catch(e){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
-      if(resp.status===409){ toast('Wird bereits verfolgt'); }
-      else if(!resp.ok){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
-      else {
-        toast('Getrackt – wird geprüft…');
-        // Direkt die Zimmerauswahl für das neue Angebot anbieten
-        try { const d=await resp.json(); if(d && d.id) openRooms(d.id); } catch(e){}
-      }
-      r.tracked=true; if(btn){ btn.textContent='getrackt'; }
+      catch(e){ toast('Fehler beim Hinzufügen'); restore(); return; }
+      if(resp.status===409){ toast('Dieses Angebot wird mit genau diesen Parametern bereits verfolgt'); restore(); return; }
+      if(!resp.ok){ toast('Fehler beim Hinzufügen'); restore(); return; }
+      toast('Getrackt – wird geprüft…');
+      // Direkt die Zimmerauswahl für das neue Angebot anbieten
+      try { const d=await resp.json(); if(d && d.id) openRooms(d.id); } catch(e){}
+      r.tracked=true; restore();
       loadOffers();
     }
     async function trackAll(){

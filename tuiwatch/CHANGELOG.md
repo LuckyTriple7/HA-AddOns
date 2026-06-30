@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.24.2] - 2026-06-30
+
+### Changed
+- **Bereits getrackte Hotels** lassen sich in der Suche jetzt **erneut tracken**: Der
+  Button ist nicht mehr deaktiviert, sondern fügt das Hotel mit den **aktuellen
+  Suchparametern** (z. B. anderer Zeitraum) als weiteres Angebot hinzu. Das „✓ getrackt"
+  am Namen bleibt als Hinweis bestehen; nur exakt identische Angebote (gleiche URL) werden
+  weiterhin abgelehnt.
+
 ## [0.24.1] - 2026-06-30
 
 ### Added

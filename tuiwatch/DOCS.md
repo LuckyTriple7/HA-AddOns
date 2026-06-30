@@ -69,7 +69,10 @@ Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/
 Weiterempfehlung oder Sternen und über ein **Suchfeld** nach Name/Ort/Verpflegung
 filterbar. Je Treffer **Tracken** oder **Öffnen** (tui.com), dazu **Alle tracken**.
 Nach dem **Tracken** öffnet sich direkt die **Zimmerauswahl** des neuen Angebots.
-Bereits **aktiv** getrackte Hotels sind markiert (archivierte zählen nicht).
+Bereits **aktiv** getrackte Hotels sind mit „✓ getrackt" markiert (archivierte zählen
+nicht). Der **Tracken**-Button bleibt aber nutzbar: Dasselbe Hotel kann **mehrfach** mit
+**unterschiedlichen Suchparametern** (z. B. anderer Zeitraum) verfolgt werden; nur exakt
+identische Angebote werden abgelehnt.
 
 Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
 **Ort/Region** (z. B. „Playa del
