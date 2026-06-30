@@ -163,6 +163,7 @@ def parse_tui_text(full_text: str) -> dict:
     # optionalem "Voraussichtliche Flugzeit:"-Präfix.
     for fm in re.finditer(
         r"(\d{2}\.\d{2}\.\d{4})\s+(Hin|Rück)flug[^\n]*\n"
+        r"(?:[^\n]*\n){0,3}?"                       # evtl. Statuszeile ("enthalten") dazwischen
         r"\s*(?:Voraussichtliche Flugzeit:\s*)?"
         r"(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})\s*Uhr\s*\(([^)]+)\)[^\n]*\n"
         r"\s*(.+?)\s*>\s*(.+?)\n"

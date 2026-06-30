@@ -242,6 +242,28 @@ def test_reales_layout_variante_a():
     assert d["preis_pro_nacht_paket"] == "208,89"
 
 
+def test_flug_mit_umgebrochener_statuszeile():
+    # In manchen PDFs steht die Status-Spalte ("enthalten") als eigene Zeile
+    # zwischen Datums- und Zeitzeile (v. a. beim Rückflug).
+    txt = """\
+03.05.2024 Hinflug 1 im Paket
+13:30 – 17:10 Uhr (4h 40m) enthalten
+Stuttgart (STR) > Gran Canaria (LPA)
+TUIfly X32168 – Economy Class
+13.05.2024 Rückflug 1 im Paket
+enthalten
+18:10 – 23:25 Uhr (4h 15m)
+Gran Canaria (LPA) > Stuttgart (STR)
+TUIfly X32169 – Economy Class
+"""
+    d = parse_tui_text(txt)
+    assert len(d["fluege"]) == 2
+    assert d["fluege"][0]["typ"] == "Hinflug"
+    assert d["fluege"][1]["typ"] == "Rückflug"
+    assert d["fluege"][1]["flugnummer"] == "TUIfly X32169"
+    assert d["fluege"][1]["von"] == "Gran Canaria (LPA)"
+
+
 def test_leerer_text_bricht_nicht():
     d = parse_tui_text("")
     assert d["buchungsnummer"] is None

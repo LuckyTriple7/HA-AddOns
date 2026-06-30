@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.2] - 2026-06-30
+
+### Fixed
+- **PDF-Import:** Der **Rückflug** wurde bei manchen Bestätigungen nicht erkannt, wenn die
+  Status-Spalte („enthalten") als eigene Zeile zwischen Datums- und Zeitzeile steht. Der
+  Flug-Parser überspringt solche Zwischenzeilen jetzt.
+
 ## [0.25.1] - 2026-06-30
 
 ### Added
