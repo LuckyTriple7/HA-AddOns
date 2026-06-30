@@ -33,10 +33,70 @@ def _fmt_eur(v: float) -> str:
     return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+# ── Vorreinigung ────────────────────────────────────────────────────────────
+# TUI-PDFs bestehen aus mehreren Seiten mit identischem Kopf/Fuß und Rechts-
+# Boilerplate; dazwischen verstreut PDF-Fußnoten-Hochzahlen (als eigene Zeile
+# "3" oder angehängt "… (PMI) 3") und die "auf einen Blick"-Übersicht mit
+# Punktelinien. Diese "Möbel" zerschießen mehrzeilige Feld-Regexes (z. B. einen
+# Flug, dessen Streckenzeile auf der Folgeseite hinter dem Fuß steht).
+#
+# Statt jede Feld-Regex einzeln tolerant zu machen, wird der Müll EINMAL zentral
+# entfernt. Neue Layout-Eigenheiten künftig hier ergänzen, nicht in den Feldern.
+
+# Reine Boilerplate-Zeilen → restlos entfernen (alle Vorkommen).
+_BOILERPLATE = re.compile(
+    r"^(?:"
+    r"Buchungsbestätigung/Rechnung"
+    r"|TUI Deutschland GmbH\b.*Karl-Wiechert-Allee"      # Absender-Kopfzeile
+    r"|TUI Deutschland GmbH, AG Hannover\b.*"            # Rechts-Fußzeile
+    r"|Geschäftsführung:.*"                              # 2. Rechts-Fußzeile (+ "Seite X/Y")
+    r"|Ihre Buchung im Detail#?\s*(?:\(Fortsetzung\))?"  # Abschnitts-Wiederholung
+    r"|Datum Details Gast Preis"                         # Tabellenkopf-Wiederholung
+    r"|Produkt Status|Teilnehmer Preis"                  # Übersichts-Tabellenköpfe
+    r")\s*$"
+)
+# Seiten-Footer mit Buchungsnummer/Datum: wird gebraucht, aber nur EINMAL —
+# weitere identische Vorkommen sind nur störendes Möbel zwischen den Blöcken.
+_PAGE_FOOTER = re.compile(r"^Buchung:\s*\d+\s*\|.*\bDatum:\s*\d{2}\.\d{2}\.\d{4}")
+# Punktelinie der "auf einen Blick"-Übersicht ("… . . . . bestätigt"). Die Zeile
+# selbst bleibt (manche Posten — z. B. ein Coupon — stehen NUR dort); nur die
+# Füll-Punkte werden entfernt. Dubletten fängt die Dedup-Logik unten ab.
+_DOTLEADER = re.compile(r"(?:\.\s){3,}\.?")
+# Reine Fußnoten-Hochzahl als eigene Zeile (1–2 Ziffern).
+_FOOTNOTE_LINE = re.compile(r"^\d{1,2}$")
+
+
+def _clean_text(full_text: str) -> str:
+    """Entfernt Seiten-Möbel/Fußnoten/Übersichts-Dubletten vor dem Parsen.
+
+    Bewusst konservativ: lässt jede Zeile mit echtem Inhalt unangetastet (außer dem
+    Abschneiden angehängter Fußnoten), damit die Feld-Regexes unverändert greifen.
+    """
+    out = []
+    footer_kept = False
+    for raw in (full_text or "").splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        if _DOTLEADER.search(s):          # Punktelinie der Übersicht → Punkte raus
+            s = _DOTLEADER.sub(" ", s).strip()
+        if _FOOTNOTE_LINE.match(s):       # alleinstehende Fußnoten-Ziffer → weg
+            continue
+        if _BOILERPLATE.match(s):         # Boilerplate → weg
+            continue
+        if _PAGE_FOOTER.match(s):         # Footer nur beim 1. Mal behalten
+            if footer_kept:
+                continue
+            footer_kept = True
+        out.append(s)
+    return "\n".join(out)
+
+
 def parse_tui_text(full_text: str) -> dict:
     """Parst den Volltext einer TUI-Reisebestätigung in ein strukturiertes Dict.
 
     Tolerant gegenüber den 3 bekannten Layout-Generationen (2024/2025/2026).
+    Der Text wird zunächst von Seiten-Möbeln/Fußnoten bereinigt (``_clean_text``).
     """
     data = {
         "buchungsnummer": None,
@@ -66,7 +126,7 @@ def parse_tui_text(full_text: str) -> dict:
         "sonderwuensche": [],
     }
 
-    full_text = full_text or ""
+    full_text = _clean_text(full_text)
 
     # Buchungsnummer
     m = re.search(r"Buchung:\s*(\d+)", full_text)
@@ -160,10 +220,10 @@ def parse_tui_text(full_text: str) -> dict:
 
     # Flüge — TUIfly UND Eurowings; tolerant gegenüber Zusatztext auf der Datums-
     # zeile ("Hinflug 1 im Paket") und der Zeitzeile ("(4h 40m) enthalten") sowie
-    # optionalem "Voraussichtliche Flugzeit:"-Präfix. Zwischen Zeit- und Streckenzeile
-    # kann ein kompletter Seitenumbruch (Footer + Kopf der Folgeseite) liegen — daher
-    # auch dort beliebige Zwischenzeilen erlauben (betraf u. a. nicht erkannte Rückflüge).
-    # Footnote-Marker (hochgestellte Ziffern als " 3"/" 4" am Zeilenende) werden entfernt.
+    # optionalem "Voraussichtliche Flugzeit:"-Präfix. Seiten-Möbel zwischen Zeit- und
+    # Streckenzeile (früher Ursache nicht erkannter Rückflüge) entfernt bereits
+    # _clean_text; die kleine Lücken-Toleranz ist nur noch ein Puffer. Restliche
+    # Fußnoten-Ziffern an der Strecke (" … (PMI) 3") schneidet _strip_footnote ab.
     def _strip_footnote(s):
         return re.sub(r"(\))\s+\d+\s*$", r"\1", s.strip()).strip()
 
@@ -172,7 +232,7 @@ def parse_tui_text(full_text: str) -> dict:
         r"(?:[^\n]*\n){0,3}?"                       # evtl. Statuszeile ("enthalten") dazwischen
         r"\s*(?:Voraussichtliche Flugzeit:\s*)?"
         r"(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})\s*Uhr\s*\(([^)]+)\)[^\n]*\n"
-        r"(?:[^\n>]*\n){0,10}?"                     # evtl. Seitenumbruch (Footer/Kopf) dazwischen
+        r"(?:[^\n>]*\n){0,2}?"                      # kleiner Puffer (Möbel raus via _clean_text)
         r"\s*([^>\n]+?)\s*>\s*([^>\n]+?)\n"
         r"\s*((?:TUIfly|Eurowings)\s+\S+)",
         full_text,

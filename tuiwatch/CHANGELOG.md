@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.25.8] - 2026-06-30
+
+### Changed
+- **PDF-Parser deutlich robuster gegen Layout-Änderungen.** Neue zentrale
+  Vorreinigung (`_clean_text`) entfernt vor dem Parsen einmalig die wiederkehrenden
+  Seiten-„Möbel" (Kopf-/Fußzeilen, Rechts-Boilerplate, `Seite X/Y`, wiederholte
+  Tabellenköpfe), alleinstehende Fußnoten-Hochzahlen sowie die Punktelinien der
+  „auf einen Blick"-Übersicht. Dadurch laufen die Feld-Regexes auf sauberem,
+  lückenlosem Text — der häufigste Bruchgrund (eingeschobene Zeilen durch
+  Seitenumbruch, z. B. nicht erkannte Rückflüge) entfällt. Künftige Eigenheiten
+  werden an **einer** Stelle gepflegt statt in jeder Regex einzeln.
+
+### Added
+- **Golden-Test-Korpus** (`tests/fixtures/trips/`): vier echte, PII-bereinigte
+  Buchungsbestätigungen (3 Layout-Generationen, 1–7 Reisende) mit erwartetem
+  Parse-Ergebnis. Bricht TUI künftig das Format, zeigt der Test exakt, welches
+  Feld kippt — gezielter Fix statt Raten.
+
 ## [0.25.7] - 2026-06-30
 
 ### Fixed
