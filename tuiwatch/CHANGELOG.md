@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.25.9] - 2026-06-30
+
+### Security
+- **CodeQL (HIGH): SQL-Struktur nicht mehr aus request-nahen Daten ableiten.** Beim
+  Reise-Import (`api_trip_import`) wurden die Spaltennamen für INSERT/UPDATE aus
+  `row.keys()` gebildet. Obwohl alle Werte parametrisiert (`?`) waren, markierte CodeQL
+  die aus Daten abgeleitete Query-Struktur. Spalten kommen jetzt aus einer festen
+  Code-Konstante `_TRIP_COLUMNS` (Whitelist, exakte Reihenfolge); ein Assert stellt
+  sicher, dass `row` keine unerwarteten Keys enthält. Funktional identisch.
+
 ## [0.25.8] - 2026-06-30
 
 ### Changed
