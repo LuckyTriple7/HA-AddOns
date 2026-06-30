@@ -96,6 +96,30 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 > Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
 > der unverbindliche „ab"-Lockpreis.
 
+## Meine Reisen (gebuchte Reisen / PDF-Import)
+
+Über **🧳 Meine Reisen** verwaltest du deine **gebuchten** TUI-Reisen — getrennt vom
+Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
+
+- **Import:** Eine **TUI-Reisebestätigung als PDF** auswählen oder per **Drag & Drop** in den
+  Import-Bereich ziehen. TUIWatch liest die Eckdaten automatisch aus: Buchungsnummer,
+  Reisende (1–7), Hotel + Reiseziel, Zeitraum/Nächte, Verpflegung, Hin-/Rückflug
+  (inkl. Airline & Flugnummer), Extras (Sitzplatz, Handgepäck, Flex Tarif, Bustransfer),
+  Rabatte/Coupons, Zahlungsart sowie Gesamt-, Paket- und Pro-Nacht-Preis.
+- **PDF bleibt gespeichert:** Die Original-PDF wird dauerhaft unter `/data/trips` abgelegt
+  und ist je Reise über **„PDF"** wieder **abrufbar** (öffnen/herunterladen).
+- **Liste & Detail:** Alle Reisen nach Reisebeginn sortiert; Klick auf **„Details"** zeigt
+  die komplette Aufschlüsselung inkl. Flügen, Extras und Zahlungen.
+- **Statistik:** Anzahl Reisen, Summe Nächte, Gesamtausgaben und Ø €/Nacht.
+- **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
+  den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
+  gespeicherten PDF.
+
+> Datenschutz: Die PDFs und ausgelesenen Daten bleiben **lokal** im Add-on (Ordner
+> `/data/trips` bzw. die Add-on-Datenbank) — es werden keine Daten nach außen gesendet.
+> Der PDF-Parser steckt im eigenen Modul `tripparser.py` und ist auf die bekannten
+> TUI-Layout-Varianten ausgelegt; bei unbekannten Formaten kann der Import abweichen.
+
 ## Wunschpreis & Benachrichtigungen
 
 - Pro Angebot kannst du im UI einen **Wunschpreis** setzen. Fällt der Preis auf

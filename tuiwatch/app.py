@@ -20,6 +20,7 @@ from collections import defaultdict, deque
 from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 from urllib.parse import quote, urlparse
 
 import requests as http
@@ -35,6 +36,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
+from tripparser import _parse_eur, parse_tui_pdf
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -66,12 +68,15 @@ _DATA = os.environ.get('TUIWATCH_DATA', '/data')
 CONFIG_PATH = _DATA + '/options.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 DB_PATH = _DATA + '/tuiwatch.db'
+TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
 
 POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
+MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
             static_folder=_BASE + '/static')
+app.config['MAX_CONTENT_LENGTH'] = MAX_PDF_BYTES
 
 
 class _IngressMiddleware:
@@ -310,6 +315,28 @@ def init_db() -> None:
             payload TEXT NOT NULL DEFAULT '{}',
             ts      INTEGER NOT NULL
         )''')
+        # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
+        # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
+        con.execute('''CREATE TABLE IF NOT EXISTS trips (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_code  TEXT UNIQUE,
+            booking_date  TEXT,
+            title         TEXT,
+            destination   TEXT,
+            hotel         TEXT,
+            hotel_code    TEXT,
+            start_date    TEXT,
+            end_date      TEXT,
+            nights        INTEGER,
+            travellers    INTEGER,
+            total_price   REAL,
+            package_price REAL,
+            meal          TEXT,
+            data          TEXT NOT NULL DEFAULT '{}',
+            pdf_name      TEXT,
+            orig_name     TEXT,
+            created       INTEGER NOT NULL
+        )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
@@ -333,6 +360,7 @@ def init_db() -> None:
             name = hotel_from_url(r['url'])
             if name:
                 con.execute('UPDATE offers SET hotel=? WHERE id=?', (name, r['id']))
+    Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
 
@@ -2236,6 +2264,216 @@ def api_searches_delete(sid):
         return err
     with db() as con:
         con.execute('DELETE FROM saved_searches WHERE id=?', (sid,))
+    return jsonify({'ok': True})
+
+
+# ── Reisen-Datenbank (gebuchte Reisen via PDF-Import) ───────────────────────────
+
+def _parse_eur_num(s):
+    """'1.736,00' -> 1736.0 ; None bei leer/0 (für saubere Statistik-Summen)."""
+    v = _parse_eur(s)
+    return v if v else None
+
+
+def _iso_date(de: str):
+    """'14.01.2027' -> '2027-01-14' (sortierbar); None bei Fehler."""
+    if not de:
+        return None
+    try:
+        return datetime.strptime(de.strip(), '%d.%m.%Y').strftime('%Y-%m-%d')
+    except (ValueError, AttributeError):
+        return None
+
+
+def _trip_pdf_path(pdf_name: str):
+    """Sicheren Pfad zur Reise-PDF im TRIPS_DIR liefern (Path-Traversal-Schutz).
+    Gibt None zurück, wenn der Name aus dem TRIPS_DIR ausbrechen würde."""
+    if not pdf_name:
+        return None
+    base = Path(TRIPS_DIR).resolve()
+    p = (base / Path(pdf_name).name).resolve()
+    try:
+        p.relative_to(base)
+    except ValueError:
+        return None
+    return p
+
+
+def _trip_title(data: dict) -> str:
+    """'Gran Canaria 2026' o. Ä. aus Reiseziel/Hotel + Reisejahr."""
+    ziel = (data.get('reiseziel') or data.get('hotel', {}).get('name') or 'Reise').strip()
+    von = (data.get('reisezeitraum') or {}).get('von') or ''
+    jahr = von[-4:] if len(von) >= 4 else ''
+    return f"{ziel} {jahr}".strip()
+
+
+@app.route('/api/trips', methods=['GET'])
+def api_trips():
+    """Liste gebuchter Reisen + aggregierte Statistik."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        rows = con.execute(
+            'SELECT id, booking_code, booking_date, title, destination, hotel, '
+            'hotel_code, start_date, end_date, nights, travellers, total_price, '
+            'package_price, meal, pdf_name, orig_name FROM trips '
+            'ORDER BY start_date DESC, id DESC').fetchall()
+    trips = [dict(r) for r in rows]
+    for t in trips:
+        t['has_pdf'] = bool(t.get('pdf_name'))
+    nights_sum = sum((t['nights'] or 0) for t in trips)
+    total_sum = sum((t['total_price'] or 0.0) for t in trips)
+    package_sum = sum((t['package_price'] or 0.0) for t in trips)
+    stats = {
+        'count': len(trips),
+        'nights_sum': nights_sum,
+        'total_sum': round(total_sum, 2),
+        'package_sum': round(package_sum, 2),
+        'avg_per_night': round(total_sum / nights_sum, 2) if nights_sum else 0.0,
+    }
+    return jsonify({'trips': trips, 'stats': stats})
+
+
+@app.route('/api/trips/<int:tid>', methods=['GET'])
+def api_trip_detail(tid):
+    """Vollständige Detaildaten einer Reise (geparstes JSON)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT * FROM trips WHERE id=?', (tid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    trip = dict(row)
+    try:
+        trip['data'] = json.loads(trip.get('data') or '{}')
+    except Exception:
+        trip['data'] = {}
+    trip['has_pdf'] = bool(trip.get('pdf_name'))
+    return jsonify(trip)
+
+
+@app.route('/api/trips/import', methods=['POST'])
+def api_trip_import():
+    """TUI-Reisebestätigungs-PDF hochladen, parsen, dauerhaft speichern (Upsert
+    per Buchungsnummer)."""
+    if (err := _require_api()):
+        return err
+    file = request.files.get('pdf')
+    if file is None or not file.filename:
+        return jsonify({'error': 'no_file'}), 400
+    if Path(file.filename).suffix.lower() != '.pdf':
+        return jsonify({'error': 'not_pdf'}), 400
+
+    raw = file.read()
+    if not raw:
+        return jsonify({'error': 'empty'}), 400
+    if len(raw) > MAX_PDF_BYTES:
+        return jsonify({'error': 'too_large'}), 413
+
+    try:
+        data = parse_tui_pdf(io.BytesIO(raw))
+    except Exception as exc:
+        log.warning("PDF-Import fehlgeschlagen: %s", exc)
+        return jsonify({'error': 'parse_failed'}), 422
+
+    booking = (data.get('buchungsnummer') or '').strip()
+    ts = int(time.time())
+    pdf_name = f"{booking or ('trip_' + str(ts))}.pdf"
+    target = _trip_pdf_path(pdf_name)
+    if target is None:
+        return jsonify({'error': 'bad_name'}), 400
+
+    Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
+    try:
+        target.write_bytes(raw)
+    except OSError as exc:
+        log.warning("PDF speichern fehlgeschlagen: %s", exc)
+        return jsonify({'error': 'store_failed'}), 500
+
+    orig = Path(file.filename).name
+    row = {
+        'booking_code': booking or None,
+        'booking_date': data.get('buchungsdatum'),
+        'title': _trip_title(data),
+        'destination': data.get('reiseziel'),
+        'hotel': (data.get('hotel') or {}).get('name'),
+        'hotel_code': (data.get('hotel') or {}).get('code'),
+        'start_date': _iso_date((data.get('reisezeitraum') or {}).get('von')),
+        'end_date': _iso_date((data.get('reisezeitraum') or {}).get('bis')),
+        'nights': data.get('naechte'),
+        'travellers': len(data.get('reisende') or []) or None,
+        'total_price': _parse_eur_num(data.get('gesamtpreis')),
+        'package_price': _parse_eur_num(data.get('paketpreis')),
+        'meal': data.get('verpflegung'),
+        'data': json.dumps(data, ensure_ascii=False),
+        'pdf_name': pdf_name,
+        'orig_name': orig,
+        'created': ts,
+    }
+    cols = list(row.keys())
+    with db() as con:
+        existing = None
+        if booking:
+            existing = con.execute(
+                'SELECT id, pdf_name FROM trips WHERE booking_code=?', (booking,)).fetchone()
+        if existing:
+            # ggf. alte PDF mit abweichendem Namen entfernen
+            old = existing['pdf_name']
+            if old and old != pdf_name:
+                op = _trip_pdf_path(old)
+                if op and op.exists():
+                    try:
+                        op.unlink()
+                    except OSError:
+                        pass
+            setclause = ', '.join(f'{c}=?' for c in cols)
+            con.execute(f'UPDATE trips SET {setclause} WHERE id=?',
+                        [row[c] for c in cols] + [existing['id']])
+            tid = existing['id']
+        else:
+            placeholders = ', '.join('?' for _ in cols)
+            cur = con.execute(
+                f'INSERT INTO trips ({", ".join(cols)}) VALUES ({placeholders})',
+                [row[c] for c in cols])
+            tid = cur.lastrowid
+    log.info("Reise importiert: %s (#%s)", row['title'], booking or tid)
+    return jsonify({'ok': True, 'id': tid, 'data': data})
+
+
+@app.route('/api/trips/<int:tid>/pdf', methods=['GET'])
+def api_trip_pdf(tid):
+    """Gespeicherte Reise-PDF ausliefern (öffnen/herunterladen)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT pdf_name, orig_name FROM trips WHERE id=?',
+                          (tid,)).fetchone()
+    if not row or not row['pdf_name']:
+        return jsonify({'error': 'not_found'}), 404
+    p = _trip_pdf_path(row['pdf_name'])
+    if p is None or not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    return send_file(str(p), mimetype='application/pdf',
+                     download_name=row['orig_name'] or 'reise.pdf')
+
+
+@app.route('/api/trips/<int:tid>', methods=['DELETE'])
+def api_trip_delete(tid):
+    """Reise löschen — inkl. der dauerhaft gespeicherten PDF."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT pdf_name FROM trips WHERE id=?', (tid,)).fetchone()
+        if not row:
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM trips WHERE id=?', (tid,))
+    if row['pdf_name']:
+        p = _trip_pdf_path(row['pdf_name'])
+        if p and p.exists():
+            try:
+                p.unlink()
+            except OSError as exc:
+                log.warning("PDF löschen fehlgeschlagen: %s", exc)
     return jsonify({'ok': True})
 
 

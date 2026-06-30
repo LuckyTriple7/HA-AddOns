@@ -259,6 +259,30 @@
     #tw-console-body{ flex:1; overflow-y:auto; padding:6px 10px; line-height:1.6; color:#c9d1d9; }
     #tw-console-body::-webkit-scrollbar{ width:5px; } #tw-console-body::-webkit-scrollbar-thumb{ background:#30363d; border-radius:3px; }
     .twc-info{color:#8b949e;} .twc-warn{color:#d29922;} .twc-error{color:#f85149;} .twc-debug{color:#6e7681;}
+    /* Reisen-Datenbank */
+    .trips-stats { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
+    .trips-stats .tstat { flex:1 1 120px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
+    .trips-stats .tstat .v { font-size:1.1rem; font-weight:700; color:var(--text); }
+    .trips-stats .tstat .l { font-size:.74rem; color:var(--muted); }
+    .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:8px; padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
+    .trips-import.drag { border-color:var(--accent); background:rgba(59,130,246,.08); }
+    .trips-imp-hint { font-size:.8rem; color:var(--muted); }
+    .trips-imp-status { font-size:.8rem; color:var(--accent); margin-left:auto; }
+    .trip-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--surf); }
+    .trip-row .ti { flex:1; min-width:0; }
+    .trip-row .ti .t { font-weight:600; color:var(--text); }
+    .trip-row .ti .m { font-size:.8rem; color:var(--muted); }
+    .trip-row .tp { font-weight:700; white-space:nowrap; }
+    .trip-row .ta { display:flex; gap:6px; flex-wrap:wrap; }
+    .trips-empty { color:var(--muted); font-size:.86rem; padding:10px 2px; }
+    .trip-detail { border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:12px; background:var(--bg); }
+    .trip-detail h3 { margin:0 0 4px; font-size:1.05rem; }
+    .trip-detail .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 16px; margin:10px 0; font-size:.84rem; }
+    .trip-detail .dgrid .k { color:var(--muted); }
+    .trip-detail table.tdt { width:100%; border-collapse:collapse; font-size:.8rem; margin:6px 0 12px; }
+    .trip-detail table.tdt th, .trip-detail table.tdt td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
+    .trip-detail table.tdt th { color:var(--muted); font-weight:600; }
+    .trip-detail .dsec { font-weight:600; margin:10px 0 4px; }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
   </style>
 </head>
@@ -288,6 +312,7 @@
 
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Hotels suchen</button>
+      <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
@@ -482,6 +507,29 @@
       <div style="margin-top:14px; text-align:right">
         <button class="btn" onclick="runHealth()">Erneut prüfen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Reisen-Datenbank-Modal -->
+  <div class="modal-bg" id="trips-bg">
+    <div class="modal" style="max-width:960px">
+      <button class="icon-btn modal-close" onclick="closeTrips()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Meine Reisen</h2>
+      <div class="sub">Gebuchte TUI-Reisen als Bestätigungs-PDF importieren — Eckdaten werden ausgelesen, die PDF bleibt dauerhaft gespeichert und abrufbar.</div>
+
+      <div id="trips-stats" class="trips-stats"></div>
+
+      <div class="trips-import" id="trips-drop">
+        <input type="file" id="trip-file" accept="application/pdf,.pdf" style="display:none" onchange="importTrip(this)">
+        <button class="btn" onclick="$('#trip-file').click()">📄 PDF importieren</button>
+        <span class="trips-imp-hint">TUI-Reisebestätigung (.pdf) hierher ziehen oder auswählen</span>
+        <span id="trip-imp-status" class="trips-imp-status"></span>
+      </div>
+
+      <div id="trips-list"></div>
+      <div id="trip-detail" class="trip-detail" style="display:none"></div>
     </div>
   </div>
 
@@ -1127,6 +1175,120 @@
     }
     function closeSearch(){ $('#srch-bg').classList.remove('show'); }
     $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
+
+    // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
+    let tripsData = [];
+    function eur(v){ return (v==null||v==='')?'–':Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+    function deDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso; }
+    function openTrips(){ $('#trip-detail').style.display='none'; $('#trips-bg').classList.add('show'); loadTrips(); }
+    function closeTrips(){ $('#trips-bg').classList.remove('show'); }
+    $('#trips-bg').addEventListener('click', e=>{ if(e.target.id==='trips-bg') closeTrips(); });
+
+    async function loadTrips(){
+      let d={trips:[],stats:{}};
+      try { d = await fetch(api('/api/trips')).then(r=>r.json()); } catch(e){}
+      tripsData = d.trips||[];
+      const s = d.stats||{};
+      $('#trips-stats').innerHTML = [
+        ['Reisen', s.count||0],
+        ['Nächte', s.nights_sum||0],
+        ['Gesamtausgaben', eur(s.total_sum)],
+        ['Ø €/Nacht', eur(s.avg_per_night)],
+      ].map(([l,v])=>`<div class="tstat"><div class="v">${esc(String(v))}</div><div class="l">${l}</div></div>`).join('');
+      renderTrips();
+    }
+    function renderTrips(){
+      const el = $('#trips-list');
+      if(!tripsData.length){ el.innerHTML = '<div class="trips-empty">Noch keine Reisen importiert. Lade oben eine TUI-Reisebestätigung als PDF hoch.</div>'; return; }
+      el.innerHTML = tripsData.map(t=>{
+        const zeit = (t.start_date||t.end_date)?`${deDate(t.start_date)} – ${deDate(t.end_date)}`:'';
+        const meta = [t.hotel, t.destination, zeit,
+          (t.nights?`${t.nights} Nächte`:''),
+          (t.travellers?`${t.travellers} Reisende`:'')].filter(Boolean).join(' · ');
+        const pdf = t.has_pdf?`<a class="btn sec" href="${api('/api/trips/'+t.id+'/pdf')}" target="_blank" rel="noopener">PDF</a>`:'';
+        return `<div class="trip-row">
+          <div class="ti"><div class="t">${esc(t.title||('Reise #'+t.id))}</div><div class="m">${esc(meta)}</div></div>
+          <div class="tp">${eur(t.total_price)}</div>
+          <div class="ta">
+            <button class="btn sec" onclick="showTripDetail(${t.id})">Details</button>
+            ${pdf}
+            <button class="btn danger" onclick="delTrip(${t.id})">Löschen</button>
+          </div></div>`;
+      }).join('');
+    }
+
+    async function importTrip(input){
+      const f = input.files && input.files[0];
+      if(!f) return;
+      $('#trip-imp-status').textContent = 'Importiere…';
+      const fd = new FormData(); fd.append('pdf', f);
+      let resp, d;
+      try { resp = await fetch(api('/api/trips/import'), {method:'POST', body:fd}); d = await resp.json().catch(()=>({})); }
+      catch(e){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); input.value=''; return; }
+      input.value='';
+      if(resp.status===413){ $('#trip-imp-status').textContent=''; toast('PDF zu groß (max. 16 MB)'); return; }
+      if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – ist es eine TUI-Reisebestätigung?'); return; }
+      if(!resp.ok){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); return; }
+      $('#trip-imp-status').textContent = '✓ importiert';
+      setTimeout(()=>{ $('#trip-imp-status').textContent=''; }, 2500);
+      toast('Reise importiert');
+      await loadTrips();
+      if(d && d.id) showTripDetail(d.id);
+    }
+
+    async function showTripDetail(id){
+      let t;
+      try { const r = await fetch(api('/api/trips/'+id)); if(!r.ok){ toast('Reise nicht gefunden'); return; } t = await r.json(); }
+      catch(e){ toast('Fehler beim Laden'); return; }
+      const d = t.data||{};
+      const row = (k,v)=> v?`<div><span class="k">${k}:</span> ${esc(String(v))}</div>`:'';
+      const grid = [
+        row('Buchungsnr.', d.buchungsnummer),
+        row('Gebucht am', d.buchungsdatum),
+        row('Reiseziel', d.reiseziel),
+        row('Hotel', (d.hotel||{}).name + ((d.hotel||{}).code?` (${d.hotel.code})`:'')),
+        row('Zeitraum', (d.reisezeitraum||{}).von?`${d.reisezeitraum.von} – ${d.reisezeitraum.bis} (${d.naechte||'?'} Nächte)`:''),
+        row('Zimmer', d.zimmertyp),
+        row('Verpflegung', d.verpflegung),
+        row('Gesamtpreis', d.gesamtpreis?d.gesamtpreis+' €':''),
+        row('Paketpreis', d.paketpreis?d.paketpreis+' €':''),
+        row('Zahlungsart', d.zahlungsart),
+        row('Anzahlung', (d.anzahlung||{}).betrag?`${d.anzahlung.betrag} € · fällig ${d.anzahlung.faelligkeit||'?'}`:''),
+        row('Restzahlung', (d.restzahlung||{}).betrag?`${d.restzahlung.betrag} € · fällig ${d.restzahlung.faelligkeit||'?'}`:''),
+      ].join('');
+      const reisende = (d.reisende||[]).length?`<div class="dsec">Reisende</div><table class="tdt"><tr><th>Name</th><th>Geburtsdatum</th><th>Preis</th></tr>${
+        d.reisende.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.geburtsdatum||'')}</td><td>${esc(p.preis||'')} €</td></tr>`).join('')}</table>`:'';
+      const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th></tr>${
+        d.fluege.map(f=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td></tr>`).join('')}</table>`:'';
+      const extras = (d.extras||[]).length?`<div class="dsec">Extras</div><table class="tdt"><tr><th>Typ</th><th>Details</th><th>Preis</th></tr>${
+        d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
+      const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
+        d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
+      const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
+      const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
+      const box = $('#trip-detail');
+      box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
+        <div style="margin-bottom:6px">${pdf} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
+      box.style.display='block';
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    async function delTrip(id){
+      if(!confirm('Diese Reise inkl. gespeicherter PDF wirklich löschen?')) return;
+      let ok=false;
+      try { const r = await fetch(api('/api/trips/'+id), {method:'DELETE'}); ok = r.ok; } catch(e){}
+      if(ok){ $('#trip-detail').style.display='none'; toast('Reise gelöscht'); loadTrips(); }
+      else toast('Löschen fehlgeschlagen');
+    }
+
+    // Drag & Drop für PDF-Import
+    (function(){
+      const dz = $('#trips-drop'); if(!dz) return;
+      ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.add('drag'); }));
+      ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+      dz.addEventListener('drop', e=>{ const f=e.dataTransfer&&e.dataTransfer.files; if(f&&f.length){ const inp=$('#trip-file'); inp.files=f; importTrip(inp); } });
+    })();
 
     // — Reiseziel-Picker (Drilldown) —
     async function loadDest(parent){
