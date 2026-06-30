@@ -4,7 +4,7 @@ Arbeitet mit gecrafteten Volltext-Schnipseln, die die in C:\\Temp\\PDF\\CLAUDE.m
 dokumentierten Muster der 3 Layout-Generationen abbilden — so testbar ohne echte
 PDFs/pdfplumber.
 """
-from tripparser import _parse_eur, parse_tui_text
+from tripparser import _parse_eur, check_fields, parse_tui_text
 
 # Gran Canaria 2026 — 2 Reisende, alle Extras, gemischte Codes
 GC2026 = """\
@@ -303,6 +303,62 @@ Gesamtpreis 2.851,00 €
     # ohne Extras/Rabatt: netto = 2851 ; /10 = 285,10 ; /10/2 = 142,55
     assert d["preis_pro_nacht_paket"] == "285,10"
     assert d["preis_pro_person_nacht_paket"] == "142,55"
+
+
+def test_flug_mit_seitenumbruch_und_fussnoten():
+    # Echtes Mallorca-2025-Layout: Zwischen Zeit- und Streckenzeile des Rückflugs
+    # liegt ein kompletter Seitenumbruch (Footer + Folgeseiten-Kopf); zudem hängen
+    # hochgestellte Fußnoten-Ziffern (" 3"/" 4") an Strecke und Airline.
+    txt = """\
+25.07.2025 Hinflug 1 im Paket
+05:55 – 08:00 Uhr (2h 5m) 2 enthalten
+Stuttgart (STR) > Palma de Mallorca (PMI) 3
+TUIfly X32714 – Economy Class 4
+27.07.2025 Rückflug 1 im Paket
+19:40 – 21:50 Uhr (2h 10m) 2 enthalten
+TUI Deutschland GmbH, AG Hannover · HRB 62522 · Vorsitzender des Aufsichtsrates
+Geschäftsführung: Benjamin Jacobi · Telefonnummer: +49 511 87 9898-98 Seite 3/6
+Buchungsbestätigung/Rechnung
+Buchung: 75595465 | Datum: 04.04.2025 10:55 Uhr
+Ihre Buchung im Detail# (Fortsetzung)
+Datum Details Gast Preis
+Palma de Mallorca (PMI) > Stuttgart (STR) 3
+TUIfly X32715 – Economy Class 4
+"""
+    d = parse_tui_text(txt)
+    assert len(d["fluege"]) == 2
+    assert d["fluege"][0]["typ"] == "Hinflug"
+    assert d["fluege"][0]["nach"] == "Palma de Mallorca (PMI)"   # Fußnote entfernt
+    assert d["fluege"][1]["typ"] == "Rückflug"
+    assert d["fluege"][1]["von"] == "Palma de Mallorca (PMI)"
+    assert d["fluege"][1]["nach"] == "Stuttgart (STR)"
+    assert d["fluege"][1]["flugnummer"] == "TUIfly X32715"
+
+
+def test_check_fields_vollstaendig():
+    # Die komplette Gran-Canaria-Bestätigung darf keine Hinweise erzeugen.
+    assert check_fields(parse_tui_text(GC2026)) == []
+
+
+def test_check_fields_meldet_fehlenden_rueckflug():
+    txt = """\
+01.05.2026 Hinflug
+13:30 – 17:10 Uhr (4h 40m)
+Stuttgart (STR) > Gran Canaria (LPA)
+TUIfly X32168
+"""
+    warn = check_fields(parse_tui_text(txt))
+    assert "Rückflug" in warn
+    assert "Hinflug" not in warn
+    assert "Buchungsnummer" in warn
+    assert "Gesamtpreis" in warn
+
+
+def test_check_fields_leer_meldet_alles():
+    warn = check_fields(parse_tui_text(""))
+    assert "Flüge" in warn
+    assert "Reisezeitraum" in warn
+    assert "Reisende" in warn
 
 
 def test_leerer_text_bricht_nicht():

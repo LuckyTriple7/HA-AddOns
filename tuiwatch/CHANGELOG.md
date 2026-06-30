@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.25.7] - 2026-06-30
+
+### Fixed
+- **PDF-Import: Rückflug über Seitenumbruch.** Lag zwischen Zeit- und Streckenzeile
+  eines Fluges ein kompletter Seitenumbruch (Footer + Folgeseiten-Kopf, z. B. bei
+  Mallorca-Bestätigungen), wurde der Rückflug nicht erkannt. Der Parser überspringt
+  jetzt Zwischenzeilen bis zur Streckenzeile. Zudem werden hochgestellte
+  Fußnoten-Ziffern (z. B. „… (PMI) 3") aus Strecke/Flughafen entfernt.
+
+### Added
+- **Import-Hinweis bei unvollständiger Erkennung.** Werden beim PDF-Import wichtige
+  Felder nicht (vollständig) erkannt (z. B. Hotel, Reisezeitraum, Gesamtpreis, Hin-/
+  Rückflug), erscheint ein Hinweis-Toast und ein gelber Hinweisbalken in der
+  Reise-Detailansicht mit der Liste der betroffenen Felder.
+
 ## [0.25.6] - 2026-06-30
 
 ### Added

@@ -160,13 +160,20 @@ def parse_tui_text(full_text: str) -> dict:
 
     # Flüge — TUIfly UND Eurowings; tolerant gegenüber Zusatztext auf der Datums-
     # zeile ("Hinflug 1 im Paket") und der Zeitzeile ("(4h 40m) enthalten") sowie
-    # optionalem "Voraussichtliche Flugzeit:"-Präfix.
+    # optionalem "Voraussichtliche Flugzeit:"-Präfix. Zwischen Zeit- und Streckenzeile
+    # kann ein kompletter Seitenumbruch (Footer + Kopf der Folgeseite) liegen — daher
+    # auch dort beliebige Zwischenzeilen erlauben (betraf u. a. nicht erkannte Rückflüge).
+    # Footnote-Marker (hochgestellte Ziffern als " 3"/" 4" am Zeilenende) werden entfernt.
+    def _strip_footnote(s):
+        return re.sub(r"(\))\s+\d+\s*$", r"\1", s.strip()).strip()
+
     for fm in re.finditer(
         r"(\d{2}\.\d{2}\.\d{4})\s+(Hin|Rück)flug[^\n]*\n"
         r"(?:[^\n]*\n){0,3}?"                       # evtl. Statuszeile ("enthalten") dazwischen
         r"\s*(?:Voraussichtliche Flugzeit:\s*)?"
         r"(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})\s*Uhr\s*\(([^)]+)\)[^\n]*\n"
-        r"\s*(.+?)\s*>\s*(.+?)\n"
+        r"(?:[^\n>]*\n){0,10}?"                     # evtl. Seitenumbruch (Footer/Kopf) dazwischen
+        r"\s*([^>\n]+?)\s*>\s*([^>\n]+?)\n"
         r"\s*((?:TUIfly|Eurowings)\s+\S+)",
         full_text,
     ):
@@ -176,8 +183,8 @@ def parse_tui_text(full_text: str) -> dict:
             "abflug_zeit": fm.group(3),
             "ankunft_zeit": fm.group(4),
             "dauer": fm.group(5).strip(),
-            "von": fm.group(6).strip(),
-            "nach": fm.group(7).strip(),
+            "von": _strip_footnote(fm.group(6)),
+            "nach": _strip_footnote(fm.group(7)),
             "flugnummer": fm.group(8).strip(),
         })
 
@@ -304,6 +311,43 @@ def parse_tui_text(full_text: str) -> dict:
             data["preis_pro_person_nacht_paket"] = _fmt_eur(netto / data["naechte"] / anz)
 
     return data
+
+
+def check_fields(data: dict) -> list:
+    """Listet wichtige Felder, die beim Parsen nicht (vollständig) erkannt wurden.
+
+    Liefert menschenlesbare deutsche Labels für einen Import-Hinweis. Leer = alles ok.
+    """
+    data = data or {}
+    warn = []
+    if not data.get("buchungsnummer"):
+        warn.append("Buchungsnummer")
+    if not data.get("buchungsdatum"):
+        warn.append("Buchungsdatum")
+    if not data.get("reiseziel"):
+        warn.append("Reiseziel")
+    if not (data.get("hotel") or {}).get("name"):
+        warn.append("Hotel")
+    z = data.get("reisezeitraum") or {}
+    if not (z.get("von") and z.get("bis")):
+        warn.append("Reisezeitraum")
+    elif not data.get("naechte"):
+        warn.append("Nächte")
+    if not data.get("verpflegung"):
+        warn.append("Verpflegung")
+    if not data.get("gesamtpreis"):
+        warn.append("Gesamtpreis")
+    if not data.get("reisende"):
+        warn.append("Reisende")
+    fl = data.get("fluege") or []
+    if not fl:
+        warn.append("Flüge")
+    else:
+        if not any((f.get("typ") or "").startswith("Hin") for f in fl):
+            warn.append("Hinflug")
+        if not any((f.get("typ") or "").startswith("Rück") for f in fl):
+            warn.append("Rückflug")
+    return warn
 
 
 def parse_tui_pdf(fileobj) -> dict:

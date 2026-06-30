@@ -36,7 +36,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
-from tripparser import _parse_eur, parse_tui_pdf
+from tripparser import _parse_eur, check_fields, parse_tui_pdf
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -2376,6 +2376,7 @@ def api_trip_detail(tid):
     except Exception:
         trip['data'] = {}
     trip['has_pdf'] = bool(trip.get('pdf_name'))
+    trip['warnings'] = check_fields(trip['data'])
     return jsonify(trip)
 
 
@@ -2464,8 +2465,12 @@ def api_trip_import():
                 f'INSERT INTO trips ({", ".join(cols)}) VALUES ({placeholders})',
                 [row[c] for c in cols])
             tid = cur.lastrowid
+    warnings = check_fields(data)
+    if warnings:
+        log.warning("Reise-Import #%s: nicht erkannte Felder: %s",
+                    booking or tid, ", ".join(warnings))
     log.info("Reise importiert: %s (#%s)", row['title'], booking or tid)
-    return jsonify({'ok': True, 'id': tid, 'data': data})
+    return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings})
 
 
 @app.route('/api/trips/<int:tid>/pdf', methods=['GET'])
