@@ -38,7 +38,10 @@ verbose_log: false       # ausführliche Logs
 **1. Suchmaske (empfohlen, ohne URL):**
 - **Reiseziel** über den Picker wählen — Drilldown **Land → Region → Insel** (z. B.
   Spanien → Kanarische Inseln → Gran Canaria); „Ganze Region wählen" auf jeder Ebene.
-  Ein **Suchfeld** filtert die aktuell angezeigte Liste.
+  Das **Suchfeld** durchsucht **alle Ebenen** auf einmal: Tippst du z. B. „Kanarische
+  Inseln", erscheint das Ziel direkt (mit Pfad „— Spanien › Kanarische Inseln"), ohne erst
+  Spanien öffnen zu müssen. (Grundlage ist ein Reiseziel-Index, der beim Start im
+  Hintergrund aufgebaut und in der Datenbank zwischengespeichert wird.)
 - **Abflughafen** (TUI-Liste, zuletzt genutzter wird gemerkt), **Zeitraum von–bis** +
   **Nächte**, **Reisende**.
 - **Fluggesellschaften** (optional): Dropdown mit Mehrfachauswahl — leer = alle. Die
@@ -48,8 +51,10 @@ verbose_log: false       # ausführliche Logs
   **Verpflegung** (AI/HP/VP/Frühstück/Ohne — Mehrfachauswahl, jeweils inkl. „Plus"-Variante
   bzw. „laut Programm"), **Sterne ≥** (Standard 3), **Weiterempfehlung ≥ %**
   (Standard 80) → **Suchen**.
-- **Favoriten:** die kompletten Eingaben unter einem Namen speichern („★ Speichern") und
-  später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
+- **Gespeicherte Suchen:** die kompletten Eingaben unter einem Namen speichern
+  („★ Speichern") und später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
+  Sie liegen in der Add-on-Datenbank und sind damit **geräteübergreifend** verfügbar
+  (gleiche Liste auf Handy, Tablet, PC).
 
 **2. Aus einem Angebot:** Bei jedem aktiven Angebot der Button **Region** sucht **weitere
 Hotels derselben Region** für dieselben Reisedaten/Dauer/Reisende/Abflughafen; Veranstalter

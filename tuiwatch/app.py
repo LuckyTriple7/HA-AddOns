@@ -28,6 +28,7 @@ from flask import (Flask, jsonify, make_response, redirect, render_template,
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
+                     build_destination_index,
                      duration_from_url, fetch_airlines, fetch_airports,
                      fetch_calendar, fetch_destinations, fetch_hotel_image,
                      fetch_price, fetch_rooms, fetch_search, fetch_search_params,
@@ -300,6 +301,14 @@ def init_db() -> None:
         con.execute('''CREATE TABLE IF NOT EXISTS meta (
             key   TEXT PRIMARY KEY,
             value TEXT
+        )''')
+        # Gespeicherte Suchen (Favoriten) — in der DB statt im Browser, damit sie
+        # geräteübergreifend verfügbar sind. payload = JSON der Sucheingaben.
+        con.execute('''CREATE TABLE IF NOT EXISTS saved_searches (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name    TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            ts      INTEGER NOT NULL
         )''')
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
@@ -2078,6 +2087,69 @@ def api_search():
 _dest_cache: dict = {}     # parent → {parentName, items}
 _airports_cache: list = []  # einmalig geladen
 
+# ── Reiseziel-Index (globale Suche über alle Ebenen) ───────────────────────────
+# Der Picker lädt je Ebene nach (Land → Region → Insel …). Für eine Suche, die auch
+# tief verschachtelte Ziele wie "Kanarische Inseln" (unter Spanien) findet, halten
+# wir einen flachen Index des kompletten Baums vor. Der Aufbau ist teuer (~1000+
+# API-Aufrufe), daher persistiert in der DB und nur beim Start bzw. manuell erneuert
+# — Regionen ändern sich selten.
+_DEST_INDEX_TTL = 14 * 86400  # 14 Tage
+_dest_index: list = []
+_dest_index_ts: int = 0
+_dest_index_lock = threading.Lock()
+_dest_index_building = False
+
+
+def _load_dest_index() -> None:
+    """Persistierten Reiseziel-Index aus der DB in den Speicher laden."""
+    global _dest_index, _dest_index_ts
+    raw = _meta_get('dest_index')
+    if raw:
+        try:
+            _dest_index = json.loads(raw)
+            _dest_index_ts = int(_meta_get('dest_index_ts') or 0)
+        except Exception:
+            _dest_index = []
+
+
+def _build_dest_index() -> None:
+    """Kompletten Reiseziel-Baum crawlen (teuer!) und persistieren. Läuft im
+    Hintergrund; parallele Aufrufe werden zusammengefasst."""
+    global _dest_index, _dest_index_ts, _dest_index_building
+    with _dest_index_lock:
+        if _dest_index_building:
+            return
+        _dest_index_building = True
+    try:
+        log.info("Reiseziel-Index wird aufgebaut …")
+        items = build_destination_index()
+        if items:
+            _dest_index = items
+            _dest_index_ts = int(time.time())
+            _meta_set('dest_index', json.dumps(items, ensure_ascii=False))
+            _meta_set('dest_index_ts', _dest_index_ts)
+            log.info("Reiseziel-Index bereit: %d Einträge", len(items))
+        else:
+            log.warning("Reiseziel-Index leer geblieben (API nicht erreichbar?)")
+    finally:
+        _dest_index_building = False
+
+
+def _ensure_dest_index() -> None:
+    """Beim Start: Index aus DB laden; wenn leer oder veraltet, neu aufbauen."""
+    _load_dest_index()
+    if not _dest_index or (int(time.time()) - _dest_index_ts) > _DEST_INDEX_TTL:
+        _build_dest_index()
+
+
+def _search_dest_index(q: str, limit: int = 60) -> list:
+    """Treffer im Index (Teilstring im Namen), Präfix-Treffer zuerst."""
+    ql = q.lower()
+    out = [it for it in _dest_index if ql in (it.get('label') or '').lower()]
+    out.sort(key=lambda it: (not (it.get('label') or '').lower().startswith(ql),
+                             (it.get('label') or '').lower()))
+    return out[:limit]
+
 
 @app.route('/api/destinations', methods=['GET'])
 def api_destinations():
@@ -2091,6 +2163,80 @@ def api_destinations():
             return jsonify({'error': 'unavailable'}), 502
         _dest_cache[parent] = d
     return jsonify(_dest_cache[parent])
+
+
+@app.route('/api/destinations/search', methods=['GET'])
+def api_destinations_search():
+    """Globale Reiseziel-Suche über alle Ebenen (nutzt den gecachten Index)."""
+    if (err := _require_api()):
+        return err
+    q = (request.args.get('q') or '').strip()
+    if not _dest_index and not _dest_index_building:
+        _spawn(_build_dest_index)  # erster Aufbau on-demand
+    if len(q) < 2:
+        return jsonify({'items': [], 'building': _dest_index_building,
+                        'ready': bool(_dest_index)})
+    return jsonify({'items': _search_dest_index(q),
+                    'building': _dest_index_building, 'ready': bool(_dest_index),
+                    'ts': _dest_index_ts})
+
+
+@app.route('/api/destinations/reindex', methods=['POST'])
+def api_destinations_reindex():
+    """Reiseziel-Index manuell neu aufbauen (Hintergrund)."""
+    if (err := _require_api()):
+        return err
+    _spawn(_build_dest_index)
+    return jsonify({'ok': True, 'building': True})
+
+
+@app.route('/api/searches', methods=['GET', 'POST'])
+def api_searches():
+    """Gespeicherte Suchen (Favoriten) — in der DB, geräteübergreifend.
+    GET → Liste; POST {name, payload} → anlegen/aktualisieren (per Name)."""
+    if (err := _require_api()):
+        return err
+    if request.method == 'GET':
+        with db() as con:
+            rows = con.execute(
+                'SELECT id, name, payload FROM saved_searches ORDER BY name COLLATE NOCASE'
+            ).fetchall()
+        out = []
+        for r in rows:
+            try:
+                payload = json.loads(r['payload'])
+            except Exception:
+                payload = {}
+            out.append({'id': r['id'], 'name': r['name'], 'payload': payload})
+        return jsonify({'searches': out})
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'name_required'}), 400
+    payload = json.dumps(data.get('payload') or {}, ensure_ascii=False)
+    ts = int(time.time())
+    with db() as con:
+        row = con.execute('SELECT id FROM saved_searches WHERE name=?', (name,)).fetchone()
+        if row:
+            con.execute('UPDATE saved_searches SET payload=?, ts=? WHERE id=?',
+                        (payload, ts, row['id']))
+            sid = row['id']
+        else:
+            cur = con.execute(
+                'INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)',
+                (name, payload, ts))
+            sid = cur.lastrowid
+    return jsonify({'ok': True, 'id': sid})
+
+
+@app.route('/api/searches/<int:sid>', methods=['DELETE'])
+def api_searches_delete(sid):
+    """Gespeicherte Suche löschen."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        con.execute('DELETE FROM saved_searches WHERE id=?', (sid,))
+    return jsonify({'ok': True})
 
 
 @app.route('/api/airports', methods=['GET'])
@@ -2223,6 +2369,7 @@ def main() -> None:
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
     _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
+    _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
     threading.Thread(target=_poll_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

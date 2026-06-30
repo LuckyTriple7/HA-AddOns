@@ -341,3 +341,29 @@ def test_region_giata_from_breadcrumb(monkeypatch, fx, fake_resp):
     monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: fake_resp(bc))
     # letzter Eintrag mit level==1 → 88 (Kap Verde)
     assert scraper.region_giata_from_breadcrumb("259516") == 88
+
+
+def test_build_destination_index(monkeypatch):
+    """Globale Reiseziel-Suche: kompletter Baum wird flach indiziert, mit
+    Breadcrumb-Pfad der übergeordneten Regionen und ohne Duplikate."""
+    tree = {
+        None:   [{"giata": 100030, "label": "Spanien"},
+                 {"giata": 724, "label": "Türkei"}],
+        100030: [{"giata": 851, "label": "Kanarische Inseln"},
+                 {"giata": 100002, "label": "Balearen"}],
+        851:    [{"giata": 128, "label": "Gran Canaria"},
+                 {"giata": 135, "label": "Teneriffa"}],
+    }
+    monkeypatch.setattr(scraper, "fetch_destinations",
+                        lambda parent=None: {"items": tree.get(parent, [])})
+    idx = scraper.build_destination_index()
+    by_label = {it["label"]: it for it in idx}
+    # tief verschachteltes Ziel ist enthalten (würde der Picker erst nach 2 Klicks zeigen)
+    assert "Kanarische Inseln" in by_label
+    assert by_label["Kanarische Inseln"]["path"] == "Spanien"
+    assert by_label["Gran Canaria"]["path"] == "Spanien › Kanarische Inseln"
+    # Top-Level hat leeren Pfad, alphabetisch sortiert, keine Duplikate
+    assert by_label["Spanien"]["path"] == ""
+    labels = [it["label"] for it in idx]
+    assert labels == sorted(labels, key=str.lower)
+    assert len(labels) == len(set(it["giata"] for it in idx)) == 6

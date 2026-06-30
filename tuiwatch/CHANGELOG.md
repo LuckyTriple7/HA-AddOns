@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.24.0] - 2026-06-30
+
+### Added
+- **Globale Reiseziel-Suche:** Das Suchfeld im Reiseziel-Picker durchsucht jetzt **alle
+  Ebenen** des TUI-Reiseziel-Baums. Tippt man z. B. „Kanarische Inseln", erscheint das Ziel
+  direkt — ohne erst Spanien öffnen zu müssen. Die Treffer zeigen ihren Pfad
+  (z. B. „— Spanien › Kanarische Inseln"). Grundlage ist ein flacher Index des kompletten
+  Baums, der beim Start (und danach alle 14 Tage) im Hintergrund aufgebaut und in der
+  Datenbank zwischengespeichert wird; manuell neu aufbaubar über `POST /api/destinations/reindex`.
+- **Gespeicherte Suchen in der Datenbank:** Favoriten-Suchen liegen nicht mehr nur im
+  Browser-Cache, sondern in der Add-on-Datenbank — damit sind sie **geräteübergreifend**
+  verfügbar (gleiche Liste auf Handy, Tablet, PC).
+
 ## [0.23.1] - 2026-06-29
 
 ### Fixed

@@ -739,6 +739,36 @@ def fetch_destinations(parent=None) -> dict | None:
             "items": items}
 
 
+def build_destination_index(max_depth=5) -> list:
+    """Crawlt den kompletten Reiseziel-Baum und liefert eine flache Liste
+    [{giata, label, path}] für die globale Suche über alle Ebenen. `path` ist der
+    Breadcrumb der übergeordneten Regionen (z. B. "Spanien › Kanarische Inseln").
+
+    Achtung: macht ~1000+ API-Aufrufe (ein Aufruf je Knoten). Nur im Hintergrund
+    bzw. gecacht verwenden — nicht pro Suchanfrage."""
+    out: list = []
+    seen: set = set()
+
+    def crawl(parent, trail, depth):
+        if depth > max_depth:
+            return
+        d = fetch_destinations(parent)
+        if not d:
+            return
+        for it in d.get("items", []):
+            g = it.get("giata")
+            label = it.get("label", "")
+            if g is None or g in seen:
+                continue
+            seen.add(g)
+            out.append({"giata": g, "label": label, "path": " › ".join(trail)})
+            crawl(g, trail + [label], depth + 1)
+
+    crawl(None, [], 0)
+    out.sort(key=lambda x: (x.get("label") or "").lower())
+    return out
+
+
 # Kuratierte Liste gängiger TUI-Fluggesellschaften (IATA-Codes). TUI bietet keinen
 # offenen Endpunkt für die Filterliste; die Codes entsprechen denen, die die Such- und
 # Offer-API im Parameter `airlines` erwarten (mehrere mit ';' getrennt, siehe

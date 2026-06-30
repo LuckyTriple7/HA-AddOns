@@ -361,10 +361,10 @@
       <div class="sub">Reiseziel wählen, Eckdaten setzen, suchen — oder bei einem Angebot auf <b>„Region"</b> klicken bzw. unten eine TUI-URL einfügen.</div>
 
       <div class="srch-fav" id="srch-favbar">
-        <span>★ Favorit</span>
+        <span>★ Gespeicherte Suche</span>
         <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
-        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als Favorit speichern">★ Speichern</button>
-        <button class="btn sec" onclick="delFav()" title="Gewählten Favoriten löschen">Löschen</button>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben geräteübergreifend speichern">★ Speichern</button>
+        <button class="btn sec" onclick="delFav()" title="Gewählte Suche löschen">Löschen</button>
       </div>
 
       <div id="srch-from" class="srch-from" style="display:none"></div>
@@ -1151,6 +1151,29 @@
       const box = $('#dest-rows'); if(box) box.innerHTML = rows ||
         `<div class="cmp-load">${q?'Kein Treffer für „'+esc(q)+'".':'Keine Unterregionen.'}</div>`;
     }
+    // Globale Suche über ALLE Ebenen (z. B. „Kanarische Inseln" ohne erst Spanien
+    // zu öffnen). Nutzt den gecachten Reiseziel-Index im Backend.
+    let destSearchTimer = null, destSearchToken = 0;
+    function destSearch(){
+      const q = ($('#dest-search')?$('#dest-search').value:'').trim();
+      clearTimeout(destSearchTimer);
+      if(q.length < 2){ renderDestRows(); return; }  // kurze Eingabe → aktuelle Ebene
+      destSearchTimer = setTimeout(async ()=>{
+        const token = ++destSearchToken;
+        const box = $('#dest-rows'); if(box) box.innerHTML = '<div class="cmp-load">Suche…</div>';
+        let d=null;
+        try { d = await fetch(api('/api/destinations/search?q='+encodeURIComponent(q))).then(r=>r.json()); } catch(e){}
+        if(token !== destSearchToken || !box) return;  // veraltete Antwort verwerfen
+        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+        if(!d.ready && d.building){ box.innerHTML = '<div class="cmp-load">Reiseziel-Index wird aufgebaut – einen Moment…</div>'; return; }
+        const items = d.items||[];
+        box.innerHTML = items.map(it=>
+          `<div class="dest-row" onclick="selectDest(${it.giata}, '${jsArg(it.label)}')">
+             <span>${esc(it.label)}${it.path?(' <span class="chev" style="font-weight:400;font-size:.82em">— '+esc(it.path)+'</span>'):''}</span>
+             <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button></span>
+           </div>`).join('') || `<div class="cmp-load">Kein Treffer für „${esc(q)}".</div>`;
+      }, 250);
+    }
     function renderDest(){
       const p = $('#dest-panel');
       const back = destStack.length?'<button class="btn sec" onclick="destBack()">‹ zurück</button>':'';
@@ -1158,7 +1181,7 @@
       const whole = destNode?(`<button class="btn" onclick="selectDest(${destNode.giata}, '${jsArg(destNode.label)}')">✓ Ganze Region wählen</button>`):'';
       p.innerHTML = `<div class="dest-head">${back}${title}${whole}
           <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>
-        <input type="text" id="dest-search" class="dest-search" placeholder="In dieser Liste suchen…" autocomplete="off" oninput="renderDestRows()">
+        <input type="text" id="dest-search" class="dest-search" placeholder="Reiseziel suchen (alle Ebenen, z. B. Kanarische Inseln)…" autocomplete="off" oninput="destSearch()">
         <div id="dest-rows"></div>`;
       renderDestRows();
       const si = $('#dest-search'); if(si) si.focus();
@@ -1176,13 +1199,13 @@
       $('#dest-panel').style.display='none';
     }
 
-    // — Favoriten (localStorage) —
-    function getFavs(){ try { return JSON.parse(localStorage.getItem('tw-search-favs')||'[]'); } catch(e){ return []; } }
-    function setFavs(f){ localStorage.setItem('tw-search-favs', JSON.stringify(f)); }
-    function renderFavs(){
-      const favs = getFavs();
+    // — Gespeicherte Suchen (in der DB, geräteübergreifend) —
+    let srchFavs = [];
+    async function renderFavs(){
+      try { const d = await fetch(api('/api/searches')).then(r=>r.json()); srchFavs = d.searches||[]; }
+      catch(e){ srchFavs = []; }
       $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
-        + favs.map((f,i)=>`<option value="${i}">${esc(f.name)}</option>`).join('');
+        + srchFavs.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
     }
     function curFav(){
       return { dest: srchDest, airport: $('#srch-airport').value,
@@ -1193,18 +1216,22 @@
         airlines: selectedAirlines(),
         stars: $('#srch-stars').value, rec: $('#srch-rec').value };
     }
-    function saveFav(){
+    async function saveFav(){
       if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
-      const name = prompt('Name für den Favoriten:', srchDest.label||'Suche');
+      const name = prompt('Name für die gespeicherte Suche:', srchDest.label||'Suche');
       if(name===null) return;
-      const favs = getFavs(); const f = curFav(); f.name = name.trim()||srchDest.label;
-      const ix = favs.findIndex(x=>x.name===f.name);
-      if(ix>=0) favs[ix]=f; else favs.push(f);
-      setFavs(favs); renderFavs(); toast('Favorit gespeichert');
+      let ok=false;
+      try {
+        const r = await fetch(api('/api/searches'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name: name.trim()||srchDest.label, payload: curFav()})});
+        ok = r.ok;
+      } catch(e){}
+      if(ok){ await renderFavs(); toast('Suche gespeichert'); } else { toast('Speichern fehlgeschlagen'); }
     }
     function loadFav(){
-      const i = $('#srch-favsel').value; if(i==='') return;
-      const f = getFavs()[+i]; if(!f) return;
+      const id = $('#srch-favsel').value; if(id==='') return;
+      const fav = srchFavs.find(x=>String(x.id)===String(id)); if(!fav) return;
+      const f = fav.payload||{};
       if(f.dest){ srchDest=f.dest; const b=$('#srch-dest'); b.textContent=f.dest.label; b.classList.add('set'); }
       if(f.airport){ ensureAirports().then(()=>{ $('#srch-airport').value=f.airport; }); }
       $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||''; syncBisMin();
@@ -1215,9 +1242,11 @@
       ensureAirlines().then(()=>setAirlines(f.airlines||[]));
       $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
     }
-    function delFav(){
-      const i = $('#srch-favsel').value; if(i===''){ toast('Bitte einen Favoriten wählen'); return; }
-      const favs=getFavs(); favs.splice(+i,1); setFavs(favs); renderFavs(); toast('Favorit gelöscht');
+    async function delFav(){
+      const id = $('#srch-favsel').value; if(id===''){ toast('Bitte eine gespeicherte Suche wählen'); return; }
+      let ok=false;
+      try { const r = await fetch(api('/api/searches/'+id), {method:'DELETE'}); ok = r.ok; } catch(e){}
+      if(ok){ await renderFavs(); toast('Gespeicherte Suche gelöscht'); } else { toast('Löschen fehlgeschlagen'); }
     }
 
     async function runSearch(){
